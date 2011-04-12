@@ -54,13 +54,13 @@ EXTRA_DIST =	ha_oqgraph.h ha_oqgraph.cc graphcore.cc \
 # DTRACEFILES =           .libs/libha_oqgraph_la-ha_oqgraph.o
 
 ORIG_CXXFLAGS = @CXXFLAGS@
-CXXFLAGS=
+CXXFLAGS= -DBOOST_ALL_NO_LIB=1
 noinst_HEADERS = ha_oqgraph.h \
 		 graphcore-graph.h graphcore-types.h graphcore.h
 #		 oqgraph_probes.h
 
 noinst_LTLIBRARIES = libgraphcore.la
-libgraphcore_la_SOURCES = graphcore.cc
+libgraphcore_la_SOURCES = graphcore.cc graphcore-graph.cc oqgraph_shim.cc oqgraph_thunk.cc
 libgraphcore_la_CXXFLAGS = $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS)
 
 if BUILD_OQGRAPH_FOR_MYSQL
@@ -73,14 +73,14 @@ endif !BUILD_OQGRAPH_STANDALONE
 
 EXTRA_LTLIBRARIES = ha_oqgraph.la
 mysqlplugin_LTLIBRARIES = @plugin_oqgraph_shared_target@
-ha_oqgraph_la_SOURCES = ha_oqgraph.cc
+ha_oqgraph_la_SOURCES = ha_oqgraph.cc oqgraph_judy.cc
 ha_oqgraph_la_LIBADD = libgraphcore.la
 
 # if HAVE_DTRACE
 #   ha_oqgraph_la_LIBADD += oqgraph_probes.o
 # endif
 
-ha_oqgraph_la_LDFLAGS =	-shared -module -rpath $(mysqlplugindir)
+ha_oqgraph_la_LDFLAGS =	-shared -module -rpath $(mysqlplugindir) -lJudy -Wl,-flat_namespace
 ha_oqgraph_la_CFLAGS = $(ORIG_CFLAGS) -DMYSQL_DYNAMIC_PLUGIN
 ha_oqgraph_la_CXXFLAGS = $(ORIG_CXXFLAGS) -DMYSQL_DYNAMIC_PLUGIN
 

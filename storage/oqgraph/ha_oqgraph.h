@@ -39,19 +39,21 @@ namespace open_query
 {
   struct row;
   class oqgraph;
+  class oqgraph_share;
 }
 
 /* class for the the Open Query Graph handler */
 
 class ha_oqgraph: public handler
 {
-  OQGRAPH_INFO *share;
+  TABLE_SHARE share[1];
+  TABLE edges[1];
+  Field *origid;
+  Field *destid;
+  Field *weight;
+
+  open_query::oqgraph_share *graph_share;
   open_query::oqgraph *graph;
-  THR_LOCK_DATA lock;
-  /* number of records changed since last statistics update */
-  uint records_changed;
-  uint key_stat_version;
-  bool replace_dups, ignore_dups, insert_dups;
 
   int fill_record(byte*, const open_query::row&);
 
@@ -63,7 +65,7 @@ public:
   ha_oqgraph(TABLE *table);
   ulong table_flags() const;
 #endif
-  ~ha_oqgraph() {}
+  ~ha_oqgraph();
   const char *table_type() const
   {
     return "OQGRAPH";
@@ -109,6 +111,12 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type);
   int cmp_ref(const byte *ref1, const byte *ref2);
+  
+  bool get_error_message(int error, String* buf);
+  
+  void print_error(const char* fmt, ...);
+  
 private:
   void update_key_stats();
+  String error_message;
 };
