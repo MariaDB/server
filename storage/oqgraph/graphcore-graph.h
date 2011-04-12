@@ -27,22 +27,209 @@
 #ifndef oq_graphcore_graph_h_
 #define oq_graphcore_graph_h_
 
-typedef adjacency_list
-<
-  vecS,
-  vecS,
-  bidirectionalS,
-  VertexInfo,
-  EdgeInfo
-> Graph;
+#include "oqgraph_shim.h"
 
-#define GRAPH_WEIGHTMAP(G) get(&EdgeInfo::weight, G)
-typedef property_map<Graph, EdgeWeight EdgeInfo::*>::type weightmap_type;
+#include <boost/graph/two_bit_color_map.hpp>
 
-#define GRAPH_INDEXMAP(G)  get(vertex_index, G)
-typedef property_map<Graph, vertex_index_t>::type indexmap_type;
+namespace boost
+{
+  typedef oqgraph3::graph Graph;
 
-#define GRAPH_IDMAP(G)     get(&VertexInfo::id, G)
-typedef property_map<Graph, VertexID VertexInfo::*>::type idmap_type;
+  template <>
+  struct hash<graph_traits<oqgraph3::graph>::vertex_descriptor>
+    : public std::unary_function<
+          graph_traits<oqgraph3::graph>::vertex_descriptor, std::size_t>
+  {
+    std::size_t operator()(
+        const graph_traits<oqgraph3::graph>::vertex_descriptor& v) const
+    {
+      return boost::hash_value(v->id);
+    }
+  };
+  
+  template<typename IndexMap = identity_property_map>
+  struct two_bit_judy_map
+  {
+    typedef typename property_traits<IndexMap>::key_type key_type;
+    typedef two_bit_color_type value_type;
+    typedef void reference;
+    typedef read_write_property_map_tag category;
+  
+    open_query::judy_bitset msb;
+    open_query::judy_bitset lsb;
+    IndexMap index;
+    
+    two_bit_judy_map(const IndexMap& i)
+      : index(i)
+    { }
+    
+    friend two_bit_color_type get(
+        const two_bit_judy_map<IndexMap>& pm,
+        typename property_traits<IndexMap>::key_type key)
+    {
+      typename property_traits<IndexMap>::value_type i = get(pm.index, key);
+      return two_bit_color_type((2*int(pm.msb.test(i))) | int(pm.lsb.test(i)));
+    }
+    
+    friend void put(
+        two_bit_judy_map<IndexMap>& pm,
+        typename property_traits<IndexMap>::key_type key,
+        two_bit_color_type value)
+    {
+      typename property_traits<IndexMap>::value_type i = get(pm.index, key);
+      pm.msb.set(i, value & 2);
+      pm.lsb.set(i, value & 1);
+    }
+  };
+  
+  template<typename IndexMap>
+  inline two_bit_judy_map<IndexMap>
+  make_two_bit_judy_map(const IndexMap& index)
+  {
+    return two_bit_judy_map<IndexMap>(index);
+  }
+
+   
+  template <typename Type>
+  struct default_lazy_initializer
+  {
+    template <typename Key>
+    Type operator()(const Key&) const { return Type(); }
+  };
+
+  template <typename Type>
+  struct copy_initializer
+  {
+    copy_initializer(const Type& value) : _(value) { }
+    template <typename Key>
+    const Type& operator()(const Key&) const { return _; }
+    const Type& _;
+  };
+
+  template <typename Type>
+  copy_initializer<Type> make_copy_initializer(const Type& value)
+  { return copy_initializer<Type>(value); }
+
+
+  template <typename Type>
+  struct value_initializer
+  {
+    value_initializer(const Type& value) : _(value) { }
+    template <typename Key>
+    const Type& operator()(const Key&) const { return _; }
+    const Type _;
+  };
+  
+  template <typename Type>
+  value_initializer<Type> make_value_initializer(const Type& value)
+  { return value_initializer<Type>(value); }
+  
+
+  template <typename Key>
+  struct identity_initializer
+  {
+    const Key& operator()(const Key& _) const { return _; }
+  };
+
+  template <class Container, class Generator>
+  struct lazy_property_map
+  {
+    typedef lazy_property_map<Container, Generator> self;
+    typedef typename Container::key_type key_type;
+    typedef typename Container::value_type::second_type value_type;
+    typedef value_type& reference;
+    typedef lvalue_property_map_tag category;
+    
+    lazy_property_map(Container& m, Generator g= Generator())
+      : _m(m)
+      , _g(g)
+    { }
+    
+    reference operator[](const key_type& k) const
+    {
+      typename Container::iterator found= _m.find(k);
+      if (_m.end() == found)
+      {
+        found= _m.insert(std::make_pair(k, _g(k))).first;
+      }
+      return found->second;
+    }
+    
+    void set(const key_type& k, const value_type& v)
+    { _m[k] = v; }
+
+    friend reference get(const self& s, const key_type& k)
+    {
+      return s[k];
+    }
+    
+    friend void put(self& s, const key_type& k, const value_type& v)
+    { s.set(k, v); }
+
+    Container& _m;
+    Generator _g;
+  };
+
+  template <class Container, class Generator>
+  lazy_property_map<Container, Generator>
+  make_lazy_property_map(Container& c, Generator g)
+  { return lazy_property_map<Container, Generator>(c, g); }
+
+#if 0
+  
+  struct map_wra
+  
+  
+  struct property_traits< unordered_map_wrapper<K,T,H,P,A
+  
+  
+
+  template <class K, class T, class H, class P, class A>
+  struct property_traits< unordered_map<K,T,H,P,A> > {
+    typedef T value_type;
+    typedef K key_type;
+    typedef T& reference;
+    struct category
+      : public read_write_property_map_tag
+      , public lvalue_property_map_tag
+    { };
+    
+    friend reference get(
+        unordered_map<K,T,H,P,A>& m, 
+        const key_type& k)
+    {
+      return m[k];
+    }
+    
+    friend void put(
+        unordered_map<K,T,H,P,A>& m,
+        const key_type& k,
+        const value_type& v)
+    {
+      m[k]= v;
+    }
+  };
+
+  //template <class K, class T, class H, class P, class A>
+  //property_traits< unordered_map<K,T,H,P,A> >::reference
+  //get(unordered_map<K,T,H,P,A>& m,
+  //    const property_traits< unordered_map<K,T,H,P,A> >::key_type& k)
+  //{ return m[ k ]; }
+
+  //template <class K, class T, class H, class P, class A>
+  //void put(
+  //    unordered_map<K,T,H,P,A>& m, 
+  //    const property_traits< unordered_map<K,T,H,P,A> >::key_type& k,
+  //    const property_traits< unordered_map<K,T,H,P,A> >::value_type& v)
+  //{ m[ k ] = v; }
+
+  //template <class K, class T, class H, class P, class A>
+  //property_traits< unordered_map<K,T,H,P,A>::reference
+  //get(unordered_map<K,T,H,P,A>& m,
+  //    const graph_traits<oqgraph3::graph>::vertex_descriptor& v)
+  //{ return m[ v->id ]; }
+#endif
+
+}
 
 #endif

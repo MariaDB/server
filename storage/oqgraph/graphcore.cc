@@ -30,14 +30,13 @@
 
 #include <boost/config.hpp>
 
+#include "graphcore-graph.h"
+
 #include <set>
 #include <stack>
 
 #include <boost/property_map/property_map.hpp>
 
-#include <boost/graph/graph_concepts.hpp>
-#include <boost/graph/graph_archetypes.hpp>
-#include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/breadth_first_search.hpp>
 #include <boost/graph/dijkstra_shortest_paths.hpp>
 #include <boost/graph/iteration_macros.hpp>
@@ -46,6 +45,8 @@
 
 #include "graphcore.h"
 
+#include <boost/unordered_map.hpp>
+
 using namespace open_query;
 using namespace boost;
 
@@ -53,46 +54,6 @@ static const row empty_row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 namespace open_query
 {
-  enum vertex_id_t { vertex_id };
-
-  struct VertexInfo {
-    inline VertexInfo() { }
-
-    inline VertexInfo(VertexID _id)
-      : id(_id) { }
-
-    VertexID id;
-  };
-
-  struct EdgeInfo {
-    EdgeWeight weight;
-  };
-}
-
-namespace boost
-{
-  BOOST_INSTALL_PROPERTY(vertex, id);
-
-  namespace graph
-  {
-    template<>
-    struct internal_vertex_name<VertexInfo>
-    {
-      typedef multi_index::member<VertexInfo, VertexID, &VertexInfo::id> type;
-    };
-
-    template<>
-    struct internal_vertex_constructor<VertexInfo>
-    {
-      typedef vertex_from_name<VertexInfo> type;
-    };
-  }
-}
-
-namespace open_query
-{
-
-  #include "graphcore-graph.h"
 
   typedef graph_traits<Graph>::vertex_descriptor Vertex;
   typedef graph_traits<Graph>::edge_descriptor Edge;
@@ -261,18 +222,15 @@ namespace open_query {
   public:
     Graph g;
 
-    weightmap_type weightmap;
-    idmap_type idmap;
-    indexmap_type indexmap;
-
     optional<Vertex> find_vertex(VertexID id) const;
     optional<Edge> find_edge(Vertex, Vertex) const;
 
-    inline oqgraph_share() throw()
-      : g(),
-        weightmap(GRAPH_WEIGHTMAP(g)),
-        idmap(GRAPH_IDMAP(g)),
-        indexmap(GRAPH_INDEXMAP(g))
+    inline oqgraph_share(
+        TABLE* table,
+        Field* origid,
+        Field* destid,
+        Field* weight) throw()
+      : g(table, origid, destid, weight)
     { }
     inline ~oqgraph_share()
     { }
@@ -360,13 +318,13 @@ namespace open_query {
     }
   };
 
+  template <typename P, typename D>
   struct GRAPHCORE_INTERNAL oqgraph_visit_dist
-    : public base_visitor<oqgraph_visit_dist>
+    : public base_visitor< oqgraph_visit_dist<P,D> >
   {
     typedef on_finish_vertex event_filter;
 
-    oqgraph_visit_dist(std::vector<Vertex>::iterator p,
-                       std::vector<EdgeWeight>::iterator d,
+    oqgraph_visit_dist(const P& p, const D& d,
                        stack_cursor *cursor)
       : seq(0), m_cursor(*cursor), m_p(p), m_d(d)
     { assert(cursor); }
@@ -374,22 +332,28 @@ namespace open_query {
     template<class T, class Graph>
     void operator()(T u, Graph &g)
     {
-      m_cursor.results.push(reference(++seq, u, m_d[GRAPH_INDEXMAP(g)[u]]));
+      m_cursor.results.push(reference(++seq, u, m_d[ u ]));
     }
   private:
     int seq;
     stack_cursor &m_cursor;
-    std::vector<Vertex>::iterator m_p;
-    std::vector<EdgeWeight>::iterator m_d;
+    P m_p;
+    D m_d;
   };
 
-  template<bool record_weight, typename goal_filter>
+  template <typename P, typename D>
+  oqgraph_visit_dist<P,D>
+    make_oqgraph_visit_dist(const P& p, const D& d, stack_cursor *cursor)
+  { return oqgraph_visit_dist<P,D>(p, d, cursor); }
+  
+
+  template<bool record_weight, typename goal_filter, typename P>
   struct GRAPHCORE_INTERNAL oqgraph_goal
-    : public base_visitor<oqgraph_goal<record_weight,goal_filter> >
+    : public base_visitor<oqgraph_goal<record_weight,goal_filter,P> >
   {
     typedef goal_filter event_filter;
 
-    oqgraph_goal(Vertex goal, std::vector<Vertex>::iterator p,
+    oqgraph_goal(const Vertex& goal, const P& p,
                  stack_cursor *cursor)
       : m_goal(goal), m_cursor(*cursor), m_p(p)
     { assert(cursor); }
@@ -400,17 +364,16 @@ namespace open_query {
       if (u == m_goal)
       {
         int seq= 0;
-        indexmap_type indexmap= GRAPH_INDEXMAP(g);
 
         for (Vertex q, v= u;; v = q, seq++)
-          if ((q= m_p[ indexmap[v] ]) == v)
+          if ((q= m_p[ v ]) == v)
             break;
 
         for (Vertex v= u;; u= v)
         {
           optional<Edge> edge;
           optional<EdgeWeight> weight;
-          v= m_p[ indexmap[u] ];
+          v= m_p[ u ];
           if (record_weight && u != v)
           {
             typename graph_traits<Graph>::out_edge_iterator ei, ei_end;
@@ -419,7 +382,7 @@ namespace open_query {
               if (target(*ei, g) == u)
               {
                 edge= *ei;
-                weight= GRAPH_WEIGHTMAP(g)[*ei];
+                weight= get(boost::edge_weight, g, *ei);
                 break;
               }
             }
@@ -437,8 +400,14 @@ namespace open_query {
   private:
     Vertex m_goal;
     stack_cursor &m_cursor;
-    std::vector<Vertex>::iterator m_p;
+    P m_p;
   };
+  
+  template<bool record_weight, typename goal_filter, typename P>
+  oqgraph_goal<record_weight, goal_filter, P>
+    make_oqgraph_goal(const Vertex& goal, const P& p, stack_cursor *cursor)
+  { return oqgraph_goal<record_weight, goal_filter, P>(goal, p, cursor); }
+
 }
 
 namespace open_query
@@ -468,9 +437,14 @@ namespace open_query
     return new (std::nothrow) oqgraph(share);
   }
 
-  oqgraph_share* oqgraph::create() throw()
+  oqgraph_share* oqgraph::create(
+      TABLE* table,
+      Field* origid,
+      Field* destid,
+      Field* weight) throw()
   {
-    return new (std::nothrow) oqgraph_share();
+    return new (std::nothrow) oqgraph_share(
+        table, origid, destid, weight);
   }
 
   optional<Edge>
@@ -480,14 +454,14 @@ namespace open_query
     {
       graph_traits<Graph>::out_edge_iterator ei, ei_end;
       tie(ei, ei_end)= out_edges(orig, g);
-      if ((ei= find_if(ei, ei_end, target_equals(dest, g))) != ei_end)
+      if ((ei= std::find_if(ei, ei_end, target_equals(dest, g))) != ei_end)
         return *ei;
     }
     else
     {
       graph_traits<Graph>::in_edge_iterator ei, ei_end;
       tie(ei, ei_end)= in_edges(dest, g);
-      if ((ei= find_if(ei, ei_end, source_equals(orig, g))) != ei_end)
+      if ((ei= std::find_if(ei, ei_end, source_equals(orig, g))) != ei_end)
         return *ei;
     }
     return optional<Edge>();
@@ -496,9 +470,10 @@ namespace open_query
   optional<Vertex>
   oqgraph_share::find_vertex(VertexID id) const
   {
-    return boost::graph::find_vertex(id, g);
+    return ::boost::find_vertex(id, g);
   }
 
+#if 0
   int oqgraph::delete_all() throw()
   {
     share->g.clear();
@@ -598,8 +573,9 @@ namespace open_query
     optional<Vertex> orig= source(*edge, share->g),
                      dest= target(*edge, share->g);
 
-    bool orig_neq= orig_id ? share->idmap[*orig] != *orig_id : 0;
-    bool dest_neq= dest_id ? share->idmap[*dest] != *dest_id : 0;
+    bool orig_neq= orig_id ? get(boost::vertex_index, share->g, *orig) != *orig_id : 0;
+    bool dest_neq= dest_id ? get(boost::vertex_index, share->g, *dest) != *dest_id : 0;
+
     if (orig_neq || dest_neq)
     {
       optional<Edge> new_edge;
@@ -675,7 +651,6 @@ namespace open_query
     return OK;
   }
 
-
   int oqgraph::delete_edge(VertexID orig_id, VertexID dest_id) throw()
   {
     optional<Vertex> orig, dest;
@@ -694,6 +669,7 @@ namespace open_query
       remove_vertex(*dest, share->g);
     return OK;
   }
+#endif
 
 
   int oqgraph::search(int *latch, VertexID *orig_id, VertexID *dest_id) throw()
@@ -731,7 +707,8 @@ namespace open_query
           {
             Vertex v= target(*ei, share->g);
             static_cast<stack_cursor*>(cursor)->
-                results.push(reference(++seq, v, *ei, share->weightmap[*ei]));
+                results.push(reference(++seq, v, *ei,
+                    get(boost::edge_weight, share->g, *ei)));
           }
         }
         /* fall through */
@@ -745,7 +722,8 @@ namespace open_query
           {
             Vertex v= source(*ei, share->g);
             static_cast<stack_cursor*>(cursor)->
-                results.push(reference(++seq, v, *ei, share->weightmap[*ei]));
+                results.push(reference(++seq, v, *ei,
+                    get(boost::edge_weight, share->g, *ei)));
           }
         }
         break;
@@ -757,27 +735,29 @@ namespace open_query
       case DIJKSTRAS | HAVE_ORIG | HAVE_DEST:
         if ((cursor= new (std::nothrow) stack_cursor(share)) && orig && dest)
         {
-          std::vector<Vertex> p(num_vertices(share->g));
-          std::vector<EdgeWeight> d(num_vertices(share->g));
-          oqgraph_goal<true, on_finish_vertex>
-              vis(*dest, p.begin(), static_cast<stack_cursor*>(cursor));
-          p[share->indexmap[*orig]]= *orig;
+          boost::unordered_map<Vertex, Vertex> p;
+          boost::unordered_map<Vertex, EdgeWeight> d;
+          p[ *orig ]= *orig;
+          d[ *orig ] = EdgeWeight();
           try
           {
-            dijkstra_shortest_paths(share->g, *orig,
-                weight_map(
-                  share->weightmap
-                ).
-                distance_map(
-                    make_iterator_property_map(d.begin(), share->indexmap)
-                ).
-                predecessor_map(
-                    make_iterator_property_map(p.begin(), share->indexmap)
-                ).
-                visitor(
-                    make_dijkstra_visitor(vis)
-                )
-            );
+            dijkstra_shortest_paths_no_init(share->g, *orig,
+                make_lazy_property_map(p, identity_initializer<Vertex>()),
+                make_lazy_property_map(d, value_initializer<EdgeWeight>(
+                    (std::numeric_limits<EdgeWeight>::max)())),
+                get(edge_weight, share->g),
+                get(vertex_index, share->g),
+                std::less<EdgeWeight>(),
+                closed_plus<EdgeWeight>(),
+                EdgeWeight(),
+                make_dijkstra_visitor(
+                    make_oqgraph_goal<true, on_finish_vertex>(
+                        *dest,
+                        boost::make_assoc_property_map(p),
+                        static_cast<stack_cursor*>(cursor)
+                    )
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
           }
           catch (...)
           { /* printf("found\n"); */ }
@@ -787,23 +767,25 @@ namespace open_query
       case BREADTH_FIRST | HAVE_ORIG | HAVE_DEST:
         if ((cursor= new (std::nothrow) stack_cursor(share)) && orig && dest)
         {
-          std::vector<Vertex> p(num_vertices(share->g));
-          oqgraph_goal<false, on_discover_vertex>
-              vis(*dest, p.begin(), static_cast<stack_cursor*>(cursor));
-          p[share->indexmap[*orig]]= *orig;
+          boost::unordered_map<Vertex, Vertex> p;
+          boost::queue<Vertex> Q;
+          p[ *orig ]= *orig;
           try
           {
-            breadth_first_search(share->g, *orig,
-                visitor(make_bfs_visitor(
+            breadth_first_visit(share->g, *orig, Q,
+                make_bfs_visitor(
                     std::make_pair(
                         record_predecessors(
-                            make_iterator_property_map(p.begin(), share->indexmap),
+                            boost::make_assoc_property_map(p),
                             on_tree_edge()
                         ),
-                        vis)
+                        make_oqgraph_goal<false, on_discover_vertex>(
+                            *dest, boost::make_assoc_property_map(p),
+                            static_cast<stack_cursor*>(cursor)
+                        )
                     )
-                )
-            );
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
           }
           catch (...)
           { /* printf("found\n"); */ }
@@ -814,109 +796,121 @@ namespace open_query
       case BREADTH_FIRST | HAVE_ORIG:
         if ((cursor= new (std::nothrow) stack_cursor(share)) && (orig || dest))
         {
-          std::vector<Vertex> p(num_vertices(share->g));
-          std::vector<EdgeWeight> d(num_vertices(share->g));
-          oqgraph_visit_dist vis(p.begin(), d.begin(),
-                                 static_cast<stack_cursor*>(cursor));
-          p[share->indexmap[*orig]]= *orig;
+          boost::unordered_map<Vertex, Vertex> p;
+          boost::unordered_map<Vertex, EdgeWeight> d;
+          boost::queue<Vertex> Q;
+          p[ *orig ]= *orig;
+          d[ *orig ] = EdgeWeight();
           switch (ALGORITHM & op)
           {
           case DIJKSTRAS:
-            dijkstra_shortest_paths(share->g, *orig,
-                weight_map(
-                  share->weightmap
-                ).
-                distance_map(
-                    make_iterator_property_map(d.begin(), share->indexmap)
-                ).
-                predecessor_map(
-                    make_iterator_property_map(p.begin(), share->indexmap)
-                ).
-                visitor(
-                    make_dijkstra_visitor(vis)
-                )
-            );
-            break;
+            dijkstra_shortest_paths_no_init(share->g, *orig,
+                make_lazy_property_map(p, identity_initializer<Vertex>()),
+                make_lazy_property_map(d, value_initializer<EdgeWeight>(
+                    (std::numeric_limits<EdgeWeight>::max)())),
+                get(edge_weight, share->g),
+                get(vertex_index, share->g),
+                std::less<EdgeWeight>(),
+                closed_plus<EdgeWeight>(),
+                EdgeWeight(),
+                make_dijkstra_visitor(
+                    make_oqgraph_visit_dist(
+                        boost::make_assoc_property_map(p), d,
+                        static_cast<stack_cursor*>(cursor)
+                    )
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
+            break; 
           case BREADTH_FIRST:
-            breadth_first_search(share->g, *orig,
-                visitor(make_bfs_visitor(
+            breadth_first_visit(share->g, *orig, Q,
+                make_bfs_visitor(
                     std::make_pair(
                         record_predecessors(
-                            make_iterator_property_map(p.begin(),
-                                                       share->indexmap),
+                            boost::make_assoc_property_map(p),
                             on_tree_edge()
                         ),
                     std::make_pair(
                         record_distances(
-                            make_iterator_property_map(d.begin(),
-                                                       share->indexmap),
+                            boost::make_assoc_property_map(d),
                             on_tree_edge()
                         ),
-                        vis
+                        make_oqgraph_visit_dist(
+                            boost::make_assoc_property_map(p),
+                            boost::make_assoc_property_map(d),
+                            static_cast<stack_cursor*>(cursor)
+                        )
                     ))
-                ))
-            );
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
             break;
           default:
             abort();
           }
         }
         break;
+#if 0
 
       case BREADTH_FIRST | HAVE_DEST:
       case DIJKSTRAS | HAVE_DEST:
         if ((cursor= new (std::nothrow) stack_cursor(share)) && (orig || dest))
         {
-          std::vector<Vertex> p(num_vertices(share->g));
-          std::vector<EdgeWeight> d(num_vertices(share->g));
-          oqgraph_visit_dist vis(p.begin(), d.begin(),
-                                 static_cast<stack_cursor*>(cursor));
+          boost::unordered_map<Vertex, Vertex> p;
+          boost::unordered_map<Vertex, EdgeWeight> d;
+          boost::queue<Vertex> Q;
           reverse_graph<Graph> r(share->g);
-          p[share->indexmap[*dest]]= *dest;
+          p[ *dest ]= *dest;
+          d[ *dest ] = EdgeWeight();
           switch (ALGORITHM & op)
           {
           case DIJKSTRAS:
-            dijkstra_shortest_paths(r, *dest,
-                weight_map(
-                  share->weightmap
-                ).
-                distance_map(
-                    make_iterator_property_map(d.begin(), share->indexmap)
-                ).
-                predecessor_map(
-                    make_iterator_property_map(p.begin(), share->indexmap)
-                ).
-                visitor(
-                    make_dijkstra_visitor(vis)
-                )
-            );
+            dijkstra_shortest_paths_no_init(share->g, *dest,
+                make_lazy_property_map(p, identity_initializer<Vertex>()),
+                make_lazy_property_map(d, value_initializer<EdgeWeight>(
+                    (std::numeric_limits<EdgeWeight>::max)())),
+                get(edge_weight, share->g),
+                get(vertex_index, share->g),
+                std::less<EdgeWeight>(),
+                closed_plus<EdgeWeight>(),
+                EdgeWeight(),
+                make_dijkstra_visitor(
+                    make_dijkstra_visitor(
+                        make_oqgraph_visit_dist(
+                            boost::make_assoc_property_map(p),
+                            boost::make_assoc_property_map(d),
+                            static_cast<stack_cursor*>(cursor)
+                        )
+                    )
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
             break;
           case BREADTH_FIRST:
-            breadth_first_search(r, *dest,
-                visitor(make_bfs_visitor(
+            breadth_first_visit(share->g, *dest, Q,
+                make_bfs_visitor(
                     std::make_pair(
                         record_predecessors(
-                            make_iterator_property_map(p.begin(),
-                                                       share->indexmap),
+                            boost::make_assoc_property_map(p),
                             on_tree_edge()
                         ),
                     std::make_pair(
                         record_distances(
-                            make_iterator_property_map(d.begin(),
-                                                       share->indexmap),
+                            boost::make_assoc_property_map(d),
                             on_tree_edge()
                         ),
-                        vis
+                        make_oqgraph_visit_dist(
+                            boost::make_assoc_property_map(p),
+                            boost::make_assoc_property_map(d),
+                            static_cast<stack_cursor*>(cursor)
+                        )
                     ))
-                ))
-            );
+                ),
+                make_two_bit_judy_map(get(vertex_index, share->g)));
             break;
           default:
             abort();
           }
         }
         break;
-
+#endif
       default:
         break;
       }
@@ -1006,7 +1000,7 @@ int stack_cursor::fetch_row(const row &row_info, row &result,
     if ((result.seq_indicator= seq= last.sequence()))
       result.seq= *seq;
     if ((result.link_indicator= v= last.vertex()))
-      result.link= share->idmap[*v];
+      result.link= get(boost::vertex_index, share->g, *v);
     if ((result.weight_indicator= w= last.weight()))
       result.weight= *w;
     return oqgraph::OK;
@@ -1040,7 +1034,7 @@ int vertices_cursor::fetch_row(const row &row_info, row &result,
   if (v)
   {
     result.link_indicator= 1;
-    result.link= share->idmap[*v];
+    result.link= get(boost::vertex_index, share->g, *v);
 #ifdef DISPLAY_VERTEX_INFO
     result.seq_indicator= 1;
     if ((result.seq= degree(*v, share->g)))
@@ -1048,10 +1042,10 @@ int vertices_cursor::fetch_row(const row &row_info, row &result,
       EdgeWeight weight= 0;
       graph_traits<Graph>::in_edge_iterator iei, iei_end;
       for (tie(iei, iei_end)= in_edges(*v, share->g); iei != iei_end; ++iei)
-        weight+= share->weightmap[*iei];
+        weight+= get(boost::edge_weight, share->g, *iei);
       graph_traits<Graph>::out_edge_iterator oei, oei_end;
       for (tie(oei, oei_end)= out_edges(*v, share->g); oei != oei_end; ++oei)
-        weight+= share->weightmap[*oei];
+        weight+= get(boost::edge_weight, share->g, *oei);
       result.weight_indicator= 1;
       result.weight= weight / result.seq;
     }
@@ -1085,9 +1079,9 @@ int edges_cursor::fetch_row(const row &row_info, row &result,
   {
     result= row_info;
     result.orig_indicator= result.dest_indicator= result.weight_indicator= 1;
-    result.orig= share->idmap[ source( *edge, share->g ) ];
-    result.dest= share->idmap[ target( *edge, share->g ) ];
-    result.weight= share->weightmap[ *edge ];
+    result.orig= get(boost::vertex_index, share->g, source( *edge, share->g ) );
+    result.dest= get(boost::vertex_index, share->g, target( *edge, share->g ) );
+    result.weight= get(boost::edge_weight, share->g, *edge);
     return oqgraph::OK;
   }
   return oqgraph::NO_MORE_DATA;
