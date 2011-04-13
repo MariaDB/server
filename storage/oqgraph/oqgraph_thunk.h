@@ -205,7 +205,7 @@ namespace oqgraph3
       , _weight(weight)
       , _prev(prev)
       , _next(next)
-    { }
+    { printf("row_info(%lld,%lld,%f)\n", source, target, weight);}
   };
 
   namespace internal
