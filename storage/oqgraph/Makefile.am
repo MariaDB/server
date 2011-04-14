@@ -59,9 +59,9 @@ noinst_HEADERS = ha_oqgraph.h \
 		 graphcore-graph.h graphcore-types.h graphcore.h
 #		 oqgraph_probes.h
 
-noinst_LTLIBRARIES = libgraphcore.la
-libgraphcore_la_SOURCES = graphcore.cc graphcore-graph.cc oqgraph_shim.cc oqgraph_thunk.cc
-libgraphcore_la_CXXFLAGS = $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS)
+#noinst_LTLIBRARIES = libgraphcore.la
+#libgraphcore_la_SOURCES = graphcore.cc graphcore-graph.cc oqgraph_shim.cc oqgraph_thunk.cc
+#libgraphcore_la_CXXFLAGS = $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS)
 
 if BUILD_OQGRAPH_FOR_MYSQL
 
@@ -73,8 +73,27 @@ endif !BUILD_OQGRAPH_STANDALONE
 
 EXTRA_LTLIBRARIES = ha_oqgraph.la
 mysqlplugin_LTLIBRARIES = @plugin_oqgraph_shared_target@
-ha_oqgraph_la_SOURCES = ha_oqgraph.cc oqgraph_judy.cc
-ha_oqgraph_la_LIBADD = libgraphcore.la
+ha_oqgraph_la_SOURCES = ha_oqgraph.cc oqgraph_judy.cc \
+        graphcore.cc graphcore-graph.cc \
+        oqgraph_thunk.cc oqgraph_shim.cc
+        
+#ha_oqgraph_la_LIBADD = libgraphcore.la
+
+ha_oqgraph_la-graphcore.lo: graphcore.cc
+	$(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS) $(CXXFLAGS) -MT ha_oqgraph_la-graphcore.lo -MD -MP -MF $(DEPDIR)/ha_oqgraph_la-graphcore.Tpo -c -o ha_oqgraph_la-graphcore.lo `test -f 'graphcore.cc' || echo '$(srcdir)/'`graphcore.cc
+	mv -f $(DEPDIR)/ha_oqgraph_la-graphcore.Tpo $(DEPDIR)/ha_oqgraph_la-graphcore.Plo
+
+ha_oqgraph_la-graphcore-graph.lo: graphcore-graph.cc
+	$(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS) $(CXXFLAGS) -MT ha_oqgraph_la-graphcore-graph.lo -MD -MP -MF $(DEPDIR)/ha_oqgraph_la-graphcore-graph.Tpo -c -o ha_oqgraph_la-graphcore-graph.lo `test -f 'graphcore.cc' || echo '$(srcdir)/'`graphcore-graph.cc
+	mv -f $(DEPDIR)/ha_oqgraph_la-graphcore-graph.Tpo $(DEPDIR)/ha_oqgraph_la-graphcore-graph.Plo
+
+ha_oqgraph_la-oqgraph_shim.lo: oqgraph_shim.cc
+	$(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS) $(CXXFLAGS) -MT ha_oqgraph_la-oqgraph_shim.lo -MD -MP -MF $(DEPDIR)/ha_oqgraph_la-oqgraph_shim.Tpo -c -o ha_oqgraph_la-oqgraph_shim.lo `test -f 'oqgraph_shim.cc' || echo '$(srcdir)/'`oqgraph_shim.cc
+	mv -f $(DEPDIR)/ha_oqgraph_la-oqgraph_shim.Tpo $(DEPDIR)/ha_oqgraph_la-oqgraph_shim.Plo
+
+ha_oqgraph_la-oqgraph_thunk.lo: oqgraph_thunk.cc
+	$(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(ORIG_CXXFLAGS) $(BOOST_CXXFLAGS) $(CXXFLAGS) -MT ha_oqgraph_la-oqgraph_thunk.lo -MD -MP -MF $(DEPDIR)/ha_oqgraph_la-oqgraph_thunk.Tpo -c -o ha_oqgraph_la-oqgraph_thunk.lo `test -f 'oqgraph_thunk.cc' || echo '$(srcdir)/'`oqgraph_thunk.cc
+	mv -f $(DEPDIR)/ha_oqgraph_la-oqgraph_thunk.Tpo $(DEPDIR)/ha_oqgraph_la-oqgraph_thunk.Plo
 
 # if HAVE_DTRACE
 #   ha_oqgraph_la_LIBADD += oqgraph_probes.o

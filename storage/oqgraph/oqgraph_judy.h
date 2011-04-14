@@ -41,8 +41,20 @@ namespace open_query
       : array(0)
     { }
 
+    judy_bitset(const judy_bitset& src)
+      : array(0)
+    {
+      set(src);
+    }
+
     ~judy_bitset()
     { clear(); }
+
+    judy_bitset& operator=(const judy_bitset& src)
+    {
+      clear();
+      return set(src);
+    }
 
     void clear();
     bool empty() const { return !array; }
@@ -55,6 +67,8 @@ namespace open_query
       else
         return setbit(n);
     }
+
+    judy_bitset& set(const judy_bitset& src);
 
     judy_bitset& reset(size_type n);
     judy_bitset& flip(size_type n);
@@ -85,7 +99,7 @@ namespace open_query
       { if (value) j.flip(n); return *this; }
       reference& operator-=(bool value)
       { if (value) j.reset(n); return *this; }
-      
+
       bool operator~() const { return !j.test(n); }
       operator bool() const { return j.test(n); }
       reference& flip() { j.flip(n); return *this; }
@@ -94,10 +108,10 @@ namespace open_query
       judy_bitset& j;
       size_type n;
     };
-    
+
     reference operator[](size_type n) { return reference(*this, n); }
     bool operator[](size_type n) const { return test(n); }
-    
+
     size_type find_first() const;
     size_type find_next(size_type n) const;
   private:
