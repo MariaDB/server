@@ -26,3 +26,51 @@
 
 #include "oqgraph_shim.h"
 
+bool oqgraph3::edge_iterator::seek()
+{
+  if (!_graph->_cursor ||
+      _graph->_rnd_pos > _offset ||
+      _graph->_cursor != _graph->_rnd_cursor.operator->())
+  {
+    _graph->_rnd_pos= 0;
+    _graph->_rnd_cursor= new cursor(_graph);
+    if (_graph->_rnd_cursor->seek_to(boost::none, boost::none))
+      _graph->_rnd_pos= size_t(-1);
+  }
+  while (_graph->_rnd_pos < _offset)
+  {
+    if (_graph->_rnd_cursor->seek_next())
+    {
+      _offset = size_t(-1);
+      return true;
+    }
+    _graph->_rnd_pos++;
+  }
+  return false;
+}
+
+oqgraph3::edge_iterator::value_type oqgraph3::edge_iterator::operator*()
+{
+  seek();
+  return *_graph->_rnd_cursor;
+}
+
+bool oqgraph3::edge_iterator::operator==(const self& x)
+{
+  if (_offset == size_t(-1) && x._offset != size_t(-1))
+    return const_cast<edge_iterator&>(x).seek();
+  if (_offset != size_t(-1) && x._offset == size_t(-1))
+    return seek();
+
+  return _offset == x._offset;
+}
+
+bool oqgraph3::edge_iterator::operator!=(const self& x)
+{
+  if (_offset == size_t(-1) && x._offset != size_t(-1))
+    return !const_cast<edge_iterator&>(x).seek();
+  if (_offset != size_t(-1) && x._offset == size_t(-1))
+    return !seek();
+
+  return _offset != x._offset;
+}

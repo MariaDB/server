@@ -90,6 +90,19 @@ open_query::judy_bitset::size_type open_query::judy_bitset::count() const
   return rc;
 }
 
+open_query::judy_bitset& open_query::judy_bitset::set(const judy_bitset& src)
+{
+  if (!src.empty())
+  {
+    for (size_type pos= src.find_first(); pos != npos; pos= src.find_next(pos))
+    {
+      set(pos);
+    }
+  }
+  return *this;
+}
+
+
 open_query::judy_bitset::size_type open_query::judy_bitset::find_first() const
 {
   int rc;

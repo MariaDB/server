@@ -35,18 +35,6 @@ namespace boost
 {
   typedef oqgraph3::graph Graph;
 
-  template <>
-  struct hash<graph_traits<oqgraph3::graph>::vertex_descriptor>
-    : public std::unary_function<
-          graph_traits<oqgraph3::graph>::vertex_descriptor, std::size_t>
-  {
-    std::size_t operator()(
-        const graph_traits<oqgraph3::graph>::vertex_descriptor& v) const
-    {
-      return boost::hash_value(v->id);
-    }
-  };
-  
   template<typename IndexMap = identity_property_map>
   struct two_bit_judy_map
   {
@@ -54,15 +42,15 @@ namespace boost
     typedef two_bit_color_type value_type;
     typedef void reference;
     typedef read_write_property_map_tag category;
-  
+
     open_query::judy_bitset msb;
     open_query::judy_bitset lsb;
     IndexMap index;
-    
+
     two_bit_judy_map(const IndexMap& i)
       : index(i)
     { }
-    
+
     friend two_bit_color_type get(
         const two_bit_judy_map<IndexMap>& pm,
         typename property_traits<IndexMap>::key_type key)
@@ -70,7 +58,7 @@ namespace boost
       typename property_traits<IndexMap>::value_type i = get(pm.index, key);
       return two_bit_color_type((2*int(pm.msb.test(i))) | int(pm.lsb.test(i)));
     }
-    
+
     friend void put(
         two_bit_judy_map<IndexMap>& pm,
         typename property_traits<IndexMap>::key_type key,
@@ -81,7 +69,7 @@ namespace boost
       pm.lsb.set(i, value & 1);
     }
   };
-  
+
   template<typename IndexMap>
   inline two_bit_judy_map<IndexMap>
   make_two_bit_judy_map(const IndexMap& index)
@@ -89,7 +77,7 @@ namespace boost
     return two_bit_judy_map<IndexMap>(index);
   }
 
-   
+
   template <typename Type>
   struct default_lazy_initializer
   {
@@ -119,11 +107,11 @@ namespace boost
     const Type& operator()(const Key&) const { return _; }
     const Type _;
   };
-  
+
   template <typename Type>
   value_initializer<Type> make_value_initializer(const Type& value)
   { return value_initializer<Type>(value); }
-  
+
 
   template <typename Key>
   struct identity_initializer
@@ -139,12 +127,12 @@ namespace boost
     typedef typename Container::value_type::second_type value_type;
     typedef value_type& reference;
     typedef lvalue_property_map_tag category;
-    
+
     lazy_property_map(Container& m, Generator g= Generator())
       : _m(m)
       , _g(g)
     { }
-    
+
     reference operator[](const key_type& k) const
     {
       typename Container::iterator found= _m.find(k);
@@ -154,7 +142,7 @@ namespace boost
       }
       return found->second;
     }
-    
+
     void set(const key_type& k, const value_type& v)
     { _m[k] = v; }
 
@@ -162,7 +150,7 @@ namespace boost
     {
       return s[k];
     }
-    
+
     friend void put(self& s, const key_type& k, const value_type& v)
     { s.set(k, v); }
 
@@ -174,61 +162,6 @@ namespace boost
   lazy_property_map<Container, Generator>
   make_lazy_property_map(Container& c, Generator g)
   { return lazy_property_map<Container, Generator>(c, g); }
-
-#if 0
-  
-  struct map_wra
-  
-  
-  struct property_traits< unordered_map_wrapper<K,T,H,P,A
-  
-  
-
-  template <class K, class T, class H, class P, class A>
-  struct property_traits< unordered_map<K,T,H,P,A> > {
-    typedef T value_type;
-    typedef K key_type;
-    typedef T& reference;
-    struct category
-      : public read_write_property_map_tag
-      , public lvalue_property_map_tag
-    { };
-    
-    friend reference get(
-        unordered_map<K,T,H,P,A>& m, 
-        const key_type& k)
-    {
-      return m[k];
-    }
-    
-    friend void put(
-        unordered_map<K,T,H,P,A>& m,
-        const key_type& k,
-        const value_type& v)
-    {
-      m[k]= v;
-    }
-  };
-
-  //template <class K, class T, class H, class P, class A>
-  //property_traits< unordered_map<K,T,H,P,A> >::reference
-  //get(unordered_map<K,T,H,P,A>& m,
-  //    const property_traits< unordered_map<K,T,H,P,A> >::key_type& k)
-  //{ return m[ k ]; }
-
-  //template <class K, class T, class H, class P, class A>
-  //void put(
-  //    unordered_map<K,T,H,P,A>& m, 
-  //    const property_traits< unordered_map<K,T,H,P,A> >::key_type& k,
-  //    const property_traits< unordered_map<K,T,H,P,A> >::value_type& v)
-  //{ m[ k ] = v; }
-
-  //template <class K, class T, class H, class P, class A>
-  //property_traits< unordered_map<K,T,H,P,A>::reference
-  //get(unordered_map<K,T,H,P,A>& m,
-  //    const graph_traits<oqgraph3::graph>::vertex_descriptor& v)
-  //{ return m[ v->id ]; }
-#endif
 
 }
 

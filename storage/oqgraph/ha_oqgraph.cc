@@ -274,13 +274,13 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
 
   error_message.length(0);
-  
+
   const char* p= strend(name)-1;
   while (p > name && *p != '\\' && *p != '/')
     --p;
 
   init_tmp_table_share(
-      thd, share, table->s->db.str, table->s->db.length, 
+      thd, share, table->s->db.str, table->s->db.length,
       options->table_name, "");
 
   size_t tlen= strlen(options->table_name);
@@ -303,7 +303,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
       free_table_share(share);
       return thd->main_da.sql_errno();
     }
-    
+
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
@@ -313,7 +313,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     thd->clear_error();
     continue;
   }
-  
+
   if (int err= share->error)
   {
     open_table_error(share, share->error, share->open_errno, share->errarg);
@@ -341,7 +341,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   edges->reginfo.lock_type= TL_READ;
-  
+
   edges->tablenr= thd->current_tablenr++;
   edges->status= STATUS_NO_RECORD;
   edges->file->ha_start_of_new_statement();
@@ -349,18 +349,18 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   edges->pos_in_table_list= 0;
   edges->clear_column_bitmaps();
   bfill(table->record[0], table->s->null_bytes, 255);
-  bfill(table->record[1], table->s->null_bytes, 255);  
-                            
+  bfill(table->record[1], table->s->null_bytes, 255);
+
   // We expect fields origid, destid and optionally weight
   origid= destid= weight= 0;
-  
+
   if (!edges->file)
   {
     print_error("Some error occurred opening table '%s'", options->table_name);
     free_table_share(share);
     return -1;
   }
-  
+
   for (Field **field= edges->field; *field; ++field)
   {
     if (strcmp(options->origid, (*field)->field_name))
@@ -377,7 +377,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     origid = *field;
     break;
   }
-  
+
   for (Field **field= edges->field; *field; ++field)
   {
     if (strcmp(options->destid, (*field)->field_name))
@@ -394,7 +394,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     destid = *field;
     break;
   }
-  
+
   for (Field **field= edges->field; options->weight && *field; ++field)
   {
     if (strcmp(options->weight, (*field)->field_name))
@@ -411,7 +411,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     weight = *field;
     break;
   }
-  
+
   if (!origid || !destid || (!weight && options->weight))
   {
     print_error("Data columns missing on table '%s'", options->table_name);
@@ -419,7 +419,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     free_table_share(share);
     return -1;
   }
-  
+
   if (!(graph_share = oqgraph::create(edges, origid, destid, weight)))
   {
     print_error("Unable to create graph instance.");
@@ -428,9 +428,9 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     return -1;
   }
   ref_length= oqgraph::sizeof_ref;
-  
+
   graph = oqgraph::create(graph_share);
-  
+
   return 0;
 }
 

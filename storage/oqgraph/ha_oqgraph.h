@@ -111,11 +111,11 @@ public:
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
 			     enum thr_lock_type lock_type);
   int cmp_ref(const byte *ref1, const byte *ref2);
-  
+
   bool get_error_message(int error, String* buf);
-  
+
   void print_error(const char* fmt, ...);
-  
+
 private:
   void update_key_stats();
   String error_message;

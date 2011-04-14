@@ -31,74 +31,495 @@
 #define MYSQL_SERVER
 #include "mysql_priv.h"
 
-oqgraph3::vertex_info::~vertex_info()
+static int debugid = 0;
+
+oqgraph3::vertex_id oqgraph3::edge_info::origid() const
+{ return _cursor->get_origid(); }
+
+oqgraph3::vertex_id oqgraph3::edge_info::destid() const
+{ return _cursor->get_destid(); }
+
+oqgraph3::weight_t oqgraph3::edge_info::weight() const
+{ return _cursor->get_weight(); }
+
+bool oqgraph3::cursor_ptr::operator==(const cursor_ptr& x) const
+{
+  if (get() == x.get())
+    return true;
+  return (*this)->record_position() == x->_position;
+}
+
+bool oqgraph3::cursor_ptr::operator!=(const cursor_ptr& x) const
+{
+  if (get() == x.get())
+    return false;
+  return (*this)->record_position() != x->_position;
+}
+
+oqgraph3::cursor::cursor(const graph_ptr& graph)
+  : _ref_count(0)
+  , _graph(graph)
+  , _index(-1)
+  , _parts(0)
+  , _key()
+  , _position()
+  , _debugid(++debugid)
 { }
 
-void oqgraph3::vertex_info::release()
+oqgraph3::cursor::cursor(const cursor& src)
+  : _ref_count(0)
+  , _graph(src._graph)
+  , _index(src._index)
+  , _parts(src._parts)
+  , _key(src._key)
+  , _position(src.record_position())
+  , _debugid(++debugid)
+{ }
+
+oqgraph3::cursor::~cursor()
 {
-  if (!--(_ref_count))
+  if (this == _graph->_cursor)
   {
-    oqgraph3::graph& cache= *_cache;
-    oqgraph3::graph::vertex_cache_type::const_iterator it;
-
-    if (!_on_gc)
-    {
-      cache._gc_vertices.push(this);
-      _on_gc= true;
-    }
-
-    while (!cache._gc_running && cache._gc_vertices.size() > 64)
-    {
-      cache._gc_running= true;
-      if (cache._gc_vertices.front()->_ref_count ||
-          (it= cache._cache_vertices.find(*cache._gc_vertices.front()))
-              == cache._cache_vertices.end())
-      {
-        cache._gc_vertices.front()->_on_gc= false;
-      }
-      else
-      {
-        cache._cache_vertices.quick_erase(it);
-      }
-      cache._gc_vertices.pop();
-      cache._gc_running= false;
-    }
+    if (_graph->_cursor->_index >= 0)
+      _graph->_table->file->ha_index_end();
+    else
+      _graph->_table->file->ha_rnd_end();
+    _graph->_cursor= 0;
+    _graph->_stale= false;
   }
 }
 
-oqgraph3::edge_key::~edge_key()
-{ }
-
-void oqgraph3::edge_key::release() const
+const std::string& oqgraph3::cursor::record_position() const
 {
-  if (!--(_ref_count))
+  if (_graph->_stale && _graph->_cursor)
   {
-    oqgraph3::graph& cache= *_cache;
-    oqgraph3::graph::edge_cache_type::const_iterator it;
+    TABLE& table= *_graph->_table;
+    table.file->position(table.record[0]);
+    _graph->_cursor->_position.assign(
+        (const char*) table.file->ref, table.file->ref_length);
 
-    if (!_on_gc)
+    if (_graph->_cursor->_index >= 0)
     {
-      cache._gc_edges.push(const_cast<edge_key*>(this));
-      _on_gc= true;
+      key_copy((uchar*) _graph->_cursor->_key.data(), table.record[0],
+          table.s->key_info + _index, table.s->key_info[_index].key_length, true);
     }
 
-    while (!cache._gc_running && cache._gc_edges.size() > 512)
+    _graph->_stale= false;
+  }
+  return _position;
+}
+
+void oqgraph3::cursor::clear_position()
+{
+  _position.clear();
+  if (this == _graph->_cursor)
+  {
+    _graph->_cursor= 0;
+    _graph->_stale= false;
+  }
+}
+
+void oqgraph3::cursor::save_position()
+{
+  record_position();
+
+  if (this == _graph->_cursor)
+  {
+    TABLE& table= *_graph->_table;
+
+    if (_graph->_cursor->_index >= 0)
+      table.file->ha_index_end();
+    else
+      table.file->ha_rnd_end();
+    _graph->_cursor= 0;
+    _graph->_stale= false;
+  }
+}
+
+int oqgraph3::cursor::restore_position()
+{
+  TABLE& table= *_graph->_table;
+
+  if (!_position.size())
+    return ENOENT;
+
+  if (this == _graph->_cursor)
+    return 0;
+
+  if (_graph->_cursor)
+    _graph->_cursor->save_position();
+
+  if (_origid || _destid)
+  {
+    if (int rc= table.file->ha_index_init(_index, 1))
+      return rc;
+
+    restore_record(&table, s->default_values);
+
+    if (_origid)
     {
-      cache._gc_running= true;
-      if (cache._gc_edges.front()->_ref_count ||
-          (it= cache._cache_edges.find(*cache._gc_edges.front()))
-              == cache._cache_edges.end())
+      bitmap_set_bit(table.write_set, _graph->_source->field_index);
+      _graph->_source->store(*_origid, 1);
+      bitmap_clear_bit(table.write_set, _graph->_source->field_index);
+    }
+
+    if (_destid)
+    {
+      bitmap_set_bit(table.write_set, _graph->_target->field_index);
+      _graph->_target->store(*_destid, 1);
+      bitmap_clear_bit(table.write_set, _graph->_target->field_index);
+    }
+
+    if (int rc= table.file->ha_index_init(_index, 1))
+      return rc;
+
+    if (int rc= table.file->ha_index_read_map(
+                    table.record[0], (const uchar*) _key.data(),
+                    (key_part_map)(1 << _parts) - 1,
+                    table.s->key_info[_index].key_parts == _parts ?
+                        HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
+    {
+      table.file->ha_index_end();
+      return rc;
+    }
+
+    update_virtual_fields(table.in_use, &table);
+    table.file->position(table.record[0]);
+
+    while (memcmp(table.file->ref, _position.data(), table.file->ref_length))
+    {
+      if (int rc= table.file->ha_index_next(table.record[0]))
       {
-        cache._gc_edges.front()->_on_gc= false;
+        table.file->ha_index_end();
+        return rc;
       }
-      else
+      update_virtual_fields(table.in_use, &table);
+
+      if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
+          (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
       {
-        cache._cache_edges.quick_erase(it);
+        table.file->ha_index_end();
+        return ENOENT;
       }
-      cache._gc_edges.pop();
-      cache._gc_running= false;
+      table.file->position(table.record[0]);
+    }
+    update_virtual_fields(table.in_use, &table);
+
+  }
+  else
+  {
+    if (int rc= table.file->ha_rnd_init(1))
+      return rc;
+
+    if (int rc= table.file->ha_rnd_pos(
+            table.record[0], (uchar*) _position.data()))
+    {
+      table.file->ha_rnd_end();
+      return rc;
+    }
+    update_virtual_fields(table.in_use, &table);
+  }
+
+  _graph->_cursor= this;
+  _graph->_stale= false;
+
+  return 0;
+}
+
+oqgraph3::vertex_id oqgraph3::cursor::get_origid()
+{
+  if (_origid)
+    return *_origid;
+
+  if (this != _graph->_cursor)
+  {
+    if (restore_position())
+      return -1;
+  }
+  return static_cast<vertex_id>(_graph->_source->val_int());
+}
+
+oqgraph3::vertex_id oqgraph3::cursor::get_destid()
+{
+  if (_destid)
+    return *_destid;
+
+  if (this != _graph->_cursor)
+  {
+    if (restore_position())
+      return -1;
+  }
+  return static_cast<vertex_id>(_graph->_target->val_int());
+}
+
+
+oqgraph3::weight_t oqgraph3::cursor::get_weight()
+{
+  if (!_graph->_weight)
+    return 1.0;
+
+  if (this != _graph->_cursor)
+  {
+    if (restore_position())
+      return -1;
+  }
+  return static_cast<vertex_id>(_graph->_weight->val_int());
+}
+
+int oqgraph3::cursor::seek_next()
+{
+  if (this != _graph->_cursor)
+  {
+    if (int rc= restore_position())
+      return rc;
+  }
+
+  TABLE& table= *_graph->_table;
+
+  if (_index < 0)
+  {
+    if (int rc= table.file->ha_rnd_next(table.record[0]))
+    {
+      table.file->ha_rnd_end();
+      return clear_position(rc);
+    }
+    return 0;
+  }
+
+  if (int rc= table.file->ha_index_next(table.record[0]))
+  {
+    table.file->ha_index_end();
+    return clear_position(rc);
+  }
+
+  update_virtual_fields(table.in_use, &table);
+  _graph->_stale= true;
+
+  if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
+      (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
+  {
+    table.file->ha_index_end();
+    return clear_position(ENOENT);
+  }
+
+  return 0;
+}
+
+int oqgraph3::cursor::seek_prev()
+{
+  if (this != _graph->_cursor)
+  {
+    if (int rc= restore_position())
+      return rc;
+  }
+
+  TABLE& table= *_graph->_table;
+
+  if (_index < 0)
+  {
+    return -1; // not supported
+  }
+
+  if (int rc= table.file->ha_index_prev(table.record[0]))
+  {
+    table.file->ha_index_end();
+    return clear_position(rc);
+  }
+
+  update_virtual_fields(table.in_use, &table);
+  _graph->_stale= true;
+
+  if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
+      (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
+  {
+    table.file->ha_index_end();
+    return clear_position(ENOENT);
+  }
+
+  return 0;
+}
+
+
+int oqgraph3::cursor::seek_to(
+    boost::optional<vertex_id> origid,
+    boost::optional<vertex_id> destid)
+{
+  if (_graph->_cursor && this != _graph->_cursor)
+    _graph->_cursor->save_position();
+
+  TABLE& table= *_graph->_table;
+  _index= -1;
+  _origid= origid;
+  _destid= destid;
+
+  if (origid || destid)
+  {
+    Field *source= _graph->_source;
+    Field *target= _graph->_target;
+
+    uint source_fieldpos= _graph->_source->offset(table.record[0]);
+    uint target_fieldpos= _graph->_target->offset(table.record[0]);
+
+    if (!destid)
+    {
+      int i= 0;
+      for( ::KEY *key_info= table.s->key_info,
+                 *key_end= key_info + table.s->keys;
+          key_info < key_end; ++key_info, ++i)
+      {
+        if (key_info->key_part[0].offset != source_fieldpos)
+          continue;
+
+        if (table.file->ha_index_init(i, 1))
+          continue;
+
+        restore_record(&table, s->default_values);
+
+        bitmap_set_bit(table.write_set, source->field_index);
+        source->store(*_origid, 1);
+        bitmap_clear_bit(table.write_set, source->field_index);
+
+        uchar* buff= (uchar*) my_alloca(source->pack_length());
+        source->get_key_image(buff, source->pack_length(), Field::itRAW);
+        _key.clear();
+        _key.append((char*) buff, source->pack_length());
+        _key.resize(key_info->key_length, '\0');
+        my_afree(buff);
+
+        _parts= 1;
+        _index= i;
+        break;
+      }
+    }
+    else if (!origid)
+    {
+      int i= 0;
+      for( ::KEY *key_info= table.s->key_info,
+                 *key_end= key_info + table.s->keys;
+          key_info < key_end; ++key_info, ++i)
+      {
+        if (key_info->key_part[0].offset != target_fieldpos)
+          continue;
+
+        if (table.file->ha_index_init(i, 1))
+          continue;
+
+        restore_record(&table, s->default_values);
+
+        bitmap_set_bit(table.write_set, target->field_index);
+        target->store(*_destid, 1);
+        bitmap_clear_bit(table.write_set, target->field_index);
+
+        uchar* buff= (uchar*) my_alloca(target->pack_length());
+        target->get_key_image(buff, target->pack_length(), Field::itRAW);
+        _key.clear();
+        _key.append((char*) buff, target->pack_length());
+        _key.resize(key_info->key_length, '\0');
+        my_afree(buff);
+
+        _parts= 1;
+        _index= i;
+        break;
+      }
+    }
+    else
+    {
+      int i= 0;
+      for( ::KEY *key_info= table.s->key_info,
+                 *key_end= key_info + table.s->keys;
+          key_info < key_end; ++key_info, ++i)
+      {
+        if (key_info->key_parts < 2)
+          continue;
+        if (!((key_info->key_part[0].offset == target_fieldpos &&
+               key_info->key_part[1].offset == source_fieldpos) ||
+              (key_info->key_part[1].offset == target_fieldpos &&
+               key_info->key_part[0].offset == source_fieldpos)))
+          continue;
+
+        if (table.file->ha_index_init(i, 1))
+          continue;
+
+        restore_record(&table, s->default_values);
+
+        bitmap_set_bit(table.write_set, source->field_index);
+        source->store(*_origid, 1);
+        bitmap_clear_bit(table.write_set, source->field_index);
+
+        bitmap_set_bit(table.write_set, target->field_index);
+        target->store(*_destid, 1);
+        bitmap_clear_bit(table.write_set, target->field_index);
+
+        Field* first=
+            key_info->key_part[0].offset == source_fieldpos ?
+                source : target;
+        Field* second=
+            key_info->key_part[0].offset == target_fieldpos ?
+                target : source;
+
+        uchar* buff= (uchar*) my_alloca(
+            source->pack_length() + target->pack_length());
+        first->get_key_image(buff, first->pack_length(), Field::itRAW);
+        second->get_key_image(buff + first->pack_length(), second->pack_length(), Field::itRAW);
+        _key.clear();
+        _key.append((char*) buff, source->pack_length() + target->pack_length());
+        _key.resize(key_info->key_length, '\0');
+        my_afree(buff);
+
+        _parts= 2;
+        _index= i;
+        break;
+      }
+    }
+    if (_index < 0)
+    {
+      // no suitable index found
+      return clear_position(ENXIO);
+    }
+
+    if (int rc= table.file->ha_index_read_map(
+            table.record[0], (uchar*) _key.data(),
+            (key_part_map) ((1U << _parts) - 1),
+            table.s->key_info[_index].key_parts == _parts ?
+                HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
+    {
+      table.file->ha_index_end();
+      return clear_position(rc);
+    }
+
+    update_virtual_fields(table.in_use, &table);
+
+    if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
+        (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
+    {
+      table.file->ha_index_end();
+      return clear_position(ENOENT);
     }
   }
+  else
+  {
+    if (int rc= table.file->ha_rnd_init(true))
+      return clear_position(rc);
+    if (int rc= table.file->ha_rnd_next(table.record[0]))
+    {
+      table.file->ha_rnd_end();
+      return clear_position(rc);
+    }
+  }
+
+  _graph->_cursor= this;
+  _graph->_stale= true;
+  return 0;
+}
+
+bool oqgraph3::cursor::operator==(const cursor& x) const
+{
+  return record_position() == x._position;
+}
+
+bool oqgraph3::cursor::operator!=(const cursor& x) const
+{
+  return record_position() != x._position;
 }
 
 oqgraph3::graph::graph(
@@ -106,8 +527,9 @@ oqgraph3::graph::graph(
     ::Field* source,
     ::Field* target,
     ::Field* weight)
-  : _gc_running(false)
-  , _ref_count(0)
+  : _ref_count(0)
+  , _cursor(0)
+  , _stale(false)
   , _table(table)
   , _source(source)
   , _target(target)
@@ -124,889 +546,8 @@ oqgraph3::graph::graph(
 oqgraph3::graph::~graph()
 { }
 
-oqgraph3::row_cursor& oqgraph3::row_cursor::operator++()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  if (!_current)
-    return *this;
-
-  graph::edge_cache_type::iterator
-      current= _cache->_cache_edges.find(*_current);
-
-  if (current->second._next)
-  {
-    graph::edge_cache_type::iterator next=
-        _cache->_cache_edges.find(edge_key(*current->second._next));
-    if (_cache->_cache_edges.end() != next)
-    {
-      _current.reset(&next->first);
-      return *this;
-    }
-  }
-
-  TABLE& table= *_cache->_table;
-
-  table.file->ha_index_init(0, 1);
-  
-  printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-  if (table.file->ha_index_read_map(
-          table.record[0],
-          reinterpret_cast<const uchar*>(current->first._ref.data()),
-          (key_part_map)((1 << table.key_info->key_parts) - 1),
-          HA_READ_AFTER_KEY))
-  {
-    table.file->ha_index_end();
-    _current.reset(0);
-    return *this;
-  }
-
-  update_virtual_fields(table.in_use, &table);
- 
-  table.file->ha_index_end();
-
-  edge_key tmp(table.key_info->key_length, _cache);
-  
-  key_copy(
-      reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-      table.record[0],
-      table.key_info,
-      tmp._ref.size(), true);
-
-  graph::edge_cache_type::iterator
-      found= _cache->_cache_edges.find(tmp);
-  if (_cache->_cache_edges.end() != found)
-  {
-    // we already had a row, link them together
-    found->second._prev= &current->first._ref;
-    current->second._next= &found->first._ref;
-    _current.reset(&found->first);
-    return *this;
-  }
-  
-  _current.reset(&_cache->_cache_edges.insert(
-      std::make_pair(
-          tmp,
-          row_info(
-              _cache->_source->val_int(),
-              _cache->_target->val_int(),
-              _cache->_weight ? _cache->_weight->val_real() : 1.0,
-              &_current->_ref,
-              0
-          )
-      )).first->first);
-  return *this;
-}
-
-oqgraph3::row_cursor& oqgraph3::row_cursor::first()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  TABLE& table= *_cache->_table;
-  
-  table.file->ha_index_init(0, 1);
-
-  printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_first");
-  if (!table.file->ha_index_first(table.record[0]))
-  {
-    update_virtual_fields(table.in_use, &table);
-
-    edge_key tmp(table.key_info->key_length, _cache);
-
-    key_copy(
-        reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-        table.record[0],
-        table.key_info,
-        tmp._ref.size(), true);
-
-    graph::edge_cache_type::iterator
-        found= _cache->_cache_edges.find(tmp);
-    if (found != _cache->_cache_edges.end())
-    {
-      // we already had a row
-      _current.reset(&found->first);
-    }
-    else
-    {
-      _current.reset(&_cache->_cache_edges.insert(
-          std::make_pair(
-              tmp,
-              row_info(
-                  _cache->_source->val_int(),
-                  _cache->_target->val_int(),
-                  _cache->_weight ? _cache->_weight->val_real() : 1.0,
-                  0,
-                  0
-              )
-          )).first->first);
-    }
-  }
-
-  table.file->ha_index_end();
-
-  return *this;
-}
-
-oqgraph3::row_cursor& oqgraph3::row_cursor::last()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  TABLE& table= *_cache->_table;
-  
-  table.file->ha_index_init(0, 1);
-
-  printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_last");
-  if (!table.file->ha_index_last(table.record[0]))
-  {
-    update_virtual_fields(table.in_use, &table);
-
-    edge_key tmp(table.key_info->key_length, _cache);
-
-    key_copy(
-        reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-        table.record[0],
-        table.key_info,
-        tmp._ref.size(), true);
-
-    graph::edge_cache_type::iterator
-        found= _cache->_cache_edges.find(tmp);
-    if (found != _cache->_cache_edges.end())
-    {
-      // we already had a row
-      _current.reset(&found->first);
-    }
-    else
-    {
-      _current.reset(&_cache->_cache_edges.insert(
-          std::make_pair(
-              tmp,
-              row_info(
-                  _cache->_source->val_int(),
-                  _cache->_target->val_int(),
-                  _cache->_weight ? _cache->_weight->val_real() : 1.0,
-                  0,
-                  0
-              )
-          )).first->first);
-    }
-  }
-
-  table.file->ha_index_end();
-
-  return *this;
-}
-
-oqgraph3::row_cursor& oqgraph3::row_cursor::operator--()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  if (!_current)
-    return last();
-
-  graph::edge_cache_type::iterator
-      current= _cache->_cache_edges.find(*_current);
-
-  if (current->second._prev)
-  {
-    graph::edge_cache_type::iterator prev=
-        _cache->_cache_edges.find(edge_key(*current->second._prev));
-    if (_cache->_cache_edges.end() != prev)
-    {
-      _current.reset(&prev->first);
-      return *this;
-    }
-  }
-
-  TABLE& table= *_cache->_table;
-  table.file->ha_index_init(0, 1);
-  
-  printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-  if (table.file->ha_index_read_map(
-          table.record[0],
-          reinterpret_cast<const uchar*>(current->first._ref.data()),
-          (key_part_map)((1 << table.key_info->key_parts) - 1),
-          HA_READ_BEFORE_KEY))
-  {
-    table.file->ha_index_end();
-    _current.reset();
-    return *this;
-  }
-
-  update_virtual_fields(table.in_use, &table);
-
-  table.file->ha_index_end();
- 
-  edge_key tmp(table.key_info->key_length, _cache);
-  
-  key_copy(
-      reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-      table.record[0],
-      table.key_info,
-      tmp._ref.size(), true);
-
-  graph::edge_cache_type::iterator
-      found= _cache->_cache_edges.find(tmp);
-  if (_cache->_cache_edges.end() != found)
-  {
-    // we already had a row, link them together
-    found->second._next= &current->first._ref;
-    current->second._prev= &found->first._ref;
-    _current.reset(&found->first);
-    return *this;
-  }
-  
-  _current.reset(&_cache->_cache_edges.insert(
-      std::make_pair(
-          tmp,
-          row_info(
-              _cache->_source->val_int(),
-              _cache->_target->val_int(),
-              _cache->_weight ? _cache->_weight->val_real() : 1.0,
-              0,
-              &_current->_ref
-          )
-      )).first->first);
-  return *this;
-}
-
-oqgraph3::row_cursor& oqgraph3::row_cursor::operator+=(difference_type delta)
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  if (!delta || !_current)
-    return *this;
-
-  if (delta < 0)
-    return *this -= (-delta);
-
-  graph::edge_cache_type::iterator
-      current= _cache->_cache_edges.find(*_current);
-
-  bool index_started= false;
-  TABLE& table= *_cache->_table;
-  
-  while (delta-- > 0)
-  {
-    if (_cache->_cache_edges.end() != current)
-    {
-      if (current->second._next)
-      {
-        graph::edge_cache_type::iterator
-            next= _cache->_cache_edges.find(edge_key(*current->second._next));
-
-        if (_cache->_cache_edges.end() != next)
-        {
-          current= next;
-          continue;
-        }
-        
-        if (!index_started)
-        {
-          table.file->ha_index_init(0, 1);
-          index_started= true;
-        }
-        
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (table.file->ha_index_read_map(
-                table.record[0],
-                reinterpret_cast<const uchar*>(current->second._next->data()),
-                (key_part_map)((1 << table.key_info->key_parts) - 1),
-                HA_READ_KEY_OR_NEXT))
-        {
-          table.file->ha_index_end();
-          _current.reset();
-          return *this;
-        }
-      }
-      else
-      {
-        if (!index_started)
-        {
-          table.file->ha_index_init(0, 1);
-          index_started= true;
-        }
-
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (table.file->ha_index_read_map(
-                table.record[0],
-                reinterpret_cast<const uchar*>(current->first._ref.data()),
-                (key_part_map)((1 << table.key_info->key_parts) - 1),
-                HA_READ_AFTER_KEY))
-        {
-          table.file->ha_index_end();
-          _current.reset();
-          return *this;
-        }
-      }
-
-      edge_key tmp(table.key_info->key_length);
-
-      key_copy(
-          reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-          table.record[0],
-          table.key_info,
-          tmp._ref.size(), true);
-
-      graph::edge_cache_type::iterator
-          found= _cache->_cache_edges.find(tmp);
-      if (found != _cache->_cache_edges.end())
-      {
-        // we already had a row, link them together
-        found->second._next= &current->first._ref;
-        current->second._prev= &found->first._ref;
-      }
-      current= found;
-    }
-    else
-    {
-      if (!index_started)
-        return *this;
-
-      printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_next");
-      if (table.file->ha_index_next(table.record[0]))
-      {
-        table.file->ha_index_end();
-        _current.reset();
-        return *this;
-      }
-
-      edge_key tmp(table.key_info->key_length);
-
-      key_copy(
-          reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-          table.record[0],
-          table.key_info,
-          tmp._ref.size(), true);
-
-      current= _cache->_cache_edges.find(tmp);
-    }
-  }
-
-  if (index_started)
-  {
-    table.file->ha_index_end();
-  }
-
-  return *this;
-}
-
-oqgraph3::row_cursor& oqgraph3::row_cursor::operator-=(difference_type delta)
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  if (!delta || !_current)
-    return *this;
-
-  if (delta < 0)
-    return *this += (-delta);
-
-  graph::edge_cache_type::iterator
-      current= _cache->_cache_edges.find(*_current);
-
-  bool index_started= false;
-  TABLE& table= *_cache->_table;
-  
-  while (delta-- > 0)
-  {
-    if (_cache->_cache_edges.end() != current)
-    {
-      if (current->second._next)
-      {
-        graph::edge_cache_type::iterator next=
-            _cache->_cache_edges.find(edge_key(*current->second._next));
-
-        if (_cache->_cache_edges.end() != next)
-        {
-          current= next;
-          continue;
-        }
-        
-        if (!index_started)
-        {
-          table.file->ha_index_init(0, 1);
-          index_started= true;
-        }
-        
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (table.file->ha_index_read_map(
-                table.record[0],
-                reinterpret_cast<const uchar*>(current->second._next->data()),
-                (key_part_map)((1 << table.key_info->key_parts) - 1),
-                HA_READ_KEY_OR_PREV))
-        {
-          table.file->ha_index_end();
-          return first();
-        }
-      }
-      else
-      {
-        if (!index_started)
-        {
-          table.file->ha_index_init(0, 1);
-          index_started= true;
-        }
-
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (table.file->ha_index_read_map(
-                table.record[0],
-                reinterpret_cast<const uchar*>(current->first._ref.data()),
-                (key_part_map)((1 << table.key_info->key_parts) - 1),
-                HA_READ_BEFORE_KEY))
-        {
-          table.file->ha_index_end();
-          return first();
-        }
-      }
-
-      edge_key tmp(table.key_info->key_length);
-
-      key_copy(
-          reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-          table.record[0],
-          table.key_info,
-          tmp._ref.size(), true);
-
-      graph::edge_cache_type::iterator
-          found= _cache->_cache_edges.find(tmp);
-      if (_cache->_cache_edges.end() != found)
-      {
-        // we already had a row, link them together
-        found->second._next= &current->first._ref;
-        current->second._prev= &found->first._ref;
-      }
-      current= found;
-    }
-    else
-    {
-      if (!index_started)
-        return first();
-
-      printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_prev");
-      if (table.file->ha_index_prev(table.record[0]))
-      {
-        table.file->ha_index_end();
-        return first();
-      }
-
-      edge_key tmp(table.key_info->key_length);
-
-      key_copy(
-          reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-          table.record[0],
-          table.key_info,
-          tmp._ref.size(), true);
-
-      current= _cache->_cache_edges.find(tmp);
-    }
-  }
-
-  if (index_started)
-  {
-    table.file->ha_index_end();
-  }
-
-  return *this;
-}
-
-oqgraph3::vertex_descriptor oqgraph3::graph::vertex(vertex_id id)
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  vertex_cache_type::const_iterator
-      found= _cache_vertices.find(vertex_info(id));
-
-  if (_cache_vertices.end() != found)
-    return vertex_descriptor(const_cast<vertex_info*>(found.operator->()));
-  
-  return vertex_descriptor(const_cast<vertex_info*>(
-      _cache_vertices.insert(vertex_info(id, this)).first.operator->()));
-}
-
-oqgraph3::edge_descriptor oqgraph3::graph::edge(const edge_key& key)
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  edge_cache_type::const_iterator
-      found= _cache_edges.find(key);
-
-  if (_cache_edges.end() != found)
-    return edge_descriptor(&found->first);
-
-  TABLE& table= *_table;
-
-  table.file->ha_index_init(0, 0);
-
-  printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-  if (table.file->ha_index_read_map(
-          table.record[0],
-          reinterpret_cast<const uchar*>(key._ref.data()),
-          (key_part_map)((1 << table.key_info->key_parts) - 1),
-          HA_READ_KEY_EXACT))
-  {
-    table.file->ha_index_end();
-    return edge_descriptor();
-  }
-
-  update_virtual_fields(table.in_use, &table);
-
-  table.file->ha_index_end();
-
-  return edge_descriptor(&_cache_edges.insert(
-      std::make_pair(
-          edge_key(key, this),
-          row_info(
-              _source->val_int(),
-              _target->val_int(),
-              _weight ? _weight->val_real() : 1.0,
-              0,
-              0
-          )
-      )).first->first);
-}
-
-oqgraph3::edge_descriptor oqgraph3::graph::edge(
-    const vertex_descriptor& source,
-    const vertex_descriptor& target)
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  vertex_cache_type::const_iterator xsource= _cache_vertices.find(*source);
-  
-  if (_cache_vertices.end() != xsource && xsource->_out_edges)
-  {
-    const vertex_info::edge_list_type& edges= *xsource->_out_edges;
-    for (vertex_info::edge_list_type::const_iterator
-             it= edges.begin(), end= edges.end(); end != it; ++it)
-    {
-      edge_cache_type::const_iterator
-          found= _cache_edges.find(edge_key(*it));
-
-      if (_cache_edges.end() != found &&
-          target->id == found->second.second)
-      {
-        return edge_descriptor(&found->first);
-      }
-    }
-    return edge_descriptor();
-  }
-
-  vertex_cache_type::const_iterator xtarget= _cache_vertices.find(*target);
-
-  if (_cache_vertices.end() != xtarget && xtarget->_in_edges)
-  {
-    const vertex_info::edge_list_type& edges= *xtarget->_in_edges;
-    for (vertex_info::edge_list_type::const_iterator
-             it= edges.begin(), end= edges.end(); end != it; ++it)
-    {
-      edge_cache_type::const_iterator
-          found= _cache_edges.find(edge_key(*it));
-
-      if (_cache_edges.end() != found &&
-          source->id == found->second.first)
-      {
-        return edge_descriptor(&found->first);
-      }
-    }
-    return edge_descriptor();
-  }
-  
-  // If we have an index which has both key parts, we can use that
-  // to quickly retrieve the edge descriptor.
-  
-  TABLE& table= *_table;
-  
-  uint source_fieldpos= _source->offset(table.record[0]);
-  uint target_fieldpos= _target->offset(table.record[0]);
-  int i= 0;
-  for( ::KEY *key_info= table.s->key_info,
-             *key_end= key_info + table.s->keys;
-      key_info < key_end; ++key_info, ++i)
-  {
-    if (key_info->key_parts < 2)
-      continue;
-    if ((key_info->key_part[0].offset == source_fieldpos &&
-         key_info->key_part[1].offset == target_fieldpos) ||
-        (key_info->key_part[0].offset == target_fieldpos &&
-         key_info->key_part[1].offset == source_fieldpos))
-    {
-      // we can use this key
-      restore_record(&table, s->default_values);
-
-      bitmap_set_bit(table.write_set, _source->field_index);
-      bitmap_set_bit(table.write_set, _target->field_index);
-      _source->store(source->id, 1);
-      _target->store(target->id, 1);
-      bitmap_clear_bit(table.write_set, _source->field_index);
-      bitmap_clear_bit(table.write_set, _target->field_index);
-      
-      uint key_len= key_info->key_length;
-      uchar* key_prefix= (uchar*) my_alloca(key_len);
-
-      table.file->ha_index_init(i, 0);
-      
-      key_copy(key_prefix, table.record[0], key_info, key_len, 1);
-
-      printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-      if (!table.file->ha_index_read_map(
-              table.record[0], key_prefix, (key_part_map)3, 
-              key_info->key_parts == 2 ?
-                  HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT) &&
-          _source->val_int() == source->id &&
-          _target->val_int() == target->id)
-      {
-        // We have found the edge,
-        
-        update_virtual_fields(table.in_use, &table);
-
-        table.file->ha_index_end();
-        my_afree(key_prefix);
-
-        edge_key tmp(table.key_info->key_length, this);
-
-        key_copy(
-            reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-            table.record[0],
-            table.key_info,
-            tmp._ref.size(), true);
-
-        graph::edge_cache_type::iterator
-            found= _cache_edges.find(tmp);
-        if (_cache_edges.end() != found)
-        {
-          // we already had the edge
-          return edge_descriptor(&found->first);
-        }
-
-        return edge_descriptor(&_cache_edges.insert(
-            std::make_pair(
-                tmp,
-                row_info(
-                    _source->val_int(),
-                    _target->val_int(),
-                    _weight ? _weight->val_real() : 1.0,
-                    0,
-                    0
-                )
-            )).first->first);
-      }
-    }
-  }
-  
-  const vertex_info::edge_list_type& edges= vertex(source->id)->out_edges();
-  for (vertex_info::edge_list_type::const_iterator
-           it= edges.begin(), end= edges
-           .end(); end != it; ++it)
-  {
-    edge_cache_type::const_iterator
-        found= _cache_edges.find(edge_key(*it));
-
-    if (_cache_edges.end() != found &&
-        target->id == found->second.second)
-    {
-      return edge_descriptor(&found->first);
-    }
-  }
-
-  return edge_descriptor();
-}
-
 oqgraph3::edges_size_type oqgraph3::graph::num_edges() const
 {
   return _table->file->stats.records;
-}
-
-const oqgraph3::vertex_info::edge_list_type&
-oqgraph3::vertex_info::out_edges()
-{
-  printf("%s:%d id=%lld\n", __func__, __LINE__, id);
-  if (!_out_edges)
-  {
-    _out_edges = edge_list_type();
-    TABLE& table= *_cache->_table;
-
-    uint source_fieldpos= _cache->_source->offset(table.record[0]);
-    int i= 0;
-    for( ::KEY *key_info= table.s->key_info,
-               *key_end= key_info + table.s->keys;
-        key_info < key_end; ++key_info, ++i)
-    {
-      if (key_info->key_part[0].offset == source_fieldpos)
-      {
-        // we can use this key
-        restore_record(&table, s->default_values);
-
-        bitmap_set_bit(table.write_set, _cache->_source->field_index);
-        _cache->_source->store(id, 1);
-        bitmap_clear_bit(table.write_set, _cache->_source->field_index);
-
-        uint key_len= key_info->key_length;
-        uchar* key= (uchar*) my_alloca(key_len);
-
-        table.file->ha_index_init(i, 1);
-
-        key_copy(key, table.record[0], key_info, key_len, true);
-        
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (!table.file->ha_index_read_map(
-                table.record[0], key, (key_part_map)1,
-                key_info->key_parts == 1 ?
-                    HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
-        {
-          // We have found an edge,
-          do
-          {
-            update_virtual_fields(table.in_use, &table);
-            
-            edge_key tmp(table.key_info->key_length, _cache);
-
-            key_copy(
-                reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-                table.record[0],
-                table.key_info,
-                tmp._ref.size(), true);
-
-            graph::edge_cache_type::iterator
-                found= _cache->_cache_edges.find(tmp);
-            if (_cache->_cache_edges.end() == found)
-            {
-              found= _cache->_cache_edges.insert(
-                  std::make_pair(
-                      tmp,
-                      row_info(
-                          _cache->_source->val_int(),
-                          _cache->_target->val_int(),
-                          _cache->_weight ? _cache->_weight->val_real() : 1.0,
-                          0,
-                          0
-                      )
-                  )).first;
-            }
-            _out_edges->push_back(found->first._ref);
-
-            printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_next");
-            if (table.file->ha_index_next(table.record[0]))
-            {
-              break;
-            }
-          }
-          while (_cache->_source->val_int() == id);
-
-          table.file->ha_index_end();
-          my_afree(key);
-          break;
-        }
-        table.file->ha_index_end();
-      }
-    }
-  }
-  return *_out_edges;
-}
-
-const oqgraph3::vertex_info::edge_list_type&
-oqgraph3::vertex_info::in_edges()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  if (!_in_edges)
-  {
-    _in_edges = edge_list_type();
-    TABLE& table= *_cache->_table;
-
-    uint target_fieldpos= _cache->_target->offset(table.record[0]);
-    int i= 0;
-    for( ::KEY *key_info= table.s->key_info,
-               *key_end= key_info + table.s->keys;
-        key_info < key_end; ++key_info, ++i)
-    {
-      if (key_info->key_part[0].offset == target_fieldpos)
-      {
-        // we can use this key
-        restore_record(&table, s->default_values);
-
-        bitmap_set_bit(table.write_set, _cache->_target->field_index);
-        _cache->_target->store(id, 1);
-        bitmap_clear_bit(table.write_set, _cache->_target->field_index);
-
-        uint key_len= key_info->key_length;
-        uchar* key= (uchar*) my_alloca(key_len);
-
-        table.file->ha_index_init(i, 1);
-
-        key_copy(key, table.record[0], key_info, key_len, true);
-
-        printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_read_map");
-        if (!table.file->ha_index_read_map(
-                table.record[0], key, (key_part_map)1,
-                key_info->key_parts == 1 ?
-                    HA_READ_KEY_EXACT : HA_READ_KEY_OR_NEXT))
-        {
-          // We have found an edge,
-          do
-          {
-            update_virtual_fields(table.in_use, &table);
-            
-            edge_key tmp(table.key_info->key_length, _cache);
-
-            key_copy(
-                reinterpret_cast<uchar*>(const_cast<char*>(tmp._ref.data())),
-                table.record[0],
-                table.key_info,
-                tmp._ref.size(), true);
-
-            graph::edge_cache_type::iterator
-                found= _cache->_cache_edges.find(tmp);
-            if (_cache->_cache_edges.end() == found)
-            {
-              found= _cache->_cache_edges.insert(
-                  std::make_pair(
-                      tmp,
-                      row_info(
-                          _cache->_source->val_int(),
-                          _cache->_target->val_int(),
-                          _cache->_weight ? _cache->_weight->val_real() : 1.0,
-                          0,
-                          0
-                      )
-                  )).first;
-            }
-            _in_edges->push_back(found->first._ref);
-            
-            printf("%s:%d - %s\n", __func__, __LINE__, "ha_index_next");
-            if (table.file->ha_index_next(table.record[0]))
-              break;
-          }
-          while (_cache->_target->val_int() == id);
-
-          table.file->ha_index_end();
-          my_afree(key);
-          break;
-        }
-        table.file->ha_index_end();
-      }
-    }
-  }
-  return *_in_edges;
-}
-
-std::size_t oqgraph3::vertex_info::degree()
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  return out_edges().size() + in_edges().size();
-}
-
-oqgraph3::degree_size_type oqgraph3::vertex_descriptor::in_degree() const
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  return (*this)->in_edges().size();
-}
-
-oqgraph3::degree_size_type oqgraph3::vertex_descriptor::out_degree() const
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  return (*this)->out_edges().size();
-}
-
-oqgraph3::vertex_descriptor oqgraph3::edge_descriptor::source() const
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  return (*this)->_cache->vertex(
-      oqgraph3::row_cursor(*this, (*this)->_cache)->first);
-}
-
-oqgraph3::vertex_descriptor oqgraph3::edge_descriptor::target() const
-{
-  printf("%s:%d\n", __func__, __LINE__);
-  return (*this)->_cache->vertex(
-      oqgraph3::row_cursor(*this, (*this)->_cache)->second);
 }
 

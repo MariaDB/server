@@ -345,7 +345,7 @@ namespace open_query {
   oqgraph_visit_dist<P,D>
     make_oqgraph_visit_dist(const P& p, const D& d, stack_cursor *cursor)
   { return oqgraph_visit_dist<P,D>(p, d, cursor); }
-  
+
 
   template<bool record_weight, typename goal_filter, typename P>
   struct GRAPHCORE_INTERNAL oqgraph_goal
@@ -402,7 +402,7 @@ namespace open_query {
     stack_cursor &m_cursor;
     P m_p;
   };
-  
+
   template<bool record_weight, typename goal_filter, typename P>
   oqgraph_goal<record_weight, goal_filter, P>
     make_oqgraph_goal(const Vertex& goal, const P& p, stack_cursor *cursor)
@@ -820,7 +820,7 @@ namespace open_query
                     )
                 ),
                 make_two_bit_judy_map(get(vertex_index, share->g)));
-            break; 
+            break;
           case BREADTH_FIRST:
             breadth_first_visit(share->g, *orig, Q,
                 make_bfs_visitor(
@@ -1060,9 +1060,8 @@ int edges_cursor::fetch_row(const row &row_info, row &result)
 {
   edge_iterator it, end;
   reference ref;
-  size_t count= position;
-  for (tie(it, end)= edges(share->g); count && it != end; ++it, --count)
-    ;
+  tie(it, end)= edges(share->g);
+  it+= position;
   if (it != end)
     ref= reference(position+1, *it);
   if (int res= fetch_row(row_info, result, ref))
