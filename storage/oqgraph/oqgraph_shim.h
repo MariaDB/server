@@ -29,6 +29,9 @@
 #include "oqgraph_thunk.h"
 #include "oqgraph_judy.h"
 
+#define BOOST_NO_HASH 1
+#define BOOST_NO_SLIST 1
+
 #include <boost/graph/directed_graph.hpp>
 #include <boost/graph/adjacency_iterator.hpp>
 
@@ -249,6 +252,7 @@ namespace boost
     typedef no_property type;
   };
 
+#if BOOST_VERSION >= 104601
   template <>
   struct graph_bundle_type<oqgraph3::graph>
   {
@@ -266,6 +270,7 @@ namespace boost
   {
     typedef no_edge_bundle type;
   };
+#endif
 
   inline graph_traits<oqgraph3::graph>::vertex_descriptor
   source(
