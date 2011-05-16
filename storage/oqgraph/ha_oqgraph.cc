@@ -776,6 +776,7 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
   if (int res = oqgraph_check_table_structure(table_arg))
     return error_code(res);
 
+  (void)(options);
   return 0;
 }
 
