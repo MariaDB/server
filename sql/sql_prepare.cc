@@ -2049,6 +2049,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_SHOW_ENGINE_LOGS:
   case SQLCOM_SHOW_ENGINE_STATUS:
   case SQLCOM_SHOW_ENGINE_MUTEX:
+  case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_SHOW_CREATE_DB:
   case SQLCOM_SHOW_GRANTS:
   case SQLCOM_SHOW_BINLOG_EVENTS:

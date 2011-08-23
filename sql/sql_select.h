@@ -963,7 +963,7 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
-  bool optimized; ///< flag to avoid double optimization in EXPLAIN
+  int  optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
 
   /*
@@ -1074,6 +1074,7 @@ public:
 	      SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
+  int optimize_inner();
   int reinit();
   int init_execution();
   void exec();
@@ -1167,6 +1168,10 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
+
+  int print_explain(select_result_sink *result, bool on_the_fly,
+                     bool need_tmp_table, bool need_order,
+                     bool distinct,const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
