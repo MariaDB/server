@@ -81,7 +81,7 @@ sqlsources = derror.cc field.cc field_conv.cc strfunc.cc filesort.cc \
 	rpl_injector.cc my_user.c partition_info.cc \
 	sql_servers.cc event_parse_data.cc opt_table_elimination.cc \
 	multi_range_read.cc opt_index_cond_pushdown.cc \
-	sql_expression_cache.cc
+	sql_expression_cache.cc my_apc.cc
 
 # automake misses these
 sql_yacc.cc sql_yacc.h: $(top_srcdir)/sql/sql_yacc.yy

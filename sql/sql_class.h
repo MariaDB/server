@@ -1420,6 +1420,19 @@ struct Ha_data
 };
 
 
+class select_result_explain_buffer;
+
+class Show_explain_request
+{
+public:
+  THD *target_thd;
+  THD *request_thd;
+  
+  select_result_explain_buffer *explain_buf;
+
+  static void get_explain_data(void *arg);
+};
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -1990,6 +2003,8 @@ public:
   };
   killed_state volatile killed;
 
+  bool check_killed();
+
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
 
@@ -2171,6 +2186,16 @@ public:
   void close_active_vio();
 #endif
   void awake(THD::killed_state state_to_set);
+ 
+
+  /*
+    This is what allows this thread to serve as a target for others to 
+    schedule Async Procedure Calls on.
+
+    It's possible to schedule arbitrary C function call but currently this
+    facility is used only by SHOW EXPLAIN code (See Show_explain_request)
+  */
+  Apc_target apc_target;
 
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
@@ -2302,6 +2327,7 @@ public:
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
   int send_explain_fields(select_result *result);
+  void make_explain_field_list(List<Item> &field_list);
 #ifndef EMBEDDED_LIBRARY
   /**
     Clear the current error, if any.
@@ -2750,10 +2776,42 @@ public:
 
 class JOIN;
 
-class select_result :public Sql_alloc {
+/* Pure interface for sending tabular data */
+class select_result_sink: public Sql_alloc
+{
+public:
+  /*
+    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
+    example for a duplicate row entry written to a temp table.
+  */
+  virtual int send_data(List<Item> &items)=0;
+  virtual ~select_result_sink() {};
+};
+
+
+/*
+  Interface for sending tabular data, together with some other stuff:
+
+  - Primary purpose seems to be seding typed tabular data:
+     = the DDL is sent with send_fields()
+     = the rows are sent with send_data()
+  Besides that,
+  - there seems to be an assumption that the sent data is a result of 
+    SELECT_LEX_UNIT *unit,
+  - nest_level is used by SQL parser
+*/
+
+class select_result :public select_result_sink 
+{
 protected:
   THD *thd;
+  /* 
+    All descendant classes have their send_data() skip the first 
+    unit->offset_limit_cnt rows sent.  Select_materialize
+    also uses unit->get_unit_column_types().
+  */
   SELECT_LEX_UNIT *unit;
+  /* Something used only by the parser: */
   int nest_level;
 public:
   select_result();
@@ -2772,11 +2830,6 @@ public:
   virtual uint field_count(List<Item> &fields) const
   { return fields.elements; }
   virtual bool send_fields(List<Item> &list, uint flags)=0;
-  /*
-    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
-    example for a duplicate row entry written to a temp table.
-  */
-  virtual int send_data(List<Item> &items)=0;
   virtual bool initialize_tables (JOIN *join=0) { return 0; }
   virtual void send_error(uint errcode,const char *err);
   virtual bool send_eof()=0;
@@ -2807,6 +2860,35 @@ public:
   void begin_dataset() {}
 #endif
 };
+
+
+/*
+  A select result sink that collects the sent data and then can flush it to
+  network when requested.
+
+  This class is targeted at collecting EXPLAIN output:
+  - Unoptimized data storage (can't handle big datasets)
+  - Unlike select_result class, we don't assume that the sent data is an 
+    output of a SELECT_LEX_UNIT (and so we dont apply "LIMIT x,y" from the
+    unit)
+*/
+
+class select_result_explain_buffer : public select_result_sink
+{
+public:
+  THD *thd;
+  Protocol *protocol;
+  select_result_explain_buffer(){};
+
+  /* The following is called in the child thread: */
+  int send_data(List<Item> &items);
+
+  /* this will be called in the parent thread: */
+  void flush_data();
+
+  List<String> data_rows;
+};
+
 
 
 /*

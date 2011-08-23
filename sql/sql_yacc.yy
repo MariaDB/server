@@ -10852,6 +10852,12 @@ show_param:
             Lex->spname= $3;
             Lex->sql_command = SQLCOM_SHOW_CREATE_EVENT;
           }
+        | describe_command FOR_SYM expr
+          {
+            Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
+            Lex->value_list.empty();
+            Lex->value_list.push_front($3);
+          }
         ;
 
 show_engine_param:

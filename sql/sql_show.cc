@@ -2024,6 +2024,97 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  SHOW EXPLAIN FOR command handler
+
+  @param  thd         Current thread's thd
+  @param  thread_id   Thread whose explain we need
+
+  @notes
+  - Attempt to do "SHOW EXPLAIN FOR <myself>" will properly produce "target not
+    running EXPLAINable command".
+  - todo: check how all this can/will work when using thread pools
+*/
+
+void mysqld_show_explain(THD *thd, ulong thread_id)
+{
+  THD *tmp;
+  Protocol *protocol= thd->protocol;
+  List<Item> field_list;
+  DBUG_ENTER("mysqld_show_explain");
+  
+  thd->make_explain_field_list(field_list);
+  if (protocol->send_fields(&field_list, Protocol::SEND_NUM_ROWS | 
+                                         Protocol::SEND_EOF))
+    DBUG_VOID_RETURN;
+   
+  /* 
+    Find the thread we need EXPLAIN for. Thread search code was copied from
+    kill_one_thread()
+  */
+  VOID(pthread_mutex_lock(&LOCK_thread_count)); // For unlink from list
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (tmp->command == COM_DAEMON)
+      continue;
+    if (tmp->thread_id == thread_id)
+    {
+      pthread_mutex_lock(&tmp->LOCK_thd_data);	// Lock from delete
+      break;
+    }
+  }
+  VOID(pthread_mutex_unlock(&LOCK_thread_count));
+  
+  if (tmp)
+  {
+    bool bres;
+    /* 
+      Ok we've found the thread of interest and it won't go away because 
+        we're holding its LOCK_thd data.
+      Post it an EXPLAIN request.
+      todo: where to get timeout from?
+    */
+    bool timed_out;
+    int timeout_sec= 30;
+    Show_explain_request explain_req;
+    select_result_explain_buffer *explain_buf;
+    
+    explain_buf= new select_result_explain_buffer;
+    explain_buf->thd=thd;
+    explain_buf->protocol= thd->protocol;
+
+    explain_req.explain_buf= explain_buf;
+    explain_req.target_thd= tmp;
+    explain_req.request_thd= thd;
+
+    bres= tmp->apc_target.make_apc_call(Show_explain_request::get_explain_data,
+                                        (void*)&explain_req,
+                                        timeout_sec, &timed_out);
+    if (bres)
+    {
+      /* TODO not enabled or time out */
+      my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
+               "SHOW EXPLAIN",
+               "Target is not running EXPLAINable command");
+    }
+    pthread_mutex_unlock(&tmp->LOCK_thd_data);
+    if (!bres)
+    {
+      explain_buf->flush_data();
+      my_eof(thd);
+    }
+  }
+  else
+  {
+    my_error(ER_NO_SUCH_THREAD, MYF(0), thread_id);
+  }
+
+  DBUG_VOID_RETURN;
+}
+
+
 int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 {
   TABLE *table= tables->table;

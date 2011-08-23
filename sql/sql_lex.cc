@@ -3623,6 +3623,40 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
 }
 
 
+int st_select_lex::print_explain(select_result_sink *output)
+{
+  if (join && join->optimized == 2)
+  {
+    //psergey-TODO: any?
+    return join->print_explain(output, TRUE,
+                     FALSE, // need_tmp_table, 
+                     FALSE, // bool need_order,
+                     FALSE, // bool distinct,
+                     NULL); //const char *message
+  }
+  else
+  {
+    DBUG_ASSERT(0);
+    /* produce "not yet optimized" line */
+  }
+  return 0;
+}
+
+
+int st_select_lex_unit::print_explain(select_result_sink *output)
+{
+  int res= 0;
+  SELECT_LEX *first= first_select();
+
+  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
+  {
+    if ((res= sl->print_explain(output)))
+      break;
+  }
+  return res;
+}
+
+
 /**
   A routine used by the parser to decide whether we are specifying a full
   partitioning or if only partitions to add or to split.

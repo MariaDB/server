@@ -846,6 +846,12 @@ inject_jtbm_conds(JOIN *join, List<TABLE_LIST> *join_list, Item **join_where)
   DBUG_VOID_RETURN;
 }
 
+int JOIN::optimize()
+{
+  int res= optimize_inner();
+  optimized= 2;
+  return res;
+}
 /**
   global select optimisation.
 
@@ -859,7 +865,7 @@ inject_jtbm_conds(JOIN *join, List<TABLE_LIST> *join_list, Item **join_where)
 */
 
 int
-JOIN::optimize()
+JOIN::optimize_inner()
 {
   ulonglong select_opts_for_readinfo;
   uint no_jbuf_after;
@@ -2888,7 +2894,9 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
   if (thd->is_error())
     goto err;
 
+  thd->apc_target.enable();
   join->exec();
+  thd->apc_target.disable();
 
   if (thd->cursor && thd->cursor->is_open())
   {
@@ -3529,7 +3537,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     goto error;
 
   /* Generate an execution plan from the found optimal join order. */
-  DBUG_RETURN(join->thd->killed || get_best_combination(join));
+  DBUG_RETURN(join->thd->check_killed() || get_best_combination(join));
 
 error:
   /*
@@ -6276,7 +6284,7 @@ best_extension_by_limited_search(JOIN      *join,
   DBUG_ENTER("best_extension_by_limited_search");
 
   THD *thd= join->thd;
-  if (thd->killed)  // Abort
+  if (thd->check_killed())  // Abort
     DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE("opt", print_plan(join, idx, read_time, record_count, idx,
@@ -6436,7 +6444,7 @@ find_best(JOIN *join,table_map rest_tables,uint idx,double record_count,
 {
   DBUG_ENTER("find_best");
   THD *thd= join->thd;
-  if (thd->killed)
+  if (thd->check_killed())
     DBUG_RETURN(TRUE);
   if (!rest_tables)
   {
@@ -14452,7 +14460,7 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
     DBUG_EXECUTE_IF("raise_error", write_err= HA_ERR_FOUND_DUPP_KEY ;);
     if (write_err)
       goto err;
-    if (thd->killed)
+    if (thd->check_killed())
     {
       thd->send_kill_message();
       goto err_killed;
@@ -14822,7 +14830,7 @@ sub_select_cache(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
       rc= sub_select(join, join_tab, end_of_records);
     DBUG_RETURN(rc);
   }
-  if (join->thd->killed)
+  if (join->thd->check_killed())
   {
     /* The user has aborted the execution of the query */
     join->thd->send_kill_message();
@@ -15121,7 +15129,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_ERROR);
   if (error < 0)
     DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-  if (join->thd->killed)			// Aborted by user
+  if (join->thd->check_killed())			// Aborted by user
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
@@ -16250,7 +16258,7 @@ end_write(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   TABLE *table=join->tmp_table;
   DBUG_ENTER("end_write");
 
-  if (join->thd->killed)			// Aborted by user
+  if (join->thd->check_killed())			// Aborted by user
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -16321,7 +16329,7 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
   if (end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
-  if (join->thd->killed)			// Aborted by user
+  if (join->thd->check_killed())			// Aborted by user
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -16402,7 +16410,7 @@ end_unique_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 
   if (end_of_records)
     DBUG_RETURN(NESTED_LOOP_OK);
-  if (join->thd->killed)			// Aborted by user
+  if (join->thd->check_killed())			// Aborted by user
   {
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -16449,7 +16457,7 @@ end_write_group(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
   int	  idx= -1;
   DBUG_ENTER("end_write_group");
 
-  if (join->thd->killed)
+  if (join->thd->check_killed())
   {						// Aborted by user
     join->thd->send_kill_message();
     DBUG_RETURN(NESTED_LOOP_KILLED);             /* purecov: inspected */
@@ -18226,7 +18234,7 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
   error= file->ha_rnd_next(record);
   for (;;)
   {
-    if (thd->killed)
+    if (thd->check_killed())
     {
       thd->send_kill_message();
       error=0;
@@ -18358,7 +18366,7 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   for (;;)
   {
     uchar *org_key_pos;
-    if (thd->killed)
+    if (thd->check_killed())
     {
       thd->send_kill_message();
       error=0;
@@ -20355,29 +20363,40 @@ void JOIN::clear()
   }
 }
 
+
 /**
   EXPLAIN handling.
 
   Send a description about what how the select will be done to stdout.
+
+  @param on_the_fly TRUE <=> we're being executed on-the-fly, so don't make 
+                    modifications to any select's data structures
 */
 
-static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
-			    bool distinct,const char *message)
+int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
+                         bool need_tmp_table, bool need_order,
+                         bool distinct, const char *message)
 {
   List<Item> field_list;
   List<Item> item_list;
+  JOIN *join= this; /* Legacy: this code used to be a non-member function */
   THD *thd=join->thd;
-  select_result *result=join->result;
   Item *item_null= new Item_null();
   CHARSET_INFO *cs= system_charset_info;
   int quick_type;
-  DBUG_ENTER("select_describe");
+  int error= 0;
+  DBUG_ENTER("JOIN::print_explain");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
+  DBUG_ASSERT(this->optimized == 2);
   /* Don't log this into the slow query log */
-  thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED);
-  join->unit->offset_limit_cnt= 0;
+
+  if (!on_the_fly)
+  {
+    thd->server_status&= ~(SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED);
+    join->unit->offset_limit_cnt= 0;
+  }
 
   /* 
     NOTE: the number/types of items pushed into item_list must be in sync with
@@ -20398,10 +20417,11 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   
     item_list.push_back(new Item_string(message,strlen(message),cs));
     if (result->send_data(item_list))
-      join->error= 1;
+      error= 1;
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
+    join->select_lex->set_explain_type(); //psergey
     /* 
       here we assume that the query will return at least two rows, so we
       show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
@@ -20468,12 +20488,13 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       item_list.push_back(new Item_string("", 0, cs));
 
     if (result->send_data(item_list))
-      join->error= 1;
+      error= 1;
   }
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
     table_map used_tables=0;
+    join->select_lex->set_explain_type(); //psergey
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
@@ -20965,9 +20986,23 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       // For next iteration
       used_tables|=table->map;
       if (result->send_data(item_list))
-	join->error= 1;
+	error= 1;
     }
   }
+  DBUG_RETURN(error);
+}
+
+
+static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
+			    bool distinct,const char *message)
+{
+  THD *thd=join->thd;
+  select_result *result=join->result;
+  DBUG_ENTER("select_describe");
+  join->error= join->print_explain(result, FALSE, /* Not on-the-fly */
+                                   need_tmp_table, need_order, distinct, 
+                                   message);
+
   for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())
@@ -21010,7 +21045,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    sl->set_explain_type();
+    sl->set_explain_type(); //psergey-todo: maybe remove this from here?
     sl->options|= SELECT_DESCRIBE;
   }
 
