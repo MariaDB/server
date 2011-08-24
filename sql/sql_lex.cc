@@ -3625,19 +3625,24 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
 
 int st_select_lex::print_explain(select_result_sink *output)
 {
+  int res;
   if (join && join->optimized == 2)
   {
-    //psergey-TODO: any?
-    return join->print_explain(output, TRUE,
-                     FALSE, // need_tmp_table, 
-                     FALSE, // bool need_order,
-                     FALSE, // bool distinct,
-                     NULL); //const char *message
+    res= join->print_explain(output, TRUE,
+                             FALSE, // need_tmp_table, 
+                             FALSE, // bool need_order,
+                             FALSE, // bool distinct,
+                             NULL); //const char *message
   }
   else
   {
-    DBUG_ASSERT(0);
-    /* produce "not yet optimized" line */
+    /* Produce "not yet optimized" line */
+    const char *msg="Not yet optimized";
+    res= join->print_explain(output, TRUE,
+                             FALSE, // need_tmp_table, 
+                             FALSE, // bool need_order,
+                             FALSE, // bool distinct,
+                             msg); //const char *message
   }
   return 0;
 }

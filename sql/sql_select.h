@@ -1078,6 +1078,7 @@ public:
   int reinit();
   int init_execution();
   void exec();
+  void exec_inner();
   int destroy();
   void restore_tmp();
   bool alloc_func_list();

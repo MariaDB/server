@@ -1,0 +1,26 @@
+drop table if exists t0, t1;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+show explain for 2*1000*1000*1000;
+ERROR HY000: Unknown thread id: 2000000000
+show explain for 3;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+show explain for 2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+select get_lock('optimizer_done', 10);
+get_lock('optimizer_done', 10)
+1
+select count(*) from t1 where a < 100000 and sleep(a*0 + release_lock('optimizer_done') +1);
+select get_lock('optimizer_done', 100);
+get_lock('optimizer_done', 100)
+1
+show explain for 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using where
+select release_lock('optimizer_done');
+release_lock('optimizer_done')
+1
+kill query 3;
+drop table t0,t1;

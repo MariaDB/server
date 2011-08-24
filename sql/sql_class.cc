@@ -2932,7 +2932,14 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
-// psergey
+
+/*
+  Produce EXPLAIN data.
+
+  This function is APC-scheduled to be run in the context of the thread that
+  we're producing EXPLAIN for.
+*/
+
 void Show_explain_request::get_explain_data(void *arg)
 {
   Show_explain_request *req= (Show_explain_request*)arg;
