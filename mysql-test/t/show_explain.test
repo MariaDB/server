@@ -1,0 +1,46 @@
+#
+# Tests for SHOW EXPLAIN FOR functionality
+#
+--disable_warnings
+drop table if exists t0, t1;
+--enable_warnings
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+
+# 
+# Try killing a non-existent thread
+# 
+--error ER_NO_SUCH_THREAD
+show explain for 2*1000*1000*1000;
+
+# Setup two threads and their ids
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+connection default;
+
+# SHOW EXPLAIN FOR <idle thread>
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+eval show explain for $thr2;
+
+# SHOW EXPLAIN FOR <ourselves>
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+eval show explain for $thr1;
+
+# SHOW EXPLAIN FOR <running thread>
+connection con1;
+select get_lock('optimizer_done', 10);
+send select count(*) from t1 where a < 100000 and sleep(a*0 + release_lock('optimizer_done') +1);
+connection default;
+select get_lock('optimizer_done', 100);
+eval show explain for $thr2;
+select release_lock('optimizer_done');
+eval kill query $thr2;
+
+#insert into t1 values ('one'),('two'),('three');
+
+drop table t0,t1;

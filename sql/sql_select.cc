@@ -2019,6 +2019,17 @@ JOIN::save_join_tab()
 }
 
 
+void JOIN::exec()
+{
+  /*
+    Enable SHOW EXPLAIN only if we're in the top-level query.
+  */
+  thd->apc_target.enable();
+  exec_inner();
+  thd->apc_target.disable();
+}
+
+
 /**
   Exec select.
 
@@ -2030,8 +2041,8 @@ JOIN::save_join_tab()
   @todo
     When can we have here thd->net.report_error not zero?
 */
-void
-JOIN::exec()
+
+void JOIN::exec_inner()
 {
   List<Item> *columns_list= &fields_list;
   int      tmp_error;
@@ -2894,9 +2905,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
   if (thd->is_error())
     goto err;
 
-  thd->apc_target.enable();
   join->exec();
-  thd->apc_target.disable();
 
   if (thd->cursor && thd->cursor->is_open())
   {
