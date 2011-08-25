@@ -43,4 +43,9 @@ eval kill query $thr2;
 
 #insert into t1 values ('one'),('two'),('three');
 
+## TODO: Test this: multiple SHOW EXPLAIN calls in course of running of one select
+## 
+## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
+##       thread and served together.
+
 drop table t0,t1;
