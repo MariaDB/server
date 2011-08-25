@@ -97,7 +97,9 @@ void Apc_target::dequeue_request(Call_request *qe)
 /*
   Make an apc call in another thread. The caller is responsible so 
   that we're not calling to ourselves.
-
+  
+  psergey-todo: Should waits here be KILLable? (it seems one needs 
+  to use thd->enter_cond() calls to be killable)
 */
 
 bool Apc_target::make_apc_call(apc_func_t func, void *func_arg, 
