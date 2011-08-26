@@ -3520,7 +3520,7 @@ void st_select_lex::set_explain_type()
           ((is_uncacheable & UNCACHEABLE_DEPENDENT) ?
            "DEPENDENT UNION":
            is_uncacheable ? "UNCACHEABLE UNION":
-           "UNION")));
+           (this == master_unit()->fake_select_lex)? "UNION RESULT" : "UNION")));
   options|= SELECT_DESCRIBE;
 }
 

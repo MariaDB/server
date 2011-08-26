@@ -20503,7 +20503,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
     table_map used_tables=0;
-    join->select_lex->set_explain_type(); //psergey
+    join->select_lex->set_explain_type(); //psergey-todo: this adds SELECT_DESCRIBE to options! bad for on-the-fly 
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
