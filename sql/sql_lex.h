@@ -646,6 +646,12 @@ public:
     those converted to jtbm nests. The list is emptied when conversion is done.
   */
   List<Item_in_subselect> sj_subselects;
+  
+  /*
+    Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
+    of EXPLAIN
+  */
+  bool have_merged_subqueries;
 
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
@@ -888,7 +894,7 @@ public:
   */
   bool optimize_unflattened_subqueries();
   /* Set the EXPLAIN type for this subquery. */
-  void set_explain_type();
+  void set_explain_type(bool on_the_fly);
   bool handle_derived(struct st_lex *lex, uint phases);
   void append_table_to_list(TABLE_LIST *TABLE_LIST::*link, TABLE_LIST *table);
   bool get_free_table_map(table_map *map, uint *tablenr);

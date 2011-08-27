@@ -1640,7 +1640,8 @@ void st_select_lex::init_query()
   link_next= 0;
   lock_option= TL_READ_DEFAULT;
   is_prep_leaf_list_saved= FALSE;
-
+  
+  have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
 }
 
@@ -3119,7 +3120,7 @@ bool st_select_lex::optimize_unflattened_subqueries()
         if (options & SELECT_DESCRIBE)
         {
           /* Optimize the subquery in the context of EXPLAIN. */
-          sl->set_explain_type();
+          sl->set_explain_type(FALSE);
           sl->options|= SELECT_DESCRIBE;
           inner_join->select_options|= SELECT_DESCRIBE;
         }
@@ -3482,7 +3483,7 @@ void SELECT_LEX::update_used_tables()
   Set the EXPLAIN type for this subquery.
 */
 
-void st_select_lex::set_explain_type()
+void st_select_lex::set_explain_type(bool on_the_fly)
 {
   bool is_primary= FALSE;
   if (next_select())
@@ -3504,6 +3505,9 @@ void st_select_lex::set_explain_type()
     }
   }
 
+  if (on_the_fly && !is_primary && have_merged_subqueries)
+    is_primary= TRUE;
+
   SELECT_LEX *first= master_unit()->first_select();
   /* drop UNCACHEABLE_EXPLAIN, because it is for internal usage only */
   uint8 is_uncacheable= (uncacheable & ~UNCACHEABLE_EXPLAIN);
@@ -3521,6 +3525,10 @@ void st_select_lex::set_explain_type()
            "DEPENDENT UNION":
            is_uncacheable ? "UNCACHEABLE UNION":
            (this == master_unit()->fake_select_lex)? "UNION RESULT" : "UNION")));
+
+  if (this == master_unit()->fake_select_lex)
+    type= "UNION RESULT";
+
   options|= SELECT_DESCRIBE;
 }
 

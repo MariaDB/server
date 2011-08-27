@@ -20430,7 +20430,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    join->select_lex->set_explain_type(); //psergey
+    //if (!join->select_lex->type)
+    if (on_the_fly)
+      join->select_lex->set_explain_type(on_the_fly); //psergey
     /* 
       here we assume that the query will return at least two rows, so we
       show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
@@ -20503,7 +20505,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
     table_map used_tables=0;
-    join->select_lex->set_explain_type(); //psergey-todo: this adds SELECT_DESCRIBE to options! bad for on-the-fly 
+    //if (!join->select_lex->type)
+    if (on_the_fly)
+      join->select_lex->set_explain_type(on_the_fly); //psergey-todo: this adds SELECT_DESCRIBE to options! bad for on-the-fly 
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
@@ -21054,7 +21058,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    sl->set_explain_type(); //psergey-todo: maybe remove this from here?
+    sl->set_explain_type(FALSE); //psergey-todo: maybe remove this from here?
     sl->options|= SELECT_DESCRIBE;
   }
 
