@@ -24,12 +24,18 @@ let $thr2=`select connection_id()`;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>
+echo SHOW explain for thr2;
+--disable_query_log
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
 eval show explain for $thr2;
+--enable_query_log
 
 # SHOW EXPLAIN FOR <ourselves>
+echo SHOW explain for thr1;
+--disable_query_log
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
 eval show explain for $thr1;
+--enable_query_log
 
 # SHOW EXPLAIN FOR <running thread>
 connection con1;
@@ -37,9 +43,15 @@ select get_lock('optimizer_done', 10);
 send select count(*) from t1 where a < 100000 and sleep(a*0 + release_lock('optimizer_done') +1);
 connection default;
 select get_lock('optimizer_done', 100);
+echo SHOW explain for thr2;
+--disable_query_log
 eval show explain for $thr2;
+--enable_query_log
 select release_lock('optimizer_done');
+--disable_query_log
 eval kill query $thr2;
+--enable_query_log
+echo kill query thr2;
 
 #insert into t1 values ('one'),('two'),('three');
 
