@@ -62,13 +62,17 @@ public:
   bool make_apc_call(apc_func_t func, void *func_arg, 
                      int timeout_sec, bool *timed_out);
 
+#ifndef DBUG_OFF
+  int n_calls_processed;
+  //int call_queue_size;
+#endif
 private:
   class Call_request;
   int enabled;
 
   Call_request *apc_calls;
   pthread_mutex_t LOCK_apc_queue;
-  //int call_queue_size;
+
 
   class Call_request
   {

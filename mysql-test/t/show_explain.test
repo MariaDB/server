@@ -9,6 +9,9 @@ create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
 insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+alter table t1 add b int, add c int, add filler char(32);
+update t1 set b=a, c=a, filler='fooo';
+alter table t1 add key(a), add key(b);
 
 # 
 # Try killing a non-existent thread
@@ -16,7 +19,12 @@ insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
 --error ER_NO_SUCH_THREAD
 show explain for 2*1000*1000*1000;
 
+--error ER_NOT_SUPPORTED_YET
+show explain for (select max(a) from t0);
+
+# 
 # Setup two threads and their ids
+#
 let $thr1=`select connection_id()`;
 connect (con1, localhost, root,,);
 connection con1;
@@ -24,36 +32,47 @@ let $thr2=`select connection_id()`;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>
-echo SHOW explain for thr2;
---disable_query_log
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
-eval show explain for $thr2;
---enable_query_log
+evalp show explain for $thr2;
 
 # SHOW EXPLAIN FOR <ourselves>
-echo SHOW explain for thr1;
---disable_query_log
 --error ER_ERROR_WHEN_EXECUTING_COMMAND
-eval show explain for $thr1;
---enable_query_log
+evalp show explain for $thr1;
 
-# SHOW EXPLAIN FOR <running thread>
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW EXPLAIN for simple queries
+#
 connection con1;
-select get_lock('optimizer_done', 10);
-send select count(*) from t1 where a < 100000 and sleep(a*0 + release_lock('optimizer_done') +1);
-connection default;
-select get_lock('optimizer_done', 100);
-echo SHOW explain for thr2;
---disable_query_log
-eval show explain for $thr2;
---enable_query_log
-select release_lock('optimizer_done');
---disable_query_log
-eval kill query $thr2;
---enable_query_log
-echo kill query thr2;
+set debug='d,show_explain_probe_1';
+send select count(*) from t1 where a < 100000;
 
-#insert into t1 values ('one'),('two'),('three');
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+set debug='d,show_explain_probe_1';
+send select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+# We can catch EXPLAIN, too.
+set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
+set debug='d,show_explain_probe_1';
+send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
 
 ## TODO: Test this: multiple SHOW EXPLAIN calls in course of running of one select
 ## 
