@@ -29,6 +29,10 @@ void Apc_target::init()
   // todo: should use my_pthread_... functions instead?
   DBUG_ASSERT(!enabled);
   (void)pthread_mutex_init(&LOCK_apc_queue, MY_MUTEX_INIT_SLOW);
+
+#ifndef DBUG_OFF
+  n_calls_processed= 0;
+#endif
 }
 
 
@@ -216,6 +220,10 @@ void Apc_target::process_apc_requests()
 
     request->func(request->func_arg);
     request->what="func called by process_apc_requests";
+
+#ifndef DBUG_OFF
+    n_calls_processed++;
+#endif
 
     pthread_cond_signal(&request->COND_request);
 

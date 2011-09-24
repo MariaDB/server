@@ -75,6 +75,8 @@
 #define QUERY_SEND_FLAG  1
 #define QUERY_REAP_FLAG  2
 
+#define QUERY_PRINT_ORIGINAL_FLAG 4
+
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
 #endif
@@ -288,7 +290,8 @@ enum enum_commands {
   Q_ERROR,
   Q_SEND,		    Q_REAP,
   Q_DIRTY_CLOSE,	    Q_REPLACE, Q_REPLACE_COLUMN,
-  Q_PING,		    Q_EVAL,
+  Q_PING,		    Q_EVAL, 
+  Q_EVALP,
   Q_RPL_PROBE,	    Q_ENABLE_RPL_PARSE,
   Q_DISABLE_RPL_PARSE, Q_EVAL_RESULT,
   Q_ENABLE_QUERY_LOG, Q_DISABLE_QUERY_LOG,
@@ -353,6 +356,7 @@ const char *command_names[]=
   "replace_column",
   "ping",
   "eval",
+  "evalp",
   "rpl_probe",
   "enable_rpl_parse",
   "disable_rpl_parse",
@@ -7532,7 +7536,8 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   /*
     Evaluate query if this is an eval command
   */
-  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL)
+  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL || 
+      command->type == Q_EVALP)
   {
     init_dynamic_string(&eval_query, "", command->query_len+256, 1024);
     do_eval(&eval_query, command->query, command->end, FALSE);
@@ -7564,10 +7569,20 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (!disable_query_log && (flags & QUERY_SEND_FLAG))
   {
-    replace_dynstr_append_mem(ds, query, query_len);
+    char *print_query= query;
+    int print_len= query_len;
+    if (flags & QUERY_PRINT_ORIGINAL_FLAG)
+    {
+      print_query= command->query;
+      print_len= command->end - command->query;
+    }
+    replace_dynstr_append_mem(ds, print_query, print_len);
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
   }
+  
+  /* We're done with this flag */
+  flags &= ~QUERY_PRINT_ORIGINAL_FLAG;
 
   /*
     Write the command to the result file before we execute the query
@@ -8420,6 +8435,7 @@ int main(int argc, char **argv)
       case Q_EVAL_RESULT:
         die("'eval_result' command  is deprecated");
       case Q_EVAL:
+      case Q_EVALP:
       case Q_QUERY_VERTICAL:
       case Q_QUERY_HORIZONTAL:
 	if (command->query == command->query_buf)
@@ -8446,6 +8462,9 @@ int main(int argc, char **argv)
         {
           flags= QUERY_REAP_FLAG;
         }
+
+        if (command->type == Q_EVALP)
+          flags |= QUERY_PRINT_ORIGINAL_FLAG;
 
         /* Check for special property for this query */
         display_result_vertically|= (command->type == Q_QUERY_VERTICAL);

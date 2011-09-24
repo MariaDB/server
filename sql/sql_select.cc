@@ -245,6 +245,25 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
 JOIN_TAB *first_depth_first_tab(JOIN* join);
 JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
 
+#ifndef DBUG_OFF
+// psergey:
+void dbug_serve_apcs(THD *thd, int n_calls)
+{
+  // TODO how do we signal that we're SHOW-EXPLAIN-READY? 
+  const char *save_proc_info= thd->proc_info;
+  thd_proc_info(thd, "show_explain_trap");
+  
+  int n_apcs= thd->apc_target.n_calls_processed + n_calls;
+  while (thd->apc_target.n_calls_processed < n_apcs)
+  {
+    my_sleep(300);
+    if (thd->check_killed())
+      break;
+  }
+  thd_proc_info(thd, save_proc_info);
+}
+#endif 
+
 /**
   This handles SELECT with and without UNION.
 */
@@ -2047,6 +2066,8 @@ void JOIN::exec_inner()
   List<Item> *columns_list= &fields_list;
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
+  
+  DBUG_EXECUTE_IF("show_explain_probe_1", dbug_serve_apcs(thd, 1););
 
   thd_proc_info(thd, "executing");
   error= 0;
@@ -20430,7 +20451,6 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    //if (!join->select_lex->type)
     if (on_the_fly)
       join->select_lex->set_explain_type(on_the_fly); //psergey
     /* 
@@ -20561,6 +20581,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
                                                     join->select_lex->type;
       item_list.push_back(new Item_string(stype, strlen(stype), cs));
       
+      enum join_type tab_type= tab->type;
       if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
            tab->select && tab->select->quick)
       {
@@ -20569,9 +20590,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
             (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
             (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
             (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-          tab->type= tab->type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
+          tab_type= tab->type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
         else
-	  tab->type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
+	  tab_type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
       }
 
       /* table */
@@ -20620,8 +20641,8 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 #endif
       }
       /* "type" column */
-      item_list.push_back(new Item_string(join_type_str[tab->type],
-					  strlen(join_type_str[tab->type]),
+      item_list.push_back(new Item_string(join_type_str[tab_type],
+					  strlen(join_type_str[tab_type]),
 					  cs));
       /* Build "possible_keys" value and add it to item_list */
       if (!tab->keys.is_clear_all())
@@ -20645,7 +20666,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 	item_list.push_back(item_null);
 
       /* Build "key", "key_len", and "ref" values and add them to item_list */
-      if (tab->type == JT_NEXT)
+      if (tab_type == JT_NEXT)
       {
 	key_info= table->key_info+tab->index;
         key_len= key_info->key_length;
@@ -20674,12 +20695,12 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           }
         }
       }
-      if (is_hj && tab->type != JT_HASH)
+      if (is_hj && tab_type != JT_HASH)
       {
         tmp2.append(':');
         tmp3.append(':');
       }
-      if (tab->type == JT_HASH_NEXT)
+      if (tab_type == JT_HASH_NEXT)
       {
         register uint length;
 	key_info= table->key_info+tab->index;
@@ -20701,7 +20722,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           item_list.push_back(new Item_string(tmp3.ptr(),tmp3.length(),cs));
         else
           item_list.push_back(item_null);
-        if (key_info && tab->type != JT_NEXT)
+        if (key_info && tab_type != JT_NEXT)
           item_list.push_back(new Item_string(tmp4.ptr(),tmp4.length(),cs));
         else
           item_list.push_back(item_null);
@@ -20754,7 +20775,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
         ha_rows examined_rows;
         if (tab->select && tab->select->quick)
           examined_rows= tab->select->quick->records;
-        else if (tab->type == JT_NEXT || tab->type == JT_ALL || is_hj)
+        else if (tab_type == JT_NEXT || tab_type == JT_ALL || is_hj)
         {
           if (tab->limit)
             examined_rows= tab->limit;
@@ -20793,7 +20814,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 
       /* Build "Extra" field and add it to item_list. */
       key_read=table->key_read;
-      if ((tab->type == JT_NEXT || tab->type == JT_CONST) &&
+      if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
           table->covering_keys.is_set(tab->index))
 	key_read=1;
       if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT &&

@@ -2404,6 +2404,10 @@ int rea_create_table(THD *thd, const char *path,
 int format_number(uint inputflag,uint max_length,char * pos,uint length,
 		  char * *errpos);
 
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
+
 /* table.cc */
 TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
                                uint key_length);
