@@ -1,6 +1,8 @@
 #
 # Tests for SHOW EXPLAIN FOR functionality
 #
+--source include/have_debug.inc
+
 --disable_warnings
 drop table if exists t0, t1;
 --enable_warnings
@@ -45,6 +47,7 @@ let $wait_condition= select State='show_explain_trap' from information_schema.pr
 # Test SHOW EXPLAIN for simple queries
 #
 connection con1;
+set @show_explain_probe_select_id=1;
 set debug='d,show_explain_probe_1';
 send select count(*) from t1 where a < 100000;
 
@@ -55,7 +58,6 @@ connection con1;
 reap;
 
 
-set debug='d,show_explain_probe_1';
 send select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
@@ -65,13 +67,14 @@ reap;
 
 # We can catch EXPLAIN, too.
 set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
-set debug='d,show_explain_probe_1';
 send explain select max(c) from t1 where a < 10;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+
+# Let's try with a subquery
 
 
 ## TODO: Test this: multiple SHOW EXPLAIN calls in course of running of one select
