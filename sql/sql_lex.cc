@@ -3529,7 +3529,8 @@ void st_select_lex::set_explain_type(bool on_the_fly)
   if (this == master_unit()->fake_select_lex)
     type= "UNION RESULT";
 
-  options|= SELECT_DESCRIBE;
+  if (!on_the_fly)
+    options|= SELECT_DESCRIBE;
 }
 
 

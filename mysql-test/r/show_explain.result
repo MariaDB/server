@@ -14,6 +14,7 @@ show explain for $thr2;
 ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 show explain for $thr1;
 ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+set @show_explain_probe_select_id=1;
 set debug='d,show_explain_probe_1';
 select count(*) from t1 where a < 100000;
 show explain for $thr2;
@@ -21,7 +22,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	a	a	5	NULL	1000	Using where; Using index
 count(*)
 1000
-set debug='d,show_explain_probe_1';
 select max(c) from t1 where a < 10;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -29,7 +29,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 max(c)
 9
 set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
-set debug='d,show_explain_probe_1';
 explain select max(c) from t1 where a < 10;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra

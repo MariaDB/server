@@ -3474,6 +3474,8 @@ class user_var_entry
   DTCollation collation;
 };
 
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+				    bool create_if_not_exists);
 
 /*
    Unique -- class for unique (removing of duplicates).

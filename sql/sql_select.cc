@@ -262,7 +262,33 @@ void dbug_serve_apcs(THD *thd, int n_calls)
   }
   thd_proc_info(thd, save_proc_info);
 }
+
+
+/*
+  Usage
+  
+  DBUG_EXECUTE_IF("show_explain_probe_2", 
+                     if (dbug_user_var_equals_int(thd, "select_id", select_id)) 
+                        dbug_serve_apcs(thd, 1);
+                 );
+
+*/
+
+bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
+{
+  user_var_entry *var;
+  LEX_STRING varname= {(char*)name, strlen(name)};
+  if ((var= get_variable(&thd->user_vars, varname, FALSE)))
+  {
+    bool null_value;
+    longlong var_value= var->val_int(&null_value);
+    if (!null_value && var_value == value)
+      return TRUE;
+  }
+  return FALSE;
+}
 #endif 
+
 
 /**
   This handles SELECT with and without UNION.
@@ -2067,7 +2093,13 @@ void JOIN::exec_inner()
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
   
-  DBUG_EXECUTE_IF("show_explain_probe_1", dbug_serve_apcs(thd, 1););
+  DBUG_EXECUTE_IF("show_explain_probe_2", dbug_serve_apcs(thd, 1););
+  DBUG_EXECUTE_IF("show_explain_probe_1", 
+                  if (dbug_user_var_equals_int(thd, 
+                                               "show_explain_probe_select_id", 
+                                               select_lex->select_number))
+                        dbug_serve_apcs(thd, 1);
+                 );
 
   thd_proc_info(thd, "executing");
   error= 0;
@@ -20397,8 +20429,8 @@ void JOIN::clear()
 /**
   EXPLAIN handling.
 
-  Send a description about what how the select will be done to stdout.
-
+  Produce lines explaining execution of *this* select (not including children
+  selects)
   @param on_the_fly TRUE <=> we're being executed on-the-fly, so don't make 
                     modifications to any select's data structures
 */
