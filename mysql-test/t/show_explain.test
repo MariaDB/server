@@ -7,6 +7,28 @@
 drop table if exists t0, t1;
 --enable_warnings
 
+# 
+# Testcases in this file do not work with embedded server. The reason for this
+# is that we use the following commands for synchronization:
+#
+#    set @show_explain_probe_select_id=1;
+#    set debug='d,show_explain_probe_1';
+#    send select count(*) from t1 where a < 100000;
+#
+# When ran with mysqltest_embedded, this translates into: 
+#
+#    Thread1> DBUG_PUSH("d,show_explain_probe_1");
+#    Thread1> create another thread for doing "send ... reap"
+#    Thread2> mysql_parse("select count(*) from t1 where a < 100000");
+#
+# That is, "select count(*) ..." is ran in a thread for which DBUG_PUSH(...)
+# has not been called. As a result, show_explain_probe_1 does not fire, and
+# "select count(*) ..." does not wait till its SHOW EXPLAIN command, and the
+# test fails.
+#
+-- source include/not_embedded.inc
+
+
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
