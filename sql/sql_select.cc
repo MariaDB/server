@@ -20425,6 +20425,83 @@ void JOIN::clear()
   }
 }
 
+int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
+                               SELECT_LEX *select_lex, uint8 select_options)
+{
+  const CHARSET_INFO *cs= system_charset_info;
+  Item *item_null= new Item_null();
+  List<Item> item_list;
+  if (on_the_fly)
+    select_lex->set_explain_type(on_the_fly); //psergey
+  /* 
+    here we assume that the query will return at least two rows, so we
+    show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
+    and no filesort will be actually done, but executing all selects in
+    the UNION to provide precise EXPLAIN information will hardly be
+    appreciated :)
+  */
+  char table_name_buffer[SAFE_NAME_LEN];
+  item_list.empty();
+  /* id */
+  item_list.push_back(new Item_null);
+  /* select_type */
+  item_list.push_back(new Item_string(select_lex->type,
+                                      strlen(select_lex->type),
+                                      cs));
+  /* table */
+  {
+    SELECT_LEX *sl= select_lex->master_unit()->first_select();
+    uint len= 6, lastop= 0;
+    memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
+    for (; sl && len + lastop + 5 < NAME_LEN; sl= sl->next_select())
+    {
+      len+= lastop;
+      lastop= my_snprintf(table_name_buffer + len, NAME_LEN - len,
+                          "%u,", sl->select_number);
+    }
+    if (sl || len + lastop >= NAME_LEN)
+    {
+      memcpy(table_name_buffer + len, STRING_WITH_LEN("...>") + 1);
+      len+= 4;
+    }
+    else
+    {
+      len+= lastop;
+      table_name_buffer[len - 1]= '>';  // change ',' to '>'
+    }
+    item_list.push_back(new Item_string(table_name_buffer, len, cs));
+  }
+  /* partitions */
+  if (/*join->thd->lex->describe*/ select_options & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null);
+  /* type */
+  item_list.push_back(new Item_string(join_type_str[JT_ALL],
+                                        strlen(join_type_str[JT_ALL]),
+                                        cs));
+  /* possible_keys */
+  item_list.push_back(item_null);
+  /* key*/
+  item_list.push_back(item_null);
+  /* key_len */
+  item_list.push_back(item_null);
+  /* ref */
+  item_list.push_back(item_null);
+  /* in_rows */
+  if (select_options & DESCRIBE_EXTENDED)
+    item_list.push_back(item_null);
+  /* rows */
+  item_list.push_back(item_null);
+  /* extra */
+  if (select_lex->master_unit()->global_parameters->order_list.first)
+    item_list.push_back(new Item_string("Using filesort",
+                                        14, cs));
+  else
+    item_list.push_back(new Item_string("", 0, cs));
+
+  if (result->send_data(item_list))
+    return 1;
+  return 0;
+}
 
 /**
   EXPLAIN handling.
@@ -20483,74 +20560,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly); //psergey
-    /* 
-      here we assume that the query will return at least two rows, so we
-      show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
-      and no filesort will be actually done, but executing all selects in
-      the UNION to provide precise EXPLAIN information will hardly be
-      appreciated :)
-    */
-    char table_name_buffer[SAFE_NAME_LEN];
-    item_list.empty();
-    /* id */
-    item_list.push_back(new Item_null);
-    /* select_type */
-    item_list.push_back(new Item_string(join->select_lex->type,
-					strlen(join->select_lex->type),
-					cs));
-    /* table */
-    {
-      SELECT_LEX *sl= join->unit->first_select();
-      uint len= 6, lastop= 0;
-      memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
-      for (; sl && len + lastop + 5 < NAME_LEN; sl= sl->next_select())
-      {
-        len+= lastop;
-        lastop= my_snprintf(table_name_buffer + len, NAME_LEN - len,
-                            "%u,", sl->select_number);
-      }
-      if (sl || len + lastop >= NAME_LEN)
-      {
-        memcpy(table_name_buffer + len, STRING_WITH_LEN("...>") + 1);
-        len+= 4;
-      }
-      else
-      {
-        len+= lastop;
-        table_name_buffer[len - 1]= '>';  // change ',' to '>'
-      }
-      item_list.push_back(new Item_string(table_name_buffer, len, cs));
-    }
-    /* partitions */
-    if (join->thd->lex->describe & DESCRIBE_PARTITIONS)
-      item_list.push_back(item_null);
-    /* type */
-    item_list.push_back(new Item_string(join_type_str[JT_ALL],
-					  strlen(join_type_str[JT_ALL]),
-					  cs));
-    /* possible_keys */
-    item_list.push_back(item_null);
-    /* key*/
-    item_list.push_back(item_null);
-    /* key_len */
-    item_list.push_back(item_null);
-    /* ref */
-    item_list.push_back(item_null);
-    /* in_rows */
-    if (join->thd->lex->describe & DESCRIBE_EXTENDED)
-      item_list.push_back(item_null);
-    /* rows */
-    item_list.push_back(item_null);
-    /* extra */
-    if (join->unit->global_parameters->order_list.first)
-      item_list.push_back(new Item_string("Using filesort",
-					  14, cs));
-    else
-      item_list.push_back(new Item_string("", 0, cs));
-
-    if (result->send_data(item_list))
+    if (print_fake_select_lex_join(result, on_the_fly, 
+                                   join->select_lex, 
+                                   join->thd->lex->describe))
       error= 1;
   }
   else if (!join->select_lex->master_unit()->derived ||
