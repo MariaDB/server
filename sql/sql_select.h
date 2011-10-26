@@ -1465,6 +1465,9 @@ inline bool optimizer_flag(THD *thd, uint flag)
   return (thd->variables.optimizer_switch & flag);
 }
 
+int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
+                               SELECT_LEX *select_lex, uint8 select_options);
+
 /* Table elimination entry point function */
 void eliminate_tables(JOIN *join);
 
