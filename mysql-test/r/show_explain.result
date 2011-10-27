@@ -28,6 +28,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	10	Using where
 max(c)
 9
+# We can catch EXPLAIN, too.
+set @show_expl_tmp= @@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
 explain select max(c) from t1 where a < 10;
 show explain for $thr2;
@@ -35,4 +37,31 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+set optimizer_switch= @show_expl_tmp;
+# UNION, first branch 
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+explain select a from t0 A union select a+1 from t0 B;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+# UNION, second branch
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+explain select a from t0 A union select a+1 from t0 B;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t0,t1;

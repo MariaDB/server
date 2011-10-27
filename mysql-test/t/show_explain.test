@@ -87,9 +87,33 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-# We can catch EXPLAIN, too.
+
+--echo # We can catch EXPLAIN, too.
+set @show_expl_tmp= @@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
 send explain select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set optimizer_switch= @show_expl_tmp;
+
+
+--echo # UNION, first branch 
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send explain select a from t0 A union select a+1 from t0 B;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # UNION, second branch
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send explain select a from t0 A union select a+1 from t0 B;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
