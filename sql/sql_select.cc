@@ -265,7 +265,9 @@ void dbug_serve_apcs(THD *thd, int n_calls)
 
 
 /*
-  Usage
+  Debugging: check if @name=value, comparing as integer
+
+  Intended usage:
   
   DBUG_EXECUTE_IF("show_explain_probe_2", 
                      if (dbug_user_var_equals_int(thd, "select_id", select_id)) 
@@ -2102,7 +2104,6 @@ void JOIN::exec_inner()
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
   
-  DBUG_EXECUTE_IF("show_explain_probe_2", dbug_serve_apcs(thd, 1););
   DBUG_EXECUTE_IF("show_explain_probe_1", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 
@@ -20516,6 +20517,7 @@ void JOIN::clear()
   }
 }
 
+
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options)
 {
@@ -20593,6 +20595,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
     return 1;
   return 0;
 }
+
 
 /**
   EXPLAIN handling.
@@ -21161,6 +21164,10 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   DBUG_RETURN(error);
 }
 
+
+/*
+  See st_select_lex::print_explain() for the SHOW EXPLAIN counterpart
+*/ 
 
 static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
 			    bool distinct,const char *message)

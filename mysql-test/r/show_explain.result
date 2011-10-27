@@ -64,4 +64,65 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
 2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+# Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+select a, (select max(a) from t0 B) from t0 A where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+a	(select max(a) from t0 B)
+0	9
+# Uncorrelated  subquery, explain
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+explain select a, (select max(a) from t0 B) from t0 A where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+# correlated  subquery, select
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+# correlated  subquery, explain
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+# correlated  subquery, select, while inside the subquery
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+# correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
 drop table t0,t1;

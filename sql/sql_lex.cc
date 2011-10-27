@@ -3706,6 +3706,22 @@ int st_select_lex::print_explain(select_result_sink *output)
                              FALSE, // bool need_order,
                              FALSE, // bool distinct,
                              NULL); //const char *message
+    if (res)
+      goto err;
+
+    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+         unit;
+         unit= unit->next_unit())
+    {
+      /* 
+        Display subqueries only if they are not parts of eliminated WHERE/ON
+        clauses.
+      */
+      if (!(unit->item && unit->item->eliminated))
+      {
+        unit->print_explain(output);
+      }
+    }
   }
   else
   {
@@ -3717,6 +3733,7 @@ int st_select_lex::print_explain(select_result_sink *output)
                              FALSE, // bool distinct,
                              msg); //const char *message
   }
+err:
   return 0;
 }
 
