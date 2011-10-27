@@ -110,6 +110,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
+
 --echo # UNION, second branch
 set @show_explain_probe_select_id=1;
 set debug='d,show_explain_probe_1';
@@ -120,7 +121,73 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-# Let's try with a subquery
+
+--echo # Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+--echo # Uncorrelated  subquery, explain
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send explain select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # correlated  subquery, select
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # correlated  subquery, explain
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_1';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # correlated  subquery, select, while inside the subquery
+set @show_explain_probe_select_id=2; # <---
+set debug='d,show_explain_probe_1';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo # correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+# TODO: explain in the parent subuqery when the un-correlated child has been
+# run (and have done irreversible cleanups)
+
+# TODO: hit JOIN::optimize for non-select commands: UPDATE/DELETE, SET.
 
 
 ## TODO: Test this: multiple SHOW EXPLAIN calls in course of running of one select
