@@ -84,7 +84,8 @@ noinst_HEADERS =	item.h item_func.h item_sum.h item_cmpfunc.h \
                         multi_range_read.h sql_handler.h \
                         sql_join_cache.h \
 			create_options.h \
-			sql_expression_cache.h
+			sql_expression_cache.h \
+			my_apc.h
 
 mysqld_SOURCES =	sql_lex.cc sql_handler.cc sql_partition.cc \
 			item.cc item_sum.cc item_buff.cc item_func.cc \
@@ -134,7 +135,9 @@ mysqld_SOURCES =	sql_lex.cc sql_handler.cc sql_partition.cc \
 			sql_servers.cc event_parse_data.cc \
                         opt_table_elimination.cc create_options.cc \
 			multi_range_read.cc \
-			opt_index_cond_pushdown.cc sql_expression_cache.cc
+			opt_index_cond_pushdown.cc sql_expression_cache.cc \
+			my_apc.cc
+
 
 nodist_mysqld_SOURCES =	mini_client_errors.c pack.c client.c my_time.c my_user.c client_plugin.c
 

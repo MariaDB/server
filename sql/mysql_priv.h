@@ -802,6 +802,7 @@ typedef my_bool (*qc_engine_callback)(THD *thd, char *table_key,
                                       ulonglong *engine_data);
 #include "sql_string.h"
 #include "my_decimal.h"
+#include "my_apc.h"
 
 /*
   to unify the code that differs only in the argument passed to the
@@ -1550,6 +1551,7 @@ bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
 bool mysqld_show_create_db(THD *thd, char *dbname, HA_CREATE_INFO *create);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
+void mysqld_show_explain(THD *thd, ulong thread_id);
 int mysqld_show_status(THD *thd);
 int mysqld_show_variables(THD *thd,const char *wild);
 bool mysqld_show_storage_engines(THD *thd);
@@ -2411,6 +2413,10 @@ int rea_create_table(THD *thd, const char *path,
                      handler *file);
 int format_number(uint inputflag,uint max_length,char * pos,uint length,
 		  char * *errpos);
+
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
 
 /* table.cc */
 TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,

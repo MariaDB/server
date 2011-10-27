@@ -1386,7 +1386,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     while ((ifm= li++))
       parent_lex->ftfunc_list->push_front(ifm);
   }
-
+  
+  parent_lex->have_merged_subqueries= TRUE;
   DBUG_RETURN(FALSE);
 }
 
@@ -1499,6 +1500,8 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   create_subquery_temptable_name(tbl_alias, hash_sj_engine->materialize_join->
                                               select_lex->select_number);
   jtbm->alias= tbl_alias;
+
+  parent_lex->have_merged_subqueries= TRUE;
 #if 0
   /* Inject sj_on_expr into the parent's WHERE or ON */
   if (emb_tbl_nest)
