@@ -3667,7 +3667,11 @@ int st_select_lex_unit::print_explain(select_result_sink *output)
     if ((res= sl->print_explain(output)))
       break;
   }
-  if (!fake_select_lex->join)
+
+  /* 
+    Note: it could be that fake_select_lex->join == NULL still at this point
+  */
+  if (fake_select_lex && !fake_select_lex->join)
   {
     res= print_fake_select_lex_join(output, TRUE /* on the fly */,
                                     fake_select_lex, 0 /* flags */);
