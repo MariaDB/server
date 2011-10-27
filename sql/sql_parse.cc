@@ -328,6 +328,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_ENGINE_STATUS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_MUTEX]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_LOGS]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=  CF_STATUS_COMMAND;
@@ -3421,6 +3422,32 @@ end_with_restore_list:
                            thd->security_ctx->priv_user),
                           lex->verbose);
     break;
+  case SQLCOM_SHOW_EXPLAIN:
+  {
+    /* Same security as SHOW PROCESSLIST (TODO check this) */
+    if (!thd->security_ctx->priv_user[0] &&
+        check_global_access(thd,PROCESS_ACL))
+      break;
+
+    Item *it= (Item *)lex->value_list.head();
+
+    if (lex->table_or_sp_used())
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Usage of subqueries or stored "
+               "function calls as part of this statement");
+      break;
+    }
+
+    if ((!it->fixed && it->fix_fields(lex->thd, &it)) || it->check_cols(1))
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+
+    mysqld_show_explain(thd, (ulong)it->val_int());
+    break;
+  }
   case SQLCOM_SHOW_AUTHORS:
     res= mysqld_show_authors(thd);
     break;

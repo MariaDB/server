@@ -1640,7 +1640,8 @@ void st_select_lex::init_query()
   link_next= 0;
   lock_option= TL_READ_DEFAULT;
   is_prep_leaf_list_saved= FALSE;
-
+  
+  have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
 }
 
@@ -3119,7 +3120,7 @@ bool st_select_lex::optimize_unflattened_subqueries()
         if (options & SELECT_DESCRIBE)
         {
           /* Optimize the subquery in the context of EXPLAIN. */
-          sl->set_explain_type();
+          sl->set_explain_type(FALSE);
           sl->options|= SELECT_DESCRIBE;
           inner_join->select_options|= SELECT_DESCRIBE;
         }
@@ -3501,7 +3502,7 @@ void SELECT_LEX::update_used_tables()
   Set the EXPLAIN type for this subquery.
 */
 
-void st_select_lex::set_explain_type()
+void st_select_lex::set_explain_type(bool on_the_fly)
 {
   bool is_primary= FALSE;
   if (next_select())
@@ -3523,6 +3524,9 @@ void st_select_lex::set_explain_type()
     }
   }
 
+  if (on_the_fly && !is_primary && have_merged_subqueries)
+    is_primary= TRUE;
+
   SELECT_LEX *first= master_unit()->first_select();
   /* drop UNCACHEABLE_EXPLAIN, because it is for internal usage only */
   uint8 is_uncacheable= (uncacheable & ~UNCACHEABLE_EXPLAIN);
@@ -3539,8 +3543,13 @@ void st_select_lex::set_explain_type()
           ((is_uncacheable & UNCACHEABLE_DEPENDENT) ?
            "DEPENDENT UNION":
            is_uncacheable ? "UNCACHEABLE UNION":
-           "UNION")));
-  options|= SELECT_DESCRIBE;
+           (this == master_unit()->fake_select_lex)? "UNION RESULT" : "UNION")));
+
+  if (this == master_unit()->fake_select_lex)
+    type= "UNION RESULT";
+
+  if (!on_the_fly)
+    options|= SELECT_DESCRIBE;
 }
 
 
@@ -3684,6 +3693,54 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
     break;
   }
   return all_merged;
+}
+
+
+int st_select_lex::print_explain(select_result_sink *output)
+{
+  int res;
+  if (join && join->optimized == 2)
+  {
+    res= join->print_explain(output, TRUE,
+                             FALSE, // need_tmp_table, 
+                             FALSE, // bool need_order,
+                             FALSE, // bool distinct,
+                             NULL); //const char *message
+  }
+  else
+  {
+    /* Produce "not yet optimized" line */
+    const char *msg="Not yet optimized";
+    res= join->print_explain(output, TRUE,
+                             FALSE, // need_tmp_table, 
+                             FALSE, // bool need_order,
+                             FALSE, // bool distinct,
+                             msg); //const char *message
+  }
+  return 0;
+}
+
+
+int st_select_lex_unit::print_explain(select_result_sink *output)
+{
+  int res= 0;
+  SELECT_LEX *first= first_select();
+
+  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
+  {
+    if ((res= sl->print_explain(output)))
+      break;
+  }
+
+  /* 
+    Note: it could be that fake_select_lex->join == NULL still at this point
+  */
+  if (fake_select_lex && !fake_select_lex->join)
+  {
+    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
+                                    fake_select_lex, 0 /* flags */);
+  }
+  return res;
 }
 
 
