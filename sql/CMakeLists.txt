@@ -86,6 +86,7 @@ SET (SQL_SOURCE
                opt_index_cond_pushdown.cc
                create_options.cc
                sql_expression_cache.cc
+               my_apc.cc my_apc.h
                ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
                ${CMAKE_BINARY_DIR}/sql/sql_yacc.h
                ${CMAKE_BINARY_DIR}/include/mysqld_error.h
