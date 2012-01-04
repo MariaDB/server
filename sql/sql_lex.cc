@@ -3555,16 +3555,11 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       using_materialization= TRUE;
   }
 
-  if (this == master_unit()->fake_select_lex)
-    type= "UNION RESULT";
-
   if (&master_unit()->thd->lex->select_lex == this)
   {
      type= is_primary ? "PRIMARY" : "SIMPLE";
   }
-  
-  if (!on_the_fly)
-  //  else
+  else
   {
     if (this == first)
     {
@@ -3594,9 +3589,14 @@ void st_select_lex::set_explain_type(bool on_the_fly)
       else
       {
         type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
+        if (this == master_unit()->fake_select_lex)
+          type= "UNION RESULT";
+
       }
     }
   }
+
+  if (!on_the_fly)
     options|= SELECT_DESCRIBE;
 }
 
@@ -3744,10 +3744,17 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 }
 
 
+int print_explain_message_line(select_result_sink *result, 
+                               SELECT_LEX *select_lex,
+                               bool on_the_fly,
+                               uint8 options,
+                               const char *message);
+
+
 int st_select_lex::print_explain(select_result_sink *output)
 {
   int res;
-  if (join && join->optimized == 2)
+  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
   {
     res= join->print_explain(output, TRUE,
                              FALSE, // need_tmp_table, 
@@ -3773,13 +3780,18 @@ int st_select_lex::print_explain(select_result_sink *output)
   }
   else
   {
-    /* Produce "not yet optimized" line */
-    const char *msg="Not yet optimized";
-    res= join->print_explain(output, TRUE,
-                             FALSE, // need_tmp_table, 
-                             FALSE, // bool need_order,
-                             FALSE, // bool distinct,
-                             msg); //const char *message
+    const char *msg;
+    if (!join)
+      DBUG_ASSERT(0); // psergey: TODO: can this happen or not?
+    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
+      msg= "Not yet optimized";
+    else
+    {
+      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
+      msg= "Query plan already deleted";
+    }
+    res= print_explain_message_line(output, this, TRUE /* on_the_fly */,
+                                    0, msg);
   }
 err:
   return 0;
