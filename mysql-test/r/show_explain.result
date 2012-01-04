@@ -15,7 +15,7 @@ ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EX
 show explain for $thr1;
 ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select count(*) from t1 where a < 100000;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -25,7 +25,7 @@ count(*)
 select max(c) from t1 where a < 10;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using where
+1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition
 max(c)
 9
 # We can catch EXPLAIN, too.
@@ -40,7 +40,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set optimizer_switch= @show_expl_tmp;
 # UNION, first branch 
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -53,7 +53,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 # UNION, second branch
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -66,7 +66,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
 # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 B) from t0 A where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -76,7 +76,7 @@ a	(select max(a) from t0 B)
 0	9
 # Uncorrelated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 B) from t0 A where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -87,7 +87,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
 # correlated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -97,7 +97,7 @@ a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 # correlated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -107,7 +107,7 @@ a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 # correlated  subquery, select, while inside the subquery
 set @show_explain_probe_select_id=2;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -117,12 +117,21 @@ a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 # correlated  subquery, explain, while inside the subquery
 set @show_explain_probe_select_id=2;
-set debug='d,show_explain_probe_1';
+set debug='d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+# correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 drop table t0,t1;

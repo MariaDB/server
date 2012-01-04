@@ -931,7 +931,8 @@ err:
 int JOIN::optimize()
 {
   int res= optimize_inner();
-  optimized= 2;
+  if (!res)
+    have_query_plan= QEP_AVAILABLE;
   return res;
 }
 /**
@@ -2104,7 +2105,22 @@ void JOIN::exec()
     Enable SHOW EXPLAIN only if we're in the top-level query.
   */
   thd->apc_target.enable();
+  DBUG_EXECUTE_IF("show_explain_probe_join_exec_start", 
+                  if (dbug_user_var_equals_int(thd, 
+                                               "show_explain_probe_select_id", 
+                                               select_lex->select_number))
+                        dbug_serve_apcs(thd, 1);
+                 );
+
   exec_inner();
+
+  DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
+                  if (dbug_user_var_equals_int(thd, 
+                                               "show_explain_probe_select_id", 
+                                               select_lex->select_number))
+                        dbug_serve_apcs(thd, 1);
+                 );
+
   thd->apc_target.disable();
 }
 
@@ -2127,13 +2143,6 @@ void JOIN::exec_inner()
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
   
-  DBUG_EXECUTE_IF("show_explain_probe_1", 
-                  if (dbug_user_var_equals_int(thd, 
-                                               "show_explain_probe_select_id", 
-                                               select_lex->select_number))
-                        dbug_serve_apcs(thd, 1);
-                 );
-
   thd_proc_info(thd, "executing");
   error= 0;
   if (procedure)
@@ -2421,9 +2430,17 @@ void JOIN::exec_inner()
       DBUG_PRINT("info",("Creating group table"));
       
       /* Free first data from old join */
+      
+      fprintf(stderr,"Q: %s\n", thd->query());
+      //DBUG_ASSERT(0);
+      /*
+        psergey-todo: this is the place of pre-mature JOIN::free call.
+      */
       curr_join->join_free();
+      //psergey-todo: SHOW EXPLAIN probe here
       if (curr_join->make_simple_join(this, curr_tmp_table))
 	DBUG_VOID_RETURN;
+      //psergey-todo: SHOW EXPLAIN probe here
       calc_group_buffer(curr_join, group_list);
       count_field_types(select_lex, &curr_join->tmp_table_param,
 			curr_join->tmp_all_fields1,
@@ -2544,7 +2561,9 @@ void JOIN::exec_inner()
     if (curr_tmp_table->distinct)
       curr_join->select_distinct=0;		/* Each row is unique */
     
+    //psergey-todo: SHOW EXPLAIN probe here
     curr_join->join_free();			/* Free quick selects */
+    //psergey-todo: SHOW EXPLAIN probe here
     if (curr_join->select_distinct && ! curr_join->group_list)
     {
       thd_proc_info(thd, "Removing duplicates");
@@ -10113,7 +10132,8 @@ void JOIN::cleanup(bool full)
 {
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
-
+  
+  have_query_plan= QEP_DELETED;
   if (table)
   {
     JOIN_TAB *tab;
@@ -20706,6 +20726,41 @@ void JOIN::clear()
 }
 
 
+/*
+  Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
+*/
+int print_explain_message_line(select_result_sink *result, 
+                               SELECT_LEX *select_lex,
+                               bool on_the_fly,
+                               uint8 options,
+                               const char *message)
+{
+  const CHARSET_INFO *cs= system_charset_info;
+  Item *item_null= new Item_null();
+  List<Item> item_list;
+
+  if (on_the_fly)
+    select_lex->set_explain_type(on_the_fly);
+
+  item_list.push_back(new Item_int((int32)
+                                   select_lex->select_number));
+  item_list.push_back(new Item_string(select_lex->type,
+                                      strlen(select_lex->type), cs));
+  for (uint i=0 ; i < 7; i++)
+    item_list.push_back(item_null);
+  if (options & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null);
+  if (options & DESCRIBE_EXTENDED)
+    item_list.push_back(item_null);
+
+  item_list.push_back(new Item_string(message,strlen(message),cs));
+
+  if (result->send_data(item_list))
+    return 1;
+  return 0;
+}
+
+
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options)
 {
@@ -20810,7 +20865,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(this->optimized == 2);
+  DBUG_ASSERT(this->have_query_plan == QEP_AVAILABLE);
   /* Don't log this into the slow query log */
 
   if (!on_the_fly)
@@ -20825,7 +20880,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   */
   if (message)
   {
-    item_list.push_back(new Item_int((int32)
+    // join->thd->lex->describe <- as options
+#if 0
+    item_list.push_bace(new Item_int((int32)
 				     join->select_lex->select_number));
     item_list.push_back(new Item_string(join->select_lex->type,
 					strlen(join->select_lex->type), cs));
@@ -20839,9 +20896,16 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
     item_list.push_back(new Item_string(message,strlen(message),cs));
     if (result->send_data(item_list))
       error= 1;
+#endif 
+    //psergey-todo: is passing  join->thd->lex->describe correct for SHOW EXPLAIN?
+    if (print_explain_message_line(result, join->select_lex, on_the_fly, 
+                                   join->thd->lex->describe, message))
+      error= 1;
+
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
+    //psergey-todo: is passing  join->thd->lex->describe correct for SHOW EXPLAIN?
     if (print_fake_select_lex_join(result, on_the_fly, 
                                    join->select_lex, 
                                    join->thd->lex->describe))
@@ -20853,7 +20917,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
     table_map used_tables=0;
     //if (!join->select_lex->type)
     if (on_the_fly)
-      join->select_lex->set_explain_type(on_the_fly); //psergey-todo: this adds SELECT_DESCRIBE to options! bad for on-the-fly 
+      join->select_lex->set_explain_type(on_the_fly);
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;

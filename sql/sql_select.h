@@ -1137,8 +1137,10 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
-  int  optimized; ///< flag to avoid double optimization in EXPLAIN
+  bool  optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
+  
+  enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
@@ -1221,6 +1223,7 @@ public:
     ref_pointer_array_size= 0;
     zero_result_cause= 0;
     optimized= 0;
+    have_query_plan= QEP_NOT_PRESENT_YET;
     initialized= 0;
     cond_equal= 0;
     having_equal= 0;
