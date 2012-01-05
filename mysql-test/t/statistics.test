@@ -3,6 +3,8 @@
 drop table if exists t1,t2;
 --enable_warnings
 
+set @save_optimizer_use_stat_tables=@@optimizer_use_stat_tables;
+
 CREATE VIEW table_stat AS
 SELECT * FROM mysql.table_stat;
  
@@ -286,5 +288,6 @@ DROP VIEW test.table_stat;
 DROP VIEW test.column_stat;
 DROP VIEW test.index_stat;
 
-   
+set optimizer_use_stat_tables=@save_optimizer_use_stat_tables;
+
     
