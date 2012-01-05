@@ -537,6 +537,12 @@ static sys_var_thd_ulong        sys_progress_report_time(&vars,
                                                          "progress_report_time",
                                                          &SV::progress_report_time);
 
+static sys_var_thd_enum         sys_optimizer_use_stat_tables(&vars, 
+                                               "optimizer_use_stat_tables",
+                                               &SV::optimizer_use_stat_tables,
+                                               &optimizer_use_stat_tables_typelib,
+                                               NULL);
+
 static sys_var_const            sys_pid_file(&vars, "pid_file",
                                              OPT_GLOBAL, SHOW_CHAR,
                                              (uchar*) pidfile_name);

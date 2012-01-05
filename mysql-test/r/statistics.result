@@ -1,0 +1,455 @@
+drop table if exists t1,t2;
+CREATE VIEW table_stat AS
+SELECT * FROM mysql.table_stat;
+CREATE VIEW column_stat AS
+SELECT db_name, table_name, column_name,
+min_value, max_value,
+CAST(nulls_ratio AS decimal(12,4)) AS 'nulls_ratio',
+CAST(avg_length AS decimal(12,4)) AS 'avg_length',
+CAST(avg_frequency AS decimal(12,4)) AS 'avg_frequency'
+    FROM mysql.column_stat;
+CREATE VIEW index_stat AS
+SELECT db_name, table_name, index_name, prefix_arity,
+CAST(avg_frequency AS decimal(12,4)) AS 'avg_frequency'
+    FROM mysql.index_stat;
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+set optimizer_use_stat_tables='preferably';
+CREATE TABLE t1 (
+a int NOT NULL PRIMARY KEY,
+b varchar(32),
+c char(16),
+d date,
+e double,
+f bit(3),
+INDEX idx1 (b, e), 
+INDEX idx2(c, d),
+INDEX idx3 (d),
+INDEX idx4 (e, b, d)
+);
+INSERT INTO t1 VALUES
+(0, NULL, NULL, NULL, NULL, NULL),
+(7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd', '1990-05-15', 0.1, b'100'),
+(17, 'vvvvvvvvvvvvv', 'aaaa', '1989-03-12', 0.01, b'101'),
+(1, 'vvvvvvvvvvvvv', NULL, '1989-03-12', 0.01, b'100'),
+(12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.112, b'001'),
+(23, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.1, b'100'),
+(8, 'vvvvvvvvvvvvv', 'aaaa', '1999-07-23', 0.1, b'100'),
+(22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa', '1989-03-12', 0.112, b'001'),
+(31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa', '1999-07-23', 0.01, b'001'),
+(10, NULL, 'aaaa', NULL, 0.01, b'010'),
+(5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.1, b'100'),
+(15, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.1, b'010'),
+(30, NULL, 'bbbbbb', NULL, NULL, b'100'),
+(38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, NULL, NULL),
+(18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc', '1990-05-15', 0.01, b'010'),
+(9, 'yyy', 'bbbbbb', '1998-08-28', 0.01, NULL),
+(29, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.012, b'010'),
+(3, 'yyy', 'dddddddd',  '1990-05-15', 0.112, b'010'),
+(39, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, 0.01, b'100'),
+(14, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.1, b'100'),
+(40, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', '1989-03-12', NULL, NULL),
+(44, NULL, 'aaaa', '1989-03-12', NULL, b'010'),
+(19, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.012, b'011'),
+(21, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.112, b'100'),
+(45, NULL, NULL, '1989-03-12', NULL, b'011'),
+(2, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'ccccccccc', '1990-05-15', 0.1, b'001'),
+(35, 'yyy', 'aaaa', '1990-05-15', 0.05, b'011'),
+(4, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.01, b'101'),
+(47, NULL, 'aaaa', '1990-05-15', 0.05, b'010'),
+(42, NULL, 'ccccccccc', '1989-03-12', 0.01, b'010'),
+(32, NULL, 'bbbbbb', '1990-05-15', 0.01, b'011'),
+(49, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'aaaa', '1990-05-15', NULL, NULL),
+(43, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'bbbbbb', '1990-05-15', NULL, b'100'),
+(37, 'yyy', NULL, '1989-03-12', 0.05, b'011'),
+(41, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.05, NULL),
+(34, 'yyy', NULL, NULL, NULL, NULL),
+(33, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.05, b'011'),
+(24,  'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1990-05-15', 0.01,  b'101'),
+(11, 'yyy', 'ccccccccc', '1999-07-23', 0.1, NULL),
+(25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT * FROM table_stat;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM column_stat;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	a	0	49	0.0000	4.0000	1.0000
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
+test	t1	f	1	5	0.2000	1.0000	6.4000
+SELECT * FROM index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40
+SELECT * FROM column_stat
+WHERE db_name='test' AND table_name='t1' AND column_name='a';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	a	0	49	0.0000	4.0000	1.0000
+SELECT MIN(t1.a), MAX(t1.a), 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.a)",
+(SELECT COUNT(t1.a) FROM t1) /
+(SELECT COUNT(DISTINCT t1.a) FROM t1) AS "AVG_FREQUENCY(t1.a)"
+FROM t1;
+MIN(t1.a)	MAX(t1.a)	NULLS_RATIO(t1.a)	AVG_FREQUENCY(t1.a)
+0	49	0.2000	1.0000
+SELECT * FROM column_stat
+WHERE db_name='test' AND table_name='t1' AND column_name='b';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
+SELECT MIN(t1.b), MAX(t1.b), 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.b)",
+(SELECT COUNT(t1.b) FROM t1) /
+(SELECT COUNT(DISTINCT t1.b) FROM t1) AS "AVG_FREQUENCY(t1.b)"
+FROM t1;
+MIN(t1.b)	MAX(t1.b)	NULLS_RATIO(t1.b)	AVG_FREQUENCY(t1.b)
+vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000
+SELECT * FROM column_stat 
+WHERE db_name='test' AND table_name='t1' AND column_name='c';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
+SELECT MIN(t1.c), MAX(t1.c), 
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.c)",
+(SELECT COUNT(t1.c) FROM t1) /
+(SELECT COUNT(DISTINCT t1.c) FROM t1) AS "AVG_FREQUENCY(t1.c)"
+FROM t1;
+MIN(t1.c)	MAX(t1.c)	NULLS_RATIO(t1.c)	AVG_FREQUENCY(t1.c)
+aaaa	dddddddd	0.1250	7.0000
+SELECT * FROM column_stat
+WHERE db_name='test' AND table_name='t1' AND column_name='d';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
+SELECT MIN(t1.d), MAX(t1.d), 
+(SELECT COUNT(*) FROM t1 WHERE t1.d IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.d)",
+(SELECT COUNT(t1.d) FROM t1) /
+(SELECT COUNT(DISTINCT t1.d) FROM t1) AS "AVG_FREQUENCY(t1.d)"
+FROM t1;
+MIN(t1.d)	MAX(t1.d)	NULLS_RATIO(t1.d)	AVG_FREQUENCY(t1.d)
+1989-03-12	1999-07-23	0.1500	8.5000
+SELECT * FROM column_stat
+WHERE db_name='test' AND table_name='t1' AND column_name='e';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
+SELECT MIN(t1.e), MAX(t1.e), 
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.e)",
+(SELECT COUNT(t1.e) FROM t1) /
+(SELECT COUNT(DISTINCT t1.e) FROM t1) AS "AVG_FREQUENCY(t1.e)"
+FROM t1;
+MIN(t1.e)	MAX(t1.e)	NULLS_RATIO(t1.e)	AVG_FREQUENCY(t1.e)
+0.01	0.112	0.2250	6.2000
+SELECT * FROM index_stat
+WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.b) FROM t1 WHERE t1.b IS NOT NULL)
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.b, t1.e) FROM t1
+WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) 
+AS 'ARITY 2';
+ARITY 1	ARITY 2
+6.4000	1.6875
+SELECT * FROM index_stat
+WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.c) FROM t1 WHERE t1.c IS NOT NULL) 
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.c, t1.d) FROM t1
+WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
+AS 'ARITY 2';
+ARITY 1	ARITY 2
+7.0000	2.3846
+SELECT * FROM index_stat
+WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx3	1	8.5000
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.d IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.d) FROM t1 WHERE t1.d IS NOT NULL)
+AS 'ARITY 1';
+ARITY 1
+8.5000
+SELECT * FROM index_stat
+WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.e) FROM t1 WHERE t1.e IS NOT NULL)
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.e, t1.b) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL)
+AS 'ARITY 2',
+(SELECT COUNT(*) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL) /  
+(SELECT COUNT(DISTINCT t1.e, t1.b, t1.d) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
+AS 'ARITY 3';
+ARITY 1	ARITY 2	ARITY 3
+6.2000	1.6875	1.1304
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 ENGINE=InnoDB;
+INSERT INTO t2 SELECT * FROM t1;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+SELECT * FROM table_stat;
+db_name	table_name	cardinality
+test	t1	40
+test	t2	40
+SELECT * FROM column_stat ORDER BY column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	a	0	49	0.0000	4.0000	1.0000
+test	t2	a	0	49	0.0000	4.0000	1.0000
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
+test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
+test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
+test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
+test	t2	e	0.01	0.112	0.2250	8.0000	6.2000
+test	t1	f	1	5	0.2000	1.0000	6.4000
+test	t2	f	1	5	0.2000	1.0000	6.4000
+SELECT * FROM index_stat ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t2	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t2	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t2	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t2	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t2	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t2	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t2	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t2	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+test	t2	idx4	3	1.1304
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+ALTER TABLE t1
+DROP INDEX idx1,
+DROP INDEX idx4;
+ALTER TABLE t1
+MODIFY COLUMN b text,
+ADD INDEX idx1 (b(4), e), 
+ADD INDEX idx4 (e, b(4), d);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SELECT * FROM column_stat;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+test	t1	a	0	49	0.0000	4.0000	1.0000
+test	t1	b	NULL	NULL	0.2000	17.1250	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
+test	t1	f	1	5	0.2000	1.0000	6.4000
+SELECT * FROM index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx1	1	NULL
+test	t1	idx1	2	NULL
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	NULL
+test	t1	idx4	3	NULL
+DROP TABLE t1,t2;
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+set optimizer_use_stat_tables='never';
+set names utf8;
+CREATE DATABASE world;
+use world;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+set optimizer_use_stat_tables='preferably';
+ANALYZE TABLE Country, City, CountryLanguage;
+SELECT * FROM test.table_stat;
+db_name	table_name	cardinality
+world	Country	239
+world	City	4079
+world	CountryLanguage	984
+SELECT * FROM test.column_stat;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+world	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
+world	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+world	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+world	Country	Population	0	1277558000	0.0000	4.0000	1.0575
+world	Country	Capital	1	4074	0.0293	4.0000	1.0000
+world	City	ID	1	4079	0.0000	4.0000	1.0000
+world	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+world	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
+world	City	Population	42	10500000	0.0000	4.0000	1.0467
+world	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
+world	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+world	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT * FROM test.index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+world	Country	PRIMARY	1	1.0000
+world	Country	Name	1	1.0000
+world	City	PRIMARY	1	1.0000
+world	City	Population	1	1.0467
+world	City	Country	1	17.5819
+world	CountryLanguage	PRIMARY	1	4.2232
+world	CountryLanguage	PRIMARY	2	1.0000
+world	CountryLanguage	Percentage	1	2.7640
+use test;
+set optimizer_use_stat_tables='never';
+CREATE DATABASE world_innodb;
+use world_innodb;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+ALTER TABLE Country ENGINE=InnoDB;
+ALTER TABLE City ENGINE=InnoDB;
+ALTER TABLE CountryLanguage ENGINE=InnoDB;
+set optimizer_use_stat_tables='preferably';
+ANALYZE TABLE Country, City, CountryLanguage;
+SELECT * FROM test.table_stat;
+db_name	table_name	cardinality
+world	Country	239
+world	City	4079
+world	CountryLanguage	984
+world_innodb	Country	239
+world_innodb	City	4079
+world_innodb	CountryLanguage	984
+SELECT * FROM test.column_stat;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+world	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
+world	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+world	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+world	Country	Population	0	1277558000	0.0000	4.0000	1.0575
+world	Country	Capital	1	4074	0.0293	4.0000	1.0000
+world	City	ID	1	4079	0.0000	4.0000	1.0000
+world	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+world	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
+world	City	Population	42	10500000	0.0000	4.0000	1.0467
+world	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
+world	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+world	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+world_innodb	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
+world_innodb	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+world_innodb	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+world_innodb	Country	Population	0	1277558000	0.0000	4.0000	1.0575
+world_innodb	Country	Capital	1	4074	0.0293	4.0000	1.0000
+world_innodb	City	ID	1	4079	0.0000	4.0000	1.0000
+world_innodb	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+world_innodb	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
+world_innodb	City	Population	42	10500000	0.0000	4.0000	1.0467
+world_innodb	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
+world_innodb	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+world_innodb	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT * FROM test.index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+world	Country	PRIMARY	1	1.0000
+world	Country	Name	1	1.0000
+world	City	PRIMARY	1	1.0000
+world	City	Population	1	1.0467
+world	City	Country	1	17.5819
+world	CountryLanguage	PRIMARY	1	4.2232
+world	CountryLanguage	PRIMARY	2	1.0000
+world	CountryLanguage	Percentage	1	2.7640
+world_innodb	Country	PRIMARY	1	1.0000
+world_innodb	Country	Name	1	1.0000
+world_innodb	City	PRIMARY	1	1.0000
+world_innodb	City	Population	1	1.0467
+world_innodb	City	Country	1	17.5819
+world_innodb	CountryLanguage	PRIMARY	1	4.2232
+world_innodb	CountryLanguage	PRIMARY	2	1.0000
+world_innodb	CountryLanguage	Percentage	1	2.7640
+use test;
+DROP DATABASE world;
+DROP DATABASE world_innodb;
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+DROP VIEW test.table_stat;
+DROP VIEW test.column_stat;
+DROP VIEW test.index_stat;

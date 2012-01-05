@@ -887,14 +887,14 @@ C_MODE_START
 
 /* Declarations for auxilary C-callbacks */
 
-static int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
+int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
     return memcmp(key1, key2, *(uint *) arg);
 }
 
 
-static int item_sum_distinct_walk(void *element, element_count num_of_dups,
-                                  void *item)
+int item_sum_distinct_walk(void *element, element_count num_of_dups,
+                           void *item)
 {
   return ((Item_sum_distinct*) (item))->unique_walk_function(element);
 }
@@ -2362,7 +2362,7 @@ int composite_key_cmp(void* arg, uchar* key1, uchar* key2)
 
 C_MODE_START
 
-static int count_distinct_walk(void *elem, element_count count, void *arg)
+int count_distinct_walk(void *elem, element_count count, void *arg)
 {
   (*((ulonglong*)arg))++;
   return 0;
