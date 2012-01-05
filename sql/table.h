@@ -747,6 +747,25 @@ struct st_table {
   */
   query_id_t	query_id;
 
+  /* Statistical data on a table */
+  class Table_statistics
+  {
+  public:
+    my_bool cardinality_is_null;  /* TRUE if the cardinality is unknown */
+    ha_rows cardinality;          /* Number of rows in the table        */
+  };
+
+  /*
+    This structure is used for statistical data on the table
+    that has been read from the statistical table table_stat
+  */ 
+  Table_statistics read_stat;
+  /*
+    This structure is used for statistical data on the table that
+    is collected by the function collect_statistics_for_table
+  */
+  Table_statistics write_stat;
+
   /* 
     For each key that has quick_keys.is_set(key) == TRUE: estimate of #records
     and max #key parts that range access would use.

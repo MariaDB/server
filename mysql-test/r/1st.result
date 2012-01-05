@@ -6,6 +6,7 @@ mysql
 test
 show tables in mysql;
 Tables_in_mysql
+column_stat
 columns_priv
 db
 event
@@ -16,12 +17,14 @@ help_keyword
 help_relation
 help_topic
 host
+index_stat
 ndb_binlog_index
 plugin
 proc
 procs_priv
 servers
 slow_log
+table_stat
 tables_priv
 time_zone
 time_zone_leap_second

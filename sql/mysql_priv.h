@@ -1519,6 +1519,12 @@ find_field_in_table_sef(TABLE *table, const char *name);
 int update_virtual_fields(THD *thd, TABLE *table, bool ignore_stored= FALSE);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
+int read_statistics_for_table(THD *thd, TABLE *table);
+int collect_statistics_for_table(THD *thd, TABLE *table);
+int update_statistics_for_table(THD *thd, TABLE *table);
+
+extern TYPELIB optimizer_use_stat_tables_typelib;
+
 #endif /* MYSQL_SERVER */
 
 #ifdef HAVE_OPENSSL
@@ -1935,6 +1941,9 @@ void mysql_wait_completed_table(ALTER_PARTITION_PARAM_TYPE *lpt, TABLE *my_table
 /* Functions to work with system tables. */
 bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
                                  Open_tables_state *backup);
+bool unlock_tables_n_open_system_tables_for_write(THD *thd,
+                                                  TABLE_LIST *table_list,
+                                                  Open_tables_state *backup);
 void close_system_tables(THD *thd, Open_tables_state *backup);
 TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
 
@@ -2589,6 +2598,13 @@ Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
 		     LEX_STRING component);
 int get_var_with_binlog(THD *thd, enum_sql_command sql_command,
                         LEX_STRING &name, user_var_entry **out_entry);
+
+/* item_sum.cc */
+extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
+                                  const void* key2);
+extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
+
 /* log.cc */
 bool flush_error_log(void);
 

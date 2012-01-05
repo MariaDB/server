@@ -102,3 +102,8 @@ CREATE TABLE IF NOT EXISTS event ( db char(64) CHARACTER SET utf8 COLLATE utf8_b
 
 CREATE TABLE IF NOT EXISTS ndb_binlog_index (Position BIGINT UNSIGNED NOT NULL, File VARCHAR(255) NOT NULL, epoch BIGINT UNSIGNED NOT NULL, inserts BIGINT UNSIGNED NOT NULL, updates BIGINT UNSIGNED NOT NULL, deletes BIGINT UNSIGNED NOT NULL, schemaops BIGINT UNSIGNED NOT NULL, PRIMARY KEY(epoch)) ENGINE=MYISAM;
 
+CREATE TABLE IF NOT EXISTS table_stat (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, cardinality bigint(21) unsigned DEFAULT NULL, PRIMARY KEY (db_name,table_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Tables';
+
+CREATE TABLE IF NOT EXISTS column_stat (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, column_name varchar(64) NOT NULL, min_value varchar(255) DEFAULT NULL, max_value varchar(255) DEFAULT NULL, nulls_ratio double DEFAULT NULL, avg_length double DEFAULT NULL, avg_frequency double DEFAULT NULL, PRIMARY KEY (db_name,table_name,column_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+
+CREATE TABLE IF NOT EXISTS index_stat (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency double DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';

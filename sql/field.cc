@@ -70,7 +70,7 @@ const char field_separator=',';
 ((ulong) ((LL(1) << min(arg, 4) * 8) - LL(1)))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
-#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(!table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
+#define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
 
 /*
   Rules for merging different types of fields in UNION
@@ -1330,7 +1330,8 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   flags=null_ptr ? 0: NOT_NULL_FLAG;
   comment.str= (char*) "";
   comment.length=0;
-  field_index= 0;
+  field_index= 0;   
+  is_stat_field= FALSE;
 }
 
 
@@ -1813,6 +1814,21 @@ Field *Field::clone(MEM_ROOT *root, struct st_table *new_table)
     tmp->move_field_offset((my_ptrdiff_t) (new_table->record[0] -
                                            new_table->s->default_values));
   }
+  return tmp;
+}
+
+
+
+Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff,
+                    bool stat_flag)
+{
+  Field *tmp;
+  if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
+  {
+    tmp->init(new_table);
+    tmp->move_field_offset(diff);
+  }
+  tmp->is_stat_field= stat_flag;
   return tmp;
 }
 

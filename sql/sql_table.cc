@@ -4692,6 +4692,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
   int result_code;
+  int compl_result_code;
   bool need_repair_or_alter= 0;
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
@@ -4946,9 +4947,22 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
     }
 
-    DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
-    result_code = (table->table->file->*operator_func)(thd, check_opt);
-    DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+    result_code= compl_result_code= 0;
+    if (operator_func != &handler::ha_analyze ||
+        thd->variables.optimizer_use_stat_tables < 3)
+    {
+      DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
+      result_code = (table->table->file->*operator_func)(thd, check_opt);
+      DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+    }
+
+    if (operator_func == &handler::ha_analyze &&
+	thd->variables.optimizer_use_stat_tables > 0)
+    {
+      if (!(compl_result_code=
+            collect_statistics_for_table(thd, table->table)))
+        compl_result_code= update_statistics_for_table(thd, table->table);
+    }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)
     {
@@ -4958,6 +4972,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       */
       result_code= admin_recreate_table(thd, table);
     }
+
 send_result:
 
     lex->cleanup_after_one_table_open();

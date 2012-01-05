@@ -1,6 +1,7 @@
 drop table if exists t1,t2;
 show tables;
 Tables_in_mysql
+column_stat
 columns_priv
 db
 event
@@ -11,12 +12,14 @@ help_keyword
 help_relation
 help_topic
 host
+index_stat
 ndb_binlog_index
 plugin
 proc
 procs_priv
 servers
 slow_log
+table_stat
 tables_priv
 time_zone
 time_zone_leap_second
@@ -34,6 +37,7 @@ grant ALL on *.* to test@localhost identified by "gambling";
 grant ALL on *.* to test@127.0.0.1 identified by "gambling";
 show tables;
 Tables_in_mysql
+column_stat
 columns_priv
 db
 event
@@ -44,12 +48,14 @@ help_keyword
 help_relation
 help_topic
 host
+index_stat
 ndb_binlog_index
 plugin
 proc
 procs_priv
 servers
 slow_log
+table_stat
 tables_priv
 time_zone
 time_zone_leap_second
@@ -75,6 +81,7 @@ ERROR HY000: Password hash should be a 41-digit hexadecimal number
 set password=old_password('gambling3');
 show tables;
 Tables_in_mysql
+column_stat
 columns_priv
 db
 event
@@ -85,12 +92,14 @@ help_keyword
 help_relation
 help_topic
 host
+index_stat
 ndb_binlog_index
 plugin
 proc
 procs_priv
 servers
 slow_log
+table_stat
 tables_priv
 time_zone
 time_zone_leap_second

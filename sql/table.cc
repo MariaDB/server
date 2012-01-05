@@ -489,6 +489,12 @@ inline bool is_system_table_name(const char *name, uint length)
              my_tolower(ci, name[2]) == 'm' &&
              my_tolower(ci, name[3]) == 'e') ||
 
+            /* one of mysql.*_stat tables */
+            (my_tolower(ci, name[length-4]) == 's' &&
+             my_tolower(ci, name[length-3]) == 't' &&
+             my_tolower(ci, name[length-2]) == 'a' &&
+             my_tolower(ci, name[length-1]) == 't') ||
+           
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
              my_tolower(ci, name[1]) == 'v' &&
@@ -698,6 +704,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   uchar *disk_buff, *strpos, *null_flags, *null_pos, *options;
   uchar *buff= 0;
   ulong pos, record_offset, *rec_per_key, rec_buff_length;
+  double *read_avg_frequency= 0;
+  double *write_avg_frequency= 0;
   handler *handler_file= 0;
   KEY	*keyinfo;
   KEY_PART_INFO *key_part;
@@ -812,7 +820,13 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
                                          sizeof(ulong)*key_parts)))
     goto err;
-
+  if (!(read_avg_frequency= (double*) alloc_root(&share->mem_root,
+                                                 sizeof(double)*key_parts)))
+    goto err;
+  if (!(write_avg_frequency= (double*) alloc_root(&share->mem_root,
+                                                  sizeof(double)*key_parts)))
+    goto err;
+  
   for (i=0 ; i < keys ; i++, keyinfo++)
   {
     if (new_frm_ver >= 3)
@@ -835,9 +849,13 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
+    keyinfo->read_stat.avg_frequency= read_avg_frequency;
+    keyinfo->write_stat.avg_frequency= write_avg_frequency; 
     for (j=keyinfo->key_parts ; j-- ; key_part++)
     {
       *rec_per_key++=0;
+      *read_avg_frequency++= 0;
+      *write_avg_frequency++= 0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
       key_part->key_type=	(uint) uint2korr(strpos+5);

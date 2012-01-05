@@ -95,6 +95,7 @@ USER_STATISTICS
 VIEWS
 XTRADB_ADMIN_COMMAND
 XTRADB_ENHANCEMENTS
+column_stat
 columns_priv
 db
 event
@@ -105,6 +106,7 @@ help_keyword
 help_relation
 help_topic
 host
+index_stat
 plugin
 proc
 procs_priv
@@ -115,6 +117,7 @@ t2
 t3
 t4
 t5
+table_stat
 tables_priv
 time_zone
 time_zone_leap_second
@@ -132,6 +135,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stat	table_stat
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second
@@ -152,6 +156,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stat	table_stat
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second
@@ -172,6 +177,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stat	table_stat
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second
