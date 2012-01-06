@@ -349,7 +349,7 @@ public:
         (len= pack_length()) >= 4 && len < 256))
     {
       uchar *str, *end;
-      for (str= ptr, end= str+len; end > str && end[-1] == ' '; end--);
+      for (str= ptr, end= str+len; end > str && end[-1] == ' '; end--) {}
       len=(uint) (end-str); 
       return len;
     } 
