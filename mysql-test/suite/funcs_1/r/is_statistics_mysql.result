@@ -12,6 +12,9 @@ NULL	mysql	columns_priv	0	mysql	PRIMARY	2	Db	A	#CARD#	NULL	NULL		BTREE
 NULL	mysql	columns_priv	0	mysql	PRIMARY	3	User	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	columns_priv	0	mysql	PRIMARY	4	Table_name	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	columns_priv	0	mysql	PRIMARY	5	Column_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	column_stat	0	mysql	PRIMARY	1	db_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	column_stat	0	mysql	PRIMARY	2	table_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	column_stat	0	mysql	PRIMARY	3	column_name	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	db	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	db	0	mysql	PRIMARY	2	Db	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	db	0	mysql	PRIMARY	3	User	A	#CARD#	NULL	NULL		BTREE	
@@ -29,6 +32,10 @@ NULL	mysql	help_topic	0	mysql	name	1	name	A	#CARD#	NULL	NULL		BTREE
 NULL	mysql	help_topic	0	mysql	PRIMARY	1	help_topic_id	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	host	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	host	0	mysql	PRIMARY	2	Db	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	index_stat	0	mysql	PRIMARY	1	db_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	index_stat	0	mysql	PRIMARY	2	table_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	index_stat	0	mysql	PRIMARY	3	index_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	index_stat	0	mysql	PRIMARY	4	prefix_arity	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	ndb_binlog_index	0	mysql	PRIMARY	1	epoch	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	plugin	0	mysql	PRIMARY	1	name	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	proc	0	mysql	PRIMARY	1	db	A	#CARD#	NULL	NULL		BTREE	
@@ -46,6 +53,8 @@ NULL	mysql	tables_priv	0	mysql	PRIMARY	1	Host	A	#CARD#	NULL	NULL		BTREE
 NULL	mysql	tables_priv	0	mysql	PRIMARY	2	Db	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	tables_priv	0	mysql	PRIMARY	3	User	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	tables_priv	0	mysql	PRIMARY	4	Table_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	table_stat	0	mysql	PRIMARY	1	db_name	A	#CARD#	NULL	NULL		BTREE	
+NULL	mysql	table_stat	0	mysql	PRIMARY	2	table_name	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	time_zone	0	mysql	PRIMARY	1	Time_zone_id	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	time_zone_leap_second	0	mysql	PRIMARY	1	Transition_time	A	#CARD#	NULL	NULL		BTREE	
 NULL	mysql	time_zone_name	0	mysql	PRIMARY	1	Name	A	#CARD#	NULL	NULL		BTREE	
