@@ -330,35 +330,40 @@ INDEX (Percentage)
 ) CHARACTER SET utf8 COLLATE utf8_bin;
 set optimizer_use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
-SELECT * FROM test.table_stat;
-db_name	table_name	cardinality
-world	Country	239
-world	City	4079
-world	CountryLanguage	984
-SELECT * FROM test.column_stat;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
-world	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
-world	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
-world	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
-world	Country	Population	0	1277558000	0.0000	4.0000	1.0575
-world	Country	Capital	1	4074	0.0293	4.0000	1.0000
-world	City	ID	1	4079	0.0000	4.0000	1.0000
-world	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
-world	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
-world	City	Population	42	10500000	0.0000	4.0000	1.0467
-world	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
-world	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
-world	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
-SELECT * FROM test.index_stat;
-db_name	table_name	index_name	prefix_arity	avg_frequency
-world	Country	PRIMARY	1	1.0000
-world	Country	Name	1	1.0000
-world	City	PRIMARY	1	1.0000
-world	City	Population	1	1.0467
-world	City	Country	1	17.5819
-world	CountryLanguage	PRIMARY	1	4.2232
-world	CountryLanguage	PRIMARY	2	1.0000
-world	CountryLanguage	Percentage	1	2.7640
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM test.table_stat;
+UPPER(db_name)	UPPER(table_name)	cardinality
+WORLD	COUNTRY	239
+WORLD	CITY	4079
+WORLD	COUNTRYLANGUAGE	984
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM test.column_stat;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM test.index_stat;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+WORLD	COUNTRY	PRIMARY	1	1.0000
+WORLD	COUNTRY	Name	1	1.0000
+WORLD	CITY	PRIMARY	1	1.0000
+WORLD	CITY	Population	1	1.0467
+WORLD	CITY	Country	1	17.5819
+WORLD	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD	COUNTRYLANGUAGE	Percentage	1	2.7640
 use test;
 set optimizer_use_stat_tables='never';
 CREATE DATABASE world_innodb;
@@ -393,58 +398,63 @@ ALTER TABLE City ENGINE=InnoDB;
 ALTER TABLE CountryLanguage ENGINE=InnoDB;
 set optimizer_use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
-SELECT * FROM test.table_stat;
-db_name	table_name	cardinality
-world	Country	239
-world	City	4079
-world	CountryLanguage	984
-world_innodb	Country	239
-world_innodb	City	4079
-world_innodb	CountryLanguage	984
-SELECT * FROM test.column_stat;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
-world	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
-world	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
-world	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
-world	Country	Population	0	1277558000	0.0000	4.0000	1.0575
-world	Country	Capital	1	4074	0.0293	4.0000	1.0000
-world	City	ID	1	4079	0.0000	4.0000	1.0000
-world	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
-world	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
-world	City	Population	42	10500000	0.0000	4.0000	1.0467
-world	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
-world	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
-world	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
-world_innodb	Country	Code	ABW	ZWE	0.0000	3.0000	1.0000
-world_innodb	Country	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
-world_innodb	Country	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
-world_innodb	Country	Population	0	1277558000	0.0000	4.0000	1.0575
-world_innodb	Country	Capital	1	4074	0.0293	4.0000	1.0000
-world_innodb	City	ID	1	4079	0.0000	4.0000	1.0000
-world_innodb	City	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
-world_innodb	City	Country	ABW	ZWE	0.0000	3.0000	17.5819
-world_innodb	City	Population	42	10500000	0.0000	4.0000	1.0467
-world_innodb	CountryLanguage	Country	ABW	ZWE	0.0000	3.0000	4.2232
-world_innodb	CountryLanguage	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
-world_innodb	CountryLanguage	Percentage	0.0	99.9	0.0000	4.0000	2.7640
-SELECT * FROM test.index_stat;
-db_name	table_name	index_name	prefix_arity	avg_frequency
-world	Country	PRIMARY	1	1.0000
-world	Country	Name	1	1.0000
-world	City	PRIMARY	1	1.0000
-world	City	Population	1	1.0467
-world	City	Country	1	17.5819
-world	CountryLanguage	PRIMARY	1	4.2232
-world	CountryLanguage	PRIMARY	2	1.0000
-world	CountryLanguage	Percentage	1	2.7640
-world_innodb	Country	PRIMARY	1	1.0000
-world_innodb	Country	Name	1	1.0000
-world_innodb	City	PRIMARY	1	1.0000
-world_innodb	City	Population	1	1.0467
-world_innodb	City	Country	1	17.5819
-world_innodb	CountryLanguage	PRIMARY	1	4.2232
-world_innodb	CountryLanguage	PRIMARY	2	1.0000
-world_innodb	CountryLanguage	Percentage	1	2.7640
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM test.table_stat;
+UPPER(db_name)	UPPER(table_name)	cardinality
+WORLD	COUNTRY	239
+WORLD	CITY	4079
+WORLD	COUNTRYLANGUAGE	984
+WORLD_INNODB	COUNTRY	239
+WORLD_INNODB	CITY	4079
+WORLD_INNODB	COUNTRYLANGUAGE	984
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM test.column_stat;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD_INNODB	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD_INNODB	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM test.index_stat;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+WORLD	COUNTRY	PRIMARY	1	1.0000
+WORLD	COUNTRY	Name	1	1.0000
+WORLD	CITY	PRIMARY	1	1.0000
+WORLD	CITY	Population	1	1.0467
+WORLD	CITY	Country	1	17.5819
+WORLD	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD	COUNTRYLANGUAGE	Percentage	1	2.7640
+WORLD_INNODB	COUNTRY	PRIMARY	1	1.0000
+WORLD_INNODB	COUNTRY	Name	1	1.0000
+WORLD_INNODB	CITY	PRIMARY	1	1.0000
+WORLD_INNODB	CITY	Population	1	1.0467
+WORLD_INNODB	CITY	Country	1	17.5819
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
 use test;
 DROP DATABASE world;
 DROP DATABASE world_innodb;
