@@ -239,9 +239,14 @@ set optimizer_use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
-SELECT * FROM test.table_stat;
-SELECT * FROM test.column_stat;
-SELECT * FROM test.index_stat;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM test.table_stat;
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM test.column_stat;
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM test.index_stat;
 
 use test;
 
@@ -271,9 +276,14 @@ set optimizer_use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
-SELECT * FROM test.table_stat;
-SELECT * FROM test.column_stat;
-SELECT * FROM test.index_stat;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM test.table_stat;
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM test.column_stat;
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM test.index_stat;
 
 use test;
 
