@@ -4855,7 +4855,7 @@ int open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags)
         parent_l->next_global= *parent_l->table->child_last_l;
       }
 
-      if (thd->variables.optimizer_use_stat_tables > 0)
+      if (!opt_no_stat_tables && thd->variables.optimizer_use_stat_tables > 0)
       {
         if (tables->table &&  tables->table->s && 
             tables->table->s->table_category != TABLE_CATEGORY_SYSTEM)    

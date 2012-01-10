@@ -626,6 +626,7 @@ my_bool opt_old_style_user_limits= 0, trust_function_creators= 0;
 */
 volatile bool mqh_used = 0;
 my_bool opt_noacl;
+my_bool opt_no_stat_tables;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
@@ -6191,7 +6192,8 @@ enum options_mysqld
   OPT_MAX_LONG_DATA_SIZE,
   OPT_MASTER_VERIFY_CHECKSUM,
   OPT_SLAVE_SQL_VERIFY_CHECKSUM,
-  OPT_QUERY_CACHE_STRIP_COMMENTS
+  OPT_QUERY_CACHE_STRIP_COMMENTS,
+  OPT_SKIP_STAT_TABLES
 };
 
 
@@ -7018,6 +7020,11 @@ each time the SQL thread starts.",
    &opt_noacl, &opt_noacl, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
 #endif
+  {"skip-stat-tables", OPT_SKIP_STAT_TABLES,
+   "Start without statistical tables. Statistical data on table cardinalities, " 
+   "columns and indexes from these tables become unavailable",
+   &opt_no_stat_tables, &opt_no_stat_tables, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-locking", OPT_SKIP_LOCK,
@@ -9220,6 +9227,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
+    opt_no_stat_tables= 1;
     break;
   case OPT_LOG_SLOW_FILTER:
     global_system_variables.log_slow_filter=
