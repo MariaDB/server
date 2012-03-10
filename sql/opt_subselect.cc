@@ -251,8 +251,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
          Subquery !contains {GROUP BY, ORDER BY [LIMIT],
          aggregate functions}) && subquery predicate is not under "NOT IN"))
 
-    (*) The subquery must be part of a SELECT statement. The current
-         condition also excludes multi-table update statements.
+    (*) The subquery must be part of a SELECT or CREATE TABLE ... SELECT statement.
+        The current condition also excludes multi-table update statements.
   A note about prepared statements: we want the if-branch to be taken on
   PREPARE and each EXECUTE. The rewrites are only done once, but we need 
   select_lex->sj_subselects list to be populated for every EXECUTE. 
@@ -261,7 +261,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION) &&      // 0
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
-        thd->lex->sql_command == SQLCOM_SELECT &&                     // *
+        (thd->lex->sql_command == SQLCOM_SELECT ||                     // *
+         thd->lex->sql_command == SQLCOM_CREATE_TABLE) &&              // *
         child_select->outer_select()->leaf_tables.elements &&           // 2A
         subquery_types_allow_materialization(in_subs) &&
         (in_subs->is_top_level_item() ||                               //3
@@ -597,7 +598,7 @@ bool subquery_types_allow_materialization(Item_in_subselect *in_subs)
       break;
     case TIME_RESULT:
       if (mysql_type_to_time_type(outer->field_type()) !=
-          mysql_type_to_time_type(outer->field_type()))
+          mysql_type_to_time_type(inner->field_type()))
         DBUG_RETURN(FALSE);
     default:
       /* suitable for materialization */
@@ -3167,6 +3168,7 @@ bool setup_sj_materialization_part1(JOIN_TAB *sjm_tab)
     sjm->sjm_table_cols.push_back(*p_item);
 
   sjm->sjm_table_param.field_count= subq_select->item_list.elements;
+  sjm->sjm_table_param.force_not_null_cols= TRUE;
 
   if (!(sjm->table= create_tmp_table(thd, &sjm->sjm_table_param, 
                                      sjm->sjm_table_cols, (ORDER*) 0, 
@@ -4079,7 +4081,8 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
 {
   uint i;
   DBUG_ENTER("setup_semijoin_dups_elimination");
-
+  
+  join->complex_firstmatch_tables= table_map(0);
 
   POSITION *pos= join->best_positions + join->const_tables;
   for (i= join->const_tables ; i < join->top_join_tab_count; )
@@ -4098,6 +4101,11 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
       {
         /* We jump from the last table to the first one */
         tab->loosescan_match_tab= tab + pos->n_sj_tables - 1;
+        
+        /* LooseScan requires records to be produced in order */
+        if (tab->select && tab->select->quick)
+          tab->select->quick->need_sorted_output();
+
         for (uint j= i; j < i + pos->n_sj_tables; j++)
           join->join_tab[j].inside_loosescan_range= TRUE;
 
@@ -4107,6 +4115,7 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
         for (uint kp=0; kp < pos->loosescan_picker.loosescan_parts; kp++)
           keylen += tab->table->key_info[keyno].key_part[kp].store_length;
 
+        tab->loosescan_key= keyno;
         tab->loosescan_key_len= keylen;
         if (pos->n_sj_tables > 1) 
           tab[pos->n_sj_tables - 1].do_firstmatch= tab;
@@ -4162,16 +4171,46 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
       }
       case SJ_OPT_FIRST_MATCH:
       {
-        JOIN_TAB *j, *jump_to= tab-1;
+        JOIN_TAB *j;
+        JOIN_TAB *jump_to= tab-1;
+
+        bool complex_range= FALSE;
+        table_map tables_in_range= table_map(0);
+
         for (j= tab; j != tab + pos->n_sj_tables; j++)
         {
-          /*
-            NOTE: this loop probably doesn't do the right thing for the case 
-            where FirstMatch's duplicate-generating range is interleaved with
-            "unrelated" tables (as specified in WL#3750, section 2.2).
-          */
+          tables_in_range |= j->table->map;
           if (!j->emb_sj_nest)
-            jump_to= tab;
+          {
+            /* 
+              Got a table that's not within any semi-join nest. This is a case
+              like this:
+
+              SELECT * FROM ot1, nt1 WHERE ot1.col IN (SELECT expr FROM it1, it2)
+
+              with a join order of 
+
+                   +----- FirstMatch range ----+
+                   |                           |
+              ot1 it1 nt1 nt2 it2 it3 ...
+                   |   ^
+                   |   +-------- 'j' points here
+                   +------------- SJ_OPT_FIRST_MATCH was set for this table as
+                                  it's the first one that produces duplicates
+              
+            */
+            DBUG_ASSERT(j != tab);  /* table ntX must have an itX before it */
+
+            /* 
+              If the table right before us is an inner table (like it1 in the
+              picture), it should be set to jump back to previous outer-table
+            */
+            if (j[-1].emb_sj_nest)
+              j[-1].do_firstmatch= jump_to;
+
+            jump_to= j; /* Jump back to us */
+            complex_range= TRUE;
+          }
           else
           {
             j->first_sj_inner_tab= tab;
@@ -4181,6 +4220,9 @@ int setup_semijoin_dups_elimination(JOIN *join, ulonglong options,
         j[-1].do_firstmatch= jump_to;
         i+= pos->n_sj_tables;
         pos+= pos->n_sj_tables;
+
+        if (complex_range)
+          join->complex_firstmatch_tables|= tables_in_range;
         break;
       }
       case SJ_OPT_NONE:

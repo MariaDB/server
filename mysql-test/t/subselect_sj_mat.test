@@ -1510,6 +1510,138 @@ SELECT * FROM t1 LEFT JOIN t2 ON ( a = b )
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # BUG#922254: Assertion `0' failed at item_cmpfunc.cc:5899: Item* Item_equal::get_first(JOIN_TAB*, Item*)
+--echo #
+CREATE TABLE t1 ( a VARCHAR(3) );
+CREATE TABLE t2 ( b VARCHAR(3), c VARCHAR(8), KEY(c) );
+INSERT INTO t2 VALUES ('USA','Abilene'),('USA','Akron');
+
+EXPLAIN
+SELECT * FROM
+  ( SELECT * FROM t1 ) AS alias1,
+  t2 AS alias2
+WHERE b = a AND a IN (
+  SELECT alias3.c
+  FROM t2 AS alias3, t2 AS alias4
+  WHERE alias4.c = alias3.b
+);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # BUG#928048: Query containing IN subquery with OR in the where clause returns a wrong result
+--echo #
+create table t1 (a int, b int);
+insert into t1 values (7,5), (3,3), (5,4), (9,3);
+
+create table t2 (a int, b int, index i_a(a));
+
+insert into t2 values
+  (4,2), (7,9), (7,4), (3,1), (5,3), (3,1), (9,4), (8,1);
+
+explain select * from t1 where t1.a in (select a from t2 where t2.a=7 or t2.b<=1);
+select * from t1 where t1.a in (select a from t2 where t2.a=7 or t2.b<=1);
+
+drop table t1,t2;
+
+--echo #
+--echo # BUG#933407: Valgrind warnings in mark_as_null_row with materialization+semijoin, STRAIGHT_JOIN, impossible WHERE
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(8);
+
+SELECT STRAIGHT_JOIN MIN(a) FROM t1
+WHERE a IN (
+    SELECT a FROM t1
+    WHERE 'condition'='impossible'
+  );
+
+DROP TABLE t1;
+
+--echo #
+--echo # BUG#938131: Subquery materialization is not used in CREATE TABLE SELECT
+--echo # 
+CREATE TABLE t1(a int);
+INSERT INTO t1 values(1),(2);
+CREATE TABLE t2(a int);
+INSERT INTO t2 values(1),(2);
+--echo # Should use Materialization:
+EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+flush status;
+CREATE TABLE t3 SELECT * FROM t1 WHERE a IN (SELECT * FROM t2 GROUP BY a HAVING a > 1);
+SHOW STATUS LIKE 'Created_tmp_tables';
+DROP TABLE t1,t2,t3;
+
+--echo # 
+--echo # BUG#939009: Crash with aggregate function in IN subquery 
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='materialization=on,semijoin=on';
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (7,1), (4,2), (7,7);
+
+CREATE TABLE t2 ( c INT );
+INSERT INTO t2 VALUES (4), (7), (6);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1
+  WHERE a IN (SELECT MAX(c) FROM t2) AND b=7 AND (a IS NULL OR a=b);
+SELECT * FROM t1
+  WHERE a IN (SELECT MAX(c) FROM t2) AND b=7 AND (a IS NULL OR a=b);
+
+EXPLAIN
+SELECT * FROM t1
+  WHERE a IN (SELECT MAX(c) FROM t2 WHERE c < 4) AND b=7 AND (a IS NULL OR a=b);
+SELECT * FROM t1
+  WHERE a IN (SELECT MAX(c) FROM t2 WHERE c < 4) AND b=7 AND (a IS NULL OR a=b);
+
+SET optimizer_switch=@save_optimizer_switch;
+
+DROP TABLE t1,t2;
+
+--echo # 
+--echo # BUG#946055: Crash with semijoin IN subquery when hash join is used
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (7);
+
+CREATE TABLE t2 (b int, c int, d varchar(1), e varchar(1), KEY (c), KEY (d, c));
+
+INSERT INTO t2 VALUES 
+  (4,2,'v','v'), (6,1,'v','v'), (0,5,'x','x'), (7,1,'x','x'),
+  (7,3,'i','i'), (7,1,'e','e'), (1,4,'p','p'), (1,2,'j','j');
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET @save_join_cache_level=@@join_cache_level;
+
+SET join_cache_level=2;
+EXPLAIN
+SELECT a, c FROM t1, t2
+  WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2
+                     WHERE s2.d = s1.e AND s1.e = (SELECT MAX(e) FROM t2));
+SELECT a, c FROM t1, t2
+  WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2
+                     WHERE s2.d = s1.e AND s1.e = (SELECT MAX(e) FROM t2));
+
+SET optimizer_switch='join_cache_hashed=on';
+SET join_cache_level=4;
+EXPLAIN
+SELECT a, c FROM t1, t2
+  WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2
+                     WHERE s2.d = s1.e AND s1.e = (SELECT MAX(e) FROM t2));
+SELECT a, c FROM t1, t2
+  WHERE (a, c) IN (SELECT s1.b, s1.c FROM t2 AS s1, t2 AS s2
+                     WHERE s2.d = s1.e AND s1.e = (SELECT MAX(e) FROM t2));
+
+SET optimizer_switch=@save_optimizer_switch;
+SET join_cache_level=@save_join_cache_level;
+
+DROP TABLE t1,t2;
+
 --echo # This must be at the end:
 set optimizer_switch=@subselect_sj_mat_tmp;
 set join_cache_level=@save_join_cache_level;

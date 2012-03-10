@@ -524,7 +524,7 @@ btr_search_update_hash_ref(
 {
 	dict_index_t*	index;
 	ulint		fold;
-	const rec_t*	rec;
+	rec_t*		rec;
 
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 #ifdef UNIV_SYNC_DEBUG
@@ -827,7 +827,7 @@ btr_search_guess_on_hash(
 	mtr_t*		mtr)		/*!< in: mtr */
 {
 	buf_block_t*	block;
-	const rec_t*	rec;
+	rec_t*		rec;
 	ulint		fold;
 	dulint		index_id;
 #ifdef notdefined
@@ -913,7 +913,7 @@ btr_search_guess_on_hash(
 
 	ut_ad(page_rec_is_user_rec(rec));
 
-	btr_cur_position(index, (rec_t*) rec, block, cursor);
+	btr_cur_position(index, rec, block, cursor);
 
 	/* Check the validity of the guess within the page */
 

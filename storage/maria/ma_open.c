@@ -62,7 +62,8 @@ MARIA_HA *_ma_test_if_reopen(const char *filename)
   {
     MARIA_HA *info=(MARIA_HA*) pos->data;
     MARIA_SHARE *share= info->s;
-    if (!strcmp(share->unique_file_name.str,filename) && share->last_version)
+    if (!strcmp(share->unique_file_name.str,filename) &&
+        share->last_version > 1)
       return info;
   }
   return 0;
@@ -840,7 +841,12 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags)
     share->base.key_parts=key_parts;
     share->base.all_key_parts=key_parts+unique_key_parts;
     if (!(share->last_version=share->state.version))
-      share->last_version=1;			/* Safety */
+      share->last_version= 2;			/* Safety */
+    if (open_flags & HA_OPEN_FOR_STATUS)
+    {
+      share->last_version= 1;                  /* Not reusable version */
+      share->options|= HA_OPTION_READ_ONLY_DATA;
+    }
     share->rec_reflength=share->base.rec_reflength; /* May be changed */
     share->base.margin_key_file_length=(share->base.max_key_file_length -
 					(keys ? MARIA_INDEX_BLOCK_MARGIN *
@@ -1714,9 +1720,11 @@ my_bool _ma_columndef_write(File file, MARIA_COLUMNDEF *columndef)
 {
   uchar buff[MARIA_COLUMNDEF_SIZE];
   uchar *ptr=buff;
+  uint low_offset=  (uint) (columndef->offset & 0xffff);
+  uint high_offset= (uint) (columndef->offset >> 16);
 
   mi_int2store(ptr,(ulong) columndef->column_nr); ptr+= 2;
-  mi_int2store(ptr,(ulong) columndef->offset);	  ptr+= 2;
+  mi_int2store(ptr, low_offset);		  ptr+= 2;
   mi_int2store(ptr,columndef->type);		  ptr+= 2;
   mi_int2store(ptr,columndef->length);		  ptr+= 2;
   mi_int2store(ptr,columndef->fill_length);	  ptr+= 2;
@@ -1725,12 +1733,14 @@ my_bool _ma_columndef_write(File file, MARIA_COLUMNDEF *columndef)
 
   (*ptr++)= columndef->null_bit;
   (*ptr++)= columndef->empty_bit;
-  ptr[0]= ptr[1]= ptr[2]= ptr[3]= 0;            ptr+= 4;  /* For future */
+  mi_int2store(ptr, high_offset);                 ptr+= 2;
+  ptr[0]= ptr[1]= 0;                              ptr+= 2;  /* For future */
   return my_write(file, buff, (size_t) (ptr-buff), MYF(MY_NABP)) != 0;
 }
 
 uchar *_ma_columndef_read(uchar *ptr, MARIA_COLUMNDEF *columndef)
 {
+  uint high_offset;
   columndef->column_nr= mi_uint2korr(ptr);      ptr+= 2;
   columndef->offset= mi_uint2korr(ptr);         ptr+= 2;
   columndef->type=   mi_sint2korr(ptr);		ptr+= 2;
@@ -1740,7 +1750,9 @@ uchar *_ma_columndef_read(uchar *ptr, MARIA_COLUMNDEF *columndef)
   columndef->empty_pos= mi_uint2korr(ptr);	ptr+= 2;
   columndef->null_bit=  (uint8) *ptr++;
   columndef->empty_bit= (uint8) *ptr++;
-  ptr+= 4;
+  high_offset=       mi_uint2korr(ptr);         ptr+= 2;  
+  columndef->offset|= ((ulong) high_offset << 16);
+  ptr+= 2;
   return ptr;
 }
 
