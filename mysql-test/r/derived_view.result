@@ -79,6 +79,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 flush status;
 select * from (select * from t1 where f1 in (2,3)) tt where f11=2;
@@ -91,6 +92,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	12
 for merged views
 create view v1 as select * from t1;
@@ -162,6 +164,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 flush status;
 select * from v4 where f2 in (1,3);
@@ -174,6 +177,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	12
 for materialized derived tables
 explain for simple derived
@@ -224,6 +228,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 flush status;
 select * from t1 join (select * from t2 group by f2) tt on f1=f2;
@@ -238,6 +243,7 @@ Handler_read_key	11
 Handler_read_next	3
 Handler_read_prev	0
 Handler_read_rnd	11
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	36
 for materialized views
 drop view v1,v2,v3;
@@ -311,6 +317,7 @@ Handler_read_key	22
 Handler_read_next	22
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	60
 explain showing late materialization
 flush status;
@@ -326,6 +333,7 @@ Handler_read_key	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_rnd	0
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 flush status;
 select * from t1 join v2 on f1=f2;
@@ -340,6 +348,7 @@ Handler_read_key	11
 Handler_read_next	3
 Handler_read_prev	0
 Handler_read_rnd	11
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	36
 explain extended select * from v1 join v4 on f1=f2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -411,7 +420,7 @@ join
 (select * from (select * from t1 where f1 < 7 group by f1) tt where f1 > 2) z
 on x.f1 = z.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	<derived3>	ALL	key0	NULL	NULL	NULL	11	100.00	Using where
+1	SIMPLE	<derived3>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 1	SIMPLE	<derived5>	ref	key0	key0	5	tt.f1	2	100.00	
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
@@ -433,6 +442,7 @@ Handler_read_key	2
 Handler_read_next	2
 Handler_read_prev	0
 Handler_read_rnd	8
+Handler_read_rnd_deleted	0
 Handler_read_rnd_next	39
 flush status;
 merged in merged derived join merged in merged derived
@@ -468,7 +478,7 @@ join
 (select * from t1 where f1 < 7 group by f1) tt where f1 > 2 group by f1) z
 on x.f1 = z.f1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	key0	NULL	NULL	NULL	11	100.00	Using where
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
 1	PRIMARY	<derived4>	ref	key0	key0	5	x.f1	2	100.00	
 4	DERIVED	<derived5>	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using temporary; Using filesort
@@ -1079,7 +1089,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t1` `t` join `test`.`t2` left join `test`.`t3` on((0 <> 0)) where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
 SELECT t.a,t.b FROM t3 RIGHT JOIN ((SELECT * FROM t1) AS t, t2) ON t2.b != 0 
@@ -1093,7 +1103,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
-3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on((0 <> 0)) where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
 SELECT t.a,t.b FROM t3 RIGHT JOIN (v1 AS t, t2) ON t2.b != 0 
@@ -1107,7 +1117,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 6 AS `a`,5 AS `b` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on((0 <> 0)) where (not(<expr_cache><6,5>(<in_optimizer>((6,5),<exists>(select 7,5 having (trigcond(((<cache>(6) = 7) or isnull(7))) and trigcond(((<cache>(5) = 5) or isnull(5))) and trigcond(<is_not_null_test>(7)) and trigcond(<is_not_null_test>(5))))))))
 DROP VIEW v1;
@@ -1448,14 +1458,14 @@ WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM t3 t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t	ref	PRIMARY,c	c	4	func	2	Using where; Using index
+2	DEPENDENT SUBQUERY	t	eq_ref	PRIMARY,c	PRIMARY	4	func	1	Using where
 EXPLAIN 
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t3	ref	PRIMARY,c	c	4	func	2	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	eq_ref	PRIMARY,c	PRIMARY	4	func	1	Using where
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
 b	a
@@ -1575,7 +1585,7 @@ a
 EXPLAIN
 SELECT v1.a FROM v1,v2 WHERE v2.b = v1.b ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	key0	NULL	NULL	NULL	3	Using where; Using filesort
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
 1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
@@ -1790,6 +1800,7 @@ INSERT INTO t2 VALUES (7), (4);
 CREATE TABLE t1 (b int NOT NULL);
 INSERT INTO t1 VALUES (5), (7);
 CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+SET @save_optimizer_switch=@@optimizer_switch;
 SET SESSION optimizer_switch='derived_merge=off';
 PREPARE st1 FROM
 'SELECT * FROM (SELECT * FROM t2 LEFT JOIN v1 ON t2.a = v1.b) AS t';
@@ -1802,9 +1813,9 @@ a	b
 7	7
 4	NULL
 DEALLOCATE PREPARE st1;
+set SESSION optimizer_switch= @save_optimizer_switch;
 DROP VIEW v1;
 DROP TABLE t1,t2;
-SET SESSION optimizer_switch='derived_merge=on';
 #
 # LP bug #879939: assertion in ha_maria::enable_indexes 
 #                 with derived_with_keys=on
@@ -1822,6 +1833,7 @@ INSERT INTO t1 VALUES
 ('USA','Mesquite'), ('USA','Metairie'), ('USA','Miami');
 CREATE TABLE t3 (a varchar(35));
 INSERT INTO t3 VALUES ('Miami');
+SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch = 'derived_with_keys=on';
 SET @@tmp_table_size=1024*4;
 explain SELECT * FROM (SELECT t1.* FROM t1, t2) AS t JOIN t3 ON t3.a = t.b;
@@ -1845,6 +1857,7 @@ USA	Miami	Miami
 USA	Miami	Miami
 USA	Miami	Miami
 SET @@tmp_table_size=default;
+set SESSION optimizer_switch= @save_optimizer_switch;
 drop table t1,t2,t3;
 #
 # BUG#882994: Crash in QUICK_RANGE_SELECT::reset with derived_with_keys
@@ -1879,5 +1892,74 @@ ORDER BY CONCAT(alias2.col_varchar_nokey);
 col_varchar_key	pk	col_varchar_key	col_varchar_nokey
 set max_heap_table_size= @tmp_882994;
 drop table t1,t2,t3;
+#
+# LP bug #917990: Bad estimate of #rows for derived table with LIMIT
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES
+(8), (3), (4), (7), (9), (5), (1), (2);
+SELECT * FROM (SELECT * FROM t1 LIMIT 3) t;
+a
+8
+3
+4
+EXPLAIN
+SELECT * FROM (SELECT * FROM t1 LIMIT 3) t;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	
+DROP TABLE t1;
+#
+# LP BUG#921878 incorrect check of items during columns union types
+# aggregation for merged derived tables
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=on';
+CREATE TABLE t1 ( a ENUM( 'x', 'y' ) );
+insert into t1 values ('x');
+CREATE TABLE t2 LIKE t1;
+insert into t1 values ('y');
+CREATE TABLE t3 LIKE t1;
+INSERT INTO t3
+SELECT * FROM ( SELECT * FROM t1 ) AS A
+UNION SELECT * FROM t2;
+select * from t3;
+a
+x
+y
+drop table t1,t2,t3;
+set SESSION optimizer_switch= @save_optimizer_switch;
+#
+# LP BUG#944782: derived table from an information schema table
+#
+SET @save_optimizer_switch=@@optimizer_switch;
+SET SESSION optimizer_switch='derived_merge=on';
+SET SESSION optimizer_switch='derived_with_keys=on';
+CREATE TABLE t1 (c1 int PRIMARY KEY, c2 char(5));
+EXPLAIN
+SELECT COUNT(*) > 0
+FROM INFORMATION_SCHEMA.COLUMNS
+INNER JOIN
+(SELECT TABLE_SCHEMA,
+GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX ASC) AS COL_NAMES
+FROM INFORMATION_SCHEMA.STATISTICS
+GROUP BY TABLE_SCHEMA) AS UNIQUES
+ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	COLUMNS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
+SELECT COUNT(*) > 0
+FROM INFORMATION_SCHEMA.COLUMNS
+INNER JOIN
+(SELECT TABLE_SCHEMA,
+GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX ASC) AS COL_NAMES
+FROM INFORMATION_SCHEMA.STATISTICS
+GROUP BY TABLE_SCHEMA) AS UNIQUES
+ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
+COUNT(*) > 0
+1
+DROP TABLE t1;
+set SESSION optimizer_switch= @save_optimizer_switch;
 set optimizer_switch=@exit_optimizer_switch;
 set join_cache_level=@exit_join_cache_level;

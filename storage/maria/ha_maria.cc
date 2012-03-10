@@ -923,8 +923,11 @@ double ha_maria::scan_time()
   splitting algorithms depends on this. (With only one key on a page
   we also can't use any compression, which may make the index file much
   larger)
-  We use HA_MAX_KEY_BUFF as this is a stack restriction imposed by the
-  handler interface.
+  We use HA_MAX_KEY_LENGTH as this is a stack restriction imposed by the
+  handler interface.  If we want to increase this, we have also to
+  increase HA_MARIA_KEY_BUFF and MARIA_MAX_KEY_BUFF as the buffer needs
+  to take be able to store the extra lenght bytes that is part of the stored
+  key.
 
   We also need to reserve place for a record pointer (8) and 3 bytes
   per key segment to store the length of the segment + possible null bytes.
@@ -2243,21 +2246,6 @@ int ha_maria::delete_row(const uchar * buf)
   return maria_delete(file, buf);
 }
 
-C_MODE_START
-
-ICP_RESULT index_cond_func_maria(void *arg)
-{
-  ha_maria *h= (ha_maria*)arg;
-  if (h->end_range)
-  {
-    if (h->compare_key2(h->end_range) > 0)
-      return ICP_OUT_OF_RANGE; /* caller should return HA_ERR_END_OF_FILE already */
-  }
-  return h->pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH;
-}
-
-C_MODE_END
-
 int ha_maria::index_read_map(uchar * buf, const uchar * key,
 			     key_part_map keypart_map,
 			     enum ha_rkey_function find_flag)
@@ -2277,7 +2265,7 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   /* Use the pushed index condition if it matches the index we're scanning */
   end_range= NULL;
   if (index == pushed_idx_cond_keyno)
-    ma_set_index_cond_func(file, index_cond_func_maria, this);
+    ma_set_index_cond_func(file, handler_index_cond_check, this);
   
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
    
@@ -2358,7 +2346,7 @@ int ha_maria::index_init(uint idx, bool sorted)
 { 
   active_index=idx;
   if (pushed_idx_cond_keyno == idx)
-    ma_set_index_cond_func(file, index_cond_func_maria, this);
+    ma_set_index_cond_func(file, handler_index_cond_check, this);
   return 0; 
 }
 
@@ -3086,7 +3074,7 @@ void ha_maria::get_auto_increment(ulonglong offset, ulonglong increment,
 {
   ulonglong nr;
   int error;
-  uchar key[HA_MAX_KEY_LENGTH];
+  uchar key[MARIA_MAX_KEY_BUFF];
 
   if (!table->s->next_number_key_offset)
   {                                             // Autoincrement at key-start
@@ -3791,7 +3779,7 @@ Item *ha_maria::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
   pushed_idx_cond= idx_cond_arg;
   in_range_check_pushed_down= TRUE;
   if (active_index == pushed_idx_cond_keyno)
-    ma_set_index_cond_func(file, index_cond_func_maria, this);
+    ma_set_index_cond_func(file, handler_index_cond_check, this);
   return NULL;
 }
 

@@ -572,12 +572,15 @@ typedef struct system_status_var
   ulong ha_read_prev_count;
   ulong ha_read_rnd_count;
   ulong ha_read_rnd_next_count;
+  ulong ha_read_rnd_deleted_count;
   /*
     This number doesn't include calls to the default implementation and
     calls made by range access. The intent is to count only calls made by
     BatchedKeyAccess.
   */
-  ulong ha_multi_range_read_init_count;
+  ulong ha_mrr_init_count;
+  ulong ha_mrr_key_refills_count;
+  ulong ha_mrr_rowid_refills_count;
 
   ulong ha_rollback_count;
   ulong ha_update_count;
@@ -586,6 +589,8 @@ typedef struct system_status_var
   ulong ha_tmp_update_count;
   ulong ha_tmp_write_count;
   ulong ha_prepare_count;
+  ulong ha_icp_attempts;
+  ulong ha_icp_match;
   ulong ha_discover_count;
   ulong ha_savepoint_count;
   ulong ha_savepoint_rollback_count;
@@ -3077,6 +3082,8 @@ public:
   bool schema_table;
   /* TRUE if the temp table is created for subquery materialization. */
   bool materialized_subquery;
+  /* TRUE if all columns of the table are guaranteed to be non-nullable */
+  bool force_not_null_cols;
   /*
     True if GROUP BY and its aggregate functions are already computed
     by a table access method (e.g. by loose index scan). In this case
@@ -3100,7 +3107,8 @@ public:
   TMP_TABLE_PARAM()
     :copy_field(0), group_parts(0),
      group_length(0), group_null_parts(0), convert_blob_length(0),
-    schema_table(0), materialized_subquery(0), precomputed_group_by(0),
+    schema_table(0), materialized_subquery(0), force_not_null_cols(0),
+    precomputed_group_by(0),
     force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {}
   ~TMP_TABLE_PARAM()
@@ -3748,10 +3756,17 @@ inline int handler::ha_ft_read(uchar *buf)
 
 inline int handler::ha_rnd_next(uchar *buf)
 {
-  increment_statistics(&SSV::ha_read_rnd_next_count);
   int error= rnd_next(buf);
   if (!error)
+  {
     update_rows_read();
+    increment_statistics(&SSV::ha_read_rnd_next_count);
+  }
+  else if (error == HA_ERR_RECORD_DELETED)
+    increment_statistics(&SSV::ha_read_rnd_deleted_count);
+  else
+    increment_statistics(&SSV::ha_read_rnd_next_count);
+
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }

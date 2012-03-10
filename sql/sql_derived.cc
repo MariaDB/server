@@ -483,7 +483,7 @@ bool mysql_derived_merge_for_insert(THD *thd, LEX *lex, TABLE_LIST *derived)
     return mysql_derived_prepare(thd, lex, derived);
   if (!derived->is_multitable())
   {
-    if (!derived->updatable)
+    if (!derived->single_table_updatable())
       return derived->create_field_translation(thd);
     if (derived->merge_underlying_list)
     {
@@ -753,6 +753,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (!derived->is_merged_derived())
     {
       JOIN *join= first_select->join;
+      unit->set_limit(first_select);
       unit->optimized= TRUE;
       if ((res= join->optimize()))
         goto err;
