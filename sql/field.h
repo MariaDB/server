@@ -587,17 +587,8 @@ public:
     DBUG_RETURN(result);
   }
 
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data);
-  /**
-     @overload Field::unpack(uchar*, const uchar*, uint, bool)
-  */
-  const uchar *unpack(uchar* to, const uchar *from)
-  {
-    DBUG_ENTER("Field::unpack");
-    const uchar *result= unpack(to, from, 0);
-    DBUG_RETURN(result);
-  }
-
+  virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end, uint param_data=0);
   virtual uchar *pack_key(uchar* to, const uchar *from, uint max_length)
   {
     return pack(to, from, max_length);
@@ -606,10 +597,12 @@ public:
   {
     return pack(to, from, max_length);
   }
+#ifdef NOT_USED
   virtual const uchar *unpack_key(uchar* to, const uchar *from, uint max_length)
   {
-    return unpack(to, from, max_length);
+    return unpack(to, from, from + max_length+2, max_length);
   }
+#endif
   virtual uint packed_col_length(const uchar *to, uint length)
   { return length;}
   virtual uint max_packed_col_length(uint max_length)
@@ -890,10 +883,6 @@ public:
   void overflow(bool negative);
   bool zero_pack() const { return 0; }
   void sql_type(String &str) const;
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data)
-  {
-    return Field::unpack(to, from, param_data);
-  }
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
     return Field::pack(to, from, max_length);
@@ -949,7 +938,7 @@ public:
   int compatible_field_size(uint field_metadata,
                             const Relay_log_info *rli, uint16 mflags);
   uint is_equal(Create_field *new_field);
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data);
+  virtual const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end, uint param_data);
   static Field *create_from_item (Item *);
 };
 
@@ -987,8 +976,11 @@ public:
     return to + 1;
   }
 
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data)
+  virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end, uint param_data)
   {
+    if (from == from_end)
+      return 0;
     *to= *from;
     return from + 1;
   }
@@ -1032,15 +1024,19 @@ public:
     int16 val;
     val = sint2korr(from);
     int2store(to, val);
-    return to + sizeof(val);
+    return to + 2;
   }
 
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data)
+  virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end, uint param_data)
   {
     int16 val;
+    if (from +2 > from_end)
+      return 0;
+
     val = sint2korr(from);
     int2store(to, val);
-    return from + sizeof(val);
+    return from + 2;
   }
 };
 
@@ -1074,11 +1070,6 @@ public:
   virtual uchar *pack(uchar* to, const uchar *from, uint max_length)
   {
     return Field::pack(to, from, max_length);
-  }
-
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data)
-  {
-    return Field::unpack(to, from, param_data);
   }
 };
 
@@ -1120,8 +1111,11 @@ public:
     return pack_int32(to, from);
   }
   virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end,
                               uint param_data __attribute__((unused)))
   {
+    if (from + 4 > from_end)
+      return 0;
     return unpack_int32(to, from);
   }
 };
@@ -1168,9 +1162,11 @@ public:
   {
     return pack_int64(to, from);
   }
-  virtual const uchar *unpack(uchar* to, const uchar *from,
-                              uint param_data __attribute__((unused)))
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
+                      uint param_data __attribute__((unused)))
   {
+    if (from + 8 > from_end)
+      return 0;
     return unpack_int64(to, from);
   }
 };
@@ -1334,9 +1330,11 @@ public:
   {
     return pack_int32(to, from);
   }
-  const uchar *unpack(uchar* to, const uchar *from,
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data __attribute__((unused)))
   {
+    if (from + 4 > from_end)
+      return 0;
     return unpack_int32(to, from);
   }
 };
@@ -1373,8 +1371,9 @@ public:
   uint32 pack_length() const;
   uchar *pack(uchar *to, const uchar *from, uint max_length)
   { return Field::pack(to, from, max_length); }
-  const uchar *unpack(uchar* to, const uchar *from, uint param_data)
-  { return Field::unpack(to, from, param_data); }
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
+                      uint param_data)
+  { return Field::unpack(to, from, from_end, param_data); }
   uint size_of() const { return sizeof(*this); }
   bool eq_def(Field *field)
   { return Field_str::eq_def(field) && dec == field->decimals(); }
@@ -1457,9 +1456,11 @@ public:
   {
     return pack_int32(to, from);
   }
-  const uchar *unpack(uchar* to, const uchar *from,
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data __attribute__((unused)))
   {
+    if (from + 4 > from_end)
+      return 0;
     return unpack_int32(to, from);
   }
 };
@@ -1586,9 +1587,11 @@ public:
   {
     return pack_int64(to, from);
   }
-  const uchar *unpack(uchar* to, const uchar *from,
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
                       uint param_data __attribute__((unused)))
   {
+    if (from + 8 > from_end)
+      return 0;
     return unpack_int64(to, from);
   }
 };
@@ -1624,8 +1627,9 @@ public:
   bool get_date(MYSQL_TIME *ltime,uint fuzzydate);
   uchar *pack(uchar *to, const uchar *from, uint max_length)
   { return Field::pack(to, from, max_length); }
-  const uchar *unpack(uchar* to, const uchar *from, uint param_data)
-  { return Field::unpack(to, from, param_data); }
+  const uchar *unpack(uchar* to, const uchar *from, const uchar *from_end,
+                      uint param_data)
+  { return Field::unpack(to, from, from_end, param_data); }
   uint size_of() const { return sizeof(*this); }
 };
 
@@ -1716,7 +1720,8 @@ public:
   void sql_type(String &str) const;
   virtual uchar *pack(uchar *to, const uchar *from,
                       uint max_length);
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data);
+  virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end,uint param_data);
   uint pack_length_from_metadata(uint field_metadata)
   {
     DBUG_PRINT("debug", ("field_metadata: 0x%04x", field_metadata));
@@ -1804,8 +1809,11 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   uchar *pack_key(uchar *to, const uchar *from, uint max_length);
   uchar *pack_key_from_key_image(uchar* to, const uchar *from, uint max_length);
-  virtual const uchar *unpack(uchar* to, const uchar *from, uint param_data);
+  virtual const uchar *unpack(uchar* to, const uchar *from,
+                              const uchar *from_end, uint param_data);
+#ifdef NOT_USED
   const uchar *unpack_key(uchar* to, const uchar *from, uint max_length);
+#endif
   int pack_cmp(const uchar *a, const uchar *b, uint key_length,
                bool insert_or_update);
   int pack_cmp(const uchar *b, uint key_length,bool insert_or_update);
@@ -1982,8 +1990,11 @@ public:
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   uchar *pack_key(uchar *to, const uchar *from, uint max_length);
   uchar *pack_key_from_key_image(uchar* to, const uchar *from, uint max_length);
-  virtual const uchar *unpack(uchar *to, const uchar *from, uint param_data);
+  virtual const uchar *unpack(uchar *to, const uchar *from,
+                              const uchar *from_end, uint param_data);
+#ifdef NOT_USED
   const uchar *unpack_key(uchar* to, const uchar *from, uint max_length);
+#endif
   int pack_cmp(const uchar *a, const uchar *b, uint key_length,
                bool insert_or_update);
   int pack_cmp(const uchar *b, uint key_length,bool insert_or_update);
@@ -2208,7 +2219,8 @@ public:
                             const Relay_log_info *rli, uint16 mflags);
   void sql_type(String &str) const;
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
-  virtual const uchar *unpack(uchar *to, const uchar *from, uint param_data);
+  virtual const uchar *unpack(uchar *to, const uchar *from,
+                              const uchar *from_end, uint param_data);
   virtual void set_default();
 
   Field *new_key_field(MEM_ROOT *root, struct st_table *new_table,
