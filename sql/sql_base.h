@@ -275,6 +275,9 @@ bool is_equal(const LEX_STRING *a, const LEX_STRING *b);
 /* Functions to work with system tables. */
 bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
                                  Open_tables_backup *backup);
+bool unlock_tables_n_open_system_tables_for_write(THD *thd,
+                                                  TABLE_LIST *table_list,
+                                                  Open_tables_backup *backup);
 void close_system_tables(THD *thd, Open_tables_backup *backup);
 void close_mysql_tables(THD *thd);
 TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);
@@ -305,6 +308,18 @@ void mark_tmp_table_for_reuse(TABLE *table);
 bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists);
 int update_virtual_fields(THD *thd, TABLE *table, bool ignore_stored= FALSE);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
+
+/* open_and_lock_tables with optional derived handling */
+int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
+
+int read_statistics_for_table(THD *thd, TABLE *table);
+int collect_statistics_for_table(THD *thd, TABLE *table);
+int update_statistics_for_table(THD *thd, TABLE *table);
+
+extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
+                                  const void* key2);
+extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
 
 extern TABLE *unused_tables;
 extern Item **not_found_item;
@@ -471,7 +486,6 @@ open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
 
   return open_tables(thd, tables, counter, flags, &prelocking_strategy);
 }
-
 
 inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
                                        thr_lock_type lock_type, uint flags)

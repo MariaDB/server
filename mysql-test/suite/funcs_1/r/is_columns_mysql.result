@@ -9,6 +9,14 @@ def	mysql	columns_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(
 def	mysql	columns_priv	Table_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI		select,insert,update,references	
 def	mysql	columns_priv	Timestamp	6	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
 def	mysql	columns_priv	User	3		NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)	PRI		select,insert,update,references	
+def	mysql	column_stat	avg_frequency	8	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	
+def	mysql	column_stat	avg_length	7	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	
+def	mysql	column_stat	column_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
+def	mysql	column_stat	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
+def	mysql	column_stat	max_value	5	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)			select,insert,update,references	
+def	mysql	column_stat	min_value	4	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)			select,insert,update,references	
+def	mysql	column_stat	nulls_ratio	6	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	
+def	mysql	column_stat	table_name	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
 def	mysql	db	Alter_priv	13	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
 def	mysql	db	Alter_routine_priv	19	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
 def	mysql	db	Create_priv	8	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
@@ -97,6 +105,11 @@ def	mysql	host	Select_priv	3	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	e
 def	mysql	host	Show_view_priv	16	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
 def	mysql	host	Trigger_priv	20	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
 def	mysql	host	Update_priv	5	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')			select,insert,update,references	
+def	mysql	index_stat	avg_frequency	5	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	
+def	mysql	index_stat	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
+def	mysql	index_stat	index_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
+def	mysql	index_stat	prefix_arity	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11) unsigned	PRI		select,insert,update,references	
+def	mysql	index_stat	table_name	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
 def	mysql	ndb_binlog_index	deletes	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	
 def	mysql	ndb_binlog_index	epoch	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned	PRI		select,insert,update,references	
 def	mysql	ndb_binlog_index	File	2	NULL	NO	varchar	255	255	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(255)			select,insert,update,references	
@@ -169,6 +182,9 @@ def	mysql	tables_priv	Table_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	
 def	mysql	tables_priv	Table_priv	7		NO	set	98	294	NULL	NULL	NULL	utf8	utf8_general_ci	set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger')			select,insert,update,references	
 def	mysql	tables_priv	Timestamp	6	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
 def	mysql	tables_priv	User	3		NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)	PRI		select,insert,update,references	
+def	mysql	table_stat	cardinality	3	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select,insert,update,references	
+def	mysql	table_stat	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
+def	mysql	table_stat	table_name	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI		select,insert,update,references	
 def	mysql	time_zone	Time_zone_id	1	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned	PRI	auto_increment	select,insert,update,references	
 def	mysql	time_zone	Use_leap_seconds	2	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('Y','N')			select,insert,update,references	
 def	mysql	time_zone_leap_second	Correction	2	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references	
@@ -258,6 +274,7 @@ ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 3.0000	char	utf8	utf8_bin
 3.0000	enum	utf8	utf8_bin
+3.0000	varchar	utf8	utf8_bin
 3.0000	char	utf8	utf8_general_ci
 3.0000	enum	utf8	utf8_general_ci
 3.0000	set	utf8	utf8_general_ci
@@ -274,6 +291,7 @@ ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 NULL	bigint	NULL	NULL
 NULL	datetime	NULL	NULL
+NULL	double	NULL	NULL
 NULL	int	NULL	NULL
 NULL	smallint	NULL	NULL
 NULL	time	NULL	NULL
@@ -302,6 +320,14 @@ COL_CML	TABLE_SCHEMA	TABLE_NAME	COLUMN_NAME	DATA_TYPE	CHARACTER_MAXIMUM_LENGTH	C
 3.0000	mysql	columns_priv	Column_name	char	64	192	utf8	utf8_bin	char(64)
 NULL	mysql	columns_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	columns_priv	Column_priv	set	31	93	utf8	utf8_general_ci	set('Select','Insert','Update','References')
+3.0000	mysql	column_stat	db_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	column_stat	table_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	column_stat	column_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	column_stat	min_value	varchar	255	765	utf8	utf8_bin	varchar(255)
+3.0000	mysql	column_stat	max_value	varchar	255	765	utf8	utf8_bin	varchar(255)
+NULL	mysql	column_stat	nulls_ratio	double	NULL	NULL	NULL	NULL	double
+NULL	mysql	column_stat	avg_length	double	NULL	NULL	NULL	NULL	double
+NULL	mysql	column_stat	avg_frequency	double	NULL	NULL	NULL	NULL	double
 3.0000	mysql	db	Host	char	60	180	utf8	utf8_bin	char(60)
 3.0000	mysql	db	Db	char	64	192	utf8	utf8_bin	char(64)
 3.0000	mysql	db	User	char	16	48	utf8	utf8_bin	char(16)
@@ -390,6 +416,11 @@ NULL	mysql	help_topic	help_category_id	smallint	NULL	NULL	NULL	NULL	smallint(5) 
 3.0000	mysql	host	Alter_routine_priv	enum	1	3	utf8	utf8_general_ci	enum('N','Y')
 3.0000	mysql	host	Execute_priv	enum	1	3	utf8	utf8_general_ci	enum('N','Y')
 3.0000	mysql	host	Trigger_priv	enum	1	3	utf8	utf8_general_ci	enum('N','Y')
+3.0000	mysql	index_stat	db_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	index_stat	table_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	index_stat	index_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+NULL	mysql	index_stat	prefix_arity	int	NULL	NULL	NULL	NULL	int(11) unsigned
+NULL	mysql	index_stat	avg_frequency	double	NULL	NULL	NULL	NULL	double
 NULL	mysql	ndb_binlog_index	Position	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 1.0000	mysql	ndb_binlog_index	File	varchar	255	255	latin1	latin1_swedish_ci	varchar(255)
 NULL	mysql	ndb_binlog_index	epoch	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
@@ -462,6 +493,9 @@ NULL	mysql	slow_log	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	mysql	tables_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	tables_priv	Table_priv	set	98	294	utf8	utf8_general_ci	set('Select','Insert','Update','Delete','Create','Drop','Grant','References','Index','Alter','Create View','Show view','Trigger')
 3.0000	mysql	tables_priv	Column_priv	set	31	93	utf8	utf8_general_ci	set('Select','Insert','Update','References')
+3.0000	mysql	table_stat	db_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+3.0000	mysql	table_stat	table_name	varchar	64	192	utf8	utf8_bin	varchar(64)
+NULL	mysql	table_stat	cardinality	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
 NULL	mysql	time_zone	Time_zone_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 3.0000	mysql	time_zone	Use_leap_seconds	enum	1	3	utf8	utf8_general_ci	enum('Y','N')
 NULL	mysql	time_zone_leap_second	Transition_time	bigint	NULL	NULL	NULL	NULL	bigint(20)

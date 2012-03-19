@@ -115,6 +115,31 @@ typedef struct st_key {
     For temporary heap tables this member is NULL.
   */
   ulong *rec_per_key;
+
+   /* Statistical data on an index prefixes */
+  class Index_statistics
+  {
+  public:
+    /*
+      The k-th element of this array contains the ratio N/D, 
+      where N is the number of index entries without nulls 
+      in the first k components, and D is the number of distinct
+      k-component prefixes among them 
+    */
+    double *avg_frequency;
+  };
+
+  /*
+    This structure is used for statistical data on the index
+    that has been read from the statistical table index_stat
+  */ 
+  Index_statistics read_stat;
+  /*
+    This structure is used for statistical data on the index that
+    is collected by the function collect_statistics_for_table
+  */
+  Index_statistics write_stat;
+ 
   union {
     int  bdb_return_if_eq;
   } handler;
