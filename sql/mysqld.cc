@@ -446,6 +446,7 @@ ulong opt_replicate_events_marked_for_skip;
 */
 volatile bool mqh_used = 0;
 my_bool opt_noacl;
+my_bool opt_no_stat_tables;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
@@ -3685,6 +3686,8 @@ static int init_common_variables()
   global_system_variables.character_set_results= default_charset_info;
   global_system_variables.character_set_client=  default_charset_info;
 
+  global_system_variables.optimizer_use_stat_tables= 0;
+ 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
                               MY_CS_PRIMARY, MYF(MY_WME))))
@@ -4866,6 +4869,11 @@ int mysqld_main(int argc, char **argv)
     check_performance_schema();
 #endif
 
+#if 0
+  if (! opt_bootstrap)
+    init_stat_tables_usage();
+#endif
+
   initialize_information_schema_acl();
 
   execute_ddl_log_recovery();
@@ -6010,6 +6018,7 @@ error:
 */
 
 struct my_option my_long_options[]=
+
 {
   {"help", '?', "Display this help and exit.", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
@@ -6315,6 +6324,11 @@ struct my_option my_long_options[]=
    &opt_noacl, &opt_noacl, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
 #endif
+  {"skip-stat-tables", OPT_SKIP_STAT_TABLES,
+   "Start without statistical tables. Statistical data on table cardinalities, " 
+   "columns and indexes from these tables become unavailable",
+   &opt_no_stat_tables, &opt_no_stat_tables, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"skip-slave-start", 0,
@@ -7610,6 +7624,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
+    opt_no_stat_tables= 1;
     break;
   case OPT_SERVER_ID:
     server_id_supplied = 1;

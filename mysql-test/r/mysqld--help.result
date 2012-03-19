@@ -493,6 +493,9 @@ The following options may be given as the first argument:
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys } and
  val is one of {on, off, default}
+ --optimizer-use-stat-tables=name 
+ Specifies how to use system statistics tables. Possible
+ values are NEVER, COMPLEMENTARY, PREVERABLY, EXCLUSIVELY
  --performance-schema 
  Enable the performance schema.
  --performance-schema-events-waits-history-long-size=# 
@@ -717,6 +720,9 @@ The following options may be given as the first argument:
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted.
+ --skip-stat-tables  Start without statistical tables. Statistical data on
+ table cardinalities, columns and indexes from these
+ tables become unavailable
  --skip-thread-priority 
  Don't give threads different priorities. This option is
  deprecated because it has no effect; the implied behavior
@@ -990,6 +996,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
+optimizer-use-stat-tables NEVER
 performance-schema FALSE
 performance-schema-events-waits-history-long-size 10000
 performance-schema-events-waits-history-size 10
@@ -1050,6 +1057,7 @@ skip-name-resolve FALSE
 skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
+skip-stat-tables TRUE
 slave-compressed-protocol FALSE
 slave-exec-mode STRICT
 slave-net-timeout 3600

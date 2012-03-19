@@ -4624,6 +4624,13 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     goto end;
   }
 
+  if (!opt_no_stat_tables && thd->variables.optimizer_use_stat_tables > 0)
+  {
+    if (tables->table &&  tables->table->s && 
+        tables->table->s->table_category != TABLE_CATEGORY_SYSTEM)    
+	(void) read_statistics_for_table(thd, tables->table);
+  }
+
 process_view_routines:
   /*
     Again we may need cache all routines used by this view and add
@@ -9472,6 +9479,73 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
 
   DBUG_RETURN(FALSE);
+}
+
+
+/*
+  Unlock opened tables and open and lock system tables for write.
+
+  SYNOPSIS
+    unlock_tables_n_open_system_tables_for_write()
+      thd         Thread context.
+      table_list  List of tables to open.
+      backup      Pointer to Open_tables_state instance where
+                  information about currently open tables will be
+                  saved, and from which will be restored when we will
+                  end work with system tables.
+
+  DESCRIPTION
+    The function first unlocks the opened tables, but do not close them.
+    Then it opens and locks for write the specified system tables.
+  
+  NOTE
+    The system tables cannot be locked for write without unlocking
+    the current opened tables. Yet in some cases we still need valid TABLE
+    structures for these tables to be able to extract data that is to be
+    written into the system tables.
+    This function is used when updating the statistical tables. 
+
+  RETURN
+    FALSE   Success
+    TRUE    Error
+*/
+
+bool
+unlock_tables_n_open_system_tables_for_write(THD *thd,
+                                             TABLE_LIST *table_list,
+                                             Open_tables_backup *backup)
+{
+  Query_tables_list query_tables_list_backup;
+  LEX *lex= thd->lex;
+
+  DBUG_ENTER("unlock_tables_n_open_system_tables_for_write");
+
+  mysql_unlock_tables(thd, thd->lock);
+  thd->lock= 0;
+
+  lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+  thd->reset_n_backup_open_tables_state(backup);
+
+ if (open_and_lock_tables(thd, table_list, FALSE,
+                          MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT))
+ {
+    lex->restore_backup_query_tables_list(&query_tables_list_backup);
+    goto error;
+  }
+
+  for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
+  {
+    DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
+    tables->table->use_all_columns();
+  }
+  lex->restore_backup_query_tables_list(&query_tables_list_backup);
+
+  DBUG_RETURN(FALSE);
+
+error:
+  close_system_tables(thd, backup);
+
+  DBUG_RETURN(TRUE);
 }
 
 
