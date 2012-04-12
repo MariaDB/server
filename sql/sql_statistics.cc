@@ -1531,7 +1531,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   now.        
 */
 
-int read_statistics_for_table(THD *thd, struct TABLE *table)
+int read_statistics_for_table(THD *thd, TABLE *table)
 {
   uint i;
   TABLE *stat_table;
@@ -1579,6 +1579,29 @@ int read_statistics_for_table(THD *thd, struct TABLE *table)
       index_stat.set_key_fields(key_info, i+1);
       index_stat.get_stat_values();
     }
+   
+    key_part_map ext_key_part_map= key_info->ext_key_part_map;
+    if (key_info->key_parts != key_info->ext_key_parts)
+    {
+      KEY *pk_key_info= table->key_info + table->s->primary_key;
+      uint k= key_info->key_parts;
+      double k_avg_frequency= key_info->read_stat.avg_frequency[k-1];
+      uint pk_parts= pk_key_info->key_parts;
+      ha_rows n_rows= table->read_stat.cardinality;
+      for (uint j= 0; j < pk_parts; j++)
+      {
+        double avg_frequency;
+        if (!(ext_key_part_map & 1 << j))
+          continue;
+        avg_frequency= pk_key_info->read_stat.avg_frequency[j];
+        if (avg_frequency == 0 ||
+            table->read_stat.cardinality_is_null)
+          avg_frequency= 1;
+        else if (avg_frequency > 1)
+          avg_frequency= max(k_avg_frequency * avg_frequency / n_rows, 1);
+        key_info->read_stat.avg_frequency[k++]= avg_frequency;
+      }
+    }
   }
       
   close_system_tables(thd, &open_tables_backup);
@@ -1586,3 +1609,33 @@ int read_statistics_for_table(THD *thd, struct TABLE *table)
   DBUG_RETURN(0);
 }
 
+
+/**
+  @brief
+  Set statistics for a table that will be used by the optimizer 
+
+  @param
+  thd         The thread handle
+  @param
+  table       The table to set statistics for 
+
+  @details
+  Depending on the value of thd->variables.optimizer_use_stat_tables 
+  the function performs the settings for the table that will control
+  from where the statistical data used by the optimizer will be taken.
+*/
+
+void set_statistics_for_table(THD *thd, TABLE *table)
+{
+  uint use_stat_table_mode= thd->variables.optimizer_use_stat_tables;
+  table->used_stat_records= 
+    (use_stat_table_mode <= 1 || table->read_stat.cardinality_is_null) ?
+    table->file->stats.records : table->read_stat.cardinality;
+  KEY *key_info, *key_info_end;
+  for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
+       key_info < key_info_end; key_info++)
+  {
+    key_info->is_statistics_from_stat_tables=
+      (use_stat_table_mode > 1 && key_info->read_stat.avg_frequency[0] > 0.5);
+  }
+}

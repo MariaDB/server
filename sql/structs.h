@@ -96,6 +96,11 @@ typedef struct st_key {
   uint  block_size;
   uint  name_length;
   enum  ha_key_alg algorithm;
+  /* 
+    The flag is on if statistical data for the index prefixes
+    has to be taken from the system statistical tables.
+  */
+  bool is_statistics_from_stat_tables;
   /*
     Note that parser is used when the table is opened for use, and
     parser_name is used when the table is being created.
@@ -148,6 +153,15 @@ typedef struct st_key {
   /** reference to the list of options or NULL */
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
+
+  inline double real_rec_per_key(uint i)
+  { 
+    if (rec_per_key == 0)
+      return 0;
+    return (is_statistics_from_stat_tables ?
+            (ulong) (100 * read_stat.avg_frequency[i]) / (double) 100 :
+            (double) rec_per_key[i]);
+  }
 } KEY;
 
 

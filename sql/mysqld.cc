@@ -4869,11 +4869,6 @@ int mysqld_main(int argc, char **argv)
     check_performance_schema();
 #endif
 
-#if 0
-  if (! opt_bootstrap)
-    init_stat_tables_usage();
-#endif
-
   initialize_information_schema_acl();
 
   execute_ddl_log_recovery();

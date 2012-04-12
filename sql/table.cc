@@ -762,8 +762,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
-  double *read_avg_frequency= 0;
-  double *write_avg_frequency= 0;
+  double *read_avg_frequency= NULL;
+  double *write_avg_frequency= NULL;
   handler *handler_file= 0;
   KEY	*keyinfo;
   KEY_PART_INFO *key_part= NULL;
@@ -1019,6 +1019,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
         {
           *key_part++= first_key_part[j];
           *rec_per_key++= 0;
+          *read_avg_frequency++= 0;
+          *write_avg_frequency++= 0;
           keyinfo->ext_key_parts++;
           keyinfo->ext_key_part_map|= 1 << j;
         }
@@ -2405,6 +2407,8 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
              share->rec_buff_length);
   }
 #endif
+
+  outparam->read_stat.cardinality_is_null= TRUE;
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -5924,6 +5928,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
   keyinfo->flags= HA_GENERATED_KEY;
   keyinfo->ext_key_flags= keyinfo->flags;
+  keyinfo->is_statistics_from_stat_tables= FALSE;
   if (unique)
     keyinfo->flags|= HA_NOSAME;
   sprintf(buf, "key%i", key);
@@ -6619,6 +6624,7 @@ int TABLE_LIST::fetch_number_of_rows()
   {
     table->file->stats.records= ((select_union*)derived->result)->records;
     set_if_bigger(table->file->stats.records, 2);
+    table->used_stat_records= table->file->stats.records;
   }
   else
     error= table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);

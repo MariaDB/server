@@ -315,6 +315,7 @@ int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 int read_statistics_for_table(THD *thd, TABLE *table);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
+void set_statistics_for_table(THD *thd, TABLE *table);
 
 extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
                                   const void* key2);
