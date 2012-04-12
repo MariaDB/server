@@ -59,6 +59,9 @@
 #include "datadict.h"   // dd_frm_type()
 #include "keycaches.h"
 
+#if !defined(MYSQL_MAX_VARIABLE_VALUE_LEN)
+#define MYSQL_MAX_VARIABLE_VALUE_LEN 1024
+#endif // !defined(MYSQL_MAX_VARIABLE_VALUE_LEN)
 #define STR_OR_NIL(S) ((S) ? (S) : "<nil>")
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -8088,7 +8091,8 @@ ST_FIELD_INFO variables_fields_info[]=
 {
   {"VARIABLE_NAME", 64, MYSQL_TYPE_STRING, 0, 0, "Variable_name",
    SKIP_OPEN_TABLE},
-  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 1, "Value", SKIP_OPEN_TABLE},
+  {"VARIABLE_VALUE", MYSQL_MAX_VARIABLE_VALUE_LEN, MYSQL_TYPE_STRING, 0, 1,
+   "Value", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

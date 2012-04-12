@@ -2954,11 +2954,17 @@ void plugin_thdvar_init(THD *thd)
   thd->variables.dynamic_variables_size= 0;
   thd->variables.dynamic_variables_ptr= 0;
 
+#ifdef WITH_WSREP
+  if (!WSREP(thd) || !thd->wsrep_applier) {
+#endif
   mysql_mutex_lock(&LOCK_plugin);
   thd->variables.table_plugin=
         my_intern_plugin_lock(NULL, global_system_variables.table_plugin);
   intern_plugin_unlock(NULL, old_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
+#ifdef WITH_WSREP
+  }
+#endif
   DBUG_VOID_RETURN;
 }
 

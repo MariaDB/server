@@ -60,6 +60,9 @@
 #include <io.h>
 #endif
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif // WITH_WSREP
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -4218,7 +4221,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
   */
   bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
   ulong binlog_format= thd->variables.binlog_format;
-  if ((log_on == FALSE) || (binlog_format == BINLOG_FORMAT_ROW) ||
+  if ((log_on == FALSE) || (WSREP_FORMAT(binlog_format) == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
@@ -5075,7 +5078,14 @@ restart:
   }
 
 err:
+#ifdef WITH_WSREP
+  if (WSREP(thd)) 
+    thd_proc_info(thd, "exit open_tables()");
+  else
+    thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
   thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -5518,7 +5528,14 @@ end:
       trans_rollback_stmt(thd);
     close_thread_tables(thd);
   }
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+    thd_proc_info(thd, "End opening table");
+  else
   thd_proc_info(thd, 0);
+#else /* WITH_WSREP */
+  thd_proc_info(thd, 0);
+#endif /* WITH_WSREP */
   DBUG_RETURN(table);
 }
 
@@ -5738,7 +5755,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         We can solve these problems in mixed mode by switching to binlogging 
         if at least one updated table is used by sub-statement
       */
-      if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables && 
+      if (WSREP_FORMAT(thd->variables.binlog_format) != BINLOG_FORMAT_ROW && tables && 
           has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
         thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
@@ -9169,7 +9186,19 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
+#ifdef WITH_WSREP
+      {
+	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+	if (thd && WSREP(thd) && wsrep_thd_is_brute_force((void *)thd)) 
+	{
+	  WSREP_DEBUG("remove_table_from_cache: %llu",
+		      (unsigned long long) thd->real_id);
+	  wsrep_abort_thd((void *)thd, (void *)in_use, FALSE);
+	}
+      }
+#else
         signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+#endif
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }

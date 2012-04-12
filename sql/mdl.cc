@@ -20,7 +20,17 @@
 #include <mysqld_error.h>
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
+extern "C" char *wsrep_thd_query(THD *thd);
+void sql_print_information(const char *format, ...)
+  ATTRIBUTE_FORMAT(printf, 1, 2);
 
+extern bool
+wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
+                           MDL_ticket *ticket);
+#endif /* WITH_WSREP */
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_map_mutex;
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
@@ -1222,11 +1232,54 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     called by other threads.
   */
   DBUG_ASSERT(ticket->get_lock());
+#ifdef WITH_WSREP
+  if ((this == &(ticket->get_lock()->m_waiting)) &&
+      wsrep_thd_is_brute_force((void *)(ticket->get_ctx()->get_thd())))
+  {
+    Ticket_iterator itw(ticket->get_lock()->m_waiting);
+    Ticket_iterator itg(ticket->get_lock()->m_granted);
+
+    MDL_ticket *waiting, *granted;
+    MDL_ticket *prev=NULL;
+    bool added= false;
+
+    while ((waiting= itw++) && !added)
+    {
+      if (!wsrep_thd_is_brute_force((void *)(waiting->get_ctx()->get_thd())))
+      {
+        WSREP_DEBUG("MDL add_ticket inserted before: %lu %s", 
+                    wsrep_thd_thread_id(waiting->get_ctx()->get_thd()), 
+                    wsrep_thd_query(waiting->get_ctx()->get_thd()));
+        m_list.insert_after(prev, ticket);
+        added= true;
+      }
+      prev= waiting;
+    }
+    if (!added)   m_list.push_back(ticket);
+
+    while ((granted= itg++))
+    {
+      if (granted->get_ctx() != ticket->get_ctx() &&
+          granted->is_incompatible_when_granted(ticket->get_type()))
+      {
+        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted))
+        {
+          WSREP_DEBUG("MDL victim killed at add_ticket");
+        }
+      }
+    }
+  }
+  else
+  {
+#endif /* WITH_WSREP */
   /*
     Add ticket to the *back* of the queue to ensure fairness
     among requests with the same priority.
   */
   m_list.push_back(ticket);
+#ifdef WITH_WSREP
+  }
+#endif /* WITH_WSREP */
   m_bitmap|= MDL_BIT(ticket->get_type());
 }
 
@@ -1463,7 +1516,6 @@ MDL_object_lock::m_waiting_incompatible[MDL_TYPE_END] =
   0
 };
 
-
 /**
   Check if request for the metadata lock can be satisfied given its
   current state.
@@ -1486,6 +1538,9 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
+#ifdef WITH_WSREP
+  bool  wsrep_can_grant= TRUE;
+#endif /* WITH_WSREP */
   /*
     New lock request can be satisfied iff:
     - There are no incompatible types of satisfied requests
@@ -1507,12 +1562,51 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       {
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
+#ifdef WITH_WSREP
+        {
+          if (wsrep_thd_is_brute_force((void *)(requestor_ctx->get_thd())) &&
+              key.mdl_namespace() == MDL_key::GLOBAL)
+          {
+            WSREP_DEBUG("global lock granted for BF: %lu %s",
+                        wsrep_thd_thread_id(requestor_ctx->get_thd()), 
+                        wsrep_thd_query(requestor_ctx->get_thd()));
+            can_grant = true;
+          }
+          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket))
+          {
+            wsrep_can_grant= FALSE;
+          }
+          else
+          {	  
+            can_grant= TRUE;
+          }
+        }
+#else
           break;
+#endif /* WITH_WSREP */
       }
+#ifdef WITH_WSREP
+      if ((ticket == NULL) && wsrep_can_grant)
+#else
       if (ticket == NULL)             /* Incompatible locks are our own. */
+#endif /* WITH_WSREP */
+
         can_grant= TRUE;
     }
   }
+#ifdef WITH_WSREP
+  else
+  {
+    if (wsrep_thd_is_brute_force((void *)(requestor_ctx->get_thd())) &&
+	key.mdl_namespace() == MDL_key::GLOBAL)
+    {
+      WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
+		  wsrep_thd_thread_id(requestor_ctx->get_thd()), 
+		  wsrep_thd_query(requestor_ctx->get_thd()));
+      can_grant = true;
+    }
+  }
+#endif /* WITH_WSREP */
   return can_grant;
 }
 

@@ -1019,7 +1019,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         thd->transaction.stmt.modified_non_trans_table ||
 	was_insert_delayed)
     {
+#ifdef WITH_WSREP
+      if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+#else
       if (mysql_bin_log.is_open())
+#endif
       {
         int errcode= 0;
 	if (error <= 0)
@@ -3113,6 +3117,11 @@ bool Delayed_insert::handle_inserts(void)
         mysql_cond_broadcast(&cond_client);     // If waiting clients
     }
   }
+#ifdef WITH_WSREP
+  if (WSREP((&thd)))
+    thd_proc_info(&thd, "insert done");
+  else
+#endif /* WITH_WSREP */
   thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);
 
@@ -3597,8 +3606,13 @@ bool select_insert::send_eof()
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
   */
+#ifdef WITH_WSREP
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+      (!error || thd->transaction.stmt.modified_non_trans_table))
+#else
   if (mysql_bin_log.is_open() &&
       (!error || thd->transaction.stmt.modified_non_trans_table))
+#endif
   {
     int errcode= 0;
     if (!error)
@@ -3681,7 +3695,11 @@ void select_insert::abort_result_set() {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
 
+#ifdef WITH_WSREP
+        if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+#else
         if (mysql_bin_log.is_open())
+#endif
         {
           int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
           /* error of writing binary log is ignored */
@@ -4072,7 +4090,11 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                             /* show_database */ TRUE);
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
+#ifdef WITH_WSREP
+  if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
+#else
   if (mysql_bin_log.is_open())
+#endif
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,

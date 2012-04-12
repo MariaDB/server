@@ -797,6 +797,7 @@ lock_rec_get_page_no(
 				remains set when the waiting lock is granted,
 				or if the lock is inherited to a neighboring
 				record */
+#define WSREP_BF		4096
 #if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION)&LOCK_MODE_MASK
 # error
 #endif

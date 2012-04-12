@@ -36,6 +36,10 @@ extern "C" {
 #include "handler0alter.h"
 }
 
+#ifdef WITH_WSREP
+//#include "wsrep_api.h"
+#include <sql_acl.h>	// PROCESS_ACL
+#endif
 #include "ha_innodb.h"
 
 /*************************************************************//**

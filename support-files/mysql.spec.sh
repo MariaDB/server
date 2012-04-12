@@ -68,6 +68,17 @@
 #
 
 # ----------------------------------------------------------------------------
+# wsrep builds
+# ----------------------------------------------------------------------------
+%if %{defined with_wsrep}
+%define mysql_version @VERSION@_wsrep_@WSREP_API_VERSION@.@WSREP_PATCH_VERSION@
+%define wsrep_version @WSREP_VERSION@
+%define wsrep_comment , wsrep_%{wsrep_version}
+%else
+%define wsrep_comment %{nil}
+%endif
+
+# ----------------------------------------------------------------------------
 # Commercial builds
 # ----------------------------------------------------------------------------
 %if %{undefined commercial}
@@ -93,10 +104,10 @@
 # Server comment strings
 # ----------------------------------------------------------------------------
 %if %{undefined compilation_comment_debug}
-%define compilation_comment_debug       MySQL Community Server - Debug (GPL)
+%define compilation_comment_debug       MySQL Community Server - Debug (GPL)%{wsrep_comment}
 %endif
 %if %{undefined compilation_comment_release}
-%define compilation_comment_release     MySQL Community Server (GPL)
+%define compilation_comment_release     MySQL Community Server (GPL)%{wsrep_comment}
 %endif
 
 # ----------------------------------------------------------------------------
@@ -112,6 +123,13 @@
 
 %if %{undefined server_suffix}
 %define server_suffix   %{nil}
+%endif
+
+# ----------------------------------------------------------------------------
+# Packager
+# ----------------------------------------------------------------------------
+%if %{undefined mysql_packager}
+%define mysql_packager MySQL Build Team <build@mysql.com>
 %endif
 
 # ----------------------------------------------------------------------------
@@ -280,6 +298,10 @@ documentation and the manual for more information.
 ##############################################################################
 
 %package -n MySQL-server%{product_suffix}
+%if %{defined with_wsrep}
+Version:        %{mysql_version}
+#Release:        %{wsrep_version}.%{release}
+%endif
 Summary:	MySQL: a very fast and reliable SQL database server
 Group:		Applications/Databases
 Requires:	%{distro_requires}
@@ -309,6 +331,9 @@ and the manual for more information.
 This package includes the MySQL server binary as well as related utilities
 to run and administer a MySQL server.
 
+%if %{defined with_wsrep}
+Built with wsrep patch %{wsrep_version}.
+%endif
 If you want to access and work with the database, you have to install
 package "MySQL-client%{product_suffix}" as well!
 
@@ -374,6 +399,7 @@ This package contains the shared libraries (*.so*) which certain languages
 and applications need to dynamically load and use MySQL.
 
 # ----------------------------------------------------------------------------
+%if %{undefined with_wsrep}
 %package -n MySQL-embedded%{product_suffix}
 Summary:	MySQL - Embedded library
 Group:		Applications/Databases
@@ -395,6 +421,7 @@ The API is identical for the embedded MySQL version and the
 client/server version.
 
 For a description of MySQL see the base MySQL RPM or http://www.mysql.com/
+%endif
 
 ##############################################################################
 %prep
@@ -460,6 +487,9 @@ mkdir debug
            -DMYSQL_UNIX_ADDR="%{mysqldatadir}/mysql.sock" \
            -DFEATURE_SET="%{feature_set}" \
            -DCOMPILATION_COMMENT="%{compilation_comment_debug}" \
+%if %{defined with_wsrep}
+           -DWITH_WSREP=1 \
+%endif
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_DEBUG_CONFIG ; egrep '^#define' include/config.h ; echo END_DEBUG_CONFIG
   make ${MAKE_JFLAG} VERBOSE=1
@@ -475,6 +505,9 @@ mkdir release
            -DMYSQL_UNIX_ADDR="%{mysqldatadir}/mysql.sock" \
            -DFEATURE_SET="%{feature_set}" \
            -DCOMPILATION_COMMENT="%{compilation_comment_release}" \
+%if %{defined with_wsrep}
+           -DWITH_WSREP=1 \
+%endif
            -DMYSQL_SERVER_SUFFIX="%{server_suffix}"
   echo BEGIN_NORMAL_CONFIG ; egrep '^#define' include/config.h ; echo END_NORMAL_CONFIG
   make ${MAKE_JFLAG} VERBOSE=1
@@ -530,11 +563,20 @@ install -m 755 $MBD/release/support-files/mysql.server $RBR%{_sysconfdir}/init.d
 
 # Create a symlink "rcmysql", pointing to the init.script. SuSE users
 # will appreciate that, as all services usually offer this.
-ln -s %{_sysconfdir}/init.d/mysql $RBR%{_sbindir}/rcmysql
+ln -sf %{_sysconfdir}/init.d/mysql $RBR%{_sbindir}/rcmysql
+
+%if %{defined with_wsrep}
+# Create a wsrep_sst_rsync_wan symlink.
+install -d $RBR%{_bindir}
+ln -sf wsrep_sst_rsync $RBR%{_bindir}/wsrep_sst_rsync_wan
+%endif
 
 # Touch the place where the my.cnf config file might be located
 # Just to make sure it's in the file list and marked as a config file
 touch $RBR%{_sysconfdir}/my.cnf
+%if %{defined with_wsrep}
+touch $RBR%{_sysconfdir}/wsrep.cnf
+%endif
 
 # Install SELinux files in datadir
 install -m 600 $MBD/%{src_dir}/support-files/RHEL4-SElinux/mysql.{fc,te} \
@@ -988,6 +1030,11 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %{src_dir}/Docs/INFO_SRC*
 %doc release/Docs/INFO_BIN*
 %doc release/support-files/my-*.cnf
+%if %{defined with_wsrep}
+%doc %{src_dir}/Docs/README-wsrep
+%doc release/support-files/wsrep.cnf
+%doc release/support-files/wsrep_notify
+%endif
 
 %doc %attr(644, root, root) %{_infodir}/mysql.info*
 
@@ -1021,6 +1068,9 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/resolveip.1*
 
 %ghost %config(noreplace,missingok) %{_sysconfdir}/my.cnf
+%if %{defined with_wsrep}
+%ghost %config(noreplace,missingok) %{_sysconfdir}/wsrep.cnf
+%endif
 
 %attr(755, root, root) %{_bindir}/innochecksum
 %attr(755, root, root) %{_bindir}/my_print_defaults
@@ -1047,6 +1097,11 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_bindir}/replace
 %attr(755, root, root) %{_bindir}/resolve_stack_dump
 %attr(755, root, root) %{_bindir}/resolveip
+%if %{defined with_wsrep}
+%attr(755, root, root) %{_bindir}/wsrep_sst_mysqldump
+%attr(755, root, root) %{_bindir}/wsrep_sst_rsync
+%attr(755, root, root) %{_bindir}/wsrep_sst_rsync_wan
+%endif
 
 %attr(755, root, root) %{_sbindir}/mysqld
 %attr(755, root, root) %{_sbindir}/mysqld-debug
@@ -1125,8 +1180,10 @@ echo "====="                                     >> $STATUS_HISTORY
 %defattr(-, root, root, 0755)
 %attr(-, root, root) %{_datadir}/mysql-test
 %attr(755, root, root) %{_bindir}/mysql_client_test
+%if %{undefined with_wsrep}
 %attr(755, root, root) %{_bindir}/mysql_client_test_embedded
 %attr(755, root, root) %{_bindir}/mysqltest_embedded
+%endif
 %doc %attr(644, root, man) %{_mandir}/man1/mysql_client_test.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysql-stress-test.pl.1*
 %doc %attr(644, root, man) %{_mandir}/man1/mysql-test-run.pl.1*
@@ -1134,11 +1191,13 @@ echo "====="                                     >> $STATUS_HISTORY
 %doc %attr(644, root, man) %{_mandir}/man1/mysqltest_embedded.1*
 
 # ----------------------------------------------------------------------------
+%if %{undefined with_wsrep}
 %files -n MySQL-embedded%{product_suffix}
 %defattr(-, root, root, 0755)
 %attr(755, root, root) %{_bindir}/mysql_embedded
 %attr(644, root, root) %{_libdir}/mysql/libmysqld.a
 %attr(644, root, root) %{_libdir}/mysql/libmysqld-debug.a
+%endif
 
 ##############################################################################
 # The spec file changelog only includes changes made to the spec file
@@ -1146,6 +1205,10 @@ echo "====="                                     >> $STATUS_HISTORY
 # merging BK trees)
 ##############################################################################
 %changelog
+* Wed Dec 07 2011 Alexey Yurchenko <alexey.yurchenko@codership.com>
+
+- wsrep-related cleanups.
+
 * Wed Sep 28 2011 Joerg Bruehe <joerg.bruehe@oracle.com>
 
 - Fix duplicate mentioning of "mysql_plugin" and its manual page,
@@ -1198,7 +1261,6 @@ echo "====="                                     >> $STATUS_HISTORY
 - Fix bug#12561297: Added the MySQL embedded binary
 
 * Thu Jul 07 2011 Joerg Bruehe <joerg.bruehe@oracle.com>
-
 - Fix bug#45415: "rpm upgrade recreates test database"
   Let the creation of the "test" database happen only during a new installation,
   not in an RPM upgrade.

@@ -6158,12 +6158,18 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       error= 0;
       break;
     }
-    if (error == HA_ERR_WRONG_COMMAND)
+#ifdef WITH_WSREP
+    bool do_log_write(true);
+#endif /* WITH_WSREP */
+     if (error == HA_ERR_WRONG_COMMAND)
     {
       error= 0;
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
 			  ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
 			  table->alias.c_ptr());
+#ifdef WITH_WSREP
+      WSREP_DEBUG("ignoring DDL failure: %d %s", error, thd->query());
+#endif /* WITH_WSREP */
     }
 
     if (!error && (new_name != table_name || new_db != db))
@@ -6215,6 +6221,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
 			  ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
 			  table->alias.c_ptr());
+#ifdef WITH_WSREP
+      WSREP_DEBUG("ignoring DDL failure: %d %s", error, thd->query());
+#endif /* WITH_WSREP */
     }
 
     if (!error)

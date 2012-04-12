@@ -53,6 +53,9 @@
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
 
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -3487,6 +3490,11 @@ pthread_handler_t handle_slave_sql(void *arg)
 #endif
   DBUG_ASSERT(rli->sql_thd == thd);
 
+#ifdef WITH_WSREP
+  thd->wsrep_exec_mode= LOCAL_STATE;
+  /* synchronize with wsrep replication */
+  wsrep_ready_wait ();
+#endif
   DBUG_PRINT("master_info",("log_file_name: %s  position: %s",
                             rli->group_master_log_name,
                             llstr(rli->group_master_log_pos,llbuff)));
