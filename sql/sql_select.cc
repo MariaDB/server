@@ -643,7 +643,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   */
   if (select_lex->master_unit()->item &&                               // 1)
       select_lex->first_cond_optimization &&                           // 2)
-      !(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)) // 3)
+      !thd->lex->is_view_context_analysis())                           // 3)
   {
     remove_redundant_subquery_clauses(select_lex);
   }
@@ -3085,12 +3085,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
   TABLE **table_vector;
-  JOIN_TAB *stat,*stat_end,*s,**stat_ref;
+  JOIN_TAB *stat,*stat_end,*s,**stat_ref, **stat_vector;
   KEYUSE *keyuse,*start_keyuse;
   table_map outer_join=0;
   table_map no_rows_const_tables= 0;
   SARGABLE_PARAM *sargables= 0;
-  JOIN_TAB *stat_vector[MAX_TABLES+1];
   List_iterator<TABLE_LIST> ti(tables_list);
   TABLE_LIST *tables;
   DBUG_ENTER("make_join_statistics");
@@ -3099,9 +3098,19 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   table_count=join->table_count;
 
   stat=(JOIN_TAB*) join->thd->calloc(sizeof(JOIN_TAB)*(table_count));
-  stat_ref=(JOIN_TAB**) join->thd->alloc(sizeof(JOIN_TAB*)*MAX_TABLES);
+  stat_ref=(JOIN_TAB**) join->thd->alloc(sizeof(JOIN_TAB*)*
+                                         (MAX_TABLES + table_count + 1));
+  stat_vector= stat_ref + MAX_TABLES;
   table_vector=(TABLE**) join->thd->alloc(sizeof(TABLE*)*(table_count*2));
-  if (!stat || !stat_ref || !table_vector)
+  join->positions= new (join->thd->mem_root) POSITION[(table_count+1)];
+  /*
+    best_positions is ok to allocate with alloc() as we copy things to it with
+    memcpy()
+  */
+  join->best_positions= (POSITION*) join->thd->alloc(sizeof(POSITION)*
+                                                     (table_count +1));
+
+  if (join->thd->is_fatal_error)
     DBUG_RETURN(1);				// Eom /* purecov: inspected */
 
   join->best_ref=stat_vector;
@@ -3122,6 +3131,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
     set_statistics_for_table(join->thd, table);
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    const bool no_partitions_used= table->no_partitions_used;
+#else
+    const bool no_partitions_used= FALSE;
+#endif
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
                     {
@@ -3154,13 +3169,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (*s->on_expr_ref)
     {
       /* s is the only inner table of an outer join */
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       if (!table->is_filled_at_execution() &&
-	  (!table->stat_records() || table->no_partitions_used) && !embedding)
-#else
-      if (!table->is_filled_at_execution() &&
-          !table->stat_records() && !embedding)
-#endif
+          ((!table->file->stats.records &&
+            (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
+           no_partitions_used) && !embedding)
       {						// Empty table
         s->dependent= 0;                        // Ignore LEFT JOIN depend.
         no_rows_const_tables |= table->map;
@@ -3200,16 +3212,12 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       if (inside_an_outer_join)
         continue;
     }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    const bool no_partitions_used= table->no_partitions_used;
-#else
-    const bool no_partitions_used= FALSE;
-#endif
-    if (!table->is_filled_at_execution() && 
-        (table->s->system || table->stat_records() <= 1 ||
+    if (!table->is_filled_at_execution() &&
+        (table->s->system ||
+         (table->file->stats.records <= 1 &&
+          (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
          no_partitions_used) &&
 	!s->dependent &&
-	(table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
         !table->fulltext_searched && !join->no_const_tables)
     {
       set_position(join,const_count++,s,(KEYUSE*) 0);
@@ -5758,6 +5766,114 @@ best_access_path(JOIN      *join,
 }
 
 
+/*
+  Find JOIN_TAB's embedding (i.e, parent) subquery.
+  - For merged semi-joins, tables inside the semi-join nest have their
+    semi-join nest as parent.  We intentionally ignore results of table 
+    pullout action here.
+  - For non-merged semi-joins (JTBM tabs), the embedding subquery is the 
+    JTBM join tab itself.
+*/
+
+static TABLE_LIST* get_emb_subq(JOIN_TAB *tab)
+{
+  TABLE_LIST *tlist= tab->table->pos_in_table_list;
+  if (tlist->jtbm_subselect)
+    return tlist;
+  TABLE_LIST *embedding= tlist->embedding;
+  if (!embedding || !embedding->sj_subq_pred)
+    return NULL;
+  return embedding;
+}
+
+
+/*
+  Choose initial table order that "helps" semi-join optimizations.
+
+  The idea is that we should start with the order that is the same as the one
+  we would have had if we had semijoin=off:
+  - Top-level tables go first
+  - subquery tables are grouped together by the subquery they are in,
+  - subquery tables are attached where the subquery predicate would have been
+    attached if we had semi-join off.
+  
+  This function relies on join_tab_cmp()/join_tab_cmp_straight() to produce
+  certain pre-liminary ordering, see compare_embedding_subqueries() for its
+  description.
+*/
+
+static void choose_initial_table_order(JOIN *join)
+{
+  TABLE_LIST *emb_subq;
+  JOIN_TAB **tab= join->best_ref + join->const_tables;
+  JOIN_TAB **tabs_end= tab + join->table_count - join->const_tables;
+  /* Find where the top-level JOIN_TABs end and subquery JOIN_TABs start */
+  for (; tab != tabs_end; tab++)
+  {
+    if ((emb_subq= get_emb_subq(*tab)))
+      break;
+  }
+  uint n_subquery_tabs= tabs_end - tab;
+
+  if (!n_subquery_tabs)
+    return;
+
+  /* Copy the subquery JOIN_TABs to a separate array */
+  JOIN_TAB *subquery_tabs[MAX_TABLES];
+  memcpy(subquery_tabs, tab, sizeof(JOIN_TAB*) * n_subquery_tabs);
+  
+  JOIN_TAB **last_top_level_tab= tab;
+  JOIN_TAB **subq_tab= subquery_tabs;
+  JOIN_TAB **subq_tabs_end= subquery_tabs + n_subquery_tabs;
+  TABLE_LIST *cur_subq_nest= NULL;
+  for (; subq_tab < subq_tabs_end; subq_tab++)
+  {
+    if (get_emb_subq(*subq_tab)!= cur_subq_nest)
+    {
+      /*
+        Reached the part of subquery_tabs that covers tables in some subquery.
+      */
+      cur_subq_nest= get_emb_subq(*subq_tab);
+
+      /* Determine how many tables the subquery has */
+      JOIN_TAB **last_tab_for_subq;
+      for (last_tab_for_subq= subq_tab;
+           last_tab_for_subq < subq_tabs_end && 
+           get_emb_subq(*last_tab_for_subq) == cur_subq_nest;
+           last_tab_for_subq++) {}
+      uint n_subquery_tables= last_tab_for_subq - subq_tab;
+
+      /* 
+        Walk the original array and find where this subquery would have been
+        attached to
+      */
+      table_map need_tables= cur_subq_nest->original_subq_pred_used_tables;
+      need_tables &= ~(join->const_table_map | PSEUDO_TABLE_BITS);
+      for (JOIN_TAB **top_level_tab= join->best_ref + join->const_tables;
+           top_level_tab < last_top_level_tab;
+           //top_level_tab < join->best_ref + join->table_count;
+           top_level_tab++)
+      {
+        need_tables &= ~(*top_level_tab)->table->map;
+        /* Check if this is the place where subquery should be attached */
+        if (!need_tables)
+        {
+          /* Move away the top-level tables that are after top_level_tab */
+          uint top_tail_len= last_top_level_tab - top_level_tab - 1;
+          memmove(top_level_tab + 1 + n_subquery_tables, top_level_tab + 1,
+                  sizeof(JOIN_TAB*)*top_tail_len);
+          last_top_level_tab += n_subquery_tables;
+          memcpy(top_level_tab + 1, subq_tab, sizeof(JOIN_TAB*)*n_subquery_tables);
+          break;
+        }
+      }
+      DBUG_ASSERT(!need_tables);
+      subq_tab += n_subquery_tables - 1;
+    }
+  }
+}
+
+
 /**
   Selects and invokes a search strategy for an optimal query plan.
 
@@ -5813,9 +5929,21 @@ choose_plan(JOIN *join, table_map join_tables)
     */
     jtab_sort_func= straight_join ? join_tab_cmp_straight : join_tab_cmp;
   }
+
+  /*
+    psergey-todo: if we're not optimizing an SJM nest, 
+     - sort that outer tables are first, and each sjm nest follows
+     - then, put each [sjm_table1, ... sjm_tableN] sub-array right where 
+       WHERE clause pushdown would have put it.
+  */
   my_qsort2(join->best_ref + join->const_tables,
             join->table_count - join->const_tables, sizeof(JOIN_TAB*),
             jtab_sort_func, (void*)join->emb_sjm_nest);
+
+  if (!join->emb_sjm_nest)
+  {
+    choose_initial_table_order(join);
+  }
   join->cur_sj_inner_tables= 0;
 
   if (straight_join)
@@ -5855,6 +5983,64 @@ choose_plan(JOIN *join, table_map join_tables)
 }
 
 
+/*
+  Compare two join tabs based on the subqueries they are from.
+   - top-level join tabs go first
+   - then subqueries are ordered by their select_id (we're using this 
+     criteria because we need a cross-platform, deterministic ordering)
+
+  @return 
+     0   -  equal
+     -1  -  jt1 < jt2
+     1   -  jt1 > jt2
+*/
+
+static int compare_embedding_subqueries(JOIN_TAB *jt1, JOIN_TAB *jt2)
+{
+  /* Determine if the first table is originally from a subquery */
+  TABLE_LIST *tbl1= jt1->table->pos_in_table_list;
+  uint tbl1_select_no;
+  if (tbl1->jtbm_subselect)
+  {
+    tbl1_select_no= 
+      tbl1->jtbm_subselect->unit->first_select()->select_number;
+  }
+  else if (tbl1->embedding && tbl1->embedding->sj_subq_pred)
+  {
+    tbl1_select_no= 
+      tbl1->embedding->sj_subq_pred->unit->first_select()->select_number;
+  }
+  else
+    tbl1_select_no= 1; /* Top-level */
+
+  /* Same for the second table */
+  TABLE_LIST *tbl2= jt2->table->pos_in_table_list;
+  uint tbl2_select_no;
+  if (tbl2->jtbm_subselect)
+  {
+    tbl2_select_no= 
+      tbl2->jtbm_subselect->unit->first_select()->select_number;
+  }
+  else if (tbl2->embedding && tbl2->embedding->sj_subq_pred)
+  {
+    tbl2_select_no= 
+      tbl2->embedding->sj_subq_pred->unit->first_select()->select_number;
+  }
+  else
+    tbl2_select_no= 1; /* Top-level */
+
+  /* 
+    Put top-level tables in front. Tables from within subqueries must follow,
+    grouped by their owner subquery. We don't care about the order that
+    subquery groups are in, because choose_initial_table_order() will re-order
+    the groups.
+  */
+  if (tbl1_select_no != tbl2_select_no)
+    return tbl1_select_no > tbl2_select_no ? 1 : -1;
+  return 0;
+}
+
+
 /**
   Compare two JOIN_TAB objects based on the number of accessed records.
 
@@ -5871,6 +6057,9 @@ choose_plan(JOIN *join, table_map join_tables)
       a: dependent = 0x0 table->map = 0x1 found_records = 3 ptr = 0x907e6b0
       b: dependent = 0x0 table->map = 0x2 found_records = 3 ptr = 0x907e838
       c: dependent = 0x6 table->map = 0x10 found_records = 2 ptr = 0x907ecd0
+
+   As for subuqueries, this function must produce order that can be fed to 
+   choose_initial_table_order().
      
   @retval
     1  if first is bigger
@@ -5885,7 +6074,15 @@ join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2)
 {
   JOIN_TAB *jt1= *(JOIN_TAB**) ptr1;
   JOIN_TAB *jt2= *(JOIN_TAB**) ptr2;
+  int cmp;
 
+  if ((cmp= compare_embedding_subqueries(jt1, jt2)) != 0)
+    return cmp;
+  /*
+    After that,
+    take care about ordering imposed by LEFT JOIN constraints,
+    possible [eq]ref accesses, and numbers of matching records in the table.
+  */
   if (jt1->dependent & jt2->table->map)
     return 1;
   if (jt2->dependent & jt1->table->map)
@@ -5915,6 +6112,10 @@ join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2)
   */
   DBUG_ASSERT(!jt1->emb_sj_nest);
   DBUG_ASSERT(!jt2->emb_sj_nest);
+
+  int cmp;
+  if ((cmp= compare_embedding_subqueries(jt1, jt2)) != 0)
+    return cmp;
 
   if (jt1->dependent & jt2->table->map)
     return 1;
@@ -7636,7 +7837,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       if (keyuse->null_rejecting) 
         j->ref.null_rejecting |= 1 << i;
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
-      if (!keyuse->used_tables && !thd->lex->describe)
+      if (!keyuse->val->used_tables() && !thd->lex->describe)
       {					// Compare against constant
 	store_key_item tmp(thd, 
                            keyinfo->key_part[i].field,
@@ -10852,6 +11053,9 @@ finish:
     acceptable, as this happens rarely. The implementation without
     copying would be much more complicated.
 
+    For description of how equality propagation works with SJM nests, grep 
+    for EqualityPropagationAndSjmNests.
+
   @param left_item   left term of the quality to be checked
   @param right_item  right term of the equality to be checked
   @param item        equality item if the equality originates from a condition
@@ -10925,12 +11129,14 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
     {
       /* left_item_equal of an upper level contains left_item */
       left_item_equal= new Item_equal(left_item_equal);
+      left_item_equal->set_context_field(((Item_field*) left_item));
       cond_equal->current_level.push_back(left_item_equal);
     }
     if (right_copyfl)
     {
       /* right_item_equal of an upper level contains right_item */
       right_item_equal= new Item_equal(right_item_equal);
+      right_item_equal->set_context_field(((Item_field*) right_item));
       cond_equal->current_level.push_back(right_item_equal);
     }
 
@@ -10960,6 +11166,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
         Item_equal *item_equal= new Item_equal(orig_left_item,
                                                orig_right_item,
                                                FALSE);
+        item_equal->set_context_field((Item_field*)left_item);
         cond_equal->current_level.push_back(item_equal);
       }
     }
@@ -11016,6 +11223,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
       {
         item_equal= new Item_equal(item_equal);
         cond_equal->current_level.push_back(item_equal);
+        item_equal->set_context_field(field_item);
       }
       if (item_equal)
       {
@@ -11029,6 +11237,7 @@ static bool check_simple_equality(Item *left_item, Item *right_item,
       else
       {
         item_equal= new Item_equal(const_item, orig_field_item, TRUE);
+        item_equal->set_context_field(field_item);
         cond_equal->current_level.push_back(item_equal);
       }
       return TRUE;
@@ -11665,6 +11874,8 @@ static TABLE_LIST* embedding_sjm(Item *item)
         Item_equal::get_first() also takes similar measures for dealing with
         equality substitution in presense of SJM nests.
 
+    Grep for EqualityPropagationAndSjmNests for a more verbose description.
+
   @return
     - The condition with generated simple equalities or
     a pointer to the simple generated equality, if success.
@@ -11728,9 +11939,13 @@ Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
       on upper AND-levels.
     */
     if (upper)
-    { 
+    {
+      TABLE_LIST *native_sjm= embedding_sjm(item_equal->context_field);
       if (item_const && upper->get_const())
+      {
+        /* Upper item also has "field_item=const". Don't produce equality here */
         item= 0;
+      }
       else
       {
         Item_equal_fields_iterator li(*item_equal);
@@ -11741,6 +11956,8 @@ Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
             break;
         }
       }
+      if (embedding_sjm(field_item) != native_sjm)
+        item= NULL; /* Don't produce equality */
     }
     
     bool produce_equality= test(item == field_item);
@@ -12436,11 +12653,9 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
     Flatten nested joins that can be flattened.
     no ON expression and not a semi-join => can be flattened.
   */
-  TABLE_LIST *right_neighbor= NULL;
   li.rewind();
   while ((table= li++))
   {
-    bool fix_name_res= FALSE;
     nested_join= table->nested_join;
     if (table->sj_on_expr && !in_sj)
     {
@@ -12477,15 +12692,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
         tbl->dep_tables|= table->dep_tables;
       }
       li.replace(repl_list);
-      /* Need to update the name resolution table chain when flattening joins */
-      fix_name_res= TRUE;
-      table= *li.ref();
     }
-    if (fix_name_res)
-      table->next_name_resolution_table= right_neighbor ?
-        right_neighbor->first_leaf_for_name_resolution() :
-        NULL;
-    right_neighbor= table;
   }
   DBUG_RETURN(conds); 
 }
@@ -15221,6 +15428,7 @@ free_tmp_table(THD *thd, TABLE *entry)
     else
       entry->file->ha_delete_table(entry->s->table_name.str);
     delete entry->file;
+    entry->file= 0;
   }
 
   /* free blobs */
@@ -15834,7 +16042,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
 
-  update_virtual_fields(join->thd, join_tab->table);
+  if (join_tab->table->vfield)
+    update_virtual_fields(join->thd, join_tab->table);
 
   if (select_cond)
   {
@@ -16262,7 +16471,8 @@ join_read_system(JOIN_TAB *tab)
       empty_record(table);			// Make empty record
       return -1;
     }
-    update_virtual_fields(tab->join->thd, table);
+    if (table->vfield)
+      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!table->status)			// Only happens with left join
@@ -16311,7 +16521,8 @@ join_read_const(JOIN_TAB *tab)
 	return report_error(table, error);
       return -1;
     }
-    update_virtual_fields(tab->join->thd, table);
+    if (table->vfield)
+      update_virtual_fields(tab->join->thd, table);
     store_record(table,record[1]);
   }
   else if (!(table->status & ~STATUS_NULL_ROW))	// Only happens with left join

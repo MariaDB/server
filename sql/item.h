@@ -656,6 +656,8 @@ public:
 #endif
   }		/*lint -e1509 */
   void set_name(const char *str, uint length, CHARSET_INFO *cs);
+  void set_name_for_rollback(THD *thd, const char *str, uint length,
+                             CHARSET_INFO *cs);
   void rename(char *new_name);
   void init_make_field(Send_field *tmp_field,enum enum_field_types type);
   virtual void cleanup();
@@ -2258,7 +2260,7 @@ public:
   */
   void (*set_param_func)(Item_param *param, uchar **pos, ulong len);
 
-  const String *query_val_str(String *str) const;
+  const String *query_val_str(THD *thd, String *str) const;
 
   bool convert_str_value(THD *thd);
 

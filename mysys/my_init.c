@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates
    Copyright (c) 2009, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -201,11 +201,12 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
 #endif
   }
 
+  my_thread_end();
+  my_thread_global_end();
+
   if (!(infoflag & MY_DONT_FREE_DBUG))
     DBUG_END();                /* Must be done as late as possible */
 
-  my_thread_end();
-  my_thread_global_end();
   my_mutex_end();
 #if defined(SAFE_MUTEX)
   /*

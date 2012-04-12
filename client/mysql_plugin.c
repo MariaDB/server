@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@ int main(int argc,char *argv[])
   char operation[16];
 
   MY_INIT(argv[0]);
+  sf_leaking_memory=1; /* don't report memory leaks on early exits */
   plugin_data.name= 0; // initialize name
   
   /*

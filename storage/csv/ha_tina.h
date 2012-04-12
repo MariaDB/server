@@ -81,7 +81,7 @@ class ha_tina: public handler
   uchar chain_alloced;
   uint32 chain_size;
   uint local_data_file_version;  /* Saved version of the data file used */
-  bool records_is_known;
+  bool records_is_known, found_end_of_file;
   MEM_ROOT blobroot;
 
 private:
@@ -150,9 +150,12 @@ public:
   int rnd_end();
   int repair(THD* thd, HA_CHECK_OPT* check_opt);
   /* This is required for SQL layer to know that we support autorepair */
+  bool auto_repair(int error) const
+  { return error == HA_ERR_CRASHED_ON_USAGE; }
   bool auto_repair() const { return 1; }
   void position(const uchar *record);
   int info(uint);
+  int reset();
   int extra(enum ha_extra_function operation);
   int delete_all_rows(void);
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info);

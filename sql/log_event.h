@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4261,7 +4260,7 @@ private:
 };
 #endif
 
-int append_query_string(CHARSET_INFO *csinfo,
+int append_query_string(THD *thd, CHARSET_INFO *csinfo,
                         String const *from, String *to);
 
 bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,

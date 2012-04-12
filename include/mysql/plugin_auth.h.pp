@@ -80,24 +80,8 @@ void thd_progress_next_stage(void* thd);
 void thd_progress_end(void* thd);
 const char *set_thd_proc_info(void*, const char * info, const char *func,
                               const char *file, unsigned int line);
-#include <mysql/service_logger.h>
-typedef struct logger_handle_st LOGGER_HANDLE;
-extern struct logger_service_st {
-  LOGGER_HANDLE* (*open)(const char *path,
-                         unsigned long long size_limit,
-                         unsigned int rotations);
-  int (*close)(LOGGER_HANDLE *log);
-  int (*vprintf)(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
-  int (*printf)(LOGGER_HANDLE *log, const char *fmt, ...);
-  int (*rotate)(LOGGER_HANDLE *log);
-} *logger_service;
-  LOGGER_HANDLE *logger_open(const char *path,
-                             unsigned long long size_limit,
-                             unsigned int rotations);
-  int logger_close(LOGGER_HANDLE *log);
-  int logger_vprintf(LOGGER_HANDLE *log, const char *fmt, va_list argptr);
-  int logger_rotate(LOGGER_HANDLE *log);
-  int logger_printf(LOGGER_HANDLE *log, const char *fmt, ...);
+#include <mysql/service_debug_sync.h>
+extern void (*debug_sync_C_callback_ptr)(void*, const char *, size_t);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

@@ -2490,30 +2490,35 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   /*
     Process virtual columns, if any.
   */
-  if (!(vfield_ptr = (Field **) alloc_root(&outparam->mem_root,
-                                          (uint) ((share->vfields+1)*
-                                                  sizeof(Field*)))))
-    goto err;
-
-  outparam->vfield= vfield_ptr;
-  
-  for (field_ptr= outparam->field; *field_ptr; field_ptr++)
+  if (!share->vfields)
+    outparam->vfield= NULL;
+  else
   {
-    if ((*field_ptr)->vcol_info)
+    if (!(vfield_ptr = (Field **) alloc_root(&outparam->mem_root,
+                                             (uint) ((share->vfields+1)*
+                                                     sizeof(Field*)))))
+      goto err;
+
+    outparam->vfield= vfield_ptr;
+
+    for (field_ptr= outparam->field; *field_ptr; field_ptr++)
     {
-      if (unpack_vcol_info_from_frm(thd,
-                                    outparam,
-                                    *field_ptr,
-                                    &(*field_ptr)->vcol_info->expr_str,
-                                    &error_reported))
+      if ((*field_ptr)->vcol_info)
       {
-        error= 4; // in case no error is reported
-        goto err;
+        if (unpack_vcol_info_from_frm(thd,
+                                      outparam,
+                                      *field_ptr,
+                                      &(*field_ptr)->vcol_info->expr_str,
+                                      &error_reported))
+        {
+          error= 4; // in case no error is reported
+          goto err;
+        }
+        *(vfield_ptr++)= *field_ptr;
       }
-      *(vfield_ptr++)= *field_ptr;
     }
+    *vfield_ptr= 0;                              // End marker
   }
-  *vfield_ptr= 0;                              // End marker
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (share->partition_info_str_len && outparam->file)
@@ -2626,8 +2631,7 @@ partititon_err:
                            HA_OPEN_IGNORE_IF_LOCKED) | ha_open_flags))))
     {
       /* Set a flag if the table is crashed and it can be auto. repaired */
-      share->crashed= ((ha_err == HA_ERR_CRASHED_ON_USAGE) &&
-                       outparam->file->auto_repair() &&
+      share->crashed= (outparam->file->auto_repair(ha_err) &&
                        !(ha_open_flags & HA_OPEN_FOR_REPAIR));
 
       switch (ha_err)
@@ -4063,7 +4067,21 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   Query_arena *arena= thd->stmt_arena, backup;
   bool res= FALSE;
 
-  used_items.empty();
+  if (thd->stmt_arena->is_conventional() ||
+      thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
+  {
+    /* initialize lists */
+    used_items.empty();
+    persistent_used_items.empty();
+  }
+  else
+  {
+    /*
+      Copy the list created by natural join procedure because the procedure
+      will not be repeated.
+    */
+    used_items= persistent_used_items;
+  }
 
   if (field_translation)
   {
@@ -5127,7 +5145,7 @@ Item *create_view_field(THD *thd, TABLE_LIST *view, Item **field_ref,
   if (view->table && view->table->maybe_null)
     item->maybe_null= TRUE;
   /* Save item in case we will need to fall back to materialization. */
-  view->used_items.push_back(item);
+  view->used_items.push_front(item);
   DBUG_RETURN(item);
 }
 
@@ -6387,8 +6405,7 @@ int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
   DBUG_ENTER("update_virtual_fields");
   Field **vfield_ptr, *vfield;
   int error __attribute__ ((unused))= 0;
-  if (!table || !table->vfield)
-    DBUG_RETURN(0);
+  DBUG_ASSERT(table && table->vfield);
 
   thd->reset_arena_for_cached_items(table->expr_arena);
   /* Iterate over virtual fields in the table */
@@ -6701,7 +6718,11 @@ bool TABLE_LIST::change_refs_to_fields()
       if (!materialized_items[idx])
         return TRUE;
     }
-    ref->ref= materialized_items + idx;
+    /*
+      We need to restore the pointers after the execution of the
+      prepared statement.
+    */
+    thd->change_item_tree((Item **)&ref->ref, (Item*)materialized_items + idx);
   }
 
   return FALSE;

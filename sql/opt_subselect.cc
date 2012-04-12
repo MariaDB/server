@@ -188,6 +188,252 @@
 
 */
 
+/*
+EqualityPropagationAndSjmNests
+******************************
+
+Equalities are used for:
+P1. Equality propagation 
+P2. Equality substitution [for a certain join order]
+
+The equality propagation is not affected by SJM nests. In fact, it is done 
+before we determine the execution plan, i.e. before we even know we will use
+SJM-nests for execution.
+
+The equality substitution is affected. 
+
+Substitution without SJMs
+=========================
+When one doesn't have SJM nests, tables have a strict join order:
+
+  ---------------------------------> 
+    t1 -- t2 -- t3 -- t4 --- t5 
+
+
+       ?  ^
+           \
+            --(part-of-WHERE)
+
+
+parts WHERE/ON and ref. expressions are attached at some point along the axis.
+Expression is allowed to refer to a table column if the table is to the left of
+the attachment point. For any given expression, we have a goal: 
+
+  "Move leftmost allowed attachment point as much as possible to the left"
+
+Substitution with SJMs - task setting
+=====================================
+
+When SJM nests are present, there is no global strict table ordering anymore:
+
+   
+  ---------------------------------> 
+
+    ot1 -- ot2 --- sjm -- ot4 --- ot5 
+                   |
+                   |                Main execution
+   - - - - - - - - - - - - - - - - - - - - - - - -                 
+                   |                 Materialization
+      it1 -- it2 --/    
+
+
+Besides that, we must take into account that
+ - values for outer table columns, otN.col, are inaccessible at
+   materialization step                                           (SJM-RULE)
+ - values for inner table columns, itN.col, are inaccessible at Main execution
+   step, except for SJ-Materialization-Scan and columns that are in the 
+   subquery's select list.                                        (SJM-RULE)
+
+Substitution with SJMs - solution
+=================================
+
+First, we introduce global strict table ordering like this:
+
+  ot1 - ot2 --\                    /--- ot3 -- ot5 
+               \--- it1 --- it2 --/
+
+Now, let's see how to meet (SJM-RULE).
+
+SJ-Materialization is only applicable for uncorrelated subqueries. From this, it
+follows that any multiple equality will either
+1. include only columns of outer tables, or
+2. include only columns of inner tables, or
+3. include columns of inner and outer tables, joined together through one 
+   of IN-equalities.
+
+Cases #1 and #2 can be handled in the same way as with regular inner joins.
+
+Case #3 requires special handling, so that we don't construct violations of
+(SJM-RULE). Let's consider possible ways to build violations.
+
+Equality propagation starts with the clause in this form
+
+   top_query_where AND subquery_where AND in_equalities
+
+First, it builds multi-equalities. It can also build a mixed multi-equality
+
+  multiple-equal(ot1.col, ot2.col, ... it1.col, itN.col) 
+
+Multi-equalities are pushed down the OR-clauses in top_query_where and in
+subquery_where, so it's possible that clauses like this one are built:
+
+   subquery_cond OR (multiple-equal(it1.col, ot1.col,...) AND ...)
+   ^^^^^^^^^^^^^                                 \
+         |                                        this must be evaluated
+         \- can only be evaluated                 at the main phase.
+            at the materialization phase
+
+Finally, equality substitution is started. It does two operations:
+
+
+1. Field reference substitution 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(In the code, this is Item_field::replace_equal_field)
+
+This is a process of replacing each reference to "tblX.col" 
+with the first element of the multi-equality.          (REF-SUBST-ORIG)
+
+This behaviour can cause problems with Semi-join nests. Suppose, we have a
+condition: 
+
+  func(it1.col, it2.col)
+
+and a multi-equality(ot1.col, it1.col). Then, reference to "it1.col" will be 
+replaced with "ot1.col", constructing a condition
+   
+   func(ot1.col, it2.col)
+
+which will be a violation of (SJM-RULE).
+
+In order to avoid this, (REF-SUBST-ORIG) is amended as follows: 
+
+- references to tables "itX.col" that are inner wrt some SJM nest, are
+  replaced with references to the first inner table from the same SJM nest.
+
+- references to top-level tables "otX.col" are replaced with references to
+  the first element of the multi-equality, no matter if that first element is
+  a column of a top-level table or of table from some SJM nest.
+                                                              (REF-SUBST-SJM)
+
+  The case where the first element is a table from an SJM nest $SJM is ok, 
+  because it can be proven that $SJM uses SJ-Materialization-Scan, and 
+  "unpacks" correct column values to the first element during the main
+  execution phase.
+
+2. Item_equal elimination
+~~~~~~~~~~~~~~~~~~~~~~~~~
+(In the code: eliminate_item_equal) This is a process of taking 
+
+  multiple-equal(a,b,c,d,e)
+
+and replacing it with an equivalent expression which is an AND of pair-wise 
+equalities:
+
+  a=b AND a=c AND ...
+
+The equalities are picked such that for any given join prefix (t1,t2...) the
+subset of equalities that can be evaluated gives the most restrictive
+filtering. 
+
+Without SJM nests, it is sufficient to compare every multi-equality member
+with the first one:
+
+  elem1=elem2 AND elem1=elem3 AND elem1=elem4 ... 
+
+When SJM nests are present, we should take care not to construct equalities
+that violate the (SJM-RULE). This is achieved by generating separate sets of
+equalites for top-level tables and for inner tables. That is, for the join
+order 
+
+  ot1 - ot2 --\                    /--- ot3 -- ot5 
+               \--- it1 --- it2 --/
+
+we will generate
+   ot1.col=ot2.col
+   ot1.col=ot3.col
+   ot1.col=ot5.col
+   it2.col=it1.col
+
+
+2.1 The problem with Item_equals and ORs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+As has been mentioned above, multiple equalities are pushed down into OR
+clauses, possibly building clauses like this:
+
+   func(it.col2) OR multiple-equal(it1.col1, it1.col2, ot1.col)      (1)
+
+where the first part of the clause has references to inner tables, while the
+second has references to the top-level tables, which is a violation of
+(SJM-RULE).
+
+AND-clauses of this kind do not create problems, because make_cond_for_table()
+will take them apart. OR-clauses will not be split. It is possible to
+split-out the part that's dependent on the inner table:
+
+   func(it.col2) OR it1.col1=it1.col2
+
+but this is a less-restrictive condition than condition (1). Current execution
+scheme will still try to generate the "remainder" condition:
+
+   func(it.col2) OR it1.col1=ot1.col
+
+which is a violation of (SJM-RULE).
+
+QQ: "ot1.col=it1.col" is checked at the upper level. Why was it not removed
+here?
+AA: because has a proper subset of conditions that are found on this level.
+    consider a join order of  ot, sjm(it)
+    and a condition
+      ot.col=it.col AND ( ot.col=it.col='foo' OR it.col2='bar')
+
+    we will produce: 
+       table ot:  nothing
+       table it:  ot.col=it.col AND (ot.col='foo' OR it.col2='bar')
+                                     ^^^^        ^^^^^^^^^^^^^^^^       
+                                      |          \ the problem is that 
+                                      |            this part condition didnt
+                                      |            receive a substitution
+                                      |
+                                      +--- it was correct to subst, 'ot' is 
+                                           the left-most.
+
+
+Does it make sense to push "inner=outer" down into ORs?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Consider the query:
+
+  select * from ot 
+  where ot.col in (select it.col from it where (it.col='foo' OR it.col='bar'))
+
+here, it may be useful to infer that 
+
+   (ot.col='foo' OR ot.col='bar')       (CASE-FOR-SUBST)
+
+and attach that condition to the table 'ot'.
+
+Possible solutions for Item_equals and ORs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Solution #1
+~~~~~~~~~~~
+Let make_cond_for_table() chop analyze the OR clauses it has produced and
+discard them if they violate (SJM-RULE). This solution would allow to handle
+cases like (CASE-FOR-SUBST) at the expense of making semantics of
+make_cond_for_table() complicated.
+
+Solution #2
+~~~~~~~~~~~
+Before the equality propagation phase, none of the OR clauses violate the
+(SJM-RULE). This way, if we remember which tables the original equality
+referred to, we can only generate equalities that refer to the outer (or inner)
+tables. Note that this will disallow handling of cases like (CASE-FOR-SUBST).
+
+Currently, solution #2 is implemented.
+
+*/
+
 
 static
 bool subquery_types_allow_materialization(Item_in_subselect *in_subs);
@@ -346,8 +592,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     TODO: for PS, make the whole block execute only on the first execution
   */
   Item_subselect *subselect;
-  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) && // (1)
-      (subselect= parent_unit->item))                                    // (2)
+  if (!thd->lex->is_view_context_analysis() &&          // (1)
+      (subselect= parent_unit->item))                   // (2)
   {
     Item_in_subselect *in_subs= NULL;
     Item_allany_subselect *allany_subs= NULL;
@@ -1229,6 +1475,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   sj_nest->embedding= emb_tbl_nest;
   sj_nest->alias= (char*) "(sj-nest)";
   sj_nest->sj_subq_pred= subq_pred;
+  sj_nest->original_subq_pred_used_tables= subq_pred->used_tables() |
+                                           subq_pred->left_expr->used_tables();
   /* Nests do not participate in those 'chains', so: */
   /* sj_nest->next_leaf= sj_nest->next_local= sj_nest->next_global == NULL*/
   emb_join_list->push_back(sj_nest);
@@ -1267,7 +1515,10 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     (a theory: a next_local chain always starts with ::leaf_tables
      because view's tables are inserted after the view)
   */
-  for (tl= parent_lex->leaf_tables.head(); tl->next_local; tl= tl->next_local) ;
+  
+  for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
+  {}
+
   tl->next_local= subq_lex->leaf_tables.head();
 
   /* A theory: no need to re-connect the next_global chain */
@@ -1480,7 +1731,7 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
     (a theory: a next_local chain always starts with ::leaf_tables
      because view's tables are inserted after the view)
   */
-  for (tl= parent_lex->leaf_tables.head(); tl->next_local; tl= tl->next_local)
+  for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
   {}
   tl->next_local= jtbm;
 
@@ -2670,6 +2921,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
       }
     }
   }
+  else
+    invalidate_firstmatch_prefix();
   return FALSE;
 }
 
@@ -3097,7 +3350,22 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
                             record_count, join->best_positions + idx,
                             &loose_scan_pos);
            if (idx==first)
+           {
              join->best_positions[idx]= loose_scan_pos;
+             /*
+               If LooseScan is based on ref access (including the "degenerate"
+               one with 0 key parts), we should use full index scan.
+
+               Unfortunately, lots of code assumes that if tab->type==JT_ALL && 
+               tab->quick!=NULL, then quick select should be used. The only
+               simple way to fix this is to remove the quick select:
+             */
+             if (join->best_positions[idx].key)
+             {
+               delete join->best_positions[idx].table->quick;
+               join->best_positions[idx].table->quick= NULL;
+             }
+           }
         }
         rem_tables &= ~join->best_positions[idx].table->table->map;
         record_count *= join->best_positions[idx].records_read;
@@ -4950,7 +5218,6 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
 
 bool JOIN::choose_subquery_plan(table_map join_tables)
 {
-  Join_plan_state save_qep; /* The original QEP of the subquery. */
   enum_reopt_result reopt_result= REOPT_NONE;
   Item_in_subselect *in_subs;
 
@@ -4969,11 +5236,15 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
   }
   else
     return false;
+
   /* A strategy must be chosen earlier. */
   DBUG_ASSERT(in_subs->has_strategy());
   DBUG_ASSERT(in_to_exists_where || in_to_exists_having);
   DBUG_ASSERT(!in_to_exists_where || in_to_exists_where->fixed);
   DBUG_ASSERT(!in_to_exists_having || in_to_exists_having->fixed);
+
+  /* The original QEP of the subquery. */
+  Join_plan_state save_qep(table_count);
 
   /*
     Compute and compare the costs of materialization and in-exists if both

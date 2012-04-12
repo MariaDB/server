@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2001, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2001, 2012, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -444,6 +444,10 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 /* Does the system remember a signal handler after a signal ? */
 #if !defined(HAVE_BSD_SIGNALS) && !defined(HAVE_SIGACTION)
 #define SIGNAL_HANDLER_RESET_ON_DELIVERY
+#endif
+
+#ifndef STDERR_FILENO
+#define STDERR_FILENO 2
 #endif
 
 /*
