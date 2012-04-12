@@ -1025,6 +1025,9 @@ public:
   */
   Table_statistics write_stat;
 
+  /* The estimate of the number of records in the table used by optimizer */ 
+  ha_rows used_stat_records;
+
   /* 
     For each key that has quick_keys.is_set(key) == TRUE: estimate of #records
     and max #key parts that range access would use.
@@ -1271,6 +1274,7 @@ public:
   bool update_const_key_parts(COND *conds);
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
+  inline ha_rows stat_records() { return used_stat_records; }
 };
 
 

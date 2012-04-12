@@ -200,6 +200,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 #endif
   /* Update the table->file->stats.records number */
   table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  set_statistics_for_table(thd, table);
 
   table->covering_keys.clear_all();
   table->quick_keys.clear_all();		// Can't use 'only index'

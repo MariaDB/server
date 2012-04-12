@@ -3121,6 +3121,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     table_vector[i]=s->table=table=tables->table;
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
+    set_statistics_for_table(join->thd, table);
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
                     {
@@ -3146,8 +3147,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
     s->dependent= tables->dep_tables;
     if (tables->schema_table)
-      table->file->stats.records= 2;
-    table->quick_condition_rows= table->file->stats.records;
+      table->file->stats.records= table->used_stat_records= 2;
+    table->quick_condition_rows= table->stat_records();
 
     s->on_expr_ref= &tables->on_expr;
     if (*s->on_expr_ref)
@@ -3155,10 +3156,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       /* s is the only inner table of an outer join */
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (!table->is_filled_at_execution() &&
-           (!table->file->stats.records || table->no_partitions_used) && !embedding)
+	  (!table->stat_records() || table->no_partitions_used) && !embedding)
 #else
       if (!table->is_filled_at_execution() &&
-          !table->file->stats.records && !embedding)
+          !table->stat_records() && !embedding)
 #endif
       {						// Empty table
         s->dependent= 0;                        // Ignore LEFT JOIN depend.
@@ -3205,7 +3206,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     const bool no_partitions_used= FALSE;
 #endif
     if (!table->is_filled_at_execution() && 
-        (table->s->system || table->file->stats.records <= 1 ||
+        (table->s->system || table->stat_records() <= 1 ||
          no_partitions_used) &&
 	!s->dependent &&
 	(table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
@@ -3387,7 +3388,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	// All dep. must be constants
 	if (s->dependent & ~(found_const_table_map))
 	  continue;
-	if (table->file->stats.records <= 1L &&
+	if (table->stat_records() <= 1L &&
 	    (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT) &&
             !table->pos_in_table_list->embedding &&
 	      !((outer_join & table->map) && 
@@ -5352,7 +5353,7 @@ best_access_path(JOIN      *join,
             else
             {
               uint key_parts= table->actual_n_key_parts(keyinfo);
-              if (!(records=keyinfo->rec_per_key[key_parts-1]))
+              if (!(records= keyinfo->real_rec_per_key(key_parts-1)))
               {                                   /* Prefer longer keys */
                 records=
                   ((double) s->records / (double) rec *
@@ -5452,7 +5453,7 @@ best_access_path(JOIN      *join,
             else
             {
               /* Check if we have statistic about the distribution */
-              if ((records= keyinfo->rec_per_key[max_key_part-1]))
+              if ((records= keyinfo->real_rec_per_key(max_key_part-1)))
               {
                 /* 
                   Fix for the case where the index statistics is too
@@ -7435,6 +7436,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   keyinfo->key_length=0;
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
   keyinfo->flags= HA_GENERATED_KEY;
+  keyinfo->is_statistics_from_stat_tables= FALSE;
   keyinfo->name= (char *) "$hj";
   keyinfo->rec_per_key= (ulong*) thd->calloc(sizeof(ulong)*key_parts);
   if (!keyinfo->rec_per_key)
@@ -10006,7 +10008,7 @@ double JOIN_TAB::scan_time()
     }
     else
     {
-      found_records= records= table->file->stats.records;
+      found_records= records= table->stat_records();
       read_time= table->file->scan_time();
       /*
         table->quick_condition_rows has already been set to
@@ -10017,7 +10019,7 @@ double JOIN_TAB::scan_time()
   }
   else
   {
-    found_records= records=table->file->stats.records;
+    found_records= records=table->stat_records();
     read_time= found_records ? (double)found_records: 10.0;// TODO:fix this stub
     res= read_time;
   }
@@ -14329,8 +14331,11 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->usable_key_parts=keyinfo->key_parts= param->group_parts;
     keyinfo->ext_key_parts= keyinfo->key_parts;
     keyinfo->key_length=0;
-    keyinfo->rec_per_key=0;
+    keyinfo->rec_per_key=NULL;
+    keyinfo->read_stat.avg_frequency= NULL;
+    keyinfo->write_stat.avg_frequency= NULL;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
+    keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->name= (char*) "group_key";
     ORDER *cur_group= group;
     for (; cur_group ; cur_group= cur_group->next, key_part_info++)
@@ -14443,6 +14448,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->key_length= 0;  // Will compute the sum of the parts below.
     keyinfo->name= (char*) "distinct_key";
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
+    keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->rec_per_key=0;
 
     /*
@@ -18211,7 +18217,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     uint saved_best_key_parts= 0;
     int best_key_direction= 0;
     JOIN *join= tab->join;
-    ha_rows table_records= table->file->stats.records;
+    ha_rows table_records= table->stat_records();
 
     test_if_cheaper_ordering(tab, order, table, usable_keys,
                              ref_key, select_limit,
@@ -18327,7 +18333,7 @@ check_reverse_order:
         {
           tab->ref.key= -1;
           tab->ref.key_parts= 0;
-          if (select_limit < table->file->stats.records)
+          if (select_limit < table->stat_records())
             tab->limit= select_limit;
         }
       }
@@ -18541,7 +18547,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   if (!tab->preread_init_done && tab->preread_init())
     goto err;
   if (table->s->tmp_table)
-    table->file->info(HA_STATUS_VARIABLE);	// Get record count
+    table->file->info(HA_STATUS_VARIABLE);     // Get record count
   table->sort.found_records=filesort(thd, table,join->sortorder, length,
                                      select, filesort_limit, 0,
                                      &examined_rows);
@@ -21234,7 +21240,7 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
                 handler->info(HA_STATUS_VARIABLE) has been called in
                 make_join_statistics()
               */
-              examined_rows= tab->table->file->stats.records;
+              examined_rows= tab->table->stat_records();
             }
           }
         }
@@ -22321,7 +22327,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   int best_key= -1;
   bool is_best_covering= FALSE;
   double fanout= 1;
-  ha_rows table_records= table->file->stats.records;
+  ha_rows table_records= table->stat_records();
   bool group= join && join->group && order == join->group_list;
   ha_rows ref_key_quick_rows= HA_POS_ERROR;
 
@@ -22411,7 +22417,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           if (used_key_parts > used_index_parts)
             used_pk_parts= used_key_parts-used_index_parts;
           rec_per_key= used_key_parts ?
-                       keyinfo->rec_per_key[used_key_parts-1] : 1;
+	               keyinfo->real_rec_per_key(used_key_parts-1) : 1;
           /* Take into account the selectivity of the used pk prefix */
           if (used_pk_parts)
 	  {
@@ -22426,8 +22432,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               rec_per_key= 1;                 
             if (rec_per_key > 1)
 	    {
-              rec_per_key*= pkinfo->rec_per_key[used_pk_parts-1];
-              rec_per_key/= pkinfo->rec_per_key[0];
+              rec_per_key*= pkinfo->real_rec_per_key(used_pk_parts-1);
+              rec_per_key/= pkinfo->real_rec_per_key(0);
               /* 
                 The value of rec_per_key for the extended key has
                 to be adjusted accordingly if some components of
@@ -22441,9 +22447,9 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                     We presume here that for any index rec_per_key[i] != 0
                     if rec_per_key[0] != 0.
 	          */
-                  DBUG_ASSERT(pkinfo->rec_per_key[i]);
-                  rec_per_key*= pkinfo->rec_per_key[i-1];
-                  rec_per_key/= pkinfo->rec_per_key[i];
+                  DBUG_ASSERT(pkinfo->real_rec_per_key(i));
+                  rec_per_key*= pkinfo->real_rec_per_key(i-1);
+                  rec_per_key/= pkinfo->real_rec_per_key(i);
                 }
 	      }
             }    
@@ -22488,7 +22494,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           select_limit= (ha_rows) (select_limit *
                                    (double) table_records /
                                     table->quick_condition_rows);
-        rec_per_key= keyinfo->rec_per_key[keyinfo->key_parts-1];
+        rec_per_key= keyinfo->real_rec_per_key(keyinfo->key_parts-1);
         set_if_bigger(rec_per_key, 1);
         /*
           Here we take into account the fact that rows are
@@ -22629,7 +22635,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
       Update quick_condition_rows since single table UPDATE/DELETE procedures
       don't call make_join_statistics() and leave this variable uninitialized.
     */
-    table->quick_condition_rows= table->file->stats.records;
+    table->quick_condition_rows= table->stat_records();
     
     int key, direction;
     if (test_if_cheaper_ordering(NULL, order, table,
