@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -888,7 +888,7 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
     */
     else if (! is_param_long_data_type(param))
       DBUG_RETURN(1);
-    res= param->query_val_str(&str);
+    res= param->query_val_str(thd, &str);
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
 
@@ -1062,7 +1062,7 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt,
           DBUG_RETURN(1);
       }
     }
-    res= param->query_val_str(&str);
+    res= param->query_val_str(thd, &str);
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
 
@@ -1208,7 +1208,7 @@ static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
     setup_one_conversion_function(thd, param, param->param_type);
     if (param->set_from_user_var(thd, entry))
       DBUG_RETURN(1);
-    val= param->query_val_str(&buf);
+    val= param->query_val_str(thd, &buf);
 
     if (param->convert_str_value(thd))
       DBUG_RETURN(1);                           /* out of memory */
@@ -2512,6 +2512,14 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       DBUG_ASSERT(sl->join == 0);
       ORDER *order;
       /* Fix GROUP list */
+      if (sl->group_list_ptrs && sl->group_list_ptrs->size() > 0)
+      {
+        for (uint ix= 0; ix < sl->group_list_ptrs->size() - 1; ++ix)
+        {
+          order= sl->group_list_ptrs->at(ix);
+          order->next= sl->group_list_ptrs->at(ix+1);
+        }
+      }
       for (order= sl->group_list.first; order; order= order->next)
         order->item= &order->item_ptr;
       /* Fix ORDER list */

@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2005, 2010, Oracle and/or its affiliates.
+/* Copyright (c) 2005, 2012, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -202,6 +201,13 @@ public:
   */
   ulonglong log_space_limit,log_space_total;
   bool ignore_log_space_limit;
+
+  /*
+    Used by the SQL thread to instructs the IO thread to rotate 
+    the logs when the SQL thread needs to purge to release some
+    disk space.
+   */
+  bool sql_force_rotate_relay;
 
   /*
     When it commits, InnoDB internally stores the master log position it has

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 2010, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -998,6 +998,21 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
   }
   else
     name= sql_strmake(str, (name_length= min(length,MAX_ALIAS_NAME)));
+}
+
+
+void Item::set_name_for_rollback(THD *thd, const char *str, uint length,
+                                 CHARSET_INFO *cs)
+{
+  char *old_name, *new_name; 
+  old_name= name;
+  set_name(str, length, cs);
+  new_name= name;
+  if (old_name != new_name)
+  {
+    name= old_name;
+    thd->change_item_tree((Item **) &name, (Item *) new_name);
+  }
 }
 
 
@@ -2606,17 +2621,20 @@ void Item_field::fix_after_pullout(st_select_lex *new_parent, Item **ref)
 {
   if (new_parent == get_depended_from())
     depended_from= NULL;
-  Name_resolution_context *ctx= new Name_resolution_context();
-  ctx->outer_context= NULL; // We don't build a complete name resolver
-  ctx->table_list= NULL;    // We rely on first_name_resolution_table instead
-  ctx->select_lex= new_parent;
-  ctx->first_name_resolution_table= context->first_name_resolution_table;
-  ctx->last_name_resolution_table=  context->last_name_resolution_table;
-  ctx->error_processor=             context->error_processor;
-  ctx->error_processor_data=        context->error_processor_data;
-  ctx->resolve_in_select_list=      context->resolve_in_select_list;
-  ctx->security_ctx=                context->security_ctx;
-  this->context=ctx;
+  if (context)
+  {
+    Name_resolution_context *ctx= new Name_resolution_context();
+    ctx->outer_context= NULL; // We don't build a complete name resolver
+    ctx->table_list= NULL;    // We rely on first_name_resolution_table instead
+    ctx->select_lex= new_parent;
+    ctx->first_name_resolution_table= context->first_name_resolution_table;
+    ctx->last_name_resolution_table=  context->last_name_resolution_table;
+    ctx->error_processor=             context->error_processor;
+    ctx->error_processor_data=        context->error_processor_data;
+    ctx->resolve_in_select_list=      context->resolve_in_select_list;
+    ctx->security_ctx=                context->security_ctx;
+    this->context=ctx;
+  }
 }
 
 
@@ -3557,7 +3575,7 @@ String *Item_param::val_str(String* str)
     that binary log contains wrong statement 
 */
 
-const String *Item_param::query_val_str(String* str) const
+const String *Item_param::query_val_str(THD *thd, String* str) const
 {
   switch (state) {
   case INT_VALUE:
@@ -3595,7 +3613,8 @@ const String *Item_param::query_val_str(String* str) const
   case LONG_DATA_VALUE:
     {
       str->length(0);
-      append_query_string(value.cs_info.character_set_client, &str_value, str);
+      append_query_string(thd, value.cs_info.character_set_client, &str_value,
+                          str);
       break;
     }
   case NULL_VALUE:
@@ -3728,7 +3747,7 @@ void Item_param::print(String *str, enum_query_type query_type)
     char buffer[STRING_BUFFER_USUAL_SIZE];
     String tmp(buffer, sizeof(buffer), &my_charset_bin);
     const String *res;
-    res= query_val_str(&tmp);
+    res= query_val_str(current_thd, &tmp);
     str->append(*res);
   }
 }

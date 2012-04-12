@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,17 +40,26 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
     IF(CMAKE_GENERATOR MATCHES "Visual Studio")
       STRING(REPLACE "${CMAKE_CFG_INTDIR}" "\${CMAKE_INSTALL_CONFIG_NAME}" pdb_location ${pdb_location})
     ENDIF()
-    IF(ARG_COMPONENT STREQUAL "Server" AND (target MATCHES "mysqld" OR type MATCHES "MODULE"))
-      #MESSAGE("PDB: ${targets}")
-      SET(comp Server)
-    ELSEIF(ARG_COMPONENT MATCHES Development 
-      OR ARG_COMPONENT MATCHES SharedLibraries 
-      OR ARG_COMPONENT MATCHES Embedded)
+	
+    set(comp "")
+    IF(ARG_COMPONENT STREQUAL "Server")
+      IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
+        #MESSAGE("PDB: ${targets}")
+        SET(comp Server)
+      ENDIF()
+    ENDIF()
+ 
+    IF(NOT comp MATCHES Server)
+      IF(ARG_COMPONENT MATCHES Development
+        OR ARG_COMPONENT MATCHES SharedLibraries
+        OR ARG_COMPONENT MATCHES Embedded)
+        SET(comp Debuginfo)
+      ENDIF()
+    ENDIF()
 
-      SET(comp Debuginfo)
-    ELSE()
+    IF(NOT comp)
       SET(comp Debuginfo_archive_only) # not in MSI
-    ENDIF()	  
+    ENDIF()
     INSTALL(FILES ${pdb_location} DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp})
   ENDFOREACH()
   ENDIF()

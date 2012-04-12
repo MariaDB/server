@@ -4645,6 +4645,55 @@ ERROR 21000: Subquery returns more than 1 row
 SET SESSION sql_mode=@old_sql_mode;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
+#
+# Bug#12763207 - ASSERT IN SUBSELECT::SINGLE_VALUE_TRANSFORMER
+#
+CREATE TABLE t1(a1 int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2(a1 int);
+INSERT INTO t2 VALUES (3);
+SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2 FROM t2);
+1
+1
+1
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 2.0 FROM t2);
+1
+1
+1
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT 'a' FROM t2);
+1
+SELECT 1 FROM t1 WHERE 1 < SOME (SELECT a1 FROM t2);
+1
+1
+1
+SET SESSION sql_mode=@old_sql_mode;
+DROP TABLE t1, t2;
+#
+# Bug#12763207 - ASSERT IN SUBSELECT::SINGLE_VALUE_TRANSFORMER
+#
+create table t2(i int);
+insert into t2 values(0);
+SELECT @@session.sql_mode INTO @old_sql_mode;
+SET SESSION sql_mode='ONLY_FULL_GROUP_BY';
+CREATE VIEW v1 AS  
+SELECT 'f' FROM t2 UNION SELECT 'x' FROM t2
+;
+CREATE TABLE t1 (
+pk int NOT NULL,
+col_varchar_key varchar(1) DEFAULT NULL,
+PRIMARY KEY (pk),
+KEY col_varchar_key (col_varchar_key)
+);
+SELECT t1.pk
+FROM t1
+WHERE t1.col_varchar_key < ALL ( SELECT * FROM v1 )
+;
+pk
+SET SESSION sql_mode=@old_sql_mode;
+drop table t2, t1;
+drop view v1;
 End of 5.0 tests.
 create table t_out (subcase char(3),
 a1 char(2), b1 char(2), c1 char(2));
@@ -5595,8 +5644,8 @@ WHERE (ot1.a,ot4.a) IN (SELECT it2.a,it3.a
 FROM it2,it3);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	ot1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	24	Using where
-1	PRIMARY	ot4	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	ot4	ALL	NULL	NULL	NULL	NULL	8	Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	
 2	MATERIALIZED	it2	ALL	NULL	NULL	NULL	NULL	4	
 2	MATERIALIZED	it3	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
 DROP TABLE IF EXISTS ot1, ot4, it2, it3;

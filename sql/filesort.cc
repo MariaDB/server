@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2011, Oracle and/or its affiliates.  
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,13 +44,11 @@ if (my_b_write((file),(uchar*) (from),param->ref_length)) \
 
 	/* functions defined in this file */
 
-static char **make_char_array(char **old_pos, register uint fields,
-                              uint length, myf my_flag);
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
                                      uchar *buf);
 static ha_rows find_all_keys(SORTPARAM *param,SQL_SELECT *select,
-			     uchar * *sort_keys, IO_CACHE *buffer_file,
-			     IO_CACHE *tempfile,IO_CACHE *indexfile);
+			     uchar * *sort_keys, uchar *sort_keys_buf,
+                             IO_CACHE *buffer_file, IO_CACHE *tempfile);
 static int write_keys(SORTPARAM *param,uchar * *sort_keys,
 		      uint count, IO_CACHE *buffer_file, IO_CACHE *tempfile);
 static void make_sortkey(SORTPARAM *param,uchar *to, uchar *ref_pos);
@@ -86,8 +84,6 @@ static void unpack_addon_fields(struct st_sort_addon_field *addon_field,
 			(Needed by UPDATE/INSERT or ALTER TABLE)
   @param examined_rows	Store number of examined rows here
 
-  @todo
-    check why we do this (param.keys--)
   @note
     If we sort by position (like if sort_positions is 1) filesort() will
     call table->prepare_for_position().
@@ -105,12 +101,13 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                  bool sort_positions, ha_rows *examined_rows)
 {
   int error;
-  ulong memavl, min_sort_memory;
+  ulong memory_available= thd->variables.sortbuff_size;
+  ulong min_sort_memory;
   uint maxbuffer;
   BUFFPEK *buffpek;
-  ha_rows records= HA_POS_ERROR;
+  ha_rows num_rows= HA_POS_ERROR;
   uchar **sort_keys= 0;
-  IO_CACHE tempfile, buffpek_pointers, *selected_records_file, *outfile; 
+  IO_CACHE tempfile, buffpek_pointers, *outfile; 
   SORTPARAM param;
   bool multi_byte_charset;
   DBUG_ENTER("filesort");
@@ -183,75 +180,67 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   param.max_rows= max_rows;
 
   if (select && select->quick)
-  {
     status_var_increment(thd->status_var.filesort_range_count);
-  }
   else
-  {
     status_var_increment(thd->status_var.filesort_scan_count);
-  }
   thd->query_plan_flags|= QPLAN_FILESORT;
-#ifdef CAN_TRUST_RANGE
-  if (select && select->quick && select->quick->records > 0L)
-  {
-    records=min((ha_rows) (select->quick->records*2+EXTRA_RECORDS*2),
-		table->file->stats.records)+EXTRA_RECORDS;
-    selected_records_file=0;
-  }
-  else
-#endif
-  {
-    records= table->file->estimate_rows_upper_bound();
-    /*
-      If number of records is not known, use as much of sort buffer 
-      as possible. 
-    */
-    if (records == HA_POS_ERROR)
-      records--;  // we use 'records+1' below.
-    selected_records_file= 0;
-  }
+
+  // If number of rows is not known, use as much of sort buffer as possible. 
+  num_rows= table->file->estimate_rows_upper_bound();
 
   if (multi_byte_charset &&
       !(param.tmp_buffer= (char*) my_malloc(param.sort_length,MYF(MY_WME))))
     goto err;
 
-  memavl= thd->variables.sortbuff_size;
-  min_sort_memory= max(MIN_SORT_MEMORY, param.sort_length*MERGEBUFF2);
-  while (memavl >= min_sort_memory)
+  min_sort_memory= max(MIN_SORT_MEMORY, param.sort_length * MERGEBUFF2);
+  if (!table_sort.sort_keys)
   {
-    ulong old_memavl;
-    ulong keys= memavl/(param.rec_length+sizeof(char*));
-    param.keys=(uint) min(records+1, keys);
-    if ((table_sort.sort_keys=
-	 (uchar **) make_char_array((char **) table_sort.sort_keys,
-                                    param.keys, param.rec_length, MYF(0))))
-      break;
-    old_memavl=memavl;
-    if ((memavl=memavl/4*3) < min_sort_memory && old_memavl > min_sort_memory)
-      memavl= min_sort_memory;
+    while (memory_available >= min_sort_memory)
+    {
+      ulong keys= memory_available / (param.rec_length + sizeof(char*));
+      table_sort.keys= (uint) min(num_rows, keys);
+
+      DBUG_EXECUTE_IF("make_sort_keys_alloc_fail",
+                      DBUG_SET("+d,simulate_out_of_memory"););
+
+      if ((table_sort.sort_keys=
+           (uchar**) my_malloc(table_sort.keys*(param.rec_length+sizeof(char*)),
+                               MYF(0))))
+        break;
+      ulong old_memory_available= memory_available;
+      memory_available= memory_available/4*3;
+      if (memory_available < min_sort_memory &&
+          old_memory_available > min_sort_memory)
+        memory_available= min_sort_memory;
+    }
   }
+
   sort_keys= table_sort.sort_keys;
-  if (memavl < min_sort_memory)
+  param.keys= table_sort.keys;
+  if (memory_available < min_sort_memory)
   {
-    my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR+ME_WAITTANG));
+    my_error(ER_OUT_OF_SORTMEMORY,MYF(ME_ERROR + ME_FATALERROR));
     goto err;
   }
   if (open_cached_file(&buffpek_pointers,mysql_tmpdir,TEMP_PREFIX,
 		       DISK_BUFFER_SIZE, MYF(ME_ERROR | MY_WME)))
     goto err;
 
-  param.keys--;  			/* TODO: check why we do this */
   param.sort_form= table;
   param.end=(param.local_sortorder=sortorder)+s_length;
-  if ((records=find_all_keys(&param,select,sort_keys, &buffpek_pointers,
-			     &tempfile, selected_records_file)) ==
-      HA_POS_ERROR)
+  num_rows= find_all_keys(&param,
+                          select,
+                          sort_keys,
+                          (uchar *)(sort_keys+param.keys),
+                          &buffpek_pointers,
+                          &tempfile);
+  if (num_rows == HA_POS_ERROR)
     goto err;
   maxbuffer= (uint) (my_b_tell(&buffpek_pointers)/sizeof(*buffpek));
 
   if (maxbuffer == 0)			// The whole set is in memory
   {
-    if (save_index(&param,sort_keys,(uint) records, &table_sort))
+    if (save_index(&param,sort_keys,(uint) num_rows, &table_sort))
       goto err;
   }
   else
@@ -285,8 +274,9 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
       Use also the space previously used by string pointers in sort_buffer
       for temporary key storage.
     */
-    param.keys=((param.keys*(param.rec_length+sizeof(char*))) /
-		param.rec_length-1);
+    param.keys=((param.keys *
+                 (param.rec_length+sizeof(char*))) /
+		param.rec_length - 1);
     maxbuffer--;				// Offset from 0
     if (merge_many_buff(&param,(uchar*) sort_keys,buffpek,&maxbuffer,
 			&tempfile))
@@ -294,13 +284,21 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     if (flush_io_cache(&tempfile) ||
 	reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
       goto err;
-    if (merge_index(&param,(uchar*) sort_keys,buffpek,maxbuffer,&tempfile,
+    if (merge_index(&param,
+                    (uchar*) sort_keys,
+                    buffpek,
+                    maxbuffer,
+                    &tempfile,
 		    outfile))
       goto err;
   }
-  if (records > param.max_rows)
-    records=param.max_rows;
-  error =0;
+
+  if (num_rows > param.max_rows)
+  {
+    // If find_all_keys() produced more results than the query LIMIT.
+    num_rows= param.max_rows;
+  }
+  error= 0;
 
  err:
   my_free(param.tmp_buffer);
@@ -349,15 +347,15 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   }
   else
     statistic_add(thd->status_var.filesort_rows,
-		  (ulong) records, &LOCK_status);
+		  (ulong) num_rows, &LOCK_status);
   *examined_rows= param.examined_rows;
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_POP();			/* Ok to DBUG */
 #endif
   memcpy(&table->sort, &table_sort, sizeof(FILESORT_INFO));
-  DBUG_PRINT("exit",("records: %ld", (long) records));
-  MYSQL_FILESORT_DONE(error, records);
-  DBUG_RETURN(error ? HA_POS_ERROR : records);
+  DBUG_PRINT("exit",("num_rows: %ld", (long) num_rows));
+  MYSQL_FILESORT_DONE(error, num_rows);
+  DBUG_RETURN(error ? HA_POS_ERROR : num_rows);
 } /* filesort */
 
 
@@ -380,29 +378,6 @@ void filesort_free_buffers(TABLE *table, bool full)
   table->sort.addon_buf= NULL;
   table->sort.addon_field= NULL;
 }
-
-/** Make a array of string pointers. */
-
-static char **make_char_array(char **old_pos, register uint fields,
-                              uint length, myf my_flag)
-{
-  register char **pos;
-  char *char_pos;
-  DBUG_ENTER("make_char_array");
-
-  DBUG_EXECUTE_IF("make_char_array_fail",
-                  DBUG_SET("+d,simulate_out_of_memory"););
-
-  if (old_pos ||
-      (old_pos= (char**) my_malloc((uint) fields*(length+sizeof(char*)),
-				   my_flag)))
-  {
-    pos=old_pos; char_pos=((char*) (pos+fields)) -length;
-    while (fields--) *(pos++) = (char_pos+= length);
-  }
-
-  DBUG_RETURN(old_pos);
-} /* make_char_array */
 
 
 /** Read 'count' number of buffer pointers into memory. */
@@ -490,7 +465,6 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
   @param buffpek_pointers  File to write BUFFPEKs describing sorted segments
                            in tempfile.
   @param tempfile          File to write sorted sequences of sortkeys to.
-  @param indexfile         If !NULL, use it for source data (contains rowids)
 
   @note
     Basic idea:
@@ -518,9 +492,9 @@ static void dbug_print_record(TABLE *table, bool print_rowid)
 */
 
 static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
-			     uchar **sort_keys,
+			     uchar **sort_keys, uchar *sort_keys_buf,
 			     IO_CACHE *buffpek_pointers,
-			     IO_CACHE *tempfile, IO_CACHE *indexfile)
+			     IO_CACHE *tempfile)
 {
   int error,flag,quick_select;
   uint idx,indexpos,ref_length;
@@ -531,6 +505,7 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   volatile killed_state *killed= &thd->killed;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
+  uchar *next_sort_key= sort_keys_buf;
   DBUG_ENTER("find_all_keys");
   DBUG_PRINT("info",("using: %s",
                      (select ? select->quick ? "ranges" : "where":
@@ -544,12 +519,11 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   ref_pos= ref_buff;
   quick_select=select && select->quick;
   record=0;
-  flag= ((!indexfile && (file->ha_table_flags() & HA_REC_NOT_IN_SEQ))
-	 || quick_select);
-  if (indexfile || flag)
+  flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
+  if (flag)
     ref_pos= &file->ref[0];
   next_pos=ref_pos;
-  if (! indexfile && ! quick_select)
+  if (!quick_select)
   {
     next_pos=(uchar*) 0;			/* Find records in sequence */
     if (file->ha_rnd_init_with_error(1))
@@ -589,26 +563,16 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
     {
       if ((error= select->quick->get_next()))
         break;
-      if (!error)
+      if (!error && sort_form->vfield)
         update_virtual_fields(thd, sort_form);
       file->position(sort_form->record[0]);
       DBUG_EXECUTE_IF("debug_filesort", dbug_print_record(sort_form, TRUE););
     }
     else					/* Not quick-select */
     {
-      if (indexfile)
       {
-	if (my_b_read(indexfile,(uchar*) ref_pos,ref_length)) /* purecov: deadcode */
-	{
-	  error= my_errno ? my_errno : -1;		/* Abort */
-	  break;
-	}
-	error=file->ha_rnd_pos(sort_form->record[0],next_pos);
-      }
-      else
-      {
-	error=file->ha_rnd_next(sort_form->record[0]);
-	if (!error)
+	error= file->ha_rnd_next(sort_form->record[0]);
+	if (!error && sort_form->vfield)
 	  update_virtual_fields(thd, sort_form);
 	if (!flag)
 	{
@@ -625,7 +589,7 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
     if (*killed)
     {
       DBUG_PRINT("info",("Sort killed by user"));
-      if (!indexfile && !quick_select)
+      if (!quick_select)
       {
         (void) file->extra(HA_EXTRA_NO_CACHE);
         file->ha_rnd_end();
@@ -669,12 +633,16 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
     {
       if (idx == param->keys)
       {
-	if (write_keys(param,sort_keys,idx,buffpek_pointers,tempfile))
+	if (write_keys(param, sort_keys,
+                       idx, buffpek_pointers, tempfile))
 	  DBUG_RETURN(HA_POS_ERROR);
-	idx=0;
+	idx= 0;
+        next_sort_key= sort_keys_buf;
 	indexpos++;
       }
-      make_sortkey(param,sort_keys[idx++],ref_pos);
+      sort_keys[idx++]= next_sort_key;
+      make_sortkey(param, next_sort_key, ref_pos);
+      next_sort_key+= param->rec_length;
     }
     else
       file->unlock_row();
@@ -699,15 +667,17 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   DBUG_PRINT("test",("error: %d  indexpos: %d",error,indexpos));
   if (error != HA_ERR_END_OF_FILE)
   {
-    file->print_error(error,MYF(ME_ERROR | ME_WAITTANG)); /* purecov: inspected */
+    file->print_error(error,MYF(ME_ERROR | ME_WAITTANG)); // purecov: inspected
     DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
   }
   if (indexpos && idx &&
-      write_keys(param,sort_keys,idx,buffpek_pointers,tempfile))
+      write_keys(param, sort_keys,
+                 idx, buffpek_pointers, tempfile))
     DBUG_RETURN(HA_POS_ERROR);			/* purecov: inspected */
-  DBUG_RETURN(my_b_inited(tempfile) ?
-	      (ha_rows) (my_b_tell(tempfile)/param->rec_length) :
-	      idx);
+  const ha_rows retval=
+    my_b_inited(tempfile) ?
+    (ha_rows) (my_b_tell(tempfile)/param->rec_length) : idx;
+  DBUG_RETURN(retval);
 } /* find_all_keys */
 
 
@@ -1310,8 +1280,9 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
   {
     buffpek->base= strpos;
     buffpek->max_keys= maxcount;
-    strpos+= (uint) (error= (int) read_to_buffer(from_file, buffpek,
-                                                 rec_length));
+    strpos+=
+      (uint) (error= (int) read_to_buffer(from_file, buffpek, rec_length));
+
     if (error == -1)
       goto err;					/* purecov: inspected */
     buffpek->max_keys= buffpek->mem_count;	// If less data in buffers than expected

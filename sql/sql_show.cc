@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   2009-2011 Monty Program Ab
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1233,7 +1233,9 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   handler *file= table->file;
   TABLE_SHARE *share= table->s;
   HA_CREATE_INFO create_info;
-  bool show_table_options __attribute__ ((unused))= FALSE;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool show_table_options= FALSE;
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
   bool foreign_db_mode=  (thd->variables.sql_mode & (MODE_POSTGRESQL |
                                                      MODE_ORACLE |
                                                      MODE_MSSQL |
@@ -1467,7 +1469,9 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   packet->append(STRING_WITH_LEN("\n)"));
   if (!(thd->variables.sql_mode & MODE_NO_TABLE_OPTIONS) && !foreign_db_mode)
   {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     show_table_options= TRUE;
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
     /*
       IF   check_create_info
@@ -3628,16 +3632,17 @@ end:
     @retval       1           error
 */
 
-static int fill_schema_table_names(THD *thd, TABLE *table,
+static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
                                    LEX_STRING *db_name, LEX_STRING *table_name,
                                    bool with_i_schema)
 {
+  TABLE *table= tables->table;
   if (with_i_schema)
   {
     table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"),
                            system_charset_info);
   }
-  else
+  else if (tables->table_open_method != SKIP_OPEN_TABLE)
   {
     enum legacy_db_type not_used;
     char path[FN_REFLEN + 1];
@@ -4199,7 +4204,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           /* SHOW TABLE NAMES command */
           if (schema_table_idx == SCH_TABLE_NAMES)
           {
-            if (fill_schema_table_names(thd, tables->table, db_name,
+            if (fill_schema_table_names(thd, tables, db_name,
                                         table_name, with_i_schema))
               continue;
           }
@@ -5249,7 +5254,8 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
       (sql_command_flags[lex->sql_command] & CF_STATUS_COMMAND) == 0)
   {
     restore_record(table, s->default_values);
-    if (!wild || !wild[0] || !wild_compare(sp_name.c_ptr_safe(), wild, 0))
+    if (!wild || !wild[0] || !wild_case_compare(system_charset_info,
+                                                sp_name.c_ptr_safe(), wild))
     {
       int enum_idx= (int) proc_table->field[MYSQL_PROC_FIELD_ACCESS]->val_int();
       table->field[3]->store(sp_name.ptr(), sp_name.length(), cs);
@@ -6409,7 +6415,7 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
     DBUG_RETURN(1);
   }
 
-  if (!(!wild || !wild[0] || !wild_compare(et.name.str, wild, 0)))
+  if (!(!wild || !wild[0] || !wild_case_compare(scs, et.name.str, wild)))
     DBUG_RETURN(0);
 
   /*
@@ -7498,6 +7504,8 @@ bool get_schema_tables_result(JOIN *join,
         join->error= 1;
         tab->read_record.table->file= table_list->table->file;
         table_list->schema_table_state= executed_place;
+        if (!thd->is_error())
+          my_error(ER_UNKNOWN_ERROR, MYF(0));
         break;
       }
       tab->read_record.table->file= table_list->table->file;
@@ -8385,7 +8393,7 @@ ST_SCHEMA_TABLE schema_tables[]=
    get_all_tables, 0, get_schema_constraints_record, 3, 4, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"TABLE_NAMES", table_names_fields_info, create_schema_table,
-   get_all_tables, make_table_names_old_format, 0, 1, 2, 1, 0},
+   get_all_tables, make_table_names_old_format, 0, 1, 2, 1, OPTIMIZE_I_S_TABLE},
   {"TABLE_PRIVILEGES", table_privileges_fields_info, create_schema_table,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
   {"TABLE_STATISTICS", table_stats_fields_info, create_schema_table,

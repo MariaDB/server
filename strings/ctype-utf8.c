@@ -1,6 +1,5 @@
-/* Copyright (c) 2002-2008 MySQL AB, 2009 Sun Microsystems, Inc.
-   Copyright (c) 2009-2011, Monty Program Ab
-   Use is subject to license terms.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2011, Monty Program Ab
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -1679,7 +1678,7 @@ MY_UNICASE_INFO *const my_unicase_default[256]={
 /*
   Reproduce old utf8_general_ci behaviour before we fixed Bug#27877.
 */
-MY_UNICASE_INFO *my_unicase_mysql500[256]={
+MY_UNICASE_INFO *const my_unicase_mysql500[256]={
  plane00_mysql500,
           plane01, plane02, plane03, plane04, plane05,    NULL,    NULL,
     NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,    NULL,

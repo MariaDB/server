@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2012 Monty Program Ab
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -677,7 +677,7 @@ int mysqld_server_started= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
-uint report_port= MYSQL_PORT;
+uint report_port= 0;
 ulong master_retry_count=0;
 char *master_info_file;
 char *relay_log_info_file, *report_user, *report_password, *report_host;
@@ -686,9 +686,8 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 
 /* Static variables */
 
-my_bool opt_stack_trace;
 static volatile sig_atomic_t kill_in_progress;
-
+my_bool opt_stack_trace;
 my_bool opt_expect_abort= 0;
 static my_bool opt_bootstrap, opt_myisam_log;
 static int cleanup_done;
@@ -749,7 +748,6 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_wakeup_ready;
 
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
-PSI_mutex_key key_LOCK_logger_service;
 
 static PSI_mutex_info all_server_mutexes[]=
 {
@@ -809,8 +807,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
-  { &key_LOCK_logger_service, "logger_service_file_st::lock",
-    PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0}
 };
 
@@ -2234,6 +2230,11 @@ static void network_init(void)
 
   set_ports();
 
+  if (report_port == 0)
+  {
+    report_port= mysqld_port;
+  }
+  DBUG_ASSERT(report_port != 0);
   if (!opt_disable_networking && !opt_bootstrap)
   {
     if (mysqld_port)
@@ -2338,10 +2339,6 @@ static void network_init(void)
 }
 
 
-#endif /*!EMBEDDED_LIBRARY*/
-
-
-#ifndef EMBEDDED_LIBRARY
 /**
   Close a connection.
 
@@ -2755,10 +2752,6 @@ static void check_data_home(const char *path)
 
 #endif /* __WIN__ */
 
-#ifdef HAVE_LINUXTHREADS
-#define UNSAFE_DEFAULT_LINUX_THREADS 200
-#endif
-
 
 #if BACKTRACE_DEMANGLE
 #include <cxxabi.h>
@@ -2768,13 +2761,84 @@ extern "C" char *my_demangle(const char *mangled_name, int *status)
 }
 #endif
 
+
+/*
+  pthread_attr_setstacksize() without so much platform-dependency
+
+  Return: The actual stack size if possible.
+*/
+
+#ifndef EMBEDDED_LIBRARY
+static size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
+{
+  size_t guard_size __attribute__((unused))= 0;
+
+#if defined(__ia64__) || defined(__ia64)
+  /*
+    On IA64, half of the requested stack size is used for "normal stack"
+    and half for "register stack".  The space measured by check_stack_overrun
+    is the "normal stack", so double the request to make sure we have the
+    caller-expected amount of normal stack.
+
+    NOTE: there is no guarantee that the register stack can't grow faster
+    than normal stack, so it's very unclear that we won't dump core due to
+    stack overrun despite check_stack_overrun's efforts.  Experimentation
+    shows that in the execution_constants test, the register stack grows
+    less than half as fast as normal stack, but perhaps other scenarios are
+    less forgiving.  If it turns out that more space is needed for the
+    register stack, that could be forced (rather inefficiently) by using a
+    multiplier higher than 2 here.
+  */
+  stacksize *= 2;
+#endif
+
+  /*
+    On many machines, the "guard space" is subtracted from the requested
+    stack size, and that space is quite large on some platforms.  So add
+    it to our request, if we can find out what it is.
+  */
+#ifdef HAVE_PTHREAD_ATTR_GETGUARDSIZE
+  if (pthread_attr_getguardsize(attr, &guard_size))
+    guard_size = 0;		/* if can't find it out, treat as 0 */
+#endif
+
+  pthread_attr_setstacksize(attr, stacksize + guard_size);
+
+  /* Retrieve actual stack size if possible */
+#ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE
+  {
+    size_t real_stack_size= 0;
+    /* We must ignore real_stack_size = 0 as Solaris 2.9 can return 0 here */
+    if (pthread_attr_getstacksize(attr, &real_stack_size) == 0 &&
+	real_stack_size > guard_size)
+    {
+      real_stack_size -= guard_size;
+      if (real_stack_size < stacksize)
+      {
+	if (global_system_variables.log_warnings)
+          sql_print_warning("Asked for %zu thread stack, but got %zu",
+                            stacksize, real_stack_size);
+	stacksize= real_stack_size;
+      }
+    }
+  }
+#endif /* !EMBEDDED_LIBRARY */
+
+#if defined(__ia64__) || defined(__ia64)
+  stacksize /= 2;
+#endif
+  return stacksize;
+}
+#endif
+
+
 #if !defined(__WIN__)
 #ifndef SA_RESETHAND
 #define SA_RESETHAND 0
-#endif
+#endif /* SA_RESETHAND */
 #ifndef SA_NODEFER
 #define SA_NODEFER 0
-#endif
+#endif /* SA_NODEFER */
 
 #ifndef EMBEDDED_LIBRARY
 
@@ -2792,9 +2856,7 @@ static void init_signals(void)
     sigemptyset(&sa.sa_mask);
     sigprocmask(SIG_SETMASK,&sa.sa_mask,NULL);
 
-#ifdef HAVE_STACKTRACE
     my_init_stacktrace();
-#endif
 #if defined(__amiga__)
     sa.sa_handler=(void(*)())handle_fatal_signal;
 #else
@@ -2866,15 +2928,7 @@ static void start_signal_handler(void)
 #if !defined(HAVE_DEC_3_2_THREADS)
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_SYSTEM);
   (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
-#if defined(__ia64__) || defined(__ia64)
-  /*
-    Peculiar things with ia64 platforms - it seems we only have half the
-    stack size in reality, so we have to double it here
-  */
-  pthread_attr_setstacksize(&thr_attr,my_thread_stack_size*2);
-#else
-  pthread_attr_setstacksize(&thr_attr,my_thread_stack_size);
-#endif
+  (void) my_setstacksize(&thr_attr,my_thread_stack_size);
 #endif
 
   mysql_mutex_lock(&LOCK_thread_count);
@@ -4700,37 +4754,9 @@ int mysqld_main(int argc, char **argv)
     unireg_abort(1);				// Will do exit
 
   init_signals();
-#if defined(__ia64__) || defined(__ia64)
-  /*
-    Peculiar things with ia64 platforms - it seems we only have half the
-    stack size in reality, so we have to double it here
-  */
-  pthread_attr_setstacksize(&connection_attrib,my_thread_stack_size*2);
-#else
-  pthread_attr_setstacksize(&connection_attrib,my_thread_stack_size);
-#endif
-#ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE
-  {
-    /* Retrieve used stack size;  Needed for checking stack overflows */
-    size_t stack_size= 0;
-    pthread_attr_getstacksize(&connection_attrib, &stack_size);
-#if defined(__ia64__) || defined(__ia64)
-    stack_size/= 2;
-#endif
-    /* We must check if stack_size = 0 as Solaris 2.9 can return 0 here */
-    if (stack_size && stack_size < my_thread_stack_size)
-    {
-      if (global_system_variables.log_warnings)
-	sql_print_warning("Asked for %llu thread stack, but got %zu",
-			  my_thread_stack_size, stack_size);
-#if defined(__ia64__) || defined(__ia64)
-      my_thread_stack_size= stack_size*2;
-#else
-      my_thread_stack_size= stack_size;
-#endif
-    }
-  }
-#endif
+
+  my_thread_stack_size= my_setstacksize(&connection_attrib,
+                                        my_thread_stack_size);
 
   (void) thr_setconcurrency(concurrency);	// 10 by default
 
@@ -5427,8 +5453,10 @@ void handle_connections_sockets()
   uint error_count=0;
   THD *thd;
   struct sockaddr_storage cAddr;
-  int ip_flags=0,socket_flags=0,flags=0,retval;
-  int extra_ip_flags=0;
+  int ip_flags __attribute__((unused))=0;
+  int socket_flags __attribute__((unused))= 0;
+  int extra_ip_flags __attribute__((unused))=0;
+  int flags=0,retval;
   st_vio *vio_tmp;
 #ifdef HAVE_POLL
   int socket_count= 0;
@@ -6018,17 +6046,6 @@ struct my_option my_long_options[]=
   {"help", '?', "Display this help and exit.", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0},
-#ifdef DBUG_OFF
-  {"debug", '#', "Built in DBUG debugger. Disabled in this build.",
-   &current_dbug_option, &current_dbug_option, 0, GET_STR, OPT_ARG,
-   0, 0, 0, 0, 0, 0},
-#endif
-#ifdef HAVE_REPLICATION
-  {"debug-abort-slave-event-count", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
-   &abort_slave_event_count,  &abort_slave_event_count,
-   0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif /* HAVE_REPLICATION */
   {"allow-suspicious-udfs", 0,
    "Allows use of UDFs consisting of only one symbol xxx() "
    "without corresponding xxx_init() or xxx_deinit(). That also means "
@@ -6097,30 +6114,86 @@ struct my_option my_long_options[]=
   /* default-storage-engine should have "MyISAM" as def_value. Instead
      of initializing it here it is done in init_common_variables() due
      to a compiler bug in Sun Studio compiler. */
-  {"default-storage-engine", 0, "The default storage engine for new tables",
-   &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0 },
-  {"default-time-zone", 0, "Set the default time zone.",
-   &default_tz_name, &default_tz_name,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-#ifdef HAVE_OPENSSL
-  {"des-key-file", 0,
-   "Load keys for des_encrypt() and des_encrypt from given file.",
-   &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
+#ifdef DBUG_OFF
+  {"debug", '#', "Built in DBUG debugger. Disabled in this build.",
+   &current_dbug_option, &current_dbug_option, 0, GET_STR, OPT_ARG,
    0, 0, 0, 0, 0, 0},
-#endif /* HAVE_OPENSSL */
+#endif
+#ifdef HAVE_REPLICATION
+  {"debug-abort-slave-event-count", 0,
+   "Option used by mysql-test for debugging and testing of replication.",
+   &abort_slave_event_count,  &abort_slave_event_count,
+   0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#endif /* HAVE_REPLICATION */
+#ifndef DBUG_OFF
+  {"debug-assert-on-error", 0,
+   "Do an assert in various functions if we get a fatal error",
+   &my_assert_on_error, &my_assert_on_error,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug-assert-if-crashed-table", 0,
+   "Do an assert in handler::print_error() if we get a crashed table",
+   &debug_assert_if_crashed_table, &debug_assert_if_crashed_table,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#endif
 #ifdef HAVE_REPLICATION
   {"debug-disconnect-slave-event-count", 0,
    "Option used by mysql-test for debugging and testing of replication.",
    &disconnect_slave_event_count, &disconnect_slave_event_count,
    0, GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
+  {"debug-exit-info", 'T', "Used for debugging. Use at your own risk.",
+   0, 0, 0, GET_LONG, OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"debug-gdb", 0,
+   "Set up signals usable for debugging.",
+   &opt_debugging, &opt_debugging,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#ifdef HAVE_REPLICATION
+  {"debug-max-binlog-dump-events", 0,
+   "Option used by mysql-test for debugging and testing of replication.",
+   &max_binlog_dump_events, &max_binlog_dump_events, 0,
+   GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+#endif /* HAVE_REPLICATION */
+#ifdef SAFE_MUTEX
+  {"debug-mutex-deadlock-detector", 0,
+   "Enable checking of wrong mutex usage.",
+   &safe_mutex_deadlock_detector,
+   &safe_mutex_deadlock_detector,
+   0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+#endif
+  {"debug-no-sync", 0,
+   "Disables system sync calls. Only for running tests or debugging!",
+   &my_disable_sync, &my_disable_sync, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+#ifdef HAVE_REPLICATION
+  {"debug-sporadic-binlog-dump-fail", 0,
+   "Option used by mysql-test for debugging and testing of replication.",
+   &opt_sporadic_binlog_dump_fail,
+   &opt_sporadic_binlog_dump_fail, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
+   0},
+#endif /* HAVE_REPLICATION */
+  {"default-storage-engine", 0, "The default storage engine for new tables",
+   &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
+  {"default-time-zone", 0, "Set the default time zone.",
+   &default_tz_name, &default_tz_name,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+#if defined(ENABLED_DEBUG_SYNC)
+  {"debug-sync-timeout", OPT_DEBUG_SYNC_TIMEOUT,
+   "Enable the debug sync facility "
+   "and optionally specify a default wait timeout in seconds. "
+   "A zero value keeps the facility disabled.",
+   &opt_debug_sync_timeout, 0,
+   0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
+#endif /* defined(ENABLED_DEBUG_SYNC) */
+#ifdef HAVE_OPENSSL
+  {"des-key-file", 0,
+   "Load keys for des_encrypt() and des_encrypt from given file.",
+   &des_key_file, &des_key_file, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0},
+#endif /* HAVE_OPENSSL */
 #ifdef HAVE_STACKTRACE
   {"stack-trace", 0 , "Print a symbolic stack trace on failure",
    &opt_stack_trace, &opt_stack_trace, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
 #endif /* HAVE_STACKTRACE */
-  {"debug-exit-info", 'T', "Used for debugging. Use at your own risk.", 0, 0, 0,
-   GET_LONG, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"external-locking", 0, "Use system (external) locking (disabled by "
    "default).  With this option enabled you can run myisamchk to test "
    "(not repair) tables while the MySQL server is running. Disable with "
@@ -6130,10 +6203,6 @@ struct my_option my_long_options[]=
      easier to do */
   {"gdb", 0,
    "Set up signals usable for debugging. Deprecated, use --debug-gdb instead.",
-   &opt_debugging, &opt_debugging,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-gdb", 0,
-   "Set up signals usable for debugging.",
    &opt_debugging, &opt_debugging,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_LARGE_PAGE_OPTION
@@ -6226,10 +6295,6 @@ struct my_option my_long_options[]=
   {"init-rpl-role", 0, "Set the replication role.",
    &rpl_status, &rpl_status, &rpl_role_typelib,
    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-max-binlog-dump-events", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
-   &max_binlog_dump_events, &max_binlog_dump_events, 0,
-   GET_INT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif /* HAVE_REPLICATION */
   {"memlock", 0, "Lock mysqld in memory.", &locked_in_memory,
    &locked_in_memory, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -6340,13 +6405,6 @@ struct my_option my_long_options[]=
    "(Default: 15000).", &slow_start_timeout, &slow_start_timeout, 0,
    GET_ULONG, REQUIRED_ARG, 15000, 0, 0, 0, 0, 0},
 #endif
-#ifdef HAVE_REPLICATION
-  {"debug-sporadic-binlog-dump-fail", 0,
-   "Option used by mysql-test for debugging and testing of replication.",
-   &opt_sporadic_binlog_dump_fail,
-   &opt_sporadic_binlog_dump_fail, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
-   0},
-#endif /* HAVE_REPLICATION */
 #ifdef HAVE_OPENSSL
   {"ssl", 0,
    "Enable SSL for connection (automatically enabled with other flags).",
@@ -6368,9 +6426,6 @@ struct my_option my_long_options[]=
      files.
    */
    IF_VALGRIND(0,IF_WIN(0,1)), 0, 0, 0, 0, 0},
-  {"debug-no-sync", 0,
-   "Disables system sync calls. Only for running tests or debugging!",
-   &my_disable_sync, &my_disable_sync, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"sysdate-is-now", 0,
    "Non-default option to alias SYSDATE() to NOW() to make it safe-replicable. "
    "Since 5.0, SYSDATE() returns a `dynamic' value different for different "
@@ -6381,14 +6436,6 @@ struct my_option my_long_options[]=
    "Decision to use in heuristic recover process. Possible values are COMMIT "
    "or ROLLBACK.", &tc_heuristic_recover, &tc_heuristic_recover,
    &tc_heuristic_recover_typelib, GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#if defined(ENABLED_DEBUG_SYNC)
-  {"debug-sync-timeout", OPT_DEBUG_SYNC_TIMEOUT,
-   "Enable the debug sync facility "
-   "and optionally specify a default wait timeout in seconds. "
-   "A zero value keeps the facility disabled.",
-   &opt_debug_sync_timeout, 0,
-   0, GET_UINT, OPT_ARG, 0, 0, UINT_MAX, 0, 0, 0},
-#endif /* defined(ENABLED_DEBUG_SYNC) */
   {"temp-pool", 0,
 #if (ENABLE_TEMP_POOL)
    "Using this option will cause most temporary files created to use a small "
@@ -6418,16 +6465,6 @@ struct my_option my_long_options[]=
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &table_cache_size, &table_cache_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
-#ifndef DBUG_OFF
-  {"debug-assert-on-error", 0,
-   "Do an assert in various functions if we get a fatal error",
-   &my_assert_on_error, &my_assert_on_error,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-assert-if-crashed-table", 0,
-   "Do an assert in handler::print_error() if we get a crashed table",
-   &debug_assert_if_crashed_table, &debug_assert_if_crashed_table,
-   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#endif
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -7911,6 +7948,14 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   one_thread_scheduler(thread_scheduler);
   one_thread_scheduler(extra_thread_scheduler);
 #else
+
+#ifdef _WIN32
+  /* workaround: disable thread pool on XP */
+  if (GetProcAddress(GetModuleHandle("kernel32"),"CreateThreadpool") == 0 &&
+      thread_handling > SCHEDULER_NO_THREADS)
+    thread_handling = SCHEDULER_ONE_THREAD_PER_CONNECTION;
+#endif
+
   if (thread_handling <= SCHEDULER_ONE_THREAD_PER_CONNECTION)
     one_thread_per_connection_scheduler(thread_scheduler, &max_connections,
                                         &connection_count);
