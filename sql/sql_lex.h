@@ -122,6 +122,7 @@ enum enum_sql_command {
   SQLCOM_SHOW_PROFILE, SQLCOM_SHOW_PROFILES,
   SQLCOM_SHOW_USER_STATS, SQLCOM_SHOW_TABLE_STATS, SQLCOM_SHOW_INDEX_STATS,
   SQLCOM_SHOW_CLIENT_STATS,
+  SQLCOM_SHOW_EXPLAIN,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc
@@ -254,6 +255,8 @@ typedef uchar index_clause_map;
 
 #define INDEX_HINT_MASK_ALL (INDEX_HINT_MASK_JOIN | INDEX_HINT_MASK_GROUP | \
                              INDEX_HINT_MASK_ORDER)
+
+class select_result_sink;
 
 /* Single element of an USE/FORCE/IGNORE INDEX list specified as a SQL hint  */
 class Index_hint : public Sql_alloc
@@ -592,6 +595,7 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
+  int print_explain(select_result_sink *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -643,6 +647,12 @@ public:
     those converted to jtbm nests. The list is emptied when conversion is done.
   */
   List<Item_in_subselect> sj_subselects;
+  
+  /*
+    Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
+    of EXPLAIN
+  */
+  bool have_merged_subqueries;
 
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
@@ -883,7 +893,7 @@ public:
   */
   bool optimize_unflattened_subqueries();
   /* Set the EXPLAIN type for this subquery. */
-  void set_explain_type();
+  void set_explain_type(bool on_the_fly);
   bool handle_derived(struct st_lex *lex, uint phases);
   void append_table_to_list(TABLE_LIST *TABLE_LIST::*link, TABLE_LIST *table);
   bool get_free_table_map(table_map *map, uint *tablenr);
@@ -906,8 +916,9 @@ public:
 
   bool save_leaf_tables(THD *thd);
   bool save_prep_leaf_tables(THD *thd);
-  bool is_merged_child_of(st_select_lex *ancestor);
 
+  bool is_merged_child_of(st_select_lex *ancestor);
+  int print_explain(select_result_sink *output);
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
