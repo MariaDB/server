@@ -1636,6 +1636,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > 1 && key_info->read_stat.avg_frequency[0] > 0.5);
+      (use_stat_table_mode > 1 &&  key_info->read_stat.avg_frequency &&
+       key_info->read_stat.avg_frequency[0] > 0.5);
   }
 }

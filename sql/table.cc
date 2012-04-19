@@ -5957,6 +5957,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (!keyinfo->rec_per_key)
     return TRUE;
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
+  keyinfo->read_stat.avg_frequency= NULL;
 
   for (i= 0; i < key_parts; i++)
   {
