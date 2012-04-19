@@ -14657,6 +14657,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->rec_per_key=0;
+    keyinfo->read_stat.avg_frequency= NULL;
 
     /*
       Create an extra field to hold NULL bits so that unique indexes on
