@@ -134,13 +134,13 @@ err:
 #include <ctype.h>
 static int in[2], out[2];
 static int initialized= 0;
+static char output[1024];
 int my_addr_resolve(void *ptr, my_addr_loc *loc)
 {
   char input[32], *s;
-  char output[1024];
   size_t len;
 
-  len= my_safe_snprintf(input, sizeof(input), "0x%p\n", ptr);
+  len= my_snprintf(input, sizeof(input), "%p\n", ptr);
   if (write(in[1], input, len) <= 0)
     return 1;
   if (read(out[0], output, sizeof(output)) <= 0)

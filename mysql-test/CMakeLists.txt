@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2011, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -28,6 +28,10 @@ INSTALL(
  PATTERN ".cvsignore" EXCLUDE
  PATTERN "*.am" EXCLUDE
  PATTERN "*.in" EXCLUDE
+ PATTERN "*.vcxproj" EXCLUDE
+ PATTERN "*.vcxproj.filters" EXCLUDE
+ PATTERN "*.vcxproj.user" EXCLUDE
+ PATTERN "CTest" EXCLUDE
 )
 ENDIF()
 

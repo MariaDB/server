@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -379,7 +379,7 @@ uint filename_to_tablename(const char *from, char *to, uint to_length
   DBUG_ENTER("filename_to_tablename");
   DBUG_PRINT("enter", ("from '%s'", from));
 
-  if (!memcmp(from, tmp_file_prefix, tmp_file_prefix_length))
+  if (!strncmp(from, tmp_file_prefix, tmp_file_prefix_length))
   {
     /* Temporary table name. */
     res= (strnmov(to, from, to_length) - to);
@@ -3143,6 +3143,15 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                MYF(0));
     DBUG_RETURN(TRUE);
   }
+
+  /*
+   CREATE TABLE[with auto_increment column] SELECT is unsafe as the rows
+   inserted in the created table depends on the order of the rows fetched
+   from the select tables. This order may differ on master and slave. We
+   therefore mark it as unsafe.
+  */
+  if (select_field_count > 0 && auto_increment)
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_CREATE_SELECT_AUTOINC);
 
   /* Create keys */
 
@@ -7283,7 +7292,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
       error= 1;
       break;
     }
-    update_virtual_fields(thd, from);
+    if (from->vfield)
+      update_virtual_fields(thd, from);
     if (++thd->progress.counter >= time_to_report_progress)
     {
       time_to_report_progress+= MY_HOW_OFTEN_TO_WRITE/10;
@@ -7310,7 +7320,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
       copy_ptr->do_copy(copy_ptr);
     }
     prev_insert_id= to->file->next_insert_id;
-    update_virtual_fields(thd, to, TRUE);
+    if (to->vfield)
+      update_virtual_fields(thd, to, TRUE);
     if (thd->is_error())
     {
       error= 1;
@@ -7379,6 +7390,7 @@ err:
     error=1;
   if (error < 0 && to->file->extra(HA_EXTRA_PREPARE_FOR_RENAME))
     error= 1;
+  thd_progress_end(thd);
   DBUG_RETURN(error > 0 ? -1 : 0);
 }
 

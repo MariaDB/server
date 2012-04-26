@@ -605,8 +605,12 @@ void
 buf_page_print(
 /*===========*/
 	const byte*	read_buf,	/*!< in: a database page */
-	ulint		zip_size)	/*!< in: compressed page size, or
-				0 for uncompressed pages */
+	ulint		zip_size,	/*!< in: compressed page size, or
+					0 for uncompressed pages */
+	ulint		flags)		/*!< in: 0 or
+					BUF_PAGE_PRINT_NO_CRASH or
+					BUF_PAGE_PRINT_NO_FULL */
+
 {
 #ifndef UNIV_HOTBACKUP
 	dict_index_t*	index;
@@ -615,17 +619,18 @@ buf_page_print(
 	ulint		old_checksum;
 	ulint		size	= zip_size;
 
-	ut_ad(0);
-
 	if (!size) {
 		size = UNIV_PAGE_SIZE;
 	}
 
-	ut_print_timestamp(stderr);
-	fprintf(stderr, "  InnoDB: Page dump in ascii and hex (%lu bytes):\n",
-		(ulong) size);
-	ut_print_buf(stderr, read_buf, size);
-	fputs("\nInnoDB: End of page dump\n", stderr);
+	if (!(flags & BUF_PAGE_PRINT_NO_FULL)) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			"  InnoDB: Page dump in ascii and hex (%lu bytes):\n",
+			(ulong) size);
+		ut_print_buf(stderr, read_buf, size);
+		fputs("\nInnoDB: End of page dump\n", stderr);
+	}
 
 	if (zip_size) {
 		/* Print compressed page. */
@@ -797,6 +802,8 @@ buf_page_print(
 		      stderr);
 		break;
 	}
+
+	ut_ad(flags & BUF_PAGE_PRINT_NO_CRASH);
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -2454,7 +2461,7 @@ wait_until_unfixed:
 
 		block->page.buf_fix_count = 1;
 		buf_block_set_io_fix(block, BUF_IO_READ);
-		rw_lock_x_lock_func(&block->lock, 0, file, line);
+		rw_lock_x_lock_inline(&block->lock, 0, file, line);
 
 		UNIV_MEM_INVALID(bpage, sizeof *bpage);
 
@@ -2594,14 +2601,14 @@ wait_until_unfixed:
 		break;
 
 	case RW_S_LATCH:
-		rw_lock_s_lock_func(&(block->lock), 0, file, line);
+		rw_lock_s_lock_inline(&(block->lock), 0, file, line);
 
 		fix_type = MTR_MEMO_PAGE_S_FIX;
 		break;
 
 	default:
 		ut_ad(rw_latch == RW_X_LATCH);
-		rw_lock_x_lock_func(&(block->lock), 0, file, line);
+		rw_lock_x_lock_inline(&(block->lock), 0, file, line);
 
 		fix_type = MTR_MEMO_PAGE_X_FIX;
 		break;
@@ -2681,8 +2688,8 @@ buf_page_optimistic_get(
 						file, line);
 		fix_type = MTR_MEMO_PAGE_S_FIX;
 	} else {
-		success = rw_lock_x_lock_func_nowait(&(block->lock),
-						     file, line);
+		success = rw_lock_x_lock_func_nowait_inline(&(block->lock),
+							    file, line);
 		fix_type = MTR_MEMO_PAGE_X_FIX;
 	}
 
@@ -2811,8 +2818,8 @@ buf_page_get_known_nowait(
 						file, line);
 		fix_type = MTR_MEMO_PAGE_S_FIX;
 	} else {
-		success = rw_lock_x_lock_func_nowait(&(block->lock),
-						     file, line);
+		success = rw_lock_x_lock_func_nowait_inline(&(block->lock),
+							    file, line);
 		fix_type = MTR_MEMO_PAGE_X_FIX;
 	}
 
@@ -2899,8 +2906,8 @@ buf_page_try_get_func(
 		S-latch. */
 
 		fix_type = MTR_MEMO_PAGE_X_FIX;
-		success = rw_lock_x_lock_func_nowait(&block->lock,
-						     file, line);
+		success = rw_lock_x_lock_func_nowait_inline(&block->lock,
+							    file, line);
 	}
 
 	if (!success) {
@@ -3557,7 +3564,8 @@ corrupt:
 				"InnoDB: You may have to recover"
 				" from a backup.\n",
 				(ulong) bpage->offset);
-			buf_page_print(frame, buf_page_get_zip_size(bpage));
+			buf_page_print(frame, buf_page_get_zip_size(bpage),
+				       BUF_PAGE_PRINT_NO_CRASH);
 			fprintf(stderr,
 				"InnoDB: Database page corruption on disk"
 				" or a failed\n"
@@ -4742,34 +4750,32 @@ buf_all_freed(void)
 /*********************************************************************//**
 Checks that there currently are no pending i/o-operations for the buffer
 pool.
-@return	TRUE if there is no pending i/o */
+@return	number of pending i/o */
 UNIV_INTERN
-ibool
-buf_pool_check_no_pending_io(void)
-/*==============================*/
+ulint
+buf_pool_check_num_pending_io(void)
+/*===============================*/
 {
 	ulint		i;
-	ibool		ret = TRUE;
+	ulint		pending_io = 0;
 
 	buf_pool_mutex_enter_all();
 
-	for (i = 0; i < srv_buf_pool_instances && ret; i++) {
+	for (i = 0; i < srv_buf_pool_instances; i++) {
 		const buf_pool_t*	buf_pool;
 
 		buf_pool = buf_pool_from_array(i);
 
-		if (buf_pool->n_pend_reads
-		    + buf_pool->n_flush[BUF_FLUSH_LRU]
-		    + buf_pool->n_flush[BUF_FLUSH_LIST]
-		    + buf_pool->n_flush[BUF_FLUSH_SINGLE_PAGE]) {
+		pending_io += buf_pool->n_pend_reads
+			      + buf_pool->n_flush[BUF_FLUSH_LRU]
+			      + buf_pool->n_flush[BUF_FLUSH_LIST]
+			      + buf_pool->n_flush[BUF_FLUSH_SINGLE_PAGE];
 
-			ret = FALSE;
-		}
 	}
 
 	buf_pool_mutex_exit_all();
 
-	return(ret);
+	return(pending_io);
 }
 
 #if 0

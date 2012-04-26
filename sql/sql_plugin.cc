@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2005, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2005, 2012, Oracle and/or its affiliates.
    Copyright (c) 2010, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -980,9 +980,13 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
     without a mutex.
   */
   if (! plugin_dlib(ptr))
+  {
+    plugin_ref_to_int(ptr)->locks_total++;
     DBUG_RETURN(ptr);
+  }
 #endif
   mysql_mutex_lock(&LOCK_plugin);
+  plugin_ref_to_int(ptr)->locks_total++;
   rc= my_intern_plugin_lock_ci(lex, ptr);
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_RETURN(rc);
@@ -1178,6 +1182,10 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
     }
   }
   plugin->state= PLUGIN_IS_UNINITIALIZED;
+
+  /* maintain the obsolete @@have_innodb variable */
+  if (!my_strcasecmp(&my_charset_latin1, plugin->name.str, "InnoDB"))
+    have_innodb= SHOW_OPTION_DISABLED;
 
   /*
     We do the check here because NDB has a worker THD which doesn't
@@ -1520,6 +1528,10 @@ int plugin_init(int *argc, char **argv, int flags)
       goto err;
   }
 
+  /* prepare debug_sync service */
+  DBUG_ASSERT(strcmp(list_of_services[5].name, "debug_sync_service") == 0);
+  list_of_services[5].service= *(void**)&debug_sync_C_callback_ptr;
+
   mysql_mutex_lock(&LOCK_plugin);
 
   initialized= 1;
@@ -1583,7 +1595,11 @@ int plugin_init(int *argc, char **argv, int flags)
       {
         if (plugin_ptr->state == PLUGIN_IS_UNINITIALIZED &&
             plugin_initialize(plugin_ptr))
-          goto err_unlock;
+        {
+          if (mandatory)
+            goto err_unlock;
+          plugin_ptr->state= PLUGIN_IS_DISABLED;
+        }
       }
 
       /*
@@ -2381,11 +2397,11 @@ static int check_func_bool(THD *thd, struct st_mysql_sys_var *var,
   {
     if (value->val_int(value, &tmp) < 0)
       goto err;
-    if (tmp > 1)
+    if (tmp != 0 && tmp != 1)
       goto err;
     result= (int) tmp;
   }
-  *(my_bool *) save= -result;
+  *(my_bool *) save= result ? 1 : 0;
   return 0;
 err:
   return 1;
@@ -2575,7 +2591,7 @@ err:
 static void update_func_bool(THD *thd, struct st_mysql_sys_var *var,
                              void *tgt, const void *save)
 {
-  *(my_bool *) tgt= *(my_bool *) save ? TRUE : FALSE;
+  *(my_bool *) tgt= *(my_bool *) save ? 1 : 0;
 }
 
 
@@ -3553,19 +3569,6 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
                             opt->name, plugin_name);
         }
       }
-      /*
-        PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
-        directly to values in the argv[] array. For plugins started at the
-        server startup, argv[] array is allocated with load_defaults(), and
-        freed when the server is shut down.  But for plugins loaded with
-        INSTALL PLUGIN, the memory allocated with load_defaults() is freed with
-        freed() at the end of mysql_install_plugin(). Which means we cannot
-        allow any pointers into that area.
-        Thus, for all plugins loaded after the server was started,
-        we force all command-line options to be PLUGIN_VAR_MEMALLOC
-      */
-      if (mysqld_server_started && !(opt->flags & PLUGIN_VAR_NOCMDOPT))
-        opt->flags|= PLUGIN_VAR_MEMALLOC;
       break;
     case PLUGIN_VAR_ENUM:
       if (!opt->check)
@@ -3793,8 +3796,29 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   error= 1;
   for (opt= tmp->plugin->system_vars; opt && *opt; opt++)
   {
-    st_mysql_sys_var *o;
-    if (((o= *opt)->flags & PLUGIN_VAR_NOSYSVAR))
+    st_mysql_sys_var *o= *opt;
+
+    /*
+      PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
+      directly to values in the argv[] array. For plugins started at the
+      server startup, argv[] array is allocated with load_defaults(), and
+      freed when the server is shut down.  But for plugins loaded with
+      INSTALL PLUGIN, the memory allocated with load_defaults() is freed with
+      freed() at the end of mysql_install_plugin(). Which means we cannot
+      allow any pointers into that area.
+      Thus, for all plugins loaded after the server was started,
+      we copy string values to a plugin's memroot.
+    */
+    if (mysqld_server_started &&
+        ((o->flags & (PLUGIN_VAR_STR | PLUGIN_VAR_NOCMDOPT |
+                       PLUGIN_VAR_MEMALLOC)) == PLUGIN_VAR_STR))
+    {
+      sysvar_str_t* str= (sysvar_str_t *)o;
+      if (*str->value)
+        *str->value= strdup_root(mem_root, *str->value);
+    }
+
+    if (o->flags & PLUGIN_VAR_NOSYSVAR)
       continue;
     if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
       v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
