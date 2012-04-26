@@ -1,0 +1,9 @@
+#! /bin/sh
+
+path=`dirname $0`
+. "$path/SETUP.sh"
+
+extra_flags="$amd64_cflags $fast_cflags -g $wsrep_cflags"
+extra_configs="$amd64_configs $wsrep_configs --with-wsrep"
+
+. "$path/FINISH.sh"
