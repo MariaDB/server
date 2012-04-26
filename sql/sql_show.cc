@@ -2126,6 +2126,11 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
                "Target is not running EXPLAINable command");
       bres= TRUE;
     }
+    else
+    {
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                   ER_YES, explain_req.query_str.c_ptr_safe());
+    }
     pthread_mutex_unlock(&tmp->LOCK_thd_data);
     if (!bres)
     {

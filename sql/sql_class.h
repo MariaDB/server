@@ -1471,6 +1471,8 @@ public:
   
   select_result_explain_buffer *explain_buf;
 
+  String query_str;
+
   static void get_explain_data(void *arg);
 };
 
