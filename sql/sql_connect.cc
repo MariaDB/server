@@ -100,9 +100,6 @@ int get_or_create_user_conn(THD *thd, const char *user,
   }
   thd->user_connect=uc;
   uc->connections++;
-#ifdef WITH_WSREP
-  thd->wsrep_client_thread= 1;
-#endif /* WITH_WSREP */
 end:
   mysql_mutex_unlock(&LOCK_user_conn);
   return return_val;
@@ -1203,6 +1200,9 @@ bool thd_prepare_connection(THD *thd)
                          (char *) thd->security_ctx->host_or_ip);
 
   prepare_new_connection_state(thd);
+#ifdef WITH_WSREP
+  thd->wsrep_client_thread= 1;
+#endif /* WITH_WSREP */
   return FALSE;
 }
 

@@ -60,6 +60,7 @@ extern long        wsrep_protocol_version;
 extern ulong       wsrep_forced_binlog_format;
 extern ulong       wsrep_OSU_method_options;
 extern my_bool     wsrep_recovery;
+extern my_bool     wsrep_replicate_myisam;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 
@@ -162,6 +163,9 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP(thd) \
   (WSREP_ON && (thd && thd->variables.wsrep_on))
 
+#define WSREP_CLIENT(thd) \
+    (WSREP(thd) && thd->wsrep_client_thread)
+
 #define WSREP_EMULATE_BINLOG(thd) \
   (WSREP(thd) && wsrep_emulate_bin_log)
 
@@ -205,20 +209,6 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all);
 class Ha_trx_info;
 struct THD_TRANS;
 void wsrep_register_hton(THD* thd, bool all);
-
-/*!
- * @param db      Database string
- * @param table   Table string
- * @param key     Array of wsrep_key_t
- * @param key_len In: number of elements in key array, Out: number of
- *                elements populated
- *
- * @return true if preparation was successful, otherwise false.
- */
-bool wsrep_prepare_key_for_isolation(const char* db,
-                                     const char* table,
-                                     wsrep_key_part_t* key,
-                                     size_t *key_len);
 
 void wsrep_replication_process(THD *thd);
 void wsrep_rollback_process(THD *thd);
@@ -274,7 +264,9 @@ extern PSI_cond_key  key_COND_wsrep_rollback;
 extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 
-int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_);
+struct TABLE_LIST;
+int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
+                             const TABLE_LIST* table_list);
 void wsrep_to_isolation_end(THD *thd);
 
 void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow*);

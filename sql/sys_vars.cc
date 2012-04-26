@@ -3779,6 +3779,9 @@ static Sys_var_mybool Sys_wsrep_recover_datadir(
        READ_ONLY GLOBAL_VAR(wsrep_recovery),
        CMD_LINE(OPT_ARG, OPT_WSREP_RECOVER), DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_wsrep_replicate_myisam(
+       "wsrep_replicate_myisam", "To enable myisam replication",
+       GLOBAL_VAR(wsrep_replicate_myisam), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 #endif /* WITH_WSREP */
 

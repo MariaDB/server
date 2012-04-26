@@ -100,11 +100,14 @@ bool Alter_table_statement::execute(THD *thd)
   thd->enable_slow_log= opt_log_slow_admin_statements;
 
 #ifdef WITH_WSREP
-TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
   if ((!thd->is_current_stmt_binlog_format_row() ||
        !find_temporary_table(thd, first_table))  &&
-      wsrep_to_isolation_begin(thd, first_table->db, first_table->table_name))
+      wsrep_to_isolation_begin(thd,
+                               lex->name.str ? select_lex->db : NULL,
+                               lex->name.str ? lex->name.str : NULL,
+                               first_table))
   {
     WSREP_WARN("ALTER TABLE isolation failure");
     DBUG_RETURN(TRUE);

@@ -7589,11 +7589,6 @@ wsrep_append_foreign_key(
 	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1];
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
-	if (!dict_index_is_clust(clust_index)) {
-		WSREP_ERROR("clustered index not passed for FK append");
-		return DB_ERROR;
-	}
-
 	key[0] = '\0';
 	rcode = wsrep_rec_get_primary_key(
 		&key[1], &len, clust_rec, clust_index);

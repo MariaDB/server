@@ -521,7 +521,7 @@ bool Truncate_statement::execute(THD *thd)
 #ifdef WITH_WSREP
   if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
 					     first_table->db, 
-					     first_table->table_name))
+					     first_table->table_name, NULL))
     DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
   if (! (res= truncate_table(thd, first_table)))

@@ -62,6 +62,7 @@
 
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+
 #endif // WITH_WSREP
 
 bool
@@ -5077,6 +5078,24 @@ restart:
       }
     }
   }
+#ifdef WITH_WSREP
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
+  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto err;
+
+  if ((thd->lex->sql_command== SQLCOM_INSERT         ||
+       thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
+       thd->lex->sql_command== SQLCOM_REPLACE        ||
+       thd->lex->sql_command== SQLCOM_REPLACE_SELECT ||
+       thd->lex->sql_command== SQLCOM_UPDATE         ||
+       thd->lex->sql_command== SQLCOM_UPDATE_MULTI   ||
+       thd->lex->sql_command== SQLCOM_LOAD           ||
+       thd->lex->sql_command== SQLCOM_DELETE)        &&
+      wsrep_replicate_myisam                         &&
+      (*start)->table && (*start)->table->file->ht->db_type == DB_TYPE_MYISAM)
+    {
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+    }
+#endif
 
 err:
 #ifdef WITH_WSREP

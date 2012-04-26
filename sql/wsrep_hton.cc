@@ -15,6 +15,7 @@
 
 #include <mysqld.h>
 #include "sql_base.h"
+#include "rpl_filter.h"
 #include <sql_class.h>
 #include "wsrep_mysqld.h"
 #include "wsrep_priv.h"
@@ -174,6 +175,7 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
   DBUG_RETURN(0);
 }
 
+extern Rpl_filter* binlog_filter;
 extern my_bool opt_log_slave_updates;
 enum wsrep_trx_status
 wsrep_run_wsrep_commit(
@@ -238,7 +240,8 @@ wsrep_run_wsrep_commit(
   while (wsrep_replaying > 0                       && 
          thd->wsrep_conflict_state == NO_CONFLICT  &&
          thd->killed == NOT_KILLED                 &&
-         !shutdown_in_progress) {
+         !shutdown_in_progress)
+  {
 
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -278,7 +281,8 @@ wsrep_run_wsrep_commit(
     WSREP_DEBUG("innobase_commit abort after replaying wait %s",
                 (thd->query()) ? thd->query() : "void");
     DBUG_RETURN(WSREP_TRX_ROLLBACK);
-  }  thd->wsrep_query_state = QUERY_COMMITTING;
+  }  
+  thd->wsrep_query_state = QUERY_COMMITTING;
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
   cache = get_trans_log(thd);
@@ -296,8 +300,18 @@ wsrep_run_wsrep_commit(
   {
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     thd->wsrep_exec_mode = LOCAL_COMMIT;
-    WSREP_DEBUG("empty rbr buffer, query: %s", thd->query());
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    if (thd->stmt_da->is_ok()              && 
+        thd->stmt_da->affected_rows() > 0  &&
+        !binlog_filter->is_on())
+    {
+      WSREP_WARN("empty rbr buffer, query: %s, affected rows: %llu", 
+                 thd->query(), thd->stmt_da->affected_rows());
+    }
+    else
+    {
+      WSREP_DEBUG("empty rbr buffer, query: %s", thd->query());
+    }
     DBUG_RETURN(WSREP_TRX_OK);
   }
   if (!rcode) {

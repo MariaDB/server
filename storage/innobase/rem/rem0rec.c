@@ -1790,25 +1790,23 @@ wsrep_rec_get_primary_key(
 	uint            key_parts;
 	mem_heap_t*	heap	= NULL;
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
+        const ulint*    offsets;
 
 	ut_ad(index);
-	key_parts = dict_index_get_n_unique_in_tree(index);
-	*offsets_ = (sizeof offsets_) / sizeof *offsets_;
 
-	rec_get_offsets(rec, index, offsets_, ULINT_UNDEFINED, &heap);
-	if (UNIV_LIKELY_NULL(heap)) {
-		mem_heap_free(heap);
-	}
+        rec_offs_init(offsets_);
+	offsets = rec_get_offsets(rec, index, offsets_, ULINT_UNDEFINED, &heap);
 
-	ut_ad(rec_offs_validate(rec, NULL, offsets_));
+	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
 	ut_ad(rec);
 
+	key_parts = dict_index_get_n_unique_in_tree(index);
 	for (i = 0; i < key_parts; i++) {
-		dict_field_t*	  field = dict_index_get_nth_field(index, i);
+                dict_field_t*	  field = dict_index_get_nth_field(index, i);
 		const dict_col_t* col = dict_field_get_col(field);
 
-		data = rec_get_nth_field(rec, offsets_, i, &len);
+		data = rec_get_nth_field(rec, offsets, i, &len);
 		if (key_len + len > ((col->prtype & DATA_NOT_NULL) ?   
 				     *buf_len : *buf_len - 1)) {
 			fprintf (stderr, 
@@ -1836,11 +1834,19 @@ wsrep_rec_get_primary_key(
 		}
 	}
 
-	rec_validate(rec, offsets_);
+	rec_validate(rec, offsets);
+
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
+
 	*buf_len = key_len;
 	return DB_SUCCESS;
 
  err_out:
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
 	return DB_ERROR;
 }
 #endif // WITH_WSREP

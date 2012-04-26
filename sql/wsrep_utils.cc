@@ -332,7 +332,7 @@ size_t default_ip (char* buf, size_t buf_len)
         "awk '{ print $2 }' | awk -F : '{ print $2 }'";
 #elif defined(__sun__)
     const char cmd[] = "/sbin/ifconfig -a | "
-        "grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
+        "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
 #else
     char *cmd;
 #error "OS not supported"

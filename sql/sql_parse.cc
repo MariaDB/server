@@ -105,19 +105,20 @@
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #include "rpl_rli.h"
+static void wsrep_client_rollback(THD *thd);
 
 extern Format_description_log_event *wsrep_format_desc;
 #define WSREP_MYSQL_DB (char *)"mysql"
 
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_)                               \
-  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_)) goto error;
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
+  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
 
 #define WSREP_TO_ISOLATION_END                                              \
   if (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))             \
     wsrep_to_isolation_end(thd);
 
 #else
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_)
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
 #define WSREP_TO_ISOLATION_END 
 #endif /* WITH_WSREP */
 /**
@@ -727,15 +728,7 @@ bool do_command(THD *thd)
     thd->wsrep_query_state= QUERY_IDLE;
     if (thd->wsrep_conflict_state==MUST_ABORT) 
     {
-      thd->wsrep_conflict_state= ABORTING;
-
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      trans_rollback(thd);
-      thd->locked_tables_list.unlock_locked_tables(thd);
-      /* Release transactional metadata locks. */
-      thd->mdl_context.release_transactional_locks();
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      thd->wsrep_conflict_state= ABORTED;
+      wsrep_client_rollback(thd);
     }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
@@ -822,16 +815,7 @@ bool do_command(THD *thd)
       if (thd->wsrep_conflict_state == MUST_ABORT)
       {
 	DBUG_PRINT("wsrep",("aborted for wsrep rollback: %lu", thd->real_id));
-	thd->wsrep_conflict_state= ABORTING;
-
-	mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-	trans_rollback(thd);
-	thd->locked_tables_list.unlock_locked_tables(thd);
-	/* Release transactional metadata locks. */
-	thd->mdl_context.release_transactional_locks();
-
-	mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-	thd->wsrep_conflict_state= ABORTED;
+	wsrep_client_rollback(thd);
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }
@@ -1082,14 +1066,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
     if (thd->wsrep_conflict_state== MUST_ABORT)
     {
-      thd->wsrep_conflict_state= ABORTING;
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      trans_rollback(thd);
-      thd->locked_tables_list.unlock_locked_tables(thd);
-      /* Release transactional metadata locks. */
-      thd->mdl_context.release_transactional_locks();
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      thd->wsrep_conflict_state= ABORTED;
+      wsrep_client_rollback(thd);
     }
     if (thd->wsrep_conflict_state== ABORTED) 
     {
@@ -1641,43 +1618,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     /* wsrep BF abort in query exec phase */
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     if (thd->wsrep_conflict_state == MUST_ABORT) {
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      ha_rollback_trans(thd, 0);
-      thd->locked_tables_list.unlock_locked_tables(thd);
-      /* Release transactional metadata locks. */
-      thd->mdl_context.release_transactional_locks();
-      thd->transaction.stmt.reset();
+      wsrep_client_rollback(thd);
+
       WSREP_DEBUG("abort in exec query state, avoiding autocommit");
-      goto wsrep_must_abort;
     }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-  }
-#endif /* WITH_WSREP */
 
-#ifdef WITH_WSREP
- wsrep_must_abort:
-  if (WSREP(thd)) {
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    if (thd->wsrep_conflict_state == MUST_ABORT) {
-      thd->wsrep_conflict_state= ABORTING;
-      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-
-      WSREP_DEBUG("in dispatch_command, aborting %s",
-		  (thd->query()) ? thd->query() : "void");
-      trans_rollback(thd);
-      thd->locked_tables_list.unlock_locked_tables(thd);
-      /* Release transactional metadata locks. */
-      thd->mdl_context.release_transactional_locks();
-
-      if (thd->get_binlog_table_maps()) {
-        thd->clear_binlog_table_maps();
-      }
-      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-      thd->wsrep_conflict_state= ABORTED;
-    }
-    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-
-    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     /* checking if BF trx must be replayed */
     if (thd->wsrep_conflict_state== MUST_REPLAY) {
       if (thd->wsrep_exec_mode!= REPL_RECV) {
@@ -1692,11 +1637,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         mysql_reset_thd_for_next_command(thd, opt_userstat_running);
         thd->killed= NOT_KILLED;
         close_thread_tables(thd);
+        if (thd->locked_tables_mode && thd->lock)
+        {
+	  WSREP_DEBUG("releasing table lock for replaying (%ld)", thd->thread_id);
+          thd->locked_tables_list.unlock_locked_tables(thd);
+	  thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+        }
+	thd->mdl_context.release_transactional_locks();
 
         thd_proc_info(thd, "wsrep replaying trx");
         WSREP_DEBUG("replay trx: %s %lld", 
-		    thd->query() ? thd->query() : "void", 
-		    (long long)thd->wsrep_trx_seqno);
+                    thd->query() ? thd->query() : "void", 
+                    (long long)thd->wsrep_trx_seqno);
         struct wsrep_thd_shadow shadow;
         wsrep_prepare_bf_thd(thd, &shadow);
         int rcode = wsrep->replay_trx(wsrep,
@@ -2547,7 +2499,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS_PROC:
   case SQLCOM_SHOW_STATUS_FUNC:
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_causal_wait(thd)) goto error;
+    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
 #endif /* WITH_WSREP */
     if ((res= check_table_access(thd, SELECT_ACL, all_tables, FALSE,
                                   UINT_MAX, FALSE)))
@@ -2557,7 +2509,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS:
   {
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_causal_wait(thd)) goto error;
+    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
 #endif /* WITH_WSREP */
     execute_show_status(thd, all_tables);
     break;
@@ -2583,7 +2535,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_INDEX_STATS:
   case SQLCOM_SELECT:
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_causal_wait(thd)) goto error;
+    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
   case SQLCOM_SHOW_VARIABLES:
   case SQLCOM_SHOW_CHARSETS:
   case SQLCOM_SHOW_COLLATIONS:
@@ -3007,7 +2959,8 @@ case SQLCOM_PREPARE:
 #ifdef WITH_WSREP
       if (!thd->is_current_stmt_binlog_format_row() ||
 	  !(create_info.options & HA_LEX_CREATE_TMP_TABLE))
-	WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name)
+       WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
+                                 NULL)
 #endif /* WITH_WSREP */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
@@ -3050,7 +3003,7 @@ end_with_restore_list:
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if (check_one_table_access(thd, INDEX_ACL, all_tables))
       goto error; /* purecov: inspected */
-    WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name)
+    WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
     /*
       Currently CREATE INDEX or DROP INDEX cause a full table rebuild
       and thus classify as slow administrative statements just like
@@ -3108,7 +3061,7 @@ end_with_restore_list:
 
   case SQLCOM_RENAME_TABLE:
   {
-    WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name)
+    WSREP_TO_ISOLATION_BEGIN(0, 0, first_table)
     if (execute_rename_table(thd, first_table, all_tables))
       goto error;
     break;
@@ -3137,7 +3090,7 @@ end_with_restore_list:
 #else
     {
 #ifdef WITH_WSREP
-      if (WSREP(thd) && wsrep_causal_wait(thd)) goto error;
+      if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
 #endif /* WITH_WSREP */
 
      /*
@@ -3196,7 +3149,7 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_causal_wait(thd)) goto error;
+    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
 #endif /* WITH_WSREP */
 
     if (check_table_access(thd, SELECT_ACL, all_tables,
@@ -3397,7 +3350,7 @@ end_with_restore_list:
     if (lex->sql_command == SQLCOM_INSERT_SELECT &&
 	thd->wsrep_consistency_check)
     {
-      WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name);
+      WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
     }
 
 #endif
@@ -3568,9 +3521,9 @@ end_with_restore_list:
    for (TABLE_LIST *table= all_tables; table; table= table->next_global)
    {
      if (!thd->is_current_stmt_binlog_format_row() ||
-	 !find_temporary_table(thd, table))
+        !find_temporary_table(thd, table))
      {
-       WSREP_TO_ISOLATION_BEGIN(table->db, table->table_name);
+       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
        break;
      }
    }
@@ -3760,7 +3713,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL)
+    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
     res= mysql_create_db(thd,(lower_case_table_names == 2 ? alias :
                               lex->name.str), &create_info, 0);
     break;
@@ -3790,7 +3743,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL)
+    WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
     res= mysql_rm_db(thd, lex->name.str, lex->drop_if_exists, 0);
     break;
   }
@@ -3819,7 +3772,7 @@ end_with_restore_list:
       res= 1;
       break;
     }
-    WSREP_TO_ISOLATION_BEGIN(db->str, NULL)
+    WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL)
     res= mysql_upgrade_db(thd, db);
     if (!res)
       my_ok(thd);
@@ -3852,7 +3805,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0))
       break;
-    WSREP_TO_ISOLATION_BEGIN(db->str, NULL)
+    WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL)
     res= mysql_alter_db(thd, db->str, &create_info);
     break;
   }
@@ -3885,7 +3838,7 @@ end_with_restore_list:
     if (res)
       break;
 
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     switch (lex->sql_command) {
     case SQLCOM_CREATE_EVENT:
     {
@@ -3920,7 +3873,7 @@ end_with_restore_list:
                                    lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res= Events::drop_event(thd,
                                   lex->spname->m_db, lex->spname->m_name,
                                   lex->drop_if_exists)))
@@ -3935,7 +3888,7 @@ end_with_restore_list:
     if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 0))
       break;
 #ifdef HAVE_DLOPEN
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res = mysql_create_function(thd, &lex->udf)))
       my_ok(thd);
 #else
@@ -3950,7 +3903,7 @@ end_with_restore_list:
     if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     /* Conditionally writes to binlog */
     if (!(res= mysql_create_user(thd, lex->users_list)))
       my_ok(thd);
@@ -3962,7 +3915,7 @@ end_with_restore_list:
         check_global_access(thd,CREATE_USER_ACL))
       break;
     /* Conditionally writes to binlog */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res= mysql_drop_user(thd, lex->users_list)))
       my_ok(thd);
     break;
@@ -3973,7 +3926,7 @@ end_with_restore_list:
         check_global_access(thd,CREATE_USER_ACL))
       break;
     /* Conditionally writes to binlog */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res= mysql_rename_user(thd, lex->users_list)))
       my_ok(thd);
     break;
@@ -3988,7 +3941,7 @@ end_with_restore_list:
     thd->binlog_invoker();
 
     /* Conditionally writes to binlog */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res = mysql_revoke_all(thd, lex->users_list)))
       my_ok(thd);
     break;
@@ -4055,7 +4008,7 @@ end_with_restore_list:
                                 lex->type == TYPE_ENUM_PROCEDURE, 0))
 	  goto error;
         /* Conditionally writes to binlog */
-        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
         res= mysql_routine_grant(thd, all_tables,
                                  lex->type == TYPE_ENUM_PROCEDURE, 
                                  lex->users_list, grants,
@@ -4069,7 +4022,7 @@ end_with_restore_list:
                         all_tables, FALSE, UINT_MAX, FALSE))
 	  goto error;
         /* Conditionally writes to binlog */
-        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
         res= mysql_table_grant(thd, all_tables, lex->users_list,
 			       lex->columns, lex->grant,
 			       lex->sql_command == SQLCOM_REVOKE);
@@ -4085,7 +4038,7 @@ end_with_restore_list:
       }
       else
       {
-          WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+          WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
         /* Conditionally writes to binlog */
         res = mysql_grant(thd, select_lex->db, lex->users_list, lex->grant,
                           lex->sql_command == SQLCOM_REVOKE,
@@ -4383,7 +4336,7 @@ end_with_restore_list:
     if (sp_process_definer(thd))
       goto create_sp_error;
 
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     res= (sp_result= sp_create_routine(thd, lex->sphead->m_type, lex->sphead));
     switch (sp_result) {
     case SP_OK: {
@@ -4595,7 +4548,7 @@ create_sp_error:
         already puts on CREATE FUNCTION.
       */
       /* Conditionally writes to binlog */
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
       sp_result= sp_update_routine(thd, type, lex->spname, &lex->sp_chistics);
       switch (sp_result)
       {
@@ -4667,7 +4620,7 @@ create_sp_error:
       if (check_routine_access(thd, ALTER_PROC_ACL, db, name,
                                lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
         goto error;
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
 
       /* Conditionally writes to binlog */
       sp_result= sp_drop_routine(thd, type, lex->spname);
@@ -4785,7 +4738,7 @@ create_sp_error:
         Note: SQLCOM_CREATE_VIEW also handles 'ALTER VIEW' commands
         as specified through the thd->lex->create_view_mode flag.
       */
-      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
       res= mysql_create_view(thd, first_table, thd->lex->create_view_mode);
       break;
     }
@@ -4794,14 +4747,14 @@ create_sp_error:
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
         goto error;
       /* Conditionally writes to binlog. */
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL)
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, NULL)
       res= mysql_drop_view(thd, first_table, thd->lex->drop_mode);
       break;
     }
   case SQLCOM_CREATE_TRIGGER:
   {
     /* Conditionally writes to binlog. */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     res= mysql_create_or_drop_trigger(thd, all_tables, 1);
 
     break;
@@ -4809,7 +4762,7 @@ create_sp_error:
   case SQLCOM_DROP_TRIGGER:
   {
     /* Conditionally writes to binlog. */
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     res= mysql_create_or_drop_trigger(thd, all_tables, 0);
     break;
   }
@@ -4860,13 +4813,13 @@ create_sp_error:
       my_ok(thd);
     break;
   case SQLCOM_INSTALL_PLUGIN:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (! (res= mysql_install_plugin(thd, &thd->lex->comment,
                                      &thd->lex->ident)))
       my_ok(thd);
     break;
   case SQLCOM_UNINSTALL_PLUGIN:
-    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL)
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (! (res= mysql_uninstall_plugin(thd, &thd->lex->comment,
                                        &thd->lex->ident)))
       my_ok(thd);
@@ -7905,6 +7858,41 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 }
 
 #ifdef WITH_WSREP
+/* must have (&thd->LOCK_wsrep_thd) */
+static void wsrep_client_rollback(THD *thd)
+{
+  WSREP_DEBUG("client rollback due to BF abort for (%ld), query: %s", 
+	      thd->thread_id, thd->query());
+
+  thd->wsrep_conflict_state= ABORTING;
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  trans_rollback(thd);
+
+  if (thd->locked_tables_mode && thd->lock)
+  {
+    WSREP_DEBUG("unlocking tables for BF abort (%ld)", thd->thread_id);
+    thd->locked_tables_list.unlock_locked_tables(thd);
+    thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+  }
+
+  if (thd->global_read_lock.is_acquired())
+  {
+    WSREP_DEBUG("unlocking GRL for BF abort (%ld)", thd->thread_id);
+    thd->global_read_lock.unlock_global_read_lock(thd);
+  }
+
+  /* Release transactional metadata locks. */
+  thd->mdl_context.release_transactional_locks();
+
+  if (thd->get_binlog_table_maps()) 
+  {
+    WSREP_DEBUG("clearing binlog table map for BF abort (%ld)", thd->thread_id);
+    thd->clear_binlog_table_maps();
+  }
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  thd->wsrep_conflict_state= ABORTED;
+}
+
 static enum wsrep_status wsrep_apply_sql(
    THD *thd, const char *sql, size_t sql_len, time_t timeval, uint32 randseed) 
 {
@@ -8008,6 +7996,13 @@ static inline wsrep_status_t wsrep_apply_rbr(
     int error = 0;
     Log_event* ev=  wsrep_read_log_event(&buf, &buf_len, wsrep_format_desc);
 
+    if (!ev)
+    {
+      WSREP_ERROR("applier could not read binlog event, seqno: %lld, len: %ld",
+                  (long long)thd->wsrep_trx_seqno, buf_len);
+      rcode= 1;
+      goto error;
+    }
     switch (ev->get_type_code()) {
     case WRITE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT:
@@ -8378,16 +8373,12 @@ void wsrep_rollback_process(THD *thd)
 
       aborting->store_globals();
 
-      trans_rollback(aborting);
-      aborting->locked_tables_list.unlock_locked_tables(thd);
-      /* Release transactional metadata locks. */
-      aborting->mdl_context.release_transactional_locks();
-
       mysql_mutex_lock(&aborting->LOCK_wsrep_thd);
-      aborting->wsrep_conflict_state= ABORTED;
+      wsrep_client_rollback(aborting);
       WSREP_DEBUG("WSREP rollbacker aborted thd: %llu",
                   (long long)aborting->real_id);
       mysql_mutex_unlock(&aborting->LOCK_wsrep_thd);
+
       mysql_mutex_lock(&LOCK_wsrep_rollback);
     }
   }

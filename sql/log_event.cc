@@ -8130,19 +8130,20 @@ int Rows_log_event::do_apply_event(Relay_log_info const *rli)
         thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
     /* A small test to verify that objects have consistent types */
     DBUG_ASSERT(sizeof(thd->variables.option_bits) == sizeof(OPTION_RELAXED_UNIQUE_CHECKS));
-
     if (open_and_lock_tables(thd, rli->tables_to_lock, FALSE, 0))
     {
-#ifdef WITH_WSREP
-      uint actual_error= ER_SERVER_SHUTDOWN;
-      if (WSREP(thd) && !thd->is_fatal_error)
-      {
-        sql_print_information("WSREP, BF applier interrupted in log_event.cc");
-      } 
-      else
-        actual_error= thd->stmt_da->sql_errno();
-#else
       uint actual_error= thd->stmt_da->sql_errno();
+#ifdef WITH_WSREP
+      if (WSREP(thd))
+      {
+        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+                   "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
+                   thd->stmt_da->sql_errno(),
+                   thd->is_fatal_error,
+                   thd->wsrep_exec_mode,
+                   thd->wsrep_conflict_state,
+                   (long long)thd->wsrep_trx_seqno);
+      } 
 #endif
       if (thd->is_slave_error || thd->is_fatal_error)
       {
@@ -10878,6 +10879,8 @@ Format_description_log_event *wsrep_format_desc; // TODO: free them at the end
   At the end (*buf) is shitfed to point to the following event or NULL and
   (*buf_len) will be changed to account just being read bytes of the 1st event.
 */
+#define WSREP_MAX_ALLOWED_PACKET 1024*1024*1024 // current protocol max
+
 Log_event* wsrep_read_log_event(
   char **arg_buf, size_t *arg_buf_len,
   const Format_description_log_event *description_event)
@@ -10889,12 +10892,8 @@ Log_event* wsrep_read_log_event(
   char *buf= (*arg_buf);
   const char *error= 0;
   Log_event *res=  0;
-#ifndef max_allowed_packet
-  THD *thd=current_thd;
-  uint max_allowed_packet= thd ? thd->variables.max_allowed_packet : ~(ulong)0;
-#endif
 
-  if (data_len > max_allowed_packet)
+  if (data_len > WSREP_MAX_ALLOWED_PACKET)
   {
     error = "Event too big";
     goto err;
