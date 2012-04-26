@@ -3033,7 +3033,8 @@ void Show_explain_request::get_explain_data(void *arg)
   req->target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
                                              &backup_arena);
 
-  req->target_thd->lex->unit.print_explain(req->explain_buf);
+  if (req->target_thd->lex->unit.print_explain(req->explain_buf))
+    req->failed_to_produce= TRUE;
 
   req->target_thd->restore_active_arena((Query_arena*)req->request_thd, 
                                         &backup_arena);

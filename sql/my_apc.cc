@@ -24,6 +24,14 @@
 */
 
 
+/* 
+  Initialize the target. 
+   
+  @note 
+  Initialization must be done prior to enabling/disabling the target, or making
+  any call requests to it.
+  Initial state after initialization is 'disabled'.
+*/
 void Apc_target::init()
 {
   // todo: should use my_pthread_... functions instead?
@@ -36,6 +44,9 @@ void Apc_target::init()
 }
 
 
+/* 
+  Destroy the target. The target must be disabled when this call is made.
+*/
 void Apc_target::destroy()
 {
   DBUG_ASSERT(!enabled);
@@ -43,6 +54,9 @@ void Apc_target::destroy()
 }
 
 
+/* 
+  Enter ther state where the target is available for serving APC requests
+*/
 void Apc_target::enable()
 {
   pthread_mutex_lock(&LOCK_apc_queue);
@@ -50,6 +64,13 @@ void Apc_target::enable()
   pthread_mutex_unlock(&LOCK_apc_queue);
 }
 
+
+/* 
+  Make the target unavailable for serving APC requests. 
+  
+  @note
+    This call will serve all requests that were already enqueued
+*/
 
 void Apc_target::disable()
 {
@@ -61,6 +82,9 @@ void Apc_target::disable()
   if (process)
     process_apc_requests();
 }
+
+
+/* (internal) Put request into the request list */
 
 void Apc_target::enqueue_request(Call_request *qe)
 {
@@ -81,6 +105,13 @@ void Apc_target::enqueue_request(Call_request *qe)
   }
 }
 
+
+/* 
+  (internal) Remove given request from the request queue. 
+  
+  The request is not necessarily first in the queue.
+*/
+
 void Apc_target::dequeue_request(Call_request *qe)
 {
   //call_queue_size--;
@@ -99,8 +130,10 @@ void Apc_target::dequeue_request(Call_request *qe)
 
 
 /*
-  Make an apc call in another thread. The caller is responsible so 
-  that we're not calling to ourselves.
+  Make an APC (Async Procedure Call) in another thread. 
+
+  The caller is responsible for making sure he's not calling an Apc_target 
+  that is serviced by the same thread it is called from.
   
   psergey-todo: Should waits here be KILLable? (it seems one needs 
   to use thd->enter_cond() calls to be killable)
@@ -119,7 +152,7 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
     Call_request apc_request;
     apc_request.func= func;
     apc_request.func_arg= func_arg;
-    apc_request.done= FALSE;
+    apc_request.processed= FALSE;
     (void)pthread_cond_init(&apc_request.COND_request, NULL);
     (void)pthread_mutex_init(&apc_request.LOCK_request, MY_MUTEX_INIT_SLOW);
     pthread_mutex_lock(&apc_request.LOCK_request);
@@ -133,19 +166,19 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
     
     int wait_res= 0;
     /* todo: how about processing other errors here? */
-    while (!apc_request.done && (wait_res != ETIMEDOUT))
+    while (!apc_request.processed && (wait_res != ETIMEDOUT))
     {
       wait_res= pthread_cond_timedwait(&apc_request.COND_request,
                                        &apc_request.LOCK_request, &abstime);
     }
 
-    if (!apc_request.done)
+    if (!apc_request.processed)
     {
-      /* We timed out */
-      apc_request.done= TRUE;
+      /* The wait has timed out. Remove the request from the queue */
+      apc_request.processed= TRUE;
       *timed_out= TRUE;
       pthread_mutex_unlock(&apc_request.LOCK_request);
-
+      //psergey-todo: "Whoa rare event" refers to this part, right? put a comment.
       pthread_mutex_lock(&LOCK_apc_queue);
       dequeue_request(&apc_request);
       pthread_mutex_unlock(&LOCK_apc_queue);
@@ -171,7 +204,8 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
 
 
 /*
-  Process all APC requests
+  Process all APC requests.
+  This should be called periodically by the APC target thread.
 */
 
 void Apc_target::process_apc_requests()
@@ -190,7 +224,7 @@ void Apc_target::process_apc_requests()
     request->what="seen by process_apc_requests";
     pthread_mutex_lock(&request->LOCK_request);
 
-    if (request->done)
+    if (request->processed)
     {
       /*
         We can get here when
@@ -214,7 +248,7 @@ void Apc_target::process_apc_requests()
     */
     request->what="dequeued by process_apc_requests";
     dequeue_request(request);
-    request->done= TRUE;
+    request->processed= TRUE;
 
     pthread_mutex_unlock(&LOCK_apc_queue);
 
