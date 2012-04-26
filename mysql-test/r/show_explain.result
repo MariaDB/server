@@ -1,4 +1,4 @@
-drop table if exists t0, t1;
+drop table if exists t0, t1, t2;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
@@ -125,4 +125,60 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+# Try to do SHOW EXPLAIN for a query that runs a  SET command:
+#   I've found experimentally that select_id==2 here...
+# 
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+set @foo= (select max(a) from t0 where sin(a) >0);
+show explain for $thr2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+#
+# Attempt SHOW EXPLAIN for an UPDATE
+#
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+show explain for $thr2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+show explain for $thr2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+drop table t2;
+#
+# Attempt SHOW EXPLAIN for a DELETE
+# 
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+show explain for $thr2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+show explain for $thr2;
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+drop table t2;
+#
+# Multiple SHOW EXPLAIN calls for one select 
+# 
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+a	SUBQ
+0	0
+1	0
+2	0
+drop table t2;
 drop table t0,t1;

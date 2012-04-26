@@ -4,7 +4,7 @@
 --source include/have_debug.inc
 
 --disable_warnings
-drop table if exists t0, t1;
+drop table if exists t0, t1, t2;
 --enable_warnings
 
 # 
@@ -186,12 +186,75 @@ reap;
 
 # TODO: explain in the parent subuqery when the un-correlated child has been
 # run (and have done irreversible cleanups)
+#  ^^ Is this at all possible after 5.3? 
+#     Maybe, for 5.3 try this: 
+#       - run before/after the parent has invoked child's optimization
+#       - run after materialization 
 
-# TODO: hit JOIN::optimize for non-select commands: UPDATE/DELETE, SET.
+--echo # Try to do SHOW EXPLAIN for a query that runs a  SET command:
+--echo #   I've found experimentally that select_id==2 here...
+--echo # 
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+send set @foo= (select max(a) from t0 where sin(a) >0);
+connection default;
+--source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for an UPDATE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+evalp show explain for $thr2;
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+
+--echo #
+--echo # Attempt SHOW EXPLAIN for a DELETE
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+evalp show explain for $thr2;
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
 
 
-## TODO: Test this: multiple SHOW EXPLAIN calls in course of running of one select
-## 
+--echo #
+--echo # Multiple SHOW EXPLAIN calls for one select 
+--echo # 
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_1';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+evalp show explain for $thr2;
+evalp show explain for $thr2;
+connection con1;
+reap;
+drop table t2;
+
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
 

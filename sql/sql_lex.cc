@@ -3792,6 +3792,15 @@ int st_select_lex_unit::print_explain(select_result_sink *output)
 {
   int res= 0;
   SELECT_LEX *first= first_select();
+  
+  if (first && !first->next_select() && !first->join)
+  {
+    /*
+      If there is only one child, 'first', and it has join==NULL, emit "not in
+      EXPLAIN state" error.
+    */
+    return 1;
+  }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
