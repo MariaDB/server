@@ -10,15 +10,21 @@ DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 
 use dbt3_s001;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
  
 --disable_query_log
 --disable_result_log
 --disable_warnings
 --source include/dbt3_s001.inc
 create index i_p_retailprice on part(p_retailprice);
+delete from mysql.table_stat;
+delete from mysql.column_stat;
+delete from mysql.index_stat;
 ANALYZE TABLE
 customer, lineitem, nation, orders, part, partsupp, region, supplier;
-FLUSH TABLES customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE mysql.table_stat, mysql.index_stat;
 --enable_warnings
 --enable_result_log
 --enable_query_log
@@ -26,6 +32,7 @@ FLUSH TABLES customer, lineitem, nation, orders, part, partsupp, region, supplie
 select * from mysql.table_stat;
 select * from mysql.index_stat;
 
+set optimizer_switch=@save_optimizer_switch; 
 
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=off';
@@ -46,6 +53,28 @@ eval $Q5;
 
 set optimizer_switch=@save_optimizer_switch;
 
+delete from mysql.index_stat;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE mysql.table_stat, mysql.index_stat;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+select * from mysql.table_stat;
+select * from mysql.index_stat;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+eval EXPLAIN $Q5;
+eval $Q5;
+
+set optimizer_switch=@save_optimizer_switch;
 
 let $Q8=
 select o_year,

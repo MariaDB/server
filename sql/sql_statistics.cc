@@ -768,7 +768,7 @@ public:
   */    
   void store_stat_fields()
   {
-    Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY]; 
+    Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY];
     double avg_frequency=
              table_key_info->write_stat.avg_frequency[prefix_arity-1];
     if (avg_frequency == 0)
@@ -984,7 +984,7 @@ public:
   {
     uint i;
     Prefix_calc_state *state;
-    uint key_parts= key_info->key_parts;
+    uint key_parts= table->actual_n_key_parts(key_info);
     empty= TRUE;
     prefixes= 0;
     if ((calc_state=
@@ -1309,7 +1309,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   bitmap_set_all(table->read_set);
 
   /* Perform a full table scan to collect statistics on 'table's columns */
-  if (!(rc= file->ha_rnd_init(FALSE)))
+  if (!(rc= file->ha_rnd_init(TRUE)))
   {  
     while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
     {
@@ -1481,7 +1481,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   for (key_info= table->key_info, key_info_end= table->key_info+keys;
        key_info < key_info_end; key_info++)
   {
-    uint key_parts= key_info->key_parts;
+    uint key_parts= table->actual_n_key_parts(key_info);
     for (i= 0; i < key_parts; i++)
     {
       restore_record(stat_table, s->default_values);
@@ -1573,33 +1573,56 @@ int read_statistics_for_table(THD *thd, TABLE *table)
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
-
-    for (i= 0; i < key_info->key_parts; i++)
+    uint key_parts= table->actual_n_key_parts(key_info);
+    for (i= 0; i < key_parts; i++)
     {
       index_stat.set_key_fields(key_info, i+1);
       index_stat.get_stat_values();
     }
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
-    if (key_info->key_parts != key_info->ext_key_parts)
+    if (key_info->key_parts != key_info->ext_key_parts &&
+        key_info->read_stat.avg_frequency[key_info->key_parts] == 0)
     {
+      double *ptr;
+      double *ptr_end;
       KEY *pk_key_info= table->key_info + table->s->primary_key;
       uint k= key_info->key_parts;
-      double k_avg_frequency= key_info->read_stat.avg_frequency[k-1];
       uint pk_parts= pk_key_info->key_parts;
       ha_rows n_rows= table->read_stat.cardinality;
+      double k_dist= n_rows / key_info->read_stat.avg_frequency[k-1]; 
+      double *k_avg_freq_ptr= key_info->read_stat.avg_frequency + k;
+      uint m= 0;
       for (uint j= 0; j < pk_parts; j++)
       {
-        double avg_frequency;
         if (!(ext_key_part_map & 1 << j))
-          continue;
-        avg_frequency= pk_key_info->read_stat.avg_frequency[j];
+	{
+          for (ptr= k_avg_freq_ptr, ptr_end= ptr + m; ptr < ptr_end; ptr++)
+	  {
+            double avg_frequency= pk_key_info->read_stat.avg_frequency[j-1];
+            set_if_smaller(avg_frequency, 1);
+	    (*ptr)*= pk_key_info->read_stat.avg_frequency[j]/avg_frequency;
+          }
+        }
+        else
+	{
+           key_info->read_stat.avg_frequency[k + m]=
+             pk_key_info->read_stat.avg_frequency[j]; 
+	   m++;
+        }    
+      }      
+      for (ptr= k_avg_freq_ptr, ptr_end= ptr + m; ptr < ptr_end; ptr++)
+      {
+        double avg_frequency= *ptr;
         if (avg_frequency == 0 ||
             table->read_stat.cardinality_is_null)
           avg_frequency= 1;
         else if (avg_frequency > 1)
-          avg_frequency= max(k_avg_frequency * avg_frequency / n_rows, 1);
-        key_info->read_stat.avg_frequency[k++]= avg_frequency;
+	{
+          avg_frequency/= k_dist;
+          set_if_bigger(avg_frequency, 1);
+	}
+        *ptr= avg_frequency;
       }
     }
   }
