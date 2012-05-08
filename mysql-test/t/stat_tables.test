@@ -1,3 +1,4 @@
+--source include/have_stat_tables.inc
 
 set @save_optimizer_use_stat_tables=@@optimizer_use_stat_tables;
 

@@ -720,9 +720,6 @@ The following options may be given as the first argument:
  --skip-show-database 
  Don't allow 'SHOW DATABASE' commands
  --skip-slave-start  If set, slave is not autostarted.
- --skip-stat-tables  Start without statistical tables. Statistical data on
- table cardinalities, columns and indexes from these
- tables become unavailable
  --skip-thread-priority 
  Don't give threads different priorities. This option is
  deprecated because it has no effect; the implied behavior
@@ -781,6 +778,9 @@ The following options may be given as the first argument:
  for the complete list of valid sql modes
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
+ --stat-tables       Start with statistical tables. Statistical data on table
+ cardinalities, columns and indexes from these tables
+ become available
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -1057,7 +1057,6 @@ skip-name-resolve FALSE
 skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
-skip-stat-tables TRUE
 slave-compressed-protocol FALSE
 slave-exec-mode STRICT
 slave-net-timeout 3600
@@ -1070,6 +1069,7 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode 
 stack-trace TRUE
+stat-tables FALSE
 stored-program-cache 256
 symbolic-links FALSE
 sync-binlog 0

@@ -446,7 +446,7 @@ ulong opt_replicate_events_marked_for_skip;
 */
 volatile bool mqh_used = 0;
 my_bool opt_noacl;
-my_bool opt_no_stat_tables;
+my_bool opt_with_stat_tables;
 my_bool sp_automatic_privileges= 1;
 
 ulong opt_binlog_rows_event_max_size;
@@ -6384,10 +6384,10 @@ struct my_option my_long_options[]=
    &opt_noacl, &opt_noacl, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
 #endif
-  {"skip-stat-tables", OPT_SKIP_STAT_TABLES,
-   "Start without statistical tables. Statistical data on table cardinalities, " 
-   "columns and indexes from these tables become unavailable",
-   &opt_no_stat_tables, &opt_no_stat_tables, 0, GET_BOOL, NO_ARG,
+  {"stat-tables", OPT_WITH_STAT_TABLES,
+   "Start with statistical tables. Statistical data on table cardinalities, " 
+   "columns and indexes from these tables become available",
+   &opt_with_stat_tables, &opt_with_stat_tables, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
   {"skip-host-cache", OPT_SKIP_HOST_CACHE, "Don't cache host names.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -7656,7 +7656,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_BOOTSTRAP:
     opt_noacl=opt_bootstrap=1;
-    opt_no_stat_tables= 1;
+    opt_with_stat_tables= 0;
     break;
   case OPT_SERVER_ID:
     server_id_supplied = 1;
