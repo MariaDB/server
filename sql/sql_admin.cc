@@ -637,7 +637,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
-    if (operator_func == &handler::ha_analyze && !opt_no_stat_tables &&
+    if (operator_func == &handler::ha_analyze && opt_with_stat_tables &&
 	thd->variables.optimizer_use_stat_tables > 0)
     {
       if (!(compl_result_code=
