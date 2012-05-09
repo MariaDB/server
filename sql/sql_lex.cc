@@ -3752,9 +3752,9 @@ int st_select_lex::print_explain(select_result_sink *output)
   if (join && join->optimized == 2)
   {
     res= join->print_explain(output, TRUE,
-                             FALSE, // need_tmp_table, 
-                             FALSE, // bool need_order,
-                             FALSE, // bool distinct,
+                             join->need_tmp, // need_tmp_table
+                             (join->order != 0 && !join->skip_sort_order), // bool need_order
+                             join->select_distinct, // bool distinct
                              NULL); //const char *message
     if (res)
       goto err;
