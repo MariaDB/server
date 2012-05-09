@@ -255,6 +255,52 @@ connection con1;
 reap;
 drop table t2;
 
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
+--echo #
+explain select * from t0 order by a;
+
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+send select * from t0 order by a; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+--echo #
+--echo # SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
+--echo #
+connection default;
+explain select distinct a from t0;
+connection con1;
+
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0; 
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
 

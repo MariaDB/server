@@ -209,4 +209,79 @@ a	SUBQ
 1	0
 2	0
 drop table t2;
+#
+# SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
+#
+explain select * from t0 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+select * from t0 order by a;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+Warnings:
+Note	1003	select * from t0 order by a
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+#
+# SHOW EXPLAIN for SELECT ... with "Using temporary"
+#
+explain select distinct a from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+select distinct a from t0;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+Warnings:
+Note	1003	select distinct a from t0
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+#
+# SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
+#
+explain select distinct a from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+set debug='d,show_explain_probe_1';
+set @show_explain_probe_select_id=1;
+select distinct a from t0;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+Warnings:
+Note	1003	select distinct a from t0
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
 drop table t0,t1;
