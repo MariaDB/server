@@ -1405,7 +1405,8 @@ public:
     return (unit->item && unit->item->is_in_predicate());
   }
 
-  int print_explain(select_result_sink *result, bool on_the_fly,
+  int print_explain(select_result_sink *result, uint8 explain_flags,
+                     bool on_the_fly,
                      bool need_tmp_table, bool need_order,
                      bool distinct,const char *message);
 private:

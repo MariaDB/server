@@ -319,11 +319,34 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 set debug='';
+DROP TABLE t2;
+
+
+--echo #
+--echo # MDEV-239: Assertion `field_types == 0 ... ' failed in Protocol_text::store(double, uint32, String*) with 
+--echo #          SHOW EXPLAIN over EXPLAIN EXTENDED
+--echo #
+
+
+CREATE TABLE t2 (a INT); 
+INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
+
+EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+send EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+DROP TABLE t2;
 
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
-
-DROP TABLE t2;
 
 drop table t0,t1;

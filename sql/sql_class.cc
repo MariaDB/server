@@ -3039,7 +3039,7 @@ void Show_explain_request::get_explain_data(void *arg)
                       target_thd->query_length(),
                       &my_charset_bin);
 
-  if (target_thd->lex->unit.print_explain(req->explain_buf))
+  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags */))
     req->failed_to_produce= TRUE;
 
   target_thd->restore_active_arena((Query_arena*)req->request_thd, 

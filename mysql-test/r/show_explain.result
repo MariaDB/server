@@ -309,4 +309,32 @@ a
 4
 set debug='';
 DROP TABLE t2;
+#
+# MDEV-239: Assertion `field_types == 0 ... ' failed in Protocol_text::store(double, uint32, String*) with 
+#          SHOW EXPLAIN over EXPLAIN EXTENDED
+#
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
+EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
+set debug='';
+DROP TABLE t2;
 drop table t0,t1;
