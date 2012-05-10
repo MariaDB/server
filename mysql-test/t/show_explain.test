@@ -300,8 +300,30 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug='';
+
+--echo #
+--echo # MDEV-238: SHOW EXPLAIN: Server crashes in JOIN::print_explain with FROM subquery and GROUP BY
+--echo #
+CREATE TABLE t2 ( a INT ); 
+INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
+explain SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
+
+set debug='d,show_explain_in_find_all_keys';
+send SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
+
+connection default;
+--source include/wait_condition.inc
+--echo # NOTE: current code will not show "Using join buffer":
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
+
+DROP TABLE t2;
 
 drop table t0,t1;
