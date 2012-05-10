@@ -3746,12 +3746,13 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 }
 
 
-int st_select_lex::print_explain(select_result_sink *output)
+int st_select_lex::print_explain(select_result_sink *output, 
+                                 uint8 explain_flags)
 {
   int res;
   if (join && join->optimized == 2)
   {
-    res= join->print_explain(output, TRUE,
+    res= join->print_explain(output, explain_flags, TRUE,
                              join->need_tmp, // need_tmp_table
                              (join->order != 0 && !join->skip_sort_order), // bool need_order
                              join->select_distinct, // bool distinct
@@ -3769,7 +3770,7 @@ int st_select_lex::print_explain(select_result_sink *output)
       */
       if (!(unit->item && unit->item->eliminated))
       {
-        unit->print_explain(output);
+        unit->print_explain(output, explain_flags);
       }
     }
   }
@@ -3777,7 +3778,7 @@ int st_select_lex::print_explain(select_result_sink *output)
   {
     /* Produce "not yet optimized" line */
     const char *msg="Not yet optimized";
-    res= join->print_explain(output, TRUE,
+    res= join->print_explain(output, explain_flags, TRUE,
                              FALSE, // need_tmp_table, 
                              FALSE, // bool need_order,
                              FALSE, // bool distinct,
@@ -3788,7 +3789,8 @@ err:
 }
 
 
-int st_select_lex_unit::print_explain(select_result_sink *output)
+int st_select_lex_unit::print_explain(select_result_sink *output, 
+                                      uint8 explain_flags)
 {
   int res= 0;
   SELECT_LEX *first= first_select();
@@ -3804,7 +3806,7 @@ int st_select_lex_unit::print_explain(select_result_sink *output)
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    if ((res= sl->print_explain(output)))
+    if ((res= sl->print_explain(output, explain_flags)))
       break;
   }
 
@@ -3814,7 +3816,7 @@ int st_select_lex_unit::print_explain(select_result_sink *output)
   if (fake_select_lex && !fake_select_lex->join)
   {
     res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, 0 /* flags */);
+                                    fake_select_lex, explain_flags);
   }
   return res;
 }

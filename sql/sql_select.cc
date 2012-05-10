@@ -2123,6 +2123,14 @@ void JOIN::exec()
   */
   thd->apc_target.enable();
   exec_inner();
+
+  DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
+                  if (dbug_user_var_equals_int(thd, 
+                                               "show_explain_probe_select_id", 
+                                               select_lex->select_number))
+                        dbug_serve_apcs(thd, 1);
+                 );
+
   thd->apc_target.disable();
 }
 
@@ -21075,7 +21083,7 @@ void JOIN::clear()
 
 
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
-                               SELECT_LEX *select_lex, uint8 select_options)
+                               SELECT_LEX *select_lex, uint8 explain_flags)
 {
   const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
@@ -21121,7 +21129,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
     item_list.push_back(new Item_string(table_name_buffer, len, cs));
   }
   /* partitions */
-  if (/*join->thd->lex->describe*/ select_options & DESCRIBE_PARTITIONS)
+  if (explain_flags & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null);
   /* type */
   item_list.push_back(new Item_string(join_type_str[JT_ALL],
@@ -21136,7 +21144,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   /* ref */
   item_list.push_back(item_null);
   /* in_rows */
-  if (select_options & DESCRIBE_EXTENDED)
+  if (explain_flags & DESCRIBE_EXTENDED)
     item_list.push_back(item_null);
   /* rows */
   item_list.push_back(item_null);
@@ -21162,7 +21170,8 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                     modifications to any select's data structures
 */
 
-int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
+int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
+                         bool on_the_fly,
                          bool need_tmp_table, bool need_order,
                          bool distinct, const char *message)
 {
@@ -21199,9 +21208,9 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 					strlen(join->select_lex->type), cs));
     for (uint i=0 ; i < 7; i++)
       item_list.push_back(item_null);
-    if (join->thd->lex->describe & DESCRIBE_PARTITIONS)
+    if (explain_flags & DESCRIBE_PARTITIONS)
       item_list.push_back(item_null);
-    if (join->thd->lex->describe & DESCRIBE_EXTENDED)
+    if (explain_flags & DESCRIBE_EXTENDED)
       item_list.push_back(item_null);
   
     item_list.push_back(new Item_string(message,strlen(message),cs));
@@ -21212,7 +21221,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   {
     if (print_fake_select_lex_join(result, on_the_fly, 
                                    join->select_lex, 
-                                   join->thd->lex->describe))
+                                   explain_flags))
       error= 1;
   }
   else if (!join->select_lex->master_unit()->derived ||
@@ -21317,7 +21326,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 					    cs));
       }
       /* "partitions" column */
-      if (join->thd->lex->describe & DESCRIBE_PARTITIONS)
+      if (explain_flags & DESCRIBE_PARTITIONS)
       {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         partition_info *part_info;
@@ -21460,7 +21469,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           table_list->schema_table)
       {
         /* in_rows */
-        if (join->thd->lex->describe & DESCRIBE_EXTENDED)
+        if (explain_flags & DESCRIBE_EXTENDED)
           item_list.push_back(item_null);
         /* rows */
         item_list.push_back(item_null);
@@ -21497,7 +21506,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
                                          MY_INT64_NUM_DECIMAL_DIGITS));
 
         /* Add "filtered" field to item_list. */
-        if (join->thd->lex->describe & DESCRIBE_EXTENDED)
+        if (explain_flags & DESCRIBE_EXTENDED)
         {
           float f= 0.0; 
           if (examined_rows)
@@ -21577,7 +21586,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
             {
               extra.append(STRING_WITH_LEN("; Using where with pushed "
                                            "condition"));
-              if (thd->lex->describe & DESCRIBE_EXTENDED)
+              if (explain_flags & DESCRIBE_EXTENDED)
               {
                 extra.append(STRING_WITH_LEN(": "));
                 ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
@@ -21732,7 +21741,8 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-  join->error= join->print_explain(result, FALSE, /* Not on-the-fly */
+  join->error= join->print_explain(result, thd->lex->describe, 
+                                   FALSE, /* Not on-the-fly */
                                    need_tmp_table, need_order, distinct, 
                                    message);
 
