@@ -7132,28 +7132,36 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
   return found;
 }
 
+enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
 
 /*
   Enumerate join tabs in breadth-first fashion, including const tables.
 */
 
-JOIN_TAB *first_breadth_first_tab(JOIN *join)
+JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind)
 {
-  return join->join_tab; /* There's always one (i.e. first) table */
+  /* There's always one (i.e. first) table */
+  return (tabs_kind == WALK_EXECUTION_TABS)? join->join_tab:
+                                             join->table_access_tabs;
 }
 
 
-JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
+JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
+                                 JOIN_TAB *tab)
 {
+  JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, tabs_kind);
+  const uint n_top_tabs_count= (tabs_kind == WALK_EXECUTION_TABS)? 
+                                  join->top_join_tab_count:
+                                  join->top_table_access_tabs_count;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
     tab++;
-    if (tab < join->join_tab + join->top_join_tab_count)
+    if (tab < first_top_tab + n_top_tabs_count)
       return tab;
 
     /* No more top-level tabs. Switch to enumerating SJM nest children */
-    tab= join->join_tab;
+    tab= first_top_tab;
   }
   else
   {
@@ -7177,7 +7185,7 @@ JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
     Ok, "tab" points to a top-level table, and we need to find the next SJM
     nest and enter it.
   */
-  for (; tab < join->join_tab + join->top_join_tab_count; tab++)
+  for (; tab < first_top_tab + n_top_tabs_count; tab++)
   {
     if (tab->bush_children)
       return tab->bush_children->start;
@@ -7201,7 +7209,7 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables with_const
 
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab)
 {
-  tab= next_breadth_first_tab(join, tab);
+  tab= next_breadth_first_tab(join, WALK_EXECUTION_TABS, tab);
   if (tab && tab->bush_root_tab)
     tab= NULL;
   return tab;
@@ -7501,6 +7509,13 @@ get_best_combination(JOIN *join)
 
   join->top_join_tab_count= join->join_tab_ranges.head()->end - 
                             join->join_tab_ranges.head()->start;
+  /*
+    Save pointers to select join tabs for SHOW EXPLAIN
+  */
+  join->table_access_tabs= join->join_tab;
+  join->top_table_access_tabs_count= join->top_join_tab_count;
+
+
   update_depend_map(join);
   DBUG_RETURN(0);
 }
@@ -7922,6 +7937,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
       !(parent->join_tab_reexec= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
     DBUG_RETURN(TRUE);                        /* purecov: inspected */
 
+  // psergey-todo: here, save the pointer for original join_tabs.
   join_tab= parent->join_tab_reexec;
   table= &parent->table_reexec[0]; parent->table_reexec[0]= temp_table;
   table_count= top_join_tab_count= 1;
@@ -10077,7 +10093,12 @@ void JOIN_TAB::cleanup()
   if (cache)
   {
     cache->free();
-    cache= 0;
+    cache= 0; // psergey: this is why we don't see "Using join cache" in SHOW EXPLAIN
+              //  when it is run for "Using temporary+filesort" queries while they 
+              //  are at reading-from-tmp-table phase.
+              //
+              //  TODO ask igor if this can be just moved to later phase
+              //  (JOIN_CACHE objects themselves are not big, arent they)
   }
   limit= 0;
   if (table)
@@ -21204,9 +21225,10 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
+    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
 
-    for (JOIN_TAB *tab= first_breadth_first_tab(join); tab;
-         tab= next_breadth_first_tab(join, tab))
+    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
+         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
       if (tab->bush_root_tab)
       {
@@ -21643,7 +21665,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           extra.append(STRING_WITH_LEN("; End temporary"));
         else if (tab->do_firstmatch)
         {
-          if (tab->do_firstmatch == join->join_tab - 1)
+          if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
             extra.append(STRING_WITH_LEN("; FirstMatch"));
           else
           {

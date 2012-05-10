@@ -515,6 +515,12 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   if (indexfile || flag)
     ref_pos= &file->ref[0];
   next_pos=ref_pos;
+
+  DBUG_EXECUTE_IF("show_explain_in_find_all_keys", 
+                  dbug_serve_apcs(thd, 1);
+                 );
+
+
   if (! indexfile && ! quick_select)
   {
     next_pos=(uchar*) 0;			/* Find records in sequence */
