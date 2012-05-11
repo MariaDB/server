@@ -2910,7 +2910,7 @@ int subselect_single_select_engine::exec()
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
 
-  if (!join->optimized)
+  if (join->optimized != JOIN::OPTIMIZATION_DONE)
   {
     SELECT_LEX_UNIT *unit= select_lex->master_unit();
 
@@ -4647,7 +4647,9 @@ int subselect_hash_sj_engine::exec()
   */
   thd->lex->current_select= materialize_engine->select_lex;
   /* The subquery should be optimized, and materialized only once. */
-  DBUG_ASSERT(materialize_join->optimized && !is_materialized);
+  DBUG_ASSERT(materialize_join->optimized == JOIN::OPTIMIZATION_DONE && 
+              !is_materialized);
+
   materialize_join->exec();
   if ((res= test(materialize_join->error || thd->is_fatal_error ||
                  thd->is_error())))

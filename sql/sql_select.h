@@ -1178,7 +1178,11 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
-  int  optimized; ///< flag to avoid double optimization in EXPLAIN
+
+  enum join_optimization_state { NOT_OPTIMIZED=0,
+                                 OPTIMIZATION_IN_PROGRESS=1,
+                                 OPTIMIZATION_DONE=2};
+  join_optimization_state optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
 
   /*
@@ -1261,7 +1265,7 @@ public:
     ref_pointer_array= items0= items1= items2= items3= 0;
     ref_pointer_array_size= 0;
     zero_result_cause= 0;
-    optimized= 0;
+    optimized= JOIN::NOT_OPTIMIZED;
     initialized= 0;
     cond_equal= 0;
     having_equal= 0;

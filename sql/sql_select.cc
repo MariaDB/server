@@ -608,7 +608,7 @@ JOIN::prepare(Item ***rref_pointer_array,
   DBUG_ENTER("JOIN::prepare");
 
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimized != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
 
   conds= conds_init;
@@ -936,7 +936,7 @@ err:
 int JOIN::optimize()
 {
   int res= optimize_inner();
-  optimized= 2;
+  optimized= JOIN::OPTIMIZATION_DONE;
   return res;
 }
 /**
@@ -960,9 +960,9 @@ JOIN::optimize_inner()
   DBUG_ENTER("JOIN::optimize");
   do_send_rows = (unit->select_limit_cnt) ? 1 : 0;
   // to prevent double initialization on EXPLAIN
-  if (optimized)
+  if (optimized != JOIN::NOT_OPTIMIZED)
     DBUG_RETURN(0);
-  optimized= 1;
+  optimized= JOIN::OPTIMIZATION_IN_PROGRESS;
   thd_proc_info(thd, "optimizing");
 
   set_allowed_join_cache_types();
@@ -1731,7 +1731,7 @@ int JOIN::init_execution()
 {
   DBUG_ENTER("JOIN::init_execution");
 
-  DBUG_ASSERT(optimized);
+  DBUG_ASSERT(optimized == JOIN::OPTIMIZATION_DONE);
   DBUG_ASSERT(!(select_options & SELECT_DESCRIBE));
   initialized= true;
 
@@ -21187,7 +21187,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(this->optimized == 2);
+  
   /* Don't log this into the slow query log */
 
   if (!on_the_fly)
@@ -21204,6 +21204,10 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
   {
     item_list.push_back(new Item_int((int32)
 				     join->select_lex->select_number));
+
+    if (on_the_fly)
+      join->select_lex->set_explain_type(on_the_fly);
+
     item_list.push_back(new Item_string(join->select_lex->type,
 					strlen(join->select_lex->type), cs));
     for (uint i=0 ; i < 7; i++)
@@ -21227,6 +21231,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
+    DBUG_ASSERT(optimized == JOIN::OPTIMIZATION_DONE);
     table_map used_tables=0;
     //if (!join->select_lex->type)
     if (on_the_fly)
