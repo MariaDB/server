@@ -3750,7 +3750,7 @@ int st_select_lex::print_explain(select_result_sink *output,
                                  uint8 explain_flags)
 {
   int res;
-  if (join && join->optimized == 2)
+  if (join && join->optimized == JOIN::OPTIMIZATION_DONE)
   {
     res= join->print_explain(output, explain_flags, TRUE,
                              join->need_tmp, // need_tmp_table

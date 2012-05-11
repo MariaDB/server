@@ -5,6 +5,7 @@
 
 --disable_warnings
 drop table if exists t0, t1, t2;
+drop view if exists v1;
 --enable_warnings
 
 # 
@@ -345,6 +346,30 @@ reap;
 set debug='';
 DROP TABLE t2;
 
+
+--echo #
+--echo # MDEV-240: SHOW EXPLAIN: Assertion `this->optimized == 2' failed in 
+--echo # JOIN::print_explain on query with a JOIN, TEMPTABLE view,
+--echo #          
+CREATE TABLE t3 (a INT); 
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t3;
+INSERT INTO t3 VALUES (8);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (4),(5),(6),(7),(8),(9);
+explain SELECT * FROM v1, t2;
+
+set @show_explain_probe_select_id=2;
+set debug='d,show_explain_probe_join_exec_end';
+send SELECT * FROM v1, t2;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+DROP VIEW v1;
+DROP TABLE t2, t3;
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
