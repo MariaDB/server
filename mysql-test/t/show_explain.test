@@ -371,6 +371,49 @@ set debug='';
 DROP VIEW v1;
 DROP TABLE t2, t3;
 
+--echo #
+--echo # MDEV-267: SHOW EXPLAIN: Server crashes in JOIN::print_explain on most of queries
+--echo #
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+send select sleep(1);
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+
+
+--echo #
+--echo # Same as above, but try another reason for JOIN to be degenerate
+--echo #
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+send select * from t0 where 1>10;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+
+--echo #
+--echo # Same as above, but try another reason for JOIN to be degenerate (2)
+--echo #
+create table t3(a int primary key);
+insert into t3 select a from t0;
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+send select * from t0,t3 where t3.a=112233;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+drop table t3;
+
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
 
