@@ -3752,11 +3752,22 @@ int st_select_lex::print_explain(select_result_sink *output,
   int res;
   if (join && join->optimized == JOIN::OPTIMIZATION_DONE)
   {
-    res= join->print_explain(output, explain_flags, TRUE,
-                             join->need_tmp, // need_tmp_table
-                             (join->order != 0 && !join->skip_sort_order), // bool need_order
-                             join->select_distinct, // bool distinct
-                             NULL); //const char *message
+    if (!join->table_count)
+    {
+      /* It's a degenerate join */
+      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
+                                                   "No tables used";
+      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
+                               FALSE, cause);
+    }
+    else
+    {
+      res= join->print_explain(output, explain_flags, TRUE,
+                               join->need_tmp, // need_tmp_table
+                               (join->order != 0 && !join->skip_sort_order), // bool need_order
+                               join->select_distinct, // bool distinct
+                               NULL); //const char *message
+    }
     if (res)
       goto err;
 
