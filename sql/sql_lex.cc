@@ -3752,7 +3752,7 @@ int st_select_lex::print_explain(select_result_sink *output,
   int res;
   if (join && join->optimized == JOIN::OPTIMIZATION_DONE)
   {
-    if (!join->table_count)
+    if (!join->table_count || !join->tables_list)
     {
       /* It's a degenerate join */
       const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
