@@ -1528,7 +1528,11 @@ public:
   THD *target_thd;
   THD *request_thd;
   
+  bool failed_to_produce;
+  
   select_result_explain_buffer *explain_buf;
+
+  String query_str;
 
   static void get_explain_data(void *arg);
 };

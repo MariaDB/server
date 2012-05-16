@@ -7281,28 +7281,36 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
   return found;
 }
 
+enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
 
 /*
   Enumerate join tabs in breadth-first fashion, including const tables.
 */
 
-JOIN_TAB *first_breadth_first_tab(JOIN *join)
+JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind)
 {
-  return join->join_tab; /* There's always one (i.e. first) table */
+  /* There's always one (i.e. first) table */
+  return (tabs_kind == WALK_EXECUTION_TABS)? join->join_tab:
+                                             join->table_access_tabs;
 }
 
 
-JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
+JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
+                                 JOIN_TAB *tab)
 {
+  JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, tabs_kind);
+  const uint n_top_tabs_count= (tabs_kind == WALK_EXECUTION_TABS)? 
+                                  join->top_join_tab_count:
+                                  join->top_table_access_tabs_count;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
     tab++;
-    if (tab < join->join_tab + join->top_join_tab_count)
+    if (tab < first_top_tab + n_top_tabs_count)
       return tab;
 
     /* No more top-level tabs. Switch to enumerating SJM nest children */
-    tab= join->join_tab;
+    tab= first_top_tab;
   }
   else
   {
@@ -7326,7 +7334,7 @@ JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
     Ok, "tab" points to a top-level table, and we need to find the next SJM
     nest and enter it.
   */
-  for (; tab < join->join_tab + join->top_join_tab_count; tab++)
+  for (; tab < first_top_tab + n_top_tabs_count; tab++)
   {
     if (tab->bush_children)
       return tab->bush_children->start;
@@ -7350,7 +7358,7 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables with_const
 
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab)
 {
-  tab= next_breadth_first_tab(join, tab);
+  tab= next_breadth_first_tab(join, WALK_EXECUTION_TABS, tab);
   if (tab && tab->bush_root_tab)
     tab= NULL;
   return tab;
@@ -7650,6 +7658,13 @@ get_best_combination(JOIN *join)
 
   join->top_join_tab_count= join->join_tab_ranges.head()->end - 
                             join->join_tab_ranges.head()->start;
+  /*
+    Save pointers to select join tabs for SHOW EXPLAIN
+  */
+  join->table_access_tabs= join->join_tab;
+  join->top_table_access_tabs_count= join->top_join_tab_count;
+
+
   update_depend_map(join);
   DBUG_RETURN(0);
 }
@@ -8079,6 +8094,7 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
       !(parent->join_tab_reexec= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB))))
     DBUG_RETURN(TRUE);                        /* purecov: inspected */
 
+  // psergey-todo: here, save the pointer for original join_tabs.
   join_tab= parent->join_tab_reexec;
   table= &parent->table_reexec[0]; parent->table_reexec[0]= temp_table;
   table_count= top_join_tab_count= 1;
@@ -10239,7 +10255,12 @@ void JOIN_TAB::cleanup()
   if (cache)
   {
     cache->free();
-    cache= 0;
+    cache= 0; // psergey: this is why we don't see "Using join cache" in SHOW EXPLAIN
+              //  when it is run for "Using temporary+filesort" queries while they 
+              //  are at reading-from-tmp-table phase.
+              //
+              //  TODO ask igor if this can be just moved to later phase
+              //  (JOIN_CACHE objects themselves are not big, arent they)
   }
   limit= 0;
   if (table)
@@ -10546,7 +10567,10 @@ void JOIN::cleanup(bool full)
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
-  have_query_plan= QEP_DELETED;
+  /*
+    psergey: let's try without this first:
+    have_query_plan= QEP_DELETED;
+  */
   if (table)
   {
     JOIN_TAB *tab;
@@ -21200,7 +21224,7 @@ int print_explain_message_line(select_result_sink *result,
 
 
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
-                               SELECT_LEX *select_lex, uint8 select_options)
+                               SELECT_LEX *select_lex, uint8 explain_flags)
 {
   const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
@@ -21246,7 +21270,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
     item_list.push_back(new Item_string(table_name_buffer, len, cs));
   }
   /* partitions */
-  if (/*join->thd->lex->describe*/ select_options & DESCRIBE_PARTITIONS)
+  if (explain_flags & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null);
   /* type */
   item_list.push_back(new Item_string(join_type_str[JT_ALL],
@@ -21261,7 +21285,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   /* ref */
   item_list.push_back(item_null);
   /* in_rows */
-  if (select_options & DESCRIBE_EXTENDED)
+  if (explain_flags & DESCRIBE_EXTENDED)
     item_list.push_back(item_null);
   /* rows */
   item_list.push_back(item_null);
@@ -21287,7 +21311,8 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                     modifications to any select's data structures
 */
 
-int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
+int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
+                         bool on_the_fly,
                          bool need_tmp_table, bool need_order,
                          bool distinct, const char *message)
 {
@@ -21303,7 +21328,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(this->have_query_plan == QEP_AVAILABLE);
+  DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* Don't log this into the slow query log */
 
   if (!on_the_fly)
@@ -21318,35 +21343,16 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
   */
   if (message)
   {
-    // join->thd->lex->describe <- as options
-#if 0
-    item_list.push_bace(new Item_int((int32)
-				     join->select_lex->select_number));
-    item_list.push_back(new Item_string(join->select_lex->type,
-					strlen(join->select_lex->type), cs));
-    for (uint i=0 ; i < 7; i++)
-      item_list.push_back(item_null);
-    if (join->thd->lex->describe & DESCRIBE_PARTITIONS)
-      item_list.push_back(item_null);
-    if (join->thd->lex->describe & DESCRIBE_EXTENDED)
-      item_list.push_back(item_null);
-  
-    item_list.push_back(new Item_string(message,strlen(message),cs));
-    if (result->send_data(item_list))
-      error= 1;
-#endif 
-    //psergey-todo: is passing  join->thd->lex->describe correct for SHOW EXPLAIN?
     if (print_explain_message_line(result, join->select_lex, on_the_fly, 
-                                   join->thd->lex->describe, message))
+                                   explain_flags, message))
       error= 1;
 
   }
   else if (join->select_lex == join->unit->fake_select_lex)
   {
-    //psergey-todo: is passing  join->thd->lex->describe correct for SHOW EXPLAIN?
     if (print_fake_select_lex_join(result, on_the_fly, 
                                    join->select_lex, 
-                                   join->thd->lex->describe))
+                                   explain_flags))
       error= 1;
   }
   else if (!join->select_lex->master_unit()->derived ||
@@ -21359,9 +21365,10 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
+    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
 
-    for (JOIN_TAB *tab= first_breadth_first_tab(join); tab;
-         tab= next_breadth_first_tab(join, tab))
+    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
+         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
       if (tab->bush_root_tab)
       {
@@ -21450,7 +21457,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
 					    cs));
       }
       /* "partitions" column */
-      if (join->thd->lex->describe & DESCRIBE_PARTITIONS)
+      if (explain_flags & DESCRIBE_PARTITIONS)
       {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         partition_info *part_info;
@@ -21598,7 +21605,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           table_list->schema_table)
       {
         /* in_rows */
-        if (join->thd->lex->describe & DESCRIBE_EXTENDED)
+        if (explain_flags & DESCRIBE_EXTENDED)
           item_list.push_back(item_null);
         /* rows */
         item_list.push_back(item_null);
@@ -21635,7 +21642,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
                                          MY_INT64_NUM_DECIMAL_DIGITS));
 
         /* Add "filtered" field to item_list. */
-        if (join->thd->lex->describe & DESCRIBE_EXTENDED)
+        if (explain_flags & DESCRIBE_EXTENDED)
         {
           float f= 0.0; 
           if (examined_rows)
@@ -21719,7 +21726,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
             {
               extra.append(STRING_WITH_LEN("; Using where with pushed "
                                            "condition"));
-              if (thd->lex->describe & DESCRIBE_EXTENDED)
+              if (explain_flags & DESCRIBE_EXTENDED)
               {
                 extra.append(STRING_WITH_LEN(": "));
                 ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
@@ -21812,7 +21819,7 @@ int JOIN::print_explain(select_result_sink *result, bool on_the_fly,
           extra.append(STRING_WITH_LEN("; End temporary"));
         else if (tab->do_firstmatch)
         {
-          if (tab->do_firstmatch == join->join_tab - 1)
+          if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
             extra.append(STRING_WITH_LEN("; FirstMatch"));
           else
           {
@@ -21879,7 +21886,8 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
   THD *thd=join->thd;
   select_result *result=join->result;
   DBUG_ENTER("select_describe");
-  join->error= join->print_explain(result, FALSE, /* Not on-the-fly */
+  join->error= join->print_explain(result, thd->lex->describe, 
+                                   FALSE, /* Not on-the-fly */
                                    need_tmp_table, need_order, distinct, 
                                    message);
 

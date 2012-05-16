@@ -3831,6 +3831,7 @@ void SELECT_LEX::update_used_tables()
 
 /**
   Set the EXPLAIN type for this subquery.
+    psergey-todo: comments about 
 */
 
 void st_select_lex::set_explain_type(bool on_the_fly)
@@ -4072,16 +4073,32 @@ int print_explain_message_line(select_result_sink *result,
                                const char *message);
 
 
-int st_select_lex::print_explain(select_result_sink *output)
+int st_select_lex::print_explain(select_result_sink *output, 
+                                 uint8 explain_flags)
 {
   int res;
   if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
   {
-    res= join->print_explain(output, TRUE,
-                             FALSE, // need_tmp_table, 
-                             FALSE, // bool need_order,
-                             FALSE, // bool distinct,
-                             NULL); //const char *message
+    /*
+      There is a number of reasons join can be marked as degenerate, so all
+      three conditions below can happen simultaneously, or individually:
+    */
+    if (!join->table_count || !join->tables_list || join->zero_result_cause)
+    {
+      /* It's a degenerate join */
+      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
+                                                   "No tables used";
+      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
+                               FALSE, cause);
+    }
+    else
+    {
+      res= join->print_explain(output, explain_flags, TRUE,
+                               join->need_tmp, // need_tmp_table
+                               (join->order != 0 && !join->skip_sort_order), // bool need_order
+                               join->select_distinct, // bool distinct
+                               NULL); //const char *message
+    }
     if (res)
       goto err;
 
@@ -4095,7 +4112,7 @@ int st_select_lex::print_explain(select_result_sink *output)
       */
       if (!(unit->item && unit->item->eliminated))
       {
-        unit->print_explain(output);
+        unit->print_explain(output, explain_flags);
       }
     }
   }
@@ -4119,14 +4136,24 @@ err:
 }
 
 
-int st_select_lex_unit::print_explain(select_result_sink *output)
+int st_select_lex_unit::print_explain(select_result_sink *output, 
+                                      uint8 explain_flags)
 {
   int res= 0;
   SELECT_LEX *first= first_select();
+  
+  if (first && !first->next_select() && !first->join)
+  {
+    /*
+      If there is only one child, 'first', and it has join==NULL, emit "not in
+      EXPLAIN state" error.
+    */
+    return 1;
+  }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    if ((res= sl->print_explain(output)))
+    if ((res= sl->print_explain(output, explain_flags)))
       break;
   }
 
@@ -4136,7 +4163,7 @@ int st_select_lex_unit::print_explain(select_result_sink *output)
   if (fake_select_lex && !fake_select_lex->join)
   {
     res= print_fake_select_lex_join(output, TRUE /* on the fly */,
-                                    fake_select_lex, 0 /* flags */);
+                                    fake_select_lex, explain_flags);
   }
   return res;
 }
