@@ -3,9 +3,18 @@
 */
 
 /*
-  Design
-  - Mutex-guarded request queue (it belongs to the target), which can be enabled/
-    disabled (when empty).
+  Interface
+  ~~~~~~~~~
+   (
+    - This is an APC request queue
+    - We assume there is a particular owner thread which periodically calls
+      process_apc_requests() to serve the call requests.
+    - Other threads can post call requests, and block until they are exectued.
+  )
+
+  Implementation
+  ~~~~~~~~~~~~~~
+  - The target has a mutex-guarded request queue.
 
   - After the request has been put into queue, the requestor waits for request
     to be satisfied. The worker satisifes the request and signals the
@@ -21,31 +30,11 @@ public:
   Apc_target() : enabled(0), apc_calls(NULL) /*, call_queue_size(0)*/ {} 
   ~Apc_target() { DBUG_ASSERT(!enabled && !apc_calls);}
 
-  /* 
-    Initialize the target. This must be called before anything else. Right
-    after initialization, the target is disabled.
-  */
   void init();
-
-  /* 
-    Destroy the target. The target must be disabled when this call is made.
-  */
   void destroy();
-  
-  /* 
-    Enter into state where this target will be serving APC requests
-  */
   void enable();
-
-  /* 
-    Leave the state where we could serve APC requests (will serve all already 
-    enqueued requests)
-  */
   void disable();
   
-  /*
-    This should be called periodically to serve observation requests.
-  */
   void process_apc_requests();
 
   typedef void (*apc_func_t)(void *arg);
@@ -68,18 +57,32 @@ public:
 #endif
 private:
   class Call_request;
+
+  /* 
+    Non-zero value means we're enabled. It's an int, not bool, because one can
+    call enable() N times (and then needs to call disable() N times before the 
+    target is really disabled)
+  */
   int enabled;
 
+  /* 
+    Circular, double-linked list of all enqueued call requests. 
+    We use this structure, because we 
+     - process requests sequentially 
+     - a thread that has posted a request may time out (or be KILLed) and 
+       cancel the request, which means we'll need to remove its request at 
+       arbitrary point in time.
+  */
   Call_request *apc_calls;
-  pthread_mutex_t LOCK_apc_queue;
 
+  pthread_mutex_t LOCK_apc_queue;
 
   class Call_request
   {
   public:
-    apc_func_t func;
-    void *func_arg;
-    bool done;
+    apc_func_t func; /* Function to call */
+    void *func_arg;  /* Argument to pass it */
+    bool processed;
 
     pthread_mutex_t LOCK_request;
     pthread_cond_t COND_request;
@@ -87,13 +90,15 @@ private:
     Call_request *next;
     Call_request *prev;
     
-    const char *what;
+    const char *what; /* State of the request */
   };
 
   void enqueue_request(Call_request *qe);
   void dequeue_request(Call_request *qe);
+
+  /* return the first call request in queue, or NULL if there are none enqueued */
   Call_request *get_first_in_queue()
-  { 
+  {
     return apc_calls;
   }
 };

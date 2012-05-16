@@ -896,6 +896,20 @@ protected:
 
 public:
   JOIN_TAB *join_tab, **best_ref;
+
+  /*
+    For "Using temporary+Using filesort" queries, JOIN::join_tab can point to
+    either: 
+    1. array of join tabs describing how to run the select, or
+    2. array of single join tab describing read from the temporary table.
+
+    SHOW EXPLAIN code needs to read/show #1. This is why two next members are
+    there for saving it.
+  */
+  JOIN_TAB *table_access_tabs;
+  uint     top_table_access_tabs_count;
+
+
   JOIN_TAB **map2table;    ///< mapping between table indexes and JOIN_TABs
   JOIN_TAB *join_tab_save; ///< saved join_tab for subquery reexecution
 
@@ -1161,7 +1175,11 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
-  bool  optimized; ///< flag to avoid double optimization in EXPLAIN
+
+  enum join_optimization_state { NOT_OPTIMIZED=0,
+                                 OPTIMIZATION_IN_PROGRESS=1,
+                                 OPTIMIZATION_DONE=2};
+  bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
   
   enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
@@ -1393,7 +1411,8 @@ public:
     return (unit->item && unit->item->is_in_predicate());
   }
 
-  int print_explain(select_result_sink *result, bool on_the_fly,
+  int print_explain(select_result_sink *result, uint8 explain_flags,
+                     bool on_the_fly,
                      bool need_tmp_table, bool need_order,
                      bool distinct,const char *message);
 private:

@@ -502,7 +502,7 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   my_off_t record;
   TABLE *sort_form;
   THD *thd= current_thd;
-  volatile killed_state *killed= &thd->killed;
+  //volatile killed_state *killed= &thd->killed;
   handler *file;
   MY_BITMAP *save_read_set, *save_write_set, *save_vcol_set;
   uchar *next_sort_key= sort_keys_buf;
@@ -523,6 +523,11 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
   if (flag)
     ref_pos= &file->ref[0];
   next_pos=ref_pos;
+
+  DBUG_EXECUTE_IF("show_explain_in_find_all_keys", 
+                  dbug_serve_apcs(thd, 1);
+                 );
+
   if (!quick_select)
   {
     next_pos=(uchar*) 0;			/* Find records in sequence */
@@ -586,7 +591,7 @@ static ha_rows find_all_keys(SORTPARAM *param, SQL_SELECT *select,
 	break;
     }
 
-    if (*killed)
+    if (thd->check_killed())
     {
       DBUG_PRINT("info",("Sort killed by user"));
       if (!quick_select)
@@ -1231,18 +1236,20 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
   void *first_cmp_arg;
   element_count dupl_count= 0;
   uchar *src;
-  killed_state not_killable;
+  /* killed_state not_killable; */
   uchar *unique_buff= param->unique_buff;
-  volatile killed_state *killed= &current_thd->killed;
+  /* volatile killed_state *killed= &current_thd->killed; */
+  const bool killable= !param->not_killable;
+  THD* const thd=current_thd;
   DBUG_ENTER("merge_buffers");
 
-  status_var_increment(current_thd->status_var.filesort_merge_passes);
-  current_thd->query_plan_fsort_passes++;
-  if (param->not_killable)
+  status_var_increment(thd->status_var.filesort_merge_passes);
+  thd->query_plan_fsort_passes++;
+  /*if (param->not_killable)
   {
     killed= &not_killable;
     not_killable= NOT_KILLED;
-  }
+  }*/
 
   error=0;
   rec_length= param->rec_length;
@@ -1320,7 +1327,7 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
 
   while (queue.elements > 1)
   {
-    if (*killed)
+    if (killable && thd->check_killed())
     {
       error= 1; goto err;                        /* purecov: inspected */
     }

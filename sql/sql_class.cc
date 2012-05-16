@@ -2015,6 +2015,11 @@ int THD::send_explain_fields(select_result *result)
 }
 
 
+/*
+  Populate the provided field_list with EXPLAIN output columns.
+  this->lex->describe has the EXPLAIN flags
+*/
+
 void THD::make_explain_field_list(List<Item> &field_list)
 {
   Item *item;
@@ -3280,13 +3285,20 @@ void Show_explain_request::get_explain_data(void *arg)
   //TODO: change mem_root to point to request_thd->mem_root.
   //      Actually, change the ARENA, because we're going to allocate items!
   Query_arena backup_arena;
-  req->target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
-                                             &backup_arena);
+  THD *target_thd= req->target_thd;
 
-  req->target_thd->lex->unit.print_explain(req->explain_buf);
-
-  req->target_thd->restore_active_arena((Query_arena*)req->request_thd, 
+  target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
                                         &backup_arena);
+  
+  req->query_str.copy(target_thd->query(), 
+                      target_thd->query_length(),
+                      &my_charset_bin);
+
+  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags */))
+    req->failed_to_produce= TRUE;
+
+  target_thd->restore_active_arena((Query_arena*)req->request_thd, 
+                                   &backup_arena);
 }
 
 

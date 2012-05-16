@@ -2062,16 +2062,33 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
     explain_req.explain_buf= explain_buf;
     explain_req.target_thd= tmp;
     explain_req.request_thd= thd;
+    explain_req.failed_to_produce= FALSE;
 
     bres= tmp->apc_target.make_apc_call(Show_explain_request::get_explain_data,
                                         (void*)&explain_req,
                                         timeout_sec, &timed_out);
-    if (bres)
+
+    if (bres || explain_req.failed_to_produce)
     {
       /* TODO not enabled or time out */
-      my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
-               "SHOW EXPLAIN",
-               "Target is not running EXPLAINable command");
+      if (timed_out)
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
+                 "SHOW EXPLAIN",
+                 "Timeout");
+      }
+      else
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
+                 "SHOW EXPLAIN",
+                 "Target is not running EXPLAINable command");
+      }
+      bres= TRUE;
+    }
+    else
+    {
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                   ER_YES, explain_req.query_str.c_ptr_safe());
     }
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
     if (!bres)

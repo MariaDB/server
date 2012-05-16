@@ -718,7 +718,7 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
-  int print_explain(select_result_sink *output);
+  int print_explain(select_result_sink *output, uint8 explain_flags);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1039,7 +1039,7 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
-  int print_explain(select_result_sink *output);
+  int print_explain(select_result_sink *output, uint8 explain_flags);
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
