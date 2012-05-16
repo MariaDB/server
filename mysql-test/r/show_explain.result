@@ -1,4 +1,4 @@
-drop table if exists t0, t1, t2;
+drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -407,8 +407,7 @@ set debug='d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	const	PRIMARY	PRIMARY	4		0	unique row not found
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	select * from t0,t3 where t3.a=112233
 a	a
@@ -453,4 +452,55 @@ pk	a
 9	7
 set debug='';
 drop table t2;
+#
+# MDEV-273: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with impossible WHERE
+#
+CREATE TABLE t2 (a1 INT, KEY(a1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+(4),(6),(7),(1),(0),(7),(7),(1),(7),(1),
+(5),(2),(0),(1),(8),(1),(1),(9),(1),(5);
+CREATE TABLE t3 (b1 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+(4),(5),(8),(4),(8),(2),(9),(6),(4),(8),
+(3),(5),(9),(6),(8),(3),(2),(6),(3),(1),
+(4),(3),(1),(7),(0),(0),(9),(5),(9),(0),
+(2),(2),(5),(9),(1),(4),(8),(6),(5),(5),
+(1),(7),(2),(8),(9),(3),(2),(6),(6),(5),
+(4),(3),(2),(7),(4),(6),(0),(8),(5),(8),
+(2),(9),(7),(5),(7),(0),(4),(3),(1),(0),
+(6),(2),(8),(3),(7),(3),(5),(5),(1),(2),
+(1),(7),(1),(9),(9),(8),(3);
+CREATE TABLE t4 (c1 INT) ENGINE=MyISAM;
+EXPLAIN
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+SELECT a1 FROM t2
+WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	index	NULL	a1	5	NULL	20	Using where; Using index
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_do_select';
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+SELECT a1 FROM t2
+WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	index	NULL	a1	5	NULL	20	Using where; Using index
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+Warnings:
+Note	1003	SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+SELECT a1 FROM t2
+WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+)
+count(*)
+1740
+set debug='';
+drop table t2, t3, t4;
 drop table t0,t1;
