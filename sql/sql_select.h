@@ -1161,8 +1161,10 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
-  bool optimized; ///< flag to avoid double optimization in EXPLAIN
+  bool  optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
+  
+  enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
@@ -1245,6 +1247,7 @@ public:
     ref_pointer_array_size= 0;
     zero_result_cause= 0;
     optimized= 0;
+    have_query_plan= QEP_NOT_PRESENT_YET;
     initialized= 0;
     cond_equal= 0;
     having_equal= 0;
@@ -1273,9 +1276,11 @@ public:
 	      SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
+  int optimize_inner();
   int reinit();
   int init_execution();
   void exec();
+  void exec_inner();
   int destroy();
   void restore_tmp();
   bool alloc_func_list();
@@ -1387,6 +1392,10 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
+
+  int print_explain(select_result_sink *result, bool on_the_fly,
+                     bool need_tmp_table, bool need_order,
+                     bool distinct,const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
@@ -1725,6 +1734,9 @@ inline bool optimizer_flag(THD *thd, uint flag)
 { 
   return (thd->variables.optimizer_switch & flag);
 }
+
+int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
+                               SELECT_LEX *select_lex, uint8 select_options);
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
                          ha_rows limit, bool *need_sort, bool *reverse);

@@ -35,6 +35,7 @@ class Protocol
 protected:
   THD	 *thd;
   String *packet;
+  /* Used by net_store_data() for charset conversions */
   String *convert;
   uint field_pos;
 #ifndef DBUG_OFF
@@ -49,6 +50,10 @@ protected:
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
 #endif
+  /* 
+    The following two are low-level functions that are invoked from
+    higher-level store_xxx() funcs.  The data is stored into this->packet.
+  */
   bool net_store_data(const uchar *from, size_t length,
                       CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool store_string_aux(const char *from, size_t length,
@@ -72,6 +77,20 @@ public:
   enum { SEND_NUM_ROWS= 1, SEND_DEFAULTS= 2, SEND_EOF= 4 };
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
   bool send_result_set_row(List<Item> *row_items);
+
+  void get_packet(const char **start, size_t *length) 
+  {
+    *start= packet->ptr();
+    *length= packet->length(); 
+  }
+  void set_packet(const char *start, size_t len)
+  {
+    packet->length(0);
+    packet->append(start, len);
+#ifndef DBUG_OFF
+  field_pos= field_count - 1;
+#endif
+  }
 
   bool store(I_List<i_string> *str_list);
   bool store(const char *from, CHARSET_INFO *cs);
