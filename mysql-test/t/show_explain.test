@@ -4,7 +4,7 @@
 --source include/have_debug.inc
 
 --disable_warnings
-drop table if exists t0, t1, t2;
+drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
 --enable_warnings
 
@@ -444,9 +444,50 @@ set debug='';
 drop table t2;
 
 
+--echo #
+--echo # MDEV-273: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with impossible WHERE
+--echo #
+CREATE TABLE t2 (a1 INT, KEY(a1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES
+  (4),(6),(7),(1),(0),(7),(7),(1),(7),(1),
+  (5),(2),(0),(1),(8),(1),(1),(9),(1),(5);
 
+CREATE TABLE t3 (b1 INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES
+  (4),(5),(8),(4),(8),(2),(9),(6),(4),(8),
+  (3),(5),(9),(6),(8),(3),(2),(6),(3),(1),
+  (4),(3),(1),(7),(0),(0),(9),(5),(9),(0),
+  (2),(2),(5),(9),(1),(4),(8),(6),(5),(5),
+  (1),(7),(2),(8),(9),(3),(2),(6),(6),(5),
+  (4),(3),(2),(7),(4),(6),(0),(8),(5),(8),
+  (2),(9),(7),(5),(7),(0),(4),(3),(1),(0),
+  (6),(2),(8),(3),(7),(3),(5),(5),(1),(2),
+  (1),(7),(1),(9),(9),(8),(3);
+CREATE TABLE t4 (c1 INT) ENGINE=MyISAM;
 
+EXPLAIN
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+  SELECT a1 FROM t2
+  WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
 
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_do_select';
+send
+SELECT count(*) FROM t2, t3
+WHERE a1 < ALL ( 
+  SELECT a1 FROM t2
+  WHERE a1 IN ( SELECT a1 FROM t2, t4 )
+);
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+drop table t2, t3, t4;
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
