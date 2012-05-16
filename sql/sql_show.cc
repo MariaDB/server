@@ -2121,9 +2121,18 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
     if (bres || explain_req.failed_to_produce)
     {
       /* TODO not enabled or time out */
-      my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
-               "SHOW EXPLAIN",
-               "Target is not running EXPLAINable command");
+      if (timed_out)
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
+                 "SHOW EXPLAIN",
+                 "Timeout");
+      }
+      else
+      {
+        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
+                 "SHOW EXPLAIN",
+                 "Target is not running EXPLAINable command");
+      }
       bres= TRUE;
     }
     else
