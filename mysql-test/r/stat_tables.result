@@ -118,6 +118,41 @@ dbt3_s001	partsupp	i_ps_suppkey	1	70
 dbt3_s001	region	PRIMARY	1	1
 dbt3_s001	supplier	PRIMARY	1	1
 dbt3_s001	supplier	i_s_nationkey	1	1.1111111111111112
+select * from mysql.table_stat where table_name='orders';
+db_name	table_name	cardinality
+dbt3_s001	orders	1500
+select * from mysql.index_stat where table_name='orders';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	orders	PRIMARY	1	1
+dbt3_s001	orders	i_o_orderdate	1	1.3321492007104796
+dbt3_s001	orders	i_o_custkey	1	15
+select (select cardinality from mysql.table_stat where table_name='orders') /
+(select avg_frequency from mysql.index_stat 
+where index_name='i_o_orderdate' and prefix_arity=1) as n_distinct;
+n_distinct
+1126
+select count(distinct o_orderdate) from orders;
+count(distinct o_orderdate)
+1126
+select (select cardinality from mysql.table_stat where table_name='orders') /
+(select avg_frequency from mysql.index_stat 
+where index_name='i_o_custkey' and prefix_arity=1) as n_distinct;
+n_distinct
+100
+select count(distinct o_custkey) from orders;
+count(distinct o_custkey)
+100
+show index from orders;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+orders	0	PRIMARY	1	o_orderkey	A	1500	NULL	NULL		BTREE		
+orders	1	i_o_orderdate	1	o_orderDATE	A	1127	NULL	NULL	YES	BTREE		
+orders	1	i_o_custkey	1	o_custkey	A	100	NULL	NULL	YES	BTREE		
+select index_name, column_name, cardinality from information_schema.statistics
+where table_name='orders';
+index_name	column_name	cardinality
+PRIMARY	o_orderkey	1500
+i_o_orderdate	o_orderDATE	1127
+i_o_custkey	o_custkey	100
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=off';
 EXPLAIN select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
