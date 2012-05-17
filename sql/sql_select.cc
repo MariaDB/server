@@ -14102,6 +14102,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->read_stat.cardinality_is_null= TRUE;
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);

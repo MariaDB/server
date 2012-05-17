@@ -69,6 +69,20 @@ FLUSH TABLE mysql.table_stat, mysql.index_stat;
 select * from mysql.table_stat;
 select * from mysql.index_stat;
 
+select * from mysql.table_stat where table_name='orders';
+select * from mysql.index_stat where table_name='orders';
+select (select cardinality from mysql.table_stat where table_name='orders') /
+       (select avg_frequency from mysql.index_stat 
+          where index_name='i_o_orderdate' and prefix_arity=1) as n_distinct; 
+select count(distinct o_orderdate) from orders;
+select (select cardinality from mysql.table_stat where table_name='orders') /
+       (select avg_frequency from mysql.index_stat 
+          where index_name='i_o_custkey' and prefix_arity=1) as n_distinct;
+select count(distinct o_custkey) from orders; 
+show index from orders;
+select index_name, column_name, cardinality from information_schema.statistics
+  where table_name='orders';
+
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=off';
 
