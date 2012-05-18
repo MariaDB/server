@@ -10082,12 +10082,14 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       {
         join->need_tmp= 1;
         join->simple_order= join->simple_group= 0;
-        if (sort_by_tab->type == JT_NEXT)
+        if (sort_by_tab->type == JT_NEXT && 
+            !sort_by_tab->table->covering_keys.is_set(sort_by_tab->index))
         {
           sort_by_tab->type= JT_ALL;
           sort_by_tab->read_first_record= join_init_read_record;
         }
-        else if (sort_by_tab->type == JT_HASH_NEXT)
+        else if (sort_by_tab->type == JT_HASH_NEXT &&
+                 !sort_by_tab->table->covering_keys.is_set(sort_by_tab->index))
         {
           sort_by_tab->type= JT_HASH;
           sort_by_tab->read_first_record= join_init_read_record;
@@ -12180,9 +12182,10 @@ static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
 
   @param cond       condition whose multiple equalities are to be checked
   @param table      constant table that has been read
+  @param const_key  mark key parts as constant
 */
 
-static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
+static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 {
   if (!(cond->used_tables() & tab->table->map))
     return;
@@ -12193,7 +12196,10 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
     List_iterator_fast<Item> li(*cond_list);
     Item *item;
     while ((item= li++))
-      update_const_equal_items(item, tab);
+      update_const_equal_items(item, tab,
+                               (((Item_cond*) cond)->top_level() &&
+                                ((Item_cond*) cond)->functype() ==
+                                Item_func::COND_AND_FUNC));
   }
   else if (cond->type() == Item::FUNC_ITEM && 
            ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
@@ -12223,7 +12229,8 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
           TABLE *tab= field->table;
           KEYUSE *use;
           for (use= stat->keyuse; use && use->table == tab; use++)
-            if (!use->is_for_hash_join() && possible_keys.is_set(use->key) && 
+            if (const_key &&
+                !use->is_for_hash_join() && possible_keys.is_set(use->key) && 
                 tab->key_info[use->key].key_part[use->keypart].field ==
                 field)
               tab->const_key_parts[use->key]|= use->keypart_map;
@@ -15430,7 +15437,6 @@ free_tmp_table(THD *thd, TABLE *entry)
     else
       entry->file->ha_delete_table(entry->s->table_name.str);
     delete entry->file;
-    entry->file= 0;
   }
 
   /* free blobs */
@@ -16437,7 +16443,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
     List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
     /* Check appearance of new constant items in Item_equal objects */
     if (join->conds)
-      update_const_equal_items(join->conds, tab);
+      update_const_equal_items(join->conds, tab, TRUE);
     while ((tbl= ti++))
     {
       TABLE_LIST *embedded;
@@ -16446,7 +16452,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
       {
         embedded= embedding;
         if (embedded->on_expr)
-           update_const_equal_items(embedded->on_expr, tab);
+           update_const_equal_items(embedded->on_expr, tab, TRUE);
         embedding= embedded->embedding;
       }
       while (embedding &&
@@ -18274,7 +18280,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   int ref_key;
   uint UNINIT_VAR(ref_key_parts);
   int order_direction= 0;
-  uint used_key_parts;
+  uint used_key_parts= 0;
   TABLE *table=tab->table;
   SQL_SELECT *select=tab->select;
   key_map usable_keys;
