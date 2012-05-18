@@ -4155,8 +4155,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 {
   int error= 0;
   String error_msg;
-  ulong inc_pos;
-  ulong event_pos;
+  ulonglong inc_pos;
+  ulonglong event_pos;
   Relay_log_info *rli= &mi->rli;
   mysql_mutex_t *log_lock= rli->relay_log.get_log_lock();
   ulong s_id;
@@ -4431,10 +4431,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       (event_pos= uint4korr(buf+LOG_POS_OFFSET)) > mi->master_log_pos + inc_pos)
   {
     inc_pos= event_pos - mi->master_log_pos;
-    DBUG_PRINT("info", ("Adjust master_log_pos %lu->%lu to account for "
+    DBUG_PRINT("info", ("Adjust master_log_pos %llu->%llu to account for "
                         "master-side filtering",
-                        (unsigned long)(mi->master_log_pos + inc_pos),
-                        event_pos));
+                        mi->master_log_pos + inc_pos, event_pos));
   }
 
   /*
