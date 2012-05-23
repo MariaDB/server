@@ -181,6 +181,30 @@ SELECT
      WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 3';
 
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
+SELECT * FROM table_stat;
+SELECT * FROM column_stat;
+SELECT * FROM index_stat;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
+SELECT * FROM table_stat;
+SELECT * FROM column_stat;
+SELECT * FROM index_stat;
+
+DELETE FROM mysql.table_stat;
+DELETE FROM mysql.column_stat;
+DELETE FROM mysql.index_stat;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+
+SELECT * FROM table_stat;
+SELECT * FROM column_stat;
+SELECT * FROM index_stat;
+
 
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ENGINE=InnoDB;
