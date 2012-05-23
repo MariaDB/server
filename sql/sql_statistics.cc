@@ -1289,6 +1289,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   {
     table_field= *field_ptr;
     uint max_heap_table_size= thd->variables.max_heap_table_size;
+    if (!bitmap_is_set(table->read_set, table_field->field_index))
+      continue; 
     set_nulls_for_write_column_stat_values(table_field);
     table_field->nulls= 0;
     table_field->column_total_length= 0;
@@ -1306,8 +1308,6 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       table_field->count_distinct= NULL;
   }
 
-  bitmap_set_all(table->read_set);
-
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
   {  
@@ -1319,6 +1319,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {
         table_field= *field_ptr;
+        if (!bitmap_is_set(table->read_set, table_field->field_index))
+          continue;        
         if (table_field->is_null())
           table_field->nulls++;
         else
@@ -1357,6 +1359,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     for (field_ptr= table->field; *field_ptr; field_ptr++)
     {
       table_field= *field_ptr;
+      if (!bitmap_is_set(table->read_set, table_field->field_index))
+        continue;
       table_field->write_stat.nulls_ratio= (double) table_field->nulls/rows;
       table_field->write_stat.avg_length=
         (double) table_field->column_total_length / (rows-table_field->nulls);
@@ -1380,12 +1384,13 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   if (!rc)
   {
-    uint keys= table->s->keys ;
-
+    uint key;
+    key_map::Iterator it(table->keys_in_use_for_query);
+     
     /* Collect statistics for indexes */
-    for (uint i= 0; i < keys; i++)
+    while ((key= it++) != key_map::Iterator::BITMAP_END)
     {
-      if ((rc= collect_statistics_for_index(table, i)))
+      if ((rc= collect_statistics_for_index(table, key)))
         break;
     }
   }
@@ -1439,7 +1444,6 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   int err;
   int rc= 0;
   TABLE *stat_table;
-  uint keys= table->s->keys;
 
   DBUG_ENTER("update_statistics_for_table");
 
@@ -1466,6 +1470,8 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
   {
     Field *table_field= *field_ptr;
+    if (!bitmap_is_set(table->read_set, table_field->field_index))
+      continue;
     restore_record(stat_table, s->default_values);
     column_stat.set_key_fields(table_field);
     err= column_stat.update_stat();
@@ -1475,12 +1481,13 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   /* Update the statistical table index_stat */
   stat_table= tables[INDEX_STAT].table;
+  uint key;
+  key_map::Iterator it(table->keys_in_use_for_query);
   Index_stat index_stat(stat_table, table);
-  KEY *key_info, *key_info_end;
 
-  for (key_info= table->key_info, key_info_end= table->key_info+keys;
-       key_info < key_info_end; key_info++)
+  while ((key= it++) != key_map::Iterator::BITMAP_END)
   {
+    KEY *key_info= table->key_info+key;
     uint key_parts= table->actual_n_key_parts(key_info);
     for (i= 0; i < key_parts; i++)
     {
