@@ -456,6 +456,8 @@ void lex_start(THD *thd)
   lex->set_var_list.empty();
   lex->param_list.empty();
   lex->view_list.empty();
+  lex->column_list= NULL;
+  lex->index_list= NULL;
   lex->prepared_stmt_params.empty();
   lex->auxiliary_table_list.empty();
   lex->unit.next= lex->unit.master=
