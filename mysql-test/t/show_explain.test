@@ -499,6 +499,28 @@ reap;
 set debug_dbug='';
 drop table t2, t3, t4;
 
+--echo #
+--echo # MDEV-275: SHOW EXPLAIN: server crashes in JOIN::print_explain with IN subquery and aggregate function
+--echo #
+CREATE TABLE t2 ( `pk` INT NOT NULL PRIMARY KEY, `a1` INT NOT NULL, KEY(`a1`)) ENGINE=MyISAM; 
+INSERT INTO t2 VALUES 
+  (1,5),(2,4),(3,6),(4,9),(5,2),(6,8),(7,4),(8,8),(9,0),(10,43),
+  (11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
+
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+send
+  SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug='';
+
+DROP TABLE t2;
+
+
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
 

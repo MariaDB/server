@@ -154,8 +154,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
@@ -208,13 +207,13 @@ Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 a	SUBQ
@@ -312,8 +311,7 @@ SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 # NOTE: current code will not show "Using join buffer":
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
 a
@@ -404,7 +402,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	select * from t0 where 1>10
 a
@@ -419,7 +417,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
 Warnings:
 Note	1003	select * from t0,t3 where t3.a=112233
 a	a
@@ -515,4 +513,26 @@ count(*)
 1740
 set debug_dbug='';
 drop table t2, t3, t4;
+#
+# MDEV-275: SHOW EXPLAIN: server crashes in JOIN::print_explain with IN subquery and aggregate function
+#
+CREATE TABLE t2 ( `pk` INT NOT NULL PRIMARY KEY, `a1` INT NOT NULL, KEY(`a1`)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES 
+(1,5),(2,4),(3,6),(4,9),(5,2),(6,8),(7,4),(8,8),(9,0),(10,43),
+(11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
+set @show_explain_probe_select_id=1;
+set debug='d,show_explain_probe_join_exec_end';
+Warnings:
+Warning	1287	The syntax '@@debug' is deprecated and will be removed in MariaDB 5.6. Please use '@@debug_dbug' instead
+SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+Warnings:
+Note	1003	SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`)
+pk	a1
+set debug='';
+Warnings:
+Warning	1287	The syntax '@@debug' is deprecated and will be removed in MariaDB 5.6. Please use '@@debug_dbug' instead
+DROP TABLE t2;
 drop table t0,t1;
