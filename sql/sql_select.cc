@@ -10569,8 +10569,9 @@ void JOIN::cleanup(bool full)
   
   /*
     psergey: let's try without this first:
-    have_query_plan= QEP_DELETED;
   */
+  have_query_plan= QEP_DELETED;
+
   if (table)
   {
     JOIN_TAB *tab;
