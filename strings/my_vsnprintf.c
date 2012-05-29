@@ -17,10 +17,14 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 #include <stdarg.h>
+#include <my_sys.h>
+#include <my_base.h>
+#include <../mysys/my_handler_errors.h>
 
 
 #define MAX_ARGS 32                           /* max positional args count*/
 #define MAX_PRINT_INFO 32                     /* max print position count */
+#define MAX_WIDTH      65535
 
 #define LENGTH_ARG     1
 #define WIDTH_ARG      2
@@ -65,6 +69,7 @@ struct print_info
 
 static const char *get_length(const char *fmt, size_t *length, uint *pre_zero)
 {
+  
   for (; my_isdigit(&my_charset_latin1, *fmt); fmt++)
   {
     *length= *length * 10 + (uint)(*fmt - '0');
@@ -75,23 +80,27 @@ static const char *get_length(const char *fmt, size_t *length, uint *pre_zero)
 }
 
 
-/**
-  Calculates print width or index of positional argument
+/*
+  Get argument for '*' parameter
 
   @param fmt         processed string
-  @param width       print width or index of positional argument
+  @param args_arr    Arguments to printf
+  @param arg_count   Number of arguments to printf
+  @param length      returns length of argument
+  @param flag        returns flags with PREZERO_ARG set if necessary
 
-  @retval
-    string position right after width digits
+  @return new fmt
 */
 
-static const char *get_width(const char *fmt, size_t *width)
+static const char *get_length_arg(const char *fmt, ARGS_INFO *args_arr,
+                                  uint *arg_count, size_t *length, uint *flags)
 {
-  for (; my_isdigit(&my_charset_latin1, *fmt); fmt++)
-  {
-    *width= *width * 10 + (uint)(*fmt - '0');
-  }
-  return fmt;
+  fmt= get_length(fmt+1, length, flags);
+  *arg_count= max(*arg_count, (uint) *length);
+  (*length)--;    
+  DBUG_ASSERT(*fmt == '$' && *length < MAX_ARGS);
+  args_arr[*length].arg_type= 'd';
+  return fmt+1;
 }
 
 /**
@@ -123,6 +132,8 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
     fmt++;
     *have_longlong= (sizeof(size_t) == sizeof(longlong));
   }
+  if (*fmt == 'p')
+    *have_longlong= (sizeof(void *) == sizeof(longlong));
   return fmt;
 }
 
@@ -227,7 +238,7 @@ static char *process_bin_arg(char *to, char *end, size_t width, char *par)
 static char *process_dbl_arg(char *to, char *end, size_t width,
                              double par, char arg_type)
 {
-  if (width == SIZE_T_MAX)
+  if (width == MAX_WIDTH)
     width= FLT_DIG; /* width not set, use default */
   else if (width >= NOT_FIXED_DEC)
     width= NOT_FIXED_DEC - 1; /* max.precision for my_fcvt() */
@@ -338,42 +349,31 @@ start:
   /* Get print length */
   if (*fmt == '*')
   {          
-    fmt++;
-    fmt= get_length(fmt, &print_arr[idx].length, &print_arr[idx].flags);
-    print_arr[idx].length--;    
-    DBUG_ASSERT(*fmt == '$' && print_arr[idx].length < MAX_ARGS);
-    args_arr[print_arr[idx].length].arg_type= 'd';
+    fmt= get_length_arg(fmt, args_arr, &arg_count, &print_arr[idx].length,
+                        &print_arr[idx].flags);
     print_arr[idx].flags|= LENGTH_ARG;
-    arg_count= max(arg_count, print_arr[idx].length + 1);
-    fmt++;
   }
   else
     fmt= get_length(fmt, &print_arr[idx].length, &print_arr[idx].flags);
   
   if (*fmt == '.')
   {
+    uint flags= 0;
     fmt++;
     /* Get print width */
     if (*fmt == '*')
     {
-      fmt++;
-      fmt= get_width(fmt, &print_arr[idx].width);
-      print_arr[idx].width--;
-      DBUG_ASSERT(*fmt == '$' && print_arr[idx].width < MAX_ARGS);
-      args_arr[print_arr[idx].width].arg_type= 'd';
+      fmt= get_length_arg(fmt, args_arr, &arg_count, &print_arr[idx].width,
+                          &flags);
       print_arr[idx].flags|= WIDTH_ARG;
-      arg_count= max(arg_count, print_arr[idx].width + 1);
-      fmt++;
     }
     else
-      fmt= get_width(fmt, &print_arr[idx].width);
+      fmt= get_length(fmt, &print_arr[idx].width, &flags);
   }
   else
-    print_arr[idx].width= SIZE_T_MAX;
+    print_arr[idx].width= MAX_WIDTH;
 
   fmt= check_longlong(fmt, &args_arr[arg_index].have_longlong);
-  if (*fmt == 'p')
-    args_arr[arg_index].have_longlong= (sizeof(void *) == sizeof(longlong));
   args_arr[arg_index].arg_type= print_arr[idx].arg_type= *fmt;
   
   print_arr[idx].arg_idx= arg_index;
@@ -412,6 +412,7 @@ start:
         else
           args_arr[i].longlong_arg= va_arg(ap, uint);
         break;
+      case 'M':
       case 'c':
         args_arr[i].longlong_arg= va_arg(ap, int);
         break;
@@ -472,14 +473,31 @@ start:
           ? (size_t)args_arr[print_arr[i].length].longlong_arg
           : print_arr[i].length;
 
-        if (args_arr[print_arr[i].arg_idx].have_longlong)
-          larg = args_arr[print_arr[i].arg_idx].longlong_arg;
-        else if (print_arr[i].arg_type == 'd' || print_arr[i].arg_type == 'i' )
-          larg = (int) args_arr[print_arr[i].arg_idx].longlong_arg;
-        else
-          larg= (uint) args_arr[print_arr[i].arg_idx].longlong_arg;
-
+        larg = args_arr[print_arr[i].arg_idx].longlong_arg;
         to= process_int_arg(to, end, length, larg, print_arr[i].arg_type,
+                            print_arr[i].flags);
+        break;
+      }
+      case 'M':
+      {
+        longlong larg;
+        char *org_to= to;
+        char errmsg_buff[MYSYS_STRERROR_SIZE];
+
+        length= (print_arr[i].flags & WIDTH_ARG)
+          ? (size_t)args_arr[print_arr[i].width].longlong_arg
+          : print_arr[i].width;
+
+        larg = args_arr[print_arr[i].arg_idx].longlong_arg;
+        to= process_int_arg(to, end, 0, larg, 'd', print_arr[i].flags);
+        width-= (to - org_to);
+        if (width <= 4)
+          break;
+        *to++= ' ';
+        *to++= '-';
+        *to++= ' ';
+        my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
+        to= process_str_arg(cs, to, end, width, errmsg_buff,
                             print_arr[i].flags);
         break;
       }
@@ -490,6 +508,7 @@ start:
       if (to == end)
         break;
 
+      /* Copy data after the % format expression until next % */
       length= min(end - to , print_arr[i].end - print_arr[i].begin);
       if (to + length < end)
         length++;
@@ -501,13 +520,14 @@ start:
   }
   else
   {
+    uint flags= 0;
     /* Process next positional argument*/
     DBUG_ASSERT(*fmt == '%');
     print_arr[idx].end= fmt - 1;
     idx++;
     fmt++;
     arg_index= 0;
-    fmt= get_width(fmt, &arg_index);
+    fmt= get_length(fmt, &arg_index, &flags);
     DBUG_ASSERT(*fmt == '$');
     fmt++;
     arg_count= max(arg_count, arg_index);
@@ -585,6 +605,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     if (*fmt == '.')
     {
+      uint flags= 0;
       fmt++;
       if (*fmt == '*')
       {
@@ -592,10 +613,10 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         width= va_arg(ap, int);
       }
       else
-        fmt= get_width(fmt, &width);
+        fmt= get_length(fmt, &width, &flags);
     }
     else
-      width= SIZE_T_MAX;   
+      width= MAX_WIDTH;
 
     fmt= check_longlong(fmt, &have_longlong);
 
@@ -622,8 +643,6 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     {
       /* Integer parameter */
       longlong larg;
-      if (*fmt == 'p')
-        have_longlong= (sizeof(void *) == sizeof(longlong));
 
       if (have_longlong)
         larg = va_arg(ap,longlong);
@@ -642,6 +661,24 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         break;
       larg = va_arg(ap, int);
       *to++= (char) larg;
+      continue;
+    }
+    else if (*fmt == 'M')
+    {
+      const char *org_to= to;
+      int larg= va_arg(ap, int);
+      to= process_int_arg(to, end, 0, larg, 'd', print_type);
+      width-= (to - org_to);
+      if ((end - to) >= 4 && (int) width >= 4)
+      {
+        char errmsg_buff[MYSYS_STRERROR_SIZE];
+        *to++= ' ';
+        *to++= '-';
+        *to++= ' ';
+        width-= 3;
+        my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+        to= process_str_arg(cs, to, end, width, errmsg_buff, print_type);     
+      }
       continue;
     }
 
@@ -696,4 +733,68 @@ int my_vfprintf(FILE *stream, const char* format, va_list args)
   char cvtbuf[1024];
   (void) my_vsnprintf(cvtbuf, sizeof(cvtbuf), format, args);
   return fprintf(stream, "%s\n", cvtbuf);
+}
+
+
+/*
+  Return system error text for given error number
+
+  @param buf        Buffer (of size MYSYS_STRERROR_SIZE)
+  @param len        Length of buffer
+  @param nr         Error number
+*/
+
+void my_strerror(char *buf, size_t len, int nr)
+{
+  char *msg= NULL;
+
+  buf[0]= '\0';                                  /* failsafe */
+
+  if (nr <= 0)
+  {
+    strmake(buf, (nr == 0 ?
+                  "Internal error/check (Not system error)" :
+                  "Internal error < 0 (Not system error)"),
+            len-1);
+    return;
+  }
+
+  /*
+    These (handler-) error messages are shared by perror, as required
+    by the principle of least surprise.
+  */
+  if ((nr >= HA_ERR_FIRST) && (nr <= HA_ERR_LAST))
+  {
+    msg= (char *) handler_error_messages[nr - HA_ERR_FIRST];
+    strmake(buf, msg, len - 1);
+  }
+  else
+  {
+    /*
+      On Windows, do things the Windows way. On a system that supports both
+      the GNU and the XSI variant, use whichever was configured (GNU); if
+      this choice is not advertised, use the default (POSIX/XSI).  Testing
+      for __GNUC__ is not sufficient to determine whether this choice exists.
+    */
+#if defined(__WIN__)
+    strerror_s(buf, len, nr);
+#elif ((defined _POSIX_C_SOURCE && (_POSIX_C_SOURCE >= 200112L)) ||    \
+       (defined _XOPEN_SOURCE   && (_XOPEN_SOURCE >= 600)))      &&    \
+      ! defined _GNU_SOURCE
+    strerror_r(nr, buf, len);             /* I can build with or without GNU */
+#elif defined _GNU_SOURCE
+    char *r= strerror_r(nr, buf, len);
+    if (r != buf)                         /* Want to help, GNU? */
+      strmake(buf, r, len - 1);           /* Then don't. */
+#else
+    strerror_r(nr, buf, len);
+#endif
+  }
+
+  /*
+    strerror() return values are implementation-dependent, so let's
+    be pragmatic.
+  */
+  if (!buf[0])
+    strmake(buf, "unknown error", len - 1);
 }

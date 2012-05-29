@@ -687,7 +687,7 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
             : Events::stop();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
-    my_error(ER_EVENT_SET_VAR_ERROR, MYF(0), 0);
+    my_error(ER_EVENT_SET_VAR_ERROR, MYF(0), my_errno);
   return ret;
 }
 

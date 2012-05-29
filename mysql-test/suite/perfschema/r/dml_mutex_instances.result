@@ -13,8 +13,8 @@ ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'mutex_i
 delete from performance_schema.mutex_instances;
 ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'mutex_instances'
 LOCK TABLES performance_schema.mutex_instances READ;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'mutex_instances'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'mutex_instances'
 UNLOCK TABLES;
 LOCK TABLES performance_schema.mutex_instances WRITE;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'mutex_instances'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'mutex_instances'
 UNLOCK TABLES;

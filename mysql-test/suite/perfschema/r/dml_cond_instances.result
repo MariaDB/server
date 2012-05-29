@@ -13,8 +13,8 @@ ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'cond_in
 delete from performance_schema.cond_instances;
 ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'cond_instances'
 LOCK TABLES performance_schema.cond_instances READ;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'cond_instances'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'cond_instances'
 UNLOCK TABLES;
 LOCK TABLES performance_schema.cond_instances WRITE;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'cond_instances'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'cond_instances'
 UNLOCK TABLES;

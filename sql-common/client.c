@@ -3196,7 +3196,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       */
       DBUG_PRINT("info",("IPV6 getaddrinfo error %d", gai_errno));
       set_mysql_extended_error(mysql, CR_UNKNOWN_HOST, unknown_sqlstate,
-                               ER(CR_UNKNOWN_HOST), host, errno);
+                               ER(CR_UNKNOWN_HOST), host, gai_errno);
 
       goto error;
     }

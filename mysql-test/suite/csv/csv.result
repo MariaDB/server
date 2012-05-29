@@ -5197,7 +5197,7 @@ drop table t1;
 create table bug15205 (val int(11) not null) engine=csv;
 create table bug15205_2 (val int(11) not null) engine=csv;
 select * from bug15205;
-ERROR HY000: Can't get stat of './test/bug15205.CSV' (Errcode: 2)
+ERROR HY000: Can't get stat of './test/bug15205.CSV' (Errcode: 2 - No such file or directory)
 select * from bug15205_2;
 val
 select * from bug15205;
@@ -5379,7 +5379,7 @@ ERROR 42000: The storage engine for the table doesn't support nullable columns
 SHOW WARNINGS;
 Level	Code	Message
 Error	1178	The storage engine for the table doesn't support nullable columns
-Error	1005	Can't create table 'test.t1' (errno: 138)
+Error	1005	Can't create table 'test.t1' (errno: 138 - Unsupported extension used for table)
 create table t1 (c1 tinyblob not null) engine=csv;
 insert into t1 values("This");
 update t1 set c1="That" where c1="This";
@@ -5392,7 +5392,7 @@ drop table t1;
 create table t1 (a int not null) engine=csv;
 lock tables t1 read;
 select * from t1;
-ERROR HY000: File 'MYSQLD_DATADIR/test/t1.CSV' not found (Errcode: 2)
+ERROR HY000: File 'MYSQLD_DATADIR/test/t1.CSV' not found (Errcode: 2 - No such file or directory)
 unlock tables;
 drop table t1;
 CREATE TABLE t1 (e enum('foo','bar') NOT NULL) ENGINE = CSV;

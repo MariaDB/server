@@ -17,8 +17,8 @@ ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'threads
 delete from performance_schema.threads;
 ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'threads'
 LOCK TABLES performance_schema.threads READ;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'threads'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'threads'
 UNLOCK TABLES;
 LOCK TABLES performance_schema.threads WRITE;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'threads'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'threads'
 UNLOCK TABLES;

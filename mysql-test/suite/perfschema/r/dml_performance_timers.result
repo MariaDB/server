@@ -22,8 +22,8 @@ delete from performance_schema.performance_timers
 where timer_name='CYCLE';
 ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'performance_timers'
 LOCK TABLES performance_schema.performance_timers READ;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'performance_timers'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'performance_timers'
 UNLOCK TABLES;
 LOCK TABLES performance_schema.performance_timers WRITE;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'performance_timers'
+ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'performance_timers'
 UNLOCK TABLES;
