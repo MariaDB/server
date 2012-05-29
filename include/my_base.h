@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved. 
-   reserved
+/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 1995, 2012 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -456,13 +456,15 @@ enum ha_base_keytype {
 #define HA_ERR_FILE_TOO_SHORT	  175	 /* File too short */
 #define HA_ERR_WRONG_CRC	  176	 /* Wrong CRC on page */
 #define HA_ERR_TOO_MANY_CONCURRENT_TRXS 177 /*Too many active concurrent transactions */
-#define HA_ERR_INDEX_COL_TOO_LONG 178    /* Index column length exceeds limit */
-#define HA_ERR_INDEX_CORRUPT      179        /* Index corrupted */
-#define HA_ERR_UNDO_REC_TOO_BIG   180    /* Undo log record too big */
-#define HA_ERR_ROW_NOT_VISIBLE    181
-#define HA_ERR_ABORTED_BY_USER    182
-#define HA_ERR_DISK_FULL          183
-#define HA_ERR_LAST               183    /* Copy of last error nr */
+#define HA_ERR_NOT_IN_LOCK_PARTITIONS 178
+#define HA_ERR_INDEX_COL_TOO_LONG 179    /* Index column length exceeds limit */
+#define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
+#define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
+#define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
+#define HA_ERR_ROW_NOT_VISIBLE    183
+#define HA_ERR_ABORTED_BY_USER    184
+#define HA_ERR_DISK_FULL          185
+#define HA_ERR_LAST               185    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

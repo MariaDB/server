@@ -714,12 +714,12 @@ static ha_checksum checksum_format_specifier(const char* msg)
     }
     else if (start)
     {
-      switch(*p)
-      {
+      switch(*p) {
       case 'd':
       case 'u':
       case 'x':
       case 's':
+      case 'M':
         chksum= my_checksum(chksum, (uchar*) start, (uint) (p + 1 - start));
         start= 0; /* Not in format specifier anymore */
         break;

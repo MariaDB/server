@@ -81,9 +81,11 @@ static const char *handler_error_messages[]=
   "File too short; Expected more data in file",
   "Read page with wrong checksum",
   "Too many active concurrent transactions",
+  "Record not matching the given partition set",
   "Index column length exceeds limit",
   "Index corrupted",
   "Undo record too big",
+  "Invalid InnoDB FTS Doc ID",
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
   "Disk full"

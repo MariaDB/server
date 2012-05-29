@@ -31,7 +31,7 @@ void test1(const char *res, const char *fmt, ...)
 
 int main(void)
 {
-  plan(58);
+  plan(59);
 
   test1("Constant string",
         "Constant string");
@@ -176,6 +176,8 @@ int main(void)
         "My %1$*02$d test", 10, 5);
   test1("My `DDDD` test CCCC, `DDD`",
         "My %1$`s test %2$s, %1$`-.3s", "DDDD", "CCCC");
+
+  test1("Error 1 - Operation not permitted", "Error %M", 1);
 
   return exit_status();
 }
