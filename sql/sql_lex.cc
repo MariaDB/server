@@ -1537,14 +1537,21 @@ int lex_one_token(void *arg, void *yythd)
            )
         {
           ulong version;
-          char *end_ptr= (char*) lip->get_ptr()+5;
+          uint length= 5;
+          char *end_ptr= (char*) lip->get_ptr()+length;
           int error;
+          if (my_isdigit(cs, lip->yyPeekn(5)))
+          {
+            end_ptr++;                          // 6 digit number
+            length++;
+          }
+
           version= (ulong) my_strtoll10(lip->get_ptr(), &end_ptr, &error);
 
           if (version <= MYSQL_VERSION_ID)
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
-            lip->yySkipn(5);
+            lip->yySkipn(length);
             /* Expand the content of the special comment as real code */
             lip->set_echo(TRUE);
             state=MY_LEX_START;

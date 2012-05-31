@@ -7429,7 +7429,7 @@ mysqld_get_one_option(int optid,
       default_collation_name= 0;
     break;
   case 'l':
-    WARN_DEPRECATED(NULL, 7, 0, "--log", "'--general-log'/'--general-log-file'");
+    WARN_DEPRECATED(NULL, 10, 1, "--log", "'--general-log'/'--general-log-file'");
     opt_log=1;
     break;
   case 'h':
@@ -7594,7 +7594,7 @@ mysqld_get_one_option(int optid,
   }
 #endif /* HAVE_REPLICATION */
   case (int) OPT_SLOW_QUERY_LOG:
-    WARN_DEPRECATED(NULL, 7, 0, "--log-slow-queries", "'--slow-query-log'/'--slow-query-log-file'");
+    WARN_DEPRECATED(NULL, 10, 1, "--log-slow-queries", "'--slow-query-log'/'--slow-query-log-file'");
     opt_slow_log= 1;
     break;
   case (int) OPT_SAFE:
@@ -7609,7 +7609,7 @@ mysqld_get_one_option(int optid,
   case (int) OPT_SKIP_PRIOR:
     opt_specialflag|= SPECIAL_NO_PRIOR;
     sql_print_warning("The --skip-thread-priority startup option is deprecated "
-                      "and will be removed in MySQL 7.0. This option has no effect "
+                      "and will be removed in MySQL 11.0. This option has no effect "
                       "as the implied behavior is already the default.");
     break;
   case (int) OPT_SKIP_HOST_CACHE:
