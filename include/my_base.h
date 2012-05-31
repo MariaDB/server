@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 1995, 2012 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -11,8 +11,9 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+
 
 /* This file includes constants used with all databases */
 
@@ -460,11 +461,12 @@ enum ha_base_keytype {
 #define HA_ERR_INDEX_COL_TOO_LONG 179    /* Index column length exceeds limit */
 #define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
 #define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
-#define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
-#define HA_ERR_ROW_NOT_VISIBLE    183
-#define HA_ERR_ABORTED_BY_USER    184
-#define HA_ERR_DISK_FULL          185
-#define HA_ERR_LAST               185    /* Copy of last error nr */
+#define HA_ERR_TABLE_IN_FK_CHECK  182    /* Table being used in foreign key check */
+#define HA_FTS_INVALID_DOCID      183	 /* Invalid InnoDB Doc ID */
+#define HA_ERR_ROW_NOT_VISIBLE    184
+#define HA_ERR_ABORTED_BY_USER    185
+#define HA_ERR_DISK_FULL          186
+#define HA_ERR_LAST               186    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
