@@ -13,9 +13,9 @@ select user() like _utf8"%@%";
 select user() like _latin1"%@%";
 select charset(user());
 
-select version()>="3.23.29";
-select version()>=_utf8"3.23.29";
-select version()>=_latin1"3.23.29";
+select version()>="03.23.29";
+select version()>=_utf8"03.23.29";
+select version()>=_latin1"03.23.29";
 select charset(version());
 explain extended select database(), user();
 

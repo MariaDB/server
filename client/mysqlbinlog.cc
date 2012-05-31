@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1750,7 +1751,7 @@ static Exit_status check_master_version()
 {
   MYSQL_RES* res = 0;
   MYSQL_ROW row;
-  const char* version;
+  uint version;
 
   if (mysql_query(mysql, "SELECT VERSION()") ||
       !(res = mysql_store_result(mysql)))
@@ -1766,7 +1767,7 @@ static Exit_status check_master_version()
     goto err;
   }
 
-  if (!(version = row[0]))
+  if (!(version = atoi(row[0])))
   {
     error("Could not find server version: "
           "Master reported NULL for the version.");
@@ -1785,14 +1786,15 @@ static Exit_status check_master_version()
     goto err;
   }
   delete glob_description_event;
-  switch (*version) {
-  case '3':
+  switch (version) {
+  case 3:
     glob_description_event= new Format_description_log_event(1);
     break;
-  case '4':
+  case 4:
     glob_description_event= new Format_description_log_event(3);
     break;
-  case '5':
+  case 5:
+  case 10:
     /*
       The server is soon going to send us its Format_description log
       event, unless it is a 5.0 server with 3.23 or 4.0 binlogs.
@@ -1804,7 +1806,7 @@ static Exit_status check_master_version()
   default:
     glob_description_event= NULL;
     error("Could not find server version: "
-          "Master reported unrecognized MySQL version '%s'.", version);
+          "Master reported unrecognized MySQL version '%s'.", row[0]);
     goto err;
   }
   if (!glob_description_event || !glob_description_event->is_valid())

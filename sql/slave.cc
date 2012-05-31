@@ -1211,11 +1211,12 @@ bool is_network_error(uint errorno)
 
 static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
 {
-  char err_buff[MAX_SLAVE_ERRMSG];
+  char err_buff[MAX_SLAVE_ERRMSG], err_buff2[MAX_SLAVE_ERRMSG];
   const char* errmsg= 0;
   int err_code= 0;
   MYSQL_RES *master_res= 0;
   MYSQL_ROW master_row;
+  uint version= mysql_get_server_version(mysql) / 10000;
   DBUG_ENTER("get_master_version_and_clock");
 
   /*
@@ -1227,29 +1228,34 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
 
   if (!my_isdigit(&my_charset_bin,*mysql->server_version))
   {
-    errmsg = "Master reported unrecognized MySQL version";
+    errmsg= err_buff2;
+    snprintf(err_buff2, sizeof(err_buff2),
+             "Master reported unrecognized MySQL version: %s",
+             mysql->server_version);
     err_code= ER_SLAVE_FATAL_ERROR;
-    sprintf(err_buff, ER(err_code), errmsg);
+    sprintf(err_buff, ER(err_code), err_buff2);
   }
   else
   {
     /*
       Note the following switch will bug when we have MySQL branch 30 ;)
     */
-    switch (*mysql->server_version)
-    {
-    case '0':
-    case '1':
-    case '2':
-      errmsg = "Master reported unrecognized MySQL version";
+    switch (version) {
+    case 0:
+    case 1:
+    case 2:
+      errmsg= err_buff2;
+      snprintf(err_buff2, sizeof(err_buff2),
+               "Master reported unrecognized MySQL version: %s",
+               mysql->server_version);
       err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, ER(err_code), errmsg);
+      sprintf(err_buff, ER(err_code), err_buff2);
       break;
-    case '3':
+    case 3:
       mi->rli.relay_log.description_event_for_queue= new
         Format_description_log_event(1, mysql->server_version);
       break;
-    case '4':
+    case 4:
       mi->rli.relay_log.description_event_for_queue= new
         Format_description_log_event(3, mysql->server_version);
       break;
@@ -1466,10 +1472,10 @@ maybe it is a *VERY OLD MASTER*.");
   */
 
   /* redundant with rest of code but safer against later additions */
-  if (*mysql->server_version == '3')
+  if (version == 3)
     goto err;
 
-  if (*mysql->server_version == '4')
+  if (version == 4)
   {
     master_res= NULL;
     if (!mysql_real_query(mysql,
@@ -1532,7 +1538,7 @@ inconsistency if replicated data deals with collation.");
     This check is only necessary for 4.x masters (and < 5.0.4 masters but
     those were alpha).
   */
-  if (*mysql->server_version == '4')
+  if (version == 4)
   {
     master_res= NULL;
     if (!mysql_real_query(mysql, STRING_WITH_LEN("SELECT @@GLOBAL.TIME_ZONE")) &&
