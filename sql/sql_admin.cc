@@ -671,7 +671,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             break;
           }
           bitmap_set_bit(tab->read_set, --pos);
-        }  
+        } 
+        tab->file->column_bitmaps_signal(); 
       }
       
       if (!lex->index_list)
