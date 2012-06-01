@@ -2125,7 +2125,8 @@ public:
     :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		    unireg_check_arg, field_name_arg,
                 packlength_arg,
-                typelib_arg,charset_arg)
+                typelib_arg,charset_arg),
+      empty_set_string("", 0, charset_arg)
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
@@ -2136,8 +2137,11 @@ public:
   virtual bool zero_pack() const { return 1; }
   String *val_str(String*,String *);
   void sql_type(String &str) const;
+  uint size_of() const { return sizeof(*this); }
   enum_field_types real_type() const { return MYSQL_TYPE_SET; }
   bool has_charset(void) const { return TRUE; }
+private:
+  const String empty_set_string;
 };
 
 
@@ -2371,6 +2375,8 @@ public:
   {
     return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
   }
+private:
+  const String empty_set_string;
 };
 
 
