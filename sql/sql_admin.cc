@@ -670,7 +670,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             compl_result_code= result_code= HA_ADMIN_INVALID;
             break;
           }
-          bitmap_set_bit(tab->read_set, --pos);
+          bitmap_set_bit(tab->read_set, pos-1);
         } 
         tab->file->column_bitmaps_signal(); 
       }
