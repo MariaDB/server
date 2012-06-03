@@ -28,13 +28,13 @@
 #include "sql_statistics.h"
 
 /*
-  The system variable 'optimizer_use_stat_tables' can take one of the
+  The system variable 'use_stat_tables' can take one of the
   following values:
-  "never", "complementary", "preferably", "exclusively". 
-  If the values of the variable 'optimizer_use_stat_tables' is set to
+  "never", "complementary", "preferably". 
+  If the values of the variable 'use_stat_tables' is set to
   "never then any statistical data from  the persistent statistical tables
   is ignored by the optimizer.
-  If the value of the variable 'optimizer_use_stat_tables' is set to
+  If the value of the variable 'use_stat_tables' is set to
   "complementary" then a particular statistical characteristic is used
   by the optimizer only if the database engine does not provide similar
   statistics. For example, 'nulls_ratio' for table columns  currently 
@@ -43,17 +43,13 @@
   'avg_frequency' for any index prefix from the statistical tables since
   the a similar statistical characteristic 'records_per_key' can be
   requested from the database engine.
-  If the value the variable 'optimizer_use_stat_tables' is set to
+  If the value the variable 'use_stat_tables' is set to
   "preferably" the optimizer uses a particular statistical data only if
   it can't be found in the statistical data.
-  If the value of the variable 'optimizer_use_stat_tables' is set to
-  "exclusively" the optimizer never uses statistical data that can be
-  returned by the database engine Only statistical data from the
-  statistical tables is used.
   If an ANALYZE command is executed then it results in collecting
   statistical data for the tables specified by the command and storing
   the collected statistics in the persistent statistical tables only
-  when the value of the variable 'optimizer_use_stat_tables' is not
+  when the value of the variable 'use_stat_tables' is not
   equal to "never".
 */ 
    
@@ -1650,14 +1646,14 @@ int read_statistics_for_table(THD *thd, TABLE *table)
   table       The table to set statistics for 
 
   @details
-  Depending on the value of thd->variables.optimizer_use_stat_tables 
+  Depending on the value of thd->variables.use_stat_tables 
   the function performs the settings for the table that will control
   from where the statistical data used by the optimizer will be taken.
 */
 
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
-  uint use_stat_table_mode= thd->variables.optimizer_use_stat_tables;
+  uint use_stat_table_mode= thd->variables.use_stat_tables;
   table->used_stat_records= 
     (use_stat_table_mode <= 1 || table->read_stat.cardinality_is_null) ?
     table->file->stats.records : table->read_stat.cardinality;

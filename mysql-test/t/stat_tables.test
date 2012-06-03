@@ -1,8 +1,8 @@
 --source include/have_stat_tables.inc
 
-set @save_optimizer_use_stat_tables=@@optimizer_use_stat_tables;
+set @save_use_stat_tables=@@use_stat_tables;
 
-set optimizer_use_stat_tables='preferably';
+set use_stat_tables='preferably';
 
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
@@ -149,4 +149,4 @@ DROP DATABASE dbt3_s001;
 
 use test;
 
-set optimizer_use_stat_tables=@save_optimizer_use_stat_tables;
+set use_stat_tables=@save_use_stat_tables;
