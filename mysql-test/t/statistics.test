@@ -4,7 +4,7 @@
 drop table if exists t1,t2;
 --enable_warnings
 
-set @save_optimizer_use_stat_tables=@@optimizer_use_stat_tables;
+set @save_use_stat_tables=@@use_stat_tables;
 
 CREATE VIEW table_stat AS
 SELECT * FROM mysql.table_stat;
@@ -26,7 +26,7 @@ DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;  
    
-set optimizer_use_stat_tables='preferably';
+set use_stat_tables='preferably';
 
 CREATE TABLE t1 (
   a int NOT NULL PRIMARY KEY,
@@ -240,7 +240,7 @@ DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;
 
-set optimizer_use_stat_tables='never';  
+set use_stat_tables='never';  
 
 set names utf8;
 
@@ -258,7 +258,7 @@ use world;
 --enable_result_log
 --enable_query_log
 
-set optimizer_use_stat_tables='preferably';
+set use_stat_tables='preferably';
 
 --disable_result_log
 ANALYZE TABLE Country, City, CountryLanguage;
@@ -275,7 +275,7 @@ SELECT UPPER(db_name), UPPER(table_name),
 
 use test;
 
-set optimizer_use_stat_tables='never'; 
+set use_stat_tables='never'; 
 
 CREATE DATABASE world_innodb;
 
@@ -295,7 +295,7 @@ ALTER TABLE CountryLanguage ENGINE=InnoDB;
 --enable_result_log
 --enable_query_log
 
-set optimizer_use_stat_tables='preferably';
+set use_stat_tables='preferably';
 
 --disable_result_log
 ANALYZE TABLE Country, City, CountryLanguage;
@@ -323,6 +323,6 @@ DROP VIEW test.table_stat;
 DROP VIEW test.column_stat;
 DROP VIEW test.index_stat;
 
-set optimizer_use_stat_tables=@save_optimizer_use_stat_tables;
+set use_stat_tables=@save_use_stat_tables;
 
     

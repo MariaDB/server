@@ -4631,7 +4631,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     goto end;
   }
 
-  if (opt_with_stat_tables && thd->variables.optimizer_use_stat_tables > 0)
+  if (thd->variables.use_stat_tables > 0)
   {
     if (tables->table &&  tables->table->s && 
         tables->table->s->table_category != TABLE_CATEGORY_SYSTEM)    

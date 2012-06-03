@@ -493,9 +493,6 @@ The following options may be given as the first argument:
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys } and
  val is one of {on, off, default}
- --optimizer-use-stat-tables=name 
- Specifies how to use system statistics tables. Possible
- values are NEVER, COMPLEMENTARY, PREVERABLY, EXCLUSIVELY
  --performance-schema 
  Enable the performance schema.
  --performance-schema-events-waits-history-long-size=# 
@@ -778,9 +775,6 @@ The following options may be given as the first argument:
  for the complete list of valid sql modes
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
- --stat-tables       Start with statistical tables. Statistical data on table
- cardinalities, columns and indexes from these tables
- become available
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
@@ -838,6 +832,9 @@ The following options may be given as the first argument:
  Prohibit update of a VIEW, which does not contain a key
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
+ --use-stat-tables=name 
+ Specifies how to use system statistics tables. Possible
+ values are NEVER, COMPLEMENTARY, PREVERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -996,7 +993,6 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
-optimizer-use-stat-tables NEVER
 performance-schema FALSE
 performance-schema-events-waits-history-long-size 10000
 performance-schema-events-waits-history-size 10
@@ -1069,7 +1065,6 @@ slow-query-log FALSE
 sort-buffer-size 2097152
 sql-mode 
 stack-trace TRUE
-stat-tables FALSE
 stored-program-cache 256
 symbolic-links FALSE
 sync-binlog 0
@@ -1091,6 +1086,7 @@ transaction-alloc-block-size 8192
 transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 updatable-views-with-limit YES
+use-stat-tables NEVER
 userstat FALSE
 verbose TRUE
 wait-timeout 28800

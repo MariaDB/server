@@ -700,9 +700,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
     }
 
-    if (result_code == HA_ADMIN_OK && 
-        (operator_func != &handler::ha_analyze ||
-        thd->variables.optimizer_use_stat_tables < 3))
+    if (result_code == HA_ADMIN_OK)
     {    
       DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
       result_code = (table->table->file->*operator_func)(thd, check_opt);
@@ -710,8 +708,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     }
 
     if (compl_result_code == HA_ADMIN_OK &&
-        operator_func == &handler::ha_analyze && opt_with_stat_tables &&
-	thd->variables.optimizer_use_stat_tables > 0)
+        operator_func == &handler::ha_analyze && 
+	thd->variables.use_stat_tables > 0)
     {
       if (!(compl_result_code=
             collect_statistics_for_table(thd, table->table)))

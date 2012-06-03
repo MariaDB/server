@@ -1,5 +1,5 @@
-set @save_optimizer_use_stat_tables=@@optimizer_use_stat_tables;
-set optimizer_use_stat_tables='preferably';
+set @save_use_stat_tables=@@use_stat_tables;
+set use_stat_tables='preferably';
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -336,4 +336,4 @@ o_orderkey	p_partkey
 set optimizer_switch=@save_optimizer_switch;
 DROP DATABASE dbt3_s001;
 use test;
-set optimizer_use_stat_tables=@save_optimizer_use_stat_tables;
+set use_stat_tables=@save_use_stat_tables;
