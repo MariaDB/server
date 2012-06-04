@@ -550,4 +550,50 @@ test
 test
 set debug_dbug='';
 DROP TABLE t1;
+#
+# MDEV-299: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN changes back and forth during query execution
+#
+create table t1 (key1 int, col1 int, col2 int, filler char(100), key(key1));
+insert into t1 select A.a+ 10 * B.a, 10, 10, 'filler-data' from t0 A, t0 B;
+update t1 set col1=3, col2=10 where key1=1;
+update t1 set col1=3, col2=1000 where key1=2;
+update t1 set col1=3, col2=10 where key1=3;
+update t1 set col1=3, col2=1000 where key1=4;
+set @tmp_mdev299_jcl= @@join_cache_level;
+set join_cache_level=0;
+explain select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_test_if_quick_select';
+select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+Warnings:
+Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+Warnings:
+Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+Warnings:
+Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+Warnings:
+Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
+count(*)
+212
+set debug_dbug='';
+drop table t1;
 drop table t0;

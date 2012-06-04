@@ -16912,6 +16912,14 @@ int read_first_record_seq(JOIN_TAB *tab)
 static int
 test_if_quick_select(JOIN_TAB *tab)
 {
+  DBUG_EXECUTE_IF("show_explain_probe_test_if_quick_select", 
+                  if (dbug_user_var_equals_int(tab->join->thd, 
+                                               "show_explain_probe_select_id", 
+                                               tab->join->select_lex->select_number))
+                        dbug_serve_apcs(tab->join->thd, 1);
+                 );
+
+
   delete tab->select->quick;
   tab->select->quick=0;
   return tab->select->test_quick_select(tab->join->thd, tab->keys,
@@ -21410,6 +21418,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
       tmp3.length(0);
       tmp4.length(0);
       quick_type= -1;
+      QUICK_SELECT_I *quick= NULL;
 
       /* Don't show eliminated tables */
       if (table->map & join->eliminated_tables)
@@ -21428,8 +21437,9 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
       
       enum join_type tab_type= tab->type;
       if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
-           tab->select && tab->select->quick)
+           tab->select && tab->select->quick && tab->use_quick != 2)
       {
+        quick= tab->select->quick;
         quick_type= tab->select->quick->get_type();
         if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
             (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
@@ -21568,9 +21578,9 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
           tab->select && tab->select->quick)
 =======*/
       }         
-      if (tab->type != JT_CONST && tab->select && tab->select->quick)
+      if (tab->type != JT_CONST && tab->select && quick)
         tab->select->quick->add_keys_and_lengths(&tmp2, &tmp3);
-      if (key_info || (tab->select && tab->select->quick))
+      if (key_info || (tab->select && quick))
       {
         if (tmp2.length())
           item_list.push_back(new Item_string(tmp2.ptr(),tmp2.length(),cs));
@@ -21631,8 +21641,8 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
       else
       {
         ha_rows examined_rows;
-        if (tab->select && tab->select->quick)
-          examined_rows= tab->select->quick->records;
+        if (tab->select && quick)
+          examined_rows= quick->records;
         else if (tab_type == JT_NEXT || tab_type == JT_ALL || is_hj)
         {
           if (tab->limit)
@@ -21676,7 +21686,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
           table->covering_keys.is_set(tab->index))
 	key_read=1;
       if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT &&
-          !((QUICK_ROR_INTERSECT_SELECT*)tab->select->quick)->need_to_fetch_row)
+          !((QUICK_ROR_INTERSECT_SELECT*)quick)->need_to_fetch_row)
         key_read=1;
         
       if (tab->info)
@@ -21704,8 +21714,8 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         uint keyno= MAX_KEY;
         if (tab->ref.key_parts)
           keyno= tab->ref.key;
-        else if (tab->select && tab->select->quick)
-          keyno = tab->select->quick->index;
+        else if (tab->select && quick)
+          keyno = quick->index;
 
         if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
             table->file->pushed_idx_cond)
