@@ -7905,6 +7905,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   j->ref.null_rejecting= 0;
   j->ref.disable_cache= FALSE;
   j->ref.null_ref_part= NO_REF_PART;
+  j->ref.const_ref_part_map= 0;
   keyuse=org_keyuse;
 
   store_key **ref_key= j->ref.key_copy;
@@ -7952,6 +7953,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
 	if (thd->is_fatal_error)
 	  DBUG_RETURN(TRUE);
 	tmp.copy();
+        j->ref.const_ref_part_map |= key_part_map(1) << i ;
       }
       else
 	*ref_key++= get_store_key(thd,
@@ -21521,13 +21523,21 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         length= (longlong10_to_str(key_len, keylen_str_buf, 10) - 
                  keylen_str_buf);
         tmp3.append(keylen_str_buf, length, cs);
-        if (tab->ref.key_parts)
+        if (tab->ref.key_parts && tab_type != JT_FT)
 	{
-	  for (store_key **ref=tab->ref.key_copy ; *ref ; ref++)
+          store_key **ref=tab->ref.key_copy;
+          for (uint kp= 0; kp < tab->ref.key_parts; kp++)
 	  {
 	    if (tmp4.length())
 	      tmp4.append(',');
-	    tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+
+            if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
+              tmp4.append("const");
+            else
+            {
+              tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+              ref++;
+            }
           }
         }
       }

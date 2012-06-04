@@ -508,7 +508,7 @@ INSERT INTO t2 VALUES
   (11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
 
 set @show_explain_probe_select_id=1;
-set debug='d,show_explain_probe_join_exec_end';
+set debug_dbug='d,show_explain_probe_join_exec_end';
 send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
@@ -516,9 +516,32 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug='';
+set debug_dbug='';
 
 DROP TABLE t2;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-305: SHOW EXPLAIN: ref returned by SHOW EXPLAIN is different from the normal EXPLAIN ('const' vs empty string)
+--echo #
+CREATE TABLE t1(a INT, KEY(a));
+INSERT INTO t1 VALUES (3),(1),(5),(1);
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+
+send SELECT 'test' FROM t1 WHERE a=1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug_dbug='';
+
+DROP TABLE t1;
+
+
 
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
@@ -527,4 +550,4 @@ DROP TABLE t2;
 ## TODO: SHOW EXPLAIN while the primary query is running EXPLAIN EXTENDED/PARTITIONS
 ##
 
-drop table t0,t1;
+drop table t0;

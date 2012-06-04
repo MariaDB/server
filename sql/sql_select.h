@@ -101,6 +101,13 @@ typedef struct st_table_ref
   uchar         *key_buff;                ///< value to look for with key
   uchar         *key_buff2;               ///< key_buff+key_length
   store_key     **key_copy;               //
+
+  /*
+    Bitmap of key parts which refer to constants. key_copy only has copiers for
+    non-const key parts.
+  */
+  key_part_map  const_ref_part_map;
+
   Item          **items;                  ///< val()'s for each keypart
   /*  
     Array of pointers to trigger variables. Some/all of the pointers may be
