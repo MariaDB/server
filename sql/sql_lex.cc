@@ -1524,10 +1524,11 @@ int lex_one_token(void *arg, void *yythd)
         /*
           The special comment format is very strict:
           '/' '*' '!', followed by an optional 'M' and exactly
-          1 digit (major), 2 digits (minor), then 2 digits (dot).
-          32302 -> 3.23.02
-          50032 -> 5.0.32
-          50114 -> 5.1.14
+          1-2 digits (major), 2 digits (minor), then 2 digits (dot).
+          32302  -> 3.23.02
+          50032  -> 5.0.32
+          50114  -> 5.1.14
+          100000 -> 10.0.0
         */
         if (  my_isdigit(cs, lip->yyPeekn(0))
            && my_isdigit(cs, lip->yyPeekn(1))
