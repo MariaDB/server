@@ -542,6 +542,44 @@ set debug_dbug='';
 DROP TABLE t1;
 
 
+--echo #
+--echo # MDEV-299: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN changes back and forth during query execution
+--echo #
+
+create table t1 (key1 int, col1 int, col2 int, filler char(100), key(key1));
+insert into t1 select A.a+ 10 * B.a, 10, 10, 'filler-data' from t0 A, t0 B;
+
+# Make matches 3 records 
+update t1 set col1=3, col2=10 where key1=1; # small range
+update t1 set col1=3, col2=1000 where key1=2; # big range 
+update t1 set col1=3, col2=10 where key1=3; # small range again
+update t1 set col1=3, col2=1000 where key1=4; # big range 
+
+set @tmp_mdev299_jcl= @@join_cache_level;
+set join_cache_level=0;
+
+explain select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_test_if_quick_select';
+
+send 
+select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+set debug_dbug='';
+drop table t1;
 
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
