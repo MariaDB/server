@@ -7941,6 +7941,13 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       if (keyuse->null_rejecting) 
         j->ref.null_rejecting |= 1 << i;
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
+      /*
+        Todo: we should remove this check for thd->lex->describe on the next
+        line. With SHOW EXPLAIN code, EXPLAIN printout code no longer depends
+        on it. However, removing the check caused change in lots of query
+        plans! Does the optimizer depend on the contents of
+        table_ref->key_copy ? If yes, do we produce incorrect EXPLAINs? 
+      */
       if (!keyuse->val->used_tables() && !thd->lex->describe)
       {					// Compare against constant
 	store_key_item tmp(thd, 
