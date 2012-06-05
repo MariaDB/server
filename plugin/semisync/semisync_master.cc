@@ -1050,6 +1050,7 @@ int ReplSemiSyncMaster::readSlaveReply(NET *net, uint32 server_id,
 
   struct timespec start_ts;
   ulong trc_level = trace_level_;
+  LINT_INIT_STRUCT(start_ts);
 
   function_enter(kWho);
 

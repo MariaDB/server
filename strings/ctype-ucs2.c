@@ -2317,7 +2317,7 @@ void my_fill_utf32(CHARSET_INFO *cs,
                    char *s, size_t slen, int fill)
 {
   char buf[10];
-  uint buflen;
+  uint __attribute__((unused)) buflen;
   char *e= s + slen;
   
   DBUG_ASSERT((slen % 4) == 0);

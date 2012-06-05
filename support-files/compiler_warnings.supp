@@ -28,7 +28,6 @@ pars0grm.c: 'yyerrorlab' : unreferenced label
 _flex_tmp.c: .*not enough actual parameters for macro 'yywrap'.*
 lexyy.c : not enough actual parameters for macro 'yywrap'
 pars0lex.l: .*conversion from 'ulint' to 'int', possible loss of data.*
-btr/btr0cur\.c: .*value computed is not used.*: 3175-3375
 include/buf0buf\.ic: unused parameter .*mtr.*
 fil/fil0fil\.c: pointer targets in passing argument.*differ in signedness
 fil/fil0fil\.c: comparison between signed and unsigned : 3100-3199
@@ -45,6 +44,8 @@ srv/srv0srv\.c: value computed is not used
 buf/buf0buf\.c: .*block_mutex.* might be used uninitialized
 btr/btr0cur\.c: null argument where non-null required: 1800-3000
 btr/btr0btr\.c: null argument where non-null required: 2500-3000
+btr/btr0cur\.c: .*value computed is not used.*: 3175-3375
+btr/btr0sea\.c: passing argument 2 .* discards qualifiers from pointer target type
 ibuf/ibuf0ibuf.c: null argument where non-null required: 700-1000
 fsp0fsp\.c: result of 32-bit shift implicitly converted to 64 bits
 
@@ -128,6 +129,10 @@ signal\.c : .*unused parameter.*
 # Aria warning that is ok in debug builds
 #
 storage/maria/ma_pagecache.c: .*'info_check_pin' defined but not used
+#
+# This warning is strange; We should not get it with -DFORCE_INIT_OF_VARS
+# I added the suprression as I was not able to remove this warning :(
+storage/maria/ma_check.c: may be used uninitialized in this function : 1300-1500
 
 #
 # Pbxt
@@ -152,6 +157,13 @@ include/runtime.hpp: .*pure_error.*
 .*/extra/yassl/taocrypt/src/file\.cpp: ignoring return value
 .*/extra/yassl/taocrypt/src/integer\.cpp: control reaches end of non-void function
 mySTL/algorithm\.hpp: is used uninitialized in this function
+
+#
+# OpenSSL
+#
+# The following comes because of different prototype between yassl and openssl.
+# Save as the argument is a function withing the library.
+vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
 
 #
 # Groff warnings on OpenSUSE.

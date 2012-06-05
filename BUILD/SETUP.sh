@@ -58,6 +58,8 @@ parse_options()
       EXTRA_CXXFLAGS=`get_key_value "$1"`;;
     --extra-configs=*)
       EXTRA_CONFIGS=`get_key_value "$1"`;;
+    --extra-makeflags=*)
+      EXTRA_MAKEFLAGS=`get_key_value "$1"`;;
     -c | --just-configure)
       just_configure=1;;
     -n | --just-print | --print)
