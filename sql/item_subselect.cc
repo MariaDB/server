@@ -5071,7 +5071,8 @@ int
 Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 {
   uchar *rowid_a, *rowid_b;
-  int error, cmp_res;
+  int __attribute__((unused)) error;
+  int cmp_res;
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
 
@@ -5157,7 +5158,8 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
   uchar *cur_rowid= row_num_to_rowid + row_num * rowid_length;
-  int error, cmp_res;
+  int __attribute__((unused)) error;
+  int cmp_res;
 
   error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid);
   DBUG_ASSERT(!error);

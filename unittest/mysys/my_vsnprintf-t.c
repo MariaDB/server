@@ -19,7 +19,7 @@
 
 char buf[1024]; /* let's hope that's enough */
 
-void test1(const char *res, const char *fmt, ...)
+static void test1(const char *res, const char *fmt, ...)
 {
   va_list args;
   size_t len;
@@ -28,6 +28,26 @@ void test1(const char *res, const char *fmt, ...)
   va_end(args);
   ok(strlen(res) == len && strcmp(buf, res) == 0, "\"%s\"", buf);
 }
+
+static void test_many(const char **res, const char *fmt, ...)
+{
+  va_list args;
+  size_t len;
+  va_start(args,fmt);
+  len= my_vsnprintf(buf, sizeof(buf)-1, fmt, args);
+  va_end(args);
+
+  for (; *res ; res++)
+  {
+    if (strlen(*res) == len && strcmp(buf, *res) == 0)
+    {
+      ok(1, "\"%s\"", buf);
+      return;
+    }
+  }
+  ok(0, "\"%s\"", buf);
+}
+
 
 int main(void)
 {
@@ -177,7 +197,16 @@ int main(void)
   test1("My `DDDD` test CCCC, `DDD`",
         "My %1$`s test %2$s, %1$`-.3s", "DDDD", "CCCC");
 
-  test1("Error 1 - Operation not permitted", "Error %M", 1);
+  {
+    /* Test that %M works */
+    const char *results[]=
+    {
+      "Error 1 - Operation not permitted",      /* Linux */
+      "Error 1 - Not Owner",                    /* Solaris */
+      NullS
+    };
+    test_many(results, "Error %M", 1);
+  }
 
   return exit_status();
 }

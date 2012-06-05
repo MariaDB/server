@@ -39,7 +39,7 @@ if [ -z "$just_configure" -a -z "$just_clean" ]
 then
   commands="$commands
 
-$make $AM_MAKEFLAGS"
+$make $AM_MAKEFLAGS $AM_EXTRA_MAKEFLAGS $EXTRA_MAKEFLAGS"
 
   if [ "x$strip" = "xyes" ]
   then

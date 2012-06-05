@@ -6372,7 +6372,8 @@ greedy_search(JOIN      *join,
   uint      size_remain;    // cardinality of remaining_tables
   POSITION  best_pos;
   JOIN_TAB  *best_table; // the next plan node to be added to the curr QEP
-  uint      n_tables; // ==join->tables or # tables in the sj-mat nest we're optimizing
+  // ==join->tables or # tables in the sj-mat nest we're optimizing
+  uint      __attribute__((unused)) n_tables;
 
   DBUG_ENTER("greedy_search");
 

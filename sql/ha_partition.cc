@@ -3710,7 +3710,7 @@ int ha_partition::truncate_partition(Alter_info *alter_info, bool *binlog_stmt)
       {
         List_iterator<partition_element>
                                     subpart_it(part_elem->subpartitions);
-        partition_element *sub_elem;
+        partition_element __attribute__((unused)) *sub_elem;
         uint j= 0, part;
         do
         {

@@ -1404,7 +1404,7 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
                                uint key_parts,
                                uint *bufsz, uint *flags, COST_VECT *cost)
 {  
-  ha_rows res;
+  ha_rows __attribute__((unused)) res;
   uint def_flags= *flags;
   uint def_bufsz= *bufsz;
 
