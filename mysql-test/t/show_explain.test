@@ -634,6 +634,33 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 
+--echo #
+--echo # MDEV-323: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN loses 
+--echo #            'UNION RESULT' line on the way without saying that the plan was already deleted
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (4),(6);
+
+EXPLAIN 
+SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
+
+set debug_dbug='d,show_explain_probe_union_read';
+send
+SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set debug_dbug='';
+
+DROP TABLE t1;
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
