@@ -596,4 +596,24 @@ count(*)
 212
 set debug_dbug='';
 drop table t1;
+#
+# MDEV-297: SHOW EXPLAIN: Server gets stuck until timeout occurs while
+#           executing SHOW INDEX and SHOW EXPLAIN in parallel
+#
+CREATE TABLE t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c));
+INSERT INTO t1 (a) VALUES (3),(1),(5),(1);
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+SHOW INDEX FROM t1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Skip_open_table; Scanned all databases
+Warnings:
+Note	1003	SHOW INDEX FROM t1
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
+t1	1	c	1	c	A	NULL	NULL	NULL	YES	BTREE		
+set debug_dbug='';
+DROP TABLE t1;
 drop table t0;
