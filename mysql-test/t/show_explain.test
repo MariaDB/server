@@ -191,6 +191,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -325,7 +326,9 @@ send SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 
 connection default;
 --source include/wait_condition.inc
---echo # NOTE: current code will not show "Using join buffer":
+--echo # FIXED by "conservative assumptions about when QEP is available" fix:
+--echo #    NOTE: current code will not show "Using join buffer": 
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -374,6 +377,7 @@ send SELECT * FROM v1, t2;
 
 connection default;
 --source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -403,6 +407,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select * from t0 where 1>10;
 connection default;
 --source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -418,6 +423,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select * from t0,t3 where t3.a=112233;
 connection default;
 --source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -513,6 +519,7 @@ send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
 --source include/wait_condition.inc
+--error ER_ERROR_WHEN_EXECUTING_COMMAND
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -600,6 +607,32 @@ reap;
 set debug_dbug='';
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-324: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN for a query with TEMPTABLE view 
+--echo #           loses 'DERIVED' line on the way without saying that the plan was already deleted
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+
+EXPLAIN SELECT a + 1 FROM v1;
+
+set debug_dbug='d,show_explain_probe_join_tab_preread';
+set @show_explain_probe_select_id=1;
+
+send
+  SELECT a + 1 FROM v1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug_dbug='';
+
+DROP VIEW v1;
+DROP TABLE t1;
+
 
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a

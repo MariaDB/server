@@ -3328,6 +3328,8 @@ public:
   /* this will be called in the parent thread: */
   void flush_data();
 
+  void discard_data();
+
   List<String> data_rows;
 };
 

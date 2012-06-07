@@ -2085,6 +2085,7 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
                  "Target is not running EXPLAINable command");
       }
       bres= TRUE;
+      explain_buf->discard_data();
     }
     else
     {

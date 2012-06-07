@@ -10365,9 +10365,18 @@ bool JOIN_TAB::preread_init()
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
       return TRUE;
+
   preread_init_done= TRUE;
   if (select && select->quick)
     select->quick->replace_handler(table->file);
+
+  DBUG_EXECUTE_IF("show_explain_probe_join_tab_preread", 
+                  if (dbug_user_var_equals_int(join->thd, 
+                                               "show_explain_probe_select_id", 
+                                               join->select_lex->select_number))
+                        dbug_serve_apcs(join->thd, 1);
+                 );
+
   return FALSE;
 }
 

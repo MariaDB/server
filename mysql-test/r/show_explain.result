@@ -153,10 +153,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
-Warnings:
-Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 # Try to do SHOW EXPLAIN for a query that runs a  SET command:
@@ -308,12 +305,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 set debug_dbug='d,show_explain_in_find_all_keys';
 SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
-# NOTE: current code will not show "Using join buffer":
+# FIXED by "conservative assumptions about when QEP is available" fix:
+#    NOTE: current code will not show "Using join buffer": 
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
-Warnings:
-Note	1003	SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 a
 1
 2
@@ -366,10 +361,7 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 SELECT * FROM v1, t2;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Not yet optimized
-Warnings:
-Note	1003	SELECT * FROM v1, t2
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 a	b
 8	4
 8	5
@@ -401,10 +393,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
-Warnings:
-Note	1003	select * from t0 where 1>10
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 a
 set debug_dbug='';
 #
@@ -416,10 +405,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
-Warnings:
-Note	1003	select * from t0,t3 where t3.a=112233
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 a	a
 set debug_dbug='';
 drop table t3;
@@ -524,10 +510,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
-Warnings:
-Note	1003	SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`)
+ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
 pk	a1
 set debug_dbug='';
 DROP TABLE t2;
@@ -615,5 +598,31 @@ t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
 t1	1	c	1	c	A	NULL	NULL	NULL	YES	BTREE		
 set debug_dbug='';
+DROP TABLE t1;
+#
+# MDEV-324: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN for a query with TEMPTABLE view 
+#           loses 'DERIVED' line on the way without saying that the plan was already deleted
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
+EXPLAIN SELECT a + 1 FROM v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+set debug_dbug='d,show_explain_probe_join_tab_preread';
+set @show_explain_probe_select_id=1;
+SELECT a + 1 FROM v1;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Query plan already deleted
+Warnings:
+Note	1003	SELECT a + 1 FROM v1
+a + 1
+2
+3
+set debug_dbug='';
+DROP VIEW v1;
 DROP TABLE t1;
 drop table t0;
