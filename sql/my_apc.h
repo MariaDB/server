@@ -53,8 +53,7 @@ public:
                      int timeout_sec, bool *timed_out);
 
 #ifndef DBUG_OFF
-  int n_calls_processed;
-  //int call_queue_size;
+  int n_calls_processed; /* Number of calls served by this target */
 #endif
 private:
   class Call_request;

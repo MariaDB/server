@@ -1656,7 +1656,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     while ((ifm= li++))
       parent_lex->ftfunc_list->push_front(ifm);
   }
-  
+
   parent_lex->have_merged_subqueries= TRUE;
   DBUG_RETURN(FALSE);
 }

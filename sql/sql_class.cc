@@ -1361,7 +1361,7 @@ void THD::cleanup(void)
     mysql_mutex_unlock(&LOCK_user_locks);
     ull= NULL;
   }
-  
+
   apc_target.destroy();
   cleanup_done=1;
   DBUG_VOID_RETURN;
@@ -1372,8 +1372,6 @@ THD::~THD()
 {
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
-  //psergey-todo: assert that the queue is disabled and empty.
-
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
   mysys_var=0;					// Safety (shouldn't be needed)
@@ -2311,8 +2309,8 @@ int select_send::send_data(List<Item> &items)
   DBUG_RETURN(0);
 }
 
-
 //////////////////////////////////////////////////////////////////////////////
+
 int select_result_explain_buffer::send_data(List<Item> &items)
 {
   List_iterator_fast<Item> li(items);
@@ -2336,13 +2334,16 @@ int select_result_explain_buffer::send_data(List<Item> &items)
     */
     buffer.set(buff, sizeof(buff), &my_charset_bin);
   }
-  //TODO: do we need the following:
+
   if (thd->is_error())
   {
     protocol->remove_last_row();
     DBUG_RETURN(1);
   }
-  /* psergey-TODO: instead of protocol->write(), steal the packet here */
+  /* 
+    Instead of calling protocol->write(), steal the packed and put it to our
+    buffer 
+  */
   const char *packet_data;
   size_t len;
   protocol->get_packet(&packet_data, &len);
