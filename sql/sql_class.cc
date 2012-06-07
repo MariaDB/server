@@ -2356,15 +2356,30 @@ int select_result_explain_buffer::send_data(List<Item> &items)
 }
 
 
+/* Write all strings out to the output, and free them. */
+
 void select_result_explain_buffer::flush_data()
 {
   List_iterator<String> it(data_rows);
   String *str;
   while ((str= it++))
   {
-    /* TODO: write out the lines. */
     protocol->set_packet(str->ptr(), str->length());
     protocol->write();
+    delete str;
+  }
+  data_rows.empty();
+}
+
+
+/* Just free all of the accumulated strings */
+
+void select_result_explain_buffer::discard_data()
+{
+  List_iterator<String> it(data_rows);
+  String *str;
+  while ((str= it++))
+  {
     delete str;
   }
   data_rows.empty();
@@ -3288,6 +3303,7 @@ void Show_explain_request::get_explain_data(void *arg)
   //      Actually, change the ARENA, because we're going to allocate items!
   Query_arena backup_arena;
   THD *target_thd= req->target_thd;
+  bool printed_anything= FALSE;
 
   target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
                                         &backup_arena);
@@ -3296,7 +3312,11 @@ void Show_explain_request::get_explain_data(void *arg)
                       target_thd->query_length(),
                       &my_charset_bin);
 
-  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags */))
+  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags*/,
+                                          &printed_anything))
+    req->failed_to_produce= TRUE;
+
+  if (!printed_anything)
     req->failed_to_produce= TRUE;
 
   target_thd->restore_active_arena((Query_arena*)req->request_thd, 

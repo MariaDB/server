@@ -4074,7 +4074,8 @@ int print_explain_message_line(select_result_sink *result,
 
 
 int st_select_lex::print_explain(select_result_sink *output, 
-                                 uint8 explain_flags)
+                                 uint8 explain_flags,
+                                 bool *printed_anything)
 {
   int res;
   if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
@@ -4083,6 +4084,7 @@ int st_select_lex::print_explain(select_result_sink *output,
       There is a number of reasons join can be marked as degenerate, so all
       three conditions below can happen simultaneously, or individually:
     */
+    *printed_anything= TRUE;
     if (!join->table_count || !join->tables_list || join->zero_result_cause)
     {
       /* It's a degenerate join */
@@ -4112,7 +4114,8 @@ int st_select_lex::print_explain(select_result_sink *output,
       */
       if (!(unit->item && unit->item->eliminated))
       {
-        unit->print_explain(output, explain_flags);
+        if ((res= unit->print_explain(output, explain_flags, printed_anything)))
+          goto err;
       }
     }
   }
@@ -4120,7 +4123,9 @@ int st_select_lex::print_explain(select_result_sink *output,
   {
     const char *msg;
     if (!join)
-      DBUG_ASSERT(0); // psergey: TODO: can this happen or not?
+      DBUG_ASSERT(0); /* Seems not to be possible */
+
+    /* Not printing anything useful, don't touch *printed_anything here */
     if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
       msg= "Not yet optimized";
     else
@@ -4132,12 +4137,12 @@ int st_select_lex::print_explain(select_result_sink *output,
                                     0, msg);
   }
 err:
-  return 0;
+  return res;
 }
 
 
 int st_select_lex_unit::print_explain(select_result_sink *output, 
-                                      uint8 explain_flags)
+                                      uint8 explain_flags, bool *printed_anything)
 {
   int res= 0;
   SELECT_LEX *first= first_select();
@@ -4148,12 +4153,15 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
       If there is only one child, 'first', and it has join==NULL, emit "not in
       EXPLAIN state" error.
     */
-    return 1;
+    const char *msg="Query plan already deleted";
+    res= print_explain_message_line(output, first, TRUE /* on_the_fly */,
+                                    0, msg);
+    return 0;
   }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    if ((res= sl->print_explain(output, explain_flags)))
+    if ((res= sl->print_explain(output, explain_flags, printed_anything)))
       break;
   }
 
