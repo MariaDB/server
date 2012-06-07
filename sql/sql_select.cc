@@ -2228,7 +2228,7 @@ void JOIN::exec_inner()
   List<Item> *columns_list= &fields_list;
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
-  
+
   thd_proc_info(thd, "executing");
   error= 0;
   if (procedure)
@@ -2526,16 +2526,12 @@ void JOIN::exec_inner()
       
       /* Free first data from old join */
       
-      fprintf(stderr,"Q: %s\n", thd->query());
-      //DBUG_ASSERT(0);
       /*
         psergey-todo: this is the place of pre-mature JOIN::free call.
       */
       curr_join->join_free();
-      //psergey-todo: SHOW EXPLAIN probe here
       if (curr_join->make_simple_join(this, curr_tmp_table))
 	DBUG_VOID_RETURN;
-      //psergey-todo: SHOW EXPLAIN probe here
       calc_group_buffer(curr_join, group_list);
       count_field_types(select_lex, &curr_join->tmp_table_param,
 			curr_join->tmp_all_fields1,
