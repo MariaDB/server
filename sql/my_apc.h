@@ -22,15 +22,16 @@
 */
 
 /*
-  Target for asynchronous calls.
+  Target for asynchronous procedue calls (APCs).
 */
 class Apc_target
 {
+  mysql_mutex_t *LOCK_thd_data_ptr;
 public:
   Apc_target() : enabled(0), apc_calls(NULL) /*, call_queue_size(0)*/ {} 
   ~Apc_target() { DBUG_ASSERT(!enabled && !apc_calls);}
 
-  void init();
+  void init(mysql_mutex_t *target_mutex);
   void destroy();
   void enable();
   void disable();
@@ -68,14 +69,31 @@ private:
   /* 
     Circular, double-linked list of all enqueued call requests. 
     We use this structure, because we 
-     - process requests sequentially 
+     - process requests sequentially (i.e. they are removed from the front)
      - a thread that has posted a request may time out (or be KILLed) and 
-       cancel the request, which means we'll need to remove its request at 
-       arbitrary point in time.
+       cancel the request, which means we need a fast request-removal
+       operation.
   */
   Call_request *apc_calls;
+ 
 
-  pthread_mutex_t LOCK_apc_queue;
+  /*
+    This mutex is used to
+    - make queue put/remove operations atomic (one must be in posession of the
+      mutex when putting/removing something from the queue)
+
+    - make sure that nobody enqueues a request onto an Apc_target which has 
+      disabled==TRUE. The idea is:
+      = requestor must be in possession of the mutex and check that
+        disabled==FALSE when he is putting his request into the queue.
+      = When the owner (ie. service) thread changes the Apc_target from 
+        enabled to disabled, it will acquire the mutex, disable the 
+        Apc_target (preventing any new requests), and then serve all pending 
+        requests. 
+      That way, we will never have the situation where the Apc_target is 
+      disabled, but there are some un-served requests.
+  */
+  //pthread_mutex_t LOCK_apc_queue;
 
   class Call_request
   {
@@ -84,13 +102,16 @@ private:
     void *func_arg;  /* Argument to pass it */
     bool processed;
 
-    pthread_mutex_t LOCK_request;
-    pthread_cond_t COND_request;
+    //pthread_mutex_t LOCK_request;
+    //pthread_cond_t COND_request;
+
+    /* Condition that will be signalled when the request has been served */
+    mysql_cond_t COND_request;
 
     Call_request *next;
     Call_request *prev;
     
-    const char *what; /* State of the request */
+    const char *what; /* (debug) state of the request */
   };
 
   void enqueue_request(Call_request *qe);

@@ -9,6 +9,8 @@
 #include <my_pthread.h>
 #include <my_sys.h>
 
+#include "my_apc.h"
+
 #else
 
 #include "sql_priv.h"
@@ -16,7 +18,6 @@
 
 #endif
 
-//#include "my_apc.h"
 
 /*
   Standalone testing:
@@ -33,12 +34,10 @@
   any call requests to it.
   Initial state after initialization is 'disabled'.
 */
-void Apc_target::init()
+void Apc_target::init(mysql_mutex_t *target_mutex)
 {
-  // todo: should use my_pthread_... functions instead?
   DBUG_ASSERT(!enabled);
-  (void)pthread_mutex_init(&LOCK_apc_queue, MY_MUTEX_INIT_SLOW);
-
+  LOCK_thd_data_ptr= target_mutex;
 #ifndef DBUG_OFF
   n_calls_processed= 0;
 #endif
@@ -51,7 +50,6 @@ void Apc_target::init()
 void Apc_target::destroy()
 {
   DBUG_ASSERT(!enabled);
-  pthread_mutex_destroy(&LOCK_apc_queue);
 }
 
 
@@ -60,9 +58,8 @@ void Apc_target::destroy()
 */
 void Apc_target::enable()
 {
-  pthread_mutex_lock(&LOCK_apc_queue);
+  /* Ok to do without getting/releasing the mutex: */
   enabled++;
-  pthread_mutex_unlock(&LOCK_apc_queue);
 }
 
 
@@ -76,16 +73,16 @@ void Apc_target::enable()
 void Apc_target::disable()
 {
   bool process= FALSE;
-  pthread_mutex_lock(&LOCK_apc_queue);
+  mysql_mutex_lock(LOCK_thd_data_ptr);
   if (!(--enabled))
     process= TRUE;
-  pthread_mutex_unlock(&LOCK_apc_queue);
+  mysql_mutex_unlock(LOCK_thd_data_ptr);
   if (process)
     process_apc_requests();
 }
 
 
-/* (internal) Put request into the request list */
+/* [internal] Put request qe into the request list */
 
 void Apc_target::enqueue_request(Call_request *qe)
 {
@@ -108,7 +105,7 @@ void Apc_target::enqueue_request(Call_request *qe)
 
 
 /* 
-  (internal) Remove given request from the request queue. 
+  [internal] Remove request qe from the request queue. 
   
   The request is not necessarily first in the queue.
 */
@@ -131,11 +128,14 @@ void Apc_target::dequeue_request(Call_request *qe)
 
 
 /*
-  Make an APC (Async Procedure Call) in another thread. 
+  Make an APC (Async Procedure Call) to another thread. 
 
-  The caller is responsible for making sure he's not calling an Apc_target 
-  that is serviced by the same thread it is called from.
-  
+  - The caller is responsible for making sure he's not calling to the same
+    thread.
+
+  - The caller should have locked target_thread_mutex.
+
+
   psergey-todo: Should waits here be KILLable? (it seems one needs 
   to use thd->enter_cond() calls to be killable)
 */
@@ -146,7 +146,6 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
   bool res= TRUE;
   *timed_out= FALSE;
 
-  pthread_mutex_lock(&LOCK_apc_queue);
   if (enabled)
   {
     /* Create and post the request */
@@ -154,51 +153,48 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
     apc_request.func= func;
     apc_request.func_arg= func_arg;
     apc_request.processed= FALSE;
-    (void)pthread_cond_init(&apc_request.COND_request, NULL);
-    (void)pthread_mutex_init(&apc_request.LOCK_request, MY_MUTEX_INIT_SLOW);
-    pthread_mutex_lock(&apc_request.LOCK_request);
+    mysql_cond_init(0 /* do not track in PS */, &apc_request.COND_request, NULL);
     enqueue_request(&apc_request);
     apc_request.what="enqueued by make_apc_call";
-    pthread_mutex_unlock(&LOCK_apc_queue);
  
     struct timespec abstime;
     const int timeout= timeout_sec;
     set_timespec(abstime, timeout);
-    
+
     int wait_res= 0;
     /* todo: how about processing other errors here? */
     while (!apc_request.processed && (wait_res != ETIMEDOUT))
     {
-      wait_res= pthread_cond_timedwait(&apc_request.COND_request,
-                                       &apc_request.LOCK_request, &abstime);
+      /* We own LOCK_thd_data_ptr */
+      wait_res= mysql_cond_timedwait(&apc_request.COND_request,
+                                     LOCK_thd_data_ptr, &abstime);
+                                      // &apc_request.LOCK_request, &abstime);
     }
 
     if (!apc_request.processed)
     {
-      /* The wait has timed out. Remove the request from the queue */
+      /* 
+        The wait has timed out. Remove the request from the queue (ok to do
+        because we own LOCK_thd_data_ptr.
+      */
       apc_request.processed= TRUE;
-      *timed_out= TRUE;
-      pthread_mutex_unlock(&apc_request.LOCK_request);
-      //psergey-todo: "Whoa rare event" refers to this part, right? put a comment.
-      pthread_mutex_lock(&LOCK_apc_queue);
       dequeue_request(&apc_request);
-      pthread_mutex_unlock(&LOCK_apc_queue);
+      *timed_out= TRUE;
       res= TRUE;
     }
     else
     {
       /* Request was successfully executed and dequeued by the target thread */
-      pthread_mutex_unlock(&apc_request.LOCK_request);
       res= FALSE;
     }
+    mysql_mutex_unlock(LOCK_thd_data_ptr);
 
     /* Destroy all APC request data */
-    pthread_mutex_destroy(&apc_request.LOCK_request);
-    pthread_cond_destroy(&apc_request.COND_request);
+    mysql_cond_destroy(&apc_request.COND_request);
   }
   else
   {
-    pthread_mutex_unlock(&LOCK_apc_queue);
+    mysql_mutex_unlock(LOCK_thd_data_ptr);
   }
   return res;
 }
@@ -211,47 +207,28 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
 
 void Apc_target::process_apc_requests()
 {
+  if (!get_first_in_queue())
+    return;
+
   while (1)
   {
     Call_request *request;
-    
-    pthread_mutex_lock(&LOCK_apc_queue);
+ 
+    mysql_mutex_lock(LOCK_thd_data_ptr);
     if (!(request= get_first_in_queue()))
     {
-      pthread_mutex_unlock(&LOCK_apc_queue);
+      /* No requests in the queue */
+      mysql_mutex_unlock(LOCK_thd_data_ptr);
       break;
     }
 
-    request->what="seen by process_apc_requests";
-    pthread_mutex_lock(&request->LOCK_request);
-
-    if (request->processed)
-    {
-      /*
-        We can get here when
-        - the requestor thread has been waiting for this request
-        - the wait has timed out
-        - it has set request->done=TRUE
-        - it has released LOCK_request, because its next action
-          will be to remove the request from the queue, however,
-          it could not attempt to lock the queue while holding the lock on
-          request, because that would deadlock with this function 
-          (we here first lock the queue and then lock the request)
-      */
-      pthread_mutex_unlock(&request->LOCK_request);
-      pthread_mutex_unlock(&LOCK_apc_queue);
-      fprintf(stderr, "Whoa rare event #1!\n");
-      continue;
-    }
     /* 
-      Remove the request from the queue (we're holding its lock so we can be 
+      Remove the request from the queue (we're holding queue lock so we can be 
       sure that request owner won't try to remove it)
     */
     request->what="dequeued by process_apc_requests";
     dequeue_request(request);
     request->processed= TRUE;
-
-    pthread_mutex_unlock(&LOCK_apc_queue);
 
     request->func(request->func_arg);
     request->what="func called by process_apc_requests";
@@ -259,10 +236,8 @@ void Apc_target::process_apc_requests()
 #ifndef DBUG_OFF
     n_calls_processed++;
 #endif
-
-    pthread_cond_signal(&request->COND_request);
-
-    pthread_mutex_unlock(&request->LOCK_request);
+    mysql_cond_signal(&request->COND_request);
+    mysql_mutex_unlock(LOCK_thd_data_ptr);
   }
 }
 
@@ -280,6 +255,7 @@ volatile int apcs_missed=0;
 volatile int apcs_timed_out=0;
 
 Apc_target apc_target;
+mysql_mutex_t target_mutex;
 
 int int_rand(int size)
 {
@@ -290,7 +266,8 @@ int int_rand(int size)
 void *test_apc_service_thread(void *ptr)
 {
   my_thread_init();
-  apc_target.init();
+  mysql_mutex_init(0, &target_mutex, MY_MUTEX_INIT_FAST);
+  apc_target.init(&target_mutex);
   apc_target.enable();
   started= TRUE;
   fprintf(stderr, "# test_apc_service_thread started\n");

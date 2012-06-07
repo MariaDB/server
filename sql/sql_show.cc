@@ -2063,7 +2063,8 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
     explain_req.target_thd= tmp;
     explain_req.request_thd= thd;
     explain_req.failed_to_produce= FALSE;
-
+    
+    /* Ok, we have a lock on target->LOCK_thd_data, can call: */
     bres= tmp->apc_target.make_apc_call(Show_explain_request::get_explain_data,
                                         (void*)&explain_req,
                                         timeout_sec, &timed_out);
@@ -2090,7 +2091,7 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
       push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                    ER_YES, explain_req.query_str.c_ptr_safe());
     }
-    mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    //mysql_mutex_unlock(&tmp->LOCK_thd_data);
     if (!bres)
     {
       explain_buf->flush_data();

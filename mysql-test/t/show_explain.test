@@ -581,6 +581,26 @@ reap;
 set debug_dbug='';
 drop table t1;
 
+--echo #
+--echo # MDEV-297: SHOW EXPLAIN: Server gets stuck until timeout occurs while
+--echo #           executing SHOW INDEX and SHOW EXPLAIN in parallel
+--echo #
+CREATE TABLE t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c));
+INSERT INTO t1 (a) VALUES (3),(1),(5),(1);
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+
+send SHOW INDEX FROM t1;
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+set debug_dbug='';
+
+DROP TABLE t1;
+
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.

@@ -1196,7 +1196,7 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  apc_target.init();
+  apc_target.init(&LOCK_thd_data);
 }
 
  
@@ -1372,6 +1372,8 @@ THD::~THD()
 {
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+  //psergey-todo: assert that the queue is disabled and empty.
+
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
   mysys_var=0;					// Safety (shouldn't be needed)
