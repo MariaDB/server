@@ -165,7 +165,7 @@ WHERE ts BETWEEN '0000-00-00' AND '2010-00-01 00:00:00'
 ORDER BY ts DESC
 LIMIT 2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using index condition
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	4	Using where
 
 DROP TABLE t1;
 #
@@ -839,6 +839,22 @@ Variable_name	Value
 Handler_icp_attempts	2
 Handler_icp_match	1
 DROP TABLE t1;
+create table t1 (a int,b char(5),primary key (a), key (b(1)));
+insert into t1 values ('a','b');
+Warnings:
+Warning	1366	Incorrect integer value: 'a' for column 'a' at row 1
+select 1 from t1 where a and b >= 'aa';
+1
+drop table t1;
+#
+# Bug#58015 "Assert in row_sel_field_store_in_mysql_format
+#            when running innodb_mrr_icp test"
+#
+create table t1 (a char(2) charset utf8,b double, primary key (a(1)),key (b));
+insert into t1 values ('',1);
+select 1 from t1 where b <= 1 and a <> '';
+1
+drop table t1;
 drop table if exists t0, t1, t1i, t1m;
 #
 # BUG#826935 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed
@@ -914,4 +930,23 @@ Warning	1292	Truncated incorrect DOUBLE value: 'c'
 Warning	1292	Truncated incorrect DOUBLE value: 'c'
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t2,t3,t4;
+#
+# BUG#1000051: Query with simple join and ORDER BY takes thousands times longer when run with ICP
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, col int, filler char(100), key(a, col));
+insert into t1 select A.a + 10*B.a, 1234, 'filler' from t0 A, t0 B, t0 C;
+set @tmp_10000051= @@optimizer_switch;
+set optimizer_switch='mrr=off';
+# Must not use ICP:
+explain select * from t1 where a between 5 and 8 order by a desc, col desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	39	Using where
+set optimizer_switch= @tmp_10000051;
+# Must not use ICP:
+explain select * from t1 where a=3 and col > 500 order by a desc, col desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	10	NULL	10	Using where
+drop table t0, t1;
 set optimizer_switch=@myisam_icp_tmp;
