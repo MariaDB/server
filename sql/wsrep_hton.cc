@@ -305,8 +305,15 @@ wsrep_run_wsrep_commit(
         thd->stmt_da->affected_rows() > 0  &&
         !binlog_filter->is_on())
     {
-      WSREP_WARN("empty rbr buffer, query: %s, affected rows: %llu", 
-                 thd->query(), thd->stmt_da->affected_rows());
+      WSREP_DEBUG("empty rbr buffer, query: %s, "
+                 "affected rows: %llu, " 
+                 "changed tables: %d, " 
+                 "sql_log_bin: %d, "
+		 "wsrep status (%d %d %d)",
+                 thd->query(), thd->stmt_da->affected_rows(),
+                 stmt_has_updated_trans_table(thd), thd->variables.sql_log_bin,
+		 thd->wsrep_exec_mode, thd->wsrep_query_state, 
+		 thd->wsrep_conflict_state);
     }
     else
     {

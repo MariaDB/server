@@ -63,6 +63,7 @@ Usage: $0 [OPTIONS]
   --syslog                   Log messages to syslog with 'logger'
   --skip-syslog              Log messages to error log (default)
   --syslog-tag=TAG           Pass -t "mysqld-TAG" to 'logger'
+  --wsrep-urls=WSREP_URLS    Comma-separated list of wsrep URLs
 
 All other options are passed to the mysqld program.
 
@@ -161,6 +162,34 @@ shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
 
+wsrep_pick_url() {
+  [ $# -eq 0 ] && return 0
+
+  if ! which nc >/dev/null; then
+    log_error "ERROR: nc tool not found in PATH! Make sure you have it installed."
+    return 1
+  fi
+
+  local url
+  # Assuming URL in the form scheme://host:port
+  # If host and port are not NULL, the liveness of URL is assumed to be tested
+  # If port part is absent, the url is returned literally and unconditionally
+  # If every URL has port but none is reachable, nothing is returned
+  for url in `echo $@ | sed s/,/\ /g` 0; do
+    local host=`echo $url | cut -d \: -f 2 | sed s/^\\\/\\\///`
+    local port=`echo $url | cut -d \: -f 3`
+    [ -z "$port" ] && break
+    nc -z "$host" $port >/dev/null && break
+  done
+
+  if [ "$url" == "0" ]; then
+    log_error "ERROR: none of the URLs in '$@' is reachable."
+    return 1
+  fi
+
+  echo $url
+}
+
 parse_arguments() {
   # We only need to pass arguments through to the server if we don't
   # handle them here.  So, we collect unrecognized options (passed on
@@ -221,6 +250,7 @@ parse_arguments() {
       --skip-syslog) want_syslog=0 ;;
       --syslog-tag=*) syslog_tag="$val" ;;
       --timezone=*) TZ="$val"; export TZ; ;;
+      --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
 
       --help) usage ;;
 
@@ -772,9 +802,16 @@ while true
 do
   rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
 
+  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
+
   start_time=`date +%M%S`
 
-  eval_log_error "$cmd"
+  if [ -z "$url" ]
+  then
+    eval_log_error "$cmd"
+  else
+    eval_log_error "$cmd --wsrep_cluster_address=$url"
+  fi
 
   end_time=`date +%M%S`
 

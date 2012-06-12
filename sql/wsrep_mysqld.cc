@@ -45,7 +45,7 @@ long long wsrep_max_ws_size            = 1073741824LL; //max ws (RBR buffer) siz
 long    wsrep_max_ws_rows              = 65536; // max number of rows in ws
 int     wsrep_to_isolation             = 0; // # of active TO isolation threads
 my_bool wsrep_certify_nonPK            = 1; // certify, even when no primary key
-long    wsrep_max_protocol_version     = 1; // maximum protocol version to use
+long    wsrep_max_protocol_version     = 2; // maximum protocol version to use
 ulong   wsrep_forced_binlog_format     = BINLOG_FORMAT_UNSPEC;
 my_bool wsrep_recovery                 = 0; // recovery
 my_bool wsrep_replicate_myisam         = 0; // enable myisam replication
@@ -90,7 +90,7 @@ const char* wsrep_provider_vendor    = provider_vendor;
 wsrep_uuid_t     local_uuid   = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t    local_seqno  = WSREP_SEQNO_UNDEFINED;
 wsp::node_status local_status;
-long             wsrep_protocol_version = 1;
+long             wsrep_protocol_version = 2;
 
 // action execute callback
 extern wsrep_status_t wsrep_apply_cb(void *ctx,
@@ -229,6 +229,7 @@ static void wsrep_view_handler_cb (void* app_ctx,
   {
   case 0:
   case 1:
+  case 2:
       // version change
       if (view->proto_ver != wsrep_protocol_version)
       {
@@ -278,9 +279,10 @@ static void wsrep_view_handler_cb (void* app_ctx,
   {
     /*
      *  NOTE: Initialize wsrep_group_uuid here only if it wasn't initialized
-     *  before.
+     *  before - OR - it was reinitilized on startup (lp:992840)
      */
-    if (!memcmp (&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)))
+    if (!memcmp (&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)) ||
+	0 == wsrep_cluster_conf_id)
     {
       if (wsrep_init_first())
       {
@@ -730,6 +732,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
         *key_len= 0;
         break;
     case 1:
+    case 2:
     {
         *key_len= 0;
         if (db)
@@ -860,6 +863,7 @@ bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
         break;
     }
     case 1:
+    case 2:
     {
         key[*key_len].buf     = cache_key;
         key[*key_len].buf_len = strlen( (char*)cache_key );

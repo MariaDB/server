@@ -1781,7 +1781,8 @@ wsrep_rec_get_primary_key(
 	byte 		*buf,     /* out: extracted key */
 	ulint 		*buf_len, /* in/out: length of buf */
 	const rec_t*	rec,	  /* in: physical record */
-	dict_index_t*	index)	  /* in: record descriptor */
+	dict_index_t*	index,	  /* in: record descriptor */
+	ibool		new_protocol) /* in: protocol > 1 */
 {
 	const byte*	data;
 	ulint		len;
@@ -1819,7 +1820,7 @@ wsrep_rec_get_primary_key(
 			ut_a(!(col->prtype & DATA_NOT_NULL));
 			*buf++ = 1;
 			key_len++;
-		} else {
+		} else if (!new_protocol) {
 			if (!(col->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
 				key_len++;
@@ -1829,6 +1830,47 @@ wsrep_rec_get_primary_key(
 				(int)(col->prtype & DATA_MYSQL_TYPE_MASK),
 				(uint)dtype_get_charset_coll(col->prtype),
 				buf, len);
+		} else { /* new protocol */
+			if (!(col->prtype & DATA_NOT_NULL)) {
+				*buf++ = 0;
+				key_len++;
+			}
+			switch (col->mtype) {
+			case DATA_INT: {
+				byte* ptr = buf+len;
+				for (;;) {
+					ptr--;
+					*ptr = *data;
+					if (ptr == buf) {
+						break;
+					}
+					data++;
+				}
+		
+				if (!(col->prtype & DATA_UNSIGNED)) {
+					buf[len-1] = (byte) (buf[len-1] ^ 128);
+				}
+
+				break;
+			}
+			case DATA_VARCHAR:
+			case DATA_VARMYSQL:
+			case DATA_BINARY:
+				/* Copy the actual data */
+				ut_memcpy(buf, data, len);
+				wsrep_innobase_mysql_sort(
+					(int)(col->prtype & DATA_MYSQL_TYPE_MASK),
+					(uint)dtype_get_charset_coll(col->prtype),
+					buf, len);
+				break;
+			case DATA_BLOB:
+			case DATA_MYSQL:
+				memcpy(buf, data, len);
+				break;
+			default: 
+				break;
+			}
+
 			key_len += len;
 			buf 	+= len;
 		}

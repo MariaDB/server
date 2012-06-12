@@ -9237,8 +9237,12 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
 {
   DBUG_ENTER("check_table_map");
   enum_tbl_map_status res= OK_TO_PROCESS;
-
+#ifdef WITH_WSREP
+  if ((rli->sql_thd->slave_thread /* filtering is for slave only */  ||
+       (WSREP(rli->sql_thd) && rli->sql_thd->wsrep_applier))         &&
+#else
   if (rli->sql_thd->slave_thread /* filtering is for slave only */ &&
+#endif /* WITH_WSREP */
       (!rpl_filter->db_ok(table_list->db) ||
        (rpl_filter->is_on() && !rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;

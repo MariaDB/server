@@ -1,4 +1,4 @@
-/* Copyright 2008 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2012 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@ extern bool wsrep_sst_donor_update           UPDATE_ARGS;
 
 
 extern bool wsrep_init_first(); // initialize wsrep before storage
-                                // engines or after
+                                // engines (true) or after (false)
 extern int   wsrep_init();
 extern void  wsrep_deinit();
 extern void  wsrep_recover();

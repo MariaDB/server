@@ -1,4 +1,4 @@
-/* Copyright 2008-2011 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2012 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,10 +25,11 @@
 
 extern const char wsrep_defaults_file[];
 
-#define WSREP_SST_MYSQLDUMP     "mysqldump"
-#define WSREP_SST_DEFAULT       WSREP_SST_MYSQLDUMP
+#define WSREP_SST_MYSQLDUMP    "mysqldump"
+#define WSREP_SST_SKIP         "skip"
+#define WSREP_SST_DEFAULT      WSREP_SST_MYSQLDUMP
 #define WSREP_SST_ADDRESS_AUTO "AUTO"
-#define WSREP_SST_AUTH_MASK     "********"
+#define WSREP_SST_AUTH_MASK    "********"
 
 const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
 const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
@@ -158,6 +159,7 @@ bool wsrep_init_first()
 {
   return (wsrep_provider != NULL
           && strcmp (wsrep_provider, WSREP_NONE)
+          && strcmp (wsrep_sst_method, WSREP_SST_SKIP)
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));
 }
 
@@ -439,8 +441,8 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
       ret= -ENOMEM;
     }
 
-    sql_print_error ("WSREP: Could not prepare state transfer request: "
-                     "adding default port failed: %zd.", ret);
+    WSREP_ERROR ("Could not prepare state transfer request: "
+                 "adding default port failed: %zd.", ret);
   }
   else {
     *addr_out= addr_in;
@@ -457,6 +459,18 @@ ssize_t wsrep_sst_prepare (void** msg)
   char ip_buf[ip_max];
   const char* addr_in=  NULL;
   const char* addr_out= NULL;
+
+  if (!strcmp(wsrep_sst_method, WSREP_SST_SKIP))
+  {
+    ssize_t ret = strlen(WSREP_STATE_TRANSFER_TRIVIAL) + 1;
+    *msg = strdup(WSREP_STATE_TRANSFER_TRIVIAL);
+    if (!msg)
+    {
+      WSREP_ERROR("Could not allocate %zd bytes for state request", ret);
+      unireg_abort(1);
+    }
+    return ret;
+  }
 
   // Figure out SST address. Common for all SST methods
   if (wsrep_sst_receive_address &&

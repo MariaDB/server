@@ -4751,14 +4751,17 @@ wsrep_store_key_val_for_row(
 			wsrep_innobase_mysql_sort(
 			       mysql_type, cs->number, sorted, true_len);
 
-			/* Note that we always reserve the maximum possible
+			if (wsrep_protocol_version > 1) {
+				memcpy(buff, sorted, true_len);
+                        /* Note that we always reserve the maximum possible
 			length of the true VARCHAR in the key value, though
 			only len first bytes after the 2 length bytes contain
 			actual data. The rest of the space was reset to zero
 			in the bzero() call above. */
-
-			buff += key_len;
-
+                                buff += true_len;
+                        } else {
+                                buff += key_len;
+                        }
 		} else if (mysql_type == MYSQL_TYPE_TINY_BLOB
 			|| mysql_type == MYSQL_TYPE_MEDIUM_BLOB
 			|| mysql_type == MYSQL_TYPE_BLOB
@@ -4825,8 +4828,11 @@ wsrep_store_key_val_for_row(
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
-
-			buff += key_len;
+                        if (wsrep_protocol_version > 1) {
+                                buff += true_len;
+                        } else {
+                                buff += key_len;
+                        }
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column
@@ -6947,20 +6953,24 @@ wsrep_append_foreign_key(
 
 	key[0] = '\0';
 	rcode = wsrep_rec_get_primary_key(
-		&key[1], &len, clust_rec, clust_index);
+		&key[1], &len, clust_rec, clust_index, 
+		wsrep_protocol_version > 1);
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR("FK key set failed: %lu", rcode);
 		return rcode;
 	}
 #ifdef WSREP_DEBUG_PRINT
 	ulint i;
-	fprintf(stderr, "FK parent key, len: %lu ", len+1);
+	fprintf(stderr, "FK parent key, table: %s shared: %d len: %lu ", 
+		foreign->referenced_table_name, (int)shared, len+1);
 	for (i=0; i<len+1; i++) {
-		fprintf(stderr, " (%X), ", key[i]);
+		fprintf(stderr, " %hhX, ", key[i]);
 	}
 	fprintf(stderr, "\n");
 #endif
-	strncpy(cache_key, foreign->foreign_table->name, 512);
+	strncpy(cache_key, (wsrep_protocol_version > 1) ? 
+		foreign->referenced_table->name :
+		foreign->foreign_table->name, 512);
 	char *p = strchr(cache_key, '/');
 	if (p) {
 		*p = '\0';
