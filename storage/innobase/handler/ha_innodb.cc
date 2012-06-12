@@ -7097,7 +7097,8 @@ ha_innobase::wsrep_append_keys(
 				DBUG_RETURN(rcode);
 			}
 		}
-	} else if (wsrep_protocol_version == 0) {
+	}
+	if (wsrep_protocol_version == 0) {
 		uint	len;
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
