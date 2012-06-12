@@ -114,7 +114,8 @@ static store_key *get_store_key(THD *thd,
 				uint maybe_null);
 static bool make_outerjoin_info(JOIN *join);
 static Item*
-make_cond_after_sjm(Item *root_cond, Item *cond, table_map tables, table_map sjm_tables);
+make_cond_after_sjm(Item *root_cond, Item *cond, table_map tables, 
+                    table_map sjm_tables, bool inside_or_clause);
 static bool make_join_select(JOIN *join,SQL_SELECT *select,COND *item);
 static void revise_cache_usage(JOIN_TAB *join_tab);
 static bool make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after);
@@ -1333,8 +1334,19 @@ JOIN::optimize()
         store_key *key_copy= tab->ref.key_copy[key_copy_index];
         if (key_copy->type() == store_key::FIELD_STORE_KEY)
         {
-          store_key_field *field_copy= ((store_key_field *)key_copy);
-          field_copy->change_source_field((Item_field *) item);
+          if (item->basic_const_item())
+          {
+            /* It is constant propagated here */
+            tab->ref.key_copy[key_copy_index]=
+              new store_key_const_item(*tab->ref.key_copy[key_copy_index],
+                                       item);
+          }
+          else
+          {
+            store_key_field *field_copy= ((store_key_field *)key_copy);
+            DBUG_ASSERT(item->type() == Item::FIELD_ITEM);
+            field_copy->change_source_field((Item_field *) item);
+          }
         }
       }
       key_copy_index++;
@@ -1523,7 +1535,6 @@ JOIN::optimize()
     simple_order=1;
     select_distinct= 0;                       // No need in distinct for 1 row
     group_optimized_away= 1;
-    implicit_grouping= TRUE;
   }
 
   calc_group_buffer(this, group_list);
@@ -2321,6 +2332,8 @@ JOIN::exec()
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
   TABLE *curr_tmp_table= 0;
+  bool tmp_having_used_tables_updated= FALSE;
+
   /*
     Initialize examined rows here because the values from all join parts
     must be accumulated in examined_row_count. Hence every join
@@ -2569,12 +2582,22 @@ JOIN::exec()
     if (curr_tmp_table->distinct)
       curr_join->select_distinct=0;		/* Each row is unique */
     
+
+    /*
+      curr_join->join_free() will call JOIN::cleanup(full=TRUE). It will not 
+      be safe to call update_used_tables() after that.
+    */
+    if (curr_join->tmp_having)
+    {
+      curr_join->tmp_having->update_used_tables();
+      tmp_having_used_tables_updated= TRUE;
+    }
+
     curr_join->join_free();			/* Free quick selects */
+
     if (curr_join->select_distinct && ! curr_join->group_list)
     {
       thd_proc_info(thd, "Removing duplicates");
-      if (curr_join->tmp_having)
-	curr_join->tmp_having->update_used_tables();
       if (remove_duplicates(curr_join, curr_tmp_table,
 			    *curr_fields_list, curr_join->tmp_having))
 	DBUG_VOID_RETURN;
@@ -2651,7 +2674,8 @@ JOIN::exec()
 	! curr_join->sort_and_group)
     {
       // Some tables may have been const
-      curr_join->tmp_having->update_used_tables();
+      if (!tmp_having_used_tables_updated)
+        curr_join->tmp_having->update_used_tables();
       JOIN_TAB *curr_table= &curr_join->join_tab[curr_join->const_tables];
       table_map used_tables= (curr_join->const_table_map |
 			      curr_table->table->map);
@@ -5567,7 +5591,6 @@ best_access_path(JOIN      *join,
             tmp= best_time;                    // Do nothing
         }
 
-        DBUG_ASSERT(tmp > 0 || record_count == 0);
         tmp += s->startup_cost;
         loose_scan_opt.check_ref_access_part2(key, start_key, records, tmp);
       } /* not ft_key */
@@ -7772,16 +7795,19 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
       }
       keyuse++;
     } while (keyuse->table == table && keyuse->key == key);
+
+    if (!keyparts && allow_full_scan)
+    {
+      /* It's a LooseIndexScan strategy scanning whole index */
+      j->type= JT_ALL;
+      j->index= key;
+      DBUG_RETURN(FALSE);
+    }
+
+    DBUG_ASSERT(length > 0);
+    DBUG_ASSERT(keyparts != 0);
   } /* not ftkey */
   
-  if (!keyparts && allow_full_scan)
-  {
-    /* It's a LooseIndexScan strategy scanning whole index */
-    j->type= JT_ALL;
-    j->index= key;
-    DBUG_RETURN(FALSE);
-  }
-
   /* set up fieldref */
   j->ref.key_parts= keyparts;
   j->ref.key_length= length;
@@ -8007,7 +8033,31 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   tmp_table_param.copy_field= tmp_table_param.copy_field_end=0;
   first_record= sort_and_group=0;
   send_records= (ha_rows) 0;
-  group= 0;
+
+  if (group_optimized_away && !tmp_table_param.precomputed_group_by)
+  {
+    /*
+      If grouping has been optimized away, a temporary table is
+      normally not needed unless we're explicitly requested to create
+      one (e.g. due to a SQL_BUFFER_RESULT hint or INSERT ... SELECT).
+
+      In this case (grouping was optimized away), temp_table was
+      created without a grouping expression and JOIN::exec() will not
+      perform the necessary grouping (by the use of end_send_group()
+      or end_write_group()) if JOIN::group is set to false.
+
+      There is one exception: if the loose index scan access method is
+      used to read into the temporary table, grouping and aggregate
+      functions are handled.
+    */
+    // the temporary table was explicitly requested
+    DBUG_ASSERT(test(select_options & OPTION_BUFFER_RESULT));
+    // the temporary table does not have a grouping expression
+    DBUG_ASSERT(!temp_table->group); 
+  }
+  else
+    group= false;
+
   row_limit= unit->select_limit_cnt;
   do_send_rows= row_limit ? 1 : 0;
 
@@ -8136,6 +8186,16 @@ static void add_not_null_conds(JOIN *join)
           Item *item= tab->ref.items[keypart];
           Item *notnull;
           Item *real= item->real_item();
+          if (real->basic_const_item())
+          {
+            /*
+              It could be constant instead of field after constant
+              propagation.
+            */
+            DBUG_ASSERT(real->is_expensive() || // prevent early expensive eval
+                        !real->is_null()); // NULLs are not propagated
+            continue;
+          }
           DBUG_ASSERT(real->type() == Item::FIELD_ITEM);
           Item_field *not_null_item= (Item_field*)real;
           JOIN_TAB *referred_tab= not_null_item->field->table->reginfo.join_tab;
@@ -8517,7 +8577,8 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
         if (tab->bush_children)
         {
           // Reached the materialization tab
-          tmp= make_cond_after_sjm(cond, cond, save_used_tables, used_tables);
+          tmp= make_cond_after_sjm(cond, cond, save_used_tables, used_tables, 
+                                   /*inside_or_clause=*/FALSE);
           used_tables= save_used_tables | used_tables;
           save_used_tables= 0;
         }
@@ -10080,12 +10141,14 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       {
         join->need_tmp= 1;
         join->simple_order= join->simple_group= 0;
-        if (sort_by_tab->type == JT_NEXT)
+        if (sort_by_tab->type == JT_NEXT && 
+            !sort_by_tab->table->covering_keys.is_set(sort_by_tab->index))
         {
           sort_by_tab->type= JT_ALL;
           sort_by_tab->read_first_record= join_init_read_record;
         }
-        else if (sort_by_tab->type == JT_HASH_NEXT)
+        else if (sort_by_tab->type == JT_HASH_NEXT &&
+                 !sort_by_tab->table->covering_keys.is_set(sort_by_tab->index))
         {
           sort_by_tab->type= JT_HASH;
           sort_by_tab->read_first_record= join_init_read_record;
@@ -12178,9 +12241,10 @@ static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
 
   @param cond       condition whose multiple equalities are to be checked
   @param table      constant table that has been read
+  @param const_key  mark key parts as constant
 */
 
-static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
+static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 {
   if (!(cond->used_tables() & tab->table->map))
     return;
@@ -12191,7 +12255,10 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
     List_iterator_fast<Item> li(*cond_list);
     Item *item;
     while ((item= li++))
-      update_const_equal_items(item, tab);
+      update_const_equal_items(item, tab,
+                               (((Item_cond*) cond)->top_level() &&
+                                ((Item_cond*) cond)->functype() ==
+                                Item_func::COND_AND_FUNC));
   }
   else if (cond->type() == Item::FUNC_ITEM && 
            ((Item_cond*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)
@@ -12221,7 +12288,8 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab)
           TABLE *tab= field->table;
           KEYUSE *use;
           for (use= stat->keyuse; use && use->table == tab; use++)
-            if (!use->is_for_hash_join() && possible_keys.is_set(use->key) && 
+            if (const_key &&
+                !use->is_for_hash_join() && possible_keys.is_set(use->key) && 
                 tab->key_info[use->key].key_part[use->keypart].field ==
                 field)
               tab->const_key_parts[use->key]|= use->keypart_map;
@@ -16428,7 +16496,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
     List_iterator<TABLE_LIST> ti(join->select_lex->leaf_tables);
     /* Check appearance of new constant items in Item_equal objects */
     if (join->conds)
-      update_const_equal_items(join->conds, tab);
+      update_const_equal_items(join->conds, tab, TRUE);
     while ((tbl= ti++))
     {
       TABLE_LIST *embedded;
@@ -16437,7 +16505,7 @@ join_read_const_table(JOIN_TAB *tab, POSITION *pos)
       {
         embedded= embedding;
         if (embedded->on_expr)
-           update_const_equal_items(embedded->on_expr, tab);
+           update_const_equal_items(embedded->on_expr, tab, TRUE);
         embedding= embedded->embedding;
       }
       while (embedding &&
@@ -17723,13 +17791,14 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 */
 static COND *
 make_cond_after_sjm(Item *root_cond, Item *cond, table_map tables, 
-                    table_map sjm_tables)
+                    table_map sjm_tables, bool inside_or_clause)
 {
   /*
     We assume that conditions that refer to only join prefix tables or 
     sjm_tables have already been checked.
   */
-  if ((!(cond->used_tables() & ~tables) || 
+  if (!inside_or_clause && 
+      (!(cond->used_tables() & ~tables) || 
        !(cond->used_tables() & ~sjm_tables)))
     return (COND*) 0;				// Already checked
 
@@ -17746,7 +17815,8 @@ make_cond_after_sjm(Item *root_cond, Item *cond, table_map tables,
       Item *item;
       while ((item=li++))
       {
-	Item *fix=make_cond_after_sjm(root_cond, item, tables, sjm_tables);
+	Item *fix=make_cond_after_sjm(root_cond, item, tables, sjm_tables, 
+                                      inside_or_clause);
 	if (fix)
 	  new_cond->argument_list()->push_back(fix);
       }
@@ -17776,7 +17846,8 @@ make_cond_after_sjm(Item *root_cond, Item *cond, table_map tables,
       Item *item;
       while ((item=li++))
       {
-	Item *fix= make_cond_after_sjm(root_cond, item, tables, 0L);
+	Item *fix= make_cond_after_sjm(root_cond, item, tables, sjm_tables,
+                                       /*inside_or_clause= */TRUE);
 	if (!fix)
 	  return (COND*) 0;			// Always true
 	new_cond->argument_list()->push_back(fix);
@@ -18265,7 +18336,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   int ref_key;
   uint UNINIT_VAR(ref_key_parts);
   int order_direction= 0;
-  uint used_key_parts;
+  uint used_key_parts= 0;
   TABLE *table=tab->table;
   SQL_SELECT *select=tab->select;
   key_map usable_keys;
@@ -18275,6 +18346,9 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   int best_key= -1;
   bool changed_key= false;
   DBUG_ENTER("test_if_skip_sort_order");
+
+  /* Check that we are always called with first non-const table */
+  DBUG_ASSERT(tab == tab->join->join_tab + tab->join->const_tables);
 
   /*
     Keys disabled by ALTER TABLE ... DISABLE KEYS should have already
@@ -18361,9 +18435,9 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
           KEYUSE *keyuse= tab->keyuse;
           while (keyuse->key != new_ref_key && keyuse->table == tab->table)
             keyuse++;
-
           if (create_ref_for_key(tab->join, tab, keyuse, FALSE,
-                                 tab->join->const_table_map))
+                                 (tab->join->const_table_map |
+                                  OUTER_REF_TABLE_BIT)))
             goto use_filesort;
 
           pick_table_access_method(tab);
@@ -18583,6 +18657,14 @@ check_reverse_order:
           tab->limit= 0;
           goto use_filesort;           // Reverse sort failed -> filesort
         }
+        /*
+          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
+        */
+        if (tab->select && tab->select->pre_idx_push_select_cond)
+	{
+          tab->set_cond(tab->select->pre_idx_push_select_cond);
+           tab->table->file->cancel_pushed_idx_cond();
+        }
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
@@ -18598,6 +18680,14 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record= join_read_prev_same;
+        /*
+          Cancel Pushed Index Condition, as it doesn't work for reverse scans.
+        */
+        if (tab->select && tab->select->pre_idx_push_select_cond)
+	{
+          tab->set_cond(tab->select->pre_idx_push_select_cond);
+           tab->table->file->cancel_pushed_idx_cond();
+        }
       }
     }
     else if (select && select->quick)

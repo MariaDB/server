@@ -3176,6 +3176,25 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
 }
 
 
+/*
+  Re-calculate values of join->best_positions[start..end].prefix_record_count
+*/
+
+static void recalculate_prefix_record_count(JOIN *join, uint start, uint end)
+{
+  for (uint j= start; j < end ;j++)
+  {
+    double prefix_count;
+    if (j == join->const_tables)
+      prefix_count= 1.0;
+    else
+      prefix_count= join->best_positions[j-1].prefix_record_count *
+                    join->best_positions[j-1].records_read;
+
+    join->best_positions[j].prefix_record_count= prefix_count;
+  }
+}
+
 
 /*
   Fix semi-join strategies for the picked join order
@@ -3245,6 +3264,8 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       sjm->is_sj_scan= FALSE;
       memcpy(pos - sjm->tables + 1, sjm->positions, 
              sizeof(POSITION) * sjm->tables);
+      recalculate_prefix_record_count(join, tablenr - sjm->tables + 1,
+                                      tablenr);
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
@@ -3258,6 +3279,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= pos->sjmat_picker.sjm_scan_last_inner - sjm->tables + 1;
       memcpy(join->best_positions + first, 
              sjm->positions, sizeof(POSITION) * sjm->tables);
+      recalculate_prefix_record_count(join, first, first + sjm->tables);
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE_SCAN;
       join->best_positions[first].n_sj_tables= sjm->tables;
       /* 
@@ -5433,11 +5455,17 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
     if (in_subs->inject_in_to_exists_cond(this))
       return TRUE;
     /*
-      It is IN->EXISTS transformation so we should mark subquery as
-      dependent
+      If the injected predicate is correlated the IN->EXISTS transformation
+      make the subquery dependent.
     */
-    in_subs->unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
-    select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
+    if ((in_to_exists_where &&
+         in_to_exists_where->used_tables() & OUTER_REF_TABLE_BIT) ||
+        (in_to_exists_having &&
+         in_to_exists_having->used_tables() & OUTER_REF_TABLE_BIT))
+    {
+      in_subs->unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
+      select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
+    }
     select_limit= 1;
   }
   else
@@ -5467,8 +5495,8 @@ bool JOIN::choose_tableless_subquery_plan()
     /*
       If the optimizer determined that his query has an empty result,
       in most cases the subquery predicate is a known constant value -
-      either FALSE or NULL. The implementation of Item_subselect::reset()
-      determines which one.
+      either of TRUE, FALSE or NULL. The implementation of
+      Item_subselect::no_rows_in_result() determines which one.
     */
     if (zero_result_cause)
     {
@@ -5476,14 +5504,13 @@ bool JOIN::choose_tableless_subquery_plan()
       {
         /*
           Both group by queries and non-group by queries without aggregate
-          functions produce empty subquery result.
+          functions produce empty subquery result. There is no need to further
+          rewrite the subquery because it will not be executed at all.
         */
-        subs_predicate->reset();
-        subs_predicate->make_const();
         return FALSE;
       }
 
-      /* TODO:
+      /* @todo
          A further optimization is possible when a non-group query with
          MIN/MAX/COUNT is optimized by opt_sum_query. Then, if there are
          only MIN/MAX functions over an empty result set, the subquery

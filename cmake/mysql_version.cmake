@@ -80,14 +80,9 @@ ELSEIF(MYSQL_TCP_PORT EQUAL MYSQL_TCP_PORT_DEFAULT)
   SET(MYSQL_TCP_PORT_DEFAULT "0")
 ENDIF()
 
-
-IF(NOT MYSQL_UNIX_ADDR)
-  SET(MYSQL_UNIX_ADDR "/tmp/mysql.sock")
-ENDIF()
 IF(NOT COMPILATION_COMMENT)
   SET(COMPILATION_COMMENT "Source distribution")
 ENDIF()
-
 
 INCLUDE(package_name)
 IF(NOT CPACK_PACKAGE_FILE_NAME)
@@ -104,7 +99,6 @@ ENDIF()
 SET(CPACK_PACKAGE_CONTACT "MariaDB team <info@montyprogram.com>")
 SET(CPACK_PACKAGE_VENDOR "Monty Program AB")
 SET(CPACK_SOURCE_GENERATOR "TGZ")
-INCLUDE(cpack_source_ignore_files)
 
 # Defintions for windows version resources
 SET(PRODUCTNAME "MariaDB Server")
@@ -126,10 +120,12 @@ ENDIF()
 IF(MSVC)
     # Tiny version is used to identify the build, it can be set with cmake -DTINY_VERSION=<number>
     # to bzr revno for example (in the CI builds)
-    SET(TINY_VERSION "0" CACHE INTERNAL "")
+    IF(NOT TINY_VERSION)
+      SET(TINY_VERSION "0")
+    ENDIF()
   
     GET_FILENAME_COMPONENT(MYSQL_CMAKE_SCRIPT_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
-	
+
     SET(FILETYPE VFT_APP)
     CONFIGURE_FILE(${MYSQL_CMAKE_SCRIPT_DIR}/versioninfo.rc.in 
     ${CMAKE_BINARY_DIR}/versioninfo_exe.rc)
@@ -137,7 +133,7 @@ IF(MSVC)
     SET(FILETYPE VFT_DLL)
     CONFIGURE_FILE(${MYSQL_CMAKE_SCRIPT_DIR}/versioninfo.rc.in  
       ${CMAKE_BINARY_DIR}/versioninfo_dll.rc)
-	  
+
   FUNCTION(ADD_VERSION_INFO target target_type sources_var)
     IF("${target_type}" MATCHES "SHARED" OR "${target_type}" MATCHES "MODULE")
       SET(rcfile ${CMAKE_BINARY_DIR}/versioninfo_dll.rc)

@@ -1198,7 +1198,7 @@ set @@optimizer_switch='materialization=off,in_to_exists=on';
 explain select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	const row not found
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	0	const row not found
 select min(a1) from t1 where 7 in (select max(b1) from t2 group by b1);
 min(a1)
 NULL
@@ -1207,7 +1207,7 @@ set @@optimizer_switch='semijoin=off';
 explain select min(a1) from t1 where 7 in (select b1 from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select min(a1) from t1 where 7 in (select b1 from t2);
 min(a1)
 NULL
@@ -1224,7 +1224,7 @@ NULL
 explain select min(a1) from t1 where 7 in (select b1 from t2) or 2> 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select min(a1) from t1 where 7 in (select b1 from t2) or 2> 4;
 min(a1)
 NULL
@@ -2026,6 +2026,19 @@ y
 z
 DROP VIEW v2;
 DROP TABLE t1, t2;
+#
+# BUG#1000269: Wrong result (extra rows) with semijoin+materialization, IN subqueries, join_cache_level>0
+#
+CREATE TABLE t1 (a1 VARCHAR(1), a2 VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('b','b'),('e','e');
+CREATE TABLE t2 (b1 VARCHAR(1), b2 VARCHAR(1), KEY(b1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('v','v'),('s','s'),('l','l'), ('y','y'),('c','c'),('i','i');
+SELECT * FROM t1, t2 WHERE b1 IN ( SELECT b2 FROM t2 WHERE b1 > 'o' ) AND ( b1 < 'l' OR a1 IN ('b','c') );
+a1	a2	b1	b2
+b	b	v	v
+b	b	s	s
+b	b	y	y
+DROP TABLE t1,t2;
 # This must be at the end:
 set optimizer_switch=@subselect_sj_mat_tmp;
 set join_cache_level=@save_join_cache_level;

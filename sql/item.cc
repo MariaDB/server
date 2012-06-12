@@ -8191,20 +8191,12 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
   }
 
   if (arg->type() == REF_ITEM)
+    arg= static_cast<Item_ref *>(arg)->ref[0];
+  if (arg->type() != FIELD_ITEM)
   {
-    Item_ref *ref= (Item_ref *)arg;
-    if (ref->ref[0]->type() != FIELD_ITEM)
-    {
-      my_error(ER_BAD_FIELD_ERROR, MYF(0), "", "VALUES() function");
-      return TRUE;
-    }
-    arg= ref->ref[0];
+    my_error(ER_BAD_FIELD_ERROR, MYF(0), "", "VALUES() function");
+    return TRUE;
   }
-  /*
-    According to our SQL grammar, VALUES() function can reference
-    only to a column.
-  */
-  DBUG_ASSERT(arg->type() == FIELD_ITEM);
 
   Item_field *field_arg= (Item_field *)arg;
 
@@ -8787,7 +8779,7 @@ bool  Item_cache_temporal::cache_value()
   value_cached= true;
  
   MYSQL_TIME ltime;
-  if (example->get_date(&ltime, TIME_FUZZY_DATE))
+  if (example->get_date_result(&ltime, TIME_FUZZY_DATE))
     value=0;
   else
     value= pack_time(&ltime);

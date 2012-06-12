@@ -26,6 +26,13 @@ INSERT INTO t2 VALUES ('1998-01-02','note02');
 select name,t1.cdate,note from t1,t2 where t1.cdate=t2.cdate and t1.cdate='1998-01-01';
 drop table t1,t2;
 
+# MariaDB lp:993103. WHERE LAST_DAY(zero_date) IS NULL does not evaluate to TRUE.
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1 WHERE LAST_DAY('0000-00-00 00:00:00') IS NULL;
+DROP TABLE t1;
+
 #
 # Date and BETWEEN
 #
@@ -309,4 +316,14 @@ DROP TABLE t1;
 set @a=(select min(makedate('111','1'))) ;
 select @a;
 --echo #
+
+--echo #
+--echo # BUG LP:1008487 virtual bool Item_cache::is_expensive(): Assertion `example' failed
+--echo #
+create table t1(a date,key(a));
+insert into t1 values ('2012-01-01'),('2012-02-02');
+explain
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+select 1 from t1 as t1_0 inner join t1 as t2 on (t1_0.a <=> now()) join t1 on 1;
+drop table t1;
 

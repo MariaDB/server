@@ -1326,7 +1326,7 @@ SELECT 0 IN (SELECT 1 FROM t1 a);
 EXPLAIN EXTENDED SELECT 0 IN (SELECT 1 FROM t1 a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select <in_optimizer>(0,<exists>(select 1 from dual where (0 = 1))) AS `0 IN (SELECT 1 FROM t1 a)`
 INSERT INTO t1 (pseudo) VALUES ('test1');
@@ -1336,7 +1336,7 @@ SELECT 0 IN (SELECT 1 FROM t1 a);
 EXPLAIN EXTENDED SELECT 0 IN (SELECT 1 FROM t1 a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select <in_optimizer>(0,<exists>(select 1 from `test`.`t1` `a` where (0 = 1))) AS `0 IN (SELECT 1 FROM t1 a)`
 drop table t1;
@@ -3106,7 +3106,7 @@ ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	PRIMARY	NULL	NULL	NULL	1	
 1	PRIMARY	r	eq_ref	PRIMARY	PRIMARY	4	const	1	Using where
-2	DEPENDENT SUBQUERY	t2	range	b	b	40	NULL	2	Using index condition
+2	DEPENDENT SUBQUERY	t2	range	b	b	40	NULL	2	Using where
 SELECT sql_no_cache t1.a, r.a, r.b FROM t1 LEFT JOIN t2 r
 ON r.a = (SELECT t2.a FROM t2 WHERE t2.c = t1.a AND t2.b <= '359899'
             ORDER BY t2.c DESC, t2.b DESC LIMIT 1) WHERE t1.a = 10;
@@ -4591,7 +4591,7 @@ SELECT MAX(b), (SELECT COUNT(*) FROM st1,st2 WHERE st2.b <= t1.b)
 FROM t1 
 WHERE a = 230;
 MAX(b)	(SELECT COUNT(*) FROM st1,st2 WHERE st2.b <= t1.b)
-NULL	0
+NULL	NULL
 DROP TABLE t1, st1, st2;
 #
 # Bug #48709: Assertion failed in sql_select.cc:11782: 
@@ -5603,6 +5603,15 @@ SELECT 1 FROM
 ERROR 21000: Operand should contain 1 column(s)
 DROP TABLE t1;
 #
+# Bug#13721076 CRASH WITH TIME TYPE/TIMESTAMP() AND WARNINGS IN SUBQUERY
+#
+CREATE TABLE t1(a TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:00:32');
+SELECT 1 FROM t1 WHERE a >
+(SELECT timestamp(a) AS a FROM t1);
+1
+DROP TABLE t1;
+#
 # No BUG#, a case brought from 5.2's innodb_mysql_lock.test
 #
 create table t1 (i int  not null primary key);
@@ -5722,7 +5731,7 @@ WHERE ('0') IN ( SELECT a  FROM t1 GROUP BY a )
 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT b FROM t1
 WHERE ('0') IN ( SELECT a  FROM t1 GROUP BY a )
 GROUP BY b;
@@ -6527,6 +6536,65 @@ INSERT INTO t1 VALUES (1);
 SELECT a FROM t1 WHERE ( SELECT MIN(a) = 100 );
 a
 drop table t1;
+#
+# LP BUG#985667 Wrong result with subquery in SELECT clause, and constant table in 
+# main query and implicit grouping
+#
+CREATE TABLE t1 (f1 int) engine=MyISAM;
+INSERT INTO t1 VALUES (7),(8);
+CREATE TABLE t2 (f2 int, f3 varchar(1)) engine=MyISAM;
+INSERT INTO t2 VALUES (3,'f');
+EXPLAIN
+SELECT COUNT(f1), (SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+SELECT COUNT(f1), (SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+COUNT(f1)	f4
+0	NULL
+EXPLAIN
+SELECT COUNT(f1), exists(SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
+SELECT COUNT(f1), exists(SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+COUNT(f1)	f4
+0	0
+EXPLAIN
+SELECT COUNT(f1), f2 > ALL (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT COUNT(f1), f2 > ALL (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+COUNT(f1)	f4
+0	1
+EXPLAIN
+SELECT COUNT(f1), f2 IN (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT COUNT(f1), f2 IN (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+COUNT(f1)	f4
+0	0
+drop table t1,t2;
+#
+# LP BUG#1002079 Server crashes in Item_singlerow_subselect::val_int with constant table,
+# HAVING, UNION in subquery
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (7),(0);
+CREATE TABLE t2 (b INT);
+EXPLAIN
+SELECT SUM(a) AS f1, a AS f2 FROM (t1, t2) HAVING f2 >= ALL (SELECT 4 UNION SELECT 5) AND f1 = 7;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	0	const row not found
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+SELECT SUM(a) AS f1, a AS f2 FROM (t1, t2) HAVING f2 >= ALL (SELECT 4 UNION SELECT 5) AND f1 = 7;
+f1	f2
+drop table t1,t2;
 # return optimizer switch changed in the beginning of this test
 set optimizer_switch=@subselect_tmp;
 set optimizer_switch=default;

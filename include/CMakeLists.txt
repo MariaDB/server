@@ -14,17 +14,18 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 SET(HEADERS_GEN_CONFIGURE 
-${CMAKE_CURRENT_BINARY_DIR}/mysql_version.h
-${CMAKE_CURRENT_BINARY_DIR}/my_config.h
-${CMAKE_CURRENT_BINARY_DIR}/mysqld_ername.h
-${CMAKE_CURRENT_BINARY_DIR}/mysqld_error.h
-${CMAKE_CURRENT_BINARY_DIR}/sql_state.h
+  mysql_version.h
+  my_config.h
+  mysqld_ername.h
+  mysqld_error.h
+  sql_state.h
 )
 
 SET(HEADERS 
   mysql.h 
   mysql_com.h
   mysql_time.h 
+  ma_dyncol.h
   my_list.h
   my_alloc.h
   typelib.h 
@@ -33,6 +34,7 @@ SET(HEADERS
   my_sys.h 
   my_xml.h
   mysql_embed.h
+  my_decimal_limits.h
   my_pthread.h
   decimal.h
   errmsg.h
@@ -49,8 +51,19 @@ SET(HEADERS
   m_ctype.h
   my_attribute.h 
   my_compiler.h
-  ${HEADERS_GEN_CONFIGURE}
 )
 
 INSTALL(FILES ${HEADERS} DESTINATION ${INSTALL_INCLUDEDIR} COMPONENT Development)
+FOREACH(f ${HEADERS_GEN_CONFIGURE})
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${f} DESTINATION ${INSTALL_INCLUDEDIR} COMPONENT Development PERMISSIONS OWNER_READ GROUP_READ WORLD_READ)
+ENDFOREACH(f)
 INSTALL(DIRECTORY mysql/ DESTINATION ${INSTALL_INCLUDEDIR} COMPONENT Development FILES_MATCHING PATTERN "*.h")
+
+STRING(REPLACE "." "\\." EXCL_RE "${HEADERS};${HEADERS_GEN_CONFIGURE}")
+STRING(REPLACE ";" "|" EXCL_RE "${EXCL_RE}")
+
+INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/private COMPONENT Development
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN CMakeFiles EXCLUDE
+  PATTERN mysql EXCLUDE
+  REGEX "\\./(${EXCL_RE}$)" EXCLUDE)

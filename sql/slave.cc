@@ -1832,7 +1832,9 @@ Waiting for the slave SQL thread to free enough relay log space");
 #endif
     if (rli->sql_force_rotate_relay)
     {
+      mysql_mutex_lock(&active_mi->data_lock);
       rotate_relay_log(rli->mi);
+      mysql_mutex_unlock(&active_mi->data_lock);
       rli->sql_force_rotate_relay= false;
     }
 
@@ -4439,10 +4441,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       (event_pos= uint4korr(buf+LOG_POS_OFFSET)) > mi->master_log_pos + inc_pos)
   {
     inc_pos= event_pos - mi->master_log_pos;
-    DBUG_PRINT("info", ("Adjust master_log_pos %lu->%lu to account for "
+    DBUG_PRINT("info", ("Adjust master_log_pos %llu->%llu to account for "
                         "master-side filtering",
-                        (unsigned long)(mi->master_log_pos + inc_pos),
-                        event_pos));
+                        mi->master_log_pos + inc_pos, event_pos));
   }
 
   /*
@@ -5405,7 +5406,10 @@ int rotate_relay_log(Master_info* mi)
     output in SHOW SLAVE STATUS meanwhile. So we harvest now.
     If the log is closed, then this will just harvest the last writes, probably
     0 as they probably have been harvested.
+
+    Note that it needs to be protected by mi->data_lock.
   */
+  mysql_mutex_assert_owner(&mi->data_lock);
   rli->relay_log.harvest_bytes_written(&rli->log_space_total);
 end:
   DBUG_RETURN(error);

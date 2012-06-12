@@ -265,6 +265,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
 
       (*ref)= substitution;
       substitution->name= name;
+      substitution->name_length= name_length;
       if (have_to_be_excluded)
 	engine->exclude();
       substitution= 0;
@@ -769,7 +770,8 @@ void Item_subselect::fix_length_and_dec()
 
 table_map Item_subselect::used_tables() const
 {
-  return (table_map) (engine->uncacheable() ? used_tables_cache : 0L);
+  return (table_map) ((engine->uncacheable() & ~UNCACHEABLE_EXPLAIN)? 
+                      used_tables_cache : 0L);
 }
 
 
@@ -897,6 +899,23 @@ void Item_maxmin_subselect::print(String *str, enum_query_type query_type)
 {
   str->append(max?"<max>":"<min>", 5);
   Item_singlerow_subselect::print(str, query_type);
+}
+
+
+void Item_maxmin_subselect::no_rows_in_result()
+{
+  value= Item_cache::get_cache(new Item_null());
+  null_value= 0;
+  was_values= 0;
+  make_const();
+}
+
+
+void Item_singlerow_subselect::no_rows_in_result()
+{
+  value= Item_cache::get_cache(new Item_null());
+  reset();
+  make_const();
 }
 
 
@@ -1095,6 +1114,8 @@ void Item_singlerow_subselect::bring_value()
 double Item_singlerow_subselect::val_real()
 {
   DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_real();
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1110,6 +1131,8 @@ double Item_singlerow_subselect::val_real()
 longlong Item_singlerow_subselect::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_int();
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1124,6 +1147,9 @@ longlong Item_singlerow_subselect::val_int()
 
 String *Item_singlerow_subselect::val_str(String *str)
 {
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_str(str);
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1139,6 +1165,9 @@ String *Item_singlerow_subselect::val_str(String *str)
 
 my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_decimal(decimal_value);
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1154,10 +1183,31 @@ my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 
 bool Item_singlerow_subselect::val_bool()
 {
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->val_bool();
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
     return value->val_bool();
+  }
+  else
+  {
+    reset();
+    return 0;
+  }
+}
+
+
+bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (forced_const)
+    return value->get_date(ltime, fuzzydate);
+  if (!exec() && !value->null_value)
+  {
+    null_value= FALSE;
+    return value->get_date(ltime, fuzzydate);
   }
   else
   {
@@ -1323,10 +1373,17 @@ Item* Item_exists_subselect::expr_cache_insert_transformer(uchar *thd_arg)
 }
 
 
+void Item_exists_subselect::no_rows_in_result()
+{
+  value= 0;
+  null_value= 0;
+  make_const();
+}
+
 double Item_exists_subselect::val_real()
 {
   DBUG_ASSERT(fixed == 1);
-  if (exec())
+  if (!forced_const && exec())
   {
     reset();
     return 0;
@@ -1337,7 +1394,7 @@ double Item_exists_subselect::val_real()
 longlong Item_exists_subselect::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  if (exec())
+  if (!forced_const && exec())
   {
     reset();
     return 0;
@@ -1362,7 +1419,7 @@ longlong Item_exists_subselect::val_int()
 String *Item_exists_subselect::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
-  if (exec())
+  if (!forced_const && exec())
     reset();
   str->set((ulonglong)value,&my_charset_bin);
   return str;
@@ -1385,7 +1442,7 @@ String *Item_exists_subselect::val_str(String *str)
 my_decimal *Item_exists_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
-  if (exec())
+  if (!forced_const && exec())
     reset();
   int2my_decimal(E_DEC_FATAL_ERROR, value, 0, decimal_value);
   return decimal_value;
@@ -1395,7 +1452,7 @@ my_decimal *Item_exists_subselect::val_decimal(my_decimal *decimal_value)
 bool Item_exists_subselect::val_bool()
 {
   DBUG_ASSERT(fixed == 1);
-  if (exec())
+  if (!forced_const && exec())
   {
     reset();
     return 0;
@@ -2660,6 +2717,15 @@ void Item_allany_subselect::print(String *str, enum_query_type query_type)
 }
 
 
+void Item_allany_subselect::no_rows_in_result()
+{
+  value= 0;
+  null_value= 0;
+  was_null= 0;
+  make_const();
+}
+
+
 void subselect_engine::set_thd(THD *thd_arg)
 {
   thd= thd_arg;
@@ -2869,7 +2935,7 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
     item->decimals= sel_item->decimals;
     item->unsigned_flag= sel_item->unsigned_flag;
     maybe_null= sel_item->maybe_null;
-    if (!(row[i]= Item_cache::get_cache(sel_item)))
+    if (!(row[i]= Item_cache::get_cache(sel_item, sel_item->cmp_type())))
       return;
     row[i]->setup(sel_item);
  //psergey-backport-timours:   row[i]->store(sel_item);

@@ -1101,7 +1101,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
     TABLE_LIST *tables_to_reopen= (tables ? tables :
                                   thd->locked_tables_list.locked_tables());
 
-    /* Close open HANLER instances to avoid self-deadlock. */
+    /* Close open HANDLER instances to avoid self-deadlock. */
     mysql_ha_flush_tables(thd, tables_to_reopen);
 
     for (TABLE_LIST *table_list= tables_to_reopen; table_list;
@@ -1115,12 +1115,13 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       if (! table)
         continue;
 
-      if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+      if (wait_while_table_is_used(thd, table,
+                                   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
       {
         result= TRUE;
         goto err_with_reopen;
       }
-      close_all_tables_for_name(thd, table->s, FALSE);
+      close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED);
     }
   }
 
@@ -1386,9 +1387,11 @@ static void close_open_tables(THD *thd)
   @param[in] share   table share, but is just a handy way to
                      access the table cache key
 
-  @param[in] remove_from_locked_tables
-                     TRUE if the table is being dropped or renamed.
-                     In that case the documented behaviour is to
+  @param[in] extra
+                     HA_EXTRA_PREPRE_FOR_DROP if the table is being dropped
+                     HA_EXTRA_PREPARE_FOR_REANME if the table is being renamed
+                     HA_EXTRA_NOT_USED           no drop/rename
+                     In case of drop/reanme the documented behaviour is to
                      implicitly remove the table from LOCK TABLES
                      list.
 
@@ -1397,7 +1400,7 @@ static void close_open_tables(THD *thd)
 
 void
 close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
-                          bool remove_from_locked_tables)
+                          ha_extra_function extra)
 {
   char key[MAX_DBKEY_LENGTH];
   uint key_length= share->table_cache_key.length;
@@ -1416,19 +1419,20 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
     {
       thd->locked_tables_list.unlink_from_list(thd,
                                                table->pos_in_locked_tables,
-                                               remove_from_locked_tables);
+                                               extra != HA_EXTRA_NOT_USED);
+      /* Inform handler that there is a drop table or a rename going on */
+      if (extra != HA_EXTRA_NOT_USED && table->db_stat)
+      {
+        table->file->extra(extra);
+        extra= HA_EXTRA_NOT_USED;               // Call extra once!
+      }
+
       /*
         Does nothing if the table is not locked.
         This allows one to use this function after a table
         has been unlocked, e.g. in partition management.
       */
       mysql_lock_remove(thd, thd->lock, table);
-
-      /* Inform handler that table will be dropped after close */
-#ifdef MERGE_FOR_MONTY_TO_FIX
-      if (remove_from_locked_tables && table->db_stat) /* Not true for partitioned tables. */
-        table->file->extra(HA_EXTRA_PREPARE_FOR_DROP);
-#endif
       close_thread_table(thd, prev);
     }
     else
@@ -1987,8 +1991,8 @@ next:
                  ("convert merged to materialization to resolve the conflict"));
       derived->change_refs_to_fields();
       derived->set_materialized_derived();
+      goto retry;
     }
-    goto retry;
   }
   DBUG_RETURN(res);
 }
@@ -2318,6 +2322,7 @@ bool rename_temporary_table(THD* thd, TABLE *table, const char *db,
    @param function HA_EXTRA_PREPARE_FOR_DROP if table is to be deleted
                    HA_EXTRA_FORCE_REOPEN if table is not be used
                    HA_EXTRA_PREPARE_FOR_RENAME if table is to be renamed
+                   HA_EXTRA_NOT_USED             Don't call extra()
 
    @note When returning, the table will be unusable for other threads
          until metadata lock is downgraded.
@@ -2342,7 +2347,8 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
                    table->s->db.str, table->s->table_name.str,
                    FALSE);
   /* extra() call must come only after all instances above are closed */
-  (void) table->file->extra(function);
+  if (function != HA_EXTRA_NOT_USED)
+    (void) table->file->extra(function);
   DBUG_RETURN(FALSE);
 }
 
@@ -3390,7 +3396,6 @@ Locked_tables_list::init_locked_tables(THD *thd)
 
 void
 Locked_tables_list::unlock_locked_tables(THD *thd)
-
 {
   if (thd)
   {
@@ -3412,7 +3417,8 @@ Locked_tables_list::unlock_locked_tables(THD *thd)
         Clear the position in the list, the TABLE object will be
         returned to the table cache.
       */
-      table_list->table->pos_in_locked_tables= NULL;
+      if (table_list->table)                    // If not closed
+        table_list->table->pos_in_locked_tables= NULL;
     }
     thd->leave_locked_tables_mode();
 
@@ -5776,6 +5782,32 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         has_write_table_with_auto_increment_and_select(tables))
       thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT);
 
+    /* 
+     INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
+     can be unsafe.
+     */
+    uint unique_keys= 0;
+    for (TABLE_LIST *query_table= tables; query_table && unique_keys <= 1;
+         query_table= query_table->next_global)
+      if(query_table->table)
+      {
+        uint keys= query_table->table->s->keys, i= 0;
+        unique_keys= 0;
+        for (KEY* keyinfo= query_table->table->s->key_info;
+             i < keys && unique_keys <= 1; i++, keyinfo++)
+        {
+          if (keyinfo->flags & HA_NOSAME)
+            unique_keys++;
+        }
+        if (!query_table->placeholder() &&
+            query_table->lock_type >= TL_WRITE_ALLOW_WRITE &&
+            unique_keys > 1 && thd->lex->sql_command == SQLCOM_INSERT &&
+            /* Duplicate key update is not supported by INSERT DELAYED */
+            thd->command != COM_DELAYED_INSERT &&
+            thd->lex->duplicates == DUP_UPDATE)
+          thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
+      }
+ 
     /* We have to emulate LOCK TABLES if we are statement needs prelocking. */
     if (thd->lex->requires_prelocking())
     {
@@ -8535,6 +8567,11 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
         }
       }
 #endif
+      /*
+         field_iterator.create_item() builds used_items which we
+         have to save because changes made once and they are persistent
+      */
+      tables->persistent_used_items= tables->used_items;
 
       if ((field= field_iterator.field()))
       {
@@ -9285,6 +9322,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   uint key_length;
   TABLE *table;
   TABLE_SHARE *share;
+  DBUG_ENTER("tdc_remove_table");
 
   if (! has_lock)
     mysql_mutex_lock(&LOCK_open);
@@ -9342,6 +9380,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 
   if (! has_lock)
     mysql_mutex_unlock(&LOCK_open);
+  DBUG_VOID_RETURN;
 }
 
 

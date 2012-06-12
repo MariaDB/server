@@ -36,7 +36,7 @@
 
 
 #if defined(WITH_ARIA_STORAGE_ENGINE)
-#include "../storage/maria/ha_maria.h"
+#include <maria.h>
 #endif
 #if defined(USE_ARIA_FOR_TMP_TABLES)
 #define TMP_ENGINE_HTON maria_hton
@@ -1319,6 +1319,7 @@ public:
     return (do_send_rows && implicit_grouping && !group_optimized_away &&
             having_value != Item::COND_FALSE);
   }
+  bool empty_result() { return (zero_result_cause && !implicit_grouping); }
   bool change_result(select_result *result);
   bool is_top_level_join() const
   {
@@ -1464,6 +1465,11 @@ public:
       to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
                                         ptr, null, 1);
   }
+  store_key(store_key &arg)
+    :Sql_alloc(), null_key(arg.null_key), to_field(arg.to_field),
+             null_ptr(arg.null_ptr), err(arg.err)
+
+  {}
   virtual ~store_key() {}			/** Not actually needed */
   virtual enum Type type() const=0;
   virtual const char *name() const=0;
@@ -1568,6 +1574,10 @@ public:
 	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
 	       &err : (uchar*) 0, length), item(item_arg), use_value(val)
   {}
+  store_key_item(store_key &arg, Item *new_item, bool val)
+    :store_key(arg), item(new_item), use_value(val)
+  {}
+
 
   enum Type type() const { return ITEM_STORE_KEY; }
   const char *name() const { return "func"; }
@@ -1613,11 +1623,14 @@ public:
   store_key_const_item(THD *thd, Field *to_field_arg, uchar *ptr,
 		       uchar *null_ptr_arg, uint length,
 		       Item *item_arg)
-    :store_key_item(thd, to_field_arg,ptr,
+    :store_key_item(thd, to_field_arg, ptr,
 		    null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
 		    &err : (uchar*) 0, length, item_arg, FALSE), inited(0)
   {
   }
+  store_key_const_item(store_key &arg, Item *new_item)
+    :store_key_item(arg, new_item, FALSE), inited(0)
+  {}
 
   enum Type type() const { return CONST_ITEM_STORE_KEY; }
   const char *name() const { return "const"; }

@@ -4723,6 +4723,18 @@ SELECT 1 FROM
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#13721076 CRASH WITH TIME TYPE/TIMESTAMP() AND WARNINGS IN SUBQUERY
+--echo #
+
+CREATE TABLE t1(a TIME NOT NULL);
+INSERT INTO t1 VALUES ('00:00:32');
+
+SELECT 1 FROM t1 WHERE a >
+(SELECT timestamp(a) AS a FROM t1);
+
+DROP TABLE t1;
+
+--echo #
 --echo # No BUG#, a case brought from 5.2's innodb_mysql_lock.test
 --echo #
 
@@ -5499,6 +5511,50 @@ SELECT a FROM t1 WHERE ( SELECT MIN(a) = 100 );
 
 drop table t1;
 
+--echo #
+--echo # LP BUG#985667 Wrong result with subquery in SELECT clause, and constant table in 
+--echo # main query and implicit grouping
+--echo #
+
+CREATE TABLE t1 (f1 int) engine=MyISAM;
+INSERT INTO t1 VALUES (7),(8);
+
+CREATE TABLE t2 (f2 int, f3 varchar(1)) engine=MyISAM;
+INSERT INTO t2 VALUES (3,'f');
+
+EXPLAIN
+SELECT COUNT(f1), (SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+SELECT COUNT(f1), (SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+
+EXPLAIN
+SELECT COUNT(f1), exists(SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+SELECT COUNT(f1), exists(SELECT f1 FROM t1 WHERE f2 > 0 limit 1) AS f4 FROM t2, t1 WHERE 'v'= f3;
+
+EXPLAIN
+SELECT COUNT(f1), f2 > ALL (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+SELECT COUNT(f1), f2 > ALL (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+
+EXPLAIN
+SELECT COUNT(f1), f2 IN (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+SELECT COUNT(f1), f2 IN (SELECT f1 FROM t1 WHERE f2 > 0) AS f4 FROM t2, t1 WHERE 'v'= f3;
+
+drop table t1,t2;
+
+--echo #
+--echo # LP BUG#1002079 Server crashes in Item_singlerow_subselect::val_int with constant table,
+--echo # HAVING, UNION in subquery
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (7),(0);
+CREATE TABLE t2 (b INT);
+
+EXPLAIN
+SELECT SUM(a) AS f1, a AS f2 FROM (t1, t2) HAVING f2 >= ALL (SELECT 4 UNION SELECT 5) AND f1 = 7;
+
+SELECT SUM(a) AS f1, a AS f2 FROM (t1, t2) HAVING f2 >= ALL (SELECT 4 UNION SELECT 5) AND f1 = 7;
+
+drop table t1,t2;
 
 --echo # return optimizer switch changed in the beginning of this test
 set optimizer_switch=@subselect_tmp;

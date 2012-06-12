@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
    Copyright (c) 2009-2011 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -11,8 +11,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 /** @file handler.cc
 
@@ -365,7 +365,8 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_AUTOINC_ERANGE,         ER_DEFAULT(ER_WARN_DATA_OUT_OF_RANGE));
   SETMSG(HA_ERR_TOO_MANY_CONCURRENT_TRXS, ER_DEFAULT(ER_TOO_MANY_CONCURRENT_TRXS));
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
-  SETMSG(HA_ERR_INDEX_CORRUPT,         ER_DEFAULT(ER_INDEX_CORRUPT));
+  SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
+  SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
 
   /* Register the error messages for use with my_error(). */
@@ -2255,6 +2256,8 @@ double handler::keyread_time(uint index, uint ranges, ha_rows rows)
     The model counts in the time to read index entries from cache.
   */
   ulong len= table->key_info[index].key_length + ref_length;
+  if (index == table->s->primary_key && table->file->primary_key_is_clustered())
+    len= table->s->stored_rec_length;
   double keys_per_block= (stats.block_size/2.0/len+1);
   return (rows + keys_per_block-1)/ keys_per_block +
          len*rows/(stats.block_size+1)/TIME_FOR_COMPARE ;
@@ -3105,6 +3108,9 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_UNDO_REC_TOO_BIG:
     textno= ER_UNDO_RECORD_TOO_BIG;
+    break;
+  case HA_ERR_TABLE_IN_FK_CHECK:
+    textno= ER_TABLE_IN_FK_CHECK;
     break;
   default:
     {
