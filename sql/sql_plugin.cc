@@ -1042,6 +1042,8 @@ static bool plugin_add(MEM_ROOT *tmp_root,
   struct st_maria_plugin *plugin;
   uint oks= 0, errs= 0;
   DBUG_ENTER("plugin_add");
+  DBUG_PRINT("enter", ("name: %s  dl: %s", name->str, dl->str));
+
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
     report_error(report, ER_UDF_EXISTS, name->str);
