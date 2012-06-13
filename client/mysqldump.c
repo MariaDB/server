@@ -4745,6 +4745,8 @@ static int do_show_slave_status(MYSQL *mysql_con)
   MYSQL_RES *slave;
   const char *comment_prefix=
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
+  LINT_INIT(slave);
+
   if (mysql_query_with_error_report(mysql_con, &slave, "SHOW SLAVE STATUS"))
   {
     if (!ignore_errors)

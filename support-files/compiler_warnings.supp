@@ -132,7 +132,7 @@ storage/maria/ma_pagecache.c: .*'info_check_pin' defined but not used
 #
 # This warning is strange; We should not get it with -DFORCE_INIT_OF_VARS
 # I added the suprression as I was not able to remove this warning :(
-storage/maria/ma_check.c: may be used uninitialized in this function : 1300-1500
+storage/maria/ma_check.c: may be used uninitialized in this function : 1200-1500
 
 #
 # Pbxt
@@ -202,6 +202,8 @@ regexec\.c : passing argument 3 of.*matcher.* discards qualifiers from pointer t
 libmysql\.c: passing argument 2 of .*memcpy.* discards qualifiers from pointer target type : 3000-4000
 storage/xtradb/dict/dict0dict\.c : passing argument 1 of .*strcpy.* discards qualifiers from pointer target type : 2500-3500
 storage/xtradb/sync/sync0rw\.c : passing argument 1 of .*memset.* discards qualifiers from pointer target type : 200-300
+storage/innobase/dict/dict0dict\.c : passing argument 1 of .*strcpy.* discards qualifiers from pointer target type : 2500-3500
+storage/innobase/sync/sync0rw\.c : passing argument 1 of .*memset.* discards qualifiers from pointer target type : 200-300
 
 #
 # Strange things from autoconf that is probably safe to ignore
