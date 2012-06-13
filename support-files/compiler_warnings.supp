@@ -129,10 +129,6 @@ signal\.c : .*unused parameter.*
 # Aria warning that is ok in debug builds
 #
 storage/maria/ma_pagecache.c: .*'info_check_pin' defined but not used
-#
-# This warning is strange; We should not get it with -DFORCE_INIT_OF_VARS
-# I added the suprression as I was not able to remove this warning :(
-storage/maria/ma_check.c: may be used uninitialized in this function : 1200-1500
 
 #
 # Pbxt
