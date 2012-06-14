@@ -4298,7 +4298,7 @@ longlong Item_func_sleep::val_int()
 
 #define extra_size sizeof(double)
 
-static user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
 				    bool create_if_not_exists)
 {
   user_var_entry *entry;
