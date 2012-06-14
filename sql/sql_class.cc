@@ -1196,6 +1196,7 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+  apc_target.init(&LOCK_thd_data);
 }
 
  
@@ -1361,6 +1362,7 @@ void THD::cleanup(void)
     ull= NULL;
   }
 
+  apc_target.destroy();
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -2006,6 +2008,20 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 int THD::send_explain_fields(select_result *result)
 {
   List<Item> field_list;
+  make_explain_field_list(field_list);
+  return (result->send_result_set_metadata(field_list,
+                                           Protocol::SEND_NUM_ROWS | 
+                                           Protocol::SEND_EOF));
+}
+
+
+/*
+  Populate the provided field_list with EXPLAIN output columns.
+  this->lex->describe has the EXPLAIN flags
+*/
+
+void THD::make_explain_field_list(List<Item> &field_list)
+{
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
   field_list.push_back(item= new Item_return_int("id",3, MYSQL_TYPE_LONGLONG));
@@ -2044,9 +2060,8 @@ int THD::send_explain_fields(select_result *result)
   }
   item->maybe_null= 1;
   field_list.push_back(new Item_empty_string("Extra", 255, cs));
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF));
 }
+
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
 void THD::close_active_vio()
@@ -2150,6 +2165,21 @@ void THD::rollback_item_tree_changes()
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Check if the thread has been killed, and also process "APC requests"
+
+  @retval true  The thread is killed, execution should be interrupted
+  @retval false Not killed, continue execution
+*/
+
+bool THD::check_killed()
+{
+  if (killed)
+    return TRUE;
+  apc_target.process_apc_requests(); 
+  return FALSE;
+}
 
 /*****************************************************************************
 ** Functions to provide a interface to select results
@@ -2278,6 +2308,86 @@ int select_send::send_data(List<Item> &items)
 
   DBUG_RETURN(0);
 }
+
+//////////////////////////////////////////////////////////////////////////////
+
+int select_result_explain_buffer::send_data(List<Item> &items)
+{
+  List_iterator_fast<Item> li(items);
+  char buff[MAX_FIELD_WIDTH];
+  String buffer(buff, sizeof(buff), &my_charset_bin);
+  DBUG_ENTER("select_send::send_data");
+
+  protocol->prepare_for_resend();
+  Item *item;
+  while ((item=li++))
+  {
+    if (item->send(protocol, &buffer))
+    {
+      protocol->free();				// Free used buffer
+      my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES), MYF(0));
+      break;
+    }
+    /*
+      Reset buffer to its original state, as it may have been altered in
+      Item::send().
+    */
+    buffer.set(buff, sizeof(buff), &my_charset_bin);
+  }
+
+  if (thd->is_error())
+  {
+    protocol->remove_last_row();
+    DBUG_RETURN(1);
+  }
+  /* 
+    Instead of calling protocol->write(), steal the packed and put it to our
+    buffer 
+  */
+  const char *packet_data;
+  size_t len;
+  protocol->get_packet(&packet_data, &len);
+
+  String *s= new (thd->mem_root) String;
+  s->append(packet_data, len);
+  data_rows.push_back(s);
+  protocol->remove_last_row(); // <-- this does nothing. Do we need it?
+                               // prepare_for_resend() will wipe out the packet
+  DBUG_RETURN(0);
+}
+
+
+/* Write all strings out to the output, and free them. */
+
+void select_result_explain_buffer::flush_data()
+{
+  List_iterator<String> it(data_rows);
+  String *str;
+  while ((str= it++))
+  {
+    protocol->set_packet(str->ptr(), str->length());
+    protocol->write();
+    delete str;
+  }
+  data_rows.empty();
+}
+
+
+/* Just free all of the accumulated strings */
+
+void select_result_explain_buffer::discard_data()
+{
+  List_iterator<String> it(data_rows);
+  String *str;
+  while ((str= it++))
+  {
+    delete str;
+  }
+  data_rows.empty();
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
 
 bool select_send::send_eof()
 {
@@ -3172,6 +3282,10 @@ void THD::end_statement()
 }
 
 
+/*
+  Start using arena specified by @set. Current arena data will be saved to
+  *backup.
+*/
 void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::set_n_backup_active_arena");
@@ -3186,6 +3300,12 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 }
 
 
+/*
+  Stop using the temporary arena, and start again using the arena that is 
+  specified in *backup.
+  The temporary arena is returned back into *set.
+*/
+
 void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::restore_active_arena");
@@ -3197,6 +3317,42 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 #endif
   DBUG_VOID_RETURN;
 }
+
+
+/*
+  Produce EXPLAIN data.
+
+  This function is APC-scheduled to be run in the context of the thread that
+  we're producing EXPLAIN for.
+*/
+
+void Show_explain_request::get_explain_data(void *arg)
+{
+  Show_explain_request *req= (Show_explain_request*)arg;
+  //TODO: change mem_root to point to request_thd->mem_root.
+  //      Actually, change the ARENA, because we're going to allocate items!
+  Query_arena backup_arena;
+  THD *target_thd= req->target_thd;
+  bool printed_anything= FALSE;
+
+  target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
+                                        &backup_arena);
+  
+  req->query_str.copy(target_thd->query(), 
+                      target_thd->query_length(),
+                      &my_charset_bin);
+
+  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags*/,
+                                          &printed_anything))
+    req->failed_to_produce= TRUE;
+
+  if (!printed_anything)
+    req->failed_to_produce= TRUE;
+
+  target_thd->restore_active_arena((Query_arena*)req->request_thd, 
+                                   &backup_arena);
+}
+
 
 Statement::~Statement()
 {
