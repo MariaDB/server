@@ -31,9 +31,8 @@
 
 static my_bool verbose, print_all_codes;
 
-#include "../include/my_base.h"
-#include "../mysys/my_handler_errors.h"
-// #include "../include/my_compare.h"
+#include <my_base.h>
+#include <my_handler_errors.h>
 
 #ifdef WITH_NDBCLUSTER_STORAGE_ENGINE
 static my_bool ndb_code;
