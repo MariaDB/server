@@ -19,7 +19,7 @@
 #include <stdarg.h>
 #include <my_sys.h>
 #include <my_base.h>
-#include <../mysys/my_handler_errors.h>
+#include <my_handler_errors.h>
 
 
 #define MAX_ARGS 32                           /* max positional args count*/
@@ -132,7 +132,7 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
     fmt++;
     *have_longlong= (sizeof(size_t) == sizeof(longlong));
   }
-  if (*fmt == 'p')
+  else if (*fmt == 'p')
     *have_longlong= (sizeof(void *) == sizeof(longlong));
   return fmt;
 }
@@ -358,17 +358,17 @@ start:
   
   if (*fmt == '.')
   {
-    uint flags= 0;
+    uint unused_flags= 0;
     fmt++;
     /* Get print width */
     if (*fmt == '*')
     {
       fmt= get_length_arg(fmt, args_arr, &arg_count, &print_arr[idx].width,
-                          &flags);
+                          &unused_flags);
       print_arr[idx].flags|= WIDTH_ARG;
     }
     else
-      fmt= get_length(fmt, &print_arr[idx].width, &flags);
+      fmt= get_length(fmt, &print_arr[idx].width, &unused_flags);
   }
   else
     print_arr[idx].width= MAX_WIDTH;
@@ -494,11 +494,11 @@ start:
         if (width <= 4)
           break;
         *to++= ' ';
-        *to++= '-';
-        *to++= ' ';
+        *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-        to= process_str_arg(cs, to, end, width, errmsg_buff,
+        to= process_str_arg(cs, to, end, width-3, errmsg_buff,
                             print_arr[i].flags);
+        *to++= '"';
         break;
       }
       default:
@@ -520,14 +520,14 @@ start:
   }
   else
   {
-    uint flags= 0;
+    uint unused_flags= 0;
     /* Process next positional argument*/
     DBUG_ASSERT(*fmt == '%');
     print_arr[idx].end= fmt - 1;
     idx++;
     fmt++;
     arg_index= 0;
-    fmt= get_length(fmt, &arg_index, &flags);
+    fmt= get_length(fmt, &arg_index, &unused_flags);
     DBUG_ASSERT(*fmt == '$');
     fmt++;
     arg_count= max(arg_count, arg_index);
@@ -605,7 +605,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
 
     if (*fmt == '.')
     {
-      uint flags= 0;
+      uint unused_flags= 0;
       fmt++;
       if (*fmt == '*')
       {
@@ -613,7 +613,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
         width= va_arg(ap, int);
       }
       else
-        fmt= get_length(fmt, &width, &flags);
+        fmt= get_length(fmt, &width, &unused_flags);
     }
     else
       width= MAX_WIDTH;
@@ -673,11 +673,10 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
       {
         char errmsg_buff[MYSYS_STRERROR_SIZE];
         *to++= ' ';
-        *to++= '-';
-        *to++= ' ';
-        width-= 3;
+        *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
-        to= process_str_arg(cs, to, end, width, errmsg_buff, print_type);     
+        to= process_str_arg(cs, to, end, width-3, errmsg_buff, print_type);
+        *to++= '"';
       }
       continue;
     }

@@ -34,7 +34,7 @@ SELECT * FROM t1;
 a
 1
 COMMIT;
-ERROR HY000: Got error 131 - Command not supported by database during COMMIT
+ERROR HY000: Got error 131 "Command not supported by database" during COMMIT
 SET innodb_fake_changes=default;
 DROP TABLE t1;
 # DDL must result in error
@@ -43,13 +43,13 @@ SET autocommit=0;
 SET innodb_fake_changes=1;
 BEGIN;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
-ERROR HY000: Can't create table 'test.t2' (errno: 131 - Command not supported by database)
+ERROR HY000: Can't create table 'test.t2' (errno: 131 "Command not supported by database")
 DROP TABLE t1;
 ERROR 42S02: Unknown table 't1'
 TRUNCATE TABLE t1;
-ERROR HY000: Got error 131 - Command not supported by database during COMMIT
+ERROR HY000: Got error 131 "Command not supported by database" during COMMIT
 ALTER TABLE t1 ENGINE=MyISAM;
-ERROR HY000: Got error 131 - Command not supported by database during COMMIT
+ERROR HY000: Got error 131 "Command not supported by database" during COMMIT
 ROLLBACK;
 SET innodb_fake_changes=default;
 DROP TABLE t1;

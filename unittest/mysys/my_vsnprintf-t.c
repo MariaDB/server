@@ -201,8 +201,8 @@ int main(void)
     /* Test that %M works */
     const char *results[]=
     {
-      "Error 1 - Operation not permitted",      /* Linux */
-      "Error 1 - Not owner",                    /* Solaris */
+      "Error 1 \"Operation not permitted\"",    /* Linux */
+      "Error 1 \"Not owner\"",                  /* Solaris */
       NullS
     };
     test_many(results, "Error %M", 1);
