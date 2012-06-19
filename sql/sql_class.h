@@ -1522,16 +1522,29 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 class select_result_explain_buffer;
 
+
+/*
+  SHOW EXPLAIN request object. 
+  
+  The thread that runs SHOW EXPLAIN statement creates a Show_explain_request
+  object R, and then schedules APC call of
+  Show_explain_request::get_explain_data((void*)&R).
+
+*/
+
 class Show_explain_request
 {
 public:
-  THD *target_thd;
-  THD *request_thd;
+  THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
+  THD *request_thd; /* thd that run SHOW EXPLAIN command */
   
+  /* If true, there was some error when producing EXPLAIN output. */
   bool failed_to_produce;
-  
+   
+  /* SHOW EXPLAIN will be stored here */
   select_result_explain_buffer *explain_buf;
-
+  
+  /* Query that we've got SHOW EXPLAIN for */
   String query_str;
 
   static void get_explain_data(void *arg);
@@ -2414,11 +2427,11 @@ public:
 
 
   /*
-    This is what allows this thread to serve as a target for others to 
-    schedule Async Procedure Calls on.
+    Allows this thread to serve as a target for others to schedule Async 
+    Procedure Calls on.
 
-    It's possible to schedule arbitrary C function call but currently this
-    facility is used only by SHOW EXPLAIN code (See Show_explain_request)
+    It's possible to schedule arbitrary C++ function calls. Currently, only
+    Show_explain_request uses this.
   */
   Apc_target apc_target;
 
