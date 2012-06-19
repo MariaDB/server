@@ -2311,6 +2311,10 @@ int select_send::send_data(List<Item> &items)
 
 //////////////////////////////////////////////////////////////////////////////
 
+/*
+  Save the data being sent in our internal buffer.
+*/
+
 int select_result_explain_buffer::send_data(List<Item> &items)
 {
   List_iterator_fast<Item> li(items);
@@ -2357,7 +2361,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
 }
 
 
-/* Write all strings out to the output, and free them. */
+/* Write the saved resultset to the client (via this->protocol) and free it. */
 
 void select_result_explain_buffer::flush_data()
 {
@@ -2373,7 +2377,7 @@ void select_result_explain_buffer::flush_data()
 }
 
 
-/* Just free all of the accumulated strings */
+/* Free the accumulated resultset */
 
 void select_result_explain_buffer::discard_data()
 {

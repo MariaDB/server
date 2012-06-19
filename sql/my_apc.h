@@ -75,38 +75,19 @@ private:
   */
   Call_request *apc_calls;
  
-
-  /*
-    This mutex is used to
-    - make queue put/remove operations atomic (one must be in posession of the
-      mutex when putting/removing something from the queue)
-
-    - make sure that nobody enqueues a request onto an Apc_target which has 
-      disabled==TRUE. The idea is:
-      = requestor must be in possession of the mutex and check that
-        disabled==FALSE when he is putting his request into the queue.
-      = When the owner (ie. service) thread changes the Apc_target from 
-        enabled to disabled, it will acquire the mutex, disable the 
-        Apc_target (preventing any new requests), and then serve all pending 
-        requests. 
-      That way, we will never have the situation where the Apc_target is 
-      disabled, but there are some un-served requests.
-  */
-  //pthread_mutex_t LOCK_apc_queue;
-
   class Call_request
   {
   public:
     apc_func_t func; /* Function to call */
     void *func_arg;  /* Argument to pass it */
-    bool processed;
 
-    //pthread_mutex_t LOCK_request;
-    //pthread_cond_t COND_request;
+    /* The caller will actually wait for "processed==TRUE" */
+    bool processed;
 
     /* Condition that will be signalled when the request has been served */
     mysql_cond_t COND_request;
-
+    
+    /* Double linked-list linkage */
     Call_request *next;
     Call_request *prev;
     
