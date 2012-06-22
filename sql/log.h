@@ -354,6 +354,15 @@ private:
   time_t last_time;
 };
 
+/*
+  We assign each binlog file an internal ID, used to identify them for unlog().
+  Ids start from BINLOG_COOKIE_START; the value BINLOG_COOKIE_DUMMY is special
+  meaning "no binlog" (we cannot use zero as that is reserved for error return
+  from log_and_order).
+*/
+#define BINLOG_COOKIE_DUMMY 1
+#define BINLOG_COOKIE_START 2
+
 class binlog_cache_mngr;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
@@ -394,10 +403,40 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     bool all;
   };
 
+  /*
+    A list of struct xid_count_per_binlog is used to keep track of how many
+    XIDs are in prepared, but not committed, state in each binlog.
+
+    When count drops to zero in a binlog after rotation, it means that there
+    are no more XIDs in prepared state, so that binlog is no longer needed
+    for XA crash recovery, and we can log a new binlog checkpoint event.
+
+    The list is protected against simultaneous access from multiple
+    threads by LOCK_xid_list.
+  */
+  struct xid_count_per_binlog : public ilink {
+    char *binlog_name;
+    uint binlog_name_len;
+    ulong binlog_id;
+    long xid_count;
+    xid_count_per_binlog();   /* Give link error if constructor used. */
+  };
+  ulong current_binlog_id;
+  I_List<xid_count_per_binlog> binlog_xid_count_list;
+  /*
+    When this is set, a RESET MASTER is in progress.
+
+    Then we should not write any binlog checkpoints into the binlog (that
+    could result in deadlock on LOCK_log, and we will delete all binlog files
+    anyway). Instead we should signal COND_xid_list whenever a new binlog
+    checkpoint arrives - when all have arrived, RESET MASTER will complete.
+  */
+  bool reset_master_pending;
+
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
-  mysql_mutex_t LOCK_prep_xids;
-  mysql_cond_t  COND_prep_xids;
+  mysql_mutex_t LOCK_xid_list;
+  mysql_cond_t  COND_xid_list;
   mysql_cond_t update_cond;
   ulonglong bytes_written;
   IO_CACHE index_file;
@@ -421,7 +460,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
      fix_max_relay_log_size).
   */
   ulong max_size;
-  long prepared_xids; /* for tc log - number of xids to remember */
   // current file sequence number for load data infile binary logging
   uint file_id;
   uint open_count;				// For replication
@@ -473,8 +511,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int write_transaction_or_stmt(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
-  void mark_xid_done();
-  void mark_xids_active(uint xid_count);
+  void mark_xid_done(ulong cookie);
+  void mark_xids_active(ulong cookie, uint xid_count);
 
 public:
   using MYSQL_LOG::generate_name;
@@ -562,7 +600,8 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
-  int recover(IO_CACHE *log, Format_description_log_event *fdle);
+  int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
+              Format_description_log_event *fdle);
 #if !defined(MYSQL_CLIENT)
 
   int flush_and_set_pending_rows_event(THD *thd, Rows_log_event* event,
@@ -614,6 +653,7 @@ public:
 
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
+  void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
   int  write_cache(THD *thd, IO_CACHE *cache);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
@@ -631,6 +671,7 @@ public:
 
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
+  bool can_purge_log(const char *log_file_name);
   int update_log_index(LOG_INFO* linfo, bool need_update_threads);
   int rotate(bool force_rotate, bool* check_purge);
   void purge();

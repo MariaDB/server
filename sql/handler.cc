@@ -1286,6 +1286,7 @@ int ha_commit_trans(THD *thd, bool all)
   if (!cookie)
     goto err;
 
+  DEBUG_SYNC(thd, "ha_commit_trans_after_log_and_order");
   DBUG_EXECUTE_IF("crash_commit_after_log", DBUG_SUICIDE(););
 
   error= commit_one_phase_2(thd, all, trans, is_real_trans) ? 2 : 0;

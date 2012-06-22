@@ -47,6 +47,7 @@ a	b
 FLUSH LOGS;
 show binlog events in 'slave-bin.000001' from <start_pos>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
 slave-bin.000001	#	Query	1	#	DROP DATABASE IF EXISTS test1
 slave-bin.000001	#	Query	1	#	CREATE DATABASE test1
 slave-bin.000001	#	Query	1	#	use `test1`; CREATE TABLE t1(a int primary key, b int)

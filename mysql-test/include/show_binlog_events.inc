@@ -9,7 +9,7 @@
 #
 # It shows the first binary log file if $binlog_file is not given. 
 #
-# It shows events from the end position of the description event if
+# It shows events from the end position of the binlog checkpoint event if
 # $binlog_start is not given.
 #
 # It shows all of the events if $binlog_limit is not given. 

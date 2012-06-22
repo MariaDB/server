@@ -624,6 +624,30 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   }
 
   /*
+    Do not send binlog checkpoint events to a slave that does not understand it.
+  */
+  if (unlikely(event_type == BINLOG_CHECKPOINT_EVENT) &&
+      mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT)
+  {
+    if (mariadb_slave_capability >= MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES)
+    {
+      /* This slave can tolerate events omitted from the binlog stream. */
+      return NULL;
+    }
+    else
+    {
+      /*
+        The slave does not understand BINLOG_CHECKPOINT_EVENT. Send a dummy
+        event instead, with same length so slave does not get confused about
+        binlog positions.
+      */
+      if (Query_log_event::dummy_event(packet, ev_offset, current_checksum_alg))
+        return "Failed to replace binlog checkpoint event with dummy: "
+               "too small event.";
+    }
+  }
+
+  /*
     Skip events with the @@skip_replication flag set, if slave requested
     skipping of such events.
   */

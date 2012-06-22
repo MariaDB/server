@@ -259,6 +259,7 @@ struct sql_ex_info
 #define INCIDENT_HEADER_LEN    2
 #define HEARTBEAT_HEADER_LEN   0
 #define ANNOTATE_ROWS_HEADER_LEN  0
+#define BINLOG_CHECKPOINT_HEADER_LEN 4
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -685,6 +686,14 @@ enum Log_event_type
   MARIA_EVENTS_BEGIN= 160,
   /* New Maria event numbers start from here */
   ANNOTATE_ROWS_EVENT= 160,
+  /*
+    Binlog checkpoint event. Used for XA crash recovery on the master, not used
+    in replication.
+    A binlog checkpoint event specifies a binlog file such that XA crash
+    recovery can start from that file - and it is guaranteed to find all XIDs
+    that are prepared in storage engines but not yet committed.
+  */
+  BINLOG_CHECKPOINT_EVENT= 161,
 
   /* Add new MariaDB events here - right above this comment!  */
 
@@ -2891,6 +2900,32 @@ private:
 #endif
 };
 
+
+class Binlog_checkpoint_log_event: public Log_event
+{
+public:
+  char *binlog_file_name;
+  uint binlog_file_len;
+
+#ifdef MYSQL_SERVER
+  Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
+                              uint binlog_file_len_arg);
+#ifdef HAVE_REPLICATION
+  void pack_info(Protocol *protocol);
+#endif
+#else
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+  Binlog_checkpoint_log_event(const char *buf, uint event_len,
+             const Format_description_log_event *description_event);
+  ~Binlog_checkpoint_log_event() { my_free(binlog_file_name); }
+  Log_event_type get_type_code() { return BINLOG_CHECKPOINT_EVENT;}
+  int get_data_size() { return  binlog_file_len + BINLOG_CHECKPOINT_HEADER_LEN;}
+  bool is_valid() const { return binlog_file_name != 0; }
+#ifdef MYSQL_SERVER
+  bool write(IO_CACHE* file);
+#endif
+};
 
 /* the classes below are for the new LOAD DATA INFILE logging */
 
