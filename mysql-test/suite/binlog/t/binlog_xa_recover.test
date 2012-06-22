@@ -1,0 +1,174 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+# Valgrind does not work well with test that crashes the server
+--source include/not_valgrind.inc
+
+SET GLOBAL max_binlog_size= 4096;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Myisam;
+
+# Transactions are not guaranteed stored durably on disk in the engine until
+# they are fsync()ed, which normally happens during commit(). But there is no
+# guarantee that they will _not_ be durable, in particular loosing results
+# of a write(2) system call normally requires a kernel crash (as opposed to
+# just mysqld crash), which is inconvenient to do in a test suite.
+# So instead we do an error insert to prevent commit_ordered() from being
+# called in the engine - so nothing will be written to disk at all, and crash
+# recovery is sure to be needed.
+SET @@global.debug_dbug='+d,skip_commit_ordered';
+
+INSERT INTO t1 VALUES (0, REPEAT("x", 4100));
+
+# Now start a bunch of transactions that span multiple binlog
+# files. Leave then in the state prepared-but-not-committed in the engine
+# and crash the server. Check that crash recovery is able to recover all
+# of them.
+
+connect(con1,localhost,root,,);
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con1_ready WAIT_FOR _ever";
+send INSERT INTO t1 VALUES (1, REPEAT("x", 4100));
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+INSERT INTO t2 VALUES (1, "force binlog rotation");
+
+connect(con2,localhost,root,,);
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con2_ready WAIT_FOR _ever";
+send INSERT INTO t1 VALUES (2, NULL);
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con2_ready";
+
+connect(con3,localhost,root,,);
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con3_ready WAIT_FOR _ever";
+send INSERT INTO t1 VALUES (3, REPEAT("x", 4100));
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con3_ready";
+INSERT INTO t2 VALUES (2, "force binlog rotation");
+# So we won't get warnings about t2 being crashed.
+FLUSH TABLES t2;
+
+# Check that everything is committed in binary log.
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000001
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000002
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000003
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000004
+--source include/show_binlog_events.inc
+
+# Check that transactions really are not yet committed in engine.
+# (This works because of debug_dbug='+d,skip_commit_ordered').
+--echo We should see only one entry here, a=0:
+SELECT a FROM t1 ORDER BY a;
+
+
+# Check that server will not purge too much.
+PURGE BINARY LOGS TO "master-bin.000004";
+--source include/show_binary_logs.inc
+
+# Now crash the server with one more transaction in prepared state.
+system echo wait-binlog_xa_recover.test >> $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+SET SESSION debug_dbug="+d,crash_commit_after_log";
+--error 2006,2013
+INSERT INTO t1 VALUES (4, NULL);
+
+system echo restart-group_commit_binlog_pos.test >> $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# Check that all transactions are recovered.
+SELECT a FROM t1 ORDER BY a;
+
+
+--echo *** Test that RESET MASTER waits for pending XIDs to be unlogged.
+
+SET @old_max_binlog_size= @@global.max_binlog_size;
+SET GLOBAL max_binlog_size= 4096;
+# con10 will hang with a pending XID, blocking RESET MASTER.
+connect(con10,localhost,root,,);
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con10_ready WAIT_FOR con10_go";
+send INSERT INTO t1 VALUES (10, NULL);
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con10_ready";
+# Let's add a few binlog rotations just for good measure.
+INSERT INTO t2 VALUES (10, REPEAT("x", 4100));
+INSERT INTO t2 VALUES (11, REPEAT("x", 4100));
+--source include/show_binary_logs.inc
+SET DEBUG_SYNC= "execute_command_after_close_tables SIGNAL reset_master_done";
+send RESET MASTER;
+
+connect(con11,localhost,root,,);
+--echo This will timeout, as RESET MASTER is blocked
+SET DEBUG_SYNC= "now WAIT_FOR reset_master_done TIMEOUT 1";
+# Wake up transaction to allow RESET MASTER to complete.
+SET DEBUG_SYNC= "now SIGNAL con10_go";
+
+connection con10;
+reap;
+
+connection default;
+reap;
+--source include/show_binary_logs.inc
+
+
+--echo *** Test that binlog N is active, and last pending trx in (N-1) is
+--echo unlogged while there is still a pending trx in (N-2).
+
+connection con10;
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con10_ready WAIT_FOR con10_continue";
+send INSERT INTO t1 VALUES (20, REPEAT("x", 4100));
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con10_ready";
+INSERT INTO t2 VALUES (3, "force binlog rotation");
+
+connection con11;
+SET DEBUG_SYNC= "ha_commit_trans_after_log_and_order SIGNAL con11_ready WAIT_FOR con11_continue";
+send INSERT INTO t1 VALUES (21, REPEAT("x", 4100));
+
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con11_ready";
+INSERT INTO t2 VALUES (4, "force binlog rotation");
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000001
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000002
+--source include/show_binlog_events.inc
+--let $binlog_file= master-bin.000003
+--source include/show_binlog_events.inc
+
+SET DEBUG_SYNC= "now SIGNAL con11_continue";
+
+connection con11;
+reap;
+
+connection default;
+--echo con10 is still pending, no new binlog checkpoint should have been logged.
+--let $binlog_file= master-bin.000003
+--source include/show_binlog_events.inc
+
+SET DEBUG_SYNC= "now SIGNAL con10_continue";
+
+connection con10;
+reap;
+
+connection default;
+--echo No XIDs are pending, a new binlog checkpoint should have been logged.
+--let $binlog_file= master-bin.000003
+--source include/show_binlog_events.inc
+
+
+# Cleanup
+connection default;
+DROP TABLE t1, t2;
+SET GLOBAL max_binlog_size= @old_max_binlog_size;

@@ -521,6 +521,7 @@ BINLOG '
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	Server ver: #, Binlog ver: #
+#	#	Binlog_checkpoint	1	#	master-bin.000001
 #	#	Query	1	#	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY)
 #	#	Query	1	#	BEGIN
 #	#	Query	1	#	use `test`; INSERT INTO t1 VALUES (1)

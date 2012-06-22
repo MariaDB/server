@@ -731,6 +731,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case EXECUTE_LOAD_QUERY_EVENT: return "Execute_load_query";
   case INCIDENT_EVENT: return "Incident";
   case ANNOTATE_ROWS_EVENT: return "Annotate_rows";
+  case BINLOG_CHECKPOINT_EVENT: return "Binlog_checkpoint";
   default: return "Unknown";				/* impossible */
   }
 }
@@ -1387,7 +1388,7 @@ err:
     DBUG_ASSERT(error != 0);
     sql_print_error("Error in Log_event::read_log_event(): "
                     "'%s', data_len: %d, event_type: %d",
-		    error,data_len,head[EVENT_TYPE_OFFSET]);
+		    error,data_len,(uchar)(head[EVENT_TYPE_OFFSET]));
     my_free(buf);
     /*
       The SQL slave thread will check if file->error<0 to know
@@ -1535,6 +1536,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
     case ROTATE_EVENT:
       ev = new Rotate_log_event(buf, event_len, description_event);
+      break;
+    case BINLOG_CHECKPOINT_EVENT:
+      ev = new Binlog_checkpoint_log_event(buf, event_len, description_event);
       break;
 #ifdef HAVE_REPLICATION
     case SLAVE_EVENT: /* can never happen (unused event) */
@@ -4405,6 +4409,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
 
       // Set header lengths of Maria events
       post_header_len[ANNOTATE_ROWS_EVENT-1]= ANNOTATE_ROWS_HEADER_LEN;
+      post_header_len[BINLOG_CHECKPOINT_EVENT-1]=
+        BINLOG_CHECKPOINT_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -5861,6 +5867,86 @@ Rotate_log_event::do_shall_skip(Relay_log_info *rli)
 }
 
 #endif
+
+
+/**************************************************************************
+  Binlog_checkpoint_log_event methods
+**************************************************************************/
+
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
+void Binlog_checkpoint_log_event::pack_info(Protocol *protocol)
+{
+  protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
+}
+#endif
+
+
+#ifdef MYSQL_CLIENT
+void Binlog_checkpoint_log_event::print(FILE *file,
+                                        PRINT_EVENT_INFO *print_event_info)
+{
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F);
+
+  if (print_event_info->short_form)
+    return;
+  print_header(&cache, print_event_info, FALSE);
+  my_b_printf(&cache, "\tBinlog checkpoint ");
+  my_b_write(&cache, (uchar*)binlog_file_name, binlog_file_len);
+  my_b_printf(&cache, "\n");
+}
+#endif  /* MYSQL_CLIENT */
+
+
+#ifdef MYSQL_SERVER
+Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
+        const char *binlog_file_name_arg,
+        uint binlog_file_len_arg)
+  :Log_event(),
+   binlog_file_name(my_strndup(binlog_file_name_arg, binlog_file_len_arg,
+                               MYF(MY_WME))),
+   binlog_file_len(binlog_file_len_arg)
+{
+  cache_type= EVENT_NO_CACHE;
+}
+#endif  /* MYSQL_SERVER */
+
+
+Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
+       const char *buf, uint event_len,
+       const Format_description_log_event *description_event)
+  :Log_event(buf, description_event), binlog_file_name(0)
+{
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len=
+    description_event->post_header_len[BINLOG_CHECKPOINT_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < BINLOG_CHECKPOINT_HEADER_LEN)
+    return;
+  buf+= header_size;
+  /* See uint4korr and int4store below */
+  compile_time_assert(BINLOG_CHECKPOINT_HEADER_LEN == 4);
+  binlog_file_len= uint4korr(buf);
+  if (event_len - (header_size + post_header_len) < binlog_file_len)
+    return;
+  binlog_file_name= my_strndup(buf + post_header_len, binlog_file_len,
+                               MYF(MY_WME));
+  return;
+}
+
+
+#ifndef MYSQL_CLIENT
+bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
+{
+  uchar buf[BINLOG_CHECKPOINT_HEADER_LEN];
+  int4store(buf, binlog_file_len);
+  return write_header(file, BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
+    wrapper_my_b_safe_write(file, buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
+    wrapper_my_b_safe_write(file, (const uchar *)binlog_file_name,
+                            binlog_file_len) ||
+    write_footer(file);
+}
+#endif  /* MYSQL_CLIENT */
 
 
 /**************************************************************************

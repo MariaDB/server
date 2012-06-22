@@ -16,6 +16,7 @@ a
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 BINLOG	POS	Format_desc	1	ENDPOS	Server ver: #, Binlog ver: #
+BINLOG	POS	Binlog_checkpoint	1	ENDPOS	master-bin.000001
 BINLOG	POS	Query	1	ENDPOS	use `test`; CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb
 BINLOG	POS	Query	1	ENDPOS	BEGIN
 BINLOG	POS	Query	1	ENDPOS	use `test`; INSERT INTO t1 VALUES(0)
