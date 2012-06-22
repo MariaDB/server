@@ -573,6 +573,43 @@ enum enum_binlog_checksum_alg {
 #define BINLOG_CHECKSUM_LEN CHECKSUM_CRC32_SIGNATURE_LEN
 #define BINLOG_CHECKSUM_ALG_DESC_LEN 1  /* 1 byte checksum alg descriptor */
 
+/*
+  These are capability numbers for MariaDB slave servers.
+
+  Newer MariaDB slaves set this to inform the master about their capabilities.
+  This allows the master to decide which events it can send to the slave
+  without breaking replication on old slaves that maybe do not understand
+  all events from newer masters.
+
+  As new releases are backwards compatible, a given capability implies also
+  all capabilities with smaller number.
+
+  Older MariaDB slaves and other MySQL slave servers do not set this, so they
+  are recorded with capability 0.
+*/
+
+/* MySQL or old MariaDB slave with no announced capability. */
+#define MARIA_SLAVE_CAPABILITY_UNKNOWN 0
+/* MariaDB >= 5.3, which understands ANNOTATE_ROWS_EVENT. */
+#define MARIA_SLAVE_CAPABILITY_ANNOTATE 1
+/*
+  MariaDB >= 5.5. This version has the capability to tolerate events omitted
+  from the binlog stream without breaking replication (MySQL slaves fail
+  because they mis-compute the offsets into the master's binlog).
+*/
+#define MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES 2
+/* MariaDB > 5.5, which knows about binlog_checkpoint_log_event. */
+#define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
+/*
+  MariaDB server which understands MySQL 5.6 ignorable events. This server
+  can tolerate receiving any event with the LOG_EVENT_IGNORABLE_F flag set.
+*/
+#define MARIA_SLAVE_CAPABILITY_IGNORABLE 4
+
+/* Our capability. */
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT
+
+
 /**
   @enum Log_event_type
 
@@ -1827,6 +1864,7 @@ public:
       my_free(data_buf);
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
+  static int dummy_event(String *packet, ulong ev_offset, uint8 checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
   virtual bool write_post_header_for_derived(IO_CACHE* file) { return FALSE; }

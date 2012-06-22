@@ -1753,6 +1753,38 @@ past_checksum:
       }
     }
   }
+
+  /* Announce MariaDB slave capabilities. */
+  DBUG_EXECUTE_IF("simulate_slave_capability_none", goto after_set_capability;);
+  {
+    const char *q=
+      DBUG_EVALUATE_IF("simulate_slave_capability_old_53",
+                       "SET @mariadb_slave_capability="
+                           STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE),
+                       "SET @mariadb_slave_capability="
+                           STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE));
+    if (mysql_real_query(mysql, q, strlen(q)))
+    {
+      err_code= mysql_errno(mysql);
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code,
+                   "Setting @mariadb_slave_capability failed with error: %s",
+                   mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is "
+          "encountered when it tries to set @mariadb_slave_capability.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
+    }
+  }
+after_set_capability:
+
 err:
   if (errmsg)
   {

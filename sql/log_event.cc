@@ -3300,6 +3300,115 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
 }
 
 
+/*
+  Replace a binlog event read into a packet with a dummy event. Either a
+  Query_log_event that has just a comment, or if that will not fit in the
+  space used for the event to be replaced, then a NULL user_var event.
+
+  This is used when sending binlog data to a slave which does not understand
+  this particular event and which is too old to support informational events
+  or holes in the event stream.
+
+  This allows to write such events into the binlog on the master and still be
+  able to replicate against old slaves without them breaking.
+
+  Clears the flag LOG_EVENT_THREAD_SPECIFIC_F and set LOG_EVENT_SUPPRESS_USE_F.
+  Overwrites the type with QUERY_EVENT (or USER_VAR_EVENT), and replaces the
+  body with a minimal query / NULL user var.
+
+  Returns zero on success, -1 if error due to too little space in original
+  event. A minimum of 25 bytes (19 bytes fixed header + 6 bytes in the body)
+  is needed in any event to be replaced with a dummy event.
+*/
+int
+Query_log_event::dummy_event(String *packet, ulong ev_offset,
+                             uint8 checksum_alg)
+{
+  uchar *p= (uchar *)packet->ptr() + ev_offset;
+  size_t data_len= packet->length() - ev_offset;
+  uint16 flags;
+  static const size_t min_user_var_event_len=
+    LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE + 1 + UV_VAL_IS_NULL; // 25
+  static const size_t min_query_event_len=
+    LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN + 1 + 1; // 34
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+    data_len-= BINLOG_CHECKSUM_LEN;
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  if (data_len < min_user_var_event_len)
+    /* Cannot replace with dummy, event too short. */
+    return -1;
+
+  flags= uint2korr(p + FLAGS_OFFSET);
+  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+  flags|= LOG_EVENT_SUPPRESS_USE_F;
+  int2store(p + FLAGS_OFFSET, flags);
+
+  if (data_len < min_query_event_len)
+  {
+    /*
+      Have to use dummy user_var event for such a short packet.
+
+      This works, but the event will be considered part of an event group with
+      the following event. So for example @@global.sql_slave_skip_counter=1
+      will skip not only the dummy event, but also the immediately following
+      event.
+
+      We write a NULL user var with the name @`!dummyvar` (or as much
+      as that as will fit within the size of the original event - so
+      possibly just @`!`).
+    */
+    static const char var_name[]= "!dummyvar";
+    uint name_len= data_len - (min_user_var_event_len - 1);
+
+    p[EVENT_TYPE_OFFSET]= USER_VAR_EVENT;
+    int4store(p + LOG_EVENT_HEADER_LEN, name_len);
+    memcpy(p + LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE, var_name, name_len);
+    p[LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE + name_len]= 1; // indicates NULL
+  }
+  else
+  {
+    /*
+      Use a dummy query event, just a comment.
+    */
+    static const char message[]=
+      "# Dummy event replacing event type %u that slave cannot handle.";
+    char buf[sizeof(message)+1];  /* +1, as %u can expand to 3 digits. */
+    uchar old_type= p[EVENT_TYPE_OFFSET];
+    uchar *q= p + LOG_EVENT_HEADER_LEN;
+    size_t comment_len, len;
+
+    p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
+    int4store(q + Q_THREAD_ID_OFFSET, 0);
+    int4store(q + Q_EXEC_TIME_OFFSET, 0);
+    q[Q_DB_LEN_OFFSET]= 0;
+    int2store(q + Q_ERR_CODE_OFFSET, 0);
+    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+    q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+    q+= Q_DATA_OFFSET + 1;
+    len= my_snprintf(buf, sizeof(buf), message, old_type);
+    comment_len= data_len - (min_query_event_len - 1);
+    if (comment_len <= len)
+      memcpy(q, buf, comment_len);
+    else
+    {
+      memcpy(q, buf, len);
+      memset(q+len, ' ', comment_len - len);
+    }
+  }
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    ha_checksum crc= my_checksum(0L, p, data_len);
+    int4store(p + data_len, crc);
+  }
+  return 0;
+}
+
+
 #ifdef MYSQL_CLIENT
 /**
   Query_log_event::print().

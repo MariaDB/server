@@ -1807,6 +1807,19 @@ static Exit_status check_master_version()
           "Master returned '%s'", mysql_error(mysql));
     goto err;
   }
+
+  /*
+    Announce our capabilities to the server, so it will send us all the events
+    that we know about.
+  */
+  if (mysql_query(mysql, "SET @mariadb_slave_capability="
+                  STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE)))
+  {
+    error("Could not inform master about capability. Master returned '%s'",
+          mysql_error(mysql));
+    goto err;
+  }
+
   delete glob_description_event;
   switch (version) {
   case 3:

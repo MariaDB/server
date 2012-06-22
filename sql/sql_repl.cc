@@ -492,6 +492,27 @@ static ulonglong get_heartbeat_period(THD * thd)
 }
 
 /*
+  Lookup the capabilities of the slave, which it announces by setting a value
+  MARIA_SLAVE_CAPABILITY_XXX in @mariadb_slave_capability.
+
+  Older MariaDB slaves, and other MySQL slaves, do not set
+  @mariadb_slave_capability, corresponding to a capability of
+  MARIA_SLAVE_CAPABILITY_UNKNOWN (0).
+*/
+static int
+get_mariadb_slave_capability(THD *thd)
+{
+  bool null_value;
+  const LEX_STRING name= { C_STRING_WITH_LEN("mariadb_slave_capability") };
+  const user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                  name.length);
+  return entry ?
+    (int)(entry->val_int(&null_value)) : MARIA_SLAVE_CAPABILITY_UNKNOWN;
+}
+
+
+/*
   Function prepares and sends repliation heartbeat event.
 
   @param net                net object of THD
@@ -563,14 +584,44 @@ static int send_heartbeat_event(NET* net, String* packet,
 static const char *
 send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     Log_event_type event_type, char *log_file_name,
-                    IO_CACHE *log)
+                    IO_CACHE *log, int mariadb_slave_capability,
+                    ulong ev_offset, uint8 current_checksum_alg)
 {
   my_off_t pos;
 
   /* Do not send annotate_rows events unless slave requested it. */
-  if (event_type == ANNOTATE_ROWS_EVENT &&
-      !(flags & BINLOG_SEND_ANNOTATE_ROWS_EVENT))
-    return NULL;
+  if (event_type == ANNOTATE_ROWS_EVENT && !(flags & BINLOG_SEND_ANNOTATE_ROWS_EVENT))
+  {
+    if (mariadb_slave_capability >= MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES)
+    {
+      /* This slave can tolerate events omitted from the binlog stream. */
+      return NULL;
+    }
+    else if (mariadb_slave_capability >= MARIA_SLAVE_CAPABILITY_ANNOTATE)
+    {
+      /*
+        The slave did not request ANNOTATE_ROWS_EVENT (it does not need them as
+        it will not log them in its own binary log). However, it understands the
+        event and will just ignore it, and it would break if we omitted it,
+        leaving a hole in the binlog stream. So just send the event as-is.
+      */
+    }
+    else
+    {
+      /*
+        The slave does not understand ANNOTATE_ROWS_EVENT.
+
+        Older MariaDB slaves (and MySQL slaves) will break replication if there
+        are holes in the binlog stream (they will miscompute the binlog offset
+        and request the wrong position when reconnecting).
+
+        So replace the event with a dummy event of the same size that will be
+        a no-operation on the slave.
+      */
+      if (Query_log_event::dummy_event(packet, ev_offset, current_checksum_alg))
+        return "Failed to replace row annotate event with dummy: too small event.";
+    }
+  }
 
   /*
     Skip events with the @@skip_replication flag set, if slave requested
@@ -628,6 +679,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   NET* net = &thd->net;
   mysql_mutex_t *log_lock;
   mysql_cond_t *log_cond;
+  int mariadb_slave_capability;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -653,6 +705,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     heartbeat_ts= &heartbeat_buf;
     set_timespec_nsec(*heartbeat_ts, 0);
   }
+  mariadb_slave_capability= get_mariadb_slave_capability(thd);
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
                         thd->server_id, log_ident, (ulong)pos);
@@ -939,7 +992,9 @@ impossible position";
       }
 
       if ((tmp_msg= send_event_to_slave(thd, net, packet, flags, event_type,
-                                        log_file_name, &log)))
+                                        log_file_name, &log,
+                                        mariadb_slave_capability, ev_offset,
+                                        current_checksum_alg)))
       {
         errmsg= tmp_msg;
         my_errno= ER_UNKNOWN_ERROR;
@@ -1097,7 +1152,9 @@ impossible position";
 
         if (read_packet &&
             (tmp_msg= send_event_to_slave(thd, net, packet, flags, event_type,
-                                          log_file_name, &log)))
+                                          log_file_name, &log,
+                                          mariadb_slave_capability, ev_offset,
+                                          current_checksum_alg)))
         {
           errmsg= tmp_msg;
           my_errno= ER_UNKNOWN_ERROR;
