@@ -86,7 +86,7 @@ void Apc_target::disable()
 
 void Apc_target::enqueue_request(Call_request *qe)
 {
-  //call_queue_size++;
+  mysql_mutex_assert_owner(LOCK_thd_data_ptr);
   if (apc_calls)
   {
     Call_request *after= apc_calls->prev;
@@ -112,12 +112,11 @@ void Apc_target::enqueue_request(Call_request *qe)
 
 void Apc_target::dequeue_request(Call_request *qe)
 {
-  //call_queue_size--;
+  mysql_mutex_assert_owner(LOCK_thd_data_ptr);
   if (apc_calls == qe)
   {
     if ((apc_calls= apc_calls->next) == qe)
     {
-      //DBUG_ASSERT(!call_queue_size);
       apc_calls= NULL;
     }
   }

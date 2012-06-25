@@ -10321,12 +10321,7 @@ void JOIN_TAB::cleanup()
   if (cache)
   {
     cache->free();
-    cache= 0; // psergey: this is why we don't see "Using join cache" in SHOW EXPLAIN
-              //  when it is run for "Using temporary+filesort" queries while they 
-              //  are at reading-from-tmp-table phase.
-              //
-              //  TODO ask igor if this can be just moved to later phase
-              //  (JOIN_CACHE objects themselves are not big, arent they)
+    cache= 0;
   }
   limit= 0;
   if (table)
