@@ -1242,11 +1242,6 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
 
   status_var_increment(thd->status_var.filesort_merge_passes);
   thd->query_plan_fsort_passes++;
-  /*if (param->not_killable)
-  {
-    killed= &not_killable;
-    not_killable= NOT_KILLED;
-  }*/
 
   error=0;
   rec_length= param->rec_length;

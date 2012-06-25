@@ -28,7 +28,7 @@ class Apc_target
 {
   mysql_mutex_t *LOCK_thd_data_ptr;
 public:
-  Apc_target() : enabled(0), apc_calls(NULL) /*, call_queue_size(0)*/ {} 
+  Apc_target() : enabled(0), apc_calls(NULL) {} 
   ~Apc_target() { DBUG_ASSERT(!enabled && !apc_calls);}
 
   void init(mysql_mutex_t *target_mutex);

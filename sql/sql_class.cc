@@ -3333,12 +3333,14 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 void Show_explain_request::get_explain_data(void *arg)
 {
   Show_explain_request *req= (Show_explain_request*)arg;
-  //TODO: change mem_root to point to request_thd->mem_root.
-  //      Actually, change the ARENA, because we're going to allocate items!
   Query_arena backup_arena;
   THD *target_thd= req->target_thd;
   bool printed_anything= FALSE;
 
+  /* 
+    Change the arena because JOIN::print_explain and co. are going to allocate
+    items. Let them allocate them on our arena.
+  */
   target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
                                         &backup_arena);
   
