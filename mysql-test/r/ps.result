@@ -160,26 +160,26 @@ execute stmt1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-5	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-4	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+4	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 execute stmt1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-5	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-4	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+4	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 explain SELECT (SELECT SUM(c1 + c12 + 0.0) FROM t2 where (t1.c2 - 0e-3) = t2.c2 GROUP BY t1.c15 LIMIT 1) as scalar_s, exists (select 1.0e+0 from t2 where t2.c3 * 9.0000000000 = t1.c4) as exists_s, c5 * 4 in (select c6 + 0.3e+1 from t2) as in_s, (c7 - 4, c8 - 4) in (select c9 + 4.0, c10 + 40e-1 from t2) as in_row_s FROM t1, (select c25 x, c32 y from t2) tt WHERE x * 1 = c25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-5	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-4	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+4	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 deallocate prepare stmt1;
 set optimizer_switch=@tmp_optimizer_switch;
 drop tables t1,t2;
@@ -255,15 +255,15 @@ deallocate prepare StMt1;
 deallocate prepare Stmt1;
 ERROR HY000: Unknown prepared statement handler (Stmt1) given to DEALLOCATE PREPARE
 set names utf8;
-prepare `ü` from 'select 1234';
-execute `ü` ;
+prepare `Ã¼` from 'select 1234';
+execute `Ã¼` ;
 1234
 1234
 set names latin1;
-execute `�`;
+execute `ü`;
 1234
 1234
-deallocate prepare `�`;
+deallocate prepare `ü`;
 set names default;
 create table t1 (a varchar(10)) charset=utf8;
 insert into t1 (a) values ('yahoo');
@@ -3055,6 +3055,62 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 End of 5.1 tests.
+#
+# LP bug#1001500 Crash on the second execution of the PS for
+# a query with degenerated conjunctive condition
+# (see also mysql bug#12582849)
+#
+CREATE TABLE t1 (
+pk INTEGER AUTO_INCREMENT,
+col_int_nokey INTEGER,
+col_int_key INTEGER,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_varchar_key, col_int_key)
+);
+INSERT INTO t1 (
+col_int_key, col_int_nokey,
+col_varchar_key, col_varchar_nokey
+) VALUES 
+(4,    2, 'v', 'v'),
+(62, 150, 'v', 'v');
+CREATE TABLE t2 (
+pk INTEGER AUTO_INCREMENT,
+col_int_nokey INTEGER,
+col_int_key INTEGER,
+col_varchar_key VARCHAR(1),
+col_varchar_nokey VARCHAR(1),
+PRIMARY KEY (pk),
+KEY (col_int_key),
+KEY (col_varchar_key, col_int_key)
+);
+INSERT INTO t2 (
+col_int_key, col_int_nokey,
+col_varchar_key, col_varchar_nokey
+) VALUES 
+(8, NULL, 'x', 'x'),
+(7, 8,    'd', 'd');
+PREPARE stmt FROM ' 
+SELECT
+  ( SELECT MAX( SQ1_alias2 .col_int_nokey ) AS SQ1_field1
+    FROM ( t2 AS SQ1_alias1 RIGHT JOIN t1 AS SQ1_alias2
+           ON ( SQ1_alias2.col_varchar_key = SQ1_alias1.col_varchar_nokey )
+         )
+    WHERE SQ1_alias2.pk < alias1.col_int_nokey OR alias1.pk
+  ) AS field1
+FROM ( t1 AS alias1 JOIN t2 AS alias2 ON alias2.pk )
+GROUP BY field1
+';
+EXECUTE stmt;
+field1
+150
+EXECUTE stmt;
+field1
+150
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
 
 #
 # WL#4435: Support OUT-parameters in prepared statements.
@@ -4044,3 +4100,4 @@ c1	c2	count(c3)
 2012-03-01 01:00:00	3	1
 2012-03-01 02:00:00	3	1
 DEALLOCATE PREPARE s1;
+# End of 5.3 tests

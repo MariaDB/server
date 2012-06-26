@@ -1201,6 +1201,7 @@ public:
   {
     if (arg_count)
       max_length= args[0]->max_length;
+    unsigned_flag=1;
   }
   bool fix_fields(THD *thd, Item **ref);
   bool check_vcol_func_processor(uchar *int_arg) 
@@ -1940,6 +1941,11 @@ public:
     return str;
   }
 
+  void update_null_value()
+  { 
+    execute();
+  }
+
   virtual bool change_context_processor(uchar *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
 
@@ -1954,6 +1960,7 @@ public:
   {
     return sp_result_field;
   }
+
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());

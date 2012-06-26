@@ -9908,7 +9908,9 @@ table_factor:
               lex->nest_level--;
             }
             else if (($3->select_lex &&
-                     $3->select_lex->master_unit()->is_union()) || $5)
+                      $3->select_lex->master_unit()->is_union() &&
+                      ($3->select_lex->master_unit()->first_select() ==
+                       $3->select_lex || !$3->lifted)) || $5)
             {
               /* simple nested joins cannot have aliases or unions */
               my_parse_error(ER(ER_SYNTAX_ERROR));
@@ -13337,6 +13339,7 @@ keyword_sp:
         | X509_SYM                 {}
         | XML_SYM                  {}
         | YEAR_SYM                 {}
+        | VIA_SYM               {}
         ;
 
 /* Option functions */

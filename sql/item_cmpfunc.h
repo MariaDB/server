@@ -371,9 +371,9 @@ public:
   Item_bool_func2(Item *a,Item *b)
     :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1), abort_on_null(FALSE) {}
   void fix_length_and_dec();
-  void set_cmp_func()
+  int set_cmp_func()
   {
-    cmp.set_cmp_func(this, tmp_arg, tmp_arg+1, TRUE);
+    return cmp.set_cmp_func(this, tmp_arg, tmp_arg+1, TRUE);
   }
   optimize_type select_optimize() const { return OPTIMIZE_OP; }
   virtual enum Functype rev_functype() const { return UNKNOWN_FUNC; }
@@ -442,6 +442,7 @@ public:
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
   Item *neg_transformer(THD *thd);
+  bool fix_fields(THD *, Item **);
   virtual void print(String *str, enum_query_type query_type);
 };
 
@@ -508,6 +509,8 @@ public:
   longlong val_int();
   enum Functype functype() const { return NOT_ALL_FUNC; }
   const char *func_name() const { return "<not>"; }
+  bool fix_fields(THD *thd, Item **ref)
+    {return Item_func::fix_fields(thd, ref);}
   virtual void print(String *str, enum_query_type query_type);
   void set_sum_test(Item_sum_hybrid *item) { test_sum_item= item; };
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; };
