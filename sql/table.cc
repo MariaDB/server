@@ -762,8 +762,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
-  double *read_avg_frequency= NULL;
-  double *write_avg_frequency= NULL;
+  ulong *read_avg_frequency= NULL;
+  ulong *write_avg_frequency= NULL;
   handler *handler_file= 0;
   KEY	*keyinfo;
   KEY_PART_INFO *key_part= NULL;
@@ -946,13 +946,13 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
                                              sizeof(ulong) * ext_key_parts)))
         goto err;
-      if (!(read_avg_frequency= (double*) alloc_root(&share->mem_root,
-                                                     sizeof(double) *
-                                                     ext_key_parts)))
+      if (!(read_avg_frequency= (ulong*) alloc_root(&share->mem_root,
+                                                    sizeof(double) *
+                                                    ext_key_parts)))
         goto err;
-      if (!(write_avg_frequency= (double*) alloc_root(&share->mem_root,
-                                                      sizeof(double) * 
-                                                      ext_key_parts)))
+      if (!(write_avg_frequency= (ulong*) alloc_root(&share->mem_root,
+                                                     sizeof(double) * 
+                                                     ext_key_parts)))
         goto err;
       first_key_part= key_part;
       first_key_parts= first_keyinfo.key_parts;
@@ -966,8 +966,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
-    keyinfo->read_stat.avg_frequency= read_avg_frequency;
-    keyinfo->write_stat.avg_frequency= write_avg_frequency; 
+    keyinfo->read_stat.init_avg_frequency(read_avg_frequency);
+    keyinfo->write_stat.init_avg_frequency(write_avg_frequency); 
     for (j=keyinfo->key_parts ; j-- ; key_part++)
     {
       *rec_per_key++=0;
@@ -5957,7 +5957,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (!keyinfo->rec_per_key)
     return TRUE;
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
-  keyinfo->read_stat.avg_frequency= NULL;
+  keyinfo->read_stat.init_avg_frequency(NULL);
 
   for (i= 0; i < key_parts; i++)
   {

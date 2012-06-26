@@ -6,22 +6,6 @@ drop table if exists t1,t2;
 
 set @save_use_stat_tables=@@use_stat_tables;
 
-CREATE VIEW table_stat AS
-SELECT * FROM mysql.table_stat;
- 
-CREATE VIEW column_stat AS
-  SELECT db_name, table_name, column_name,
-         min_value, max_value,
-         CAST(nulls_ratio AS decimal(12,4)) AS 'nulls_ratio',
-         CAST(avg_length AS decimal(12,4)) AS 'avg_length',
-         CAST(avg_frequency AS decimal(12,4)) AS 'avg_frequency'
-    FROM mysql.column_stat;
-
-CREATE VIEW index_stat AS
-  SELECT db_name, table_name, index_name, prefix_arity,
-         CAST(avg_frequency AS decimal(12,4)) AS 'avg_frequency'
-    FROM mysql.index_stat;
-
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;  
@@ -85,13 +69,13 @@ INSERT INTO t1 VALUES
 
 ANALYZE TABLE t1;
 
-SELECT * FROM table_stat;
-SELECT * FROM column_stat;
-SELECT * FROM index_stat;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 SELECT COUNT(*) FROM t1;
 
-SELECT * FROM column_stat
+SELECT * FROM mysql.column_stat
   WHERE db_name='test' AND table_name='t1' AND column_name='a';
 SELECT MIN(t1.a), MAX(t1.a), 
        (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
@@ -100,7 +84,7 @@ SELECT MIN(t1.a), MAX(t1.a),
        (SELECT COUNT(DISTINCT t1.a) FROM t1) AS "AVG_FREQUENCY(t1.a)"
 FROM t1;
 
-SELECT * FROM column_stat
+SELECT * FROM mysql.column_stat
   WHERE db_name='test' AND table_name='t1' AND column_name='b';
 SELECT MIN(t1.b), MAX(t1.b), 
        (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
@@ -109,7 +93,7 @@ SELECT MIN(t1.b), MAX(t1.b),
        (SELECT COUNT(DISTINCT t1.b) FROM t1) AS "AVG_FREQUENCY(t1.b)"
 FROM t1;
 
-SELECT * FROM column_stat 
+SELECT * FROM mysql.column_stat 
   WHERE db_name='test' AND table_name='t1' AND column_name='c';
 SELECT MIN(t1.c), MAX(t1.c), 
        (SELECT COUNT(*) FROM t1 WHERE t1.c IS NULL) /
@@ -118,7 +102,7 @@ SELECT MIN(t1.c), MAX(t1.c),
        (SELECT COUNT(DISTINCT t1.c) FROM t1) AS "AVG_FREQUENCY(t1.c)"
 FROM t1;
 
-SELECT * FROM column_stat
+SELECT * FROM mysql.column_stat
   WHERE db_name='test' AND table_name='t1' AND column_name='d';
 SELECT MIN(t1.d), MAX(t1.d), 
        (SELECT COUNT(*) FROM t1 WHERE t1.d IS NULL) /
@@ -127,7 +111,7 @@ SELECT MIN(t1.d), MAX(t1.d),
        (SELECT COUNT(DISTINCT t1.d) FROM t1) AS "AVG_FREQUENCY(t1.d)"
 FROM t1;
 
-SELECT * FROM column_stat
+SELECT * FROM mysql.column_stat
   WHERE db_name='test' AND table_name='t1' AND column_name='e';
 SELECT MIN(t1.e), MAX(t1.e), 
        (SELECT COUNT(*) FROM t1 WHERE t1.e IS NULL) /
@@ -136,7 +120,7 @@ SELECT MIN(t1.e), MAX(t1.e),
        (SELECT COUNT(DISTINCT t1.e) FROM t1) AS "AVG_FREQUENCY(t1.e)"
 FROM t1;
 
-SELECT * FROM index_stat
+SELECT * FROM mysql.index_stat
   WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL) /
@@ -147,7 +131,7 @@ SELECT
      WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) 
   AS 'ARITY 2';
 
-SELECT * FROM index_stat
+SELECT * FROM mysql.index_stat
   WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL) /
@@ -158,14 +142,14 @@ SELECT
      WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 2';
 
-SELECT * FROM index_stat
+SELECT * FROM mysql.index_stat
   WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.d IS NOT NULL) /
   (SELECT COUNT(DISTINCT t1.d) FROM t1 WHERE t1.d IS NOT NULL)
   AS 'ARITY 1';
 
-SELECT * FROM index_stat
+SELECT * FROM mysql.index_stat
   WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL) /
@@ -186,14 +170,14 @@ DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
-SELECT * FROM table_stat;
-SELECT * FROM column_stat;
-SELECT * FROM index_stat;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
-SELECT * FROM table_stat;
-SELECT * FROM column_stat;
-SELECT * FROM index_stat;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
@@ -201,9 +185,9 @@ DELETE FROM mysql.index_stat;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 
-SELECT * FROM table_stat;
-SELECT * FROM column_stat;
-SELECT * FROM index_stat;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 
 CREATE TABLE t2 LIKE t1;
@@ -212,9 +196,9 @@ INSERT INTO t2 SELECT * FROM t1;
 
 ANALYZE TABLE t2;
 
-SELECT * FROM table_stat;
-SELECT * FROM column_stat ORDER BY column_name;
-SELECT * FROM index_stat ORDER BY index_name, prefix_arity, table_name;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat ORDER BY column_name;
+SELECT * FROM mysql.index_stat ORDER BY index_name, prefix_arity, table_name;
 
 
 DELETE FROM mysql.table_stat;
@@ -231,8 +215,8 @@ ALTER TABLE t1
   
 ANALYZE TABLE t1;
 
-SELECT * FROM column_stat;
-SELECT * FROM index_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 DROP TABLE t1,t2;
 
@@ -265,13 +249,13 @@ ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM test.table_stat;
+  FROM mysql.table_stat;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM test.column_stat;
+  FROM mysql.column_stat;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM test.index_stat;
+  FROM mysql.index_stat;
 
 use test;
 
@@ -302,13 +286,13 @@ ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM test.table_stat;
+  FROM mysql.table_stat;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM test.column_stat;
+  FROM mysql.column_stat;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM test.index_stat;
+  FROM mysql.index_stat;
 
 use test;
 
@@ -319,10 +303,6 @@ DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;
   
-DROP VIEW test.table_stat;
-DROP VIEW test.column_stat;
-DROP VIEW test.index_stat;
-
 set use_stat_tables=@save_use_stat_tables;
 
     

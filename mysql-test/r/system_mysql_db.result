@@ -283,9 +283,9 @@ column_stat	CREATE TABLE `column_stat` (
   `column_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `min_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
   `max_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
-  `nulls_ratio` double DEFAULT NULL,
-  `avg_length` double DEFAULT NULL,
-  `avg_frequency` double DEFAULT NULL,
+  `nulls_ratio` decimal(12,4) DEFAULT NULL,
+  `avg_length` decimal(12,4) DEFAULT NULL,
+  `avg_frequency` decimal(12,4) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'
 show create table index_stat;
@@ -295,7 +295,7 @@ index_stat	CREATE TABLE `index_stat` (
   `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `prefix_arity` int(11) unsigned NOT NULL,
-  `avg_frequency` double DEFAULT NULL,
+  `avg_frequency` decimal(12,4) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`index_name`,`prefix_arity`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Indexes'
 show tables;
