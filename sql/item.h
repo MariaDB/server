@@ -1395,21 +1395,21 @@ public:
   {
     return cmp_context == IMPOSSIBLE_RESULT || item->cmp_context == cmp_context;
   }
-  /*
+  /**
     Test whether an expression is expensive to compute. Used during
     optimization to avoid computing expensive expressions during this
     phase. Also used to force temp tables when sorting on expensive
     functions.
-    TODO:
+    @todo
     Normally we should have a method:
       cost Item::execution_cost(),
     where 'cost' is either 'double' or some structure of various cost
     parameters.
 
-    NOTE
-      This function is now used to prevent evaluation of materialized IN
-      subquery predicates before it is allowed. grep for 
-      DontEvaluateMaterializedSubqueryTooEarly to see the uses.
+    @note
+      This function is now used to prevent evaluation of expensive subquery
+      predicates during the optimization phase. It also prevents evaluation
+      of predicates that are not computable at this moment.
   */
   virtual bool is_expensive()
   {
@@ -3889,7 +3889,6 @@ public:
   bool is_null() { return null_value; }
   virtual bool is_expensive()
   {
-    DBUG_ASSERT(example);
     if (value_cached)
       return false;
     return example->is_expensive();

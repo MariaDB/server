@@ -977,6 +977,14 @@ SELECT * FROM t1 WHERE
         FROM t3 AS SQ1_t1 JOIN t3 AS SQ1_t3 ON SQ1_t3.f4
         GROUP BY SQ1_t1.f4));
 
+--error ER_SUBQUERY_NO_1_ROW
+SELECT * FROM t1 WHERE
+(SELECT f2 FROM t2
+ WHERE f4 <= ALL
+       (SELECT max(SQ1_t1.f4)
+        FROM t3 AS SQ1_t1 JOIN t3 AS SQ1_t3 ON SQ1_t3.f4
+        GROUP BY SQ1_t1.f4));
+
 drop table t1, t2, t3;
 
 --echo #
@@ -1647,6 +1655,56 @@ CREATE TABLE t2 AS
 DROP TABLE t2;
 DROP TABLE t1;
 
+--echo #
+--echo # LP BUG#1000649 EXPLAIN shows incorrectly a non-correlated constant IN subquery is correlated
+--echo #
+
+create table ten (a int);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int);
+insert into t1 select a,a,a from ten;
+create table five (a int, b int, c int);
+insert into five select a,a,a from ten limit 5;
+
+set @@optimizer_switch='semijoin=on,in_to_exists=on,materialization=off';
+explain select * from t1 where 33 in (select b from five) or c > 11;
+
+drop table ten, t1, five;
+
+--echo #
+--echo # LP BUG#1008773 Wrong result (NULL instead of a value) with no matching rows, subquery in FROM and HAVING
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+
+EXPLAIN
+SELECT MAX(a), ( SELECT 1 FROM t2 ) AS bb FROM t1;
+SELECT MAX(a), ( SELECT 1 FROM t2 ) AS bb FROM t1;
+
+EXPLAIN
+SELECT MAX(a), 1 in ( SELECT b FROM t2 ) AS bb FROM t1;
+SELECT MAX(a), 1 in ( SELECT b FROM t2 ) AS bb FROM t1;
+
+EXPLAIN
+SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
+SELECT MAX(a), 1 >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
+
+
+EXPLAIN
+SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
+SELECT MAX(a), ( SELECT 1 FROM t2 where b = a) AS bb FROM t1;
+
+EXPLAIN
+SELECT MAX(a), a in ( SELECT b FROM t2 ) AS bb FROM t1;
+SELECT MAX(a), a in ( SELECT b FROM t2 ) AS bb FROM t1;
+
+EXPLAIN
+SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
+SELECT MAX(a), a >= ALL ( SELECT b FROM t2 ) AS bb FROM t1;
+
+drop table t1, t2;
 
 set optimizer_switch=@subselect4_tmp;
 

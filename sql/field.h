@@ -1,7 +1,7 @@
 #ifndef FIELD_INCLUDED
 #define FIELD_INCLUDED
-/* Copyright (c) 2000, 2011 Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,7 +63,11 @@ enum Derivation
 #define my_charset_numeric      my_charset_latin1
 #define MY_REPERTOIRE_NUMERIC   MY_REPERTOIRE_ASCII
 
+/* The length of the header part for each virtual column in the .frm file */
+#define FRM_VCOL_HEADER_SIZE(b) (3 + test(b))
+
 class Count_distinct_field;
+
 struct ha_field_option_struct;
 
 struct st_cache_field;
@@ -2409,6 +2413,10 @@ public:
   bool field_flags_are_binary()
   {
     return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
+  }
+  uint virtual_col_expr_maxlen()
+  {
+    return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
 private:
   const String empty_set_string;

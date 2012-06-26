@@ -1504,6 +1504,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
   if (args[1]->maybe_null)
     maybe_null=1;
+  with_subselect= 1;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
   with_field= with_field || args[1]->with_field;
   used_tables_cache|= args[1]->used_tables();
@@ -3032,6 +3033,11 @@ void Item_func_case::fix_length_and_dec()
     nagg++;
     if (!(found_types= collect_cmp_types(agg, nagg)))
       return;
+
+    Item *date_arg= 0;
+    if (found_types & (1 << TIME_RESULT))
+      date_arg= find_date_time_item(args, arg_count, 0);
+
     if (found_types & (1 << STRING_RESULT))
     {
       /*
@@ -3071,15 +3077,11 @@ void Item_func_case::fix_length_and_dec()
         change_item_tree_if_needed(thd, &args[nagg * 2], agg[nagg + 1]);
     }
 
-    Item *date_arg= 0;
     for (i= 0; i <= (uint)TIME_RESULT; i++)
     {
       if (found_types & (1 << i) && !cmp_items[i])
       {
         DBUG_ASSERT((Item_result)i != ROW_RESULT);
-
-        if ((Item_result)i == TIME_RESULT)
-          date_arg= find_date_time_item(args, arg_count, 0);
 
         if (!(cmp_items[i]=
             cmp_item::get_comparator((Item_result)i, date_arg,
@@ -4051,15 +4053,15 @@ void Item_func_in::fix_length_and_dec()
   }
   else
   {
+    if (found_types & (1 << TIME_RESULT))
+      date_arg= find_date_time_item(args, arg_count, 0);
+    if (found_types & (1 << STRING_RESULT) &&
+        agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
+      return;
     for (i= 0; i <= (uint) TIME_RESULT; i++)
     {
       if (found_types & (1 << i) && !cmp_items[i])
       {
-        if ((Item_result)i == STRING_RESULT &&
-            agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
-          return;
-        if ((Item_result)i == TIME_RESULT)
-          date_arg= find_date_time_item(args, arg_count, 0);
         if (!cmp_items[i] && !(cmp_items[i]=
             cmp_item::get_comparator((Item_result)i, date_arg,
                                      cmp_collation.collation)))
@@ -4254,6 +4256,22 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     }
     if (abort_on_null)
       item->top_level_item();
+
+    /*
+      replace degraded condition:
+        was:    <field>
+        become: <field> = 1
+    */
+    if (item->type() == FIELD_ITEM)
+    {
+      Query_arena backup, *arena;
+      Item *new_item;
+      arena= thd->activate_stmt_arena_if_needed(&backup);
+      if ((new_item= new Item_func_ne(item, new Item_int(0, 1))))
+        li.replace(item= new_item);
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+    }
 
     // item can be substituted in fix_fields
     if ((!item->fixed &&
@@ -4736,7 +4754,7 @@ longlong Item_func_like::val_int()
 
 Item_func::optimize_type Item_func_like::select_optimize() const
 {
-  if (args[1]->const_item())
+  if (args[1]->const_item() && !args[1]->is_expensive())
   {
     String* res2= args[1]->val_str((String *)&cmp.value2);
     const char *ptr2;
@@ -4823,7 +4841,8 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       We could also do boyer-more for non-const items, but as we would have to
       recompute the tables for each row it's not worth it.
     */
-    if (args[1]->const_item() && !use_strnxfrm(collation.collation))
+    if (args[1]->const_item() && !use_strnxfrm(collation.collation) &&
+        !args[1]->is_expensive())
     {
       String* res2 = args[1]->val_str(&cmp.value2);
       if (!res2)
@@ -4938,6 +4957,7 @@ Item_func_regex::fix_fields(THD *thd, Item **ref)
     return TRUE;				/* purecov: inspected */
   with_sum_func=args[0]->with_sum_func || args[1]->with_sum_func;
   with_field= args[0]->with_field || args[1]->with_field;
+  with_subselect|= args[0]->with_subselect | args[1]->with_subselect;
   max_length= 1;
   decimals= 0;
 
@@ -5307,6 +5327,28 @@ Item *Item_func_not::neg_transformer(THD *thd)	/* NOT(x)  ->  x */
 }
 
 
+bool Item_func_not::fix_fields(THD *thd, Item **ref)
+{
+  if (args[0]->type() == FIELD_ITEM)
+  {
+    /* replace  "NOT <field>" with "<filed> == 0" */
+    Query_arena backup, *arena;
+    Item *new_item;
+    bool rc= TRUE;
+    arena= thd->activate_stmt_arena_if_needed(&backup);
+    if ((new_item= new Item_func_eq(args[0], new Item_int(0, 1))))
+    {
+      new_item->name= name;
+      rc= (*ref= new_item)->fix_fields(thd, ref);
+    }
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    return rc;
+  }
+  return Item_func::fix_fields(thd, ref);
+}
+
+
 Item *Item_bool_rowready_func2::neg_transformer(THD *thd)
 {
   Item *item= negated_item();
@@ -5539,7 +5581,15 @@ void Item_equal::add_const(Item *c, Item *f)
   else
   {
     Item_func_eq *func= new Item_func_eq(c, const_item);
-    func->set_cmp_func();
+    if (func->set_cmp_func())
+    {
+      /*
+        Setting a comparison function fails when trying to compare
+        incompatible charsets. Charset compatibility is checked earlier,
+        except for constant subqueries where we may do it here.
+      */
+      return;
+    }
     func->quick_fix_field();
     cond_false= !func->val_int();
   }
@@ -5729,6 +5779,7 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
     used_tables_cache|= item->used_tables();
     tmp_table_map= item->not_null_tables();
     not_null_tables_cache|= tmp_table_map;
+    DBUG_ASSERT(!item->with_sum_func && !item->with_subselect);
     if (item->maybe_null)
       maybe_null= 1;
     if (!item->get_item_equal())
