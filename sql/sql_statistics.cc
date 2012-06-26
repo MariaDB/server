@@ -600,13 +600,13 @@ public:
           }
           break;
         case COLUMN_STAT_NULLS_RATIO:
-          stat_field->store(table_field->write_stat.nulls_ratio);
+          stat_field->store(table_field->write_stat.get_nulls_ratio());
           break;
         case COLUMN_STAT_AVG_LENGTH:
-          stat_field->store(table_field->write_stat.avg_length);
+          stat_field->store(table_field->write_stat.get_avg_length());
           break;
         case COLUMN_STAT_AVG_FREQUENCY:
-          stat_field->store(table_field->write_stat.avg_frequency);
+          stat_field->store(table_field->write_stat.get_avg_frequency());
           break;            
         }
       }
@@ -665,13 +665,13 @@ public:
                                                     &my_charset_utf8_bin);
             break;
           case COLUMN_STAT_NULLS_RATIO:
-            table_field->read_stat.nulls_ratio= stat_field->val_real();
+            table_field->read_stat.set_nulls_ratio(stat_field->val_real());
             break;
           case COLUMN_STAT_AVG_LENGTH:
-            table_field->read_stat.avg_length= stat_field->val_real();
+            table_field->read_stat.set_avg_length(stat_field->val_real());
             break;
           case COLUMN_STAT_AVG_FREQUENCY:
-            table_field->read_stat.avg_frequency= stat_field->val_real();
+            table_field->read_stat.set_avg_frequency(stat_field->val_real());
             break;            
           }
         }
@@ -766,7 +766,7 @@ public:
   {
     Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY];
     double avg_frequency=
-             table_key_info->write_stat.avg_frequency[prefix_arity-1];
+      table_key_info->write_stat.get_avg_frequency(prefix_arity-1);
     if (avg_frequency == 0)
       stat_field->set_null();
     else
@@ -798,9 +798,9 @@ public:
     {
       Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY];
       if (!stat_field->is_null())
-          avg_frequency= stat_field->val_real();
+        avg_frequency= stat_field->val_real();
     }
-    table_key_info->read_stat.avg_frequency[prefix_arity-1]= avg_frequency;
+    table_key_info->read_stat.set_avg_frequency(prefix_arity-1, avg_frequency);
   }  
 
 };
@@ -1065,9 +1065,9 @@ public:
     {
       if (i < prefixes)
       {
-        index_info->write_stat.avg_frequency[i]=
-          state->prefix_count == 0 ? 0 :
-          (double) state->entry_count / state->prefix_count;
+        double val= state->prefix_count == 0 ?
+	            0 : (double) state->entry_count / state->prefix_count;                     
+        index_info->write_stat.set_avg_frequency(i, val);
       }
     }
   }       
@@ -1354,17 +1354,19 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
     for (field_ptr= table->field; *field_ptr; field_ptr++)
     {
+      double val;
       table_field= *field_ptr;
       if (!bitmap_is_set(table->read_set, table_field->field_index))
         continue;
-      table_field->write_stat.nulls_ratio= (double) table_field->nulls/rows;
-      table_field->write_stat.avg_length=
-        (double) table_field->column_total_length / (rows-table_field->nulls);
+      val= (double) table_field->nulls / rows;
+      table_field->write_stat.set_nulls_ratio(val);
+      val= (double) table_field->column_total_length / (rows-table_field->nulls);
+      table_field->write_stat.set_avg_length(val);
       if (table_field->count_distinct)
       {
-        table_field->write_stat.avg_frequency= 
-          (double) (rows-table_field->nulls) /
-          table_field->count_distinct->get_value(); 
+        val= (double) (rows-table_field->nulls) /
+	     table_field->count_distinct->get_value(); 
+        table_field->write_stat.set_avg_frequency(val); 
         set_not_null_for_write_column_stat_value(table_field,
                                                  COLUMN_STAT_AVG_FREQUENCY);
         delete table_field->count_distinct;
@@ -1585,38 +1587,37 @@ int read_statistics_for_table(THD *thd, TABLE *table)
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
     if (key_info->key_parts != key_info->ext_key_parts &&
-        key_info->read_stat.avg_frequency[key_info->key_parts] == 0)
+        key_info->read_stat.get_avg_frequency(key_info->key_parts) == 0)
     {
-      double *ptr;
-      double *ptr_end;
       KEY *pk_key_info= table->key_info + table->s->primary_key;
       uint k= key_info->key_parts;
       uint pk_parts= pk_key_info->key_parts;
       ha_rows n_rows= table->read_stat.cardinality;
-      double k_dist= n_rows / key_info->read_stat.avg_frequency[k-1]; 
-      double *k_avg_freq_ptr= key_info->read_stat.avg_frequency + k;
+      double k_dist= n_rows / key_info->read_stat.get_avg_frequency(k-1);
       uint m= 0;
       for (uint j= 0; j < pk_parts; j++)
       {
         if (!(ext_key_part_map & 1 << j))
 	{
-          for (ptr= k_avg_freq_ptr, ptr_end= ptr + m; ptr < ptr_end; ptr++)
+          for (uint l= k; l < k + m; l++)
 	  {
-            double avg_frequency= pk_key_info->read_stat.avg_frequency[j-1];
+            double avg_frequency= pk_key_info->read_stat.get_avg_frequency(j-1);
             set_if_smaller(avg_frequency, 1);
-	    (*ptr)*= pk_key_info->read_stat.avg_frequency[j]/avg_frequency;
+            double val= pk_key_info->read_stat.get_avg_frequency(j) /
+	                avg_frequency; 
+	    key_info->read_stat.set_avg_frequency (l, val);
           }
         }
         else
 	{
-           key_info->read_stat.avg_frequency[k + m]=
-             pk_key_info->read_stat.avg_frequency[j]; 
-	   m++;
+	  double avg_frequency= pk_key_info->read_stat.get_avg_frequency(j);
+	  key_info->read_stat.set_avg_frequency(k + m, avg_frequency);
+	  m++;
         }    
       }      
-      for (ptr= k_avg_freq_ptr, ptr_end= ptr + m; ptr < ptr_end; ptr++)
+      for (uint l= k; l < k + m; l++)
       {
-        double avg_frequency= *ptr;
+        double avg_frequency= key_info->read_stat.get_avg_frequency(l);
         if (avg_frequency == 0 ||
             table->read_stat.cardinality_is_null)
           avg_frequency= 1;
@@ -1625,7 +1626,7 @@ int read_statistics_for_table(THD *thd, TABLE *table)
           avg_frequency/= k_dist;
           set_if_bigger(avg_frequency, 1);
 	}
-        *ptr= avg_frequency;
+        key_info->read_stat.set_avg_frequency(l, avg_frequency);
       }
     }
   }
@@ -1662,7 +1663,8 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > 1 &&  key_info->read_stat.avg_frequency &&
-       key_info->read_stat.avg_frequency[0] > 0.5);
+      (use_stat_table_mode > 1  &&
+       key_info->read_stat.avg_frequency_is_set() &&
+       key_info->read_stat.get_avg_frequency(0) > 0.5);
   }
 }

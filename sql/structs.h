@@ -124,14 +124,28 @@ typedef struct st_key {
    /* Statistical data on an index prefixes */
   class Index_statistics
   {
-  public:
+  private:
+    static const uint Scale_factor_avg_frequency= 100000;
     /*
-      The k-th element of this array contains the ratio N/D, 
+      The k-th element of this array contains the ratio N/D
+      multiplied by the scale factor Scale_factor_avg_frequency, 
       where N is the number of index entries without nulls 
       in the first k components, and D is the number of distinct
       k-component prefixes among them 
     */
-    double *avg_frequency;
+    ulong *avg_frequency;
+
+  public:
+    void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
+    bool avg_frequency_is_set() { return avg_frequency != NULL; }
+    double get_avg_frequency(uint i)
+    {
+      return (double) avg_frequency[i] / Scale_factor_avg_frequency;
+    }
+    void set_avg_frequency(uint i, double val)
+    {
+      avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
+    }
   };
 
   /*
@@ -159,8 +173,7 @@ typedef struct st_key {
     if (rec_per_key == 0)
       return 0;
     return (is_statistics_from_stat_tables ?
-            (ulong) (100 * read_stat.avg_frequency[i]) / (double) 100 :
-            (double) rec_per_key[i]);
+            read_stat.get_avg_frequency(i) : (double) rec_per_key[i]);
   }
 } KEY;
 

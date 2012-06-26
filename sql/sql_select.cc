@@ -14595,8 +14595,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->ext_key_parts= keyinfo->key_parts;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=NULL;
-    keyinfo->read_stat.avg_frequency= NULL;
-    keyinfo->write_stat.avg_frequency= NULL;
+    keyinfo->read_stat.init_avg_frequency(NULL);
+    keyinfo->write_stat.init_avg_frequency(NULL);
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->name= (char*) "group_key";
@@ -14713,7 +14713,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->rec_per_key=0;
-    keyinfo->read_stat.avg_frequency= NULL;
+    keyinfo->read_stat.init_avg_frequency(NULL);
 
     /*
       Create an extra field to hold NULL bits so that unique indexes on

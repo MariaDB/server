@@ -219,6 +219,10 @@ public:
   /* Statistical data on a column */
   class Column_statistics
   {
+  private:
+    static const uint Scale_factor_nulls_ratio= 100000;
+    static const uint Scale_factor_avg_length= 100000;
+    static const uint Scale_factor_avg_frequency= 100000;
   public:
     /* 
       Bitmap indicating  what statistical characteristics
@@ -230,23 +234,54 @@ public:
     Field *min_value; 
     /* Maximum value for the column */   
     Field *max_value;
+  private:
     /* 
-      The ratio Z/N, where N is the total number of rows,
+      The ratio Z/N multiplied by the scale factor Scale_factor_nulls_ratio,
+      where N is the total number of rows,
       Z is the number of nulls in the column
     */
-    double nulls_ratio; 
+    ulong nulls_ratio; 
     /*
       Average number of bytes occupied by the representation of a
-      value of the column in memory buffers such as join buffer.
-      CHAR values are stripped of trailing spaces.
+      value of the column in memory buffers such as join buffer
+      multiplied by the scale factor Scale_factor_avg_length
+      CHAR values are stripped of trailing spaces
       Flexible values are stripped of their length prefixes.
     */
-    double avg_length;
+    ulong avg_length;
     /*
-      The ratio N/D, where N is the number of rows with null value 
+      The ratio N/D multiplied by the scale factor Scale_factor_avg_frequency,
+      where N is the number of rows with null value 
       in the column, D the number of distinct values among them
     */
-    double avg_frequency;
+    ulong avg_frequency;
+
+  public:
+    double get_nulls_ratio()
+    {
+      return (double) nulls_ratio /  Scale_factor_nulls_ratio;
+    }
+    double get_avg_length()
+    {
+      return (double) avg_length / Scale_factor_avg_length;
+    }
+    double get_avg_frequency()
+    {
+      return (double) avg_frequency / Scale_factor_avg_frequency;
+    }
+
+    void set_nulls_ratio (double val)
+    {
+      nulls_ratio= (ulong) (val * Scale_factor_nulls_ratio);
+    }
+    void set_avg_length (double val)
+    {
+      avg_length= (ulong) (val * Scale_factor_avg_length);
+    }
+    void set_avg_frequency (double val)
+    {
+      avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
+    }
   };
   
   /*
