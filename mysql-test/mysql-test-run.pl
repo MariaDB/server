@@ -4739,6 +4739,9 @@ sub extract_warning_lines ($$) {
      qr|Aborted connection|,
      qr|table.*is full|,
      qr|Linux Native AIO|, # warning that aio does not work on /dev/shm
+     qr|Error: io_setup\(\) failed|,
+     qr|Warning: io_setup\(\) failed|,
+     qr|Warning: io_setup\(\) attempt|,
     );
 
   my $matched_lines= [];
