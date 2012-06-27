@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2012, Monty Program Ab
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -482,6 +482,7 @@ typedef struct system_variables
   ulonglong group_concat_max_len;
   ha_rows select_limit;
   ha_rows max_join_size;
+  ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -1547,6 +1548,8 @@ public:
 
   /* Used to execute base64 coded binlog events in MySQL server */
   Relay_log_info* rli_fake;
+  /* Slave applier execution context */
+  Relay_log_info* rli_slave;
 
   void reset_for_next_command(bool calculate_userstat);
   /*
@@ -3522,7 +3525,8 @@ public:
     if (copy_field)				/* Fix for Intel compiler */
     {
       delete [] copy_field;
-      save_copy_field= copy_field= 0;
+      save_copy_field= copy_field= NULL;
+      save_copy_field_end= copy_field_end= NULL;
     }
   }
 };
