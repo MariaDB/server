@@ -159,8 +159,8 @@ public:
     null_value= 1;
   }
   /**
-    Set the subquery result to the default value for the predicate when the
-    subquery is known to produce an empty result.
+    Set the subquery result to a default value consistent with the semantics of
+    the result row produced for queries with implicit grouping.
   */
   void no_rows_in_result()= 0;
   virtual bool select_transformer(JOIN *join);
@@ -209,7 +209,7 @@ public:
   */
   bool is_evaluated() const;
   bool is_uncacheable() const;
-  bool is_expensive() { return TRUE; }
+  bool is_expensive();
 
   /*
     Used by max/min subquery to initialize value presence registration
@@ -235,7 +235,7 @@ public:
     @retval TRUE  if the predicate is expensive
     @retval FALSE otherwise
   */
-  bool is_expensive_processor(uchar *arg) { return TRUE; }
+  bool is_expensive_processor(uchar *arg) { return is_expensive(); }
 
   /**
     Get the SELECT_LEX structure associated with this Item.
@@ -581,6 +581,10 @@ public:
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec();
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool const_item() const
+  {
+    return Item_subselect::const_item() && left_expr->const_item();
+  }
   void update_used_tables();
   bool setup_mat_engine();
   bool init_left_expr_cache();
