@@ -15804,12 +15804,11 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
   {
     DBUG_ASSERT(join->table_count);
 
-    THD *thd= join->thd;
     DBUG_EXECUTE_IF("show_explain_probe_do_select", 
-                    if (dbug_user_var_equals_int(thd, 
+                    if (dbug_user_var_equals_int(join->thd, 
                                                  "show_explain_probe_select_id", 
                                                  join->select_lex->select_number))
-                          dbug_serve_apcs(thd, 1);
+                          dbug_serve_apcs(join->thd, 1);
                    );
 
     if (join->outer_ref_cond && !join->outer_ref_cond->val_int())

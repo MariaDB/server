@@ -53,7 +53,7 @@ mysql_mutex_t target_mutex;
 
 int int_rand(int size)
 {
-  return round (((double)rand() / RAND_MAX) * size);
+  return (int) (0.5 + ((double)rand() / RAND_MAX) * size);
 }
 
 /* 
@@ -71,12 +71,12 @@ void *test_apc_service_thread(void *ptr)
   while (!service_should_exit)
   {
     //apc_target.disable();
-    usleep(10000);
+    my_sleep(10000);
     //apc_target.enable();
     for (int i = 0; i < 10 && !service_should_exit; i++)
     {
       apc_target.process_apc_requests();
-      usleep(int_rand(30));
+      my_sleep(int_rand(30));
     }
   }
   apc_target.disable();
@@ -99,7 +99,7 @@ public:
 
   void call_in_target_thread()
   {
-    usleep(int_rand(1000));
+    my_sleep(int_rand(1000));
     *where_to = value;
     increment_counter(&apcs_served);
   }
@@ -145,7 +145,7 @@ void *test_apc_requestor_thread(void *ptr)
         have_errors= true;
       }
     }
-    //usleep(300);
+    //my_sleep(300);
   }
   fprintf(stderr, "# test_apc_requestor_thread exiting\n");
   my_thread_end();
@@ -171,13 +171,13 @@ int main(int args, char **argv)
 
   pthread_create(&service_thr, NULL, test_apc_service_thread, (void*)NULL);
   while (!started)
-    usleep(1000);
+    my_sleep(1000);
   for (i = 0; i < N_THREADS; i++)
     pthread_create(&request_thr[i], NULL, test_apc_requestor_thread, (void*)NULL);
   
   for (i = 0; i < 15; i++)
   {
-    usleep(500*1000);
+    my_sleep(500*1000);
     fprintf(stderr, "# %d APCs served %d missed\n", apcs_served, apcs_missed);
   }
   fprintf(stderr, "# Shutting down requestors\n");
