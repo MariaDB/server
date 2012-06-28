@@ -2065,9 +2065,7 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
     explain_req.failed_to_produce= FALSE;
     
     /* Ok, we have a lock on target->LOCK_thd_data, can call: */
-    bres= tmp->apc_target.make_apc_call(Show_explain_request::get_explain_data,
-                                        (void*)&explain_req,
-                                        timeout_sec, &timed_out);
+    bres= tmp->apc_target.make_apc_call(&explain_req, timeout_sec, &timed_out);
 
     if (bres || explain_req.failed_to_produce)
     {

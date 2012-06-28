@@ -1,6 +1,18 @@
 /*
-  TODO: MP AB Copyright
-*/
+   Copyright (c) 2009, 2011, Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 /*
   Interface
@@ -38,8 +50,12 @@ public:
   
   void process_apc_requests();
 
-  typedef void (*apc_func_t)(void *arg);
-  
+  class Apc_call
+  {
+  public:
+    virtual void call_in_target_thread()= 0;
+    virtual ~Apc_call() {}
+  };
   /*
     Make an APC call: schedule it for execution and wait until the target
     thread has executed it. This function must not be called from a thread
@@ -49,8 +65,7 @@ public:
     @retval TRUE  - Call wasnt made (either the target is in disabled state or
                     timeout occured)
   */
-  bool make_apc_call(apc_func_t func, void *func_arg, 
-                     int timeout_sec, bool *timed_out);
+  bool make_apc_call(Apc_call *call, int timeout_sec, bool *timed_out);
 
 #ifndef DBUG_OFF
   int n_calls_processed; /* Number of calls served by this target */
@@ -78,8 +93,7 @@ private:
   class Call_request
   {
   public:
-    apc_func_t func; /* Function to call */
-    void *func_arg;  /* Argument to pass it */
+    Apc_call *call; /* Functor to be called */
 
     /* The caller will actually wait for "processed==TRUE" */
     bool processed;

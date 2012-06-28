@@ -3330,33 +3330,32 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   we're producing EXPLAIN for.
 */
 
-void Show_explain_request::get_explain_data(void *arg)
+void Show_explain_request::call_in_target_thread()
 {
-  Show_explain_request *req= (Show_explain_request*)arg;
   Query_arena backup_arena;
-  THD *target_thd= req->target_thd;
   bool printed_anything= FALSE;
 
   /* 
     Change the arena because JOIN::print_explain and co. are going to allocate
     items. Let them allocate them on our arena.
   */
-  target_thd->set_n_backup_active_arena((Query_arena*)req->request_thd,
+  target_thd->set_n_backup_active_arena((Query_arena*)request_thd,
                                         &backup_arena);
   
-  req->query_str.copy(target_thd->query(), 
-                      target_thd->query_length(),
-                      &my_charset_bin);
+  query_str.copy(target_thd->query(), 
+                 target_thd->query_length(),
+                 &my_charset_bin);
 
-  if (target_thd->lex->unit.print_explain(req->explain_buf, 0 /* explain flags*/,
+  if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
                                           &printed_anything))
-    req->failed_to_produce= TRUE;
+  {
+    failed_to_produce= TRUE;
+  }
 
   if (!printed_anything)
-    req->failed_to_produce= TRUE;
+    failed_to_produce= TRUE;
 
-  target_thd->restore_active_arena((Query_arena*)req->request_thd, 
-                                   &backup_arena);
+  target_thd->restore_active_arena((Query_arena*)request_thd, &backup_arena);
 }
 
 

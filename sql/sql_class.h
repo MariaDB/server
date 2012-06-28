@@ -1528,11 +1528,11 @@ class select_result_explain_buffer;
   
   The thread that runs SHOW EXPLAIN statement creates a Show_explain_request
   object R, and then schedules APC call of
-  Show_explain_request::get_explain_data((void*)&R).
+  Show_explain_request::call((void*)&R).
 
 */
 
-class Show_explain_request
+class Show_explain_request : public Apc_target::Apc_call
 {
 public:
   THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
@@ -1546,8 +1546,9 @@ public:
   
   /* Query that we've got SHOW EXPLAIN for */
   String query_str;
-
-  static void get_explain_data(void *arg);
+  
+  /* Overloaded virtual function */
+  void call_in_target_thread();
 };
 
 class THD;
