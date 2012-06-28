@@ -15,21 +15,12 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 
-#ifdef MY_APC_STANDALONE
-
-#include <my_global.h>
-#include <my_pthread.h>
-#include <my_sys.h>
-
-#include "my_apc.h"
-
-#else
+#ifndef MY_APC_STANDALONE
 
 #include "sql_priv.h"
 #include "sql_class.h"
 
 #endif
-
 
 /*
   Standalone testing:
@@ -140,12 +131,19 @@ void Apc_target::dequeue_request(Call_request *qe)
 
 /*
   Make an APC (Async Procedure Call) to another thread. 
+ 
+  @detail
+  Make an APC call: schedule it for execution and wait until the target
+  thread has executed it. 
 
-  - The caller is responsible for making sure he's not calling to the same
-    thread.
+  - The caller is responsible for making sure he's not posting request
+    to the thread he's calling this function from.
 
-  - The caller should have locked target_thread_mutex.
+  - The caller must have locked target_mutex. The function will release it.
 
+  @retval FALSE - Ok, the call has been made
+  @retval TRUE  - Call wasnt made (either the target is in disabled state or
+                    timeout occured)
 
   psergey-todo: Should waits here be KILLable? (it seems one needs 
   to use thd->enter_cond() calls to be killable)
@@ -250,138 +248,4 @@ void Apc_target::process_apc_requests()
     mysql_mutex_unlock(LOCK_thd_data_ptr);
   }
 }
-
-/*****************************************************************************
- * Testing 
- *****************************************************************************/
-#ifdef MY_APC_STANDALONE
-
-volatile bool started= FALSE;
-volatile bool service_should_exit= FALSE;
-volatile bool requestors_should_exit=FALSE;
-
-volatile int apcs_served= 0;
-volatile int apcs_missed=0;
-volatile int apcs_timed_out=0;
-
-Apc_target apc_target;
-mysql_mutex_t target_mutex;
-
-int int_rand(int size)
-{
-  return round (((double)rand() / RAND_MAX) * size);
-}
-
-/* An APC-serving thread */
-void *test_apc_service_thread(void *ptr)
-{
-  my_thread_init();
-  mysql_mutex_init(0, &target_mutex, MY_MUTEX_INIT_FAST);
-  apc_target.init(&target_mutex);
-  apc_target.enable();
-  started= TRUE;
-  fprintf(stderr, "# test_apc_service_thread started\n");
-  while (!service_should_exit)
-  {
-    //apc_target.disable();
-    usleep(10000);
-    //apc_target.enable();
-    for (int i = 0; i < 10 && !service_should_exit; i++)
-    {
-      apc_target.process_apc_requests();
-      usleep(int_rand(30));
-    }
-  }
-  apc_target.disable();
-  apc_target.destroy();
-  my_thread_end();
-  pthread_exit(0);
-}
-
-class Apc_order
-{
-public:
-  int value;   // The value 
-  int *where_to;  // Where to write it
-  Apc_order(int a, int *b) : value(a), where_to(b) {}
-};
-
-void test_apc_func(void *arg)
-{
-  Apc_order *order=(Apc_order*)arg;
-  usleep(int_rand(1000));
-  *(order->where_to) = order->value;
-  __sync_fetch_and_add(&apcs_served, 1);
-}
-
-void *test_apc_requestor_thread(void *ptr)
-{
-  my_thread_init();
-  fprintf(stderr, "# test_apc_requestor_thread started\n");
-  while (!requestors_should_exit)
-  {
-    int dst_value= 0;
-    int src_value= int_rand(4*1000*100);
-    /* Create APC to do  dst_value= src_value */
-    Apc_order apc_order(src_value, &dst_value);
-    bool timed_out;
-
-    bool res= apc_target.make_apc_call(test_apc_func, (void*)&apc_order, 60, &timed_out);
-    if (res)
-    {
-      if (timed_out)
-        __sync_fetch_and_add(&apcs_timed_out, 1);
-      else
-        __sync_fetch_and_add(&apcs_missed, 1);
-
-      if (dst_value != 0)
-        fprintf(stderr, "APC was done even though return value says it wasnt!\n");
-    }
-    else
-    {
-      if (dst_value != src_value)
-        fprintf(stderr, "APC was not done even though return value says it was!\n");
-    }
-    //usleep(300);
-  }
-  fprintf(stderr, "# test_apc_requestor_thread exiting\n");
-  my_thread_end();
-}
-
-const int N_THREADS=23;
-int main(int args, char **argv)
-{
-  pthread_t service_thr;
-  pthread_t request_thr[N_THREADS];
-  int i, j;
-  my_thread_global_init();
-
-  pthread_create(&service_thr, NULL, test_apc_service_thread, (void*)NULL);
-  while (!started)
-    usleep(1000);
-  for (i = 0; i < N_THREADS; i++)
-    pthread_create(&request_thr[i], NULL, test_apc_requestor_thread, (void*)NULL);
-  
-  for (i = 0; i < 15; i++)
-  {
-    usleep(500*1000);
-    fprintf(stderr, "# %d APCs served %d missed\n", apcs_served, apcs_missed);
-  }
-  fprintf(stderr, "# Shutting down requestors\n");
-  requestors_should_exit= TRUE;
-  for (i = 0; i < N_THREADS; i++)
-    pthread_join(request_thr[i], NULL);
-  
-  fprintf(stderr, "# Shutting down service\n");
-  service_should_exit= TRUE;
-  pthread_join(service_thr, NULL);
-  fprintf(stderr, "# Done.\n");
-  my_thread_end();
-  my_thread_global_end();
-  return 0;
-}
-
-#endif // MY_APC_STANDALONE
-
-
 

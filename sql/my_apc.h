@@ -49,22 +49,17 @@ public:
   void disable();
   
   void process_apc_requests();
-
+  
+  /* Functor class for calls you can schedule */
   class Apc_call
   {
   public:
+    /* This function will be called in the target thread */
     virtual void call_in_target_thread()= 0;
     virtual ~Apc_call() {}
   };
-  /*
-    Make an APC call: schedule it for execution and wait until the target
-    thread has executed it. This function must not be called from a thread
-    that's different from the target thread.
-
-    @retval FALSE - Ok, the call has been made
-    @retval TRUE  - Call wasnt made (either the target is in disabled state or
-                    timeout occured)
-  */
+  
+  /* Make a call in the target thread (see function definition for details) */
   bool make_apc_call(Apc_call *call, int timeout_sec, bool *timed_out);
 
 #ifndef DBUG_OFF
