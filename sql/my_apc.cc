@@ -1,6 +1,18 @@
 /*
-  TODO: MP AB Copyright
-*/
+   Copyright (c) 2009, 2011, Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 
 #ifdef MY_APC_STANDALONE
@@ -139,8 +151,8 @@ void Apc_target::dequeue_request(Call_request *qe)
   to use thd->enter_cond() calls to be killable)
 */
 
-bool Apc_target::make_apc_call(apc_func_t func, void *func_arg, 
-                               int timeout_sec, bool *timed_out)
+bool Apc_target::make_apc_call(Apc_call *call, int timeout_sec, 
+                               bool *timed_out)
 {
   bool res= TRUE;
   *timed_out= FALSE;
@@ -149,8 +161,7 @@ bool Apc_target::make_apc_call(apc_func_t func, void *func_arg,
   {
     /* Create and post the request */
     Call_request apc_request;
-    apc_request.func= func;
-    apc_request.func_arg= func_arg;
+    apc_request.call= call;
     apc_request.processed= FALSE;
     mysql_cond_init(0 /* do not track in PS */, &apc_request.COND_request, NULL);
     enqueue_request(&apc_request);
@@ -229,7 +240,7 @@ void Apc_target::process_apc_requests()
     dequeue_request(request);
     request->processed= TRUE;
 
-    request->func(request->func_arg);
+    request->call->call_in_target_thread();
     request->what="func called by process_apc_requests";
 
 #ifndef DBUG_OFF
