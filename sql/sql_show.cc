@@ -2002,8 +2002,11 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 /*
   SHOW EXPLAIN FOR command handler
 
-  @param  thd         Current thread's thd
-  @param  thread_id   Thread whose explain we need
+  @param  thd          Current thread's thd
+  @param  calling_user User that invoked SHOW EXPLAIN, or NULL if the user 
+                       has SUPER or PROCESS privileges, and so is allowed
+                       to run SHOW EXPLAIN on anybody.
+  @param  thread_id    Thread whose explain we need
 
   @notes
   - Attempt to do "SHOW EXPLAIN FOR <myself>" will properly produce "target not
@@ -2011,7 +2014,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   - todo: check how all this can/will work when using thread pools
 */
 
-void mysqld_show_explain(THD *thd, ulong thread_id)
+void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
 {
   THD *tmp;
   Protocol *protocol= thd->protocol;
@@ -2043,6 +2046,22 @@ void mysqld_show_explain(THD *thd, ulong thread_id)
   
   if (tmp)
   {
+    Security_context *tmp_sctx= tmp->security_ctx;
+    /*
+      If calling_user==NULL, calling thread has SUPER or PROCESS
+      privilege, and so can do SHOW EXPLAIN on any user.
+      
+      if calling_user!=NULL, he's only allowed to view SHOW EXPLAIN on
+      his own threads.
+    */
+    if (calling_user && (!tmp_sctx->user || strcmp(calling_user, 
+                                                   tmp_sctx->user)))
+    {
+      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESSLIST");
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      DBUG_VOID_RETURN;
+    }
+
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 

@@ -727,10 +727,71 @@ reap;
 set debug_dbug='';
 
 drop table t1,t3,t4;
+
+--echo #
+--echo # ----------  SHOW EXPLAIN and permissions -----------------
+--echo #
+grant ALL on test.* to test2@localhost;
+
+connect (con2, localhost, test2,,);
+connection con1;
+
+--echo #
+--echo #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
+--echo #
+set debug_dbug='d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection default;
+--source include/wait_condition.inc
+
+connection con2;
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+evalp show explain for $thr2;
+
+connection default;
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+set debug_dbug='';
+
+--echo #
+--echo # Unfortunately, our test setup doesn't allow to check that test2
+--echo # can do SHOW EXPLAIN on his own queries. This is because SET debug_dbug
+--echo # requires SUPER privilege. Giving SUPER to test2 will make the test
+--echo # meaningless
+--echo #
+
+--echo #
+--echo # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
+--echo #
+disconnect con2;
+grant process on *.* to test2@localhost;
+connect (con2, localhost, test2,,);
+connection con1;
+
+set debug_dbug='d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection default;
+--source include/wait_condition.inc
+
+connection con2;
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+set debug_dbug='';
+
+
+
+revoke all privileges on test.* from test2@localhost;
+drop user test2@localhost;
+
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
-
-## TODO: SHOW EXPLAIN while the primary query is running EXPLAIN EXTENDED/PARTITIONS
-##
 
 drop table t0;

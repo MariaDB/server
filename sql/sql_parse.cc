@@ -3130,6 +3130,7 @@ end_with_restore_list:
     break;
   case SQLCOM_SHOW_EXPLAIN:
   {
+    const char *effective_user;
     /* Same security as SHOW PROCESSLIST (TODO check this) */
     if (!thd->security_ctx->priv_user[0] &&
         check_global_access(thd,PROCESS_ACL))
@@ -3150,8 +3151,10 @@ end_with_restore_list:
 		 MYF(0));
       goto error;
     }
+    effective_user=(thd->security_ctx->master_access & PROCESS_ACL ?  NullS :
+                     thd->security_ctx->priv_user);
 
-    mysqld_show_explain(thd, (ulong)it->val_int());
+    mysqld_show_explain(thd, effective_user, (ulong)it->val_int());
     break;
   }
   case SQLCOM_SHOW_AUTHORS:

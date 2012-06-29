@@ -1552,7 +1552,7 @@ public:
 };
 
 class THD;
-void mysqld_show_explain(THD *thd, ulong thread_id);
+void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id);
 #ifndef DBUG_OFF
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
