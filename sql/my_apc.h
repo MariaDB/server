@@ -80,7 +80,9 @@ private:
   /* 
     Circular, double-linked list of all enqueued call requests. 
     We use this structure, because we 
-     - process requests sequentially (i.e. they are removed from the front)
+     - process requests sequentially: requests are added at the end of the 
+       list and removed from the front. With circular list, we can keep one
+       pointer.
      - a thread that has posted a request may time out (or be KILLed) and 
        cancel the request, which means we need a fast request-removal
        operation.
