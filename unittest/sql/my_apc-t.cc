@@ -84,6 +84,7 @@ void *test_apc_service_thread(void *ptr)
   mysql_mutex_destroy(&target_mutex);
   my_thread_end();
   pthread_exit(0);
+  return NULL;
 }
 
 
