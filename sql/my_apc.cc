@@ -22,11 +22,7 @@
 
 #endif
 
-/*
-  Standalone testing:
-    g++ -c -DMY_APC_STANDALONE -g -I.. -I../include -o my_apc.o my_apc.cc
-    g++ -L../mysys -L../dbug -L../strings my_apc.o -lmysys -ldbug -lmystrings -lpthread -lrt
-*/
+/* For standalone testing of APC system, see unittest/sql/my_apc-t.cc */
 
 
 /* 

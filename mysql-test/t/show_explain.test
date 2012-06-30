@@ -739,6 +739,7 @@ connection con1;
 --echo #
 --echo #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
 --echo #
+set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 send
 select * from t0 where a < 3;
@@ -772,6 +773,7 @@ grant process on *.* to test2@localhost;
 connect (con2, localhost, test2,,);
 connection con1;
 
+set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 send
 select * from t0 where a < 3;

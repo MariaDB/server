@@ -735,6 +735,7 @@ grant ALL on test.* to test2@localhost;
 #
 #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
 #
+set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr2;
@@ -759,6 +760,7 @@ set debug_dbug='';
 # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
 #
 grant process on *.* to test2@localhost;
+set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr2;

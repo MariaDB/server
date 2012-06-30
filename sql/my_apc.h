@@ -34,7 +34,9 @@
 */
 
 /*
-  Target for asynchronous procedue calls (APCs).
+  Target for asynchronous procedure calls (APCs). 
+   - A target is running in some particular thread, 
+   - One can make calls to it from other threads.
 */
 class Apc_target
 {
@@ -112,6 +114,4 @@ private:
     return apc_calls;
   }
 };
-
-///////////////////////////////////////////////////////////////////////
 
