@@ -145,8 +145,8 @@ void Apc_target::dequeue_request(Call_request *qe)
   to use thd->enter_cond() calls to be killable)
 */
 
-bool Apc_target::make_apc_call(Apc_call *call, int timeout_sec, 
-                               bool *timed_out)
+bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call, 
+                               int timeout_sec, bool *timed_out)
 {
   bool res= TRUE;
   *timed_out= FALSE;
@@ -166,6 +166,9 @@ bool Apc_target::make_apc_call(Apc_call *call, int timeout_sec,
     set_timespec(abstime, timeout);
 
     int wait_res= 0;
+    const char *old_msg;
+    old_msg= caller_thd->enter_cond(&apc_request.COND_request, 
+                                    LOCK_thd_data_ptr, "show_explain");
     /* todo: how about processing other errors here? */
     while (!apc_request.processed && (wait_res != ETIMEDOUT))
     {
@@ -173,13 +176,18 @@ bool Apc_target::make_apc_call(Apc_call *call, int timeout_sec,
       wait_res= mysql_cond_timedwait(&apc_request.COND_request,
                                      LOCK_thd_data_ptr, &abstime);
                                       // &apc_request.LOCK_request, &abstime);
+      if (caller_thd->killed)
+      {
+        break;
+      }
     }
 
     if (!apc_request.processed)
     {
       /* 
-        The wait has timed out. Remove the request from the queue (ok to do
-        because we own LOCK_thd_data_ptr.
+        The wait has timed out, or this thread was KILLed.
+        Remove the request from the queue (ok to do because we own
+        LOCK_thd_data_ptr)
       */
       apc_request.processed= TRUE;
       dequeue_request(&apc_request);
@@ -191,7 +199,10 @@ bool Apc_target::make_apc_call(Apc_call *call, int timeout_sec,
       /* Request was successfully executed and dequeued by the target thread */
       res= FALSE;
     }
-    mysql_mutex_unlock(LOCK_thd_data_ptr);
+    /* 
+      exit_cond() will call mysql_mutex_unlock(LOCK_thd_data_ptr) for us:
+    */
+    caller_thd->exit_cond(old_msg);
 
     /* Destroy all APC request data */
     mysql_cond_destroy(&apc_request.COND_request);

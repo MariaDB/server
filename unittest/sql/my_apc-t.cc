@@ -24,6 +24,29 @@
 
 #include <tap.h>
 
+/*
+  A fake THD with enter_cond/exit_cond and some other members.
+*/
+class THD 
+{
+  mysql_mutex_t* thd_mutex; 
+public:
+  bool killed;
+
+  THD() : killed(FALSE) {}
+  inline const char* enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
+                                const char* msg)
+  {
+    mysql_mutex_assert_owner(mutex);
+    thd_mutex= mutex;
+    return NULL;
+  }
+  inline void exit_cond(const char* old_msg)
+  {
+    mysql_mutex_unlock(thd_mutex);
+  }
+};
+
 #include "../sql/my_apc.h"
 
 #define MY_APC_STANDALONE 1
@@ -115,6 +138,8 @@ void *test_apc_requestor_thread(void *ptr)
 {
   my_thread_init();
   fprintf(stderr, "# test_apc_requestor_thread started\n");
+  THD my_thd;
+
   while (!requestors_should_exit)
   {
     int dst_value= 0;
@@ -124,7 +149,7 @@ void *test_apc_requestor_thread(void *ptr)
     bool timed_out;
 
     mysql_mutex_lock(&target_mutex);
-    bool res= apc_target.make_apc_call(&apc_order, 60, &timed_out);
+    bool res= apc_target.make_apc_call(&my_thd, &apc_order, 60, &timed_out);
     if (res)
     {
       if (timed_out)

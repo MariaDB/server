@@ -775,4 +775,44 @@ a
 set debug_dbug='';
 revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
+#
+# Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
+# on its target thread
+# 
+create table t1 (pk int primary key, data char(64)) engine=innodb;
+insert into t1 select A.a + 10 * B.a + 100 * C.a, 'data1' from t0 A, t0 B, t0 C;
+# Lock two threads
+set autocommit=0;
+select * from t1 where pk between 10 and 20 for update;
+pk	data
+10	data1
+11	data1
+12	data1
+13	data1
+14	data1
+15	data1
+16	data1
+17	data1
+18	data1
+19	data1
+20	data1
+set autocommit=0;
+select * from t1 where pk between 10 and 20 for update;
+show explain for 3;
+kill query $thr_default;
+ERROR 70100: Query execution was interrupted
+rollback;
+pk	data
+10	data1
+11	data1
+12	data1
+13	data1
+14	data1
+15	data1
+16	data1
+17	data1
+18	data1
+19	data1
+20	data1
+drop table t1;
 drop table t0;
