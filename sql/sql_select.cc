@@ -273,13 +273,17 @@ JOIN_TAB *first_depth_first_tab(JOIN* join);
 JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
 
 #ifndef DBUG_OFF
-// psergey:
+
+/*
+  SHOW EXPLAIN testing: wait for, and serve n_calls APC requests.
+*/
 void dbug_serve_apcs(THD *thd, int n_calls)
 {
-  // TODO how do we signal that we're SHOW-EXPLAIN-READY? 
   const char *save_proc_info= thd->proc_info;
+  /* This is so that mysqltest knows we're ready to serve requests: */
   thd_proc_info(thd, "show_explain_trap");
   
+  /* Busy-wait for n_calls APC requests to arrive and be processed */
   int n_apcs= thd->apc_target.n_calls_processed + n_calls;
   while (thd->apc_target.n_calls_processed < n_apcs)
   {
@@ -10637,9 +10641,6 @@ void JOIN::cleanup(bool full)
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
-  /*
-    psergey: let's try without this first:
-  */
   have_query_plan= QEP_DELETED;
 
   if (table)
@@ -21330,7 +21331,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   Item *item_null= new Item_null();
   List<Item> item_list;
   if (on_the_fly)
-    select_lex->set_explain_type(on_the_fly); //psergey
+    select_lex->set_explain_type(on_the_fly);
   /* 
     here we assume that the query will return at least two rows, so we
     show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
@@ -22043,7 +22044,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    sl->set_explain_type(FALSE); //psergey-todo: maybe remove this from here?
+    sl->set_explain_type(FALSE);
     sl->options|= SELECT_DESCRIBE;
   }
 

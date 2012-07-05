@@ -140,9 +140,6 @@ void Apc_target::dequeue_request(Call_request *qe)
   @retval FALSE - Ok, the call has been made
   @retval TRUE  - Call wasnt made (either the target is in disabled state or
                     timeout occured)
-
-  psergey-todo: Should waits here be KILLable? (it seems one needs 
-  to use thd->enter_cond() calls to be killable)
 */
 
 bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call, 

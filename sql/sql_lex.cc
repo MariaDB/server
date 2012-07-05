@@ -3832,7 +3832,9 @@ void SELECT_LEX::update_used_tables()
 
 /**
   Set the EXPLAIN type for this subquery.
-    psergey-todo: comments about 
+  
+  @param on_the_fly  TRUE<=> We're running a SHOW EXPLAIN command, so we must 
+                     not change any variables
 */
 
 void st_select_lex::set_explain_type(bool on_the_fly)
