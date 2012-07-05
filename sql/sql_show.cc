@@ -2011,7 +2011,6 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   @notes
   - Attempt to do "SHOW EXPLAIN FOR <myself>" will properly produce "target not
     running EXPLAINable command".
-  - todo: check how all this can/will work when using thread pools
 */
 
 void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
@@ -2065,9 +2064,7 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-        we're holding its LOCK_thd data.
-      Post it an EXPLAIN request.
-      todo: where to get timeout from?
+      we're holding its LOCK_thd data. Post it a SHOW EXPLAIN request.
     */
     bool timed_out;
     int timeout_sec= 30;
