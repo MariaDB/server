@@ -33,6 +33,8 @@
     requestor.
 */
 
+class THD;
+
 /*
   Target for asynchronous procedure calls (APCs). 
    - A target is running in some particular thread, 
@@ -62,7 +64,7 @@ public:
   };
   
   /* Make a call in the target thread (see function definition for details) */
-  bool make_apc_call(Apc_call *call, int timeout_sec, bool *timed_out);
+  bool make_apc_call(THD *caller_thd, Apc_call *call, int timeout_sec, bool *timed_out);
 
 #ifndef DBUG_OFF
   int n_calls_processed; /* Number of calls served by this target */

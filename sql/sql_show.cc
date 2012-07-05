@@ -2084,11 +2084,15 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
     explain_req.failed_to_produce= FALSE;
     
     /* Ok, we have a lock on target->LOCK_thd_data, can call: */
-    bres= tmp->apc_target.make_apc_call(&explain_req, timeout_sec, &timed_out);
+    bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
 
     if (bres || explain_req.failed_to_produce)
     {
-      /* TODO not enabled or time out */
+      if (thd->killed)
+      {
+        thd->send_kill_message();
+      }
+      else 
       if (timed_out)
       {
         my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 

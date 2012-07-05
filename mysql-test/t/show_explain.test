@@ -2,6 +2,7 @@
 # Tests for SHOW EXPLAIN FOR functionality
 #
 --source include/have_debug.inc
+--source include/have_innodb.inc
 
 --disable_warnings
 drop table if exists t0, t1, t2, t3, t4;
@@ -788,10 +789,56 @@ connection con1;
 reap;
 set debug_dbug='';
 
-
-
 revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
+
+disconnect con2;
+--echo #
+--echo # Test that it is possible to KILL a SHOW EXPLAIN command that's waiting
+--echo # on its target thread
+--echo # 
+connect (con2, localhost, root,,);
+connect (con3, localhost, root,,);
+connection con2;
+create table t1 (pk int primary key, data char(64)) engine=innodb;
+insert into t1 select A.a + 10 * B.a + 100 * C.a, 'data1' from t0 A, t0 B, t0 C;
+
+--echo # Lock two threads
+set autocommit=0;
+select * from t1 where pk between 10 and 20 for update;
+
+connection con1;
+set autocommit=0;
+# This will freeze
+send
+select * from t1 where pk between 10 and 20 for update;
+
+# run SHOW EXPLAIN on a frozen thread
+connection default;
+let $wait_condition= select State='Sending data' from information_schema.processlist where id=$thr2;
+let $thr_default=`select connection_id()`;
+--source include/wait_condition.inc
+send_eval show explain for $thr2;
+
+# kill the SHOW EXPLAIN command
+connection con3;
+let $wait_condition= select State='show_explain' from information_schema.processlist where id=$thr_default;
+--source include/wait_condition.inc
+evalp kill query $thr_default;
+
+connection default;
+--error ER_QUERY_INTERRUPTED
+reap;
+
+connection con2;
+rollback;
+
+connection con1;
+reap;
+
+drop table t1;
+disconnect con3;
+disconnect con2;
 
 ## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
 ##       thread and served together.
