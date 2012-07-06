@@ -6869,7 +6869,7 @@ get_row_format_name(
 	if (!srv_file_per_table) {				\
 		push_warning_printf(				\
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,	\
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: ROW_FORMAT=%s requires"	\
 			" innodb_file_per_table.",		\
 			get_row_format_name(row_format));	\
@@ -6881,7 +6881,7 @@ get_row_format_name(
 	if (srv_file_format < DICT_TF_FORMAT_ZIP) {		\
 		push_warning_printf(				\
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,	\
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: ROW_FORMAT=%s requires"	\
 			" innodb_file_format > Antelope.",	\
 			get_row_format_name(row_format));	\
@@ -6931,7 +6931,7 @@ create_options_are_valid(
 			if (!srv_file_per_table) {
 				push_warning(
 					thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-					ER_ILLEGAL_HA_CREATE_OPTION,
+					HA_WRONG_CREATE_OPTION,
 					"InnoDB: KEY_BLOCK_SIZE requires"
 					" innodb_file_per_table.");
 				ret = FALSE;
@@ -6939,7 +6939,7 @@ create_options_are_valid(
 			if (srv_file_format < DICT_TF_FORMAT_ZIP) {
 				push_warning(
 					thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-					ER_ILLEGAL_HA_CREATE_OPTION,
+					HA_WRONG_CREATE_OPTION,
 					"InnoDB: KEY_BLOCK_SIZE requires"
 					" innodb_file_format > Antelope.");
 					ret = FALSE;
@@ -6948,7 +6948,7 @@ create_options_are_valid(
 		default:
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: invalid KEY_BLOCK_SIZE = %lu."
 				" Valid values are [1, 2, 4, 8, 16]",
 				create_info->key_block_size);
@@ -6973,7 +6973,7 @@ create_options_are_valid(
 		if (kbs_specified) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: cannot specify ROW_FORMAT = %s"
 				" with KEY_BLOCK_SIZE.",
 				get_row_format_name(row_format));
@@ -6987,7 +6987,7 @@ create_options_are_valid(
 	case ROW_TYPE_NOT_USED:
 		push_warning(
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: invalid ROW_FORMAT specifier.");
 		ret = FALSE;
 		break;
@@ -7090,7 +7090,7 @@ ha_innobase::create(
 
 	/* Validate create options if innodb_strict_mode is set. */
 	if (!create_options_are_valid(thd, form, create_info)) {
-		DBUG_RETURN(ER_ILLEGAL_HA_CREATE_OPTION);
+		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
 	if (create_info->key_block_size) {
@@ -7116,7 +7116,7 @@ ha_innobase::create(
 		if (!srv_file_per_table) {
 			push_warning(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: KEY_BLOCK_SIZE requires"
 				" innodb_file_per_table.");
 			flags = 0;
@@ -7125,7 +7125,7 @@ ha_innobase::create(
 		if (file_format < DICT_TF_FORMAT_ZIP) {
 			push_warning(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: KEY_BLOCK_SIZE requires"
 				" innodb_file_format > Antelope.");
 			flags = 0;
@@ -7134,7 +7134,7 @@ ha_innobase::create(
 		if (!flags) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu.",
 				create_info->key_block_size);
 		}
@@ -7156,7 +7156,7 @@ ha_innobase::create(
 			with ALTER TABLE anyway. */
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu"
 				" unless ROW_FORMAT=COMPRESSED.",
 				create_info->key_block_size);
@@ -7187,14 +7187,14 @@ ha_innobase::create(
 		if (!srv_file_per_table) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ROW_FORMAT=%s requires"
 				" innodb_file_per_table.",
 				get_row_format_name(row_format));
 		} else if (file_format < DICT_TF_FORMAT_ZIP) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ROW_FORMAT=%s requires"
 				" innodb_file_format > Antelope.",
 				get_row_format_name(row_format));
@@ -7211,7 +7211,7 @@ ha_innobase::create(
 	case ROW_TYPE_PAGE:
 		push_warning(
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,
+			HA_WRONG_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=COMPACT.");
 	case ROW_TYPE_DEFAULT:
 	case ROW_TYPE_COMPACT:
@@ -8409,9 +8409,9 @@ ha_innobase::info_low(
 				                }
                                                 else if (rec_per_key > 1) {
                                                         rec_per_key =
-                                                        k_rec_per_key *
-						        (double)rec_per_key /
-							n_rows;
+                                                          (ha_rows) (k_rec_per_key *
+                                                                     (double)rec_per_key /
+                                                                     n_rows);
 						}
                                                 
 				                key_info->rec_per_key[k++]=
