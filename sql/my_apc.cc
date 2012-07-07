@@ -124,6 +124,26 @@ void Apc_target::dequeue_request(Call_request *qe)
   qe->next->prev= qe->prev;
 }
 
+#ifdef HAVE_PSI_INTERFACE
+
+/* One key for all conds */
+PSI_cond_key key_show_explain_request_COND;
+
+static PSI_cond_info show_explain_psi_conds[]=
+{
+  { &key_show_explain_request_COND, "show_explain", 0 /* not using PSI_FLAG_GLOBAL*/ }
+};
+
+void init_show_explain_psi_keys(void)
+{
+  if (PSI_server == NULL)
+    return;
+
+  PSI_server->register_cond("sql", show_explain_psi_conds, 
+                            array_elements(show_explain_psi_conds));
+}
+#endif
+
 
 /*
   Make an APC (Async Procedure Call) to another thread. 
@@ -154,7 +174,8 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
     Call_request apc_request;
     apc_request.call= call;
     apc_request.processed= FALSE;
-    mysql_cond_init(0 /* do not track in PS */, &apc_request.COND_request, NULL);
+    mysql_cond_init(key_show_explain_request_COND, &apc_request.COND_request,
+                    NULL);
     enqueue_request(&apc_request);
     apc_request.what="enqueued by make_apc_call";
  
@@ -174,9 +195,7 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
                                      LOCK_thd_data_ptr, &abstime);
                                       // &apc_request.LOCK_request, &abstime);
       if (caller_thd->killed)
-      {
         break;
-      }
     }
 
     if (!apc_request.processed)

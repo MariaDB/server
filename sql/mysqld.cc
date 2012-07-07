@@ -3909,6 +3909,7 @@ static int init_thread_environment()
   sp_cache_init();
 #ifdef HAVE_EVENT_SCHEDULER
   Events::init_mutexes();
+  init_show_explain_psi_keys();
 #endif
   /* Parameter for threads created for connections */
   (void) pthread_attr_init(&connection_attrib);

@@ -119,3 +119,7 @@ private:
   }
 };
 
+#ifdef HAVE_PSI_INTERFACE
+void init_show_explain_psi_keys(void);
+#endif
+
