@@ -315,6 +315,13 @@ int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 int read_statistics_for_table(THD *thd, TABLE *table);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
+int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab);
+int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
+int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info);
+int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
+                                LEX_STRING *new_db, LEX_STRING *new_tab);
+int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
+                                  const char *new_name);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
 extern "C" int simple_raw_key_cmp(void* arg, const void* key1,

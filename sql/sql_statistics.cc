@@ -57,15 +57,19 @@
 static const uint STATISTICS_TABLES= 3;
 
 /* 
-  The names of the statistical tables in this list must correspond the
+  The names of the statistical tables in this array must correspond the
   definitions of the tables in the file ../scripts/mysql_system_tables.sql
 */
-static const char *STAT_TABLE_NAME[STATISTICS_TABLES]=
+static const LEX_STRING stat_table_name[STATISTICS_TABLES]=
 {
-  "table_stat",
-  "column_stat",
-  "index_stat"
+  { C_STRING_WITH_LEN("table_stat") },
+  { C_STRING_WITH_LEN("column_stat") },
+  { C_STRING_WITH_LEN("index_stat") }
 };
+
+/* Name of database to which the statistical tables belong */
+static const LEX_STRING stat_tables_db_name= { C_STRING_WITH_LEN("mysql") };
+
 
 /**
   @details
@@ -74,6 +78,7 @@ static const char *STAT_TABLE_NAME[STATISTICS_TABLES]=
   The lock type of each element is set to TL_READ if for_write = FALSE,
   otherwise it is set to TL_WRITE.
 */
+
 inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
 {
   uint i;
@@ -82,21 +87,48 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
 
   for (i= 0; i < STATISTICS_TABLES; i++)
   {
-    tables[i].db= (char*) "mysql";
-    tables[i].table_name= (char *) STAT_TABLE_NAME[i];
-    tables[i].alias= tables[i].table_name;
+    tables[i].db= stat_tables_db_name.str;
+    tables[i].db_length= stat_tables_db_name.length;
+    tables[i].alias= tables[i].table_name= stat_table_name[i].str;
+    tables[i].table_name_length= stat_table_name[i].length;
     tables[i].lock_type= for_write ? TL_WRITE : TL_READ;
     if (i < STATISTICS_TABLES - 1)
     tables[i].next_global= tables[i].next_local=
       tables[i].next_name_resolution_table= &tables[i+1];
+    if (i != 0)
+      tables[i].prev_global= &tables[i-1].next_global;
   }
 }
+
+
+/**
+  @details
+  The function builds a TABLE_LIST containing only one element 'tbl' for
+  the statistical table called 'stat_tab_name'. 
+  The lock type of the element is set to TL_READ if for_write = FALSE,
+  otherwise it is set to TL_WRITE.
+*/
+
+inline void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
+                                                  const LEX_STRING *stat_tab_name, 
+                                                  bool for_write)
+{
+  bzero((char *) tbl, sizeof(TABLE_LIST));
+
+  tbl->db= stat_tables_db_name.str;
+  tbl->db_length= stat_tables_db_name.length;
+  tbl->alias= tbl->table_name= stat_tab_name->str;
+  tbl->table_name_length= stat_tab_name->length;
+  tbl->lock_type= for_write ? TL_WRITE : TL_READ;
+}
+
 
 /**
   @details
   The function sets null bits stored in the bitmap table_field->write_stat
   for all statistical values collected for a column.
 */
+
 inline void set_nulls_for_write_column_stat_values(Field *table_field)
 {
   table_field->write_stat.column_stat_nulls= 
@@ -104,11 +136,13 @@ inline void set_nulls_for_write_column_stat_values(Field *table_field)
     (COLUMN_STAT_COLUMN_NAME+1);
 }
 
+
 /** 
   @details
   The function sets null bits stored in the bitmap table_field->read_stat
   for all statistical values collected for a column.
 */
+
 inline void set_nulls_for_read_column_stat_values(Field *table_field)
 {
   table_field->read_stat.column_stat_nulls= 
@@ -116,29 +150,34 @@ inline void set_nulls_for_read_column_stat_values(Field *table_field)
     (COLUMN_STAT_COLUMN_NAME+1);
 }
 
+
 /**
   @details
   The function removes the null bit stored in the bitmap
   table_field->write_stat for the statistical value collected
   on the statistical column number stat_field_no.  
 */
+
 inline void set_not_null_for_write_column_stat_value(Field *table_field,
                                                      uint stat_field_no)
 {
   table_field->write_stat.column_stat_nulls&= ~(1 << stat_field_no);
 }  
   
+
 /** 
   @details
   The function removes the null bit stored in the bitmap
   table_field->read_stat for the statistical value collected
   on the statistical column number stat_field_no.  
 */
+
 inline void set_not_null_for_read_column_stat_value(Field *table_field,
                                                     uint stat_field_no)
 {
   table_field->read_stat.column_stat_nulls&= ~(1 << stat_field_no);
 }
+
 
 /** 
   @details
@@ -146,20 +185,25 @@ inline void set_not_null_for_read_column_stat_value(Field *table_field,
   table_field->read_stat for the statistical value collected
   on the statistical column number stat_field_no.  
 */
+
 inline bool check_null_for_write_column_stat_value(Field *table_field,
                                                    uint stat_field_no)
 {
   return table_field->write_stat.column_stat_nulls & (1 << stat_field_no);
 }
 
+
 /*
   Stat_table is the base class for classes Table_stat, Column_stat and
-  Index_stat. The methods of these classes allow us table to read
-  statistical data from statistical tables and write collected statistical
-  data into statistical data. Objects of the classes Table_stat, Column_stat
-  and Index stat are used for reading/writing statistics from/into 
-  persistent tables table_stat, column_stat and index_stat correspondingly.
-  These tables are stored in the system database 'mysql'.
+  Index_stat. The methods of these classes allow us to read statistical
+  data from statistical tables, write collected statistical data into
+  statistical tables and update statistical data in these  tables
+  as well as update access fields belonging to the primary key and
+  delete records by prefixes of the primary key.
+  Objects of the classes Table_stat, Column_stat  and Index stat are used 
+  for reading/writing statistics from/into persistent tables table_stat,
+  column_stat and index_stat correspondingly.  These tables are stored in
+  the system database 'mysql'.
 
   Statistics is read and written always for a given database table t. When
   an  object of any of these classes is created a pointer to the TABLE
@@ -168,9 +212,15 @@ inline bool check_null_for_write_column_stat_value(Field *table_field,
   the corresponding statistical table st. So construction of an object to 
   read/write statistical data on table t from/into statistical table st 
   requires both table t and st to be opened.
+  In some cases the TABLE structure for table t may be undefined. Then
+  the objects of the classes Table_stat, Column_stat  and Index stat are
+  created by the alternative constructor that require only the name
+  of the table t and the name of the database it belongs to. Now the
+  alternative constructors are used only in the cases when some records
+  belonging to the table are to be deleted, or its keys are to be updated   
 
   Reading/writing statistical data from/into a statistical table is always
-  performed by key. At the moment there is only one key defined for each
+  performed by a key.  At the moment there is only one key defined for each
   statistical table and this key is primary.
   The primary key for the table table_stat is built as (db_name, table_name).
   The primary key for the table column_stat is built as (db_name, table_name,
@@ -234,7 +284,7 @@ inline bool check_null_for_write_column_stat_value(Field *table_field,
   It is assumed that before any invocation of this method a call of the
   function st.set_key_fields has set the values of the primary key fields
   that serve to locate the row from the statistical table st where the 
-  the colected statistical data from internal structures are to be written
+  the collected statistical data from internal structures are to be written
   to. The statistical data is written from the counterparts of the
   statistical fields of internal structures into which it would be read
   by the functions get_stat_values. The counterpart fields are used
@@ -248,37 +298,18 @@ inline bool check_null_for_write_column_stat_value(Field *table_field,
          
 class Stat_table 
 {
+
 private:
+
   /* Handler used for the retrieval of the statistical table stat_table */
   handler *stat_file;
   
-  KEY *stat_key_info;   /* Structure for the index to access stat_table */
-  uint stat_key_length; /* Length of the key to access stat_table */   
+  uint stat_key_length; /* Length of the key to access stat_table */
   uchar *record[2];     /* Record buffers used to access/update stat_table */
   uint stat_key_idx;    /* The number of the key to access stat_table */
 
-protected:
-  /* Statistical table to read statistics from or to update */
-  TABLE *stat_table;
-  
-  /* Table for which statistical data is read / updated */
-  TABLE *table;     
-  char *db_name;        /* Name of the database containing 'table' */ 
-  uint db_name_len;     /* Length of db_name */
-  char *table_name;     /* Name of the table 'table' */
-  uint table_name_len;  /* Name of table_name */
-
-public:
-
-  /*
-    @details
-    This constructor has to be called by any constructor of the derived
-    classes. The constructor 'tunes' the private and protected members of
-    the constructed object to the statistical table 'stat_table' with the
-    statistical data of our interest and to the table 'tab' for which this
-    statistics has been collected.
-  */  
-  Stat_table(TABLE *stat, TABLE *tab) :stat_table(stat), table(tab)
+  /* This is a helper function used only by the Stat_table constructors */
+  void common_init_stat_table()
   {
     stat_file= stat_table->file;
     /* Currently any statistical table has only one key */
@@ -287,15 +318,97 @@ public:
     stat_key_length= stat_key_info->key_length;
     record[0]= stat_table->record[0];
     record[1]= stat_table->record[1];
-    db_name= table->s->db.str;
-    db_name_len= table->s->db.length;
-    table_name= table->s->table_name.str;
-    table_name_len= table->s->table_name.length;    
   }
+
+protected:
+
+  /* Statistical table to read statistics from or to update/delete */
+  TABLE *stat_table;
+  KEY *stat_key_info;   /* Structure for the index to access stat_table */
+  
+  /* Table for which statistical data is read / updated */
+  TABLE *table;     
+  LEX_STRING *db_name;     /* Name of the database containing 'table' */ 
+  LEX_STRING *table_name;  /* Name of the table 'table' */
+
+  void store_record_for_update()
+  {
+    store_record(stat_table, record[1]);
+  }
+
+  void store_record_for_lookup()
+  {
+    store_record(stat_table, record[0]);
+  }
+
+  bool update_record()
+  {
+    int err;
+    if ((err= stat_file->ha_update_row(record[1], record[0])) &&
+         err != HA_ERR_RECORD_IS_THE_SAME)
+      return TRUE;
+    return FALSE;
+  }
+
+public:
+
+
+  /**
+    @details
+    This constructor has to be called by any constructor of the derived
+    classes. The constructor 'tunes' the private and protected members of
+    the constructed object to the statistical table 'stat_table' with the
+    statistical data of our interest and to the table 'tab' for which this
+    statistics has been collected.
+  */  
+
+  Stat_table(TABLE *stat, TABLE *tab) :stat_table(stat), table(tab)
+  {
+    common_init_stat_table();
+    db_name= &table->s->db;
+    table_name= &table->s->table_name;
+  }
+
+
+  /**
+    @details
+    This constructor has to be called by any constructor of the derived
+    classes. The constructor 'tunes' the private and protected members of
+    the constructed object to the statistical table 'stat_table' with the
+    statistical data of our interest and to the table t for which this
+    statistics has been collected. The table t is uniquely specified
+    by the database name 'db' and the table name 'tab'.
+  */  
+  
+  Stat_table(TABLE *stat, LEX_STRING *db, LEX_STRING *tab)
+    :stat_table(stat), table(NULL)
+  {
+    common_init_stat_table();
+    db_name= db;
+    table_name= tab;
+  } 
+
 
   virtual ~Stat_table() {}
 
-  /*
+  /**
+    @brief
+    Store the given values of fields for database name and table name 
+   
+    @details
+    This is a purely virtual method.
+    The implementation for any derived class shall store the given
+    values of the database name and table name in the corresponding
+    fields of stat_table.
+    
+    @note
+    The method is called by the update_table_name_key_parts function.
+  */      
+
+ virtual void change_full_table_name(LEX_STRING *db, LEX_STRING *tab)= 0;
+
+ 
+  /**
     @brief
     Store statistical data into fields of the statistical table
    
@@ -307,9 +420,11 @@ public:
     @note
     The method is called by the update_stat function.
   */      
+
   virtual void store_stat_fields()= 0;
 
-  /*
+  
+  /**
     @brief
     Read statistical data from fields of the statistical table
    
@@ -318,11 +433,13 @@ public:
     The implementation for any derived read shall read the appropriate
     statistical data from the corresponding fields of stat_table.    
   */      
+  
   virtual void get_stat_values()= 0;
 
-  /*
-    @breif
-    Find a record by key in the statistical table
+
+  /**
+    @brief
+    Find a record in the statistical table by a primary key
 
     @details
     The function looks for a record in stat_table by its primary key.
@@ -334,6 +451,7 @@ public:
     @retval
     TRUE     the record is found
   */
+
   bool find_stat()
   {
     uchar key[MAX_KEY_LENGTH];
@@ -342,8 +460,38 @@ public:
                                              HA_WHOLE_KEY, HA_READ_KEY_EXACT);
   }
 
-  /*
-    @breif
+ 
+  /**
+    @brief
+    Find a record in the statistical table by a key prefix value 
+
+    @details
+    The function looks for a record in stat_table by the key value consisting
+    of 'prefix_parts' major components for the primary index.  
+    It assumes that the key prefix fields have been already stored in the record
+    buffer of stat_table.
+
+    @retval
+    FALSE    the record is not found
+    @retval
+    TRUE     the record is found
+  */
+
+  bool find_next_stat_for_prefix(uint prefix_parts)
+  {
+    uchar key[MAX_KEY_LENGTH];
+    uint prefix_key_length= 0;
+    for (uint i= 0; i < prefix_parts; i++)
+      prefix_key_length+= stat_key_info->key_part[i].store_length;
+    key_copy(key, record[0], stat_key_info, prefix_key_length);
+    key_part_map prefix_map= (key_part_map) ((1 << prefix_parts) - 1);
+    return !stat_file->ha_index_read_idx_map(record[0], stat_key_idx, key,
+                                             prefix_map, HA_READ_KEY_EXACT);
+  }
+   
+
+  /**
+    @brief
     Update/insert a record in the statistical table with new statistics
 
     @details
@@ -365,58 +513,141 @@ public:
     The function calls the virtual method store_stat_fields to populate the
     statistical fields of the updated/inserted row with new statistics.
   */
+
   bool update_stat()
   {
-    int err;
     if (find_stat())
     {    
-      store_record(stat_table, record[1]);
+      store_record_for_update();
       store_stat_fields();
-      if ((err= stat_file->ha_update_row(record[1], record[0])) &&
-           err != HA_ERR_RECORD_IS_THE_SAME)
-        return TRUE;
+      return update_record();
     }
     else
     {
+      int err;
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
 	return TRUE;
     } 
     return FALSE;
   }
+
+  /** 
+    @brief
+    Update the table name fields in the current record of stat_table
+
+    @details
+    The function updates the fields containing database name and table name
+    for the last found record in the statistical table stat_table.
+    The corresponding names for update is taken from the parameters
+    db and tab.
+ 
+    @retval
+    FALSE    success with the update of the record
+    @retval
+    TRUE     failure with the update of the record
+
+    @note
+    The function calls the virtual method change_full_table_name  
+    to store the new names in the record buffer used for updates.
+  */
+
+  bool update_table_name_key_parts(LEX_STRING *db, LEX_STRING *tab)
+  {
+    store_record_for_update();
+    change_full_table_name(db, tab);
+    bool rc= update_record();
+    store_record_for_lookup();
+    return rc;
+  }   
+
+
+  /** 
+    @brief
+    Delete the current record of the statistical table stat_table
+
+    @details
+    The function deletes the last found record from the statistical
+    table stat_table.
+ 
+    @retval
+    FALSE    success with the deletion of the record
+    @retval
+    TRUE     failure with the deletion of the record
+  */
+
+  bool delete_stat()
+  {
+    int err;
+    if ((err= stat_file->ha_delete_row(record[0])))
+      return TRUE;
+    return FALSE;
+  } 
 };
 
 
 /*
   An object of the class Table_stat is created to read statistical
-  data on tables from the statistical table table_stat or to update
-  table_stat with such statistical data.
+  data on tables from the statistical table table_stat, to update
+  table_stat with such statistical data, or to update columns
+  of the primary key, or to delete the record by its primary key or
+  its prefix. 
   Rows from the statistical table are read and updated always by
   primary key. 
 */
 
 class Table_stat: public Stat_table
 {
+
 private:
+
   Field *db_name_field;     /* Field for the column table_stat.db_name */
   Field *table_name_field;  /* Field for the column table_stat.table_name */
 
+  void common_init_table_stat()
+  {  
+    db_name_field= stat_table->field[TABLE_STAT_DB_NAME];
+    table_name_field= stat_table->field[TABLE_STAT_TABLE_NAME];
+  }
+
+  void change_full_table_name(LEX_STRING *db, LEX_STRING *tab)
+  {
+    db_name_field->store(db->str, db->length, system_charset_info);
+    table_name_field->store(tab->str, tab->length, system_charset_info);
+  }
+
 public:
 
-  /*
+  /**
     @details
     The constructor 'tunes' the private and protected members of the
     constructed object for the statistical table table_stat to read/update
     statistics on table 'tab'. The TABLE structure for the table table_stat
     must be passed as a value for the parameter 'stat'.
   */
+
   Table_stat(TABLE *stat, TABLE *tab) :Stat_table(stat, tab)
   {
-    db_name_field= stat_table->field[TABLE_STAT_DB_NAME];
-    table_name_field= stat_table->field[TABLE_STAT_TABLE_NAME];
+    common_init_table_stat();
   }
 
-  /* 
+
+  /**
+    @details
+    The constructor 'tunes' the private and protected members of the
+    object constructed for the statistical table table_stat for 
+    the future updates/deletes of the record concerning the table 'tab'
+    from the database 'db'.
+  */
+
+  Table_stat(TABLE *stat, LEX_STRING *db, LEX_STRING *tab) 
+    :Stat_table(stat, db, tab)
+  {
+    common_init_table_stat();
+  }
+
+
+  /** 
     @brief
     Set the key fields for the statistical table table_stat
 
@@ -429,13 +660,16 @@ public:
     The function is supposed to be called before any use of the  
     method find_stat for an object of the Table_stat class. 
   */
+
   void set_key_fields()
   {
-    db_name_field->store(db_name, db_name_len, &my_charset_bin);
-    table_name_field->store(table_name, table_name_len, &my_charset_bin);
+    db_name_field->store(db_name->str, db_name->length, system_charset_info);
+    table_name_field->store(table_name->str, table_name->length,
+                            system_charset_info);
   }
 
-  /* 
+
+  /** 
     @brief
     Store statistical data into statistical fields of table_stat
 
@@ -445,6 +679,7 @@ public:
     the value of the flag write_stat.cardinality_is_null and the value of
     the field write_stat.cardinality' from the TABLE structure for 'table'.
   */    
+
   void store_stat_fields()
   {
     Field *stat_field= stat_table->field[TABLE_STAT_CARDINALITY];
@@ -457,7 +692,8 @@ public:
     }
   }
 
-  /* 
+
+  /**
     @brief
     Read statistical data from statistical fields of table_stat
 
@@ -470,6 +706,7 @@ public:
     and the value of the field read_stat.cardinality' from the TABLE structure
     for 'table' accordingly.
   */    
+
   void get_stat_values()
   {
     table->read_stat.cardinality_is_null= TRUE;
@@ -490,63 +727,140 @@ public:
 
 /*
   An object of the class Column_stat is created to read statistical data
-  on table columns from the statistical table column_stat or to update
-  column_stat with such statistical data.
+  on table columns from the statistical table column_stat, to update
+  column_stat with such statistical data, or to update columns
+  of the primary key, or to delete the record by its primary key or
+  its prefix.
   Rows from the statistical table are read and updated always by 
   primary key.
 */ 
 
 class Column_stat: public Stat_table
 {
+
 private:
+
   Field *db_name_field;     /* Field for the column column_stat.db_name */
   Field *table_name_field;  /* Field for the column column_stat.table_name */
   Field *column_name_field; /* Field for the column column_stat.column_name */
 
   Field *table_field;  /* Field from 'table' to read /update statistics on */
 
-public:
-
-  /*
-    @details
-    The constructor 'tunes' the private and protected members of the
-    constructed object for the statistical table column_stat to read/update
-    statistics on fields of the table 'tab'. The TABLE structure for the table
-    column_stat must be passed as a value for the parameter 'stat'.
-  */
-  Column_stat(TABLE *stat, TABLE *tab) :Stat_table(stat, tab)
+  void common_init_column_stat_table()
   {
     db_name_field= stat_table->field[COLUMN_STAT_DB_NAME];
     table_name_field= stat_table->field[COLUMN_STAT_TABLE_NAME];
     column_name_field= stat_table->field[COLUMN_STAT_COLUMN_NAME];
   } 
 
-  /* 
+  void change_full_table_name(LEX_STRING *db, LEX_STRING *tab)
+  {
+     db_name_field->store(db->str, db->length, system_charset_info);
+     table_name_field->store(tab->str, tab->length, system_charset_info);
+  }
+
+public:
+
+  /**
+    @details
+    The constructor 'tunes' the private and protected members of the
+    constructed object for the statistical table column_stat to read/update
+    statistics on fields of the table 'tab'. The TABLE structure for the table
+    column_stat must be passed as a value for the parameter 'stat'.
+  */
+
+  Column_stat(TABLE *stat, TABLE *tab) :Stat_table(stat, tab)
+  {
+    common_init_column_stat_table();
+  } 
+
+
+  /**
+    @details
+    The constructor 'tunes' the private and protected members of the
+    object constructed for the statistical table column_stat for 
+    the future updates/deletes of the record concerning the table 'tab'
+    from the database 'db'. 
+  */
+
+  Column_stat(TABLE *stat, LEX_STRING *db, LEX_STRING *tab) 
+    :Stat_table(stat, db, tab)
+  {
+    common_init_column_stat_table();
+  } 
+
+  /** 
+    @brief
+    Set table name fields for the statistical table column_stat
+
+    @details
+    The function stores the values of the fields db_name and table_name 
+    of the statistical table column_stat in the record buffer.
+  */
+
+  void set_full_table_name()
+  {
+    db_name_field->store(db_name->str, db_name->length, system_charset_info);
+    table_name_field->store(table_name->str, table_name->length,
+                            system_charset_info);
+  }
+
+
+  /** 
     @brief
     Set the key fields for the statistical table column_stat
 
     @param
-    column    Field for the 'table' column to read/update statistics on
+    col       Field for the 'table' column to read/update statistics on
 
     @details
-    The function sets the values of the fields db_name, table_name and
+    The function stores the values of the fields db_name, table_name and
     column_name in the record buffer for the statistical table column_stat.
     These fields comprise the primary key for the table.
+    It also sets table_field to the passed parameter.
 
     @note
     The function is supposed to be called before any use of the  
     method find_stat for an object of the Column_stat class.
   */
-  void set_key_fields(Field *column)
+
+  void set_key_fields(Field *col)
   {
-    db_name_field->store(db_name, db_name_len, &my_charset_bin);
-    table_name_field->store(table_name, table_name_len, &my_charset_bin);
-    table_field= column;
-    const char *column_name= column->field_name;
-    column_name_field->store(column_name, strlen(column_name), &my_charset_bin);  
+    set_full_table_name();
+    const char *column_name= col->field_name;
+    column_name_field->store(column_name, strlen(column_name),
+                             system_charset_info);  
+    table_field= col;
   }
 
-  /* 
+
+  /** 
+    @brief
+    Update the table name fields in the current record of stat_table
+
+    @details
+    The function updates the primary key fields containing database name,
+    table name, and column name for the last found record in the statistical
+    table column_stat.
+    
+    @retval
+    FALSE    success with the update of the record
+    @retval
+    TRUE     failure with the update of the record
+  */
+
+  bool update_column_key_part(const char *col)
+  {
+    store_record_for_update();
+    set_full_table_name();
+    column_name_field->store(col, strlen(col), system_charset_info);
+    bool rc= update_record();
+    store_record_for_lookup();
+    return rc;
+  }   
+
+
+  /** 
     @brief
     Store statistical data into statistical fields of column_stat
 
@@ -567,6 +881,7 @@ public:
     is less than the length of the string the string is trimmed to fit the
     length of the column. 
   */    
+
   void store_stat_fields()
   {
     char buff[MAX_FIELD_WIDTH];
@@ -613,7 +928,8 @@ public:
     }
   }
 
-  /* 
+
+  /** 
     @brief
     Read statistical data from statistical fields of column_stat
 
@@ -628,6 +944,7 @@ public:
     max_value, nulls_ratio, avg_length and avg_frequency of the structure
     read_stat from the Field structure for the field 'table_field'.
   */    
+
   void get_stat_values()
   {
     set_nulls_for_read_column_stat_values(table_field);
@@ -684,15 +1001,19 @@ public:
 
 /*
   An object of the class Index_stat is created to read statistical
-  data on index prefixes from the statistical table index_stat or
-  to update index_stat with such statistical data.
-  Rows from the statistical table are read and updated always by 
-  primary key.
+  data on tables from the statistical table table_stat, to update
+  index_stat with such statistical data, or to update columns
+  of the primary key, or to delete the record by its primary key or
+  its prefix. 
+  Rows from the statistical table are read and updated always by
+  primary key. 
 */ 
 
 class Index_stat: public Stat_table
 {
+
 private:
+
   Field *db_name_field;      /* Field for the column index_stat.db_name */
   Field *table_name_field;   /* Field for the column index_stat.table_name */
   Field *index_name_field;   /* Field for the column index_stat.table_name */
@@ -701,9 +1022,24 @@ private:
   KEY *table_key_info;  /* Info on the index to read/update statistics on */
   uint prefix_arity; /* Number of components of the index prefix of interest */
 
+  void common_init_index_stat_table()
+  {
+    db_name_field= stat_table->field[INDEX_STAT_DB_NAME];
+    table_name_field= stat_table->field[INDEX_STAT_TABLE_NAME];
+    index_name_field= stat_table->field[INDEX_STAT_INDEX_NAME];
+    prefix_arity_field= stat_table->field[INDEX_STAT_PREFIX_ARITY];
+  } 
+
+  void change_full_table_name(LEX_STRING *db, LEX_STRING *tab)
+  {
+     db_name_field->store(db->str, db->length, system_charset_info);
+     table_name_field->store(tab->str, tab->length, system_charset_info);
+  }
+
 public:
 
-  /*
+
+  /**
     @details
     The constructor 'tunes' the private and protected members of the
     constructed object for the statistical table index_stat to read/update
@@ -713,14 +1049,69 @@ public:
   */
   Index_stat(TABLE *stat, TABLE *tab) :Stat_table(stat, tab)
   {
-    db_name_field= stat_table->field[INDEX_STAT_DB_NAME];
-    table_name_field= stat_table->field[INDEX_STAT_TABLE_NAME];
-    index_name_field= stat_table->field[INDEX_STAT_INDEX_NAME];
-    prefix_arity_field= stat_table->field[INDEX_STAT_PREFIX_ARITY];
-    
-  } 
+    common_init_index_stat_table();
+  }
 
-  /* 
+
+  /**
+    @details
+    The constructor 'tunes' the private and protected members of the
+    object constructed for the statistical table index_stat for 
+    the future updates/deletes of the record concerning the table 'tab'
+    from the database 'db'. 
+  */
+
+  Index_stat(TABLE *stat, LEX_STRING *db, LEX_STRING *tab) 
+    :Stat_table(stat, db, tab)
+  {
+    common_init_index_stat_table();
+  }
+
+
+  /**
+    @brief
+    Set table name fields for the statistical table index_stat
+
+    @details
+    The function stores the values of the fields db_name and table_name 
+    of the statistical table index_stat in the record buffer.
+  */
+
+  void set_full_table_name()
+  {
+    db_name_field->store(db_name->str, db_name->length, system_charset_info);
+    table_name_field->store(table_name->str, table_name->length,
+                            system_charset_info);
+  }
+
+  /** 
+    @brief
+    Set the key fields of index_stat used to access records for index prefixes
+
+    @param
+    index_info   Info for the index of 'table' to read/update statistics on
+
+    @details
+    The function sets the values of the fields db_name, table_name and
+    index_name in the record buffer for the statistical table index_stat. 
+    It also sets table_key_info to the passed parameter.
+
+    @note
+    The function is supposed to be called before any use of the method
+    find_next_stat_for_prefix for an object of the Index_stat class.
+  */
+
+  void set_index_prefix_key_fields(KEY *index_info)
+  {
+    set_full_table_name();
+    char *index_name= index_info->name;
+    index_name_field->store(index_name, strlen(index_name),
+                            system_charset_info);
+    table_key_info= index_info;
+  }
+
+
+  /** 
     @brief
     Set the key fields for the statistical table index_stat
 
@@ -728,7 +1119,6 @@ public:
     index_info   Info for the index of 'table' to read/update statistics on
     @param
     index_prefix_arity Number of components in the index prefix of interest
-
 
     @details
     The function sets the values of the fields db_name, table_name and
@@ -739,20 +1129,18 @@ public:
     The function is supposed to be called before any use of the  
     method find_stat for an object of the Index_stat class.
   */
-    void set_key_fields(KEY *index_info, uint index_prefix_arity)
+
+  void set_key_fields(KEY *index_info, uint index_prefix_arity)
   {
-    db_name_field->store(db_name, db_name_len, &my_charset_bin);
-    table_name_field->store(table_name, table_name_len, &my_charset_bin);
-    table_key_info= index_info;
-    char *index_name= index_info->name;
-    index_name_field->store(index_name, strlen(index_name), &my_charset_bin);
+    set_index_prefix_key_fields(index_info);
     prefix_arity= index_prefix_arity; 
     prefix_arity_field->store(index_prefix_arity, TRUE);  
   }
 
-  /* 
+
+  /** 
     @brief
-    Store statistical data into statistical fields of tableindex_stat
+    Store statistical data into statistical fields of table index_stat
 
     @details
     This implementation of a purely virtual method sets the value of the
@@ -762,6 +1150,7 @@ public:
     If the value of write_stat. avg_frequency[Index_stat::prefix_arity] is
     equal  to 0, the value of the column is set to NULL.
   */    
+
   void store_stat_fields()
   {
     Field *stat_field= stat_table->field[INDEX_STAT_AVG_FREQUENCY];
@@ -776,7 +1165,8 @@ public:
     }
   }
 
-  /* 
+
+  /** 
     @brief
     Read statistical data from statistical fields of index_stat
 
@@ -791,6 +1181,7 @@ public:
     set to 0. Otherwise, read_stat.avg_frequency[Index_stat::prefix_arity] is
     set to the value of the column.
   */    
+
   void get_stat_values()
   {
     double avg_frequency= 0;
@@ -826,12 +1217,12 @@ protected:
 
 public:
 
-  /*
+  /**
     @param
     field               Field for which the number of distinct values is 
                         to be find out
     @param
-    max_heap_table_size The linit for the memory used by the RB tree container
+    max_heap_table_size The limit for the memory used by the RB tree container
                         of the constructed Unique object 'tree' 
 
     @details
@@ -840,6 +1231,7 @@ public:
     The type of 'field' and the value max_heap_table_size of determine the set
     of the parameters to be passed to the constructor of the Unique object. 
   */  
+
   Count_distinct_field(Field *field, uint max_heap_table_size)
   {
     qsort_cmp2 compare_key;
@@ -874,7 +1266,7 @@ public:
 
   /* 
     @brief
-    Check whether the Unique object tree has been succesfully created
+    Check whether the Unique object tree has been successfully created
   */
   bool exists()
   {
@@ -941,7 +1333,9 @@ public:
 
 class Index_prefix_calc: public Sql_alloc
 {
+
 private:
+
   /* Table containing index specified by index_info */
   TABLE *index_table;  
   /* Info for the index i for whose prefix 'avg_frequency' is calculated */
@@ -964,7 +1358,7 @@ private:
       the last encountered k-component prefix
     */
     ulonglong prefix_count;
-    /* The values of the last encoutered k-component prefix */
+    /* The values of the last encountered k-component prefix */
     Cached_item *last_prefix;
   };
 
@@ -975,6 +1369,7 @@ private:
   Prefix_calc_state *calc_state;
     
 public:
+
   Index_prefix_calc(TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
   {
@@ -1006,7 +1401,7 @@ public:
     }
   }
 
-  /* 
+  /** 
     @breif
     Change the elements of calc_state after reading the next index entry
 
@@ -1020,6 +1415,7 @@ public:
     any of these k components has changed. If so, the value of 
     calc_state[k-1].prefix_count is incremented by 1. 
   */
+
   void add()
   {
     uint i;
@@ -1045,7 +1441,7 @@ public:
     }   
   }
 
-  /*
+  /**
     @brief
     Calculate the values of avg_frequency for all prefixes of an index
 
@@ -1057,6 +1453,7 @@ public:
     If calc_state[k-1].prefix_count happens to be 0, the value of
     avg_frequency[k-1] is set to 0, i.e. is considered as unknown.
   */
+
   void get_avg_frequency()
   {
     uint i;
@@ -1272,7 +1669,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   Field **field_ptr;
   Field *table_field;
   ha_rows rows= 0;
-  handler *file=table->file; 
+  handler *file=table->file;
 
   DBUG_ENTER("collect_statistics_for_table");
 
@@ -1358,25 +1755,34 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       table_field= *field_ptr;
       if (!bitmap_is_set(table->read_set, table_field->field_index))
         continue;
-      val= (double) table_field->nulls / rows;
-      table_field->write_stat.set_nulls_ratio(val);
-      val= (double) table_field->column_total_length / (rows-table_field->nulls);
-      table_field->write_stat.set_avg_length(val);
-      if (table_field->count_distinct)
+      if (rows)
       {
-        val= (double) (rows-table_field->nulls) /
-	     table_field->count_distinct->get_value(); 
-        table_field->write_stat.set_avg_frequency(val); 
+        val= (double) table_field->nulls / rows;
+        table_field->write_stat.set_nulls_ratio(val);
         set_not_null_for_write_column_stat_value(table_field,
-                                                 COLUMN_STAT_AVG_FREQUENCY);
+                                                 COLUMN_STAT_NULLS_RATIO);
+      }
+      if (rows-table_field->nulls)
+      {
+        val= (double) table_field->column_total_length / (rows-table_field->nulls);
+        table_field->write_stat.set_avg_length(val);
+        set_not_null_for_write_column_stat_value(table_field,
+                                                 COLUMN_STAT_AVG_LENGTH);
+      }
+      if (table_field->count_distinct)
+      { 
+        ulonglong count_distinct= table_field->count_distinct->get_value();
+        if (count_distinct)
+	{
+          val= (double) (rows-table_field->nulls) / count_distinct;
+          table_field->write_stat.set_avg_frequency(val); 
+          set_not_null_for_write_column_stat_value(table_field,
+                                                   COLUMN_STAT_AVG_FREQUENCY);
+        }
         delete table_field->count_distinct;
         table_field->count_distinct= NULL;
       }
       
-      set_not_null_for_write_column_stat_value(table_field,
-                                               COLUMN_STAT_NULLS_RATIO);
-      set_not_null_for_write_column_stat_value(table_field,
-                                               COLUMN_STAT_AVG_LENGTH);
     }
   }
 
@@ -1409,7 +1815,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   @details
   For each statistical table st the function looks for the rows from this
   table that contain statistical data on 'table'. If rows with given 
-  statistical characteritics exist they are updated with the new statistical
+  statistical characteristics exist they are updated with the new statistical
   values taken from internal structures for 'table'. Otherwise new rows
   with these statistical characteristics are added into st.
   It is assumed that values stored in the statistical tables are found and
@@ -1451,7 +1857,10 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   if (unlock_tables_n_open_system_tables_for_write(thd,
                                                    tables,
                                                    &open_tables_backup))
-    DBUG_RETURN(1);
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
    
   /* Update the statistical table table_stat */
   stat_table= tables[TABLE_STAT].table;
@@ -1473,7 +1882,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
     restore_record(stat_table, s->default_values);
     column_stat.set_key_fields(table_field);
     err= column_stat.update_stat();
-    if (err & !rc)
+    if (err && !rc)
       rc= 1;
   }
 
@@ -1492,7 +1901,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
       restore_record(stat_table, s->default_values);
       index_stat.set_key_fields(key_info, i+1);
       err= index_stat.update_stat();
-      if (err & !rc)
+      if (err && !rc)
         rc= 1;
     }
   }
@@ -1521,7 +1930,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   The function is called in function open_tables.
 
   @retval
-  0         If data has been succesfully read from all statistical tables  
+  0         If data has been successfully read from all statistical tables  
   @retval
   1         Otherwise
 
@@ -1552,11 +1961,14 @@ int read_statistics_for_table(THD *thd, TABLE *table)
   init_mdl_requests(tables);
   
   if (open_system_tables_for_read(thd, tables, &open_tables_backup))
-    DBUG_RETURN(1);
+  {
+    thd->clear_error();
+    DBUG_RETURN(0);
+  }
 
   create_min_max_stistical_fields(table, FALSE);
  
-  /* Read statistics from the statistical table index_stat */
+  /* Read statistics from the statistical table table_stat */
   stat_table= tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
@@ -1634,6 +2046,369 @@ int read_statistics_for_table(THD *thd, TABLE *table)
   close_system_tables(thd, &open_tables_backup);
 
   DBUG_RETURN(0);
+}
+
+
+/**
+  @brief
+  Delete statistics on a table from all statistical tables
+
+  @param
+  thd         The thread handle
+  @param
+  db          The name of the database the table belongs to
+  @param
+  tab         The name of the table whose statistics is to be deleted
+
+  @details
+  The function delete statistics on the table called 'tab' of the database
+  'db' from all statistical tables: table_stat, column_stat, index_stat.
+
+  @retval
+  0         If all deletions are successful  
+  @retval
+  1         Otherwise
+
+  @note
+  The function is called when executing the statement DROP TABLE 'tab'.
+*/
+
+int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
+{
+  int err;
+  TABLE *stat_table;
+  TABLE_LIST tables[STATISTICS_TABLES];
+  Open_tables_backup open_tables_backup;
+  int rc= 0;
+
+  DBUG_ENTER("delete_statistics_for_table");
+   
+  init_table_list_for_stat_tables(tables, TRUE);
+  init_mdl_requests(tables);
+
+  if (open_system_tables_for_read(thd,
+                                  tables,
+                                  &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
+
+  /* Delete statistics on table from the statistical table index_stat */
+  stat_table= tables[INDEX_STAT].table;
+  Index_stat index_stat(stat_table, db, tab);
+  index_stat.set_full_table_name();
+  while (index_stat.find_next_stat_for_prefix(2))
+  {
+    err= index_stat.delete_stat();
+    if (err & !rc)
+      rc= 1;
+  }
+
+  /* Delete statistics on table from the statistical table column_stat */
+  stat_table= tables[COLUMN_STAT].table;
+  Column_stat column_stat(stat_table, db, tab);
+  column_stat.set_full_table_name();
+  while (column_stat.find_next_stat_for_prefix(2))
+  {
+    err= column_stat.delete_stat();
+    if (err & !rc)
+      rc= 1;
+  }
+   
+  /* Delete statistics on table from the statistical table table_stat */
+  stat_table= tables[TABLE_STAT].table;
+  Table_stat table_stat(stat_table, db, tab);
+  table_stat.set_key_fields();
+  if (table_stat.find_stat())
+  {
+    err= table_stat.delete_stat();
+    if (err & !rc)
+      rc= 1;
+  }
+
+  close_system_tables(thd, &open_tables_backup);
+
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  @brief
+  Delete statistics on a column of the specified table
+
+  @param
+  thd         The thread handle
+  @param
+  tab         The table the column belongs to
+  @param
+  col         The field of the column whose statistics is to be deleted
+
+  @details
+  The function delete statistics on the column 'col' belonging to the table 
+  'tab' from the statistical table column_stat. 
+
+  @retval
+  0         If the deletion is successful  
+  @retval
+  1         Otherwise
+
+  @note
+  The function is called when dropping a table column  or when changing
+  the definition of this column.
+*/
+
+int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
+{
+  int err;
+  TABLE *stat_table;
+  TABLE_LIST tables;
+  Open_tables_backup open_tables_backup;
+  int rc= 0;
+
+  DBUG_ENTER("delete_statistics_for_column");
+   
+  init_table_list_for_single_stat_table(&tables, &stat_table_name[1], TRUE);
+  init_mdl_requests(&tables);
+
+  if (open_system_tables_for_read(thd,
+                                  &tables,
+                                  &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
+
+  stat_table= tables.table;
+  Column_stat column_stat(stat_table, tab);
+  column_stat.set_key_fields(col);
+  if (column_stat.find_stat())
+  {
+    err= column_stat.delete_stat();
+    if (err)
+      rc= 1;
+  }
+
+  close_system_tables(thd, &open_tables_backup);
+
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  @brief
+  Delete statistics on an index of the specified table
+
+  @param
+  thd         The thread handle
+  @param
+  tab         The table the index belongs to
+  @param
+  key_info    The descriptor of the index whose statistics is to be deleted
+
+  @details
+  The function delete statistics on the index  specified by 'key_info'
+  defined on the table 'tab' from the statistical table index_stat.
+
+  @retval
+  0         If the deletion is successful  
+  @retval
+  1         Otherwise
+
+  @note
+  The function is called when dropping an index, or dropping/changing the
+   definition of a column used in the definition of the index. 
+*/
+
+int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
+{
+  int err;
+  TABLE *stat_table;
+  TABLE_LIST tables;
+  Open_tables_backup open_tables_backup;
+  int rc= 0;
+
+  DBUG_ENTER("delete_statistics_for_index");
+   
+  init_table_list_for_single_stat_table(&tables, &stat_table_name[2], TRUE);
+  init_mdl_requests(&tables);
+
+  if (open_system_tables_for_read(thd,
+                                  &tables,
+                                  &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
+
+  stat_table= tables.table;
+  Index_stat index_stat(stat_table, tab);
+  index_stat.set_index_prefix_key_fields(key_info);
+  while (index_stat.find_next_stat_for_prefix(3))
+  {
+    err= index_stat.delete_stat();
+    if (err && !rc)
+      rc= 1;
+  }
+
+  close_system_tables(thd, &open_tables_backup);
+
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  @brief
+  Rename a table in all statistical tables
+
+  @param
+  thd         The thread handle
+  @param
+  db          The name of the database the table belongs to
+  @param
+  tab         The name of the table to be renamed in statistical tables
+  @param
+  new_tab     The new name of the table
+
+  @details
+  The function replaces the name of the table 'tab' from the database 'db' 
+  for 'new_tab' in all all statistical tables: table_stat, column_stat,
+  index_stat.
+
+  @retval
+  0         If all updates of the table name are successful  
+  @retval
+  1         Otherwise
+
+  @note
+  The function is called when executing any statement that renames a table
+*/
+
+int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
+                                LEX_STRING *new_db, LEX_STRING *new_tab)
+{
+  int err;
+  TABLE *stat_table;
+  TABLE_LIST tables[STATISTICS_TABLES];
+  Open_tables_backup open_tables_backup;
+  int rc= 0;
+
+  DBUG_ENTER("rename_table_in_stat_tables");
+   
+  init_table_list_for_stat_tables(tables, TRUE);
+  init_mdl_requests(tables);
+
+  if (open_system_tables_for_read(thd,
+                                  tables,
+                                  &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
+
+  /* Rename table in the statistical table index_stat */
+  stat_table= tables[INDEX_STAT].table;
+  Index_stat index_stat(stat_table, db, tab);
+  index_stat.set_full_table_name();
+  while (index_stat.find_next_stat_for_prefix(2))
+  {
+    err= index_stat.update_table_name_key_parts(new_db, new_tab);
+    if (err & !rc)
+      rc= 1;
+    index_stat.set_full_table_name();
+  }
+
+  /* Rename table in the statistical table column_stat */
+  stat_table= tables[COLUMN_STAT].table;
+  Column_stat column_stat(stat_table, db, tab);
+  column_stat.set_full_table_name();
+  while (column_stat.find_next_stat_for_prefix(2))
+  {
+    err= column_stat.update_table_name_key_parts(new_db, new_tab);
+    if (err & !rc)
+      rc= 1;
+    column_stat.set_full_table_name();
+  }
+   
+  /* Rename table in the statistical table table_stat */
+  stat_table= tables[TABLE_STAT].table;
+  Table_stat table_stat(stat_table, db, tab);
+  table_stat.set_key_fields();
+  if (table_stat.find_stat())
+  {
+    err= table_stat.update_table_name_key_parts(new_db, new_tab);
+    if (err & !rc)
+      rc= 1;
+  }
+
+  close_system_tables(thd, &open_tables_backup);
+
+  DBUG_RETURN(rc);
+}
+
+
+/**
+  @brief
+  Rename a column in the statistical table column_stat
+
+  @param
+  thd         The thread handle
+  @param
+  tab         The table the column belongs to
+  @param
+  col         The column to be renamed
+  @param
+  new_name    The new column name
+
+  @details
+  The function replaces the name of the column 'col' belonging to the table 
+  'tab' for 'new_name' in the statistical table column_stat..
+
+  @retval
+  0         If all updates of the table name are successful  
+  @retval
+  1         Otherwise
+
+  @note
+  The function is called when executing any statement that renames a column,
+  but does not change the column definition.
+*/
+
+int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
+                                 const char *new_name)
+{
+  int err;
+  TABLE *stat_table;
+  TABLE_LIST tables;
+  Open_tables_backup open_tables_backup;
+  int rc= 0;
+
+  DBUG_ENTER("rename_column_in_stat_tables");
+   
+  init_table_list_for_single_stat_table(&tables, &stat_table_name[1], TRUE);
+  init_mdl_requests(&tables);
+
+  if (open_system_tables_for_read(thd,
+                                  &tables,
+                                  &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(rc);
+  }
+
+  /* Rename column in the statistical table table_stat */
+  stat_table= tables.table;
+  Column_stat column_stat(stat_table, tab);
+  column_stat.set_key_fields(col);
+  if (column_stat.find_stat())
+  { 
+    err= column_stat.update_column_key_part(new_name);
+    if (err & !rc)
+      rc= 1;
+  }
+  close_system_tables(thd, &open_tables_backup);
+
+  DBUG_RETURN(rc);
 }
 
 

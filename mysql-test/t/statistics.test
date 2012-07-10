@@ -20,10 +20,10 @@ CREATE TABLE t1 (
   e double,
   f bit(3),
   INDEX idx1 (b, e), 
-  INDEX idx2(c, d),
+  INDEX idx2 (c, d),
   INDEX idx3 (d),
   INDEX idx4 (e, b, d)
-);
+) ENGINE= MYISAM;
 
 INSERT INTO t1 VALUES
   (0, NULL, NULL, NULL, NULL, NULL),
@@ -165,6 +165,180 @@ SELECT
      WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 3';
 
+CREATE TABLE t3 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32),
+  c char(16),
+  INDEX idx (c)
+) ENGINE=MYISAM;
+
+INSERT INTO t3 VALUES
+  (0, NULL, NULL),
+  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd'),
+  (17, 'vvvvvvvvvvvvv', 'aaaa'),
+  (1, 'vvvvvvvvvvvvv', NULL),
+  (12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+  (23, 'vvvvvvvvvvvvv', 'dddddddd'),
+  (8, 'vvvvvvvvvvvvv', 'aaaa'),
+  (22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa'),
+  (31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa'),
+  (10, NULL, 'aaaa'),
+  (5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+  (15, 'vvvvvvvvvvvvv', 'ccccccccc'),
+  (30, NULL, 'bbbbbb'),
+  (38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb'),
+  (18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc'),
+  (9, 'yyy', 'bbbbbb'),
+  (29, 'vvvvvvvvvvvvv', 'dddddddd');
+
+ANALYZE TABLE t3;
+
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 RENAME TO s1;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+RENAME TABLE s1 TO t1;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+DROP TABLE t3;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+
+CREATE TEMPORARY TABLE t0 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32)
+);
+INSERT INTO t0 SELECT a,b FROM t1;
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(32), 
+               CHANGE COLUMN e y double;
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32), 
+               CHANGE COLUMN y e double;
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+
+ALTER TABLE t1 RENAME TO s1, CHANGE COLUMN b x varchar(32);
+SHOW CREATE TABLE s1;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+ 
+ALTER TABLE s1 RENAME TO t1, CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stat'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.column_stat WHERE column_name='b';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stat'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.index_stat WHERE index_name IN ('idx1', 'idx4');
+
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stat'
+  INTO TABLE mysql.column_stat
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_index_stat'
+  INTO TABLE mysql.index_stat
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+remove_file $MYSQLTEST_VARDIR/tmp/save_column_stat;
+remove_file $MYSQLTEST_VARDIR/tmp/save_index_stat;
+
+
+ALTER TABLE t1 DROP COLUMN b;
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+DROP INDEX idx2 ON t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.index_stat;
+
+DROP INDEX idx1 ON t1;
+DROP INDEX idx4 ON t1;
+SHOW CREATE TABLE t1;
+
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+CREATE INDEX idx1 ON t1(b, e);
+CREATE INDEX idx2 ON t1(c, d);
+CREATE INDEX idx4 ON t1(e, b, d);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 DROP COLUMN b,
+               DROP INDEX idx1, DROP INDEX idx2, DROP INDEX idx4;
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+ALTER TABLE t1 
+  ADD INDEX idx1 (b, e), ADD INDEX idx2 (c, d), ADD INDEX idx4 (e, b, d);
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+SHOW CREATE TABLE t1;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;
@@ -297,7 +471,14 @@ SELECT UPPER(db_name), UPPER(table_name),
 use test;
 
 DROP DATABASE world;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
+
 DROP DATABASE world_innodb;
+SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.index_stat;
 
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
