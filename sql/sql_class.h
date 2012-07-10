@@ -3319,32 +3319,27 @@ public:
 
 
 /*
-  A select result sink that collects the sent data and then can flush it to
-  network when requested.
-
-  This class is targeted at collecting EXPLAIN output:
-  - Unoptimized data storage (can't handle big datasets)
+  This is a select_result_sink which simply writes all data into a (temporary)
+  table. Creation/deletion of the table is outside of the scope of the class
+  
+  It is aimed at capturing SHOW EXPLAIN output, so:
   - Unlike select_result class, we don't assume that the sent data is an 
     output of a SELECT_LEX_UNIT (and so we dont apply "LIMIT x,y" from the
     unit)
+  - We don't try to convert the target table to MyISAM 
 */
 
 class select_result_explain_buffer : public select_result_sink
 {
 public:
+  select_result_explain_buffer(THD *thd_arg, TABLE *table_arg) : 
+    thd(thd_arg), dst_table(table_arg) {};
+
   THD *thd;
-  Protocol *protocol;
-  select_result_explain_buffer(){};
+  TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
   int send_data(List<Item> &items);
-
-  /* this will be called in the parent thread: */
-  void flush_data();
-
-  void discard_data();
-
-  List<String> data_rows;
 };
 
 
