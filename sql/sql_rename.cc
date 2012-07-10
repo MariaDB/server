@@ -279,6 +279,12 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
                                      ren_table->db, old_alias,
                                      new_db, new_alias, 0)))
         {
+          LEX_STRING db_name= { ren_table->db, ren_table->db_length };
+          LEX_STRING table_name= { ren_table->table_name,
+                                   ren_table->table_name_length };
+          LEX_STRING new_table= { (char *) new_alias, strlen(new_alias) };
+          (void) rename_table_in_stat_tables(thd, &db_name, &table_name,
+                                             &db_name, &new_table);
           if ((rc= Table_triggers_list::change_table_name(thd, ren_table->db,
                                                           old_alias,
                                                           ren_table->table_name,
