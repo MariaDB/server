@@ -818,7 +818,10 @@ connection default;
 let $wait_condition= select State='Sending data' from information_schema.processlist where id=$thr2;
 let $thr_default=`select connection_id()`;
 --source include/wait_condition.inc
+--echo # do: send_eval show explain for $thr2;
+--disable_query_log
 send_eval show explain for $thr2;
+--enable_query_log
 
 # kill the SHOW EXPLAIN command
 connection con3;
@@ -844,3 +847,9 @@ disconnect con2;
 ##       thread and served together.
 
 drop table t0;
+
+--echo # 
+--echo # Check that the I_S table is invisible
+--echo # 
+select table_name from information_schema.tables where table_schema='information_schema' and table_name like '%explain%';
+

@@ -798,7 +798,7 @@ pk	data
 20	data1
 set autocommit=0;
 select * from t1 where pk between 10 and 20 for update;
-show explain for 3;
+# do: send_eval show explain for 3;
 kill query $thr_default;
 ERROR 70100: Query execution was interrupted
 rollback;
@@ -816,3 +816,8 @@ pk	data
 20	data1
 drop table t1;
 drop table t0;
+# 
+# Check that the I_S table is invisible
+# 
+select table_name from information_schema.tables where table_schema='information_schema' and table_name like '%explain%';
+table_name

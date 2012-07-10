@@ -78,20 +78,6 @@ public:
   virtual bool send_result_set_metadata(List<Item> *list, uint flags);
   bool send_result_set_row(List<Item> *row_items);
 
-  void get_packet(const char **start, size_t *length) 
-  {
-    *start= packet->ptr();
-    *length= packet->length(); 
-  }
-  void set_packet(const char *start, size_t len)
-  {
-    packet->length(0);
-    packet->append(start, len);
-#ifndef DBUG_OFF
-  field_pos= field_count - 1;
-#endif
-  }
-
   bool store(I_List<i_string> *str_list);
   bool store(const char *from, CHARSET_INFO *cs);
   String *storage_packet() { return packet; }

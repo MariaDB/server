@@ -1999,32 +1999,24 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 }
 
 
+static 
+const char *target_not_explainable_cmd="Target is not running EXPLAINable command";
+
 /*
-  SHOW EXPLAIN FOR command handler
-
-  @param  thd          Current thread's thd
-  @param  calling_user User that invoked SHOW EXPLAIN, or NULL if the user 
-                       has SUPER or PROCESS privileges, and so is allowed
-                       to run SHOW EXPLAIN on anybody.
-  @param  thread_id    Thread whose explain we need
-
-  @notes
-  - Attempt to do "SHOW EXPLAIN FOR <myself>" will properly produce "target not
-    running EXPLAINable command".
+  Store the SHOW EXPLAIN output in the temporary table.
 */
 
-void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
+int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
 {
+  const char *calling_user;
   THD *tmp;
-  Protocol *protocol= thd->protocol;
-  List<Item> field_list;
-  DBUG_ENTER("mysqld_show_explain");
-  
-  thd->make_explain_field_list(field_list);
-  if (protocol->send_result_set_metadata(&field_list, Protocol::SEND_NUM_ROWS |
-                                                      Protocol::SEND_EOF))
-    DBUG_VOID_RETURN;
-   
+  my_thread_id  thread_id;
+  DBUG_ENTER("fill_show_explain");
+
+  DBUG_ASSERT(cond==NULL);
+  thread_id= thd->lex->show_explain_for_thread->val_int();
+  calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
+                 thd->security_ctx->priv_user;
   /* 
     Find the thread we need EXPLAIN for. Thread search code was copied from
     kill_one_thread()
@@ -2042,7 +2034,7 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
     }
   }
   mysql_mutex_unlock(&LOCK_thread_count);
-  
+
   if (tmp)
   {
     Security_context *tmp_sctx= tmp->security_ctx;
@@ -2058,7 +2050,15 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESSLIST");
       mysql_mutex_unlock(&tmp->LOCK_thd_data);
-      DBUG_VOID_RETURN;
+      DBUG_RETURN(1);
+    }
+
+    if (tmp == thd)
+    {
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), "SHOW EXPLAIN",
+               target_not_explainable_cmd);
+      DBUG_RETURN(1);
     }
 
     bool bres;
@@ -2071,9 +2071,7 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
     Show_explain_request explain_req;
     select_result_explain_buffer *explain_buf;
     
-    explain_buf= new select_result_explain_buffer;
-    explain_buf->thd=thd;
-    explain_buf->protocol= thd->protocol;
+    explain_buf= new select_result_explain_buffer(thd, table->table);
 
     explain_req.explain_buf= explain_buf;
     explain_req.target_thd= tmp;
@@ -2099,29 +2097,22 @@ void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id)
       else
       {
         my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
-                 "SHOW EXPLAIN",
-                 "Target is not running EXPLAINable command");
+                 "SHOW EXPLAIN", target_not_explainable_cmd);
       }
       bres= TRUE;
-      explain_buf->discard_data();
     }
     else
     {
       push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                    ER_YES, explain_req.query_str.c_ptr_safe());
     }
-    if (!bres)
-    {
-      explain_buf->flush_data();
-      my_eof(thd);
-    }
+    DBUG_RETURN(bres);
   }
   else
   {
     my_error(ER_NO_SUCH_THREAD, MYF(0), thread_id);
+    DBUG_RETURN(1);
   }
-
-  DBUG_VOID_RETURN;
 }
 
 
@@ -8436,6 +8427,7 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
+extern ST_FIELD_INFO show_explain_fields_info[];
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -8467,6 +8459,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EVENTS", events_fields_info, create_schema_table,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
+  {"EXPLAIN", show_explain_fields_info, create_schema_table, fill_show_explain,
+  make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
   {"FILES", files_fields_info, create_schema_table,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"GLOBAL_STATUS", variables_fields_info, create_schema_table,

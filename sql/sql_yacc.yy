@@ -11617,8 +11617,9 @@ show_param:
         | describe_command FOR_SYM expr
           {
             Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
-            Lex->value_list.empty();
-            Lex->value_list.push_front($3);
+            if (prepare_schema_table(YYTHD, Lex, 0, SCH_EXPLAIN))
+              MYSQL_YYABORT;
+            Lex->show_explain_for_thread= $3;
           }
         ;
 

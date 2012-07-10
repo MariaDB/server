@@ -2309,88 +2309,14 @@ int select_send::send_data(List<Item> &items)
   DBUG_RETURN(0);
 }
 
-//////////////////////////////////////////////////////////////////////////////
-
-/*
-  Save the data being sent in our internal buffer.
-*/
 
 int select_result_explain_buffer::send_data(List<Item> &items)
 {
-  List_iterator_fast<Item> li(items);
-  char buff[MAX_FIELD_WIDTH];
-  String buffer(buff, sizeof(buff), &my_charset_bin);
-  DBUG_ENTER("select_send::send_data");
-
-  protocol->prepare_for_resend();
-  Item *item;
-  while ((item=li++))
-  {
-    if (item->send(protocol, &buffer))
-    {
-      protocol->free();				// Free used buffer
-      my_message(ER_OUT_OF_RESOURCES, ER(ER_OUT_OF_RESOURCES), MYF(0));
-      break;
-    }
-    /*
-      Reset buffer to its original state, as it may have been altered in
-      Item::send().
-    */
-    buffer.set(buff, sizeof(buff), &my_charset_bin);
-  }
-
-  if (thd->is_error())
-  {
-    protocol->remove_last_row();
-    DBUG_RETURN(1);
-  }
-  /* 
-    Instead of calling protocol->write(), steal the packed and put it to our
-    buffer 
-  */
-  const char *packet_data;
-  size_t len;
-  protocol->get_packet(&packet_data, &len);
-
-  String *s= new (thd->mem_root) String;
-  s->append(packet_data, len);
-  data_rows.push_back(s);
-  protocol->remove_last_row(); // <-- this does nothing. Do we need it?
-                               // prepare_for_resend() will wipe out the packet
-  DBUG_RETURN(0);
+  fill_record(thd, dst_table->field, items, TRUE, FALSE);
+  if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
+    return 1;
+  return 0;
 }
-
-
-/* Write the saved resultset to the client (via this->protocol) and free it. */
-
-void select_result_explain_buffer::flush_data()
-{
-  List_iterator<String> it(data_rows);
-  String *str;
-  while ((str= it++))
-  {
-    protocol->set_packet(str->ptr(), str->length());
-    protocol->write();
-    delete str;
-  }
-  data_rows.empty();
-}
-
-
-/* Free the accumulated resultset */
-
-void select_result_explain_buffer::discard_data()
-{
-  List_iterator<String> it(data_rows);
-  String *str;
-  while ((str= it++))
-  {
-    delete str;
-  }
-  data_rows.empty();
-}
-
-//////////////////////////////////////////////////////////////////////////////
 
 
 bool select_send::send_eof()
