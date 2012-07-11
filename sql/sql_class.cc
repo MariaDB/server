@@ -2166,21 +2166,6 @@ void THD::rollback_item_tree_changes()
 }
 
 
-/*
-  Check if the thread has been killed, and also process "APC requests"
-
-  @retval true  The thread is killed, execution should be interrupted
-  @retval false Not killed, continue execution
-*/
-
-bool THD::check_killed()
-{
-  if (killed)
-    return TRUE;
-  apc_target.process_apc_requests(); 
-  return FALSE;
-}
-
 /*****************************************************************************
 ** Functions to provide a interface to select results
 *****************************************************************************/

@@ -2222,7 +2222,14 @@ public:
   */
   killed_state volatile killed;
 
-  bool check_killed();
+  inline bool check_killed()
+  {
+    if (killed)
+      return TRUE;
+    if (apc_target.have_apc_requests())
+      apc_target.process_apc_requests(); 
+    return FALSE;
+  }
 
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
