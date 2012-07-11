@@ -818,7 +818,7 @@ connection default;
 let $wait_condition= select State='Sending data' from information_schema.processlist where id=$thr2;
 let $thr_default=`select connection_id()`;
 --source include/wait_condition.inc
---echo # do: send_eval show explain for $thr2;
+--echo # do: send_eval show explain for thr2;
 --disable_query_log
 send_eval show explain for $thr2;
 --enable_query_log
