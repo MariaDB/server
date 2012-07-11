@@ -53,6 +53,15 @@ public:
   void disable();
   
   void process_apc_requests();
+  /* 
+    A lightweight function, intended to be used in frequent checks like this:
+
+      if (apc_target.have_requests()) apc_target.process_apc_requests()
+  */
+  inline bool have_apc_requests()
+  {
+    return test(apc_calls);
+  }
   
   /* Functor class for calls you can schedule */
   class Apc_call
