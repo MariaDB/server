@@ -471,14 +471,24 @@ SELECT UPPER(db_name), UPPER(table_name),
 use test;
 
 DROP DATABASE world;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stat;
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stat;
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stat;
 
 DROP DATABASE world_innodb;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+  FROM mysql.table_stat;
+SELECT UPPER(db_name), UPPER(table_name), 
+       column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+  FROM mysql.column_stat;
+SELECT UPPER(db_name), UPPER(table_name),
+       index_name, prefix_arity, avg_frequency
+  FROM mysql.index_stat;
 
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;

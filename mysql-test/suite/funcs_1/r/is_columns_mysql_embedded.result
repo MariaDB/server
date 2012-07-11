@@ -9,13 +9,13 @@ def	mysql	columns_priv	Host	1		NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(
 def	mysql	columns_priv	Table_name	4		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI			
 def	mysql	columns_priv	Timestamp	6	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP		
 def	mysql	columns_priv	User	3		NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)	PRI			
-def	mysql	column_stat	avg_frequency	8	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double				
-def	mysql	column_stat	avg_length	7	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double				
+def	mysql	column_stat	avg_frequency	8	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
+def	mysql	column_stat	avg_length	7	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
 def	mysql	column_stat	column_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	column_stat	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	column_stat	max_value	5	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)				
 def	mysql	column_stat	min_value	4	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)				
-def	mysql	column_stat	nulls_ratio	6	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double				
+def	mysql	column_stat	nulls_ratio	6	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
 def	mysql	column_stat	table_name	2	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	db	Alter_priv	13	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')				
 def	mysql	db	Alter_routine_priv	19	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')				
@@ -105,7 +105,7 @@ def	mysql	host	Select_priv	3	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	e
 def	mysql	host	Show_view_priv	16	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')				
 def	mysql	host	Trigger_priv	20	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')				
 def	mysql	host	Update_priv	5	N	NO	enum	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	enum('N','Y')				
-def	mysql	index_stat	avg_frequency	5	NULL	YES	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double				
+def	mysql	index_stat	avg_frequency	5	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
 def	mysql	index_stat	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	index_stat	index_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	index_stat	prefix_arity	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11) unsigned	PRI			
@@ -291,7 +291,7 @@ ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 NULL	bigint	NULL	NULL
 NULL	datetime	NULL	NULL
-NULL	double	NULL	NULL
+NULL	decimal	NULL	NULL
 NULL	int	NULL	NULL
 NULL	smallint	NULL	NULL
 NULL	time	NULL	NULL
@@ -325,9 +325,9 @@ NULL	mysql	columns_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 3.0000	mysql	column_stat	column_name	varchar	64	192	utf8	utf8_bin	varchar(64)
 3.0000	mysql	column_stat	min_value	varchar	255	765	utf8	utf8_bin	varchar(255)
 3.0000	mysql	column_stat	max_value	varchar	255	765	utf8	utf8_bin	varchar(255)
-NULL	mysql	column_stat	nulls_ratio	double	NULL	NULL	NULL	NULL	double
-NULL	mysql	column_stat	avg_length	double	NULL	NULL	NULL	NULL	double
-NULL	mysql	column_stat	avg_frequency	double	NULL	NULL	NULL	NULL	double
+NULL	mysql	column_stat	nulls_ratio	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
+NULL	mysql	column_stat	avg_length	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
+NULL	mysql	column_stat	avg_frequency	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 3.0000	mysql	db	Host	char	60	180	utf8	utf8_bin	char(60)
 3.0000	mysql	db	Db	char	64	192	utf8	utf8_bin	char(64)
 3.0000	mysql	db	User	char	16	48	utf8	utf8_bin	char(16)
@@ -420,7 +420,7 @@ NULL	mysql	help_topic	help_category_id	smallint	NULL	NULL	NULL	NULL	smallint(5) 
 3.0000	mysql	index_stat	table_name	varchar	64	192	utf8	utf8_bin	varchar(64)
 3.0000	mysql	index_stat	index_name	varchar	64	192	utf8	utf8_bin	varchar(64)
 NULL	mysql	index_stat	prefix_arity	int	NULL	NULL	NULL	NULL	int(11) unsigned
-NULL	mysql	index_stat	avg_frequency	double	NULL	NULL	NULL	NULL	double
+NULL	mysql	index_stat	avg_frequency	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	ndb_binlog_index	Position	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 1.0000	mysql	ndb_binlog_index	File	varchar	255	255	latin1	latin1_swedish_ci	varchar(255)
 NULL	mysql	ndb_binlog_index	epoch	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
