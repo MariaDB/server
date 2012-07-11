@@ -1,6 +1,7 @@
 #
 # Test how SHOW EXPLAIN is represented in performance schema
 #
+--source include/have_debug.inc
 --source include/have_perfschema.inc
 
 --disable_warnings
