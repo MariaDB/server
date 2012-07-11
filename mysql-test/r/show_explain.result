@@ -798,7 +798,7 @@ pk	data
 20	data1
 set autocommit=0;
 select * from t1 where pk between 10 and 20 for update;
-# do: send_eval show explain for 3;
+# do: send_eval show explain for thr2;
 kill query $thr_default;
 ERROR 70100: Query execution was interrupted
 rollback;
