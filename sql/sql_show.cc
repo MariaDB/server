@@ -2020,7 +2020,7 @@ void Show_explain_request::call_in_target_thread()
   
   query_str.copy(target_thd->query(), 
                  target_thd->query_length(),
-                 &my_charset_bin);
+                 target_thd->query_charset());
 
   if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
                                           &printed_anything))
@@ -2135,8 +2135,35 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     }
     else
     {
+      /*
+        Push the query string as a warning. The query may be in a different
+        charset than the charset that's used for error messages, so, convert it
+        if needed.
+      */
+      CHARSET_INFO *fromcs= explain_req.query_str.charset();
+      CHARSET_INFO *tocs= error_message_charset_info;
+      char *warning_text;
+      if (!my_charset_same(fromcs, tocs))
+      {
+        uint conv_length= 1 + tocs->mbmaxlen * explain_req.query_str.length() / 
+                              fromcs->mbminlen;
+        uint dummy_errors;
+        char *to, *p;
+        if (!(to= (char*)thd->alloc(conv_length + 1)))
+          DBUG_RETURN(1);
+        p= to;
+        p+= copy_and_convert(to, conv_length, tocs,
+                             explain_req.query_str.c_ptr(), 
+                             explain_req.query_str.length(), fromcs,
+                             &dummy_errors);
+        *p= 0;
+        warning_text= to;
+      }
+      else
+        warning_text= explain_req.query_str.c_ptr_safe();
+
       push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
-                   ER_YES, explain_req.query_str.c_ptr_safe());
+                   ER_YES, warning_text);
     }
     DBUG_RETURN(bres);
   }
