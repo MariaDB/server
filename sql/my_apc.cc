@@ -24,35 +24,6 @@
 
 /* For standalone testing of APC system, see unittest/sql/my_apc-t.cc */
 
-#ifndef MY_APC_STANDALONE
-
-ST_FIELD_INFO show_explain_fields_info[]=
-{
-  /* field_name, length, type, value, field_flags, old_name*/
-  {"id", 3, MYSQL_TYPE_LONGLONG, 0 /*value*/, MY_I_S_MAYBE_NULL, "id", 
-    SKIP_OPEN_TABLE},
-  {"select_type", 19, MYSQL_TYPE_STRING, 0 /*value*/, 0, "select_type", 
-    SKIP_OPEN_TABLE},
-  {"table", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0 /*value*/, MY_I_S_MAYBE_NULL,
-   "table", SKIP_OPEN_TABLE},
-  {"type", 10, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
-  {"possible_keys", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/,
-    MY_I_S_MAYBE_NULL, "possible_keys", SKIP_OPEN_TABLE},
-  {"key", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0/*value*/, MY_I_S_MAYBE_NULL, 
-   "key", SKIP_OPEN_TABLE},
-  {"key_len", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
-    MY_I_S_MAYBE_NULL, "key_len", SKIP_OPEN_TABLE},
-  {"ref", NAME_CHAR_LEN*MAX_REF_PARTS, MYSQL_TYPE_STRING, 0/*value*/,
-    MY_I_S_MAYBE_NULL, "ref", SKIP_OPEN_TABLE},
-  {"rows", 10, MYSQL_TYPE_LONGLONG, 0/*value*/, MY_I_S_MAYBE_NULL, "rows", 
-    SKIP_OPEN_TABLE},
-  {"Extra", 255, MYSQL_TYPE_STRING, 0/*value*/, 0 /*flags*/, "Extra", 
-    SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
-};
-
-
-#endif
 /* 
   Initialize the target. 
    
@@ -266,9 +237,6 @@ bool Apc_target::make_apc_call(THD *caller_thd, Apc_call *call,
 
 void Apc_target::process_apc_requests()
 {
-  if (!get_first_in_queue())
-    return;
-
   while (1)
   {
     Call_request *request;

@@ -90,7 +90,7 @@ void *test_apc_service_thread(void *ptr)
   apc_target.init(&target_mutex);
   apc_target.enable();
   started= TRUE;
-  fprintf(stderr, "# test_apc_service_thread started\n");
+  diag("test_apc_service_thread started");
   while (!service_should_exit)
   {
     //apc_target.disable();
@@ -137,7 +137,7 @@ public:
 void *test_apc_requestor_thread(void *ptr)
 {
   my_thread_init();
-  fprintf(stderr, "# test_apc_requestor_thread started\n");
+  diag("test_apc_requestor_thread started");
   THD my_thd;
 
   while (!requestors_should_exit)
@@ -159,7 +159,7 @@ void *test_apc_requestor_thread(void *ptr)
 
       if (dst_value != 0)
       {
-        fprintf(stderr, "APC was done even though return value says it wasnt!\n");
+        diag("APC was done even though return value says it wasnt!");
         have_errors= true;
       }
     }
@@ -167,13 +167,13 @@ void *test_apc_requestor_thread(void *ptr)
     {
       if (dst_value != src_value)
       {
-        fprintf(stderr, "APC was not done even though return value says it was!\n");
+        diag("APC was not done even though return value says it was!");
         have_errors= true;
       }
     }
     //my_sleep(300);
   }
-  fprintf(stderr, "# test_apc_requestor_thread exiting\n");
+  diag("test_apc_requestor_thread exiting");
   my_thread_end();
   return NULL;
 }
@@ -204,20 +204,20 @@ int main(int args, char **argv)
   for (i = 0; i < 15; i++)
   {
     my_sleep(500*1000);
-    fprintf(stderr, "# %d APCs served %d missed\n", apcs_served, apcs_missed);
+    diag("%d APCs served %d missed", apcs_served, apcs_missed);
   }
-  fprintf(stderr, "# Shutting down requestors\n");
+  diag("Shutting down requestors");
   requestors_should_exit= TRUE;
   for (i = 0; i < N_THREADS; i++)
     pthread_join(request_thr[i], NULL);
   
-  fprintf(stderr, "# Shutting down service\n");
+  diag("Shutting down service");
   service_should_exit= TRUE;
   pthread_join(service_thr, NULL);
 
   mysql_mutex_destroy(&apc_counters_mutex);
 
-  fprintf(stderr, "# Done.\n");
+  diag("Done");
   my_thread_end();
   my_thread_global_end();
 
