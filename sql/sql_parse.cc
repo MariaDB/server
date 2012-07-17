@@ -2155,9 +2155,9 @@ mysql_execute_command(THD *thd)
     */
     if (lex->sroutines.records || lex->query_tables->next_global)
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Usage of subqueries or stored "
-               "function calls as part of this statement");
-      break;
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
     }
 
     Item **it= &(lex->show_explain_for_thread);

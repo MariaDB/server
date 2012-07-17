@@ -10,11 +10,11 @@ alter table t1 add key(a), add key(b);
 show explain for 2*1000*1000*1000;
 ERROR HY000: Unknown thread id: 2000000000
 show explain for (select max(a) from t0);
-ERROR 42000: This version of MariaDB doesn't yet support 'Usage of subqueries or stored function calls as part of this statement'
+ERROR HY000: You may only use constant expressions in this statement
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr1;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 select count(*) from t1 where a < 100000;
@@ -153,7 +153,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
 # Try to do SHOW EXPLAIN for a query that runs a  SET command:
@@ -163,7 +163,7 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 set @foo= (select max(a) from t0 where sin(a) >0);
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 #
 # Attempt SHOW EXPLAIN for an UPDATE
 #
@@ -172,9 +172,9 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 drop table t2;
 #
 # Attempt SHOW EXPLAIN for a DELETE
@@ -184,9 +184,9 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 drop table t2;
 #
 # Multiple SHOW EXPLAIN calls for one select 
@@ -308,7 +308,7 @@ SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 # FIXED by "conservative assumptions about when QEP is available" fix:
 #    NOTE: current code will not show "Using join buffer": 
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 a
 1
 2
@@ -361,7 +361,7 @@ set @show_explain_probe_select_id=2;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 SELECT * FROM v1, t2;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 a	b
 8	4
 8	5
@@ -393,7 +393,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 a
 set debug_dbug='';
 #
@@ -405,7 +405,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 a	a
 set debug_dbug='';
 drop table t3;
@@ -510,7 +510,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_end';
 SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 show explain for $thr2;
-ERROR HY000: Error when executing command SHOW EXPLAIN: Target is not running EXPLAINable command
+ERROR HY000: Target is not running an EXPLAINable command
 pk	a1
 set debug_dbug='';
 DROP TABLE t2;
@@ -732,6 +732,7 @@ drop table t1,t3,t4;
 # ----------  SHOW EXPLAIN and permissions -----------------
 #
 grant ALL on test.* to test2@localhost;
+grant super on *.* to test2@localhost;
 #
 #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
 #
@@ -739,7 +740,7 @@ set @show_explain_probe_select_id=1;
 set debug_dbug='d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr2;
-ERROR 42000: Access denied; you need (at least one of) the PROCESSLIST privilege(s) for this operation
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
@@ -751,11 +752,20 @@ a
 2
 set debug_dbug='';
 #
-# Unfortunately, our test setup doesn't allow to check that test2
-# can do SHOW EXPLAIN on his own queries. This is because SET debug_dbug
-# requires SUPER privilege. Giving SUPER to test2 will make the test
-# meaningless
+# Check that user test2 can do SHOW EXPLAIN on its own queries 
 #
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+select * from t0 where a < 3;
+show explain for $thr_con2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	select * from t0 where a < 3
+a
+0
+1
+2
 #
 # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
 #

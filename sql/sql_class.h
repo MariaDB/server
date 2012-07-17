@@ -1520,39 +1520,7 @@ private:
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
-class select_result_explain_buffer;
-
-
-/*
-  SHOW EXPLAIN request object. 
-  
-  The thread that runs SHOW EXPLAIN statement creates a Show_explain_request
-  object R, and then schedules APC call of
-  Show_explain_request::call((void*)&R).
-
-*/
-
-class Show_explain_request : public Apc_target::Apc_call
-{
-public:
-  THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
-  THD *request_thd; /* thd that run SHOW EXPLAIN command */
-  
-  /* If true, there was some error when producing EXPLAIN output. */
-  bool failed_to_produce;
-   
-  /* SHOW EXPLAIN will be stored here */
-  select_result_explain_buffer *explain_buf;
-  
-  /* Query that we've got SHOW EXPLAIN for */
-  String query_str;
-  
-  /* Overloaded virtual function */
-  void call_in_target_thread();
-};
-
 class THD;
-void mysqld_show_explain(THD *thd, const char *calling_user, ulong thread_id);
 #ifndef DBUG_OFF
 void dbug_serve_apcs(THD *thd, int n_calls);
 #endif 
@@ -2222,6 +2190,7 @@ public:
   */
   killed_state volatile killed;
 
+  /* See also thd_killed() */
   inline bool check_killed()
   {
     if (killed)
@@ -2438,7 +2407,8 @@ public:
     Allows this thread to serve as a target for others to schedule Async 
     Procedure Calls on.
 
-    It's possible to schedule arbitrary C++ function calls. Currently, only
+    It's possible to schedule any code to be executed this way, by
+    inheriting from the Apc_call object. Currently, only
     Show_explain_request uses this.
   */
   Apc_target apc_target;

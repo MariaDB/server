@@ -1,3 +1,5 @@
+#ifndef INCLUDES_MY_APC_H
+#define INCLUDES_MY_APC_H
 /*
    Copyright (c) 2011 - 2012, Monty Program Ab
 
@@ -93,7 +95,7 @@ private:
     We use this structure, because we 
      - process requests sequentially: requests are added at the end of the 
        list and removed from the front. With circular list, we can keep one
-       pointer.
+       pointer, and access both front an back of the list with it.
      - a thread that has posted a request may time out (or be KILLed) and 
        cancel the request, which means we need a fast request-removal
        operation.
@@ -131,4 +133,6 @@ private:
 #ifdef HAVE_PSI_INTERFACE
 void init_show_explain_psi_keys(void);
 #endif
+
+#endif //INCLUDES_MY_APC_H
 

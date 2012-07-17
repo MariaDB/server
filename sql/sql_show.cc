@@ -1999,8 +1999,50 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 }
 
 
-static 
-const char *target_not_explainable_cmd="Target is not running EXPLAINable command";
+/*
+  Produce EXPLAIN data.
+
+  This function is APC-scheduled to be run in the context of the thread that
+  we're producing EXPLAIN for.
+*/
+
+void Show_explain_request::call_in_target_thread()
+{
+  Query_arena backup_arena;
+  bool printed_anything= FALSE;
+
+  /* 
+    Change the arena because JOIN::print_explain and co. are going to allocate
+    items. Let them allocate them on our arena.
+  */
+  target_thd->set_n_backup_active_arena((Query_arena*)request_thd,
+                                        &backup_arena);
+  
+  query_str.copy(target_thd->query(), 
+                 target_thd->query_length(),
+                 &my_charset_bin);
+
+  if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
+                                          &printed_anything))
+  {
+    failed_to_produce= TRUE;
+  }
+
+  if (!printed_anything)
+    failed_to_produce= TRUE;
+
+  target_thd->restore_active_arena((Query_arena*)request_thd, &backup_arena);
+}
+
+
+int select_result_explain_buffer::send_data(List<Item> &items)
+{
+  fill_record(thd, dst_table->field, items, TRUE, FALSE);
+  if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
+    return 1;
+  return 0;
+}
+
 
 /*
   Store the SHOW EXPLAIN output in the temporary table.
@@ -2048,7 +2090,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     if (calling_user && (!tmp_sctx->user || strcmp(calling_user, 
                                                    tmp_sctx->user)))
     {
-      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESSLIST");
+      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
       mysql_mutex_unlock(&tmp->LOCK_thd_data);
       DBUG_RETURN(1);
     }
@@ -2056,8 +2098,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     if (tmp == thd)
     {
       mysql_mutex_unlock(&tmp->LOCK_thd_data);
-      my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), "SHOW EXPLAIN",
-               target_not_explainable_cmd);
+      my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
       DBUG_RETURN(1);
     }
 
@@ -2084,21 +2125,12 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     if (bres || explain_req.failed_to_produce)
     {
       if (thd->killed)
-      {
         thd->send_kill_message();
-      }
-      else 
-      if (timed_out)
-      {
-        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
-                 "SHOW EXPLAIN",
-                 "Timeout");
-      }
+      else if (timed_out)
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       else
-      {
-        my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), 
-                 "SHOW EXPLAIN", target_not_explainable_cmd);
-      }
+        my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
+
       bres= TRUE;
     }
     else
@@ -8427,7 +8459,32 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
-extern ST_FIELD_INFO show_explain_fields_info[];
+ST_FIELD_INFO show_explain_fields_info[]=
+{
+  /* field_name, length, type, value, field_flags, old_name*/
+  {"id", 3, MYSQL_TYPE_LONGLONG, 0 /*value*/, MY_I_S_MAYBE_NULL, "id", 
+    SKIP_OPEN_TABLE},
+  {"select_type", 19, MYSQL_TYPE_STRING, 0 /*value*/, 0, "select_type", 
+    SKIP_OPEN_TABLE},
+  {"table", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0 /*value*/, MY_I_S_MAYBE_NULL,
+   "table", SKIP_OPEN_TABLE},
+  {"type", 10, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
+  {"possible_keys", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/,
+    MY_I_S_MAYBE_NULL, "possible_keys", SKIP_OPEN_TABLE},
+  {"key", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0/*value*/, MY_I_S_MAYBE_NULL, 
+   "key", SKIP_OPEN_TABLE},
+  {"key_len", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
+    MY_I_S_MAYBE_NULL, "key_len", SKIP_OPEN_TABLE},
+  {"ref", NAME_CHAR_LEN*MAX_REF_PARTS, MYSQL_TYPE_STRING, 0/*value*/,
+    MY_I_S_MAYBE_NULL, "ref", SKIP_OPEN_TABLE},
+  {"rows", 10, MYSQL_TYPE_LONGLONG, 0/*value*/, MY_I_S_MAYBE_NULL, "rows", 
+    SKIP_OPEN_TABLE},
+  {"Extra", 255, MYSQL_TYPE_STRING, 0/*value*/, 0 /*flags*/, "Extra", 
+    SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+
 /*
   Description of ST_FIELD_INFO in table.h
 

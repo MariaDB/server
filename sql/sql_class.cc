@@ -2295,15 +2295,6 @@ int select_send::send_data(List<Item> &items)
 }
 
 
-int select_result_explain_buffer::send_data(List<Item> &items)
-{
-  fill_record(thd, dst_table->field, items, TRUE, FALSE);
-  if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
-    return 1;
-  return 0;
-}
-
-
 bool select_send::send_eof()
 {
   /* 
@@ -3233,43 +3224,6 @@ void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
-
-/*
-  Produce EXPLAIN data.
-
-  This function is APC-scheduled to be run in the context of the thread that
-  we're producing EXPLAIN for.
-*/
-
-void Show_explain_request::call_in_target_thread()
-{
-  Query_arena backup_arena;
-  bool printed_anything= FALSE;
-
-  /* 
-    Change the arena because JOIN::print_explain and co. are going to allocate
-    items. Let them allocate them on our arena.
-  */
-  target_thd->set_n_backup_active_arena((Query_arena*)request_thd,
-                                        &backup_arena);
-  
-  query_str.copy(target_thd->query(), 
-                 target_thd->query_length(),
-                 &my_charset_bin);
-
-  if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
-                                          &printed_anything))
-  {
-    failed_to_produce= TRUE;
-  }
-
-  if (!printed_anything)
-    failed_to_produce= TRUE;
-
-  target_thd->restore_active_arena((Query_arena*)request_thd, &backup_arena);
-}
-
-
 Statement::~Statement()
 {
 }
@@ -3832,12 +3786,17 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
   @retval 1 the user thread has been killed
 
   This is used to signal a storage engine if it should be killed.
+  See also THD::check_killed().
 */
 
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
   if (!thd)
     thd= current_thd;
+
+  Apc_target *apc_target= (Apc_target*)&thd->apc_target;
+  if (apc_target->have_apc_requests())
+      apc_target->process_apc_requests(); 
 
   if (!(thd->killed & KILL_HARD_BIT))
     return 0;

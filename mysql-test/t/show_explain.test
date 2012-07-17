@@ -45,7 +45,7 @@ alter table t1 add key(a), add key(b);
 --error ER_NO_SUCH_THREAD
 show explain for 2*1000*1000*1000;
 
---error ER_NOT_SUPPORTED_YET
+--error ER_SET_CONSTANTS_ONLY
 show explain for (select max(a) from t0);
 
 # 
@@ -58,11 +58,11 @@ let $thr2=`select connection_id()`;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 
 # SHOW EXPLAIN FOR <ourselves>
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr1;
 
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
@@ -192,7 +192,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -212,7 +212,7 @@ set debug_dbug='d,show_explain_probe_join_exec_start';
 send set @foo= (select max(a) from t0 where sin(a) >0);
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -226,9 +226,9 @@ set debug_dbug='d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -243,9 +243,9 @@ set debug_dbug='d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -329,7 +329,7 @@ connection default;
 --source include/wait_condition.inc
 --echo # FIXED by "conservative assumptions about when QEP is available" fix:
 --echo #    NOTE: current code will not show "Using join buffer": 
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -378,7 +378,7 @@ send SELECT * FROM v1, t2;
 
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -408,7 +408,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select * from t0 where 1>10;
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -424,7 +424,7 @@ set debug_dbug='d,show_explain_probe_join_exec_end';
 send select * from t0,t3 where t3.a=112233;
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -520,7 +520,7 @@ send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
 --source include/wait_condition.inc
---error ER_ERROR_WHEN_EXECUTING_COMMAND
+--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
@@ -734,6 +734,8 @@ drop table t1,t3,t4;
 --echo #
 grant ALL on test.* to test2@localhost;
 
+# Give the user SUPER privilege so it can set debug_dbug variable.
+grant super on *.* to test2@localhost;
 connect (con2, localhost, test2,,);
 connection con1;
 
@@ -760,12 +762,32 @@ reap;
 set debug_dbug='';
 
 --echo #
---echo # Unfortunately, our test setup doesn't allow to check that test2
---echo # can do SHOW EXPLAIN on his own queries. This is because SET debug_dbug
---echo # requires SUPER privilege. Giving SUPER to test2 will make the test
---echo # meaningless
+--echo # Check that user test2 can do SHOW EXPLAIN on its own queries 
 --echo #
+connect (con3, localhost, test2,,);
 
+connection con2;
+let $thr_con2=`select connection_id()`;
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+send
+select * from t0 where a < 3;
+
+connection con1;
+let $save_wait_condition= $wait_condition;
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr_con2;
+--source include/wait_condition.inc
+
+connection con3;
+evalp show explain for $thr_con2;
+
+connection con2;
+reap;
+
+connection con1;
+
+disconnect con3;
+let $wait_condition= $save_wait_condition;
 --echo #
 --echo # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
 --echo #
