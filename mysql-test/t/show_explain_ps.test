@@ -3,6 +3,8 @@
 #
 --source include/have_debug.inc
 --source include/have_perfschema.inc
+# Like all other perfschema tests, we don't work on embedded server:
+--source include/not_embedded.inc
 
 --disable_warnings
 drop table if exists t0, t1;
