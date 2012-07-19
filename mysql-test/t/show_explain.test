@@ -837,6 +837,7 @@ select * from t1 where pk between 10 and 20 for update;
 
 # run SHOW EXPLAIN on a frozen thread
 connection default;
+let $save_wait_condition= $wait_condition;
 let $wait_condition= select State='Sending data' from information_schema.processlist where id=$thr2;
 let $thr_default=`select connection_id()`;
 --source include/wait_condition.inc
@@ -864,14 +865,59 @@ reap;
 drop table t1;
 disconnect con3;
 disconnect con2;
-
-## TODO: Test this: have several SHOW EXPLAIN requests be queued up for a
-##       thread and served together.
-
-drop table t0;
+let $wait_condition= $save_wait_condition;
 
 --echo # 
 --echo # Check that the I_S table is invisible
 --echo # 
 select table_name from information_schema.tables where table_schema='information_schema' and table_name like '%explain%';
+
+--echo # 
+--echo # MDEV-325: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN is different from standard EXPLAIN: type ALL vs 'index_merge'..
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY(a), KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(8,0),(128,5050),(5372,8),(234,7596),(2,0),(2907,8930),(1,0),
+(0,5224),(8,7638),(960,5),(9872,1534),(0,2295),(3408,9809),
+(7,0),(1168,0),(2089,5570),(0,205),(88,1018),(0,26528),
+(0,0),(4,5567),(1444,145),(6,0),(1,7535),(7793,534),(70,9),
+(178,1),(44,5),(189,0),(3,0);
+
+EXPLAIN
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+--send
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_do_select';
+--send
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set debug_dbug='';
+
+drop table t1;
+drop table t0;
 
