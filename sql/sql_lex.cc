@@ -4100,7 +4100,8 @@ int st_select_lex::print_explain(select_result_sink *output,
     {
       res= join->print_explain(output, explain_flags, TRUE,
                                join->need_tmp, // need_tmp_table
-                               (join->order != 0 && !join->skip_sort_order), // bool need_order
+                               !join->skip_sort_order && !join->no_order &&
+                               (join->order || join->group_list), // bool need_order
                                join->select_distinct, // bool distinct
                                NULL); //const char *message
     }
