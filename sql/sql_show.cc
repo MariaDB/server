@@ -8495,7 +8495,7 @@ ST_FIELD_INFO show_explain_fields_info[]=
     SKIP_OPEN_TABLE},
   {"table", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0 /*value*/, MY_I_S_MAYBE_NULL,
    "table", SKIP_OPEN_TABLE},
-  {"type", 10, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
+  {"type", 11, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
   {"possible_keys", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/,
     MY_I_S_MAYBE_NULL, "possible_keys", SKIP_OPEN_TABLE},
   {"key", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0/*value*/, MY_I_S_MAYBE_NULL, 

@@ -10686,6 +10686,9 @@ void JOIN::cleanup(bool full)
   */
   if (full)
   {
+    if (pre_sort_join_tab)
+      clean_pre_sort_join_tab();
+
     if (tmp_join)
       tmp_table_param.copy_field= 0;
     group_fields.delete_elements();
@@ -18908,6 +18911,8 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   TABLE *table;
   SQL_SELECT *select;
   JOIN_TAB *tab;
+  int err= 0;
+  bool quick_created= FALSE;
   DBUG_ENTER("create_sort_index");
 
   if (join->table_count == join->const_tables)
@@ -18915,6 +18920,43 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   tab=    join->join_tab + join->const_tables;
   table=  tab->table;
   select= tab->select;
+  
+  JOIN_TAB *save_pre_sort_join_tab= NULL;
+  if (join->pre_sort_join_tab)
+  {
+    /*
+      we've already been in this function, and stashed away the original access 
+      method in join->pre_sort_join_tab, restore it now.
+    */
+    
+    /* First, restore state of the handler */
+    if (join->pre_sort_index != MAX_KEY)
+    {
+      if (table->file->ha_index_or_rnd_end())
+        goto err;
+      if (join->pre_sort_idx_pushed_cond)
+      {
+        table->file->idx_cond_push(join->pre_sort_index,
+                                 join->pre_sort_idx_pushed_cond);
+      }
+    }
+    else
+    {
+      if (table->file->ha_index_or_rnd_end() || 
+          table->file->ha_rnd_init(TRUE))
+        goto err;
+    }
+
+    /* Second, restore access method parameters */
+    tab->records=           join->pre_sort_join_tab->records;
+    tab->select=            join->pre_sort_join_tab->select;
+    tab->select_cond=       join->pre_sort_join_tab->select_cond;
+    tab->type=              join->pre_sort_join_tab->type;
+    tab->read_first_record= join->pre_sort_join_tab->read_first_record; 
+
+    save_pre_sort_join_tab= join->pre_sort_join_tab;
+    join->pre_sort_join_tab= NULL;
+  }
 
   /* Currently ORDER BY ... LIMIT is not supported in subqueries. */
   DBUG_ASSERT(join->group_list || !join->is_in_subquery());
@@ -18970,6 +19012,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
 			    get_quick_select_for_ref(thd, table, &tab->ref, 
                                                      tab->found_records))))
 	goto err;
+      quick_created= TRUE;
     }
   }
 
@@ -18985,7 +19028,37 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   table->sort.found_records=filesort(thd, table,join->sortorder, length,
                                      select, filesort_limit, 0,
                                      &examined_rows);
+
+  if (quick_created)
+  {
+    /* This will delete the quick select. */
+    select->cleanup();
+  }
+
+  if (!join->pre_sort_join_tab)
+  {
+    if (save_pre_sort_join_tab)
+      join->pre_sort_join_tab= save_pre_sort_join_tab;
+    else if (!(join->pre_sort_join_tab= (JOIN_TAB*)thd->alloc(sizeof(JOIN_TAB))))
+      goto err;
+  }
+
+  *(join->pre_sort_join_tab)= *tab;
+  
+  if (table->file->inited == handler::INDEX)
+  {
+    // Save index #, save index condition
+    join->pre_sort_index= table->file->active_index;
+    join->pre_sort_idx_pushed_cond= table->file->pushed_idx_cond;
+    // no need to save key_read? 
+    err= table->file->ha_index_end();
+  }
+  else
+    join->pre_sort_index= MAX_KEY;
+
+  /*TODO: here, close the index scan, cancel index-only read. */
   tab->records= table->sort.found_records;	// For SQL_CALC_ROWS
+#if 0 
   if (select)
   {
     /*
@@ -19002,23 +19075,65 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     tablesort_result_cache= table->sort.io_cache;
     table->sort.io_cache= NULL;
 
-    select->cleanup();				// filesort did select
+   // select->cleanup();				// filesort did select
     table->quick_keys.clear_all();  // as far as we cleanup select->quick
     table->intersect_keys.clear_all();
     table->sort.io_cache= tablesort_result_cache;
   }
+#endif
+  tab->select=NULL;
   tab->set_select_cond(NULL, __LINE__);
-  tab->last_inner= 0;
-  tab->first_unmatched= 0;
+//  tab->last_inner= 0;
+//  tab->first_unmatched= 0;
   tab->type=JT_ALL;				// Read with normal read_record
   tab->read_first_record= join_init_read_record;
+  tab->table->file->ha_index_or_rnd_end();
+  
+  if (err)
+    goto err;
+
   tab->join->examined_rows+=examined_rows;
-  table->disable_keyread(); // Restore if we used indexes
   DBUG_RETURN(table->sort.found_records == HA_POS_ERROR);
 err:
   DBUG_RETURN(-1);
 }
 
+void JOIN::clean_pre_sort_join_tab()
+{
+  TABLE *table=  pre_sort_join_tab->table;
+  /*
+   Note: we can come here for fake_select_lex object. That object will have
+   the table already deleted by st_select_lex_unit::cleanup().  
+    We rely on that fake_select_lex didn't have quick select.
+  */
+#if 0  
+  if (pre_sort_join_tab->select && pre_sort_join_tab->select->quick)
+  {
+    /*
+      We need to preserve tablesort's output resultset here, because
+      QUICK_INDEX_MERGE_SELECT::~QUICK_INDEX_MERGE_SELECT (called by
+      SQL_SELECT::cleanup()) may free it assuming it's the result of the quick
+      select operation that we no longer need. Note that all the other parts of
+      this data structure are cleaned up when
+      QUICK_INDEX_MERGE_SELECT::get_next encounters end of data, so the next
+      SQL_SELECT::cleanup() call changes sort.io_cache alone.
+    */
+    IO_CACHE *tablesort_result_cache;
+
+    tablesort_result_cache= table->sort.io_cache;
+    table->sort.io_cache= NULL;
+    pre_sort_join_tab->select->cleanup();
+    table->quick_keys.clear_all();  // as far as we cleanup select->quick
+    table->intersect_keys.clear_all();
+    table->sort.io_cache= tablesort_result_cache;
+  }
+#endif
+  //table->disable_keyread(); // Restore if we used indexes
+  if (pre_sort_join_tab->select && pre_sort_join_tab->select->quick)
+  {
+    pre_sort_join_tab->select->cleanup();
+  }
+}
 /*****************************************************************************
   Remove duplicates from tmp table
   This should be recoded to add a unique index to the table and remove
@@ -21502,12 +21617,19 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
       tmp4.length(0);
       quick_type= -1;
       QUICK_SELECT_I *quick= NULL;
+      JOIN_TAB *saved_join_tab= NULL;
 
       /* Don't show eliminated tables */
       if (table->map & join->eliminated_tables)
       {
         used_tables|=table->map;
         continue;
+      }
+
+      if (tab == first_top_tab && pre_sort_join_tab)
+      {
+        saved_join_tab= tab;
+        tab= pre_sort_join_tab;
       }
 
       item_list.empty();
@@ -21656,7 +21778,6 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
                  keylen_str_buf);
         tmp3.append(keylen_str_buf, length, cs);
 /*<<<<<<< TREE
-      }
       if ((is_hj || tab->type==JT_RANGE || tab->type == JT_INDEX_MERGE) &&
           tab->select && tab->select->quick)
 =======*/
@@ -21977,6 +22098,9 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
 	item_list.push_back(new Item_string(str, len, cs));
       }
       
+      if (saved_join_tab)
+        tab= saved_join_tab;
+
       // For next iteration
       used_tables|=table->map;
       if (result->send_data(item_list))

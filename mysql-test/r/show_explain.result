@@ -825,9 +825,67 @@ pk	data
 19	data1
 20	data1
 drop table t1;
-drop table t0;
 # 
 # Check that the I_S table is invisible
 # 
 select table_name from information_schema.tables where table_schema='information_schema' and table_name like '%explain%';
 table_name
+# 
+# MDEV-325: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN is different from standard EXPLAIN: type ALL vs 'index_merge'..
+#
+CREATE TABLE t1 (a INT, b INT, KEY(a), KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(8,0),(128,5050),(5372,8),(234,7596),(2,0),(2907,8930),(1,0),
+(0,5224),(8,7638),(960,5),(9872,1534),(0,2295),(3408,9809),
+(7,0),(1168,0),(2089,5570),(0,205),(88,1018),(0,26528),
+(0,0),(4,5567),(1444,145),(6,0),(1,7535),(7793,534),(70,9),
+(178,1),(44,5),(189,0),(3,0);
+EXPLAIN
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using filesort
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using filesort
+Warnings:
+Note	1003	SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b
+a+SLEEP(0.01)
+0
+5372
+70
+0
+0
+0
+0
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_do_select';
+SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using filesort
+Warnings:
+Note	1003	SELECT a+SLEEP(0.01) FROM t1
+WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
+ORDER BY b
+a+SLEEP(0.01)
+0
+5372
+70
+0
+0
+0
+0
+set debug_dbug='';
+drop table t1;
+drop table t0;
