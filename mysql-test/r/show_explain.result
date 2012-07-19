@@ -888,4 +888,42 @@ a+SLEEP(0.01)
 0
 set debug_dbug='';
 drop table t1;
+# 
+# MDEV-298: SHOW EXPLAIN: Plan returned by SHOW EXPLAIN only contains 
+#   'Using temporary' while the standard EXPLAIN says 'Using temporary; Using filesort'
+# 
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),
+(10),(11),(12),(13),(14),(15),(16);
+INSERT INTO t1 SELECT t11.a FROM t1 t11, t1 t12, t1 t13;
+EXPLAIN SELECT a FROM t1 GROUP BY a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+SELECT a FROM t1 GROUP BY a;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
+Warnings:
+Note	1003	SELECT a FROM t1 GROUP BY a
+a
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+set debug_dbug='';
+drop table t1;
 drop table t0;
