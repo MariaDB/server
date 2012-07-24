@@ -926,4 +926,29 @@ a
 16
 set debug_dbug='';
 drop table t1;
+#
+# MDEV-408: SHOW EXPLAIN: Some values are chopped off in SHOW EXPLAIN output
+#
+CREATE TABLE t1 (a INT, b VARCHAR(35)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (3989,'Abilene'),(3873,'Akron');
+CREATE TABLE t2 (c INT, d VARCHAR(52) PRIMARY KEY, KEY(c)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (86,'English'),(87,'Russian');
+explain SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
+Warnings:
+Note	1003	SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's'
+SUM(a + SLEEP(0.1))
+7862
+set debug_dbug='';
+drop table t1, t2;
+# End
 drop table t0;
