@@ -21626,7 +21626,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         continue;
       }
 
-      if (tab == first_top_tab && pre_sort_join_tab)
+      if (tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
       {
         saved_join_tab= tab;
         tab= pre_sort_join_tab;

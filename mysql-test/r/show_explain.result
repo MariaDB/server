@@ -950,5 +950,53 @@ SUM(a + SLEEP(0.1))
 7862
 set debug_dbug='';
 drop table t1, t2;
+#
+# MDEV-412: SHOW EXPLAIN: Server crashes in JOIN::print_explain on a query with inner join and ORDER BY the same column twice
+#
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(3), KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES 
+(3795,'USA'),(3913,'USA'),(3846,'ITA'),(4021,'USA'),(4005,'RUS'),(4038,'USA'),
+(3825,'USA'),(3840,'USA'),(3987,'USA'),(3807,'USA'),(3896,'USA'),(4052,'USA'),
+(3973,'USA'),(3982,'ITA'),(3965,'USA'),(3852,'RUS'),(4006,'USA'),(3800,'USA'),
+(4020,'USA'),(4040,'USA'),(3916,'USA'),(3817,'USA'),(3885,'USA'),(3802,'USA'),
+(4009,'ITA'),(3895,'USA'),(3963,'RUS'),(4045,'USA'),(3988,'USA'),(3815,'USA'),
+(4063,'USA'),(3978,'USA'),(4019,'USA'),(3954,'USA'),(3950,'USA'),(3974,'ITA'),
+(4054,'USA'),(4061,'RUS'),(3976,'USA'),(3966,'USA'),(3957,'USA'),(3981,'USA'),
+(3923,'USA'),(3876,'USA'),(3819,'USA'),(3877,'USA'),(3829,'ITA'),(3964,'USA'),
+(4053,'RUS'),(3917,'USA'),(3874,'USA'),(4023,'USA'),(4001,'USA'),(3872,'USA'),
+(3890,'USA'),(3962,'USA'),(3886,'USA'),(4026,'ITA'),(3869,'USA'),(3937,'RUS'),
+(3975,'USA'),(3944,'USA'),(3908,'USA'),(3867,'USA'),(3947,'USA'),(3838,'USA'),
+(3796,'USA'),(3893,'USA'),(3920,'ITA'),(3994,'USA'),(3875,'RUS'),(4011,'USA'),
+(4013,'USA'),(3810,'USA'),(3834,'USA'),(3968,'USA'),(3931,'USA'),(3839,'USA'),
+(4042,'USA'),(4039,'ITA'),(3811,'USA'),(3837,'RUS'),(4041,'USA'),(3884,'USA'),
+(3894,'USA'),(3879,'USA'),(3942,'USA'),(3959,'USA'),(3814,'USA'),(4044,'USA'),
+(3971,'ITA'),(3823,'USA'),(3793,'RUS'),(3855,'USA'),(3905,'USA'),(3865,'USA'),
+(4046,'USA'),(3990,'USA'),(4022,'USA'),(3833,'USA'),(3918,'USA'),(4064,'ITA'),
+(3821,'USA'),(3836,'RUS'),(3921,'USA'),(3914,'USA'),(3888,'USA');
+CREATE TABLE t2 (c VARCHAR(3) PRIMARY KEY) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('USA');
+CREATE TABLE t3 (d VARCHAR(3), e VARCHAR(52), PRIMARY KEY (d,e)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES 
+('JPN','Japanese'),('KOR','Korean'),('POL','Polish'),('PRT','Portuguese'),
+('ESP','Spanish'),('FRA','French'),('VNM','Vietnamese');
+explain
+SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	Using filesort
+1	SIMPLE	t1	index	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_do_select';
+SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	Using filesort
+1	SIMPLE	t1	index	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
+Warnings:
+Note	1003	SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2
+field1	field2
+set debug_dbug='';
+DROP TABLE t1,t2,t3;
 # End
 drop table t0;
