@@ -504,10 +504,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
                             "Assigning value %d.", plugin->plugin->name, idx);
         hton->db_type= (enum legacy_db_type) idx;
       }
-      installed_htons[hton->db_type]= hton;
-      tmp= hton->savepoint_offset;
-      hton->savepoint_offset= savepoint_alloc_size;
-      savepoint_alloc_size+= tmp;
 
       /*
         In case a plugin is uninstalled and re-installed later, it should
@@ -1276,6 +1272,7 @@ int ha_commit_trans(THD *thd, bool all)
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
     need_commit_ordered|= (ht->commit_ordered != NULL);
   }
+  DEBUG_SYNC(thd, "ha_commit_trans_after_prepare");
   DBUG_EXECUTE_IF("crash_commit_after_prepare", DBUG_SUICIDE(););
 
   if (!is_real_trans)

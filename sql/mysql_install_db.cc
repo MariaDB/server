@@ -119,8 +119,8 @@ static void die(const char *fmt, ...)
    fprintf(stderr,
    "http://kb.askmonty.org/v/installation-issues-on-windows contains some help\n"
    "for solving the most common problems.  If this doesn't help you, please\n"
-   "leave a comment in the knowledge base or file a bug report at\n"
-   "https://bugs.launchpad.net/maria");
+   "leave a comment in the Knowledgebase or file a bug report at\n"
+   "http://mariadb.org/jira");
   }
   fflush(stderr);
   va_end(args);
@@ -247,7 +247,7 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     "\"\"%s\" --no-defaults --bootstrap"
     " \"--language=%s\\share\\english\""
     " --basedir=. --datadir=. --default-storage-engine=myisam"
-    " --max_allowed_packet=9M --loose-skip-innodb --loose-skip-pbxt"
+    " --max_allowed_packet=9M --loose-skip-innodb"
     " --net-buffer-length=16k\"", mysqld_path, basedir);
   return cmdline;
 }

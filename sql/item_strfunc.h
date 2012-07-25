@@ -829,7 +829,7 @@ public:
   {
     DBUG_ASSERT(args[0]->fixed);
     conv_charset= cs;
-    if (cache_if_const && args[0]->const_item() && !args[0]->with_subselect)
+    if (cache_if_const && args[0]->const_item() && !args[0]->is_expensive())
     {
       uint errors= 0;
       String tmp, *str= args[0]->val_str(&tmp);
@@ -854,6 +854,30 @@ public:
     }
   }
   String *val_str(String *);
+  longlong val_int()
+  {
+    if (args[0]->result_type() == STRING_RESULT)
+      return Item_str_func::val_int();
+    return args[0]->val_int();
+  }
+  double val_real()
+  {
+    if (args[0]->result_type() == STRING_RESULT)
+      return Item_str_func::val_real();
+    return args[0]->val_real();
+  }
+  my_decimal *val_decimal(my_decimal *d)
+  {
+    if (args[0]->result_type() == STRING_RESULT)
+      return Item_str_func::val_decimal(d);
+    return args[0]->val_decimal(d);
+  }
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    if (args[0]->result_type() == STRING_RESULT)
+      return Item_str_func::get_date(ltime, fuzzydate);
+    return args[0]->get_date(ltime, fuzzydate);
+  }
   void fix_length_and_dec();
   const char *func_name() const { return "convert"; }
   virtual void print(String *str, enum_query_type query_type);

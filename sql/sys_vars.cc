@@ -2246,7 +2246,7 @@ static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
        READ_ONLY GLOBAL_VAR(system_time_zone_ptr), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(system_time_zone));
+       IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
@@ -3768,4 +3768,9 @@ static Sys_var_ulong Sys_debug_binlog_fsync_sleep(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
-
+static Sys_var_harows Sys_expensive_subquery_limit(
+       "expensive_subquery_limit",
+       "The maximum number of rows a subquery may examine in order to be "
+       "executed during optimization and used for constant optimization",
+       SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
