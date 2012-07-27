@@ -29,6 +29,7 @@
 
 struct TABLE;
 class Field;
+class Index_statistics;
 
 class THD;
 
@@ -121,43 +122,16 @@ typedef struct st_key {
   */
   ulong *rec_per_key;
 
-   /* Statistical data on an index prefixes */
-  class Index_statistics
-  {
-  private:
-    static const uint Scale_factor_avg_frequency= 100000;
-    /*
-      The k-th element of this array contains the ratio N/D
-      multiplied by the scale factor Scale_factor_avg_frequency, 
-      where N is the number of index entries without nulls 
-      in the first k components, and D is the number of distinct
-      k-component prefixes among them 
-    */
-    ulong *avg_frequency;
-
-  public:
-    void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
-    bool avg_frequency_is_set() { return avg_frequency != NULL; }
-    double get_avg_frequency(uint i)
-    {
-      return (double) avg_frequency[i] / Scale_factor_avg_frequency;
-    }
-    void set_avg_frequency(uint i, double val)
-    {
-      avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
-    }
-  };
-
   /*
     This structure is used for statistical data on the index
     that has been read from the statistical table index_stat
   */ 
-  Index_statistics read_stat;
+  Index_statistics *read_stats;
   /*
     This structure is used for statistical data on the index that
     is collected by the function collect_statistics_for_table
   */
-  Index_statistics write_stat;
+  Index_statistics *collected_stats;
  
   union {
     int  bdb_return_if_eq;
@@ -168,13 +142,8 @@ typedef struct st_key {
   engine_option_value *option_list;
   ha_index_option_struct *option_struct;                  /* structure with parsed options */
 
-  inline double real_rec_per_key(uint i)
-  { 
-    if (rec_per_key == 0)
-      return 0;
-    return (is_statistics_from_stat_tables ?
-            read_stat.get_avg_frequency(i) : (double) rec_per_key[i]);
-  }
+  double real_rec_per_key(uint i);
+
 } KEY;
 
 

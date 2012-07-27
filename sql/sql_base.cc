@@ -3138,6 +3138,16 @@ retry_share:
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
 
+    if (thd->variables.use_stat_tables > 0)
+    {
+      if (share->table_category != TABLE_CATEGORY_SYSTEM)
+      {
+        if (!share->stats_can_be_read && 
+            !alloc_statistics_for_table_share(thd, share, TRUE))
+	  share->stats_can_be_read= TRUE;
+      }
+    }
+
     mysql_mutex_unlock(&LOCK_open);
 
     /* make a new table */
@@ -4632,11 +4642,21 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     goto end;
   }
 
-  if (thd->variables.use_stat_tables > 0)
+  if (thd->variables.use_stat_tables > 0 && tables->table)
   {
-    if (tables->table &&  tables->table->s && 
-        tables->table->s->table_category != TABLE_CATEGORY_SYSTEM)    
-	(void) read_statistics_for_table(thd, tables->table);
+    TABLE_SHARE *table_share= tables->table->s;
+    if (table_share && table_share->table_category != TABLE_CATEGORY_SYSTEM)
+    {
+      if (!table_share->stats_can_be_read && 
+          !alloc_statistics_for_table_share(thd, table_share, FALSE))    
+	table_share->stats_can_be_read= TRUE;
+	
+      if (table_share->stats_can_be_read && !table_share->stats_is_read)
+      {    
+         (void) read_statistics_for_table(thd, tables->table);
+         table_share->stats_is_read= TRUE;
+      }  
+    }
   }
 
 process_view_routines:

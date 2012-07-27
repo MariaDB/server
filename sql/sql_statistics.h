@@ -60,4 +60,159 @@ enum enum_index_stat_col
   INDEX_STAT_AVG_FREQUENCY
 };
 
+
+class Columns_statistics;
+class Index_statistics;
+
+
+/* Statistical data on a table */
+
+class Table_statistics
+{
+
+public:
+  my_bool cardinality_is_null;      /* TRUE if the cardinality is unknown */
+  ha_rows cardinality;              /* Number of rows in the table        */
+  Column_statistics *column_stats;  /* Array of statistical data for columns */
+  Index_statistics *index_stats;    /* Array of statistical data for indexes */
+  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */                                       
+
+};
+
+
+/* Statistical data on a column */
+
+class Column_statistics
+{
+
+private:
+  static const uint Scale_factor_nulls_ratio= 100000;
+  static const uint Scale_factor_avg_length= 100000;
+  static const uint Scale_factor_avg_frequency= 100000;
+
+public:
+  /* 
+    Bitmap indicating  what statistical characteristics
+    are available for the column
+  */
+  uint32 column_stat_nulls;
+
+  /* Minimum value for the column */
+  Field *min_value; 
+  /* Maximum value for the column */   
+  Field *max_value;
+
+private:
+
+  /* 
+    The ratio Z/N multiplied by the scale factor Scale_factor_nulls_ratio,
+    where 
+      N is the total number of rows,
+      Z is the number of nulls in the column
+  */
+  ulong nulls_ratio;
+ 
+  /*
+    Average number of bytes occupied by the representation of a
+    value of the column in memory buffers such as join buffer
+    multiplied by the scale factor Scale_factor_avg_length.
+    CHAR values are stripped of trailing spaces.
+    Flexible values are stripped of their length prefixes.
+  */
+  ulong avg_length;
+
+  /*
+    The ratio N/D multiplied by the scale factor Scale_factor_avg_frequency,
+    where
+       N is the number of rows with not null value in the column,
+       D the number of distinct values among them
+  */
+  ulong avg_frequency;
+
+public:
+
+  void set_all_nulls()
+  {
+    column_stat_nulls= 
+      ((1 << (COLUMN_STAT_AVG_FREQUENCY-COLUMN_STAT_COLUMN_NAME))-1) <<
+      (COLUMN_STAT_COLUMN_NAME+1);
+  }
+
+  void set_not_null(uint stat_field_no)
+  {
+    column_stat_nulls&= ~(1 << stat_field_no);
+  }
+
+  bool is_null(uint stat_field_no)
+  {
+    return test(column_stat_nulls & (1 << stat_field_no));
+  }
+
+  double get_nulls_ratio()
+  {
+    return (double) nulls_ratio /  Scale_factor_nulls_ratio;
+  }
+
+  double get_avg_length()
+  {
+    return (double) avg_length / Scale_factor_avg_length;
+  }
+
+  double get_avg_frequency()
+  {
+    return (double) avg_frequency / Scale_factor_avg_frequency;
+  }
+
+  void set_nulls_ratio (double val)
+  {
+    nulls_ratio= (ulong) (val * Scale_factor_nulls_ratio);
+  }
+
+  void set_avg_length (double val)
+  {
+    avg_length= (ulong) (val * Scale_factor_avg_length);
+  }
+
+  void set_avg_frequency (double val)
+  {
+    avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
+  }
+
+};
+
+
+/* Statistical data on an index prefixes */
+
+class Index_statistics
+{
+
+private:
+  static const uint Scale_factor_avg_frequency= 100000;
+  /*
+    The k-th element of this array contains the ratio N/D
+    multiplied by the scale factor Scale_factor_avg_frequency, 
+    where N is the number of index entries without nulls 
+    in the first k components, and D is the number of distinct
+    k-component prefixes among them 
+  */
+  ulong *avg_frequency;
+
+public:
+
+  void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
+
+  bool avg_frequency_is_inited() { return avg_frequency != NULL; }
+
+  double get_avg_frequency(uint i)
+  {
+    return (double) avg_frequency[i] / Scale_factor_avg_frequency;
+  }
+
+  void set_avg_frequency(uint i, double val)
+  {
+    avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
+  }
+
+};
+
 #endif /* SQL_STATISTICS_H */

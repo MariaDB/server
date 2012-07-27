@@ -45,6 +45,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class Table_statistics;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -577,6 +578,15 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   uint	*blob_field;			/* Index to blobs in Field arrray*/
 
+  bool stats_can_be_read;      /* Memory for statistical data is allocated */
+  bool stats_is_read;          /* Statistical data for table has been read
+                                  from statistical tables */   
+  /*
+    This structure is used for statistical data on the table
+    that has been read from the statistical table table_stat
+  */ 
+  Table_statistics *read_stats;
+
   uchar	*default_values;		/* row with default values */
   LEX_STRING comment;			/* Comment about table */
   CHARSET_INFO *table_charset;		/* Default charset of string fields */
@@ -1007,24 +1017,11 @@ public:
   */
   query_id_t	query_id;
 
-  /* Statistical data on a table */
-  class Table_statistics
-  {
-  public:
-    my_bool cardinality_is_null;  /* TRUE if the cardinality is unknown */
-    ha_rows cardinality;          /* Number of rows in the table        */
-  };
-
-  /*
-    This structure is used for statistical data on the table
-    that has been read from the statistical table table_stat
-  */ 
-  Table_statistics read_stat;
   /*
     This structure is used for statistical data on the table that
     is collected by the function collect_statistics_for_table
   */
-  Table_statistics write_stat;
+  Table_statistics *collected_stats;
 
   /* The estimate of the number of records in the table used by optimizer */ 
   ha_rows used_stat_records;

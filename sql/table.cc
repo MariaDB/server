@@ -39,6 +39,7 @@
 #include "my_bit.h"
 #include "sql_select.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 
 /* INFORMATION_SCHEMA name */
@@ -762,8 +763,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
-  ulong *read_avg_frequency= NULL;
-  ulong *write_avg_frequency= NULL;
   handler *handler_file= 0;
   KEY	*keyinfo;
   KEY_PART_INFO *key_part= NULL;
@@ -946,14 +945,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       if (!(rec_per_key= (ulong*) alloc_root(&share->mem_root,
                                              sizeof(ulong) * ext_key_parts)))
         goto err;
-      if (!(read_avg_frequency= (ulong*) alloc_root(&share->mem_root,
-                                                    sizeof(double) *
-                                                    ext_key_parts)))
-        goto err;
-      if (!(write_avg_frequency= (ulong*) alloc_root(&share->mem_root,
-                                                     sizeof(double) * 
-                                                     ext_key_parts)))
-        goto err;
       first_key_part= key_part;
       first_key_parts= first_keyinfo.key_parts;
       keyinfo->flags= first_keyinfo.flags;
@@ -966,13 +957,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
-    keyinfo->read_stat.init_avg_frequency(read_avg_frequency);
-    keyinfo->write_stat.init_avg_frequency(write_avg_frequency); 
     for (j=keyinfo->key_parts ; j-- ; key_part++)
     {
       *rec_per_key++=0;
-      *read_avg_frequency++= 0;
-      *write_avg_frequency++= 0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
       key_part->key_type=	(uint) uint2korr(strpos+5);
@@ -1019,8 +1006,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
         {
           *key_part++= first_key_part[j];
           *rec_per_key++= 0;
-          *read_avg_frequency++= 0;
-          *write_avg_frequency++= 0;
           keyinfo->ext_key_parts++;
           keyinfo->ext_key_part_map|= 1 << j;
         }
@@ -2415,8 +2400,6 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
              share->rec_buff_length);
   }
 #endif
-
-  outparam->read_stat.cardinality_is_null= TRUE;
 
   if (!(field_ptr = (Field **) alloc_root(&outparam->mem_root,
                                           (uint) ((share->fields+1)*
@@ -5965,7 +5948,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (!keyinfo->rec_per_key)
     return TRUE;
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
-  keyinfo->read_stat.init_avg_frequency(NULL);
+  keyinfo->read_stats= NULL;
+  keyinfo->collected_stats= NULL;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -6752,6 +6736,14 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
+
+double KEY::real_rec_per_key(uint i)
+{ 
+  if (rec_per_key == 0)
+    return 0;
+  return (is_statistics_from_stat_tables ?
+          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+}
 
 /*****************************************************************************
 ** Instansiate templates

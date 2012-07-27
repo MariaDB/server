@@ -36,6 +36,8 @@ class Protocol;
 class Create_field;
 class Relay_log_info;
 class Field;
+class Column_statistics;
+class Column_statistics_collected;
 
 enum enum_check_fields
 {
@@ -173,6 +175,7 @@ public:
   */
   TABLE *table;                                 // Pointer for table
   TABLE *orig_table;                            // Pointer to original table
+  THD *thd;                                     // Used when table == NULL
   const char * const *table_name;
   const char *field_name;
   /** reference to the list of options or NULL */
@@ -220,89 +223,16 @@ public:
 
   bool is_stat_field; /* TRUE in Field objects created for column min/max values */
 
-  /* Statistical data on a column */
-  class Column_statistics
-  {
-  private:
-    static const uint Scale_factor_nulls_ratio= 100000;
-    static const uint Scale_factor_avg_length= 100000;
-    static const uint Scale_factor_avg_frequency= 100000;
-  public:
-    /* 
-      Bitmap indicating  what statistical characteristics
-      are available for the column
-    */
-    uint32 column_stat_nulls;
-
-    /* Minimum value for the column */
-    Field *min_value; 
-    /* Maximum value for the column */   
-    Field *max_value;
-  private:
-    /* 
-      The ratio Z/N multiplied by the scale factor Scale_factor_nulls_ratio,
-      where N is the total number of rows,
-      Z is the number of nulls in the column
-    */
-    ulong nulls_ratio; 
-    /*
-      Average number of bytes occupied by the representation of a
-      value of the column in memory buffers such as join buffer
-      multiplied by the scale factor Scale_factor_avg_length
-      CHAR values are stripped of trailing spaces
-      Flexible values are stripped of their length prefixes.
-    */
-    ulong avg_length;
-    /*
-      The ratio N/D multiplied by the scale factor Scale_factor_avg_frequency,
-      where N is the number of rows with null value 
-      in the column, D the number of distinct values among them
-    */
-    ulong avg_frequency;
-
-  public:
-    double get_nulls_ratio()
-    {
-      return (double) nulls_ratio /  Scale_factor_nulls_ratio;
-    }
-    double get_avg_length()
-    {
-      return (double) avg_length / Scale_factor_avg_length;
-    }
-    double get_avg_frequency()
-    {
-      return (double) avg_frequency / Scale_factor_avg_frequency;
-    }
-
-    void set_nulls_ratio (double val)
-    {
-      nulls_ratio= (ulong) (val * Scale_factor_nulls_ratio);
-    }
-    void set_avg_length (double val)
-    {
-      avg_length= (ulong) (val * Scale_factor_avg_length);
-    }
-    void set_avg_frequency (double val)
-    {
-      avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
-    }
-  };
-  
   /*
     This structure is used for statistical data on the column
     that has been read from the statistical table column_stat
   */ 
-  Column_statistics read_stat;
+  Column_statistics *read_stats;
   /*
     This structure is used for statistical data on the column that
     is collected by the function collect_statistics_for_table
   */
-  Column_statistics write_stat;
-
-  /* These members are used only when collecting statistics on the column */
-  ha_rows nulls;   
-  ulonglong column_total_length;
-  Count_distinct_field *count_distinct;
+  Column_statistics_collected *collected_stats;
 
   /* 
     This is additional data provided for any computed(virtual) field.
@@ -522,6 +452,8 @@ public:
   */
   inline bool real_maybe_null(void) { return null_ptr != 0; }
 
+  inline THD *get_thd() { return table ? table->in_use : thd; }
+
   enum {
     LAST_NULL_BYTE_UNDEF= 0
   };
@@ -560,6 +492,7 @@ public:
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
+  Field *clone(THD *thd_arg, MEM_ROOT *mem_root, my_ptrdiff_t diff);
   inline void move_field(uchar *ptr_arg,uchar *null_ptr_arg,uchar null_bit_arg)
   {
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;

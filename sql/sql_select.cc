@@ -51,6 +51,7 @@
 #include "opt_subselect.h"
 #include "log_slow.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 
 #include "debug_sync.h"          // DEBUG_SYNC
 #include <m_ctype.h>
@@ -14252,7 +14253,6 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   table->intersect_keys.init();
   table->keys_in_use_for_query.init();
   table->no_rows_with_nulls= param->force_not_null_cols;
-  table->read_stat.cardinality_is_null= TRUE;
 
   table->s= share;
   init_tmp_table_share(thd, share, "", 0, tmpname, tmpname);
@@ -14690,8 +14690,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->ext_key_parts= keyinfo->key_parts;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=NULL;
-    keyinfo->read_stat.init_avg_frequency(NULL);
-    keyinfo->write_stat.init_avg_frequency(NULL);
+    keyinfo->read_stats= NULL;
+    keyinfo->collected_stats= NULL;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->name= (char*) "group_key";
@@ -14808,7 +14808,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
     keyinfo->rec_per_key=0;
-    keyinfo->read_stat.init_avg_frequency(NULL);
+    keyinfo->read_stats= NULL;
+    keyinfo->collected_stats= NULL;
 
     /*
       Create an extra field to hold NULL bits so that unique indexes on
