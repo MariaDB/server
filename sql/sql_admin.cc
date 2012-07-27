@@ -712,6 +712,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 	thd->variables.use_stat_tables > 0)
     {
       if (!(compl_result_code=
+            alloc_statistics_for_table(thd, table->table)) &&
+          !(compl_result_code=
             collect_statistics_for_table(thd, table->table)))
         compl_result_code= update_statistics_for_table(thd, table->table);
     }

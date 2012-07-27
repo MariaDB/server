@@ -334,6 +334,122 @@ and o_orderkey=l_orderkey and p_partkey=l_partkey;
 o_orderkey	p_partkey
 5895	200
 set optimizer_switch=@save_optimizer_switch;
+flush table lineitem;
+set use_stat_tables='never';
+select sum(l_extendedprice*l_discount) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24;
+revenue
+77949.91860000002
+set debug_sync='statistics_mem_alloc_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='statistics_mem_alloc_start2  SIGNAL first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+select sum(l_extendedprice*l_discount) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24                                            ;
+set debug_sync='statistics_mem_alloc_start1  SIGNAL second_thread_started_too';
+set debug_sync='statistics_mem_alloc_start2  WAIT_FOR first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+select sum(l_extendedprice*l_discount) as revenue
+from lineitem
+where l_shipdate >= date '1994-01-01' 
+and l_shipdate < date '1994-01-01' + interval '1' year
+and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+and l_quantity < 24;
+revenue
+77949.91860000002
+revenue
+77949.91860000002
+set use_stat_tables='preferably';
+select * from mysql.index_stat where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+delete from mysql.index_stat 
+where table_name='lineitem' and
+index_name in ('i_l_shipdate', 'i_l_receiptdate');
+select * from mysql.index_stat where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+analyze table lineitem persistent for columns() indexes (i_l_shipdate);
+select * from mysql.index_stat where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+delete from mysql.index_stat 
+where table_name='lineitem' and index_name= 'i_l_shipdate';
+select * from mysql.index_stat where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+set debug_sync='statistics_collection_start1  WAIT_FOR second_thread_started_too';
+set debug_sync='statistics_collection_start2  SIGNAL first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+analyze table lineitem persistent for columns() indexes (i_l_shipdate);
+set debug_sync='statistics_collection_start1  SIGNAL second_thread_started_too';
+set debug_sync='statistics_collection_start2  WAIT_FOR first_thread_working';
+use dbt3_s001;
+set use_stat_tables='preferably';
+analyze table lineitem persistent for columns() indexes (i_l_receiptdate);
+select * from mysql.index_stat where table_name='lineitem' order by index_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+dbt3_s001	lineitem	PRIMARY	1	4.0033
+dbt3_s001	lineitem	PRIMARY	2	1.0000
+dbt3_s001	lineitem	i_l_commitdate	1	2.7160
+dbt3_s001	lineitem	i_l_orderkey	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
+dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
+dbt3_s001	lineitem	i_l_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_receiptdate	1	2.6477
+dbt3_s001	lineitem	i_l_shipdate	1	2.6500
+dbt3_s001	lineitem	i_l_suppkey	1	600.5000
+dbt3_s001	lineitem	i_l_suppkey_partkey	1	30.0250
+dbt3_s001	lineitem	i_l_suppkey_partkey	2	8.5786
 DROP DATABASE dbt3_s001;
 use test;
 set use_stat_tables=@save_use_stat_tables;

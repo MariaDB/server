@@ -314,6 +314,9 @@ int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 
 int read_statistics_for_table(THD *thd, TABLE *table);
 int collect_statistics_for_table(THD *thd, TABLE *table);
+int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
+                                     bool is_safe);
+int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
 int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
