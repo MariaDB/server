@@ -430,6 +430,7 @@ enum enum_query_type
 typedef int64 query_id_t;
 extern query_id_t global_query_id;
 extern my_atomic_rwlock_t global_query_id_lock;
+extern my_atomic_rwlock_t statistics_lock;
 
 void unireg_end(void) __attribute__((noreturn));
 

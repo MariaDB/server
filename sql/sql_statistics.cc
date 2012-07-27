@@ -85,7 +85,7 @@ inline void init_table_list_for_stat_tables(TABLE_LIST *tables, bool for_write)
 {
   uint i;
 
-  bzero((char *) &tables[0], sizeof(TABLE_LIST) * STATISTICS_TABLES);
+  memset((char *) &tables[0], 0, sizeof(TABLE_LIST) * STATISTICS_TABLES);
 
   for (i= 0; i < STATISTICS_TABLES; i++)
   {
@@ -116,7 +116,7 @@ inline void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
                                                   const LEX_STRING *stat_tab_name, 
                                                   bool for_write)
 {
-  bzero((char *) tbl, sizeof(TABLE_LIST));
+  memset((char *) tbl, 0, sizeof(TABLE_LIST));
 
   tbl->db= stat_tables_db_name.str;
   tbl->db_length= stat_tables_db_name.length;
@@ -1655,12 +1655,12 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
   
-  bzero(column_stats, sizeof(Column_statistics) * cnt);
+  memset(column_stats, 0, sizeof(Column_statistics) * cnt);
 
   for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
     (*field_ptr)->collected_stats= column_stats;
 
-  bzero(idx_avg_frequency, sizeof(ulong) * key_parts);
+  memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
 
   KEY *key_info, *end;
   for (key_info= table->key_info, end= key_info + table->s->keys;
@@ -1735,7 +1735,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
                                     sizeof(Table_statistics)); 
   if (!table_stats)
     DBUG_RETURN(1);
-  bzero(table_stats, sizeof(Table_statistics));
+  memset(table_stats, 0, sizeof(Table_statistics));
   store_address_if_first((void **) &table_share->read_stats,
                          (void **) &table_stats, is_safe);
   table_stats= table_share->read_stats;
@@ -1746,7 +1746,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
                                      sizeof(Column_statistics) * cnt);
   if (!column_stats)
     DBUG_RETURN(1);
-  bzero(column_stats, sizeof(Column_statistics) * cnt);
+  memset(column_stats, 0, sizeof(Column_statistics) * cnt);
   store_address_if_first((void **) &table_stats->column_stats,
                          (void **) &column_stats, is_safe);
   column_stats= table_stats->column_stats;
@@ -1760,7 +1760,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
                                     sizeof(Index_statistics) * keys);
   if (!index_stats)
     DBUG_RETURN(1);
-  bzero(index_stats, sizeof(Index_statistics) * keys);
+  memset(index_stats, 0, sizeof(Index_statistics) * keys);
   store_address_if_first((void **) &table_stats->index_stats, 
                          (void **) &index_stats, is_safe);
   index_stats= table_stats->index_stats;
@@ -1770,7 +1770,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
                                                 sizeof(ulong) * key_parts);
   if (!idx_avg_frequency)
     DBUG_RETURN(1);
-  bzero(idx_avg_frequency, sizeof(ulong) * key_parts);
+  memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
   store_address_if_first((void **) &table_stats->idx_avg_frequency,
                          (void **) &idx_avg_frequency, is_safe);
   idx_avg_frequency= table_stats->idx_avg_frequency;
