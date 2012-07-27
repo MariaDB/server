@@ -396,6 +396,7 @@ revenue
 revenue
 77949.91860000002
 set use_stat_tables='preferably';
+set debug_sync='RESET';
 select * from mysql.index_stat where table_name='lineitem' order by index_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	lineitem	PRIMARY	1	4.0033
@@ -509,6 +510,7 @@ set debug_sync='statistics_collection_start2  WAIT_FOR first_thread_working';
 use dbt3_s001;
 set use_stat_tables='preferably';
 analyze table lineitem persistent for columns() indexes (i_l_receiptdate);
+set debug_sync='RESET';
 select * from mysql.index_stat where table_name='lineitem' order by index_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	lineitem	PRIMARY	1	4.0033
