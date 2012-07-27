@@ -271,8 +271,11 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
                             bool *inherited_fl);
 JOIN_TAB *first_depth_first_tab(JOIN* join);
 JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
-JOIN_TAB *first_breadth_first_tab(JOIN *join);
-JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab);
+
+enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
+JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind);
+JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
+                                 JOIN_TAB *tab);
 
 #ifndef DBUG_OFF
 
@@ -6730,12 +6733,12 @@ double JOIN::get_examined_rows()
 {
   ha_rows examined_rows;
   double prev_fanout= 1;
-  JOIN_TAB *tab= first_breadth_first_tab(this);
+  JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
   JOIN_TAB *prev_tab= tab;
 
   examined_rows= tab->get_examined_rows();
 
-  while ((tab= next_breadth_first_tab(this, tab)))
+  while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
   {
     prev_fanout *= prev_tab->records_read;
     examined_rows+= tab->get_examined_rows() * prev_fanout;
@@ -7345,7 +7348,6 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
   return found;
 }
 
-enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
 
 /*
   Enumerate join tabs in breadth-first fashion, including const tables.
@@ -10434,7 +10436,7 @@ ha_rows JOIN_TAB::get_examined_rows()
 {
   ha_rows examined_rows;
 
-  if (select && select->quick)
+  if (select && select->quick && use_quick != 2)
     examined_rows= select->quick->records;
   else if (type == JT_NEXT || type == JT_ALL ||
            type == JT_HASH || type ==JT_HASH_NEXT)
@@ -19182,7 +19184,7 @@ err:
 
 void JOIN::clean_pre_sort_join_tab()
 {
-  TABLE *table=  pre_sort_join_tab->table;
+  //TABLE *table=  pre_sort_join_tab->table;
   /*
    Note: we can come here for fake_select_lex object. That object will have
    the table already deleted by st_select_lex_unit::cleanup().  
@@ -21710,7 +21712,8 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         continue;
       }
 
-      if (tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
+      if (join->table_access_tabs == join->join_tab &&
+          tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
       {
         saved_join_tab= tab;
         tab= pre_sort_join_tab;
