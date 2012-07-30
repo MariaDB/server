@@ -147,9 +147,9 @@ inline void store_address_if_first(void **dest, void **src, bool is_safe)
   else
   {
     char *null= NULL;
-    my_atomic_rwlock_wrlock(statistics_lock);
+    my_atomic_rwlock_wrlock(&statistics_lock);
     my_atomic_casptr(dest, (void **) &null, *src) 
-    my_atomic_rwlock_wrunlock(statistics_lock);
+    my_atomic_rwlock_wrunlock(&statistics_lock);
   }
 }
 
