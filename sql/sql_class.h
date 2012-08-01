@@ -3695,13 +3695,13 @@ public:
   /* 
     Cost to materialize - execute the sub-join and write rows into temp.table
   */
-  COST_VECT materialization_cost;
+  Cost_estimate materialization_cost;
 
   /* Cost to make one lookup in the temptable */
-  COST_VECT lookup_cost;
+  Cost_estimate lookup_cost;
   
   /* Cost of scanning the materialized table */
-  COST_VECT scan_cost;
+  Cost_estimate scan_cost;
 
   /* --- Execution structures ---------- */
   

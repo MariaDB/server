@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,20 +29,37 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0byte.h"
 
 /** printf(3) format used for printing DB_TRX_ID and other system fields */
-#define TRX_ID_FMT		"%llX"
+#define TRX_ID_FMT		IB_ID_FMT
 
 /** maximum length that a formatted trx_t::id could take, not including
 the terminating NUL character. */
 #define TRX_ID_MAX_LEN		17
 
+/** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
+enum trx_que_enum {
+	TRX_QUE_RUNNING,		/*!< transaction is running */
+	TRX_QUE_LOCK_WAIT,		/*!< transaction is waiting for
+					a lock */
+	TRX_QUE_ROLLING_BACK,		/*!< transaction is rolling back */
+	TRX_QUE_COMMITTING		/*!< transaction is committing */
+};
+
+/** Transaction states (trx_t::state) */
+enum trx_state_enum {
+	TRX_STATE_NOT_STARTED,
+	TRX_STATE_ACTIVE,
+	TRX_STATE_PREPARED,			/* Support for 2PC/XA */
+	TRX_STATE_COMMITTED_IN_MEMORY
+};
+
 /** Memory objects */
 /* @{ */
 /** Transaction */
 typedef struct trx_struct	trx_t;
+/** The locks and state of an active transaction */
+typedef struct trx_lock_struct	trx_lock_t;
 /** Transaction system */
 typedef struct trx_sys_struct	trx_sys_t;
-/** Doublewrite information */
-typedef struct trx_doublewrite_struct	trx_doublewrite_t;
 /** Signal */
 typedef struct trx_sig_struct	trx_sig_t;
 /** Rollback segment */
@@ -61,6 +78,10 @@ typedef struct roll_node_struct	roll_node_t;
 typedef struct commit_node_struct commit_node_t;
 /** SAVEPOINT command node in a query graph */
 typedef struct trx_named_savept_struct trx_named_savept_t;
+/** Transaction concurrency state */
+typedef enum trx_state_enum trx_state_t;
+/** Transaction query thread state */
+typedef enum trx_que_enum trx_que_t;
 /* @} */
 
 /** Rollback contexts */

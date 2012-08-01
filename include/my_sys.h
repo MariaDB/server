@@ -252,7 +252,9 @@ extern const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
 extern const char *my_defaults_file;
 
+#ifndef timed_mutexes
 extern my_bool timed_mutexes;
+#endif
 
 enum loglevel {
    ERROR_LEVEL,
@@ -772,16 +774,17 @@ extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
 /* init_dynamic_array() function is deprecated */
 extern my_bool init_dynamic_array(DYNAMIC_ARRAY *array, uint element_size,
                                   uint init_alloc, uint alloc_increment);
-extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const uchar * element);
-extern uchar *alloc_dynamic(DYNAMIC_ARRAY *array);
-extern uchar *pop_dynamic(DYNAMIC_ARRAY*);
-extern my_bool set_dynamic(DYNAMIC_ARRAY *array,uchar * element,uint array_index);
+extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
+extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
+extern void *pop_dynamic(DYNAMIC_ARRAY*);
+extern my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element,
+                           uint array_index);
 extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
-extern void get_dynamic(DYNAMIC_ARRAY *array,uchar * element,uint array_index);
+extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
 extern void freeze_size(DYNAMIC_ARRAY *array);
-extern int  get_index_dynamic(DYNAMIC_ARRAY *array, uchar * element);
+extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
 #define dynamic_element(array,array_index,type) ((type)((array)->buffer) +(array_index))
 #define push_dynamic(A,B) insert_dynamic((A),(B))

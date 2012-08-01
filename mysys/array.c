@@ -87,9 +87,9 @@ my_bool init_dynamic_array(DYNAMIC_ARRAY *array, uint element_size,
     FALSE	Ok
 */
 
-my_bool insert_dynamic(DYNAMIC_ARRAY *array, const uchar* element)
+my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void * element)
 {
-  uchar* buffer;
+  void *buffer;
   if (array->elements == array->max_element)
   {						/* Call only when nessesary */
     if (!(buffer=alloc_dynamic(array)))
@@ -122,7 +122,7 @@ my_bool insert_dynamic(DYNAMIC_ARRAY *array, const uchar* element)
     0		Error
 */
 
-uchar *alloc_dynamic(DYNAMIC_ARRAY *array)
+void *alloc_dynamic(DYNAMIC_ARRAY *array)
 {
   DBUG_ENTER("alloc_dynamic");
   if (array->elements == array->max_element)
@@ -167,7 +167,7 @@ uchar *alloc_dynamic(DYNAMIC_ARRAY *array)
     0		Array is empty
 */
 
-uchar *pop_dynamic(DYNAMIC_ARRAY *array)
+void *pop_dynamic(DYNAMIC_ARRAY *array)
 {
   if (array->elements)
     return array->buffer+(--array->elements * array->size_of_element);
@@ -192,7 +192,7 @@ uchar *pop_dynamic(DYNAMIC_ARRAY *array)
     FALSE	Ok
 */
 
-my_bool set_dynamic(DYNAMIC_ARRAY *array, uchar* element, uint idx)
+my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element, uint idx)
 {
   if (idx >= array->elements)
   {
@@ -268,7 +268,7 @@ my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements)
       idx	Index of element wanted.
 */
 
-void get_dynamic(DYNAMIC_ARRAY *array, uchar* element, uint idx)
+void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint idx)
 {
   if (idx >= array->elements)
   {
@@ -363,13 +363,13 @@ void freeze_size(DYNAMIC_ARRAY *array)
 
 */
 
-int get_index_dynamic(DYNAMIC_ARRAY *array, uchar* element)
+int get_index_dynamic(DYNAMIC_ARRAY *array, void* element)
 {
   size_t ret;
-  if (array->buffer > element)
+  if (array->buffer > (uchar*) element)
     return -1;
 
-  ret= (element - array->buffer) /  array->size_of_element;
+  ret= ((uchar*) element - array->buffer) /  array->size_of_element;
   if (ret > array->elements)
     return -1;
 

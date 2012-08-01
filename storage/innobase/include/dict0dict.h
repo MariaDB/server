@@ -27,6 +27,7 @@ Created 1/8/1996 Heikki Tuuri
 #define dict0dict_h
 
 #include "univ.i"
+#include "db0err.h"
 #include "dict0types.h"
 #include "dict0mem.h"
 #include "data0type.h"
@@ -73,16 +74,16 @@ Returns a table object based on table id.
 @return	table, NULL if does not exist */
 UNIV_INTERN
 dict_table_t*
-dict_table_get_on_id(
-/*=================*/
-        table_id_t	table_id,	/*!< in: table id */
-        trx_t*		trx);		/*!< in: transaction handle */
+dict_table_open_on_id(
+/*==================*/
+	table_id_t	table_id,	/*!< in: table id */
+	ibool		dict_locked);	/*!< in: TRUE=data dictionary locked */
 /********************************************************************//**
-Decrements the count of open MySQL handles to a table. */
+Decrements the count of open handles to a table. */
 UNIV_INTERN
 void
-dict_table_decrement_handle_count(
-/*==============================*/
+dict_table_close(
+/*=============*/
 	dict_table_t*	table,		/*!< in/out: table */
 	ibool		dict_locked);	/*!< in: TRUE=data dictionary locked */
 /**********************************************************************//**
@@ -138,7 +139,7 @@ dict_col_copy_type(
 	dtype_t*		type);	/*!< out: data type */
 /**********************************************************************//**
 Determine bytes of column prefix to be stored in the undo log. Please
-note if the table format is UNIV_FORMAT_A (< DICT_TF_FORMAT_ZIP), no prefix
+note if the table format is UNIV_FORMAT_A (< UNIV_FORMAT_B), no prefix
 needs to be stored in the undo log.
 @return bytes of column prefix to be stored in the undo log */
 UNIV_INLINE
@@ -280,8 +281,9 @@ UNIV_INTERN
 void
 dict_table_add_to_cache(
 /*====================*/
-	dict_table_t*	table,	/*!< in: table */
-	mem_heap_t*	heap);	/*!< in: temporary heap */
+	dict_table_t*	table,		/*!< in: table */
+	ibool		can_be_evicted,	/*!< in: TRUE if can be evicted*/
+	mem_heap_t*	heap);		/*!< in: temporary heap */
 /**********************************************************************//**
 Removes a table object from the dictionary cache. */
 UNIV_INTERN
@@ -360,6 +362,16 @@ dict_table_replace_index_in_foreign_list(
 	dict_table_t*	table,  /*!< in/out: table */
 	dict_index_t*	index,	/*!< in: index to be replaced */
 	const trx_t*	trx);	/*!< in: transaction handle */
+/**********************************************************************//**
+Determines whether a string starts with the specified keyword.
+@return TRUE if str starts with keyword */
+UNIV_INTERN
+ibool
+dict_str_starts_with_keyword(
+/*=========================*/
+	void*		mysql_thd,	/*!< in: MySQL thread handle */
+	const char*	str,		/*!< in: string to scan for keyword */
+	const char*	keyword);	/*!< in: keyword to look for */
 /*********************************************************************//**
 Checks if a index is defined for a foreign key constraint. Index is a part
 of a foreign key constraint if the index is referenced by foreign key
@@ -417,66 +429,32 @@ dict_foreign_parse_drop_constraints(
 	const char***	constraints_to_drop);	/*!< out: id's of the
 						constraints to drop */
 /**********************************************************************//**
-Returns a table object and optionally increment its MySQL open handle count.
+Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the
-'dict' directory. Inside this directory dict_table_get_low is usually the
-appropriate function.
+'dict' directory. Inside this directory dict_table_get_low
+is usually the appropriate function.
 @return	table, NULL if does not exist */
 UNIV_INTERN
 dict_table_t*
-dict_table_get(
-/*===========*/
+dict_table_open_on_name(
+/*====================*/
 	const char*	table_name,	/*!< in: table name */
-	ibool		inc_mysql_count);
-					/*!< in: whether to increment the open
-					handle count on the table */
-/**********************************************************************//**
-Returns a index object, based on table and index id, and memoryfixes it.
-@return	index, NULL if does not exist */
-UNIV_INTERN
-dict_index_t*
-dict_index_get_on_id_low(
-/*=====================*/
-	dict_table_t*	table,		/*!< in: table */
-	index_id_t	index_id);	/*!< in: index id */
-/**********************************************************************//**
-Checks if a table is in the dictionary cache.
-@return	table, NULL if not found */
+	ibool		dict_locked);	/*!< in: TRUE=data dictionary locked */
 
-UNIV_INLINE
-dict_table_t*
-dict_table_check_if_in_cache_low(
-/*=============================*/
-	const char*	table_name);	/*!< in: table name */
 /**********************************************************************//**
-Gets a table; loads it to the dictionary cache if necessary. A low-level
-function.
-@return	table, NULL if not found */
-UNIV_INLINE
+Returns a table object and increment its open handle count. Table
+statistics will not be updated if they are not initialized.
+Call this function when dropping a table.
+@return	table, NULL if does not exist */
+UNIV_INTERN
 dict_table_t*
-dict_table_get_low_ignore_err(
-/*===========================*/
+dict_table_open_on_name_no_stats(
+/*=============================*/
 	const char*	table_name,	/*!< in: table name */
+	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
 	dict_err_ignore_t
 			ignore_err);	/*!< in: error to be ignored when
-					loading a table definition */
-/**********************************************************************//**
-Gets a table; loads it to the dictionary cache if necessary. A low-level
-function.
-@return	table, NULL if not found */
-UNIV_INLINE
-dict_table_t*
-dict_table_get_low(
-/*===============*/
-	const char*	table_name);	/*!< in: table name */
-/**********************************************************************//**
-Returns a table object based on table id.
-@return	table, NULL if does not exist */
-UNIV_INLINE
-dict_table_t*
-dict_table_get_on_id_low(
-/*=====================*/
-	table_id_t	table_id);	/*!< in: table id */
+					loading the table */
 /**********************************************************************//**
 Find an index that is equivalent to the one passed in and is not marked
 for deletion.
@@ -627,6 +605,15 @@ dict_index_is_ibuf(
 	const dict_index_t*	index)	/*!< in: index */
 	__attribute__((nonnull, pure, warn_unused_result));
 /********************************************************************//**
+Check whether the index is an universal index tree.
+@return	nonzero for universal tree, zero for other indexes */
+UNIV_INLINE
+ulint
+dict_index_is_univ(
+/*===============*/
+	const dict_index_t*	index)	/*!< in: index */
+	__attribute__((nonnull, pure, warn_unused_result));
+/********************************************************************//**
 Check whether the index is a secondary index or the insert buffer tree.
 @return	nonzero for insert buffer, zero for other indexes */
 UNIV_INLINE
@@ -636,6 +623,16 @@ dict_index_is_sec_or_ibuf(
 	const dict_index_t*	index)	/*!< in: index */
 	__attribute__((nonnull, pure, warn_unused_result));
 
+/************************************************************************
+Gets the all the FTS indexes for the table. NOTE: must not be called for
+tables which do not have an FTS-index. */
+
+ulint
+dict_table_get_all_fts_indexes(
+/*===========================*/
+				/* out: number of indexes collected */
+	dict_table_t*	table,	/* in: table */
+	ib_vector_t*	indexes);/* out: vector for collecting FTS indexes */
 /********************************************************************//**
 Gets the number of user-defined columns in a table in the dictionary
 cache.
@@ -726,21 +723,54 @@ dict_table_get_format(
 /*==================*/
 	const dict_table_t*	table);	/*!< in: table */
 /********************************************************************//**
-Set the file format of a table. */
+Determine the file format from a dict_table_t::flags.
+@return	file format version */
+UNIV_INLINE
+ulint
+dict_tf_get_format(
+/*===============*/
+	ulint		flags);		/*!< in: dict_table_t::flags */
+/********************************************************************//**
+Set the various values in a dict_table_t::flags pointer. */
 UNIV_INLINE
 void
-dict_table_set_format(
-/*==================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	ulint		format);/*!< in: file format version */
+dict_tf_set(
+/*========*/
+	ulint*		flags,		/*!< in/out: table */
+	rec_format_t	format,		/*!< in: file format */
+	ulint		zip_ssize);	/*!< in: zip shift size */
+/********************************************************************//**
+Convert a 32 bit integer table flags to the 32 bit integer that is
+written into the tablespace header at the offset FSP_SPACE_FLAGS and is
+also stored in the fil_space_t::flags field.  The following chart shows
+the translation of the low order bit.  Other bits are the same.
+========================= Low order bit ==========================
+                    | REDUNDANT | COMPACT | COMPRESSED | DYNAMIC
+dict_table_t::flags |     0     |    1    |     1      |    1
+fil_space_t::flags  |     0     |    0    |     1      |    1
+==================================================================
+@return	tablespace flags (fil_space_t::flags) */
+UNIV_INLINE
+ulint
+dict_tf_to_fsp_flags(
+/*=================*/
+	ulint	flags)	/*!< in: dict_table_t::flags */
+	__attribute__((const));
+/********************************************************************/
+UNIV_INLINE
+ulint
+dict_tf_to_sys_tables_type(
+/*=======================*/
+	ulint	flags)	/*!< in: dict_table_t::flags */
+	__attribute__((const));
 /********************************************************************//**
 Extract the compressed page size from table flags.
 @return	compressed page size, or 0 if not compressed */
 UNIV_INLINE
 ulint
-dict_table_flags_to_zip_size(
-/*=========================*/
-	ulint	flags)	/*!< in: flags */
+dict_tf_get_zip_size(
+/*=================*/
+	ulint	flags)			/*!< in: flags */
 	__attribute__((const));
 /********************************************************************//**
 Check whether the table uses the compressed compact page format.
@@ -750,6 +780,7 @@ ulint
 dict_table_zip_size(
 /*================*/
 	const dict_table_t*	table);	/*!< in: table */
+#ifndef UNIV_HOTBACKUP
 /*********************************************************************//**
 Obtain exclusive locks on all index trees of the table. This is to prevent
 accessing index trees while InnoDB is updating internal metadata for
@@ -776,7 +807,43 @@ dict_table_col_in_clustered_key(
 /*============================*/
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			n);	/*!< in: column number */
-#ifndef UNIV_HOTBACKUP
+/*******************************************************************//**
+Check if the table has an FTS index.
+@return TRUE if table has an FTS index */
+UNIV_INLINE
+ibool
+dict_table_has_fts_index(
+/*=====================*/
+	dict_table_t*   table);		/*!< in: table */
+/*******************************************************************//**
+Validate and return the table flags.
+@return	Same as input after validating it as dict_table_t::flags.
+If there is an error, trigger assertion failure. */
+UNIV_INLINE
+ulint
+dict_tf_validate(
+/*=============*/
+         ulint	flags);		/*!< in: table flags */
+/********************************************************************//**
+Validate a SYS_TABLES TYPE field and return it.
+@return	Same as input after validating it as a SYS_TABLES TYPE field.
+If there is an error, return ULINT_UNDEFINED. */
+UNIV_INLINE
+ulint
+dict_sys_tables_type_validate(
+/*==========================*/
+	ulint	type,		/*!< in: SYS_TABLES.TYPE */
+	ulint	n_cols);	/*!< in: SYS_TABLES.N_COLS */
+/********************************************************************//**
+Determine the file format from dict_table_t::flags
+The low order bit will be zero for REDUNDANT and 1 for COMPACT. For any
+other row_format, file_format is > 0 and DICT_TF_COMPACT will also be set.
+@return	file format version */
+UNIV_INLINE
+rec_format_t
+dict_tf_get_rec_format(
+/*===================*/
+        ulint		flags);	/*!< in: dict_table_t::flags */
 /*******************************************************************//**
 Copies types of columns contained in table to tuple and sets all
 fields of the tuple to the SQL NULL value.  This function should
@@ -787,6 +854,17 @@ dict_table_copy_types(
 /*==================*/
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table);	/*!< in: table */
+/********************************************************************
+Wait until all the background threads of the given table have exited, i.e.,
+bg_threads == 0. Note: bg_threads_mutex must be reserved when
+calling this. */
+
+void
+dict_table_wait_for_bg_threads_to_exit(
+/*===================================*/
+	dict_table_t*	table,	/* in: table */
+	ulint		delay);	/* in: time in microseconds to wait between
+				checks of bg_threads. */
 /**********************************************************************//**
 Looks for an index with the given id. NOTE that we do not reserve
 the dictionary mutex: this function is for emergency purposes like
@@ -797,6 +875,17 @@ dict_index_t*
 dict_index_find_on_id_low(
 /*======================*/
 	index_id_t	id);	/*!< in: index id */
+/**********************************************************************//**
+Make room in the table cache by evicting an unused table. The unused table
+should not be part of FK relationship and currently not used in any user
+transaction. There is no guarantee that it will remove a table.
+@return number of tables evicted. */
+UNIV_INTERN
+ulint
+dict_make_room_in_cache(
+/*====================*/
+	ulint		max_tables,	/*!< in: max tables allowed in cache */
+	ulint		pct_check);	/*!< in: max percent to check */
 /**********************************************************************//**
 Adds an index to the dictionary cache.
 @return	DB_SUCCESS, DB_TOO_BIG_RECORD, or DB_CORRUPTION */
@@ -901,12 +990,24 @@ dict_index_get_nth_col_no(
 Looks for column n in an index.
 @return position in internal representation of the index;
 ULINT_UNDEFINED if not contained */
-UNIV_INTERN
+UNIV_INLINE
 ulint
 dict_index_get_nth_col_pos(
 /*=======================*/
 	const dict_index_t*	index,	/*!< in: index */
 	ulint			n);	/*!< in: column number */
+/********************************************************************//**
+Looks for column n in an index.
+@return position in internal representation of the index;
+ULINT_UNDEFINED if not contained */
+UNIV_INTERN
+ulint
+dict_index_get_nth_col_or_prefix_pos(
+/*=================================*/
+	const dict_index_t*	index,		/*!< in: index */
+	ulint			n,		/*!< in: column number */
+	ibool			inc_prefix);	/*!< in: TRUE=consider
+						column prefixes too */
 /********************************************************************//**
 Returns TRUE if the index contains a column or a prefix of that column.
 @return	TRUE if contains the column or its prefix */
@@ -1110,18 +1211,6 @@ ulint
 dict_index_calc_min_rec_len(
 /*========================*/
 	const dict_index_t*	index);	/*!< in: index */
-/*********************************************************************//**
-Calculates new estimates for table and index statistics. The statistics
-are used in query optimization. */
-UNIV_INTERN
-void
-dict_update_statistics(
-/*===================*/
-	dict_table_t*	table,		/*!< in/out: table */
-	ibool		only_calc_if_missing_stats);/*!< in: only
-					update/recalc the stats if they have
-					not been initialized yet, otherwise
-					do nothing */
 /********************************************************************//**
 Reserves the dictionary system mutex for MySQL. */
 UNIV_INTERN
@@ -1192,6 +1281,37 @@ dict_table_get_index_on_name_and_min_id(
 /*====================================*/
 	dict_table_t*	table,	/*!< in: table */
 	const char*	name);	/*!< in: name of the index to find */
+/***************************************************************
+Check whether a column exists in an FTS index. */
+UNIV_INLINE
+ulint
+dict_table_is_fts_column(
+/*=====================*/
+				/* out: ULINT_UNDEFINED if no match else
+				the offset within the vector */
+	ib_vector_t*	indexes,/* in: vector containing only FTS indexes */
+	ulint		col_no);/* in: col number to search for */
+/**********************************************************************//**
+Move a table to the non LRU end of the LRU list. */
+UNIV_INTERN
+void
+dict_table_move_from_lru_to_non_lru(
+/*================================*/
+	dict_table_t*	table);	/*!< in: table to move from LRU to non-LRU */
+/**********************************************************************//**
+Move a table to the LRU list from the non-LRU list. */
+UNIV_INTERN
+void
+dict_table_move_from_non_lru_to_lru(
+/*================================*/
+	dict_table_t*	table);	/*!< in: table to move from non-LRU to LRU */
+/**********************************************************************//**
+Move to the most recently used segment of the LRU list. */
+UNIV_INTERN
+void
+dict_move_to_mru(
+/*=============*/
+	dict_table_t*	table);	/*!< in: table to move to MRU */
 /* Buffers for storing detailed information about the latest foreign key
 and unique key errors */
 extern FILE*	dict_foreign_err_file;
@@ -1221,8 +1341,6 @@ struct dict_sys_struct{
 					on name */
 	hash_table_t*	table_id_hash;	/*!< hash table of the tables, based
 					on id */
-	UT_LIST_BASE_NODE_T(dict_table_t)
-			table_LRU;	/*!< LRU list of tables */
 	ulint		size;		/*!< varying space in bytes occupied
 					by the data dictionary table and
 					index objects */
@@ -1230,6 +1348,14 @@ struct dict_sys_struct{
 	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
 	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
 	dict_table_t*	sys_fields;	/*!< SYS_FIELDS table */
+
+	/*=============================*/
+	UT_LIST_BASE_NODE_T(dict_table_t)
+			table_LRU;	/*!< List of tables that can be evicted
+					from the cache */
+	UT_LIST_BASE_NODE_T(dict_table_t)
+			table_non_LRU;	/*!< List of tables that can't be
+					evicted from the cache */
 };
 #endif /* !UNIV_HOTBACKUP */
 
@@ -1244,6 +1370,56 @@ UNIV_INTERN
 void
 dict_ind_init(void);
 /*===============*/
+
+/* Auxiliary structs for checking a table definition @{ */
+
+/* This struct is used to specify the name and type that a column must
+have when checking a table's schema. */
+struct dict_col_meta_struct {
+	const char*	name;		/* column name */
+	ulint		mtype;		/* required column main type */
+	ulint		prtype_mask;	/* required column precise type mask;
+					if this is non-zero then all the
+					bits it has set must also be set
+					in the column's prtype */
+	ulint		len;		/* required column length */
+};
+typedef struct dict_col_meta_struct dict_col_meta_t;
+
+/* This struct is used for checking whether a given table exists and
+whether it has a predefined schema (number of columns and columns names
+and types) */
+struct dict_table_schema_struct {
+	const char*		table_name;	/* the name of the table whose
+						structure we are checking */
+	ulint			n_cols;		/* the number of columns the
+						table must have */
+	dict_col_meta_t*	columns;	/* metadata for the columns;
+						this array has n_cols
+						elements */
+};
+typedef struct dict_table_schema_struct dict_table_schema_t;
+/* @} */
+
+/*********************************************************************//**
+Checks whether a table exists and whether it has the given structure.
+The table must have the same number of columns with the same names and
+types. The order of the columns does not matter.
+The caller must own the dictionary mutex.
+dict_table_schema_check() @{
+@return DB_SUCCESS if the table exists and contains the necessary columns */
+UNIV_INTERN
+enum db_err
+dict_table_schema_check(
+/*====================*/
+	dict_table_schema_t*	req_schema,	/*!< in/out: required table
+						schema */
+	char*			errstr,		/*!< out: human readable error
+						message if != DB_SUCCESS and
+						!= DB_TABLE_NOT_FOUND is
+						returned */
+	size_t			errstr_sz);	/*!< in: errstr size */
+/* @} */
 
 /**********************************************************************//**
 Closes the data dictionary module. */

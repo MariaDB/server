@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,9 +27,6 @@ Created 7/19/1997 Heikki Tuuri
 #include "page0zip.h"
 #ifndef UNIV_HOTBACKUP
 #include "buf0lru.h"
-
-/** Counter for ibuf_should_try() */
-extern ulint	ibuf_flush_count;
 
 /** An index page must contain at least UNIV_PAGE_SIZE /
 IBUF_PAGE_SIZE_PER_FREE_SPACE bytes of free space for ibuf to try to
@@ -60,36 +57,6 @@ ibuf_mtr_commit(
 	ut_d(mtr->inside_ibuf = FALSE);
 	mtr_commit(mtr);
 }
-
-/** Insert buffer struct */
-struct ibuf_struct{
-	ulint		size;		/*!< current size of the ibuf index
-					tree, in pages */
-	ulint		max_size;	/*!< recommended maximum size of the
-					ibuf index tree, in pages */
-	ulint		seg_size;	/*!< allocated pages of the file
-					segment containing ibuf header and
-					tree */
-	ibool		empty;		/*!< Protected by the page
-					latch of the root page of the
-					insert buffer tree
-					(FSP_IBUF_TREE_ROOT_PAGE_NO). TRUE
-					if and only if the insert
-					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
-	ulint		height;		/*!< tree height */
-	dict_index_t*	index;		/*!< insert buffer index */
-
-	ulint		n_merges;	/*!< number of pages merged */
-	ulint		n_merged_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					merged to index pages */
-	ulint		n_discarded_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					discarded without merging due to the
-					tablespace being deleted or the
-					index being dropped */
-};
 
 /************************************************************************//**
 Sets the free bit of the page in the ibuf bitmap. This is done in a separate
@@ -127,21 +94,10 @@ ibuf_should_try(
 						a secondary index when we
 						decide */
 {
-	if (ibuf_use != IBUF_USE_NONE
-	    && !dict_index_is_clust(index)
-	    && (ignore_sec_unique || !dict_index_is_unique(index))) {
-
-		ibuf_flush_count++;
-
-		if (ibuf_flush_count % 4 == 0) {
-
-			buf_LRU_try_free_flushed_blocks(NULL);
-		}
-
-		return(TRUE);
-	}
-
-	return(FALSE);
+	return(ibuf_use != IBUF_USE_NONE
+	       && ibuf->max_size != 0
+	       && !dict_index_is_clust(index)
+	       && (ignore_sec_unique || !dict_index_is_unique(index)));
 }
 
 /******************************************************************//**
@@ -174,12 +130,11 @@ ibuf_bitmap_page(
 	ut_ad(ut_is_2pow(zip_size));
 
 	if (!zip_size) {
-		return(UNIV_UNLIKELY((page_no & (UNIV_PAGE_SIZE - 1))
-				     == FSP_IBUF_BITMAP_OFFSET));
+		return((page_no & (UNIV_PAGE_SIZE - 1))
+			== FSP_IBUF_BITMAP_OFFSET);
 	}
 
-	return(UNIV_UNLIKELY((page_no & (zip_size - 1))
-			     == FSP_IBUF_BITMAP_OFFSET));
+	return((page_no & (zip_size - 1)) == FSP_IBUF_BITMAP_OFFSET);
 }
 
 /*********************************************************************//**
@@ -197,7 +152,7 @@ ibuf_index_page_calc_free_bits(
 	ulint	n;
 	ut_ad(ut_is_2pow(zip_size));
 	ut_ad(!zip_size || zip_size > IBUF_PAGE_SIZE_PER_FREE_SPACE);
-	ut_ad(zip_size <= UNIV_PAGE_SIZE);
+	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
 
 	if (zip_size) {
 		n = max_ins_size
@@ -232,7 +187,7 @@ ibuf_index_page_calc_free_from_bits(
 	ut_ad(bits < 4);
 	ut_ad(ut_is_2pow(zip_size));
 	ut_ad(!zip_size || zip_size > IBUF_PAGE_SIZE_PER_FREE_SPACE);
-	ut_ad(zip_size <= UNIV_PAGE_SIZE);
+	ut_ad(zip_size <= UNIV_ZIP_SIZE_MAX);
 
 	if (zip_size) {
 		if (bits == 3) {
@@ -274,9 +229,9 @@ ibuf_index_page_calc_free_zip(
 	zip_max_ins = page_zip_max_ins_size(page_zip,
 					    FALSE/* not clustered */);
 
-	if (UNIV_UNLIKELY(zip_max_ins < 0)) {
+	if (zip_max_ins < 0) {
 		return(0);
-	} else if (UNIV_LIKELY(max_ins_size > (ulint) zip_max_ins)) {
+	} else if (max_ins_size > (ulint) zip_max_ins) {
 		max_ins_size = (ulint) zip_max_ins;
 	}
 

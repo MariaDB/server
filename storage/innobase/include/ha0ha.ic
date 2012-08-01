@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -106,6 +106,56 @@ ha_chain_get_first(
 	       hash_get_nth_cell(table, hash_calc_hash(fold, table))->node);
 }
 
+#ifdef UNIV_DEBUG
+/********************************************************************//**
+Assert that the synchronization object in a hash operation involving
+possible change in the hash table is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held in exclusive mode. */
+UNIV_INLINE
+void
+hash_assert_can_modify(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold)	/*!< in: fold value */
+{
+	if (table->type == HASH_TABLE_SYNC_MUTEX) {
+		ut_ad(mutex_own(hash_get_mutex(table, fold)));
+	} else if (table->type == HASH_TABLE_SYNC_RW_LOCK) {
+# ifdef UNIV_SYNC_DEBUG
+		rw_lock_t* lock = hash_get_lock(table, fold);
+		ut_ad(rw_lock_own(lock, RW_LOCK_EX));
+# endif
+	} else {
+		ut_ad(table->type == HASH_TABLE_SYNC_NONE);
+	}
+}
+
+/********************************************************************//**
+Assert that the synchronization object in a hash search operation is held.
+Note that in case of mutexes we assert that mutex is owned while in case
+of rw-locks we assert that it is held either in x-mode or s-mode. */
+UNIV_INLINE
+void
+hash_assert_can_search(
+/*===================*/
+	hash_table_t*	table,	/*!< in: hash table */
+	ulint		fold)	/*!< in: fold value */
+{
+	if (table->type == HASH_TABLE_SYNC_MUTEX) {
+		ut_ad(mutex_own(hash_get_mutex(table, fold)));
+	} else if (table->type == HASH_TABLE_SYNC_RW_LOCK) {
+# ifdef UNIV_SYNC_DEBUG
+		rw_lock_t* lock = hash_get_lock(table, fold);
+		ut_ad(rw_lock_own(lock, RW_LOCK_EX)
+		      || rw_lock_own(lock, RW_LOCK_SHARED));
+# endif
+	} else {
+		ut_ad(table->type == HASH_TABLE_SYNC_NONE);
+	}
+}
+#endif /* UNIV_DEBUG */
+
 /*************************************************************//**
 Looks for an element in a hash table.
 @return pointer to the data of the first hash table node in chain
@@ -119,10 +169,7 @@ ha_search_and_get_data(
 {
 	ha_node_t*	node;
 
-	ASSERT_HASH_MUTEX_OWN(table, fold);
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&btr_search_latch, RW_LOCK_SHARED));
-#endif /* UNIV_SYNC_DEBUG */
+	hash_assert_can_search(table, fold);
 	ut_ad(btr_search_enabled);
 
 	node = ha_chain_get_first(table, fold);
@@ -152,7 +199,7 @@ ha_search_with_data(
 {
 	ha_node_t*	node;
 
-	ASSERT_HASH_MUTEX_OWN(table, fold);
+	hash_assert_can_search(table, fold);
 
 	ut_ad(btr_search_enabled);
 
@@ -184,10 +231,7 @@ ha_search_and_delete_if_found(
 {
 	ha_node_t*	node;
 
-	ASSERT_HASH_MUTEX_OWN(table, fold);
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(rw_lock_own(&btr_search_latch, RW_LOCK_EX));
-#endif /* UNIV_SYNC_DEBUG */
+	hash_assert_can_modify(table, fold);
 	ut_ad(btr_search_enabled);
 
 	node = ha_search_with_data(table, fold, data);

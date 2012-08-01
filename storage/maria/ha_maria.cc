@@ -3746,7 +3746,7 @@ int ha_maria::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param, 
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, COST_VECT *cost)
+                                               uint *flags, Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -3760,7 +3760,7 @@ ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
 ha_rows ha_maria::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                        uint key_parts, uint *bufsz, 
-                                       uint *flags, COST_VECT *cost)
+                                       uint *flags, Cost_estimate *cost)
 {
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);

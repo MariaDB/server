@@ -50,7 +50,7 @@
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
 #include <m_ctype.h>
-#include "my_md5.h"
+#include <my_md5.h>
 #include "sha1.h"
 #include "my_aes.h"
 #include <zlib.h>
@@ -180,7 +180,8 @@ String *Item_func_md5::val_str_ascii(String *str)
     uchar digest[16];
 
     null_value=0;
-    MY_MD5_HASH(digest,(uchar *) sptr->ptr(), sptr->length());
+    compute_md5_hash((char *) digest, (const char *) sptr->ptr(),
+                     sptr->length());
     if (str->alloc(32))				// Ensure that memory is free
     {
       null_value=1;

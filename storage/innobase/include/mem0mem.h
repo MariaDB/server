@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1994, 2010, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -62,6 +62,12 @@ buffer pool; the latter method is used for very big heaps */
 					allocation functions can return
 					NULL. */
 
+/* Different type of heaps in terms of which datastructure is using them */
+#define MEM_HEAP_FOR_BTR_SEARCH		(MEM_HEAP_BTR_SEARCH | MEM_HEAP_BUFFER)
+#define MEM_HEAP_FOR_PAGE_HASH		(MEM_HEAP_DYNAMIC)
+#define MEM_HEAP_FOR_RECV_SYS		(MEM_HEAP_BUFFER)
+#define MEM_HEAP_FOR_LOCK_HEAP		(MEM_HEAP_BUFFER)
+
 /* The following start size is used for the first block in the memory heap if
 the size is not specified, i.e., 0 is given as the parameter in the call of
 create. The standard size is the maximum (payload) size of the blocks used for
@@ -99,16 +105,8 @@ heap creation. */
 Use this macro instead of the corresponding function! Macro for memory
 heap creation. */
 
-#define mem_heap_create_in_buffer(N)	mem_heap_create_func(\
-		(N), MEM_HEAP_BUFFER, __FILE__, __LINE__)
-/**************************************************************//**
-Use this macro instead of the corresponding function! Macro for memory
-heap creation. */
-
-#define mem_heap_create_in_btr_search(N)	mem_heap_create_func(\
-		(N), MEM_HEAP_BTR_SEARCH | MEM_HEAP_BUFFER,\
-		__FILE__, __LINE__)
-
+#define mem_heap_create_typed(N, T)	mem_heap_create_func(\
+		(N), (T), __FILE__, __LINE__)
 /**************************************************************//**
 Use this macro instead of the corresponding function! Macro for memory
 heap freeing. */
@@ -221,7 +219,7 @@ mem_heap_get_size(
 Use this macro instead of the corresponding function!
 Macro for memory buffer allocation */
 
-#define mem_zalloc(N)	memset(mem_alloc(N), 0, (N));
+#define mem_zalloc(N)	memset(mem_alloc(N), 0, (N))
 
 #define mem_alloc(N)	mem_alloc_func((N), NULL, __FILE__, __LINE__)
 #define mem_alloc2(N,S)	mem_alloc_func((N), (S), __FILE__, __LINE__)
@@ -320,7 +318,7 @@ mem_heap_dup(
 	ulint		len);	/*!< in: length of data, in bytes */
 
 /****************************************************************//**
-A simple (s)printf replacement that dynamically allocates the space for the
+A simple sprintf replacement that dynamically allocates the space for the
 formatted string from the given heap. This supports a very limited set of
 the printf syntax: types 's' and 'u' and length modifier 'l' (which is
 required for the 'u' type).

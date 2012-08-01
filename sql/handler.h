@@ -1069,7 +1069,22 @@ inline LEX_STRING *hton_name(const handlerton *hton)
 #define HTON_NOT_USER_SELECTABLE     (1 << 5)
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
-#define HTON_NO_PARTITION            (1 << 8) //You can not partition these tables
+#define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
+
+/*
+  This flag should be set when deciding that the engine does not allow
+  row based binary logging (RBL) optimizations.
+
+  Currently, setting this flag, means that table's read/write_set will
+  be left untouched when logging changes to tables in this engine. In
+  practice this means that the server will not mess around with
+  table->write_set and/or table->read_set when using RBL and deciding
+  whether to log full or minimal rows.
+
+  It's valuable for instance for virtual tables, eg: Performance
+  Schema which have no meaning for replication.
+*/
+#define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
 
 class Ha_trx_info;
 
@@ -1446,21 +1461,24 @@ typedef struct st_range_seq_if
 
 typedef bool (*SKIP_INDEX_TUPLE_FUNC) (range_seq_t seq, range_id_t range_info);
 
-class COST_VECT
+class Cost_estimate
 { 
 public:
   double io_count;     /* number of I/O                 */
   double avg_io_cost;  /* cost of an average I/O oper.  */
   double cpu_cost;     /* cost of operations in CPU     */
-  double mem_cost;     /* cost of used memory           */ 
   double import_cost;  /* cost of remote operations     */
+  double mem_cost;     /* cost of used memory           */ 
   
   enum { IO_COEFF=1 };
   enum { CPU_COEFF=1 };
   enum { MEM_COEFF=1 };
   enum { IMPORT_COEFF=1 };
 
-  COST_VECT() {}                              // keep gcc happy
+  Cost_estimate()
+  {
+    reset();
+  }
 
   double total_cost() 
   {
@@ -1468,7 +1486,17 @@ public:
            MEM_COEFF*mem_cost + IMPORT_COEFF*import_cost;
   }
 
-  void zero()
+  /**
+    Whether or not all costs in the object are zero
+    
+    @return true if all costs are zero, false otherwise
+  */
+  bool is_zero() const
+  { 
+    return !(io_count || cpu_cost || import_cost || mem_cost);
+  }
+
+  void reset()
   {
     avg_io_cost= 1.0;
     io_count= cpu_cost= mem_cost= import_cost= 0.0;
@@ -1482,13 +1510,14 @@ public:
     /* Don't multiply mem_cost */
   }
 
-  void add(const COST_VECT* cost)
+  void add(const Cost_estimate* cost)
   {
     double io_count_sum= io_count + cost->io_count;
     add_io(cost->io_count, cost->avg_io_cost);
     io_count= io_count_sum;
     cpu_cost += cost->cpu_cost;
   }
+
   void add_io(double add_io_cnt, double add_avg_cost)
   {
     /* In edge cases add_io_cnt may be zero */
@@ -1501,20 +1530,28 @@ public:
     }
   }
 
+  /// Add to CPU cost
+  void add_cpu(double add_cpu_cost) { cpu_cost+= add_cpu_cost; }
+
+  /// Add to import cost
+  void add_import(double add_import_cost) { import_cost+= add_import_cost; }
+
+  /// Add to memory cost
+  void add_mem(double add_mem_cost) { mem_cost+= add_mem_cost; }
+
   /*
     To be used when we go from old single value-based cost calculations to
-    the new COST_VECT-based.
+    the new Cost_estimate-based.
   */
   void convert_from_cost(double cost)
   {
-    zero();
-    avg_io_cost= 1.0;
+    reset();
     io_count= cost;
   }
 };
 
 void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted, 
-                         COST_VECT *cost);
+                         Cost_estimate *cost);
 
 /*
   Indicates that all scanned ranges will be singlepoint (aka equality) ranges.
@@ -2156,10 +2193,11 @@ public:
   virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                               void *seq_init_param, 
                                               uint n_ranges, uint *bufsz,
-                                              uint *mrr_mode, COST_VECT *cost);
+                                              uint *mrr_mode,
+                                              Cost_estimate *cost);
   virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                         uint key_parts, uint *bufsz, 
-                                        uint *mrr_mode, COST_VECT *cost);
+                                        uint *mrr_mode, Cost_estimate *cost);
   virtual int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                                     uint n_ranges, uint mrr_mode, 
                                     HANDLER_BUFFER *buf);

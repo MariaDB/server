@@ -9588,7 +9588,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
                             uint table_index,
                             JOIN_TAB *prev_tab)
 {
-  COST_VECT cost;
+  Cost_estimate cost;
   uint flags= 0;
   ha_rows rows= 0;
   uint bufsz= 4096;

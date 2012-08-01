@@ -337,10 +337,16 @@ extern void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t);
 #define DEBUG_SYNC(thd, name)                           \
   do {                                                  \
     if (debug_sync_service)                             \
-      debug_sync_service(thd, name, sizeof(name)-1);    \
+      debug_sync_service(thd, STRING_WITH_LEN(name));   \
   } while(0)
+#define DEBUG_SYNC_C_IF_THD(thd, name)                  \
+  do {                                                  \
+    if (debug_sync_service && thd)                      \
+      (*debug_sync_service)(thd, STRING_WITH_LEN(name)); } \
+  while(0)
 #else
-#define DEBUG_SYNC(thd,name)            do { } while(0)
+#define DEBUG_SYNC(thd,name)           do { } while(0)
+#define DEBUG_SYNC_C_IF_THD(thd, name) do { } while(0)
 #endif
 
 /* compatibility macro */

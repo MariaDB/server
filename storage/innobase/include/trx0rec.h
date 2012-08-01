@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -239,32 +239,13 @@ trx_undo_get_undo_rec_low(
 /*======================*/
 	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
 	mem_heap_t*	heap);		/*!< in: memory heap where copied */
-/******************************************************************//**
-Copies an undo record to heap.
-
-NOTE: the caller must have latches on the clustered index page and
-purge_view.
-
-@return DB_SUCCESS, or DB_MISSING_HISTORY if the undo log has been
-truncated and we cannot fetch the old version */
-UNIV_INTERN
-ulint
-trx_undo_get_undo_rec(
-/*==================*/
-	roll_ptr_t	roll_ptr,	/*!< in: roll pointer to record */
-	trx_id_t	trx_id,		/*!< in: id of the trx that generated
-					the roll pointer: it points to an
-					undo log of this transaction */
-	trx_undo_rec_t** undo_rec,	/*!< out, own: copy of the record */
-	mem_heap_t*	heap);		/*!< in: memory heap where copied */
 /*******************************************************************//**
-Build a previous version of a clustered index record. This function checks
-that the caller has a latch on the index page of the clustered index record
-and an s-latch on the purge_view. This guarantees that the stack of versions
-is locked.
+Build a previous version of a clustered index record. The caller must
+hold a latch on the index page of the clustered index record, to
+guarantee that the stack of versions is locked all the way down to the
+purge_sys->view.
 @return DB_SUCCESS, or DB_MISSING_HISTORY if the previous version is
-earlier than purge_view, which means that it may have been removed,
-DB_ERROR if corrupted record */
+earlier than purge_view, which means that it may have been removed */
 UNIV_INTERN
 ulint
 trx_undo_prev_version_build(

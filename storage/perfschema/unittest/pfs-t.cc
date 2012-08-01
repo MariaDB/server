@@ -25,6 +25,7 @@
 #include <memory.h>
 
 #include "stub_print_error.h"
+#include "stub_pfs_defaults.h"
 #include "stub_server_misc.h"
 
 /* test helpers, to simulate the setup */
@@ -79,6 +80,7 @@ void test_bootstrap()
 
   diag("test_bootstrap");
 
+  memset(& param, 0xFF, sizeof(param));
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
   param.m_rwlock_class_sizing= 0;
@@ -86,6 +88,7 @@ void test_bootstrap()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -93,8 +96,21 @@ void test_bootstrap()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+  param.m_digest_sizing= 0;
 
   boot= initialize_performance_schema(& param);
   ok(boot != NULL, "boot");
@@ -121,6 +137,7 @@ PSI * load_perfschema()
   PSI_bootstrap *boot;
   PFS_global_param param;
 
+  memset(& param, 0xFF, sizeof(param));
   param.m_enabled= true;
   param.m_mutex_class_sizing= 10;
   param.m_rwlock_class_sizing= 10;
@@ -128,6 +145,7 @@ PSI * load_perfschema()
   param.m_thread_class_sizing= 10;
   param.m_table_share_sizing= 10;
   param.m_file_class_sizing= 10;
+  param.m_socket_class_sizing= 10;
   param.m_mutex_sizing= 10;
   param.m_rwlock_sizing= 10;
   param.m_cond_sizing= 10;
@@ -135,12 +153,29 @@ PSI * load_perfschema()
   param.m_table_sizing= 10;
   param.m_file_sizing= 10;
   param.m_file_handle_sizing= 50;
+  param.m_socket_sizing= 10;
   param.m_events_waits_history_sizing= 10;
   param.m_events_waits_history_long_sizing= 10;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+  param.m_digest_sizing= 0;
 
   /* test_bootstrap() covered this, assuming it just works */
   boot= initialize_performance_schema(& param);
   psi= boot->get_interface(PSI_VERSION_1);
+
+  /* Reset every consumer to a known state */
+  flag_global_instrumentation= true;
+  flag_thread_instrumentation= true;
 
   return (PSI*) psi;
 }
@@ -478,6 +513,72 @@ void test_bad_registration()
   psi->register_file("X", bad_file_3, 1);
   ok(dummy_file_key == 2, "assigned key");
 
+ /*
+    Test that length('wait/io/socket/' (15) + category + '/' (1)) < 32
+    --> category can be up to 15 chars for a socket.
+  */
+
+  PSI_socket_key dummy_socket_key= 9999;
+  PSI_socket_info bad_socket_1[]=
+  {
+    { & dummy_socket_key, "X", 0}
+  };
+
+  psi->register_socket("/", bad_socket_1, 1);
+  ok(dummy_socket_key == 0, "zero key");
+  dummy_socket_key= 9999;
+  psi->register_socket("a/", bad_socket_1, 1);
+  ok(dummy_socket_key == 0, "zero key");
+  dummy_socket_key= 9999;
+  psi->register_socket("/b", bad_socket_1, 1);
+  ok(dummy_socket_key == 0, "zero key");
+  dummy_socket_key= 9999;
+  psi->register_socket("a/b", bad_socket_1, 1);
+  ok(dummy_socket_key == 0, "zero key");
+  dummy_socket_key= 9999;
+  psi->register_socket("1234567890123456", bad_socket_1, 1);
+  ok(dummy_socket_key == 0, "zero key");
+  dummy_socket_key= 9999;
+  psi->register_socket("123456789012345", bad_socket_1, 1);
+  ok(dummy_socket_key == 1, "assigned key");
+
+  /*
+    Test that length('wait/io/socket/' (15) + category + '/' (1) + name) <= 128
+    --> category + name can be up to 112 chars for a socket.
+  */
+
+  dummy_socket_key= 9999;
+  PSI_socket_info bad_socket_2[]=
+  {
+    { & dummy_socket_key,
+      /* 112 chars name */
+      "12345678901234567890123456789012345678901234567890"
+      "12345678901234567890123456789012345678901234567890"
+      "123456789012",
+      0}
+  };
+
+  psi->register_socket("X", bad_socket_2, 1);
+  ok(dummy_socket_key == 0, "zero key");
+
+  dummy_socket_key= 9999;
+  PSI_socket_info bad_socket_3[]=
+  {
+    { & dummy_socket_key,
+      /* 111 chars name */
+      "12345678901234567890123456789012345678901234567890"
+      "12345678901234567890123456789012345678901234567890"
+      "12345678901",
+      0}
+  };
+
+  psi->register_socket("XX", bad_socket_3, 1);
+  ok(dummy_socket_key == 0, "zero key");
+
+  psi->register_socket("X", bad_socket_3, 1);
+  ok(dummy_socket_key == 2, "assigned key");
+
+
   shutdown_performance_schema();
 }
 
@@ -513,6 +614,12 @@ void test_init_disabled()
     { & file_key_A, "F-A", 0}
   };
 
+  PSI_socket_key socket_key_A;
+  PSI_socket_info all_socket[]=
+  {
+    { & socket_key_A, "S-A", 0}
+  };
+
   PSI_thread_key thread_key_1;
   PSI_thread_info all_thread[]=
   {
@@ -523,16 +630,19 @@ void test_init_disabled()
   psi->register_rwlock("test", all_rwlock, 1);
   psi->register_cond("test", all_cond, 1);
   psi->register_file("test", all_file, 1);
+  psi->register_socket("test", all_socket, 1);
   psi->register_thread("test", all_thread, 1);
 
   PFS_mutex_class *mutex_class_A;
   PFS_rwlock_class *rwlock_class_A;
   PFS_cond_class *cond_class_A;
   PFS_file_class *file_class_A;
+  PFS_socket_class *socket_class_A;
   PSI_mutex *mutex_A1;
   PSI_rwlock *rwlock_A1;
   PSI_cond *cond_A1;
   PFS_file *file_A1;
+  PSI_socket *socket_A1;
   PSI_thread *thread_1;
 
   /* Preparation */
@@ -553,8 +663,11 @@ void test_init_disabled()
   file_class_A= find_file_class(file_key_A);
   ok(file_class_A != NULL, "file class A");
 
-  /* Pretend thread T-1 is running, and disabled */
-  /* ------------------------------------------- */
+  socket_class_A= find_socket_class(socket_key_A);
+  ok(socket_class_A != NULL, "socket class A");
+
+  /* Pretend thread T-1 is running, and disabled, with thread_instrumentation */
+  /* ------------------------------------------------------------------------ */
 
   psi->set_thread(thread_1);
   setup_thread(thread_1, false);
@@ -563,61 +676,61 @@ void test_init_disabled()
 
   mutex_class_A->m_enabled= false;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
 
-  /* enabled M-A + disabled T-1: no instrumentation */
+  /* enabled M-A + disabled T-1: instrumentation (for later) */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 != NULL, "mutex_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(0, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "mutex key 0 not instrumented");
   mutex_A1= psi->init_mutex(99, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "broken mutex key not instrumented");
 
   /* disabled RW-A + disabled T-1: no instrumentation */
 
   rwlock_class_A->m_enabled= false;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
 
-  /* enabled RW-A + disabled T-1: no instrumentation */
+  /* enabled RW-A + disabled T-1: instrumentation (for later) */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 != NULL, "rwlock_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(0, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "rwlock key 0 not instrumented");
   rwlock_A1= psi->init_rwlock(99, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "broken rwlock key not instrumented");
 
   /* disabled C-A + disabled T-1: no instrumentation */
 
   cond_class_A->m_enabled= false;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "cond_A1 not instrumented");
 
-  /* enabled C-A + disabled T-1: no instrumentation */
+  /* enabled C-A + disabled T-1: instrumentation (for later) */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 != NULL, "cond_A1 instrumented");
 
   /* broken key + disabled T-1: no instrumentation */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(0, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "cond key 0 not instrumented");
   cond_A1= psi->init_cond(99, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "broken cond key not instrumented");
 
   /* disabled F-A + disabled T-1: no instrumentation */
 
@@ -643,6 +756,26 @@ void test_init_disabled()
   file_A1= lookup_file_by_name("foo");
   ok(file_A1 == NULL, "not instrumented");
 
+  /* disabled S-A + disabled T-1: no instrumentation */
+
+  socket_class_A->m_enabled= false;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 == NULL, "socket_A1 not instrumented");
+
+  /* enabled S-A + disabled T-1: instrumentation (for later) */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 != NULL, "socket_A1 instrumented");
+
+  /* broken key + disabled T-1: no instrumentation */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(0, NULL);
+  ok(socket_A1 == NULL, "socket key 0 not instrumented");
+  socket_A1= psi->init_socket(99, NULL);
+  ok(socket_A1 == NULL, "broken socket key not instrumented");
+  
   /* Pretend thread T-1 is enabled */
   /* ----------------------------- */
 
@@ -739,17 +872,37 @@ void test_init_disabled()
   file_class_A->m_enabled= true;
   psi->create_file(file_key_A, "foo-instrumented", (File) 12);
   file_A1= lookup_file_by_name("foo-instrumented");
-  ok(file_A1 != NULL, "instrumented");
+  ok(file_A1 != NULL, "file_A1 instrumented");
 
   /* broken key + enabled T-1: no instrumentation */
 
   file_class_A->m_enabled= true;
   psi->create_file(0, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "not instrumented");
+  ok(file_A1 == NULL, "file key 0 not instrumented");
   psi->create_file(99, "foo", (File) 12);
   file_A1= lookup_file_by_name("foo");
-  ok(file_A1 == NULL, "not instrumented");
+  ok(file_A1 == NULL, "broken file key not instrumented");
+
+  /* disabled S-A + enabled T-1: no instrumentation */
+
+  socket_class_A->m_enabled= false;
+  ok(socket_A1 == NULL, "not instrumented");
+
+  /* enabled S-A + enabled T-1: instrumentation */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 != NULL, "instrumented");
+  psi->destroy_socket(socket_A1);
+
+  /* broken key + enabled T-1: no instrumentation */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(0, NULL);
+  ok(socket_A1 == NULL, "not instrumented");
+  socket_A1= psi->init_socket(99, NULL);
+  ok(socket_A1 == NULL, "not instrumented");
 
   /* Pretend the running thread is not instrumented */
   /* ---------------------------------------------- */
@@ -760,61 +913,61 @@ void test_init_disabled()
 
   mutex_class_A->m_enabled= false;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "mutex_A1 not instrumented");
 
-  /* enabled M-A + unknown thread: no instrumentation */
+  /* enabled M-A + unknown thread: instrumentation (for later) */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(mutex_key_A, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 != NULL, "mutex_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
   mutex_class_A->m_enabled= true;
   mutex_A1= psi->init_mutex(0, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "mutex key 0 not instrumented");
   mutex_A1= psi->init_mutex(99, NULL);
-  ok(mutex_A1 == NULL, "not instrumented");
+  ok(mutex_A1 == NULL, "broken mutex key not instrumented");
 
   /* disabled RW-A + unknown thread: no instrumentation */
 
   rwlock_class_A->m_enabled= false;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "rwlock_A1 not instrumented");
 
-  /* enabled RW-A + unknown thread: no instrumentation */
+  /* enabled RW-A + unknown thread: instrumentation (for later) */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(rwlock_key_A, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 != NULL, "rwlock_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
   rwlock_class_A->m_enabled= true;
   rwlock_A1= psi->init_rwlock(0, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "rwlock key 0 not instrumented");
   rwlock_A1= psi->init_rwlock(99, NULL);
-  ok(rwlock_A1 == NULL, "not instrumented");
+  ok(rwlock_A1 == NULL, "broken rwlock key not instrumented");
 
   /* disabled C-A + unknown thread: no instrumentation */
 
   cond_class_A->m_enabled= false;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "cond_A1 not instrumented");
 
-  /* enabled C-A + unknown thread: no instrumentation */
+  /* enabled C-A + unknown thread: instrumentation (for later) */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(cond_key_A, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 != NULL, "cond_A1 instrumented");
 
   /* broken key + unknown thread: no instrumentation */
 
   cond_class_A->m_enabled= true;
   cond_A1= psi->init_cond(0, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "cond key 0 not instrumented");
   cond_A1= psi->init_cond(99, NULL);
-  ok(cond_A1 == NULL, "not instrumented");
+  ok(cond_A1 == NULL, "broken cond key not instrumented");
 
   /* disabled F-A + unknown thread: no instrumentation */
 
@@ -840,6 +993,26 @@ void test_init_disabled()
   file_A1= lookup_file_by_name("foo");
   ok(file_A1 == NULL, "not instrumented");
 
+  /* disabled S-A + unknown thread: no instrumentation */
+
+  socket_class_A->m_enabled= false;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 == NULL, "socket_A1 not instrumented");
+
+  /* enabled S-A + unknown thread: instrumentation (for later) */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 != NULL, "socket_A1 instrumented");
+
+  /* broken key + unknown thread: no instrumentation */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(0, NULL);
+  ok(socket_A1 == NULL, "socket key 0 not instrumented");
+  socket_A1= psi->init_socket(99, NULL);
+  ok(socket_A1 == NULL, "broken socket key not instrumented");
+  
   shutdown_performance_schema();
 }
 
@@ -875,6 +1048,12 @@ void test_locker_disabled()
     { & file_key_A, "F-A", 0}
   };
 
+  PSI_socket_key socket_key_A;
+  PSI_socket_info all_socket[]=
+  {
+    { & socket_key_A, "S-A", 0}
+  };
+
   PSI_thread_key thread_key_1;
   PSI_thread_info all_thread[]=
   {
@@ -885,16 +1064,19 @@ void test_locker_disabled()
   psi->register_rwlock("test", all_rwlock, 1);
   psi->register_cond("test", all_cond, 1);
   psi->register_file("test", all_file, 1);
+  psi->register_socket("test", all_socket, 1);
   psi->register_thread("test", all_thread, 1);
 
   PFS_mutex_class *mutex_class_A;
   PFS_rwlock_class *rwlock_class_A;
   PFS_cond_class *cond_class_A;
   PFS_file_class *file_class_A;
+  PFS_socket_class *socket_class_A;
   PSI_mutex *mutex_A1;
   PSI_rwlock *rwlock_A1;
   PSI_cond *cond_A1;
   PSI_file *file_A1;
+  PSI_socket *socket_A1;
   PSI_thread *thread_1;
 
   /* Preparation */
@@ -914,6 +1096,9 @@ void test_locker_disabled()
 
   file_class_A= find_file_class(file_key_A);
   ok(file_class_A != NULL, "file info A");
+
+  socket_class_A= find_socket_class(socket_key_A);
+  ok(socket_class_A != NULL, "socket info A");
 
   /* Pretend thread T-1 is running, and enabled */
   /* ------------------------------------------ */
@@ -940,6 +1125,13 @@ void test_locker_disabled()
   file_A1= (PSI_file*) lookup_file_by_name("foo");
   ok(file_A1 != NULL, "instrumented");
 
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 != NULL, "instrumented");
+
+  /* Socket lockers require a thread owner */
+  psi->set_socket_thread_owner(socket_A1);
+
   PSI_mutex_locker *mutex_locker;
   PSI_mutex_locker_state mutex_state;
   PSI_rwlock_locker *rwlock_locker;
@@ -948,6 +1140,8 @@ void test_locker_disabled()
   PSI_cond_locker_state cond_state;
   PSI_file_locker *file_locker;
   PSI_file_locker_state file_state;
+  PSI_socket_locker *socket_locker;
+  PSI_socket_locker_state socket_state;
 
   /* Pretend thread T-1 is disabled */
   /* ------------------------------ */
@@ -958,58 +1152,110 @@ void test_locker_disabled()
   rwlock_class_A->m_enabled= true;
   cond_class_A->m_enabled= true;
   file_class_A->m_enabled= true;
+  socket_class_A->m_enabled= true;
 
-  mutex_locker= psi->get_thread_mutex_locker(&mutex_state, mutex_A1, PSI_MUTEX_LOCK);
-  ok(mutex_locker == NULL, "no locker");
-  rwlock_locker= psi->get_thread_rwlock_locker(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK);
-  ok(rwlock_locker == NULL, "no locker");
-  cond_locker= psi->get_thread_cond_locker(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT);
-  ok(cond_locker == NULL, "no locker");
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, "foo.cc", 12);
+  ok(mutex_locker == NULL, "no locker (T-1 disabled)");
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, "foo.cc", 12);
+  ok(rwlock_locker == NULL, "no locker (T-1 disabled)");
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, "foo.cc", 12);
+  ok(cond_locker == NULL, "no locker (T-1 disabled)");
   file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (T-1 disabled)");
   file_locker= psi->get_thread_file_stream_locker(&file_state, file_A1, PSI_FILE_READ);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (T-1 disabled)");
   file_locker= psi->get_thread_file_descriptor_locker(&file_state, (File) 12, PSI_FILE_READ);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (T-1 disabled)");
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker (T-1 disabled)");
 
-  /* Pretend the consumer is disabled */
-  /* -------------------------------- */
+  /* Pretend the global consumer is disabled */
+  /* --------------------------------------- */
 
   setup_thread(thread_1, true);
-  flag_events_waits_current= false;
+  flag_global_instrumentation= false;
   mutex_class_A->m_enabled= true;
   rwlock_class_A->m_enabled= true;
   cond_class_A->m_enabled= true;
   file_class_A->m_enabled= true;
+  socket_class_A->m_enabled= true;
+  update_instruments_derived_flags();
 
-  mutex_locker= psi->get_thread_mutex_locker(&mutex_state, mutex_A1, PSI_MUTEX_LOCK);
-  ok(mutex_locker == NULL, "no locker");
-  rwlock_locker= psi->get_thread_rwlock_locker(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK);
-  ok(rwlock_locker == NULL, "no locker");
-  cond_locker= psi->get_thread_cond_locker(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT);
-  ok(cond_locker == NULL, "no locker");
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, "foo.cc", 12);
+  ok(mutex_locker == NULL, "no locker (global disabled)");
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, "foo.cc", 12);
+  ok(rwlock_locker == NULL, "no locker (global disabled)");
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, "foo.cc", 12);
+  ok(cond_locker == NULL, "no locker (global disabled)");
   file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (global disabled)");
   file_locker= psi->get_thread_file_stream_locker(&file_state, file_A1, PSI_FILE_READ);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (global disabled)");
   file_locker= psi->get_thread_file_descriptor_locker(&file_state, (File) 12, PSI_FILE_READ);
-  ok(file_locker == NULL, "no locker");
+  ok(file_locker == NULL, "no locker (global disabled)");
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker (global disabled)");
+
+  /* Pretend the mode is global, counted only */
+  /* ---------------------------------------- */
+
+  setup_thread(thread_1, true);
+  flag_global_instrumentation= true;
+  flag_thread_instrumentation= false;
+  mutex_class_A->m_enabled= true;
+  mutex_class_A->m_timed= false;
+  rwlock_class_A->m_enabled= true;
+  rwlock_class_A->m_timed= false;
+  cond_class_A->m_enabled= true;
+  cond_class_A->m_timed= false;
+  file_class_A->m_enabled= true;
+  file_class_A->m_timed= false;
+  socket_class_A->m_enabled= true;
+  socket_class_A->m_timed= false;
+  update_instruments_derived_flags();
+
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, "foo.cc", 12);
+  ok(mutex_locker == NULL, "no locker (global counted)");
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, "foo.cc", 12);
+  ok(rwlock_locker == NULL, "no locker (global counted)");
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, "foo.cc", 12);
+  ok(cond_locker == NULL, "no locker (global counted)");
+  file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
+  ok(file_locker != NULL, "locker (global counted)");
+  psi->start_file_wait(file_locker, 10, __FILE__, __LINE__);
+  psi->end_file_wait(file_locker, 10);
+  file_locker= psi->get_thread_file_stream_locker(&file_state, file_A1, PSI_FILE_READ);
+  ok(file_locker != NULL, "locker (global counted)");
+  psi->start_file_wait(file_locker, 10, __FILE__, __LINE__);
+  psi->end_file_wait(file_locker, 10);
+  file_locker= psi->get_thread_file_descriptor_locker(&file_state, (File) 12, PSI_FILE_READ);
+  ok(file_locker != NULL, "locker (global counted)");
+  psi->start_file_wait(file_locker, 10, __FILE__, __LINE__);
+  psi->end_file_wait(file_locker, 10);
+  /* The null locker shortcut applies only to socket ops with no byte count */
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_BIND, 0, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker (global counted)");
+
+  /* TODO */
 
   /* Pretend the instrument is disabled */
   /* ---------------------------------- */
 
   setup_thread(thread_1, true);
+  flag_global_instrumentation= true;
   flag_events_waits_current= true;
   mutex_class_A->m_enabled= false;
   rwlock_class_A->m_enabled= false;
   cond_class_A->m_enabled= false;
   file_class_A->m_enabled= false;
+  socket_class_A->m_enabled= false;
+  update_instruments_derived_flags();
 
-  mutex_locker= psi->get_thread_mutex_locker(&mutex_state, mutex_A1, PSI_MUTEX_LOCK);
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, "foo.cc", 12);
   ok(mutex_locker == NULL, "no locker");
-  rwlock_locker= psi->get_thread_rwlock_locker(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK);
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, "foo.cc", 12);
   ok(rwlock_locker == NULL, "no locker");
-  cond_locker= psi->get_thread_cond_locker(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT);
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, "foo.cc", 12);
   ok(cond_locker == NULL, "no locker");
   file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
   ok(file_locker == NULL, "no locker");
@@ -1017,28 +1263,36 @@ void test_locker_disabled()
   ok(file_locker == NULL, "no locker");
   file_locker= psi->get_thread_file_descriptor_locker(&file_state, (File) 12, PSI_FILE_READ);
   ok(file_locker == NULL, "no locker");
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker");
 
-  /* Pretend everything is enabled */
-  /* ----------------------------- */
+  /* Pretend everything is enabled and timed */
+  /* --------------------------------------- */
 
   setup_thread(thread_1, true);
+  flag_global_instrumentation= true;
+  flag_thread_instrumentation= true;
   flag_events_waits_current= true;
   mutex_class_A->m_enabled= true;
+  mutex_class_A->m_timed= true;
   rwlock_class_A->m_enabled= true;
+  rwlock_class_A->m_timed= true;
   cond_class_A->m_enabled= true;
+  cond_class_A->m_timed= true;
   file_class_A->m_enabled= true;
+  file_class_A->m_timed= true;
+  socket_class_A->m_enabled= true;
+  socket_class_A->m_timed= true;
+  update_instruments_derived_flags();
 
-  mutex_locker= psi->get_thread_mutex_locker(&mutex_state, mutex_A1, PSI_MUTEX_LOCK);
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, __FILE__, __LINE__);
   ok(mutex_locker != NULL, "locker");
-  psi->start_mutex_wait(mutex_locker, __FILE__, __LINE__);
   psi->end_mutex_wait(mutex_locker, 0);
-  rwlock_locker= psi->get_thread_rwlock_locker(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK);
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, __FILE__, __LINE__);
   ok(rwlock_locker != NULL, "locker");
-  psi->start_rwlock_rdwait(rwlock_locker, __FILE__, __LINE__);
   psi->end_rwlock_rdwait(rwlock_locker, 0);
-  cond_locker= psi->get_thread_cond_locker(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT);
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, __FILE__, __LINE__);
   ok(cond_locker != NULL, "locker");
-  psi->start_cond_wait(cond_locker, __FILE__, __LINE__);
   psi->end_cond_wait(cond_locker, 0);
   file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
   ok(file_locker != NULL, "locker");
@@ -1052,7 +1306,20 @@ void test_locker_disabled()
   ok(file_locker != NULL, "locker");
   psi->start_file_wait(file_locker, 10, __FILE__, __LINE__);
   psi->end_file_wait(file_locker, 10);
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker != NULL, "locker");
+  psi->end_socket_wait(socket_locker, 10);
 
+  /* Pretend the socket does not have a thread owner */
+  /* ---------------------------------------------- */
+
+  socket_class_A->m_enabled= true;
+  socket_A1= psi->init_socket(socket_key_A, NULL);
+  ok(socket_A1 != NULL, "instrumented");
+  /* Socket thread owner has not been set */
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker (no thread owner)");
+  
   /* Pretend the running thread is not instrumented */
   /* ---------------------------------------------- */
 
@@ -1062,12 +1329,14 @@ void test_locker_disabled()
   rwlock_class_A->m_enabled= true;
   cond_class_A->m_enabled= true;
   file_class_A->m_enabled= true;
+  socket_class_A->m_enabled= true;
+  update_instruments_derived_flags();
 
-  mutex_locker= psi->get_thread_mutex_locker(&mutex_state, mutex_A1, PSI_MUTEX_LOCK);
+  mutex_locker= psi->start_mutex_wait(&mutex_state, mutex_A1, PSI_MUTEX_LOCK, "foo.cc", 12);
   ok(mutex_locker == NULL, "no locker");
-  rwlock_locker= psi->get_thread_rwlock_locker(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK);
+  rwlock_locker= psi->start_rwlock_rdwait(&rwlock_state, rwlock_A1, PSI_RWLOCK_READLOCK, "foo.cc", 12);
   ok(rwlock_locker == NULL, "no locker");
-  cond_locker= psi->get_thread_cond_locker(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT);
+  cond_locker= psi->start_cond_wait(&cond_state, cond_A1, mutex_A1, PSI_COND_WAIT, "foo.cc", 12);
   ok(cond_locker == NULL, "no locker");
   file_locker= psi->get_thread_file_name_locker(&file_state, file_key_A, PSI_FILE_OPEN, "xxx", NULL);
   ok(file_locker == NULL, "no locker");
@@ -1075,6 +1344,8 @@ void test_locker_disabled()
   ok(file_locker == NULL, "no locker");
   file_locker= psi->get_thread_file_descriptor_locker(&file_state, (File) 12, PSI_FILE_READ);
   ok(file_locker == NULL, "no locker");
+  socket_locker= psi->start_socket_wait(&socket_state, socket_A1, PSI_SOCKET_SEND, 12, "foo.cc", 12);
+  ok(socket_locker == NULL, "no locker");
 
   shutdown_performance_schema();
 }
@@ -1203,6 +1474,150 @@ void test_enabled()
 #endif
 }
 
+void test_event_name_index()
+{
+  PSI *psi;
+  PSI_bootstrap *boot;
+  PFS_global_param param;
+
+  diag("test_event_name_index");
+
+  memset(& param, 0xFF, sizeof(param));
+  param.m_enabled= true;
+
+  /* Per mutex info waits should be at [0..9] */
+  param.m_mutex_class_sizing= 10;
+  /* Per rwlock info waits should be at [10..29] */
+  param.m_rwlock_class_sizing= 20;
+  /* Per cond info waits should be at [30..69] */
+  param.m_cond_class_sizing= 40;
+  /* Per file info waits should be at [70..149] */
+  param.m_file_class_sizing= 80;
+  /* Per socket info waits should be at [150..309] */
+  param.m_socket_class_sizing= 160;
+  /* Per table info waits should be at [310] */
+  param.m_table_share_sizing= 320;
+
+  param.m_thread_class_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+  param.m_digest_sizing= 0;
+
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+
+  boot= initialize_performance_schema(& param);
+  ok(boot != NULL, "bootstrap");
+  psi= (PSI*) boot->get_interface(PSI_VERSION_1);
+  ok(psi != NULL, "psi");
+
+  PFS_mutex_class *mutex_class;
+  PSI_mutex_key dummy_mutex_key_1;
+  PSI_mutex_key dummy_mutex_key_2;
+  PSI_mutex_info dummy_mutexes[]=
+  {
+    { & dummy_mutex_key_1, "M-1", 0},
+    { & dummy_mutex_key_2, "M-2", 0}
+  };
+
+  psi->register_mutex("X", dummy_mutexes, 2);
+  mutex_class= find_mutex_class(dummy_mutex_key_1);
+  ok(mutex_class != NULL, "mutex class 1");
+  ok(mutex_class->m_event_name_index == 0, "index 0");
+  mutex_class= find_mutex_class(dummy_mutex_key_2);
+  ok(mutex_class != NULL, "mutex class 2");
+  ok(mutex_class->m_event_name_index == 1, "index 1");
+
+  PFS_rwlock_class *rwlock_class;
+  PSI_rwlock_key dummy_rwlock_key_1;
+  PSI_rwlock_key dummy_rwlock_key_2;
+  PSI_rwlock_info dummy_rwlocks[]=
+  {
+    { & dummy_rwlock_key_1, "RW-1", 0},
+    { & dummy_rwlock_key_2, "RW-2", 0}
+  };
+
+  psi->register_rwlock("X", dummy_rwlocks, 2);
+  rwlock_class= find_rwlock_class(dummy_rwlock_key_1);
+  ok(rwlock_class != NULL, "rwlock class 1");
+  ok(rwlock_class->m_event_name_index == 10, "index 10");
+  rwlock_class= find_rwlock_class(dummy_rwlock_key_2);
+  ok(rwlock_class != NULL, "rwlock class 2");
+  ok(rwlock_class->m_event_name_index == 11, "index 11");
+
+  PFS_cond_class *cond_class;
+  PSI_cond_key dummy_cond_key_1;
+  PSI_cond_key dummy_cond_key_2;
+  PSI_cond_info dummy_conds[]=
+  {
+    { & dummy_cond_key_1, "C-1", 0},
+    { & dummy_cond_key_2, "C-2", 0}
+  };
+
+  psi->register_cond("X", dummy_conds, 2);
+  cond_class= find_cond_class(dummy_cond_key_1);
+  ok(cond_class != NULL, "cond class 1");
+  ok(cond_class->m_event_name_index == 30, "index 30");
+  cond_class= find_cond_class(dummy_cond_key_2);
+  ok(cond_class != NULL, "cond class 2");
+  ok(cond_class->m_event_name_index == 31, "index 31");
+
+  PFS_file_class *file_class;
+  PSI_file_key dummy_file_key_1;
+  PSI_file_key dummy_file_key_2;
+  PSI_file_info dummy_files[]=
+  {
+    { & dummy_file_key_1, "F-1", 0},
+    { & dummy_file_key_2, "F-2", 0}
+  };
+
+  psi->register_file("X", dummy_files, 2);
+  file_class= find_file_class(dummy_file_key_1);
+  ok(file_class != NULL, "file class 1");
+  ok(file_class->m_event_name_index == 70, "index 70");
+  file_class= find_file_class(dummy_file_key_2);
+  ok(file_class != NULL, "file class 2");
+  ok(file_class->m_event_name_index == 71, "index 71");
+
+  PFS_socket_class *socket_class;
+  PSI_socket_key dummy_socket_key_1;
+  PSI_socket_key dummy_socket_key_2;
+  PSI_socket_info dummy_sockets[]=
+  {
+    { & dummy_socket_key_1, "S-1", 0},
+    { & dummy_socket_key_2, "S-2", 0}
+  };
+
+  psi->register_socket("X", dummy_sockets, 2);
+  socket_class= find_socket_class(dummy_socket_key_1);
+  ok(socket_class != NULL, "socket class 1");
+  ok(socket_class->m_event_name_index == 150, "index 150");
+  socket_class= find_socket_class(dummy_socket_key_2);
+  ok(socket_class != NULL, "socket class 2");
+  ok(socket_class->m_event_name_index == 151, "index 151");
+
+  ok(global_table_io_class.m_event_name_index == 310, "index 310");
+  ok(global_table_lock_class.m_event_name_index == 311, "index 311");
+  ok(wait_class_max= 313, "313 event names"); // 3 global classes
+}
+
 void do_all_tests()
 {
   /* Using initialize_performance_schema(), no partial init needed. */
@@ -1212,14 +1627,14 @@ void do_all_tests()
   test_init_disabled();
   test_locker_disabled();
   test_file_instrumentation_leak();
+  test_event_name_index();
 }
 
 int main(int argc, char **argv)
 {
-  plan(153);
+  plan(216);
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);
   return 0;
 }
-

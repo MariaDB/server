@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2006, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 2006, 2010, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,8 +27,16 @@ Created 5/11/2006 Osku Salerma
 #ifndef HA_INNODB_PROTOTYPES_H
 #define HA_INNODB_PROTOTYPES_H
 
+#include "my_dbug.h"
+#include "my_compare.h"
+#include "my_sys.h"
+#include "m_string.h"
+
 #include "trx0types.h"
 #include "m_ctype.h" /* CHARSET_INFO */
+
+// Forward declaration
+typedef struct fts_string_struct fts_string_t;
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -43,7 +51,8 @@ innobase_convert_string(
 	CHARSET_INFO*	to_cs,		/*!< in: character set to convert to */
 	const void*	from,		/*!< in: string to convert */
 	ulint		from_length,	/*!< in: number of bytes to convert */
-	CHARSET_INFO*	from_cs,	/*!< in: character set to convert from */
+	CHARSET_INFO*	from_cs,	/*!< in: character set to convert
+					from */
 	uint*		errors);	/*!< out: number of errors encountered
 					during the conversion */
 
@@ -136,6 +145,23 @@ innobase_mysql_print_thd(
 	uint	max_query_len);	/*!< in: max query length to print, or 0 to
 				   use the default max length */
 
+/*************************************************************//**
+InnoDB uses this function to compare two data fields for which the data type
+is such that we must use MySQL code to compare them.
+@return	1, 0, -1, if a is greater, equal, less than b, respectively */
+UNIV_INTERN
+int
+innobase_mysql_cmp(
+/*===============*/
+	int		mysql_type,	/*!< in: MySQL type */
+	uint		charset_number,	/*!< in: number of the charset */
+	const unsigned char* a,		/*!< in: data field */
+	unsigned int	a_length,	/*!< in: data field length,
+					not UNIV_SQL_NULL */
+	const unsigned char* b,		/*!< in: data field */
+	unsigned int	b_length)	/*!< in: data field length,
+					not UNIV_SQL_NULL */
+	__attribute__((nonnull, warn_unused_result));
 /**************************************************************//**
 Converts a MySQL type to an InnoDB type. Note that this function returns
 the 'mtype' of InnoDB. InnoDB differentiates between MySQL's old <= 4.1
@@ -172,6 +198,17 @@ innobase_strcasecmp(
 /*================*/
 	const char*	a,	/*!< in: first string to compare */
 	const char*	b);	/*!< in: second string to compare */
+
+/******************************************************************//**
+Compares NUL-terminated UTF-8 strings case insensitively. The
+second string contains wildcards.
+@return 0 if a match is found, 1 if not */
+UNIV_INTERN
+int
+innobase_wildcasecmp(
+/*=================*/
+	const char*	a,	/*!< in: string to compare */
+	const char*	b);	/*!< in: wildcard string to compare */
 
 /******************************************************************//**
 Strip dir name from a full path name and return only its file name.
@@ -211,8 +248,8 @@ innobase_convert_from_id(
 	struct charset_info_st*	cs,	/*!< in: the 'from' character set */
 	char*			to,	/*!< out: converted identifier */
 	const char*		from,	/*!< in: identifier to convert */
-	ulint			len);	/*!< in: length of 'to', in bytes; should
-					be at least 3 * strlen(to) + 1 */
+	ulint			len);	/*!< in: length of 'to', in bytes;
+					should be at least 3 * strlen(to) + 1 */
 /******************************************************************//**
 Makes all characters in a NUL-terminated UTF-8 string lower case. */
 UNIV_INTERN
@@ -256,11 +293,20 @@ innobase_get_at_most_n_mbchars(
 	ulint data_len,		/*!< in: length of the string in bytes */
 	const char* str);	/*!< in: character string */
 
+/*************************************************************//**
+InnoDB index push-down condition check
+@return ICP_NO_MATCH, ICP_MATCH, or ICP_OUT_OF_RANGE */
+UNIV_INTERN
+enum icp_result
+innobase_index_cond(
+/*================*/
+	void*	file)	/*!< in/out: pointer to ha_innobase */
+	__attribute__((nonnull, warn_unused_result));
 /******************************************************************//**
 Returns true if the thread supports XA,
 global value of innodb_supports_xa if thd is NULL.
 @return	true if thd supports XA */
-
+UNIV_INTERN
 ibool
 thd_supports_xa(
 /*============*/
@@ -282,8 +328,18 @@ UNIV_INTERN
 void
 thd_set_lock_wait_time(
 /*===================*/
-        void*   thd,	/*!< in: thread handle (THD*) */
-        ulint   value);	/*!< in: time waited for the lock */
+	void*	thd,	/*!< in: thread handle (THD*) */
+	ulint	value);	/*!< in: time waited for the lock */
+
+/**********************************************************************//**
+Get the current setting of the table_cache_size global parameter. We do
+a dirty read because for one there is no synchronization object and
+secondly there is little harm in doing so even if we get a torn read.
+@return	SQL statement string */
+UNIV_INTERN
+ulint
+innobase_get_table_cache_size(void);
+/*===============================*/
 
 /**********************************************************************//**
 Get the current setting of the lower_case_table_names global parameter from
@@ -296,4 +352,66 @@ ulint
 innobase_get_lower_case_table_names(void);
 /*=====================================*/
 
-#endif
+/*************************************************************//**
+Get the next token from the given string and store it in *token. */
+UNIV_INTERN
+ulint
+innobase_mysql_fts_get_token(
+/*=========================*/
+	CHARSET_INFO*	charset,	/*!< in: Character set */
+	byte*		start,		/*!< in: start of text */
+	byte*		end,		/*!< in: one character past end of
+					text */
+	fts_string_t*	token,		/*!< out: token's text */
+	ulint*		offset);	/*!< out: offset to token,
+					measured as characters from
+					'start' */
+
+/******************************************************************//**
+compare two character string case insensitively according to their charset. */
+UNIV_INTERN
+int
+innobase_fts_text_case_cmp(
+/*=======================*/
+	const void*	cs,		/*!< in: Character set */
+	const void*	p1,		/*!< in: key */
+	const void*	p2);		/*!< in: node */
+
+/******************************************************************//**
+compare two character string according to their charset. */
+UNIV_INTERN
+int
+innobase_fts_string_cmp(
+/*====================*/
+	const void*	cs,		/*!< in: Character set */
+	const void*	p1,		/*!< in: key */
+	const void*	p2);		/*!< in: node */
+
+/****************************************************************//**
+Get FTS field charset info from the field's prtype
+@return charset info */
+UNIV_INTERN
+CHARSET_INFO*
+innobase_get_fts_charset(
+/*=====================*/
+	int		mysql_type,	/*!< in: MySQL type */
+	uint		charset_number);/*!< in: number of the charset */
+/******************************************************************//**
+Returns true if transaction should be flagged as read-only.
+@return	true if the thd is marked as read-only */
+UNIV_INTERN
+ibool
+thd_trx_is_read_only(
+/*=================*/
+	void*	thd);	/*!< in: thread handle (THD*) */
+
+/******************************************************************//**
+Check if the transaction is an auto-commit transaction. TRUE also
+implies that it is a SELECT (read-only) transaction.
+@return	true if the transaction is an auto commit read-only transaction. */
+UNIV_INTERN
+ibool
+thd_trx_is_auto_commit(
+/*===================*/
+	void*	thd);	/*!< in: thread handle (THD*) can be NULL */
+#endif /* HA_INNODB_PROTOTYPES_H */
