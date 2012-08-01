@@ -1831,7 +1831,8 @@ innobase_next_autoinc(
 	ulonglong	current,	/*!< in: Current value */
 	ulonglong	increment,	/*!< in: increment current by */
 	ulonglong	offset,		/*!< in: AUTOINC offset */
-	ulonglong	max_value)	/*!< in: max value for type */
+	ulonglong	max_value,	/*!< in: max value for type */
+	ulonglong	reserve)	/*!< in: how many values to reserve */
 {
 	ulonglong	next_value;
 
@@ -1840,51 +1841,16 @@ innobase_next_autoinc(
 
 	/* According to MySQL documentation, if the offset is greater than
 	the increment then the offset is ignored. */
-	if (offset > increment) {
+	if (offset >= increment)
 		offset = 0;
-	}
 
-	if (max_value <= current) {
-		next_value = max_value;
-	} else if (offset <= 1) {
-		/* Offset 0 and 1 are the same, because there must be at
-		least one node in the system. */
-		if (max_value - current <= increment) {
-			next_value = max_value;
-		} else {
-			next_value = current + increment;
-		}
-	} else if (max_value > current) {
-		if (current > offset) {
-			next_value = ((current - offset) / increment) + 1;
-		} else {
-			next_value = ((offset - current) / increment) + 1;
-		}
-
-		ut_a(increment > 0);
-		ut_a(next_value > 0);
-
-		/* Check for multiplication overflow. */
-		if (increment > (max_value / next_value)) {
-
-			next_value = max_value;
-		} else {
-			next_value *= increment;
-
-			ut_a(max_value >= next_value);
-
-			/* Check for overflow. */
-			if (max_value - next_value <= offset) {
-				next_value = max_value;
-			} else {
-				next_value += offset;
-			}
-		}
-	} else {
-		next_value = max_value;
-	}
-
-	ut_a(next_value <= max_value);
+	if (max_value <= current)
+                return max_value;
+	next_value = (current / increment) + reserve;
+	next_value = next_value * increment + offset;
+        /* Check for overflow. */
+        if (next_value < current || next_value > max_value)
+                next_value = max_value;
 
 	return(next_value);
 }
@@ -2039,7 +2005,7 @@ ha_innobase::ha_innobase(
 	TABLE_SHARE*	table_arg)
 	:handler(hton, table_arg),
 	int_table_flags(HA_REC_NOT_IN_SEQ |
-		  HA_NULL_IN_KEY |
+		  HA_NULL_IN_KEY | HA_CAN_VIRTUAL_COLUMNS |
 		  HA_CAN_INDEX_BLOBS |
 		  HA_CAN_SQL_HANDLER |
 		  HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
@@ -4324,8 +4290,7 @@ ha_innobase::innobase_initialize_autoinc()
 			nor the offset, so use a default increment of 1. */
 
 			auto_inc = innobase_next_autoinc(
-				read_auto_inc, 1, 1, col_max_value);
-
+				read_auto_inc, 1, 1, col_max_value, 1);
 			break;
 		}
 		case DB_RECORD_NOT_FOUND:
@@ -6329,7 +6294,7 @@ set_max_autoinc:
 
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
-						need, offset, col_max_value);
+						need, offset, col_max_value, 1);
 
 					err = innobase_set_max_autoinc(
 						auto_inc);
@@ -6743,7 +6708,7 @@ ha_innobase::update_row(
 			need = prebuilt->autoinc_increment;
 
 			auto_inc = innobase_next_autoinc(
-				auto_inc, need, offset, col_max_value);
+				auto_inc, need, offset, col_max_value, 1);
 
 			error = innobase_set_max_autoinc(auto_inc);
 		}
@@ -7063,6 +7028,11 @@ ha_innobase::index_read(
 	index = prebuilt->index;
 
 	if (UNIV_UNLIKELY(index == NULL) || dict_index_is_corrupted(index)) {
+          DBUG_PRINT("error", ("index: %p  index_corrupt: %d  data_corrupt: %d",
+                               index,
+                               index ? test(index->type & DICT_CORRUPT) : 0,
+                               (index && index->table ?
+                                test(index->table->corrupted) : 0)));
 		prebuilt->index_usable = FALSE;
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
@@ -12249,16 +12219,14 @@ ha_innobase::get_auto_increment(
 	/* With old style AUTOINC locking we only update the table's
 	AUTOINC counter after attempting to insert the row. */
 	if (innobase_autoinc_lock_mode != AUTOINC_OLD_STYLE_LOCKING) {
-		ulonglong	need;
 		ulonglong	current;
 		ulonglong	next_value;
 
 		current = *first_value > col_max_value ? autoinc : *first_value;
-		need = *nb_reserved_values * increment;
-
+	
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
-			current, need, offset, col_max_value);
+			current, increment, offset, col_max_value, *nb_reserved_values);
 
 		prebuilt->autoinc_last_value = next_value;
 
@@ -15333,6 +15301,11 @@ ha_innobase::multi_range_read_info(
                                  flags, cost));
 }
 
+int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
+{
+  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+}
+
 
 /**
  * Index Condition Pushdown interface implementation
@@ -15347,20 +15320,7 @@ innobase_index_cond(
 /*================*/
 	void*	file)	/*!< in/out: pointer to ha_innobase */
 {
-	DBUG_ENTER("innobase_index_cond");
-
-	ha_innobase*	h = reinterpret_cast<class ha_innobase*>(file);
-
-	DBUG_ASSERT(h->pushed_idx_cond);
-	DBUG_ASSERT(h->pushed_idx_cond_keyno != MAX_KEY);
-
-	if (h->end_range && h->compare_key2(h->end_range) > 0) {
-
-		/* caller should return HA_ERR_END_OF_FILE already */
-		DBUG_RETURN(ICP_OUT_OF_RANGE);
-	}
-
-	DBUG_RETURN(h->pushed_idx_cond->val_int() ? ICP_MATCH : ICP_NO_MATCH);
+	return handler_index_cond_check(file);
 }
 
 /** Attempt to push down an index condition.
