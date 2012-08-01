@@ -987,7 +987,13 @@ err:
 int JOIN::optimize()
 {
   int res= optimize_inner();
-  if (!res)
+  /*
+    If we're inside a non-correlated subquery, this function may be 
+    called for the second time after the subquery has been executed
+    and deleted. The second call will not produce a valid query plan, it will
+    short-circuit because optimized==TRUE.
+  */
+  if (!res && have_query_plan != QEP_DELETED)
     have_query_plan= QEP_AVAILABLE;
   return res;
 }
@@ -21630,7 +21636,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
+  DBUG_ASSERT(on_the_fly? have_query_plan == QEP_AVAILABLE: TRUE);
   /* Don't log this into the slow query log */
 
   if (!on_the_fly)

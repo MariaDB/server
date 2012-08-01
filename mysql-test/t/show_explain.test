@@ -1026,5 +1026,42 @@ set debug_dbug='';
 
 DROP TABLE t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-423: SHOW EXPLAIN: 'Using where' for a subquery is shown in EXPLAIN, but not in SHOW EXPLAIN output
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (7),(0),(9),(3),(4),(2),(5),(7),(0),(9),(3),(4),(2),(5);		
+
+CREATE TABLE t2 (b INT, c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES 
+(0,4),(8,6),(1,3),(8,5),(9,3),(24,246),(6,2),(1,9),(6,3),(2,8),
+(4,1),(8,8),(4,8),(4,5),(7,7),(4,5),(1,1),(9,6),(4,2),(8,9);
+
+create table t3 like t2;
+insert into t3 select * from t2;
+
+explain 
+SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
+WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+
+send
+SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
+WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+
+connection con1;
+reap;
+
+set debug_dbug='';
+
+DROP TABLE t1,t2,t3;
+
 --echo # End
 drop table t0;
