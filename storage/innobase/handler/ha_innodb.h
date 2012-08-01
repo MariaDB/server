@@ -288,6 +288,9 @@ public:
 				      uint* bufsz, uint* mrr_mode,
 				      Cost_estimate* cost);
 
+        int multi_range_read_explain_info(uint mrr_mode,
+                                          char *str, size_t size);
+
 	/** Attempt to push down an index condition.
 	* @param[in] keyno	MySQL key number
 	* @param[in] idx_cond	Index condition to be checked
