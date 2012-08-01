@@ -1,5 +1,4 @@
-/* Copyright (c) 2008 MySQL AB, 2010 Sun Microsystems, Inc.
-   Use is subject to license terms.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -33,38 +32,38 @@
 /** A row of PERFORMANCE_SCHEMA.SETUP_INSTRUMENTS. */
 struct row_setup_instruments
 {
-  /** Column NAME. */
-  const char *m_name;
-  /** Length in bytes of @c m_name. */
-  uint m_name_length;
-  /** Column ENABLED. */
-  bool *m_enabled_ptr;
-  /** Column TIMED. */
-  bool *m_timed_ptr;
+  /** Columns NAME, ENABLED, TIMED. */
+  PFS_instr_class *m_instr_class;
 };
 
 /** Position of a cursor on PERFORMANCE_SCHEMA.SETUP_INSTRUMENTS. */
 struct pos_setup_instruments : public PFS_double_index
 {
+  static const uint FIRST_VIEW= 1;
   static const uint VIEW_MUTEX= 1;
   static const uint VIEW_RWLOCK= 2;
   static const uint VIEW_COND= 3;
-  /** Reverved for WL#4674, PERFORMANCE_SCHEMA Setup For Actors. */
   static const uint VIEW_THREAD= 4;
   static const uint VIEW_FILE= 5;
+  static const uint VIEW_TABLE= 6;
+  static const uint VIEW_STAGE= 7;
+  static const uint VIEW_STATEMENT= 8;
+  static const uint VIEW_SOCKET= 9;
+  static const uint VIEW_IDLE= 10;
+  static const uint LAST_VIEW= 10;
 
   pos_setup_instruments()
-    : PFS_double_index(VIEW_MUTEX, 1)
+    : PFS_double_index(FIRST_VIEW, 1)
   {}
 
   inline void reset(void)
   {
-    m_index_1= VIEW_MUTEX;
+    m_index_1= FIRST_VIEW;
     m_index_2= 1;
   }
 
   inline bool has_more_view(void)
-  { return (m_index_1 <= VIEW_FILE); }
+  { return (m_index_1 <= LAST_VIEW); }
 
   inline void next_view(void)
   {

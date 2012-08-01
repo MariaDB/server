@@ -890,7 +890,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                                   SEL_ARG *tree, bool update_tbl_stats, 
                                   uint *mrr_flags, uint *bufsize,
-                                  COST_VECT *cost);
+                                  Cost_estimate *cost);
 
 QUICK_RANGE_SELECT *get_quick_select(PARAM *param,uint index,
                                      SEL_ARG *key_tree, uint mrr_flags, 
@@ -6691,7 +6691,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
     if (*key)
     {
       ha_rows found_records;
-      COST_VECT cost;
+      Cost_estimate cost;
       double found_read_time;
       uint mrr_flags, buf_size;
       INDEX_SCAN_INFO *index_scan;
@@ -9941,7 +9941,7 @@ void SEL_ARG::test_use_count(SEL_ARG *root)
 static
 ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
                            SEL_ARG *tree, bool update_tbl_stats, 
-                           uint *mrr_flags, uint *bufsize, COST_VECT *cost)
+                           uint *mrr_flags, uint *bufsize, Cost_estimate *cost)
 {
   SEL_ARG_RANGE_SEQ seq;
   RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init, sel_arg_range_seq_next, 0, 0};
@@ -10430,7 +10430,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
   QUICK_RANGE *range;
   uint part;
   bool create_err= FALSE;
-  COST_VECT cost;
+  Cost_estimate cost;
 
   old_root= thd->mem_root;
   /* The following call may change thd->mem_root */
@@ -12103,7 +12103,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       cur_index_tree= get_index_range_tree(cur_index, tree, param,
                                            &cur_param_idx);
       /* Check if this range tree can be used for prefix retrieval. */
-      COST_VECT dummy_cost;
+      Cost_estimate dummy_cost;
       uint mrr_flags= HA_MRR_USE_DEFAULT_IMPL;
       uint mrr_bufsize=0;
       cur_quick_prefix_records= check_quick_select(param, cur_param_idx,

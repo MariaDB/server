@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -406,9 +406,10 @@ Initializes and opens a persistent cursor to an index tree. It should be
 closed with btr_pcur_close. */
 UNIV_INLINE
 void
-btr_pcur_open_func(
-/*===============*/
+btr_pcur_open_low(
+/*==============*/
 	dict_index_t*	index,	/*!< in: index */
+	ulint		level,	/*!< in: level in the btree */
 	const dtuple_t*	tuple,	/*!< in: tuple on which search done */
 	ulint		mode,	/*!< in: PAGE_CUR_L, ...;
 				NOTE that if the search is made using a unique
@@ -435,7 +436,7 @@ btr_pcur_open_func(
 
 	btr_cursor = btr_pcur_get_btr_cur(cursor);
 
-	btr_cur_search_to_nth_level(index, 0, tuple, mode, latch_mode,
+	btr_cur_search_to_nth_level(index, level, tuple, mode, latch_mode,
 				    btr_cursor, 0, file, line, mtr);
 	cursor->pos_state = BTR_PCUR_IS_POSITIONED;
 

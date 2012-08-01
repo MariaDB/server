@@ -18,6 +18,7 @@
 
 #ifndef _global_h
 #define _global_h
+#define MY_GLOBAL_INCLUDED
 
 /* Client library users on Windows need this macro defined here. */
 #if !defined(__WIN__) && defined(_WIN32)
@@ -1438,6 +1439,8 @@ static inline char *dlerror(void)
 #define max(a, b)	((a) > (b) ? (a) : (b))
 #define min(a, b)	((a) < (b) ? (a) : (b))
 #endif  
+#define MY_MAX(a, b)	((a) > (b) ? (a) : (b))
+#define MY_MIN(a, b)	((a) < (b) ? (a) : (b))
 
 #define CMP_NUM(a,b)    (((a) < (b)) ? -1 : ((a) == (b)) ? 0 : 1)
 

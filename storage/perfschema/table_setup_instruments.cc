@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -21,10 +21,12 @@
 #include "my_global.h"
 #include "my_pthread.h"
 #include "pfs_instr_class.h"
+#include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_setup_instruments.h"
 #include "pfs_global.h"
+#include "pfs_setup_object.h"
 
 THR_LOCK table_setup_instruments::m_table_lock;
 
@@ -59,6 +61,7 @@ table_setup_instruments::m_share=
   &table_setup_instruments::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
+  NULL, /* get_row_count */
   1000, /* records */
   sizeof(pos_setup_instruments),
   &m_table_lock,
@@ -84,55 +87,54 @@ void table_setup_instruments::reset_position(void)
 
 int table_setup_instruments::rnd_next(void)
 {
-  PFS_mutex_class *mutex_class;
-  PFS_rwlock_class *rwlock_class;
-  PFS_cond_class *cond_class;
-  PFS_file_class *file_class;
+  PFS_instr_class *instr_class= NULL;
+
+  /* Do not advertise hard coded instruments when disabled. */
+  if (! pfs_initialized)
+    return HA_ERR_END_OF_FILE;
 
   for (m_pos.set_at(&m_next_pos);
        m_pos.has_more_view();
        m_pos.next_view())
   {
-    switch (m_pos.m_index_1) {
+    switch (m_pos.m_index_1)
+    {
     case pos_setup_instruments::VIEW_MUTEX:
-      mutex_class= find_mutex_class(m_pos.m_index_2);
-      if (mutex_class)
-      {
-        make_row(mutex_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+      instr_class= find_mutex_class(m_pos.m_index_2);
       break;
     case pos_setup_instruments::VIEW_RWLOCK:
-      rwlock_class= find_rwlock_class(m_pos.m_index_2);
-      if (rwlock_class)
-      {
-        make_row(rwlock_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+      instr_class= find_rwlock_class(m_pos.m_index_2);
       break;
     case pos_setup_instruments::VIEW_COND:
-      cond_class= find_cond_class(m_pos.m_index_2);
-      if (cond_class)
-      {
-        make_row(cond_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+      instr_class= find_cond_class(m_pos.m_index_2);
       break;
     case pos_setup_instruments::VIEW_THREAD:
-      /* Reserved for WL#4674, PERFORMANCE_SCHEMA Setup For Actors. */
+      /* Not used yet  */
       break;
     case pos_setup_instruments::VIEW_FILE:
-      file_class= find_file_class(m_pos.m_index_2);
-      if (file_class)
-      {
-        make_row(file_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
+      instr_class= find_file_class(m_pos.m_index_2);
       break;
+    case pos_setup_instruments::VIEW_TABLE:
+      instr_class= find_table_class(m_pos.m_index_2);
+      break;
+    case pos_setup_instruments::VIEW_STAGE:
+      instr_class= find_stage_class(m_pos.m_index_2);
+      break;
+    case pos_setup_instruments::VIEW_STATEMENT:
+      instr_class= find_statement_class(m_pos.m_index_2);
+      break;
+    case pos_setup_instruments::VIEW_SOCKET:
+      instr_class= find_socket_class(m_pos.m_index_2);
+      break;
+    case pos_setup_instruments::VIEW_IDLE:
+      instr_class= find_idle_class(m_pos.m_index_2);
+      break;
+    }
+    if (instr_class)
+    {
+      make_row(instr_class);
+      m_next_pos.set_after(&m_pos);
+      return 0;
     }
   }
 
@@ -141,49 +143,51 @@ int table_setup_instruments::rnd_next(void)
 
 int table_setup_instruments::rnd_pos(const void *pos)
 {
-  PFS_mutex_class *mutex_class;
-  PFS_rwlock_class *rwlock_class;
-  PFS_cond_class *cond_class;
-  PFS_file_class *file_class;
+  PFS_instr_class *instr_class= NULL;
+
+  /* Do not advertise hard coded instruments when disabled. */
+  if (! pfs_initialized)
+    return HA_ERR_END_OF_FILE;
 
   set_position(pos);
 
-  switch (m_pos.m_index_1) {
+  switch (m_pos.m_index_1)
+  {
   case pos_setup_instruments::VIEW_MUTEX:
-    mutex_class= find_mutex_class(m_pos.m_index_2);
-    if (mutex_class)
-    {
-      make_row(mutex_class);
-      return 0;
-    }
+    instr_class= find_mutex_class(m_pos.m_index_2);
     break;
   case pos_setup_instruments::VIEW_RWLOCK:
-    rwlock_class= find_rwlock_class(m_pos.m_index_2);
-    if (rwlock_class)
-    {
-      make_row(rwlock_class);
-      return 0;
-    }
+    instr_class= find_rwlock_class(m_pos.m_index_2);
     break;
   case pos_setup_instruments::VIEW_COND:
-    cond_class= find_cond_class(m_pos.m_index_2);
-    if (cond_class)
-    {
-      make_row(cond_class);
-      return 0;
-    }
+    instr_class= find_cond_class(m_pos.m_index_2);
     break;
   case pos_setup_instruments::VIEW_THREAD:
-    /* Reserved for WL#4674, PERFORMANCE_SCHEMA Setup For Actors. */
+    /* Not used yet */
     break;
   case pos_setup_instruments::VIEW_FILE:
-    file_class= find_file_class(m_pos.m_index_2);
-    if (file_class)
-    {
-      make_row(file_class);
-      return 0;
-    }
+    instr_class= find_file_class(m_pos.m_index_2);
     break;
+  case pos_setup_instruments::VIEW_TABLE:
+    instr_class= find_table_class(m_pos.m_index_2);
+    break;
+  case pos_setup_instruments::VIEW_STAGE:
+    instr_class= find_stage_class(m_pos.m_index_2);
+    break;
+  case pos_setup_instruments::VIEW_STATEMENT:
+    instr_class= find_statement_class(m_pos.m_index_2);
+    break;
+  case pos_setup_instruments::VIEW_SOCKET:
+    instr_class= find_socket_class(m_pos.m_index_2);
+    break;
+  case pos_setup_instruments::VIEW_IDLE:
+    instr_class= find_idle_class(m_pos.m_index_2);
+    break;
+  }
+  if (instr_class)
+  {
+    make_row(instr_class);
+    return 0;
   }
 
   return HA_ERR_RECORD_DELETED;
@@ -191,10 +195,7 @@ int table_setup_instruments::rnd_pos(const void *pos)
 
 void table_setup_instruments::make_row(PFS_instr_class *klass)
 {
-  m_row.m_name= &klass->m_name[0];
-  m_row.m_name_length= klass->m_name_length;
-  m_row.m_enabled_ptr= &klass->m_enabled;
-  m_row.m_timed_ptr= &klass->m_timed;
+  m_row.m_instr_class= klass;
 }
 
 int table_setup_instruments::read_row_values(TABLE *table,
@@ -218,16 +219,13 @@ int table_setup_instruments::read_row_values(TABLE *table,
       switch(f->field_index)
       {
       case 0: /* NAME */
-        set_field_varchar_utf8(f, m_row.m_name, m_row.m_name_length);
+        set_field_varchar_utf8(f, m_row.m_instr_class->m_name, m_row.m_instr_class->m_name_length);
         break;
       case 1: /* ENABLED */
-        set_field_enum(f, (*m_row.m_enabled_ptr) ? ENUM_YES : ENUM_NO);
+        set_field_enum(f, m_row.m_instr_class->m_enabled ? ENUM_YES : ENUM_NO);
         break;
       case 2: /* TIMED */
-        if (m_row.m_timed_ptr)
-          set_field_enum(f, (*m_row.m_timed_ptr) ? ENUM_YES : ENUM_NO);
-        else
-          set_field_enum(f, ENUM_NO);
+        set_field_enum(f, m_row.m_instr_class->m_timed ? ENUM_YES : ENUM_NO);
         break;
       default:
         DBUG_ASSERT(false);
@@ -256,19 +254,51 @@ int table_setup_instruments::update_row_values(TABLE *table,
         return HA_ERR_WRONG_COMMAND;
       case 1: /* ENABLED */
         value= (enum_yes_no) get_field_enum(f);
-        *m_row.m_enabled_ptr= (value == ENUM_YES) ? true : false;
+        m_row.m_instr_class->m_enabled= (value == ENUM_YES) ? true : false;
         break;
       case 2: /* TIMED */
-        if (m_row.m_timed_ptr)
-        {
-          value= (enum_yes_no) get_field_enum(f);
-          *m_row.m_timed_ptr= (value == ENUM_YES) ? true : false;
-        }
+        value= (enum_yes_no) get_field_enum(f);
+        m_row.m_instr_class->m_timed= (value == ENUM_YES) ? true : false;
         break;
       default:
         DBUG_ASSERT(false);
       }
     }
+  }
+
+  switch (m_pos.m_index_1)
+  {
+    case pos_setup_instruments::VIEW_MUTEX:
+      update_mutex_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_RWLOCK:
+      update_rwlock_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_COND:
+      update_cond_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_THREAD:
+      /* Not used yet  */
+      break;
+    case pos_setup_instruments::VIEW_FILE:
+      update_file_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_TABLE:
+      update_table_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_STAGE:
+    case pos_setup_instruments::VIEW_STATEMENT:
+      /* No flag to update. */
+      break;
+    case pos_setup_instruments::VIEW_SOCKET:
+      update_socket_derived_flags();
+      break;
+    case pos_setup_instruments::VIEW_IDLE:
+      /* No flag to update. */
+      break;
+    default:
+      DBUG_ASSERT(false);
+      break;
   }
 
   return 0;

@@ -763,7 +763,7 @@ typedef struct st_position :public Sql_alloc
   double read_time;
 
   /* Cumulative cost and record count for the join prefix */
-  COST_VECT prefix_cost;
+  Cost_estimate prefix_cost;
   double    prefix_record_count;
 
   /*

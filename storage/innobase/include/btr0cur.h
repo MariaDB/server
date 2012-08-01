@@ -57,9 +57,6 @@ page_cur_t*
 btr_cur_get_page_cur(
 /*=================*/
 	const btr_cur_t*	cursor);/*!< in: tree cursor */
-#else /* UNIV_DEBUG */
-# define btr_cur_get_page_cur(cursor) (&(cursor)->page_cur)
-#endif /* UNIV_DEBUG */
 /*********************************************************//**
 Returns the buffer block on which the tree cursor is positioned.
 @return	pointer to buffer block */
@@ -67,7 +64,7 @@ UNIV_INLINE
 buf_block_t*
 btr_cur_get_block(
 /*==============*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
+	const btr_cur_t*	cursor);/*!< in: tree cursor */
 /*********************************************************//**
 Returns the record pointer of a tree cursor.
 @return	pointer to record */
@@ -75,7 +72,12 @@ UNIV_INLINE
 rec_t*
 btr_cur_get_rec(
 /*============*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
+	const btr_cur_t*	cursor);/*!< in: tree cursor */
+#else /* UNIV_DEBUG */
+# define btr_cur_get_page_cur(cursor)	(&(cursor)->page_cur)
+# define btr_cur_get_block(cursor)	((cursor)->page_cur.block)
+# define btr_cur_get_rec(cursor)	((cursor)->page_cur.rec)
+#endif /* UNIV_DEBUG */
 /*********************************************************//**
 Returns the compressed page on which the tree cursor is positioned.
 @return	pointer to compressed page, or NULL if the page is not compressed */
@@ -101,12 +103,9 @@ btr_cur_get_page(
 	btr_cur_t*	cursor);/*!< in: tree cursor */
 /*********************************************************//**
 Returns the index of a cursor.
+@param cursor	b-tree cursor
 @return	index */
-UNIV_INLINE
-dict_index_t*
-btr_cur_get_index(
-/*==============*/
-	btr_cur_t*	cursor);/*!< in: B-tree cursor */
+#define btr_cur_get_index(cursor) ((cursor)->index)
 /*********************************************************//**
 Positions a tree cursor at a given record. */
 UNIV_INLINE
@@ -474,7 +473,8 @@ btr_estimate_n_rows_in_range(
 /*******************************************************************//**
 Estimates the number of different key values in a given index, for
 each n-column prefix of the index where n <= dict_index_get_n_unique(index).
-The estimates are stored in the array index->stat_n_diff_key_vals.
+The estimates are stored in the array index->stat_n_diff_key_vals[] and
+the number of pages that were sampled is saved in index->stat_n_sample_sizes[].
 If innodb_stats_method is nulls_ignored, we also record the number of
 non-null values for each prefix and stored the estimates in
 array index->stat_n_non_null_key_vals. */
@@ -594,6 +594,23 @@ btr_copy_externally_stored_field_prefix(
 				the external part; must be protected by
 				a lock or a page latch */
 	ulint		local_len);/*!< in: length of data, in bytes */
+/*******************************************************************//**
+Copies an externally stored field of a record to mem heap.  The
+clustered index record must be protected by a lock or a page latch.
+@return the whole field copied to heap */
+UNIV_INTERN
+byte*
+btr_copy_externally_stored_field(
+/*=============================*/
+	ulint*		len,	/*!< out: length of the whole field */
+	const byte*	data,	/*!< in: 'internally' stored part of the
+				field containing also the reference to
+				the external part; must be protected by
+				a lock or a page latch */
+	ulint		zip_size,/*!< in: nonzero=compressed BLOB page size,
+				zero for uncompressed BLOBs */
+	ulint		local_len,/*!< in: length of data */
+	mem_heap_t*	heap);	/*!< in: mem heap */
 /*******************************************************************//**
 Copies an externally stored field of a record to mem heap.
 @return	the field copied to heap, or NULL if the field is incomplete */

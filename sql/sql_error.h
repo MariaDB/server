@@ -20,6 +20,8 @@
 #include "m_string.h" /* LEX_STRING */
 #include "sql_string.h"                        /* String */
 #include "mysql_com.h" /* MYSQL_ERRMSG_SIZE */
+#include "my_time.h"   /* MYSQL_TIME */
+#include "decimal.h"
 
 class THD;
 
@@ -317,6 +319,14 @@ private:
 
   /** Memory root to use to hold condition item values. */
   MEM_ROOT *m_mem_root;
+};
+
+class Sql_condition : public MYSQL_ERROR
+{
+  /*
+    Wrapper class to allow one to use Sql_condition in handlers instead of
+    MYSQL_ERROR
+   */
 };
 
 ///////////////////////////////////////////////////////////////////////////

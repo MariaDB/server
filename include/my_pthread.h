@@ -498,13 +498,22 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
           DBUG_ASSERT(! (mp)->count || \
                       ! pthread_equal(pthread_self(), (mp)->thread))
 #define safe_mutex_setflags(mp, F)      do { (mp)->create_flags|= (F); } while (0)
+#define my_cond_timedwait(A,B,C) safe_cond_timedwait((A),(B),(C),__FILE__,__LINE__)
+#define my_cond_wait(A,B) safe_cond_wait((A), (B), __FILE__, __LINE__)
 #else
-#define my_pthread_mutex_init(A,B,C,D) pthread_mutex_init((A),(B))
-#define safe_mutex_assert_owner(mp)    do {} while(0)
-#define safe_mutex_assert_not_owner(mp) do {} while(0)
-#define safe_mutex_free_deadlock_data(mp) do {} while(0)
+
+#define safe_mutex_assert_owner(mp) do {} while (0)
+#define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
-#endif /* SAFE_MUTEX */
+
+#if defined(MY_PTHREAD_FASTMUTEX)
+#define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A), &(B)->mutex, (C))
+#define my_cond_wait(A,B) pthread_cond_wait((A), &(B)->mutex)
+#else
+#define my_cond_timedwait(A,B,C) pthread_cond_timedwait((A),(B),(C))
+#define my_cond_wait(A,B) pthread_cond_wait((A), (B))
+#endif /* MY_PTHREAD_FASTMUTEX */
+#endif /* !SAFE_MUTEX */
 
 #if defined(MY_PTHREAD_FASTMUTEX) && !defined(SAFE_MUTEX)
 typedef struct st_my_pthread_fastmutex_t

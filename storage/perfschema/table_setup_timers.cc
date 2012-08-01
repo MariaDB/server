@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,12 +24,25 @@
 #include "pfs_column_values.h"
 #include "pfs_timer.h"
 
-#define COUNT_SETUP_TIMERS 1
+#define COUNT_SETUP_TIMERS 4
+
 static row_setup_timers all_setup_timers_data[COUNT_SETUP_TIMERS]=
 {
   {
+    { C_STRING_WITH_LEN("idle") },
+    &idle_timer
+  },
+  {
     { C_STRING_WITH_LEN("wait") },
     &wait_timer
+  },
+  {
+    { C_STRING_WITH_LEN("stage") },
+    &stage_timer
+  },
+  {
+    { C_STRING_WITH_LEN("statement") },
+    &statement_timer
   }
 };
 
@@ -62,6 +75,7 @@ table_setup_timers::m_share=
   &table_setup_timers::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
+  NULL, /* get_row_count */
   COUNT_SETUP_TIMERS,
   sizeof(PFS_simple_index),
   &m_table_lock,

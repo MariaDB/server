@@ -2198,7 +2198,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           Set the cost to do a full scan of the temptable (will need this to 
           consider doing sjm-scan):
         */ 
-        sjm->scan_cost.zero();
+        sjm->scan_cost.reset();
         sjm->scan_cost.add_io(sjm->rows, lookup_cost);
 
         sjm->lookup_cost.convert_from_cost(lookup_cost);
@@ -2633,12 +2633,12 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     else
     {
       /* This is SJ-Materialization with lookups */
-      COST_VECT prefix_cost; 
+      Cost_estimate prefix_cost; 
       signed int first_tab= (int)idx - mat_info->tables;
       double prefix_rec_count;
       if (first_tab < (int)join->const_tables)
       {
-        prefix_cost.zero();
+        prefix_cost.reset();
         prefix_rec_count= 1.0;
       }
       else

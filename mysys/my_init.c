@@ -21,6 +21,7 @@
 #include <m_string.h>
 #include <m_ctype.h>
 #include <signal.h>
+#include <mysql/psi/mysql_stage.h>
 #ifdef __WIN__
 #ifdef _MSC_VER
 #include <locale.h>
@@ -442,6 +443,9 @@ static my_bool win32_init_tcp_ip()
 
 #ifdef HAVE_PSI_INTERFACE
 
+PSI_stage_info stage_waiting_for_table_level_lock=
+{0, "Waiting for table level lock", 0};
+
 #if !defined(HAVE_PREAD) && !defined(_WIN32)
 PSI_mutex_key key_my_file_info_mutex;
 #endif /* !defined(HAVE_PREAD) && !defined(_WIN32) */
@@ -531,30 +535,34 @@ static PSI_file_info all_mysys_files[]=
   { &key_file_cnf, "cnf", 0}
 };
 
+PSI_stage_info *all_mysys_stages[]=
+{
+  & stage_waiting_for_table_level_lock
+};
+
 void my_init_mysys_psi_keys()
 {
   const char* category= "mysys";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= sizeof(all_mysys_mutexes)/sizeof(all_mysys_mutexes[0]);
-  PSI_server->register_mutex(category, all_mysys_mutexes, count);
+  mysql_mutex_register(category, all_mysys_mutexes, count);
 
   count= sizeof(all_mysys_conds)/sizeof(all_mysys_conds[0]);
-  PSI_server->register_cond(category, all_mysys_conds, count);
+  mysql_cond_register(category, all_mysys_conds, count);
 
   count= sizeof(all_mysys_rwlocks)/sizeof(all_mysys_rwlocks[0]);
-  PSI_server->register_rwlock(category, all_mysys_rwlocks, count);
+  mysql_rwlock_register(category, all_mysys_rwlocks, count);
 
 #ifdef USE_ALARM_THREAD
   count= sizeof(all_mysys_threads)/sizeof(all_mysys_threads[0]);
-  PSI_server->register_thread(category, all_mysys_threads, count);
+  mysql_thread_register(category, all_mysys_threads, count);
 #endif /* USE_ALARM_THREAD */
 
   count= sizeof(all_mysys_files)/sizeof(all_mysys_files[0]);
-  PSI_server->register_file(category, all_mysys_files, count);
+  mysql_file_register(category, all_mysys_files, count);
+
+  count= array_elements(all_mysys_stages);
+  mysql_stage_register(category, all_mysys_stages, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
-

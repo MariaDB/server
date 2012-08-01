@@ -108,6 +108,17 @@ struct pfs_lock
   }
 
   /**
+    Execute an allocated to dirty transition.
+    This transition should be executed by the writer that owns the record,
+    before the record is modified.
+  */
+  void allocated_to_dirty(void)
+  {
+    DBUG_ASSERT(m_state == PFS_LOCK_ALLOCATED);
+    PFS_atomic::store_32(&m_state, PFS_LOCK_DIRTY);
+  }
+
+  /**
     Execute a dirty to allocated transition.
     This transition should be executed by the writer that owns the record,
     after the record is in a state ready to be read.
@@ -171,6 +182,11 @@ struct pfs_lock
     return ((copy->m_version == PFS_atomic::load_u32(&m_version)) &&
             (copy->m_state == PFS_atomic::load_32(&m_state)) &&
             (copy->m_state == PFS_LOCK_ALLOCATED));
+  }
+
+  uint32 get_version()
+  {
+    return PFS_atomic::load_u32(&m_version);
   }
 };
 
