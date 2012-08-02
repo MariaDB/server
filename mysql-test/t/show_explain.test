@@ -1063,5 +1063,19 @@ set debug_dbug='';
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-416: Server crashes in SQL_SELECT::cleanup on EXPLAIN with SUM ( DISTINCT ) in a non-correlated subquery (5.5-show-explain tree)
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (8),(9);
+
+EXPLAIN SELECT * FROM t1 
+WHERE ( 8, 89 ) IN ( SELECT b, SUM( DISTINCT b ) FROM t2 GROUP BY b );
+
+DROP TABLE t1,t2;
+
 --echo # End
 drop table t0;
