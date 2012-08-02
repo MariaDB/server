@@ -10737,9 +10737,22 @@ void JOIN::cleanup(bool full)
 
     if (full)
     {
+      JOIN_TAB *sort_tab= first_linear_tab(this, WITHOUT_CONST_TABLES);
+      if (pre_sort_join_tab)
+      {
+        if (sort_tab && sort_tab->select == pre_sort_join_tab->select)
+        {
+          pre_sort_join_tab->select= NULL;
+        }
+        else
+          clean_pre_sort_join_tab();
+      }
+
       for (tab= first_linear_tab(this, WITH_CONST_TABLES); tab; 
            tab= next_linear_tab(this, tab, WITH_BUSH_ROOTS))
+      {
 	tab->cleanup();
+      }
     }
     else
     {
@@ -10761,9 +10774,6 @@ void JOIN::cleanup(bool full)
   */
   if (full)
   {
-    if (pre_sort_join_tab)
-      clean_pre_sort_join_tab();
-
     if (tmp_join)
       tmp_table_param.copy_field= 0;
     group_fields.delete_elements();
