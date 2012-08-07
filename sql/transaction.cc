@@ -22,6 +22,7 @@
 #include "transaction.h"
 #include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
+#include "sql_acl.h"
 
 /* Conditions under which the transaction state must not change. */
 static bool trans_check(THD *thd)
@@ -150,9 +151,35 @@ bool trans_begin(THD *thd, uint flags)
   */
   thd->mdl_context.release_transactional_locks();
 
+  // The RO/RW options are mutually exclusive.
+  DBUG_ASSERT(!((flags & MYSQL_START_TRANS_OPT_READ_ONLY) &&
+                (flags & MYSQL_START_TRANS_OPT_READ_WRITE)));
+  if (flags & MYSQL_START_TRANS_OPT_READ_ONLY)
+    thd->tx_read_only= true;
+  else if (flags & MYSQL_START_TRANS_OPT_READ_WRITE)
+  {
+    /*
+      Explicitly starting a RW transaction when the server is in
+      read-only mode, is not allowed unless the user has SUPER priv.
+      Implicitly starting a RW transaction is allowed for backward
+      compatibility.
+    */
+    const bool user_is_super=
+      test(thd->security_ctx->master_access & SUPER_ACL);
+    if (opt_readonly && !user_is_super)
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
+      DBUG_RETURN(true);
+    }
+    thd->tx_read_only= false;
+  }
+
   thd->variables.option_bits|= OPTION_BEGIN;
   thd->server_status|= SERVER_STATUS_IN_TRANS;
+  if (thd->tx_read_only)
+    thd->server_status|= SERVER_STATUS_IN_TRANS_READONLY;
 
+  /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
     res= ha_start_consistent_snapshot(thd);
 
@@ -234,6 +261,7 @@ bool trans_commit_implicit(THD *thd)
     to not have any effect on implicit commit.
   */
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+  thd->tx_read_only= thd->variables.tx_read_only;
 
   DBUG_RETURN(res);
 }
@@ -298,7 +326,10 @@ bool trans_commit_stmt(THD *thd)
   {
     res= ha_commit_trans(thd, FALSE);
     if (! thd->in_active_multi_stmt_transaction())
+    {
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
+    }
   }
 
   if (res)
@@ -342,7 +373,10 @@ bool trans_rollback_stmt(THD *thd)
     if (thd->transaction_rollback_request && !thd->in_sub_stmt)
       ha_rollback_trans(thd, TRUE);
     if (! thd->in_active_multi_stmt_transaction())
+    {
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
+    }
   }
 
   RUN_HOOK(transaction, after_rollback, (thd, FALSE));

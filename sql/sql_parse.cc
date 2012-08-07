@@ -291,26 +291,54 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_EVENT]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
 
   sql_command_flags[SQLCOM_UPDATE]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_DELETE]=         CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;;
   sql_command_flags[SQLCOM_REPLACE]=        CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_SELECT]=         CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_SET_OPTION]=     CF_REEXECUTION_FRAGILE | CF_AUTO_COMMIT_TRANS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
+  // (1) so that subquery is traced when doing "SET @var = (subquery)"
+  /*
+    @todo SQLCOM_SET_OPTION should have CF_CAN_GENERATE_ROW_EVENTS
+    set, because it may invoke a stored function that generates row
+    events. /Sven
+  */
+  sql_command_flags[SQLCOM_SET_OPTION]=     CF_REEXECUTION_FRAGILE |
+                                            CF_AUTO_COMMIT_TRANS |
+                                            CF_OPTIMIZER_TRACE; // (1)
+  // (1) so that subquery is traced when doing "DO @var := (subquery)"
   sql_command_flags[SQLCOM_DO]=             CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE; // (1)
 
   sql_command_flags[SQLCOM_SHOW_STATUS_PROC]= CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_STATUS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
@@ -351,6 +379,11 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_CREATE_EVENT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILES]=    CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILE]=     CF_STATUS_COMMAND;
+  /*
+    @todo SQLCOM_BINLOG_BASE64_EVENT should have
+    CF_CAN_GENERATE_ROW_EVENTS set, because this surely generates row
+    events. /Sven
+  */
   sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CLIENT_STATS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_USER_STATS]=   CF_STATUS_COMMAND;
@@ -366,6 +399,12 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_GRANT]=             CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_REVOKE]=            CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_OPTIMIZE]=          CF_CHANGES_DATA;
+  /*
+    @todo SQLCOM_CREATE_FUNCTION should have CF_AUTO_COMMIT_TRANS
+    set. this currently is binlogged *before* the transaction if
+    executed inside a transaction because it does not have an implicit
+    pre-commit and is written to the statement cache. /Sven
+  */
   sql_command_flags[SQLCOM_CREATE_FUNCTION]=   CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_PROCEDURE]=  CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_SPFUNCTION]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -382,8 +421,13 @@ void init_update_queries(void)
     last called (or executed) statement is preserved.
     See mysql_execute_command() for how CF_ROW_COUNT is used.
   */
+  /*
+    (1): without it, in "CALL some_proc((subq))", subquery would not be
+    traced.
+  */
   sql_command_flags[SQLCOM_CALL]=      CF_REEXECUTION_FRAGILE |
-                                       CF_CAN_GENERATE_ROW_EVENTS;
+                                       CF_CAN_GENERATE_ROW_EVENTS |
+                                       CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
 
   /*
@@ -411,6 +455,104 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_SERVER]=      CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
+
+  /*
+    The following statements can deal with temporary tables,
+    so temporary tables should be pre-opened for those statements to
+    simplify privilege checking.
+
+    There are other statements that deal with temporary tables and open
+    them, but which are not listed here. The thing is that the order of
+    pre-opening temporary tables for those statements is somewhat custom.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_TRUNCATE]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_LOAD]|=            CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_UPDATE]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_UPDATE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_INSERT_SELECT]|=   CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DELETE]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DELETE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_REPLACE_SELECT]|=  CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_SELECT]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_SET_OPTION]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DO]|=              CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CALL]|=            CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CHECKSUM]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ANALYZE]|=         CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CHECK]|=           CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_REPAIR]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_PRELOAD_KEYS]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]|= CF_PREOPEN_TMP_TABLES;
+
+  /*
+    DDL statements that should start with closing opened handlers.
+
+    We use this flag only for statements for which open HANDLERs
+    have to be closed before emporary tables are pre-opened.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_TRUNCATE]|=        CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_REPAIR]|=          CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=        CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ANALYZE]|=         CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_CHECK]|=           CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=      CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_PRELOAD_KEYS]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]|=  CF_HA_CLOSE;
+
+  /*
+    Mark statements that always are disallowed in read-only
+    transactions. Note that according to the SQL standard,
+    even temporary table DDL should be disallowed.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_RENAME_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_DB]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_DB]|=          CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_DB]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_VIEW]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_VIEW]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_TRIGGER]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_TRIGGER]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_EVENT]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_EVENT]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_EVENT]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_USER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_RENAME_USER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_USER]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SERVER]|=    CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_SERVER]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_SERVER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_FUNCTION]|=  CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_PROCEDURE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SPFUNCTION]|=CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_PROCEDURE]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_FUNCTION]|=    CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_PROCEDURE]|=  CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_FUNCTION]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_TRUNCATE]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_TABLESPACE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REPAIR]|=           CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_GRANT]|=            CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REVOKE]|=           CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REVOKE_ALL]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_INSTALL_PLUGIN]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_UNINSTALL_PLUGIN]|= CF_DISALLOW_IN_RO_TRANS;
 }
 
 bool sqlcom_can_generate_row_events(const THD *thd)
@@ -2115,6 +2257,19 @@ mysql_execute_command(THD *thd)
     DEBUG_SYNC(thd,"before_execute_sql_command");
 #endif
 
+  /*
+    Check if we are in a read-only transaction and we're trying to
+    execute a statement which should always be disallowed in such cases.
+
+    Note that this check is done after any implicit commits.
+  */
+  if (thd->tx_read_only &&
+      (sql_command_flags[lex->sql_command] & CF_DISALLOW_IN_RO_TRANS))
+  {
+    my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
+    goto error;
+  }
+
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
@@ -3766,12 +3921,13 @@ end_with_restore_list:
     if (tx_chain)
     {
       if (trans_begin(thd))
-      goto error;
+        goto error;
     }
     else
     {
       /* Reset the isolation level if no chaining transaction. */
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -4325,6 +4481,7 @@ create_sp_error:
       isolation level to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+    thd->tx_read_only= thd->variables.tx_read_only;
     my_ok(thd);
     break;
   case SQLCOM_XA_ROLLBACK:
@@ -4336,6 +4493,7 @@ create_sp_error:
       isolation level to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+    thd->tx_read_only= thd->variables.tx_read_only;
     my_ok(thd);
     break;
   case SQLCOM_XA_RECOVER:

@@ -413,6 +413,8 @@ Event_scheduler::start()
     for writing when the server is running in the read-only mode.
   */
   new_thd->security_ctx->master_access |= SUPER_ACL;
+  new_thd->variables.tx_read_only= false;
+  new_thd->tx_read_only= false;
 
   scheduler_param_value=
     (struct scheduler_param *)my_malloc(sizeof(struct scheduler_param), MYF(0));
