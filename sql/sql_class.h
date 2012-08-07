@@ -43,7 +43,7 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
-
+#include <mysql/psi/mysql_table.h>
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -537,6 +537,10 @@ typedef struct system_variables
   */
   my_thread_id pseudo_thread_id;
 
+  /**
+    Default transaction access mode. READ ONLY (true) or READ WRITE (false).
+  */
+  my_bool tx_read_only;
   my_bool low_priority_updates;
   my_bool query_cache_wlock_invalidate;
   my_bool engine_condition_pushdown;
@@ -619,6 +623,7 @@ typedef struct system_status_var
   ulong ha_discover_count;
   ulong ha_savepoint_count;
   ulong ha_savepoint_rollback_count;
+  ulong ha_external_lock_count;
 
 #if 0
   /* KEY_CACHE parts. These are copies of the original */
@@ -2175,6 +2180,11 @@ public:
     above.
   */
   enum_tx_isolation tx_isolation;
+  /*
+    Current or next transaction access mode.
+    See comment above regarding tx_isolation.
+  */
+  bool              tx_read_only;
   enum_check_fields count_cuted_fields;
 
   DYNAMIC_ARRAY user_var_events;        /* For user variables replication */
@@ -4083,6 +4093,32 @@ public:
 */
 #define CF_CAN_GENERATE_ROW_EVENTS (1U << 9)
 
+/**
+  Identifies statements which may deal with temporary tables and for which
+  temporary tables should be pre-opened to simplify privilege checks.
+*/
+#define CF_PREOPEN_TMP_TABLES   (1U << 10)
+
+/**
+  Identifies statements for which open handlers should be closed in the
+  beginning of the statement.
+*/
+#define CF_HA_CLOSE             (1U << 11)
+
+/**
+  Identifies statements that can be explained with EXPLAIN.
+*/
+#define CF_CAN_BE_EXPLAINED       (1U << 12)
+
+/** Identifies statements which may generate an optimizer trace */
+#define CF_OPTIMIZER_TRACE        (1U << 14)
+
+/**
+   Identifies statements that should always be disallowed in
+   read only transactions.
+*/
+#define CF_DISALLOW_IN_RO_TRANS   (1U << 15)
+
 /* Bits in server_command_flags */
 
 /**
@@ -4144,14 +4180,15 @@ inline int handler::ha_index_read_map(uchar * buf, const uchar * key,
                                       key_part_map keypart_map,
                                       enum ha_rkey_function find_flag)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_key_count);
-  int error= index_read_map(buf, key, keypart_map, find_flag);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_read_map(buf, key, keypart_map,
+                                              find_flag); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
@@ -4167,83 +4204,84 @@ inline int handler::ha_index_read_idx_map(uchar * buf, uint index,
                                           key_part_map keypart_map,
                                           enum ha_rkey_function find_flag)
 {
+  int error;
   DBUG_ASSERT(inited==NONE);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_key_count);
-  int error= index_read_idx_map(buf, index, key, keypart_map, find_flag);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, index, 0,
+                      { error= index_read_idx_map(buf, index, key, keypart_map,
+                                                  find_flag); })
   if (!error)
   {
     update_rows_read();
     index_rows_read[index]++;
   }
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_index_next(uchar * buf)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_next_count);
-  int error= index_next(buf);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_next(buf); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_index_prev(uchar * buf)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_prev_count);
-  int error= index_prev(buf);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_prev(buf); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_index_first(uchar * buf)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_first_count);
-  int error= index_first(buf);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_first(buf); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_index_last(uchar * buf)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_last_count);
-  int error= index_last(buf);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_last(buf); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_index_next_same(uchar *buf, const uchar *key,
                                        uint keylen)
 {
+  int error;
   DBUG_ASSERT(inited==INDEX);
-  MYSQL_INDEX_READ_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_read_next_count);
-  int error= index_next_same(buf, key, keylen);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+                      { error= index_next_same(buf, key, keylen); })
   if (!error)
     update_index_statistics();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_INDEX_READ_ROW_DONE(error);
   return error;
 }
 
@@ -4259,8 +4297,9 @@ inline int handler::ha_ft_read(uchar *buf)
 
 inline int handler::ha_rnd_next(uchar *buf)
 {
-  MYSQL_READ_ROW_START(table_share->db.str, table_share->table_name.str, TRUE);
-  int error= rnd_next(buf);
+  int error;
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+                      { error= rnd_next(buf); })
   if (!error)
   {
     update_rows_read();
@@ -4272,19 +4311,18 @@ inline int handler::ha_rnd_next(uchar *buf)
     increment_statistics(&SSV::ha_read_rnd_next_count);
 
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_READ_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_rnd_pos(uchar *buf, uchar *pos)
 {
-  MYSQL_READ_ROW_START(table_share->db.str, table_share->table_name.str, FALSE);
+  int error;
   increment_statistics(&SSV::ha_read_rnd_count);
-  int error= rnd_pos(buf, pos);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+                      { error= rnd_pos(buf, pos); })
   if (!error)
     update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
-  MYSQL_READ_ROW_DONE(error);
   return error;
 }
 
@@ -4308,18 +4346,22 @@ inline int handler::ha_read_first_row(uchar *buf, uint primary_key)
 
 inline int handler::ha_write_tmp_row(uchar *buf)
 {
+  int error;
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_write_count);
-  int error= write_row(buf);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_WRITE_ROW, MAX_KEY, 0,
+                      { error= write_row(buf); })
   MYSQL_INSERT_ROW_DONE(error);
   return error;
 }
 
 inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
 {
+  int error;
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   increment_statistics(&SSV::ha_tmp_update_count);
-  int error= update_row(old_data, new_data);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_UPDATE_ROW, active_index, 0,
+                      { error= update_row(old_data, new_data);})
   MYSQL_UPDATE_ROW_DONE(error);
   return error;
 }

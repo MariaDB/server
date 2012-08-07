@@ -12,7 +12,7 @@ INSERT INTO t1 VALUES (1),(2);
 COMMIT;
 START TRANSACTION;
 SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-ERROR 25001: Transaction isolation level can't be changed while a transaction is in progress
+ERROR 25001: Transaction characteristics can't be changed while a transaction is in progress
 COMMIT;
 SET @@autocommit=0;
 COMMIT;

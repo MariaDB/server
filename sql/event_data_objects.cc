@@ -1455,6 +1455,7 @@ end:
     else
     {
       ulong saved_master_access;
+      bool save_tx_read_only;
 
       thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 
@@ -1466,9 +1467,12 @@ end:
 
       saved_master_access= thd->security_ctx->master_access;
       thd->security_ctx->master_access |= SUPER_ACL;
+      save_tx_read_only= thd->tx_read_only;
+      thd->tx_read_only= false;
 
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
+      thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }
   }

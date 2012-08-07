@@ -1,0 +1,29 @@
+State of MERGE between MariaDB 5.5 and MySQL 5.6.5
+
+Featured copied/merged
+- storage/innodb/*
+- storage/perfschema
+- sql/share/errmsg-utf8.txt
+- All CF_XXX states in sql_class.h.
+- handler error messages.
+- Removed timestamp handling from all handler::write and handler::update
+  methods.
+
+Features recoded
+- Better error messages
+- Added support of timestamps to ha_write and ha_update.
+
+Fetures half done:
+- Support for TRANSACTION READ ONLY | READ WRITE
+- CF_XXX states added to init_update_queries() but not otherwise used.
+
+Short time TODO:
+- Add support for TRANSACTION READ ONLY | READ WRITE in sql_yacc.yy
+  (support for variable tx_read_only)
+
+- merge hostname.cc / hostname.h
+- add support for host_error()
+
+- Enable performance_schema.host_cache in scripts/mysql_system_tables.sql
+
+- Add full support for timestamp. (remove timestamp handling from ha_write())

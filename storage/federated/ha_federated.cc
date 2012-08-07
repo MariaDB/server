@@ -1848,9 +1848,6 @@ int ha_federated::write_row(uchar *buf)
 
   values_string.length(0);
   insert_field_value_string.length(0);
-  ha_statistic_increment(&SSV::ha_write_count);
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
 
   /*
     start both our field and field values strings
@@ -2434,7 +2431,6 @@ int ha_federated::index_read_idx_with_result_set(uchar *buf, uint index,
   *result= 0;                                   // In case of errors
   index_string.length(0);
   sql_query.length(0);
-  ha_statistic_increment(&SSV::ha_read_key_count);
 
   sql_query.append(share->select_query);
 
@@ -2562,7 +2558,6 @@ int ha_federated::index_next(uchar *buf)
 {
   int retval;
   DBUG_ENTER("ha_federated::index_next");
-  ha_statistic_increment(&SSV::ha_read_next_count);
   retval= read_next(buf, stored_result);
   DBUG_RETURN(retval);
 }
@@ -2771,8 +2766,6 @@ int ha_federated::rnd_pos(uchar *buf, uchar *pos)
   MYSQL_RES *result;
   int ret_val;
   DBUG_ENTER("ha_federated::rnd_pos");
-
-  ha_statistic_increment(&SSV::ha_read_rnd_count);
 
   /* Get stored result set. */
   memcpy(&result, pos, sizeof(MYSQL_RES *));

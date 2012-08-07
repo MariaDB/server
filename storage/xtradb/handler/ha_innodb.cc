@@ -5856,8 +5856,6 @@ ha_innobase::write_row(
 		ut_error;
 	}
 
-	ha_statistic_increment(&SSV::ha_write_count);
-
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
@@ -6279,8 +6277,6 @@ ha_innobase::update_row(
 		}
 	}
 
-	ha_statistic_increment(&SSV::ha_update_count);
-
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
@@ -6394,8 +6390,6 @@ ha_innobase::delete_row(
 	DBUG_ENTER("ha_innobase::delete_row");
 
 	ut_a(prebuilt->trx == trx);
-
-	ha_statistic_increment(&SSV::ha_delete_count);
 
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
@@ -6670,8 +6664,6 @@ ha_innobase::index_read(
 
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
-
-	ha_statistic_increment(&SSV::ha_read_key_count);
 
 	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
@@ -7036,8 +7028,6 @@ ha_innobase::index_next(
 	uchar*		buf)	/*!< in/out: buffer for next row in MySQL
 				format */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, 0));
 }
 
@@ -7052,8 +7042,6 @@ ha_innobase::index_next_same(
 	const uchar*	key,	/*!< in: key value */
 	uint		keylen)	/*!< in: key value length */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, last_match_mode));
 }
 
@@ -7067,8 +7055,6 @@ ha_innobase::index_prev(
 /*====================*/
 	uchar*	buf)	/*!< in/out: buffer for previous row in MySQL format */
 {
-	ha_statistic_increment(&SSV::ha_read_prev_count);
-
 	return(general_fetch(buf, ROW_SEL_PREV, 0));
 }
 
@@ -7085,7 +7071,6 @@ ha_innobase::index_first(
 	int	error;
 
 	DBUG_ENTER("index_first");
-	ha_statistic_increment(&SSV::ha_read_first_count);
 
 	error = index_read(buf, NULL, 0, HA_READ_AFTER_KEY);
 
@@ -7111,7 +7096,6 @@ ha_innobase::index_last(
 	int	error;
 
 	DBUG_ENTER("index_last");
-	ha_statistic_increment(&SSV::ha_read_last_count);
 
 	error = index_read(buf, NULL, 0, HA_READ_BEFORE_KEY);
 
@@ -7181,7 +7165,6 @@ ha_innobase::rnd_next(
 	int	error;
 
 	DBUG_ENTER("rnd_next");
-	ha_statistic_increment(&SSV::ha_read_rnd_next_count);
 
 	if (start_of_scan) {
 		error = index_first(buf);
@@ -7215,8 +7198,6 @@ ha_innobase::rnd_pos(
 	uint		keynr	= active_index;
 	DBUG_ENTER("rnd_pos");
 	DBUG_DUMP("key", pos, ref_length);
-
-	ha_statistic_increment(&SSV::ha_read_rnd_count);
 
 	ut_a(prebuilt->trx == thd_to_trx(ha_thd()));
 
