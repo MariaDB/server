@@ -1803,7 +1803,10 @@ wsrep_rec_get_primary_key(
 	ut_ad(rec);
 
 	key_parts = dict_index_get_n_unique_in_tree(index);
-	for (i = 0; i < key_parts; i++) {
+	for (i = 0; 
+	     i < key_parts && (index->type & DICT_CLUSTERED || i < key_parts - 1); 
+	     i++) {
+
                 dict_field_t*	  field = dict_index_get_nth_field(index, i);
 		const dict_col_t* col = dict_field_get_col(field);
 

@@ -2246,7 +2246,7 @@ static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
        READ_ONLY GLOBAL_VAR(system_time_zone_ptr), NO_CMD_LINE,
-       IN_FS_CHARSET, DEFAULT(system_time_zone));
+       IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
        "table_definition_cache",
@@ -3603,12 +3603,13 @@ static Sys_var_charptr Sys_wsrep_cluster_name(
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
 
+static PolyLock_mutex PLock_wsrep_slave_threads(&LOCK_wsrep_slave_threads);
 static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_CLUSTER_ADDRESS),
        IN_FS_CHARSET, DEFAULT(wsrep_cluster_address),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
 
@@ -3637,7 +3638,10 @@ static Sys_var_charptr Sys_wsrep_node_incoming_address(
 static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1));
+       VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
+       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_slave_threads_check), 
+       ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(
        "wsrep_dbug_option", "DBUG options to provider library",
@@ -3674,7 +3678,7 @@ static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_charptr sys_wsrep_sst_method(
-       "wsrep_sst_method", "Snapshot transfer method",
+       "wsrep_sst_method", "State snapshot transfer method",
        GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_sst_method), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_method_check),
@@ -3703,6 +3707,12 @@ static Sys_var_charptr Sys_wsrep_sst_donor(
        IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_donor_check),
        ON_UPDATE(wsrep_sst_donor_update)); 
+
+static Sys_var_mybool Sys_wsrep_sst_donor_rejects_queries(
+       "wsrep_sst_donor_rejects_queries", "Reject client queries "
+       "when donating state snapshot transfer", 
+       GLOBAL_VAR(wsrep_sst_donor_rejects_queries), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_mybool Sys_wsrep_on (
        "wsrep_on", "To enable wsrep replication ",
@@ -3971,4 +3981,9 @@ static Sys_var_ulong Sys_debug_binlog_fsync_sleep(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
-
+static Sys_var_harows Sys_expensive_subquery_limit(
+       "expensive_subquery_limit",
+       "The maximum number of rows a subquery may examine in order to be "
+       "executed during optimization and used for constant optimization",
+       SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));

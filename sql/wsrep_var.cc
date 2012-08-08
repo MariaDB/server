@@ -35,6 +35,7 @@ const  char* wsrep_node_name        = glob_hostname;
 static char node_address[256] = { 0, };
 const  char* wsrep_node_address     = node_address;
 ulong   wsrep_OSU_method_options;
+static int   wsrep_thread_change    = 0;
 
 int wsrep_init_vars()
 {
@@ -419,6 +420,27 @@ void wsrep_node_address_init (const char* value)
   wsrep_node_address = (value) ? my_strdup(value, MYF(0)) : NULL;
 }
 
+bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
+{
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
+  wsrep_thread_change = var->value->val_int() - wsrep_slave_threads;
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
+
+  return 0;
+}
+
+bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
+{
+  if (wsrep_thread_change > 0)
+  {
+    wsrep_create_appliers(wsrep_thread_change);
+  } 
+  else if (wsrep_thread_change < 0)
+  {
+    wsrep_close_applier_threads(-wsrep_thread_change);
+  }
+  return false;
+}
 /*
  * Status variables stuff below
  */

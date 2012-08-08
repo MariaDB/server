@@ -39,6 +39,8 @@ const char* wsrep_sst_donor           = "";
 // container for real auth string
 static const char* sst_auth_real      = NULL;
 
+my_bool wsrep_sst_donor_rejects_queries = FALSE;
+
 static const char *sst_methods[] = {
   "mysqldump",
   "rsync",
@@ -597,6 +599,13 @@ static int sst_run_shell (const char* cmd_str, int max_tries)
   return -ret;
 }
 
+static void sst_reject_queries(my_bool close_conn)
+{
+    wsrep_ready_set (FALSE); // this will be resotred when donor becomes synced
+    WSREP_INFO("Rejecting client queries for the duration of SST.");
+    if (TRUE == close_conn) wsrep_close_client_connections(FALSE);
+}
+
 static int sst_mysqldump_check_addr (const char* user, const char* pswd,
                                      const char* host, const char* port)
 {
@@ -653,6 +662,8 @@ static int sst_donate_mysqldump (const char*         addr,
   {
     size_t cmd_len= 1024;
     char   cmd_str[cmd_len];
+
+    if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
     snprintf (cmd_str, cmd_len,
               "wsrep_sst_mysqldump '%s' '%s' '%s' '%s' '%u' '%s' '%lld' '%d'",
@@ -781,7 +792,8 @@ static void* sst_donor_thread (void* a)
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
   wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED; // seqno of complete SST
 
-  wsp::thd thd;
+  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
+                       // operate with wsrep_ready == OFF
   wsp::process proc(arg->cmd, "r");
 
   err= proc.error();
@@ -879,6 +891,8 @@ static int sst_donate_other (const char*   method,
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 
   pthread_t tmp;
   sst_thread_arg arg(cmd_str);

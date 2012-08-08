@@ -761,7 +761,8 @@ ulint wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
-			       ibool		shared);
+			       ibool		referenced,
+			       ibool            shared);
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1086,7 +1087,7 @@ row_ins_foreign_check_on_constraint(
 			foreign,
 			clust_rec, 
 			clust_index,
-			FALSE);
+			FALSE, FALSE);
 	}
 #endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
@@ -1422,12 +1423,22 @@ run_again:
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
-						foreign,
-						rec, 
-						check_index, 
-						TRUE);
+					if (thr->fk_cascade_depth == 0) {
+						err = wsrep_append_foreign_key(
+							thr_get_trx(thr),
+							foreign,
+							rec, 
+							check_index, 
+							check_ref, TRUE);
+					} else {
+					  fprintf(stderr, "WSREP: skipping FK key append\n");
+						err = wsrep_append_foreign_key(
+							thr_get_trx(thr),
+							foreign,
+							rec, 
+							check_index, 
+							TRUE, TRUE);
+					}
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -1458,6 +1469,14 @@ run_again:
 						goto end_scan;
 					}
 
+#ifdef WITH_WSREP_REMOVED
+					err = wsrep_append_foreign_key(
+						thr_get_trx(thr),
+						foreign,
+						rec, 
+						check_index, 
+						FALSE);
+#endif /* WITH_WSREP */
 					/* row_ins_foreign_check_on_constraint
 					may have repositioned pcur on a
 					different block */

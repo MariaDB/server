@@ -170,6 +170,46 @@ func_exit:
 	return(is_referenced);
 }
 
+#ifdef WITH_WSREP
+ulint wsrep_append_foreign_key(trx_t *trx,  
+			       dict_foreign_t*	foreign,
+			       const rec_t*	clust_rec,
+			       dict_index_t*	clust_index,
+			       ibool		referenced,
+			       ibool            shared);
+
+static 
+void
+wsrep_append_fk_reference(
+/*=================================*/
+	upd_node_t*	node,	/*!< in: row update node */
+	dict_table_t*	table,	/*!< in: table in question */
+	dict_index_t*	index,	/*!< in: index of the cursor */
+	que_thr_t*	thr,	/*!< in: query thread */
+	const rec_t*	rec
+) {
+	dict_foreign_t *foreign = UT_LIST_GET_FIRST(table->foreign_list);
+
+	while (foreign) {
+		if (foreign->foreign_index == index
+		    && node->is_delete) 
+		{
+			if (DB_SUCCESS != wsrep_append_foreign_key(
+				thr_get_trx(thr),
+				foreign,
+				rec, 
+				index, 
+				TRUE, TRUE)
+			) {
+				fprintf(stderr, 
+					"WSREP: FK key append failed\n");
+			}
+		}
+		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+	}
+}
+#endif /* WITH_WSREP */
+
 /*********************************************************************//**
 Checks if possible foreign key constraints hold after a delete of the record
 under pcur.
@@ -283,7 +323,6 @@ row_upd_check_references_constraints(
 	}
 
 	err = DB_SUCCESS;
-
 func_exit:
 	if (got_s_lock) {
 		row_mysql_unfreeze_data_dictionary(trx);
@@ -1646,6 +1685,12 @@ row_upd_sec_index_entry(
 					node, &pcur, index->table,
 					index, offsets, thr, &mtr);
 			}
+#ifdef WITH_WSREP
+			if (err == DB_SUCCESS && !referenced) {
+				wsrep_append_fk_reference(node, index->table, 
+							  index, thr, rec);
+			}
+#endif /* WITH_WSREP */
 		}
 		break;
 	}
@@ -1887,6 +1932,12 @@ err_exit:
 				goto err_exit;
 			}
 		}
+#ifdef WITH_WSREP
+		if (!referenced) {
+			wsrep_append_fk_reference(node, index->table, 
+						  index, thr, rec);
+		}
+#endif /* WITH_WSREP */
 	}
 
 	mtr_commit(mtr);
@@ -2089,6 +2140,9 @@ row_upd_del_mark_clust_rec(
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
 	ulint		err;
+#ifdef WITH_WSREP
+	rec_t*		rec;
+#endif /* WITH_WSREP */
 
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
@@ -2105,15 +2159,29 @@ row_upd_del_mark_clust_rec(
 	/* Mark the clustered index record deleted; we do not have to check
 	locks, because we assume that we have an x-lock on the record */
 
+#ifdef WITH_WSREP
+	rec = btr_cur_get_rec(btr_cur);
+#endif /* WITH_WSREP */
+
 	err = btr_cur_del_mark_set_clust_rec(
 		BTR_NO_LOCKING_FLAG, btr_cur_get_block(btr_cur),
+#ifdef WITH_WSREP
+		rec, index, offsets, TRUE, thr, mtr);
+#else
 		btr_cur_get_rec(btr_cur), index, offsets, TRUE, thr, mtr);
+#endif /* WITH_WSREP */
 	if (err == DB_SUCCESS && referenced) {
 		/* NOTE that the following call loses the position of pcur ! */
 
 		err = row_upd_check_references_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 	}
+#ifdef WITH_WSREP
+	if (err == DB_SUCCESS && !referenced) {
+		wsrep_append_fk_reference(node, index->table, 
+					  index, thr, rec);
+	}
+#endif /* WITH_WSREP */
 
 	mtr_commit(mtr);
 

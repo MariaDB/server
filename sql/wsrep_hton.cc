@@ -216,7 +216,7 @@ wsrep_run_wsrep_commit(
   if (thd->wsrep_exec_mode != LOCAL_STATE) {
     DBUG_RETURN(WSREP_TRX_OK);
   }
-  if (thd->wsrep_consistency_check) {
+  if (thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING) {
     WSREP_DEBUG("commit for consistency check: %s", thd->query());
     DBUG_RETURN(WSREP_TRX_OK);
   }

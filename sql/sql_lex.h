@@ -997,12 +997,7 @@ public:
 
   void clear_index_hints(void) { index_hints= NULL; }
   bool is_part_of_union() { return master_unit()->is_union(); }
-  /*
-    Optimize all subqueries that have not been flattened into semi-joins.
-    This functionality is a method of SELECT_LEX instead of JOIN because
-    some SQL statements as DELETE do not have a corresponding JOIN object.
-  */
-  bool optimize_unflattened_subqueries();
+  bool optimize_unflattened_subqueries(bool const_only);
   /* Set the EXPLAIN type for this subquery. */
   void set_explain_type();
   bool handle_derived(LEX *lex, uint phases);
@@ -1023,6 +1018,7 @@ public:
   void mark_as_belong_to_derived(TABLE_LIST *derived);
   void increase_derived_records(ha_rows records);
   void update_used_tables();
+  void update_correlated_cache();
   void mark_const_derived(bool empty);
 
   bool save_leaf_tables(THD *thd);
@@ -1432,6 +1428,12 @@ public:
       UNIQUE KEYS  is unsafe.
     */
     BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS,
+
+    /**
+       INSERT into auto-inc field which is not the first part of composed
+       primary key.
+    */
+    BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST,
 
     /* The last element of this enumeration type. */
     BINLOG_STMT_UNSAFE_COUNT

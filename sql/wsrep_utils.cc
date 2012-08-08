@@ -289,13 +289,14 @@ process::wait ()
   return err_;
 }
 
-thd::thd () : init(), ptr(new THD)
+thd::thd (my_bool won) : init(), ptr(new THD)
 {
   if (ptr)
   {
     ptr->thread_stack= (char*) &ptr;
     ptr->store_globals();
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
+    ptr->variables.wsrep_on = won;
     ptr->security_ctx->master_access= ~(ulong)0;
     lex_start(ptr);
   }

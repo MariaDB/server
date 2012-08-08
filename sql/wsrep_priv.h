@@ -26,6 +26,8 @@
 #include <pthread.h>
 #include <cstdio>
 
+extern void    wsrep_ready_set (my_bool x);
+
 extern ssize_t wsrep_sst_prepare   (void** msg);
 extern int     wsrep_sst_donate_cb (void* app_ctx,
                                     void* recv_ctx,
@@ -38,8 +40,8 @@ extern int     wsrep_sst_donate_cb (void* app_ctx,
 extern size_t default_ip (char* buf, size_t buf_len);
 extern size_t default_address(char* buf, size_t buf_len);
 
-extern wsrep_uuid_t          local_uuid;
-extern wsrep_seqno_t         local_seqno;
+extern wsrep_uuid_t  local_uuid;
+extern wsrep_seqno_t local_seqno;
 
 /*! SST thread signals init thread about sst completion */
 extern void wsrep_sst_complete(wsrep_uuid_t* uuid, wsrep_seqno_t seqno, bool);
@@ -212,7 +214,7 @@ class thd
 
 public:
 
-  thd();
+  thd(my_bool wsrep_on);
   ~thd();
   THD* const ptr;
 };

@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2012, Monty Program Ab
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,6 +44,11 @@
     MUST_REPLAY,
     REPLAYING,
     RETRY_AUTOCOMMIT,
+  };
+  enum wsrep_consistency_check_mode {
+    NO_CONSISTENCY_CHECK,
+    CONSISTENCY_CHECK_DECLARED,
+    CONSISTENCY_CHECK_RUNNING,
   };
 #endif
 
@@ -517,6 +522,7 @@ typedef struct system_variables
   ulonglong group_concat_max_len;
   ha_rows select_limit;
   ha_rows max_join_size;
+  ha_rows expensive_subquery_limit;
   ulong auto_increment_increment, auto_increment_offset;
   ulong lock_wait_timeout;
   ulong join_cache_level;
@@ -1590,6 +1596,8 @@ public:
 
   /* Used to execute base64 coded binlog events in MySQL server */
   Relay_log_info* rli_fake;
+  /* Slave applier execution context */
+  Relay_log_info* rli_slave;
 
   void reset_for_next_command(bool calculate_userstat);
   /*
@@ -2368,6 +2376,7 @@ public:
 
 #ifdef WITH_WSREP
   const bool                wsrep_applier; /* dedicated slave applier thread */
+  bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
   enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
@@ -2389,7 +2398,8 @@ public:
   char*                     wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
-  bool                      wsrep_consistency_check;
+  enum wsrep_consistency_check_mode 
+                            wsrep_consistency_check;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.
@@ -3106,7 +3116,7 @@ public:
     if (global_system_variables.log_warnings > threshold)
     {
       Security_context *sctx= &main_security_ctx;
-      sql_print_warning(ER(ER_NEW_ABORTING_CONNECTION),
+      sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db ? db : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
@@ -3603,7 +3613,8 @@ public:
     if (copy_field)				/* Fix for Intel compiler */
     {
       delete [] copy_field;
-      save_copy_field= copy_field= 0;
+      save_copy_field= copy_field= NULL;
+      save_copy_field_end= copy_field_end= NULL;
     }
   }
 };

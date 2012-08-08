@@ -50,6 +50,7 @@ extern const char* wsrep_sst_method;
 extern const char* wsrep_sst_receive_address;
 extern       char* wsrep_sst_auth;
 extern const char* wsrep_sst_donor;
+extern my_bool     wsrep_sst_donor_rejects_queries;
 extern const char* wsrep_start_position;
 extern long long   wsrep_max_ws_size;
 extern long        wsrep_max_ws_rows;
@@ -129,6 +130,8 @@ extern void wsrep_sst_auth_init              INIT_ARGS;
 extern bool wsrep_sst_donor_check            CHECK_ARGS;
 extern bool wsrep_sst_donor_update           UPDATE_ARGS;
 
+extern bool wsrep_slave_threads_check        CHECK_ARGS;
+extern bool wsrep_slave_threads_update       UPDATE_ARGS;
 
 extern bool wsrep_init_first(); // initialize wsrep before storage
                                 // engines (true) or after (false)
@@ -142,7 +145,8 @@ extern void wsrep_init_startup(bool first);
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern void wsrep_close_applier(THD *thd);
-extern void wsrep_wait_appliers_close(THD *thd); 
+extern void wsrep_wait_appliers_close(THD *thd);
+extern void wsrep_close_applier_threads(int count);
 extern void wsrep_create_appliers(long threads = wsrep_slave_threads);
 extern void wsrep_create_rollbacker();
 extern void wsrep_kill_mysql(THD *thd);
@@ -250,6 +254,7 @@ extern long long wsrep_max_ws_size;
 extern long      wsrep_max_ws_rows;
 extern int       wsrep_to_isolation;
 extern my_bool wsrep_certify_nonPK;
+extern mysql_mutex_t LOCK_wsrep_slave_threads;
 
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
@@ -263,6 +268,7 @@ extern PSI_mutex_key key_LOCK_wsrep_rollback;
 extern PSI_cond_key  key_COND_wsrep_rollback;
 extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
+extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 
 struct TABLE_LIST;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,

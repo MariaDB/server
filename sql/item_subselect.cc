@@ -1,5 +1,5 @@
-/* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab
+/* Copyright (c) 2002, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -287,7 +287,7 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   else
     goto end;
   
-  if ((uncacheable= engine->uncacheable()))
+  if ((uncacheable= engine->uncacheable() & ~UNCACHEABLE_EXPLAIN))
   {
     const_item_cache= 0;
     if (uncacheable & UNCACHEABLE_RAND)
@@ -522,6 +522,48 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
     const_tables_cache.
   */
 }
+
+
+/**
+  Determine if a subquery is expensive to execute during query optimization.
+
+  @details The cost of execution of a subquery is estimated based on an
+  estimate of the number of rows the subquery will access during execution.
+  This measure is used instead of JOIN::read_time, because it is considered
+  to be much more reliable than the cost estimate.
+
+  @return true if the subquery is expensive
+  @return false otherwise
+*/
+bool Item_subselect::is_expensive()
+{
+  double examined_rows= 0;
+
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    JOIN *cur_join= sl->join;
+    if (!cur_join)
+      continue;
+
+    /* If a subquery is not optimized we cannot estimate its cost. */
+    if (!cur_join->join_tab)
+      return true;
+
+    if (sl->first_inner_unit())
+    {
+      /*
+        Subqueries that contain subqueries are considered expensive.
+        @todo: accumulate the cost of subqueries.
+      */
+      return true;
+    }
+
+    examined_rows+= cur_join->get_examined_rows();
+  }
+
+  return (examined_rows > thd->variables.expensive_subquery_limit);
+}
+
 
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                           uchar *argument)
@@ -904,6 +946,15 @@ void Item_maxmin_subselect::print(String *str, enum_query_type query_type)
 
 void Item_maxmin_subselect::no_rows_in_result()
 {
+  /*
+    Subquery predicates outside of the SELECT list must be evaluated in order
+    to possibly filter the special result row generated for implicit grouping
+    if the subquery is in the HAVING clause.
+    If the predicate is constant, we need its actual value in the only result
+    row for queries with implicit grouping.
+  */
+  if (parsing_place != SELECT_LIST || const_item())
+    return;
   value= Item_cache::get_cache(new Item_null());
   null_value= 0;
   was_values= 0;
@@ -913,6 +964,15 @@ void Item_maxmin_subselect::no_rows_in_result()
 
 void Item_singlerow_subselect::no_rows_in_result()
 {
+  /*
+    Subquery predicates outside of the SELECT list must be evaluated in order
+    to possibly filter the special result row generated for implicit grouping
+    if the subquery is in the HAVING clause.
+    If the predicate is constant, we need its actual value in the only result
+    row for queries with implicit grouping.
+  */
+  if (parsing_place != SELECT_LIST || const_item())
+    return;
   value= Item_cache::get_cache(new Item_null());
   reset();
   make_const();
@@ -1375,6 +1435,15 @@ Item* Item_exists_subselect::expr_cache_insert_transformer(uchar *thd_arg)
 
 void Item_exists_subselect::no_rows_in_result()
 {
+  /*
+    Subquery predicates outside of the SELECT list must be evaluated in order
+    to possibly filter the special result row generated for implicit grouping
+    if the subquery is in the HAVING clause.
+    If the predicate is constant, we need its actual value in the only result
+    row for queries with implicit grouping.
+  */
+  if (parsing_place != SELECT_LIST || const_item())
+    return;
   value= 0;
   null_value= 0;
   make_const();
@@ -2719,6 +2788,15 @@ void Item_allany_subselect::print(String *str, enum_query_type query_type)
 
 void Item_allany_subselect::no_rows_in_result()
 {
+  /*
+    Subquery predicates outside of the SELECT list must be evaluated in order
+    to possibly filter the special result row generated for implicit grouping
+    if the subquery is in the HAVING clause.
+    If the predicate is constant, we need its actual value in the only result
+    row for queries with implicit grouping.
+  */
+  if (parsing_place != SELECT_LIST || const_item())
+    return;
   value= 0;
   null_value= 0;
   was_null= 0;

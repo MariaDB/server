@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2012 Monty Program Ab
+   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -710,7 +710,7 @@ extern "C" bool wsrep_thd_is_wsrep_on(THD *thd)
 
 extern "C" bool wsrep_consistency_check(void *thd)
 {
-  return ((THD*)thd)->wsrep_consistency_check;
+  return ((THD*)thd)->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
 
 extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode)
@@ -864,7 +864,7 @@ THD::THD()
 #endif
    :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
               /* statement id */ 0),
-   rli_fake(0),
+   rli_fake(0), rli_slave(NULL),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
    binlog_table_maps(0),
@@ -890,6 +890,7 @@ THD::THD()
    spcont(NULL),
 #ifdef WITH_WSREP
    wsrep_applier(is_applier),
+   wsrep_applier_closing(FALSE),
    wsrep_client_thread(0),
 #endif
    m_parser_state(NULL),
@@ -1003,7 +1004,7 @@ THD::THD()
   wsrep_retry_query     = NULL;
   wsrep_retry_query_len = 0;
   wsrep_retry_command   = COM_CONNECT;
-  wsrep_consistency_check = false;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1356,7 +1357,7 @@ void THD::init(void)
   wsrep_rli= NULL;
   wsrep_PA_safe= true;
   wsrep_seqno_changed= false;
-  wsrep_consistency_check = false;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
 #endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1593,6 +1594,8 @@ THD::~THD()
   }
   
   mysql_audit_free_thd(this);
+  if (rli_slave)
+    rli_slave->cleanup_after_session();
 #endif
 
   free_root(&main_mem_root, MYF(0));
@@ -1978,6 +1981,11 @@ void THD::cleanup_after_query()
       }
       //wsrep_trx_seqno = 0;
 #endif  /* WITH_WSREP */
+
+#ifndef EMBEDDED_LIBRARY
+  if (rli_slave)
+    rli_slave->cleanup_after_query();
+#endif
 
   DBUG_VOID_RETURN;
 }

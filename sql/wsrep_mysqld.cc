@@ -326,15 +326,27 @@ out:
   local_status.set(new_status, view);
 }
 
+void wsrep_ready_set (my_bool x)
+{
+  WSREP_DEBUG("Setting wsrep_ready to %d", x);
+  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
+  if (wsrep_ready != x)
+  {
+    wsrep_ready= x;
+    mysql_cond_signal (&COND_wsrep_ready);
+  }
+  mysql_mutex_unlock (&LOCK_wsrep_ready);
+}
+
 // Wait until wsrep has reached ready state
 void wsrep_ready_wait ()
 {
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
   while (!wsrep_ready)
-    {
-      WSREP_INFO("Waiting to reach ready state");
-      mysql_cond_wait (&COND_wsrep_ready, &LOCK_wsrep_ready);
-    }
+  {
+    WSREP_INFO("Waiting to reach ready state");
+    mysql_cond_wait (&COND_wsrep_ready, &LOCK_wsrep_ready);
+  }
   WSREP_INFO("ready state reached");
   mysql_mutex_unlock (&LOCK_wsrep_ready);
 }
@@ -1127,17 +1139,17 @@ void wsrep_to_isolation_end(THD *thd) {
   }
 }
 
-#define WSREP_MDL_LOG(severity, msg, req, gra)	                             \
-    WSREP_##severity(                                                        \
-      "%s\n"                                                                 \
-      "request: (%lu \tseqno %lld \tmode %d \tQstate \t%d cmd %d %d \t%s)\n" \
-      "granted: (%lu \tseqno %lld \tmode %d \tQstate \t%d cmd %d %d \t%s)",  \
-      msg,                                                                   \
-      req->thread_id, (long long)req->wsrep_trx_seqno,                       \
-      req->wsrep_exec_mode, req->wsrep_query_state,                          \
-      req->command, req->lex->sql_command, req->query(),                     \
-      gra->thread_id, (long long)gra->wsrep_trx_seqno,                       \
-      gra->wsrep_exec_mode, gra->wsrep_query_state,                          \
+#define WSREP_MDL_LOG(severity, msg, req, gra)	                               \
+    WSREP_##severity(                                                          \
+      "%s\n"                                                                   \
+      "request: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)\n"      \
+      "granted: (%lu \tseqno %lld \twsrep (%d, %d, %d) cmd %d %d \t%s)",       \
+      msg,                                                                     \
+      req->thread_id, (long long)req->wsrep_trx_seqno,                         \
+      req->wsrep_exec_mode, req->wsrep_query_state, req->wsrep_conflict_state, \
+      req->command, req->lex->sql_command, req->query(),                       \
+      gra->thread_id, (long long)gra->wsrep_trx_seqno,                         \
+      gra->wsrep_exec_mode, gra->wsrep_query_state, gra->wsrep_conflict_state, \
       gra->command, gra->lex->sql_command, gra->query());
 
 bool
@@ -1154,7 +1166,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       request_thd->wsrep_exec_mode == REPL_RECV)
   {
     mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
-    WSREP_MDL_LOG(DEBUG, "MDL conflict", request_thd, granted_thd);
+    WSREP_MDL_LOG(DEBUG, "MDL conflict ", request_thd, granted_thd);
 
     mysql_mutex_lock(&granted_thd->LOCK_wsrep_thd);
     if (granted_thd->wsrep_exec_mode == TOTAL_ORDER ||
@@ -1183,7 +1195,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
       return  FALSE;
-    }  
+    }
     else 
     {
       WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", request_thd, granted_thd);

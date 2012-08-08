@@ -121,5 +121,8 @@ wsrep_sst_auth=root:
 # Desired SST donor name.
 #wsrep_sst_donor=
 
+# Reject client queries when donating SST (false)
+#wsrep_sst_donor_rejects_queries=0
+
 # Protocol version to use
 # wsrep_protocol_version=
