@@ -2165,7 +2165,7 @@ mysql_execute_command(THD *thd)
       goto error;
     }
 
-    Item **it= &(lex->show_explain_for_thread);
+    Item **it= lex->value_list.head_ref();
     if ((!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
         (*it)->check_cols(1))
     {
@@ -6586,6 +6586,35 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
+  Find a thread by id and return it, locking it LOCK_thd_data
+
+  @param id  Identifier of the thread we're looking for
+
+  @return NULL    - not found
+          pointer - thread found, and its LOCK_thd_data is locked.
+*/
+
+THD *find_thread_by_id(ulong id)
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (tmp->command == COM_DAEMON)
+      continue;
+    if (tmp->thread_id == id)
+    {
+      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return tmp;
+}
+
+
+/**
   kill on thread.
 
   @param thd			Thread class
@@ -6603,20 +6632,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lu  signal: %u", id, (uint) kill_signal));
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->command == COM_DAEMON)
-      continue;
-    if (tmp->thread_id == id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if ((tmp= find_thread_by_id(id)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.

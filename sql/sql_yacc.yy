@@ -11618,10 +11618,11 @@ show_param:
           }
         | describe_command FOR_SYM expr
           {
+            THD *thd= YYTHD;
             Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
-            if (prepare_schema_table(YYTHD, Lex, 0, SCH_EXPLAIN))
+            if (prepare_schema_table(thd, Lex, 0, SCH_EXPLAIN))
               MYSQL_YYABORT;
-            Lex->show_explain_for_thread= $3;
+            add_value_to_list(thd, $3);
           }
         ;
 
