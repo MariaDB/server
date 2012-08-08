@@ -2360,7 +2360,6 @@ struct LEX: public Query_tables_list
   char* to_log;                                 /* For PURGE MASTER LOGS TO */
   char* x509_subject,*x509_issuer,*ssl_cipher;
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
-  Item *show_explain_for_thread; /* id in SHOW EXPLAIN FOR id */
   sql_exchange *exchange;
   select_result *result;
   Item *default_value, *on_update_value;

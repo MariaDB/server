@@ -2056,28 +2056,11 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
   DBUG_ENTER("fill_show_explain");
 
   DBUG_ASSERT(cond==NULL);
-  thread_id= thd->lex->show_explain_for_thread->val_int();
+  thread_id= thd->lex->value_list.head()->val_int();
   calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
                  thd->security_ctx->priv_user;
-  /* 
-    Find the thread we need EXPLAIN for. Thread search code was copied from
-    kill_one_thread()
-  */
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->command == COM_DAEMON)
-      continue;
-    if (tmp->thread_id == thread_id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);	// Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
 
-  if (tmp)
+  if ((tmp= find_thread_by_id(thread_id)))
   {
     Security_context *tmp_sctx= tmp->security_ctx;
     /*
