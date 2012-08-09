@@ -1077,5 +1077,33 @@ WHERE ( 8, 89 ) IN ( SELECT b, SUM( DISTINCT b ) FROM t2 GROUP BY b );
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # Check if queries in non-default charsets work.
+--echo #
+
+set names cp1251;
+# The below are two Russian letters with codes E3FB in cp1251 encoding.
+select charset('ãû');
+select hex('ãû');
+
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+
+send
+select * from t0 where length('ãû') = a;
+
+connection default;
+set names utf8;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+set names default;
+
+connection con1;
+# The constant should be two letters, the last looking like 'bl'
+reap;
+
+set debug_dbug='';
+set names default;
+
 --echo # End
 drop table t0;
