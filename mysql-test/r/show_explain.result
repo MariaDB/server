@@ -1045,5 +1045,29 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using filesort
 DROP TABLE t1,t2;
+#
+# Check if queries in non-default charsets work.
+#
+set names cp1251;
+select charset('ãû');
+charset('ãû')
+cp1251
+select hex('ãû');
+hex('ãû')
+E3FB
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+select * from t0 where length('ãû') = a;
+set names utf8;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	select * from t0 where length('Ð³Ñ‹') = a
+set names default;
+a
+2
+set debug_dbug='';
+set names default;
 # End
 drop table t0;
