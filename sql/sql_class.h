@@ -43,7 +43,7 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
-
+#include "my_apc.h"
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -1521,6 +1521,11 @@ private:
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
+class THD;
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -2188,6 +2193,16 @@ public:
   */
   killed_state volatile killed;
 
+  /* See also thd_killed() */
+  inline bool check_killed()
+  {
+    if (killed)
+      return TRUE;
+    if (apc_target.have_apc_requests())
+      apc_target.process_apc_requests(); 
+    return FALSE;
+  }
+
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
 
@@ -2386,9 +2401,20 @@ public:
   void close_active_vio();
 #endif
   void awake(killed_state state_to_set);
-
+ 
   /** Disconnect the associated communication endpoint. */
   void disconnect();
+
+
+  /*
+    Allows this thread to serve as a target for others to schedule Async 
+    Procedure Calls on.
+
+    It's possible to schedule any code to be executed this way, by
+    inheriting from the Apc_call object. Currently, only
+    Show_explain_request uses this.
+  */
+  Apc_target apc_target;
 
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
@@ -2583,7 +2609,7 @@ public:
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
   int send_explain_fields(select_result *result);
-
+  void make_explain_field_list(List<Item> &field_list);
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
@@ -3193,10 +3219,42 @@ public:
 
 class JOIN;
 
-class select_result :public Sql_alloc {
+/* Pure interface for sending tabular data */
+class select_result_sink: public Sql_alloc
+{
+public:
+  /*
+    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
+    example for a duplicate row entry written to a temp table.
+  */
+  virtual int send_data(List<Item> &items)=0;
+  virtual ~select_result_sink() {};
+};
+
+
+/*
+  Interface for sending tabular data, together with some other stuff:
+
+  - Primary purpose seems to be seding typed tabular data:
+     = the DDL is sent with send_fields()
+     = the rows are sent with send_data()
+  Besides that,
+  - there seems to be an assumption that the sent data is a result of 
+    SELECT_LEX_UNIT *unit,
+  - nest_level is used by SQL parser
+*/
+
+class select_result :public select_result_sink 
+{
 protected:
   THD *thd;
+  /* 
+    All descendant classes have their send_data() skip the first 
+    unit->offset_limit_cnt rows sent.  Select_materialize
+    also uses unit->get_unit_column_types().
+  */
   SELECT_LEX_UNIT *unit;
+  /* Something used only by the parser: */
 public:
   select_result();
   virtual ~select_result() {};
@@ -3214,11 +3272,6 @@ public:
   virtual uint field_count(List<Item> &fields) const
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  /*
-    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
-    example for a duplicate row entry written to a temp table.
-  */
-  virtual int send_data(List<Item> &items)=0;
   virtual bool initialize_tables (JOIN *join=0) { return 0; }
   virtual void send_error(uint errcode,const char *err);
   virtual bool send_eof()=0;
@@ -3243,6 +3296,32 @@ public:
   void begin_dataset() {}
 #endif
 };
+
+
+/*
+  This is a select_result_sink which simply writes all data into a (temporary)
+  table. Creation/deletion of the table is outside of the scope of the class
+  
+  It is aimed at capturing SHOW EXPLAIN output, so:
+  - Unlike select_result class, we don't assume that the sent data is an 
+    output of a SELECT_LEX_UNIT (and so we dont apply "LIMIT x,y" from the
+    unit)
+  - We don't try to convert the target table to MyISAM 
+*/
+
+class select_result_explain_buffer : public select_result_sink
+{
+public:
+  select_result_explain_buffer(THD *thd_arg, TABLE *table_arg) : 
+    thd(thd_arg), dst_table(table_arg) {};
+
+  THD *thd;
+  TABLE *dst_table; /* table to write into */
+
+  /* The following is called in the child thread: */
+  int send_data(List<Item> &items);
+};
+
 
 
 /*
@@ -3816,6 +3895,8 @@ class user_var_entry
   DTCollation collation;
 };
 
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+				    bool create_if_not_exists);
 
 /*
    Unique -- class for unique (removing of duplicates).

@@ -11616,6 +11616,14 @@ show_param:
             Lex->spname= $3;
             Lex->sql_command = SQLCOM_SHOW_CREATE_EVENT;
           }
+        | describe_command FOR_SYM expr
+          {
+            THD *thd= YYTHD;
+            Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
+            if (prepare_schema_table(thd, Lex, 0, SCH_EXPLAIN))
+              MYSQL_YYABORT;
+            add_value_to_list(thd, $3);
+          }
         ;
 
 show_engine_param:
