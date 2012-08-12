@@ -95,6 +95,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/create_options.cc ../sql/rpl_utility.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
+           ../sql/my_apc.cc ../sql/my_apc.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

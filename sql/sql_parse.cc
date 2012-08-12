@@ -335,6 +335,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_ENGINE_STATUS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_MUTEX]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_LOGS]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
@@ -2147,6 +2148,32 @@ mysql_execute_command(THD *thd)
   {
     execute_show_status(thd, all_tables);
     break;
+  }
+  case SQLCOM_SHOW_EXPLAIN:
+  {
+    if (!thd->security_ctx->priv_user[0] &&
+        check_global_access(thd,PROCESS_ACL))
+      break;
+
+    /*
+      The select should use only one table, it's the SHOW EXPLAIN pseudo-table
+    */
+    if (lex->sroutines.records || lex->query_tables->next_global)
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+
+    Item **it= lex->value_list.head_ref();
+    if ((!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
+        (*it)->check_cols(1))
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+    /* no break; fall through */
   }
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
@@ -6559,6 +6586,35 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
+  Find a thread by id and return it, locking it LOCK_thd_data
+
+  @param id  Identifier of the thread we're looking for
+
+  @return NULL    - not found
+          pointer - thread found, and its LOCK_thd_data is locked.
+*/
+
+THD *find_thread_by_id(ulong id)
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (tmp->command == COM_DAEMON)
+      continue;
+    if (tmp->thread_id == id)
+    {
+      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return tmp;
+}
+
+
+/**
   kill on thread.
 
   @param thd			Thread class
@@ -6576,20 +6632,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lu  signal: %u", id, (uint) kill_signal));
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->command == COM_DAEMON)
-      continue;
-    if (tmp->thread_id == id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if ((tmp= find_thread_by_id(id)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
