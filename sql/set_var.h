@@ -60,7 +60,8 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+                   READONLY=1024, ALLOCATED=2048, INVISIBLE= 4096,
+                   PARSE_EARLY=8192 };
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.

@@ -349,6 +349,17 @@ static int add_collation(struct charset_info_st *cs)
   return MY_XML_OK;
 }
 
+/**
+  Report character set initialization errors and warnings.
+  Be silent by default: no warnings on the client side.
+*/
+static void
+default_reporter(enum loglevel level  __attribute__ ((unused)),
+                 const char *format  __attribute__ ((unused)),
+                 ...)
+{
+}
+my_error_reporter my_charset_error_reporter= default_reporter;
 
 #define MY_MAX_ALLOWED_BUF 1024*1024
 #define MY_CHARSET_INDEX "Index.xml"

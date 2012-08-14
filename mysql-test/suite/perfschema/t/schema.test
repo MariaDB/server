@@ -1,30 +1,7 @@
 # Tests for PERFORMANCE_SCHEMA
+#    Show existing objects and information about their structure
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
---source include/have_lowercase0.inc
-
-show databases;
-
-use performance_schema;
-
-show tables;
-
-show create table cond_instances;
-show create table events_waits_current;
-show create table events_waits_history;
-show create table events_waits_history_long;
-show create table events_waits_summary_by_instance;
-show create table events_waits_summary_by_thread_by_event_name;
-show create table events_waits_summary_global_by_event_name;
-show create table file_instances;
-show create table file_summary_by_event_name;
-show create table file_summary_by_instance;
-show create table mutex_instances;
-show create table performance_timers;
-show create table rwlock_instances;
-show create table setup_consumers;
-show create table setup_instruments;
-show create table setup_timers;
-show create table threads;
+--source ../include/schema.inc
 

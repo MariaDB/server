@@ -1,13 +1,17 @@
 select * from performance_schema.setup_consumers;
 NAME	ENABLED
+events_stages_current	YES
+events_stages_history	YES
+events_stages_history_long	YES
+events_statements_current	YES
+events_statements_history	YES
+events_statements_history_long	YES
 events_waits_current	YES
 events_waits_history	YES
 events_waits_history_long	YES
-events_waits_summary_by_thread_by_event_name	YES
-events_waits_summary_by_event_name	YES
-events_waits_summary_by_instance	YES
-file_summary_by_event_name	YES
-file_summary_by_instance	YES
+global_instrumentation	YES
+thread_instrumentation	YES
+statements_digest	YES
 select * from performance_schema.setup_consumers
 where name='events_waits_current';
 NAME	ENABLED
@@ -15,14 +19,18 @@ events_waits_current	YES
 select * from performance_schema.setup_consumers
 where enabled='YES';
 NAME	ENABLED
+events_stages_current	YES
+events_stages_history	YES
+events_stages_history_long	YES
+events_statements_current	YES
+events_statements_history	YES
+events_statements_history_long	YES
 events_waits_current	YES
 events_waits_history	YES
 events_waits_history_long	YES
-events_waits_summary_by_thread_by_event_name	YES
-events_waits_summary_by_event_name	YES
-events_waits_summary_by_instance	YES
-file_summary_by_event_name	YES
-file_summary_by_instance	YES
+global_instrumentation	YES
+thread_instrumentation	YES
+statements_digest	YES
 select * from performance_schema.setup_consumers
 where enabled='NO';
 NAME	ENABLED

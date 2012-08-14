@@ -14,7 +14,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-/*
+/**
+  @file
+  Definitions of all server's session or global variables.
+
   How to add new variables:
 
   1. copy one of the existing variables, and edit the declaration.
@@ -69,6 +72,85 @@ static Sys_var_mybool Sys_pfs_enabled(
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
+static Sys_var_charptr Sys_pfs_instrument(
+       "performance_schema_instrument",
+       "Default startup value for a performance schema instrument.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_pfs_instrument),
+       CMD_LINE(OPT_ARG, OPT_PFS_INSTRUMENT),
+       IN_FS_CHARSET, DEFAULT(""));
+
+static Sys_var_mybool Sys_pfs_consumer_events_stages_current(
+       "performance_schema_consumer_events_stages_current",
+       "Default startup value for the events_stages_current consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_current_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_stages_history(
+       "performance_schema_consumer_events_stages_history",
+       "Default startup value for the events_stages_history consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_history_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_stages_history_long(
+       "performance_schema_consumer_events_stages_history_long",
+       "Default startup value for the events_stages_history_long consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_history_long_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_statements_current(
+       "performance_schema_consumer_events_statements_current",
+       "Default startup value for the events_statements_current consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_current_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_statements_history(
+       "performance_schema_consumer_events_statements_history",
+       "Default startup value for the events_statements_history consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_history_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_statements_history_long(
+       "performance_schema_consumer_events_statements_history_long",
+       "Default startup value for the events_statements_history_long consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_history_long_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_waits_current(
+       "performance_schema_consumer_events_waits_current",
+       "Default startup value for the events_waits_current consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_current_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_waits_history(
+       "performance_schema_consumer_events_waits_history",
+       "Default startup value for the events_waits_history consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_history_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_events_waits_history_long(
+       "performance_schema_consumer_events_waits_history_long",
+       "Default startup value for the events_waits_history_long consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_history_long_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_pfs_consumer_global_instrumentation(
+       "performance_schema_consumer_global_instrumentation",
+       "Default startup value for the global_instrumentation consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_global_instrumentation_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_pfs_consumer_thread_instrumentation(
+       "performance_schema_consumer_thread_instrumentation",
+       "Default startup value for the thread_instrumentation consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_thread_instrumentation_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_pfs_consumer_statement_digest(
+       "performance_schema_consumer_statements_digest",
+       "Default startup value for the statements_digest consumer.",
+       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_statement_digest_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
 static Sys_var_ulong Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
        "Number of rows in EVENTS_WAITS_HISTORY_LONG.",
@@ -118,6 +200,22 @@ static Sys_var_ulong Sys_pfs_max_file_instances(
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_file_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_FILE), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_max_sockets(
+       "performance_schema_max_socket_instances",
+       "Maximum number of opened instrumented sockets.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_SOCKETS),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_max_socket_classes(
+       "performance_schema_max_socket_classes",
+       "Maximum number of socket instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT(PFS_MAX_SOCKET_CLASS),
+       BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_mutex_classes(
        "performance_schema_max_mutex_classes",
@@ -174,6 +272,111 @@ static Sys_var_ulong Sys_pfs_max_thread_instances(
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_thread_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_THREAD), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_setup_actors_size(
+       "performance_schema_setup_actors_size",
+       "Maximum number of rows in SETUP_ACTORS.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_setup_actor_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_MAX_SETUP_ACTOR),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_setup_objects_size(
+       "performance_schema_setup_objects_size",
+       "Maximum number of rows in SETUP_OBJECTS.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_setup_object_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_SETUP_OBJECT),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_accounts_size(
+       "performance_schema_accounts_size",
+       "Maximum number of instrumented user@host accounts.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_account_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_ACCOUNT),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_hosts_size(
+       "performance_schema_hosts_size",
+       "Maximum number of instrumented hosts.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_host_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_HOST),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_users_size(
+       "performance_schema_users_size",
+       "Maximum number of instrumented users.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_user_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_USER),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_max_stage_classes(
+       "performance_schema_max_stage_classes",
+       "Maximum number of stage instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_stage_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT(PFS_MAX_STAGE_CLASS),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_stages_history_long_size(
+       "performance_schema_events_stages_history_long_size",
+       "Number of rows in EVENTS_STAGES_HISTORY_LONG.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_long_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_STAGES_HISTORY_LONG_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_stages_history_size(
+       "performance_schema_events_stages_history_size",
+       "Number of rows per thread in EVENTS_STAGES_HISTORY.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_STAGES_HISTORY_SIZE),
+       BLOCK_SIZE(1));
+
+/**
+  Variable performance_schema_max_statement_classes.
+  The default number of statement classes is the sum of:
+  - COM_END for all regular "statement/com/...",
+  - 1 for "statement/com/new_packet", for unknown enum_server_command
+  - 1 for "statement/com/Error", for invalid enum_server_command
+  - SQLCOM_END for all regular "statement/sql/...",
+  - 1 for "statement/sql/error", for invalid enum_sql_command.
+*/
+static Sys_var_ulong Sys_pfs_max_statement_classes(
+       "performance_schema_max_statement_classes",
+       "Maximum number of statement instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_statements_history_long_size(
+       "performance_schema_events_statements_history_long_size",
+       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_long_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_STATEMENTS_HISTORY_LONG_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_statements_history_size(
+       "performance_schema_events_statements_history_size",
+       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_STATEMENTS_HISTORY_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_digest_size(
+       "performance_schema_digests_size",
+       "Size of the statement digest.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 200),
+       DEFAULT(PFS_DIGEST_SIZE),
+       BLOCK_SIZE(1));
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
@@ -2224,6 +2427,19 @@ static Sys_var_charptr Sys_ssl_key(
        "ssl_key", "X509 key in PEM format (implies --ssl)",
        READ_ONLY GLOBAL_VAR(opt_ssl_key), SSL_OPT(OPT_SSL_KEY),
        IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_charptr Sys_ssl_crl(
+       "ssl_crl",
+       "CRL file in PEM format (check OpenSSL docs, implies --ssl)",
+       READ_ONLY GLOBAL_VAR(opt_ssl_crl), SSL_OPT(OPT_SSL_CRL),
+       IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_charptr Sys_ssl_crlpath(
+       "ssl_crlpath",
+       "CRL directory (check OpenSSL docs, implies --ssl)",
+       READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
+       IN_FS_CHARSET, DEFAULT(0));
+
 
 // why ENUM and not BOOL ?
 static const char *updatable_views_with_limit_names[]= {"NO", "YES", 0};
