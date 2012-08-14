@@ -72,6 +72,7 @@ class Master_info : public Slave_reporting_capability
   bool ssl; // enables use of SSL connection if true
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
+  char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
   bool ssl_verify_server_cert;
 
   my_off_t master_log_pos;

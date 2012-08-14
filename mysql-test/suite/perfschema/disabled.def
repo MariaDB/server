@@ -10,3 +10,22 @@
 #
 ##############################################################################
 
+hostcache_ipv6_addrinfo_again_allow: Need --bind-addr
+hostcache_ipv6_addrinfo_again_deny: Need --bind-addr
+hostcache_ipv6_addrinfo_bad_allow: Need --bind-addr
+hostcache_ipv6_addrinfo_bad_deny: Need --bind-addr
+hostcache_ipv6_addrinfo_good_allow: Need --bind-addr
+hostcache_ipv6_addrinfo_good_deny: Need --bind-addr
+hostcache_ipv6_addrinfo_noname_allow: Need --bind-addr
+hostcache_ipv6_addrinfo_noname_deny: Need --bind-addr
+hostcache_ipv6_auth_plugin: Need --bind-addr
+hostcache_ipv6_blocked: Need --bind-addr
+hostcache_ipv6_max_con: Need --bind-addr
+hostcache_ipv6_nameinfo_again_allow: Need --bind-addr
+hostcache_ipv6_nameinfo_again_deny: Need --bind-addr
+hostcache_ipv6_nameinfo_noname_allow: Need --bind-addr
+hostcache_ipv6_nameinfo_noname_deny: Need --bind-addr
+hostcache_ipv6_passwd: Need --bind-addr
+hostcache_ipv6_ssl: Need --bind-addr
+hostcache_ipv4_auth_plugin: need hostcache
+hostcache_ipv6_auth_plugin: need hostcache

@@ -43,7 +43,11 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
+#include <mysql/psi/mysql_stage.h>
+#include <mysql/psi/mysql_statement.h>
+#include <mysql/psi/mysql_idle.h>
 #include <mysql/psi/mysql_table.h>
+#include <mysql_com_server.h>
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -1588,6 +1592,8 @@ public:
   Query_cache_tls query_cache_tls;
 #endif
   NET	  net;				// client connection descriptor
+  /** Aditional network instrumentation for the server only. */
+  NET_SERVER m_net_server_extension;
   scheduler_functions *scheduler;       // Scheduler for this connection
   Protocol *protocol;			// Current protocol
   Protocol_text   protocol_text;	// Normal protocol
@@ -1652,6 +1658,19 @@ public:
     allocated) strings, which memory won't go away over time.
   */
   const char *proc_info;
+
+private:
+  unsigned int m_current_stage_key;
+
+public:
+  void enter_stage(const PSI_stage_info *stage,
+                   PSI_stage_info *old_stage,
+                   const char *calling_func,
+                   const char *calling_file,
+                   const unsigned int calling_line);
+
+  const char *get_proc_info() const
+  { return proc_info; }
 
   /*
     Used in error messages to tell user in what part of MySQL we found an
@@ -2115,6 +2134,27 @@ public:
     changed or written.
   */
   ulonglong accessed_rows_and_keys;
+
+  void set_sent_row_count(ha_rows count);
+  void set_examined_row_count(ha_rows count);
+
+  void inc_sent_row_count(ha_rows count);
+  void inc_examined_row_count(ha_rows count);
+
+  void inc_status_created_tmp_disk_tables();
+  void inc_status_created_tmp_files();
+  void inc_status_created_tmp_tables();
+  void inc_status_select_full_join();
+  void inc_status_select_full_range_join();
+  void inc_status_select_range();
+  void inc_status_select_range_check();
+  void inc_status_select_scan();
+  void inc_status_sort_merge_passes();
+  void inc_status_sort_range();
+  void inc_status_sort_rows(ha_rows count);
+  void inc_status_sort_scan();
+  void set_status_no_index_used();
+  void set_status_no_good_index_used();
   /**
     Check if the number of rows accessed by a statement exceeded
     LIMIT ROWS EXAMINED. If so, signal the query engine to stop execution.
@@ -2132,6 +2172,21 @@ public:
 #if defined(ENABLED_PROFILING)
   PROFILING  profiling;
 #endif
+
+  /** Current statement instrumentation. */
+  PSI_statement_locker *m_statement_psi;
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+  /** Current statement instrumentation state. */
+  PSI_statement_locker_state m_statement_state;
+#endif /* HAVE_PSI_STATEMENT_INTERFACE */
+  /** Idle instrumentation. */
+  PSI_idle_locker *m_idle_psi;
+#ifdef HAVE_PSI_IDLE_INTERFACE
+  /** Idle instrumentation state. */
+  PSI_idle_locker_state m_idle_state;
+#endif /* HAVE_PSI_IDLE_INTERFACE */
+  /** True if the server code is IDLE for this connection. */
+  bool m_server_idle;
 
   /*
     Id of current query. Statement can be reused to execute several queries
@@ -2482,7 +2537,12 @@ public:
     my_hrtime_t hrtime= { hrtime_from_time(t) + sec_part };
     set_time(hrtime);
   }
-  void set_time_after_lock()  { utime_after_lock= microsecond_interval_timer(); }
+  void set_time_after_lock()
+  {
+    utime_after_lock= microsecond_interval_timer();
+    MYSQL_SET_STATEMENT_LOCK_TIME(m_statement_psi,
+                                  (utime_after_lock - start_utime));
+  }
   ulonglong current_utime()  { return microsecond_interval_timer(); }
 
   /**
@@ -2650,6 +2710,11 @@ public:
     To raise this flag, use my_error().
   */
   inline bool is_error() const { return stmt_da->is_error(); }
+
+  /// Returns Diagnostics-area for the current statement.
+  Diagnostics_area *get_stmt_da()
+  { return stmt_da; }
+
   inline CHARSET_INFO *charset() { return variables.character_set_client; }
   void update_charset();
 
@@ -2973,6 +3038,9 @@ private:
 public:
   /** Overloaded to guard query/query_length fields */
   virtual void set_statement(Statement *stmt);
+  void set_command(enum enum_server_command command);
+  inline enum enum_server_command get_command() const
+  { return command; }
 
   /**
     Assign a new value to thd->query and thd->query_id and mysys_var.
@@ -4367,6 +4435,17 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
 }
 
 extern pthread_attr_t *get_connection_attrib(void);
+
+extern "C"
+void set_thd_stage_info(void *thd,
+                        const PSI_stage_info *new_stage,
+                        PSI_stage_info *old_stage,
+                        const char *calling_func,
+                        const char *calling_file,
+                        const unsigned int calling_line);
+                        
+#define THD_STAGE_INFO(thd, stage) \
+  (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
 #endif /* MYSQL_SERVER */
 

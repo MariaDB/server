@@ -865,17 +865,31 @@ bool do_command(THD *thd)
   */
   DEBUG_SYNC(thd, "before_do_command_net_read");
 
-  if ((packet_length= my_net_read(net)) == packet_error)
+  thd->m_server_idle= TRUE;
+  packet_length= my_net_read(net);
+  thd->m_server_idle= FALSE;
+
+  if ((packet_length == packet_error))
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,
 		       vio_description(net->vio)));
+
+    /* Instrument this broken statement as "statement/com/error" */
+    thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                                 com_statement_info[COM_END].
+                                                 m_key);
+
 
     /* Check if we can continue without closing the connection */
 
     /* The error must be set. */
     DBUG_ASSERT(thd->is_error());
     thd->protocol->end_statement();
+
+    /* Mark the statement completed. */
+    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+    thd->m_statement_psi= NULL;
 
     if (net->error != 3)
     {
@@ -922,6 +936,8 @@ bool do_command(THD *thd)
   return_value= dispatch_command(command, thd, packet+1, (uint) (packet_length-1));
 
 out:
+  /* The statement instrumentation must be closed in all cases. */
+  DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_RETURN(return_value);
 }
 #endif  /* EMBEDDED_LIBRARY */
@@ -1034,7 +1050,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                   { DBUG_PRINT("crash_dispatch_command_before", ("now"));
                     DBUG_ABORT(); });
 
-  thd->command=command;
+  /* Performance Schema Interface instrumentation, begin */
+  thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                               com_statement_info[command].
+                                               m_key);
+  thd->set_command(command);
+
   /*
     Commands which always take a long time are logged into
     the slow log only if opt_log_slow_admin_statements is set.
@@ -1176,6 +1197,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
+    MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
+                             thd->query_length());
+
     Parser_state parser_state;
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       break;
@@ -1209,6 +1233,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         length--;
       }
 
+      /* PSI end */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+
+      /* DTRACE end */
       if (MYSQL_QUERY_DONE_ENABLED())
       {
         MYSQL_QUERY_DONE(thd->is_error());
@@ -1220,10 +1249,20 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->profiling.set_query_source(beginning_of_next_stmt, length);
 #endif
 
+      /* DTRACE begin */
       MYSQL_QUERY_START(beginning_of_next_stmt, thd->thread_id,
                         (char *) (thd->db ? thd->db : ""),
                         &thd->security_ctx->priv_user[0],
                         (char *) thd->security_ctx->host_or_ip);
+
+      /* PSI begin */
+      thd->m_statement_psi=
+        MYSQL_START_STATEMENT(&thd->m_statement_state,
+                              com_statement_info[command]. m_key,
+                              thd->db, thd->db_length);
+      THD_STAGE_INFO(thd, stage_init);
+      MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
+                               length);
 
       thd->set_query_and_id(beginning_of_next_stmt, length,
                             thd->charset(), next_query_id());
@@ -1571,7 +1610,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   thd_proc_info(thd, "cleaning up");
   thd->reset_query();
-  thd->command=COM_SLEEP;
+  thd->set_command(COM_SLEEP);
+
+  /* Performance Schema Interface instrumentation, end */
+  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+  thd->m_statement_psi= NULL;
+
   dec_thread_running();
   thd_proc_info(thd, 0);
   thd->packet.shrink(thd->variables.net_buffer_length);	// Reclaim some memory
@@ -5836,6 +5880,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 
     if (!err)
     {
+      thd->m_statement_psi=
+        MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                               sql_statement_info[thd->lex->sql_command].
+                               m_key);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (mqh_used && thd->user_connect &&
 	  check_mqh(thd, lex->sql_command))
@@ -5884,6 +5932,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     }
     else
     {
+      /* Instrument this broken statement as "statement/sql/error" */
+      thd->m_statement_psi=
+        MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                               sql_statement_info[SQLCOM_END].m_key);
       DBUG_ASSERT(thd->is_error());
       DBUG_PRINT("info",("Command aborted. Fatal_error: %d",
 			 thd->is_fatal_error));
@@ -5901,6 +5953,9 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   {
     /* Update statistics for getting the query from the cache */
     thd->lex->sql_command= SQLCOM_SELECT;
+    thd->m_statement_psi=
+      MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                             sql_statement_info[SQLCOM_SELECT].m_key);
   }
   DBUG_VOID_RETURN;
 }
@@ -7740,6 +7795,12 @@ bool parse_sql(THD *thd,
   /* Set parser state. */
 
   thd->m_parser_state= parser_state;
+
+#ifdef HAVE_PSI_STATEMENT_DIGEST_INTERFACE
+  /* Start Digest */
+  thd->m_parser_state->m_lip.m_digest_psi=
+    MYSQL_DIGEST_START(thd->m_statement_psi);
+#endif
 
   /* Parse the query. */
 

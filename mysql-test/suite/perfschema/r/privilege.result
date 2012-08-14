@@ -53,9 +53,9 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT,GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
 grant DELETE on performance_schema.setup_instruments to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE,GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'setup_instruments'
 grant SELECT on performance_schema.setup_instruments to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant UPDATE on performance_schema.setup_instruments to 'pfs_user_3'@localhost
@@ -78,11 +78,11 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT,GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
 grant UPDATE on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: UPDATE,GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
 grant DELETE on performance_schema.events_waits_current to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE,GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'events_waits_current'
 grant SELECT on performance_schema.events_waits_current to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant ALL on performance_schema.file_instances to 'pfs_user_3'@localhost
@@ -103,11 +103,11 @@ ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_
 grant TRIGGER on performance_schema.file_instances to 'pfs_user_3'@localhost;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 grant INSERT on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: INSERT,GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: INSERT, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
 grant UPDATE on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: UPDATE,GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: UPDATE, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
 grant DELETE on performance_schema.file_instances to 'pfs_user_3'@localhost;
-ERROR 42000: DELETE,GRANT command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: DELETE, GRANT command denied to user 'root'@'localhost' for table 'file_instances'
 grant SELECT on performance_schema.file_instances to 'pfs_user_3'@localhost
 with GRANT OPTION;
 grant LOCK TABLES on performance_schema.* to 'pfs_user_3'@localhost
@@ -152,13 +152,13 @@ before insert on performance_schema.file_instances
 for each row begin end;
 ERROR 42000: Access denied for user 'root'@'localhost' to database 'performance_schema'
 create table test.t1(a int) engine=PERFORMANCE_SCHEMA;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.setup_instruments;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.events_waits_current;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.file_instances;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 insert into performance_schema.setup_instruments
 set name="foo";
 ERROR 42000: INSERT command denied to user 'root'@'localhost' for table 'setup_instruments'
@@ -179,16 +179,16 @@ unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -250,13 +250,13 @@ before insert on performance_schema.file_instances
 for each row begin end;
 ERROR 42000: Access denied for user 'pfs_user_1'@'localhost' to database 'performance_schema'
 create table test.t1(a int) engine=PERFORMANCE_SCHEMA;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.setup_instruments;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.events_waits_current;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.file_instances;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 insert into performance_schema.setup_instruments
 set name="foo";
 ERROR 42000: INSERT command denied to user 'pfs_user_1'@'localhost' for table 'setup_instruments'
@@ -277,16 +277,16 @@ unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_1'@'localhost' for table 'file_instances'
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -348,13 +348,13 @@ before insert on performance_schema.file_instances
 for each row begin end;
 ERROR 42000: Access denied for user 'pfs_user_2'@'localhost' to database 'performance_schema'
 create table test.t1(a int) engine=PERFORMANCE_SCHEMA;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.setup_instruments;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.events_waits_current;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.file_instances;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 insert into performance_schema.setup_instruments
 set name="foo";
 ERROR 42000: INSERT command denied to user 'pfs_user_2'@'localhost' for table 'setup_instruments'
@@ -375,16 +375,16 @@ unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_2'@'localhost' for table 'file_instances'
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -446,13 +446,13 @@ before insert on performance_schema.file_instances
 for each row begin end;
 ERROR 42000: Access denied for user 'pfs_user_3'@'localhost' to database 'performance_schema'
 create table test.t1(a int) engine=PERFORMANCE_SCHEMA;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.setup_instruments;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.events_waits_current;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 create table test.t1 like performance_schema.file_instances;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table 'test.t1' (errno: 131)
 insert into performance_schema.setup_instruments
 set name="foo";
 ERROR 42000: INSERT command denied to user 'pfs_user_3'@'localhost' for table 'setup_instruments'
@@ -473,16 +473,16 @@ unlock tables;
 lock table performance_schema.setup_instruments write;
 unlock tables;
 lock table performance_schema.events_waits_current read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.events_waits_current write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'events_waits_current'
 unlock tables;
 lock table performance_schema.file_instances read;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
 unlock tables;
 lock table performance_schema.file_instances write;
-ERROR 42000: SELECT,LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'pfs_user_3'@'localhost' for table 'file_instances'
 unlock tables;
 #
 # WL#4818, NFS2: Can use grants to give normal user access
@@ -575,4 +575,7 @@ DROP USER pfs_user_4;
 flush privileges;
 UPDATE performance_schema.setup_instruments SET enabled = 'YES', timed = 'YES';
 UPDATE performance_schema.setup_consumers SET enabled = 'YES';
-UPDATE performance_schema.setup_timers SET timer_name = 'CYCLE';
+UPDATE performance_schema.setup_timers SET timer_name = 'MICROSECOND' where name="idle";
+UPDATE performance_schema.setup_timers SET timer_name = 'CYCLE'       where name="wait";
+UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="stage";
+UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="statement";

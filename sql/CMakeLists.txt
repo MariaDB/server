@@ -76,7 +76,7 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc
+               sql_reload.cc sql_cmd.h
 
                # added in MariaDB:
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc

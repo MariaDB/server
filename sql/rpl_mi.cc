@@ -39,6 +39,7 @@ Master_info::Master_info(bool is_slave_recovery)
   host[0] = 0; user[0] = 0; password[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
   ssl_cipher[0]= 0; ssl_key[0]= 0;
+  ssl_crl[0]= 0; ssl_crlpath[0]= 0;
 
   my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16);
   bzero((char*) &file, sizeof(file));

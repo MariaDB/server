@@ -78,6 +78,10 @@
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+#include <mysql/psi/mysql_idle.h>
+#include <mysql/psi/mysql_socket.h>
+#include <mysql/psi/mysql_statement.h>
+#include "mysql_com_server.h"
 
 #include "keycaches.h"
 #include "../storage/myisam/ha_myisam.h"
@@ -734,8 +738,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_prep_xids,
   key_master_info_data_lock, key_master_info_run_lock,
   key_master_info_sleep_lock,
   key_mutex_slave_reporting_capability_err_lock, key_relay_log_info_data_lock,
-  key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_relay_log_info_sleep_lock,
+  key_relay_log_info_log_space_lock, key_relay_log_info_run_lock,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOG_INFO_lock, key_LOCK_thread_count,
   key_PARTITION_LOCK_auto_inc;
@@ -917,6 +921,10 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL}
 };
 
+#ifdef HAVE_MMAP
+PSI_file_key key_file_map;
+#endif /* HAVE_MMAP */
+
 PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
   key_file_fileparser, key_file_frm, key_file_global_ddl_log, key_file_load,
@@ -927,67 +935,89 @@ PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index;
 
-static PSI_file_info all_server_files[]=
+#endif /* HAVE_PSI_INTERFACE */
+
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+PSI_statement_info stmt_info_new_packet;
+#endif
+
+#ifndef EMBEDDED_LIBRARY
+void net_before_header_psi(struct st_net *net, void *user_data, size_t /* unused: count */)
 {
-  { &key_file_binlog, "binlog", 0},
-  { &key_file_binlog_index, "binlog_index", 0},
-  { &key_file_relaylog, "relaylog", 0},
-  { &key_file_relaylog_index, "relaylog_index", 0},
-  { &key_file_casetest, "casetest", 0},
-  { &key_file_dbopt, "dbopt", 0},
-  { &key_file_des_key_file, "des_key_file", 0},
-  { &key_file_ERRMSG, "ERRMSG", 0},
-  { &key_select_to_file, "select_to_file", 0},
-  { &key_file_fileparser, "file_parser", 0},
-  { &key_file_frm, "FRM", 0},
-  { &key_file_global_ddl_log, "global_ddl_log", 0},
-  { &key_file_load, "load", 0},
-  { &key_file_loadfile, "LOAD_FILE", 0},
-  { &key_file_log_event_data, "log_event_data", 0},
-  { &key_file_log_event_info, "log_event_info", 0},
-  { &key_file_master_info, "master_info", 0},
-  { &key_file_misc, "misc", 0},
-  { &key_file_partition, "partition", 0},
-  { &key_file_pid, "pid", 0},
-  { &key_file_query_log, "query_log", 0},
-  { &key_file_relay_log_info, "relay_log_info", 0},
-  { &key_file_send_file, "send_file", 0},
-  { &key_file_slow_log, "slow_log", 0},
-  { &key_file_tclog, "tclog", 0},
-  { &key_file_trg, "trigger_name", 0},
-  { &key_file_trn, "trigger", 0},
-  { &key_file_init, "init", 0}
-};
+  THD *thd;
+  thd= static_cast<THD*> (user_data);
+  DBUG_ASSERT(thd != NULL);
 
-/**
-  Initialise all the performance schema instrumentation points
-  used by the server.
-*/
-void init_server_psi_keys(void)
-{
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_server_mutexes);
-  PSI_server->register_mutex(category, all_server_mutexes, count);
-
-  count= array_elements(all_server_rwlocks);
-  PSI_server->register_rwlock(category, all_server_rwlocks, count);
-
-  count= array_elements(all_server_conds);
-  PSI_server->register_cond(category, all_server_conds, count);
-
-  count= array_elements(all_server_threads);
-  PSI_server->register_thread(category, all_server_threads, count);
-
-  count= array_elements(all_server_files);
-  PSI_server->register_file(category, all_server_files, count);
+  if (thd->m_server_idle)
+  {
+    /*
+      The server is IDLE, waiting for the next command.
+      Technically, it is a wait on a socket, which may take a long time,
+      because the call is blocking.
+      Disable the socket instrumentation, to avoid recording a SOCKET event.
+      Instead, start explicitly an IDLE event.
+    */
+    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
+    MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
+  }
 }
 
-#endif /* HAVE_PSI_INTERFACE */
+void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused: count */, my_bool rc)
+{
+  THD *thd;
+  thd= static_cast<THD*> (user_data);
+  DBUG_ASSERT(thd != NULL);
+
+  if (thd->m_server_idle)
+  {
+    /*
+      The server just got data for a network packet header,
+      from the network layer.
+      The IDLE event is now complete, since we now have a message to process.
+      We need to:
+      - start a new STATEMENT event
+      - start a new STAGE event, within this statement,
+      - start recording SOCKET WAITS events, within this stage.
+      The proper order is critical to get events numbered correctly,
+      and nested in the proper parent.
+    */
+    MYSQL_END_IDLE_WAIT(thd->m_idle_psi);
+
+    if (! rc)
+    {
+      thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                  stmt_info_new_packet.m_key,
+                                                  thd->db, thd->db_length);
+
+      THD_STAGE_INFO(thd, stage_init);
+    }
+
+    /*
+      TODO: consider recording a SOCKET event for the bytes just read,
+      by also passing count here.
+    */
+    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
+  }
+}
+
+void init_net_server_extension(THD *thd)
+{
+#ifdef HAVE_PSI_INTERFACE
+  /* Start with a clean state for connection events. */
+  thd->m_idle_psi= NULL;
+  thd->m_statement_psi= NULL;
+  thd->m_server_idle= false;
+  /* Hook up the NET_SERVER callback in the net layer. */
+  thd->m_net_server_extension.m_user_data= thd;
+  thd->m_net_server_extension.m_before_header= net_before_header_psi;
+  thd->m_net_server_extension.m_after_header= net_after_header_psi;
+  /* Activate this private extension for the mysqld server. */
+  thd->net.extension= & thd->m_net_server_extension;
+#else
+  thd->net.extension= NULL;
+#endif
+}
+#endif /* EMBEDDED_LIBRARY */
 
 /*
   Since buffered_option_error_reporter is only used currently
@@ -1152,7 +1182,7 @@ C_MODE_END
 #endif /* !EMBEDDED_LIBRARY */
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-static my_socket unix_sock, base_ip_sock, extra_ip_sock;
+static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
@@ -1216,7 +1246,9 @@ HANDLE smem_event_connect_request= 0;
 
 my_bool opt_use_ssl  = 0;
 char *opt_ssl_ca= NULL, *opt_ssl_capath= NULL, *opt_ssl_cert= NULL,
-     *opt_ssl_cipher= NULL, *opt_ssl_key= NULL;
+  *opt_ssl_cipher= NULL, *opt_ssl_key= NULL, *opt_ssl_crl= NULL,
+  *opt_ssl_crlpath= NULL;
+
 
 static scheduler_functions thread_scheduler_struct, extra_thread_scheduler_struct;
 scheduler_functions *thread_scheduler= &thread_scheduler_struct,
@@ -1343,17 +1375,17 @@ static void close_connections(void)
   DBUG_PRINT("quit",("Closing sockets"));
   if (!opt_disable_networking )
   {
-    if (base_ip_sock != INVALID_SOCKET)
+    if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
     {
       (void) mysql_socket_shutdown(base_ip_sock, SHUT_RDWR);
-      (void) closesocket(base_ip_sock);
-      base_ip_sock= INVALID_SOCKET;
+      (void) mysql_socket_close(base_ip_sock);
+      base_ip_sock= MYSQL_INVALID_SOCKET;
     }
-    if (extra_ip_sock != INVALID_SOCKET)
+    if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
     {
       (void) mysql_socket_shutdown(extra_ip_sock, SHUT_RDWR);
-      (void) closesocket(extra_ip_sock);
-      extra_ip_sock= INVALID_SOCKET;
+      (void) mysql_socket_close(extra_ip_sock);
+      extra_ip_sock= MYSQL_INVALID_SOCKET;
     }
   }
 #ifdef _WIN32
@@ -1381,12 +1413,12 @@ static void close_connections(void)
   }
 #endif
 #ifdef HAVE_SYS_UN_H
-  if (unix_sock != INVALID_SOCKET)
+  if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
   {
     (void) mysql_socket_shutdown(unix_sock, SHUT_RDWR);
-    (void) closesocket(unix_sock);
+    (void) mysql_socket_close(unix_sock);
     (void) unlink(mysqld_unix_port);
-    unix_sock= INVALID_SOCKET;
+    unix_sock= MYSQL_INVALID_SOCKET;
   }
 #endif
   end_thr_alarm(0);			 // Abort old alarms.
@@ -1491,22 +1523,14 @@ static void close_connections(void)
 
 
 #ifdef HAVE_CLOSE_SERVER_SOCK
-static void close_socket(my_socket sock, const char *info)
+static void close_socket(MYSQL_SOCKET sock, const char *info)
 {
   DBUG_ENTER("close_socket");
 
-  if (sock != INVALID_SOCKET)
+  if (mysql_socket_getfd(sock) != INVALID_SOCKET)
   {
     DBUG_PRINT("info", ("calling shutdown on %s socket", info));
     (void) mysql_socket_shutdown(sock, SHUT_RDWR);
-#if defined(__NETWARE__)
-    /*
-      The following code is disabled for normal systems as it causes MySQL
-      to hang on AIX 4.3 during shutdown
-    */
-    DBUG_PRINT("info", ("calling closesocket on %s socket", info));
-    (void) closesocket(tmp_sock);
-#endif
   }
   DBUG_VOID_RETURN;
 }
@@ -1522,9 +1546,9 @@ static void close_server_sock()
   close_socket(extra_ip_sock, "TCP/IP");
   close_socket(unix_sock, "unix/IP");
 
-  if (unix_sock != INVALID_SOCKET)
+  if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
     (void) unlink(mysqld_unix_port);
-  base_ip_sock= extra_ip_sock= unix_sock= INVALID_SOCKET;
+  base_ip_sock= extra_ip_sock= unix_sock= MYSQL_INVALID_SOCKET;
 
   DBUG_VOID_RETURN;
 #endif
@@ -1745,7 +1769,9 @@ static void mysqld_exit(int exit_code)
   clean_up_mutexes();
   clean_up_error_log_mutex();
   my_end((opt_endinfo ? MY_CHECK_ERROR | MY_GIVE_INFO : 0));
-  shutdown_performance_schema();        // we do it as late as possible
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+  shutdown_performance_schema();
+#endif
   exit(exit_code); /* purecov: inspected */
 }
 
@@ -2110,14 +2136,14 @@ static void set_root(const char *path)
    Activate usage of a tcp port
 */
 
-static my_socket activate_tcp_port(uint port)
+static MYSQL_SOCKET activate_tcp_port(uint port)
 {
   struct addrinfo *ai, *a;
   struct addrinfo hints;
   int error;
   int	arg;
   char port_buf[NI_MAXSERV];
-  my_socket ip_sock= INVALID_SOCKET;
+  MYSQL_SOCKET ip_sock= MYSQL_INVALID_SOCKET;
   DBUG_ENTER("activate_tcp_port");
   DBUG_PRINT("general",("IP Socket is %d",port));
 
@@ -2137,17 +2163,20 @@ static my_socket activate_tcp_port(uint port)
 
   for (a= ai; a != NULL; a= a->ai_next)
   {
-    ip_sock= socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-    if (ip_sock != INVALID_SOCKET)
+    ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
+                                 a->ai_socktype, a->ai_protocol);
+    if (mysql_socket_getfd(ip_sock) != INVALID_SOCKET)
       break;
   }
 
-  if (ip_sock == INVALID_SOCKET)
+  if (mysql_socket_getfd(ip_sock) == INVALID_SOCKET)
   {
     DBUG_PRINT("error",("Got error: %d from socket()",socket_errno));
     sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
     unireg_abort(1);				/* purecov: tested */
   }
+
+  mysql_socket_set_thread_owner(ip_sock);
 
 #ifndef __WIN__
   /*
@@ -2155,7 +2184,8 @@ static my_socket activate_tcp_port(uint port)
     user to open two mysqld servers with the same TCP/IP port.
   */
   arg= 1;
-  (void) setsockopt(ip_sock,SOL_SOCKET,SO_REUSEADDR,(char*)&arg,sizeof(arg));
+  (void) mysql_socket_setsockopt(ip_sock,SOL_SOCKET,SO_REUSEADDR,(char*)&arg,
+                                 sizeof(arg));
 #endif /* __WIN__ */
 
 #ifdef IPV6_V6ONLY
@@ -2171,8 +2201,8 @@ static my_socket activate_tcp_port(uint port)
   if (a->ai_family == AF_INET6)
   {
     arg= 0;
-    (void) setsockopt(ip_sock, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&arg,
-              sizeof(arg));
+    (void) mysql_socket_setsockopt(ip_sock, IPPROTO_IPV6, IPV6_V6ONLY,
+                                   (char*)&arg, sizeof(arg));
   }
 #endif
   /*
@@ -2187,7 +2217,7 @@ static my_socket activate_tcp_port(uint port)
   uint waited, retry, this_wait;
   for (waited= 0, retry= 1; ; retry++, waited+= this_wait)
   {
-    if (((ret= bind(ip_sock, a->ai_addr, a->ai_addrlen)) >= 0 ) ||
+    if (((ret= mysql_socket_bind(ip_sock, a->ai_addr, a->ai_addrlen)) >= 0 ) ||
         (socket_errno != SOCKET_EADDRINUSE) ||
         (waited >= mysqld_port_timeout))
       break;
@@ -2206,7 +2236,7 @@ static my_socket activate_tcp_port(uint port)
                     "port: %u ?", port);
     unireg_abort(1);
   }
-  if (listen(ip_sock,(int) back_log) < 0)
+  if (mysql_socket_listen(ip_sock,(int) back_log) < 0)
   {
     sql_perror("Can't start server: listen() on TCP/IP port");
     sql_print_error("listen() on TCP/IP failed with error %d",
@@ -2307,7 +2337,8 @@ static void network_init(void)
                       (uint) sizeof(UNIXaddr.sun_path) - 1, mysqld_unix_port);
       unireg_abort(1);
     }
-    if ((unix_sock= socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+    unix_sock= mysql_socket_socket(key_socket_unix, AF_UNIX, SOCK_STREAM, 0);
+    if (mysql_socket_getfd(unix_sock) < 0)
     {
       sql_perror("Can't start server : UNIX Socket "); /* purecov: inspected */
       unireg_abort(1);				/* purecov: inspected */
@@ -2317,11 +2348,12 @@ static void network_init(void)
     strmov(UNIXaddr.sun_path, mysqld_unix_port);
     (void) unlink(mysqld_unix_port);
     arg= 1;
-    (void) setsockopt(unix_sock,SOL_SOCKET,SO_REUSEADDR,(char*)&arg,
-		      sizeof(arg));
+    (void) mysql_socket_setsockopt(unix_sock,SOL_SOCKET,SO_REUSEADDR,
+                                   (char*)&arg, sizeof(arg));
     umask(0);
-    if (bind(unix_sock, reinterpret_cast<struct sockaddr *>(&UNIXaddr),
-	     sizeof(UNIXaddr)) < 0)
+    if (mysql_socket_bind(unix_sock,
+                          reinterpret_cast<struct sockaddr *>(&UNIXaddr),
+                          sizeof(UNIXaddr)) < 0)
     {
       sql_perror("Can't start server : Bind on unix socket"); /* purecov: tested */
       sql_print_error("Do you already have another mysqld server running on socket: %s ?",mysqld_unix_port);
@@ -2331,7 +2363,7 @@ static void network_init(void)
 #if defined(S_IFSOCK) && defined(SECURE_SOCKETS)
     (void) chmod(mysqld_unix_port,S_IFSOCK);	/* Fix solaris 2.6 bug */
 #endif
-    if (listen(unix_sock,(int) back_log) < 0)
+    if (mysql_socket_listen(unix_sock,(int) back_log) < 0)
       sql_print_warning("listen() on Unix socket failed with error %d",
 		      socket_errno);
   }
@@ -2485,13 +2517,12 @@ static bool cache_thread()
     DBUG_PRINT("info", ("Adding thread to cache"));
     cached_thread_count++;
 
-#ifdef HAVE_PSI_INTERFACE
+#ifdef HAVE_PSI_THREAD_INTERFACE
     /*
       Delete the instrumentation for the job that just completed,
       before parking this pthread in the cache (blocked on COND_thread_cache).
     */
-    if (likely(PSI_server != NULL))
-      PSI_server->delete_current_thread();
+    PSI_CALL(delete_current_thread)();
 #endif
 
     while (!abort_loop && ! wake_thread && ! kill_cached_threads)
@@ -2507,18 +2538,14 @@ static bool cache_thread()
       thd->thread_stack= (char*) &thd;          // For store_globals
       (void) thd->store_globals();
 
-#ifdef HAVE_PSI_INTERFACE
+#ifdef HAVE_PSI_THREAD_INTERFACE
       /*
         Create new instrumentation for the new THD job,
         and attach it to this running pthread.
       */
-      if (likely(PSI_server != NULL))
-      {
-        PSI_thread *psi= PSI_server->new_thread(key_thread_one_connection,
-                                                thd, thd->thread_id);
-        if (likely(psi != NULL))
-          PSI_server->set_thread(psi);
-      }
+      PSI_thread *psi= PSI_CALL(new_thread)(key_thread_one_connection,
+                                            thd, thd->thread_id);
+      PSI_CALL(set_thread)(psi);
 #endif
 
       /*
@@ -3033,10 +3060,9 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       if (!abort_loop)
       {
 	abort_loop=1;				// mark abort for threads
-#ifdef HAVE_PSI_INTERFACE
+#ifdef HAVE_PSI_THREAD_INTERFACE
         /* Delete the instrumentation for the signal thread */
-        if (likely(PSI_server != NULL))
-          PSI_server->delete_current_thread();
+        PSI_CALL(delete_current_thread)();
 #endif
 #ifdef USE_ONE_SIGNAL_HAND
 	pthread_t tmp;
@@ -3393,6 +3419,68 @@ SHOW_VAR com_status_vars[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+PSI_statement_info sql_statement_info[(uint) SQLCOM_END + 1];
+PSI_statement_info com_statement_info[(uint) COM_END + 1];
+
+/**
+  Initialize the command names array.
+  Since we do not want to maintain a separate array,
+  this is populated from data mined in com_status_vars,
+  which already has one name for each command.
+*/
+void init_sql_statement_info()
+{
+  char *first_com= (char*) offsetof(STATUS_VAR, com_stat[0]);
+  char *last_com= (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_END]);
+  int record_size= (char*) offsetof(STATUS_VAR, com_stat[1])
+                   - (char*) offsetof(STATUS_VAR, com_stat[0]);
+  char *ptr;
+  uint i;
+  uint com_index;
+
+  static const char* dummy= "";
+  for (i= 0; i < ((uint) SQLCOM_END + 1); i++)
+  {
+    sql_statement_info[i].m_name= dummy;
+    sql_statement_info[i].m_flags= 0;
+  }
+
+  SHOW_VAR *var= &com_status_vars[0];
+  while (var->name != NULL)
+  {
+    ptr= var->value;
+    if ((first_com <= ptr) && (ptr <= last_com))
+    {
+      com_index= ((int)(ptr - first_com))/record_size;
+      DBUG_ASSERT(com_index < (uint) SQLCOM_END);
+      sql_statement_info[com_index].m_name= var->name;
+    }
+    var++;
+  }
+
+  DBUG_ASSERT(strcmp(sql_statement_info[(uint) SQLCOM_SELECT].m_name, "select") == 0);
+  DBUG_ASSERT(strcmp(sql_statement_info[(uint) SQLCOM_SIGNAL].m_name, "signal") == 0);
+
+  sql_statement_info[(uint) SQLCOM_END].m_name= "error";
+}
+
+void init_com_statement_info()
+{
+  uint index;
+
+  for (index= 0; index < (uint) COM_END + 1; index++)
+  {
+    com_statement_info[index].m_name= command_name[index].str;
+    com_statement_info[index].m_flags= 0;
+  }
+
+  /* "statement/com/query" can mutate into "statement/sql/..." */
+  com_statement_info[(uint) COM_QUERY].m_flags= PSI_FLAG_MUTABLE;
+}
+#endif
+
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -3446,8 +3534,9 @@ static int init_common_variables()
 #ifdef HAVE_PSI_INTERFACE
   /*
     Complete the mysql_bin_log initialization.
-    Instrumentation keys are known only after the performance schema initialization,
-    and can not be set in the MYSQL_BIN_LOG constructor (called before main()).
+    Instrumentation keys are known only after the performance schema
+    initialization, and can not be set in the MYSQL_BIN_LOG
+    constructor (called before main()).
   */
   mysql_bin_log.set_psi_keys(key_BINLOG_LOCK_index,
                              key_BINLOG_update_cond,
@@ -3732,6 +3821,10 @@ static int init_common_variables()
     default_collation= get_charset_by_name(default_collation_name, MYF(0));
     if (!default_collation)
     {
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+      buffered_logs.print();
+      buffered_logs.cleanup();
+#endif
       sql_print_error(ER_DEFAULT(ER_UNKNOWN_COLLATION), default_collation_name);
       return 1;
     }
@@ -4013,7 +4106,8 @@ static void init_ssl()
     /* having ssl_acceptor_fd != 0 signals the use of SSL */
     ssl_acceptor_fd= new_VioSSLAcceptorFd(opt_ssl_key, opt_ssl_cert,
 					  opt_ssl_ca, opt_ssl_capath,
-					  opt_ssl_cipher, &error);
+					  opt_ssl_cipher, &error,
+                                          opt_ssl_crl, opt_ssl_crlpath);
     DBUG_PRINT("info",("ssl_acceptor_fd: 0x%lx", (long) ssl_acceptor_fd));
     if (!ssl_acceptor_fd)
     {
@@ -4656,9 +4750,16 @@ int mysqld_main(int argc, char **argv)
   */
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
+  my_charset_error_reporter= buffered_option_error_reporter;
+
+  /*
+    Initialize the array of performance schema instrument configurations.
+  */
+  init_pfs_instrument_array();
 
   ho_error= handle_options(&remaining_argc, &remaining_argv,
-                           (my_option*)(all_early_options.buffer), NULL);
+                           (my_option*)(all_early_options.buffer),
+                           mysqld_get_one_option);
   delete_dynamic(&all_early_options);
   if (ho_error == 0)
   {
@@ -4694,27 +4795,29 @@ int mysqld_main(int argc, char **argv)
     if available.
   */
   if (PSI_hook)
-    PSI_server= (PSI*) PSI_hook->get_interface(PSI_CURRENT_VERSION);
-
-  if (PSI_server)
   {
-    /*
-      Now that we have parsed the command line arguments, and have initialized
-      the performance schema itself, the next step is to register all the
-      server instruments.
-    */
-    init_server_psi_keys();
-    /* Instrument the main thread */
-    PSI_thread *psi= PSI_server->new_thread(key_thread_main, NULL, 0);
-    if (psi)
-      PSI_server->set_thread(psi);
+    PSI *psi_server= (PSI*) PSI_hook->get_interface(PSI_CURRENT_VERSION);
+    if (likely(psi_server != NULL))
+    {
+      set_psi_server(psi_server);
 
-    /*
-      Now that some instrumentation is in place,
-      recreate objects which were initialised early,
-      so that they are instrumented as well.
-    */
-    my_thread_global_reinit();
+      /*
+        Now that we have parsed the command line arguments, and have
+        initialized the performance schema itself, the next step is to
+        register all the server instruments.
+      */
+      init_server_psi_keys();
+      /* Instrument the main thread */
+      PSI_thread *psi= PSI_CALL(new_thread)(key_thread_main, NULL, 0);
+      PSI_CALL(set_thread)(psi);
+
+      /*
+        Now that some instrumentation is in place,
+        recreate objects which were initialised early,
+        so that they are instrumented as well.
+      */
+      my_thread_global_reinit();
+    }
   }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -4858,7 +4961,7 @@ int mysqld_main(int argc, char **argv)
     if (!opt_bootstrap)
       mysql_file_delete(key_file_pid, pidfile_name, MYF(MY_WME)); // Not needed anymore
 
-    if (unix_sock != INVALID_SOCKET)
+    if (mysql_socket_getfd(unix_sock) != INVALID_SOCKET)
       unlink(mysqld_unix_port);
     exit(1);
   }
@@ -4939,8 +5042,8 @@ int mysqld_main(int argc, char **argv)
   start_handle_manager();
 
   sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
-                        ((unix_sock == INVALID_SOCKET) ? (char*) ""
-                                                       : mysqld_unix_port),
+                        ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
+                         (char*) "" : mysqld_unix_port),
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
@@ -4978,13 +5081,12 @@ int mysqld_main(int argc, char **argv)
 #endif
 #endif /* __WIN__ */
 
-#ifdef HAVE_PSI_INTERFACE
+#ifdef HAVE_PSI_THREAD_INTERFACE
   /*
     Disable the main thread instrumentation,
     to avoid recording events during the shutdown.
   */
-  if (PSI_server)
-    PSI_server->delete_current_thread();
+  PSI_CALL(delete_current_thread)();
 #endif
 
   /* Wait until cleanup is done */
@@ -5438,8 +5540,9 @@ static void create_new_thread(THD *thd)
 inline void kill_broken_server()
 {
   /* hack to get around signals ignored in syscalls for problem OS's */
-  if (unix_sock == INVALID_SOCKET ||
-      (!opt_disable_networking && base_ip_sock == INVALID_SOCKET))
+  if (mysql_socket_getfd(unix_sock) == INVALID_SOCKET ||
+      (!opt_disable_networking &&
+       mysql_socket_getfd(base_ip_sock) == INVALID_SOCKET))
   {
     select_thread_in_use = 0;
     /* The following call will never return */
@@ -5458,7 +5561,8 @@ inline void kill_broken_server()
 
 void handle_connections_sockets()
 {
-  my_socket UNINIT_VAR(sock), UNINIT_VAR(new_sock);
+  MYSQL_SOCKET sock= mysql_socket_invalid();
+  MYSQL_SOCKET new_sock= mysql_socket_invalid();
   uint error_count=0;
   THD *thd;
   struct sockaddr_storage cAddr;
@@ -5467,36 +5571,40 @@ void handle_connections_sockets()
   int extra_ip_flags __attribute__((unused))=0;
   int flags=0,retval;
   st_vio *vio_tmp;
+  bool is_unix_sock;
 #ifdef HAVE_POLL
   int socket_count= 0;
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
+  MYSQL_SOCKET  pfs_fds[3]; // for performance schema
 #define setup_fds(X)                    \
-    fds[socket_count].fd= X;            \
+    pfs_fds[socket_count]= (X);                   \
+    fds[socket_count].fd= mysql_socket_getfd(X);  \
     fds[socket_count].events= POLLIN;   \
     socket_count++
 #else
   fd_set readFDs,clientFDs;
   uint max_used_connection= (uint)
-    max(max(base_ip_sock, unix_sock), extra_ip_sock) + 1;
-#define setup_fds(X)    FD_SET(X,&clientFDs)
+    max(max(mysql_socket_getfd(base_ip_sock), mysql_socket_getfd(unix_sock)),
+        mysqld_socket_getfd(extra_ip_sock)) + 1;
+#define setup_fds(X)    FD_SET(mysql_socket_getfd(X),&clientFDs)
   FD_ZERO(&clientFDs);
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
 
-  if (base_ip_sock != INVALID_SOCKET)
+  if (mysql_socket_getfd(base_ip_sock) != INVALID_SOCKET)
   {
     setup_fds(base_ip_sock);
-    ip_flags = fcntl(base_ip_sock, F_GETFL, 0);
+    ip_flags = fcntl(mysql_socket_getfd(base_ip_sock), F_GETFL, 0);
   }
-  if (extra_ip_sock != INVALID_SOCKET)
+  if (mysql_socket_getfd(extra_ip_sock) != INVALID_SOCKET)
   {
     setup_fds(extra_ip_sock);
-    extra_ip_flags = fcntl(extra_ip_sock, F_GETFL, 0);
+    extra_ip_flags = fcntl(mysql_socket_getfd(extra_ip_sock), F_GETFL, 0);
   }
 #ifdef HAVE_SYS_UN_H
   setup_fds(unix_sock);
-  socket_flags=fcntl(unix_sock, F_GETFL, 0);
+  socket_flags=fcntl(mysql_socket_getfd(unix_sock), F_GETFL, 0);
 #endif
 
   DBUG_PRINT("general",("Waiting for connections."));
@@ -5534,8 +5642,8 @@ void handle_connections_sockets()
     {
       if (fds[i].revents & POLLIN)
       {
-        sock= fds[i].fd;
-        flags= fcntl(sock, F_GETFL, 0);
+        sock= pfs_fds[i];
+        flags= fcntl(mysql_socket_getfd(sock), F_GETFL, 0);
         break;
       }
     }
@@ -5562,18 +5670,19 @@ void handle_connections_sockets()
     if (!(test_flags & TEST_BLOCKING))
     {
 #if defined(O_NONBLOCK)
-      fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+      fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NONBLOCK);
 #elif defined(O_NDELAY)
-      fcntl(sock, F_SETFL, flags | O_NDELAY);
+      fcntl(mysql_socket_getfd(sock), F_SETFL, flags | O_NDELAY);
 #endif
     }
 #endif /* NO_FCNTL_NONBLOCK */
     for (uint retry=0; retry < MAX_ACCEPT_RETRY; retry++)
     {
       size_socket length= sizeof(struct sockaddr_storage);
-      new_sock= accept(sock, (struct sockaddr *)(&cAddr),
-                       &length);
-      if (new_sock != INVALID_SOCKET ||
+      new_sock= mysql_socket_accept(key_socket_client_connection, sock,
+                                    (struct sockaddr *)(&cAddr),
+                                    &length);
+      if (mysql_socket_getfd(new_sock) != INVALID_SOCKET ||
 	  (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN))
 	break;
       MAYBE_BROKEN_SYSCALL;
@@ -5581,15 +5690,18 @@ void handle_connections_sockets()
       if (!(test_flags & TEST_BLOCKING))
       {
 	if (retry == MAX_ACCEPT_RETRY - 1)
-	  fcntl(sock, F_SETFL, flags);		// Try without O_NONBLOCK
+        {
+          // Try without O_NONBLOCK
+	  fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
+        }
       }
 #endif
     }
 #if !defined(NO_FCNTL_NONBLOCK)
     if (!(test_flags & TEST_BLOCKING))
-      fcntl(sock, F_SETFL, flags);
+      fcntl(mysql_socket_getfd(sock), F_SETFL, flags);
 #endif
-    if (new_sock == INVALID_SOCKET)
+    if (mysql_socket_getfd(new_sock) == INVALID_SOCKET)
     {
       if ((error_count++ & 255) == 0)		// This can happen often
 	sql_perror("Error in accept");
@@ -5605,7 +5717,8 @@ void handle_connections_sockets()
       {
 	struct request_info req;
 	signal(SIGCHLD, SIG_DFL);
-	request_init(&req, RQ_DAEMON, libwrapName, RQ_FILE, new_sock, NULL);
+	request_init(&req, RQ_DAEMON, libwrapName, RQ_FILE,
+                     mysql_socket_getfd(new_sock), NULL);
 	my_fromhost(&req);
 	if (!my_hosts_access(&req))
 	{
@@ -5627,7 +5740,7 @@ void handle_connections_sockets()
 	    ((void (*)(int))req.sink)(req.fd);
 
 	  (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-	  (void) closesocket(new_sock);
+	  (void) mysql_socket_close(new_sock);
 	  continue;
 	}
       }
@@ -5638,12 +5751,13 @@ void handle_connections_sockets()
       size_socket dummyLen;
       struct sockaddr_storage dummy;
       dummyLen = sizeof(dummy);
-      if (  getsockname(new_sock,(struct sockaddr *)&dummy, 
-                  (SOCKET_SIZE_TYPE *)&dummyLen) < 0  )
+      if (getsockname(mysql_socket_getfd(new_sock),
+                      (struct sockaddr *)&dummy, 
+                      (SOCKET_SIZE_TYPE *)&dummyLen) < 0  )
       {
 	sql_perror("Error on new connection socket");
 	(void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-	(void) closesocket(new_sock);
+	(void) mysql_socket_close(new_sock);
 	continue;
       }
     }
@@ -5655,14 +5769,17 @@ void handle_connections_sockets()
     if (!(thd= new THD))
     {
       (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-      (void) closesocket(new_sock);
+      (void) mysql_socket_close(new_sock);
       continue;
     }
-    if (!(vio_tmp=vio_new(new_sock,
-			  sock == unix_sock ? VIO_TYPE_SOCKET :
-			  VIO_TYPE_TCPIP,
-			  sock == unix_sock ? VIO_LOCALHOST: 0)) ||
-	my_net_init(&thd->net,vio_tmp))
+    is_unix_sock= (mysql_socket_getfd(sock) ==
+                   mysql_socket_getfd(unix_sock));
+
+    if (!(vio_tmp=
+          mysql_socket_vio_new(new_sock,
+                               is_unix_sock ? VIO_TYPE_SOCKET : VIO_TYPE_TCPIP,
+                               is_unix_sock ? VIO_LOCALHOST: 0)) ||
+	my_net_init(&thd->net, vio_tmp))
     {
       /*
         Only delete the temporary vio if we didn't already attach it to the
@@ -5674,15 +5791,15 @@ void handle_connections_sockets()
       else
       {
 	(void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
-	(void) closesocket(new_sock);
+	(void) mysql_socket_close(new_sock);
       }
       delete thd;
       continue;
     }
-    if (sock == unix_sock)
+    if (is_unix_sock)
       thd->security_ctx->host=(char*) my_localhost;
 
-    if (sock == extra_ip_sock)
+    if (mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
     {
       thd->extra_port= 1;
       thd->scheduler= extra_thread_scheduler;
@@ -6231,9 +6348,6 @@ struct my_option my_long_options[]=
    "Set the language used for the month names and the days of the week.",
    &lc_time_names_name, &lc_time_names_name,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"log", 'l', "Log connections and queries to file (deprecated option, use "
-   "--general-log/--general-log-file instead).", &opt_logname, &opt_logname,
-   0, GET_STR_ALLOC, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"log-basename", OPT_LOG_BASENAME,
    "Basename for all log files and the .pid file. This sets all log file "
    "names at once (in 'datadir') and is normally the only option you need "
@@ -6410,7 +6524,7 @@ struct my_option my_long_options[]=
 #endif
 #ifdef HAVE_OPENSSL
   {"ssl", 0,
-   "Enable SSL for connection (automatically enabled with other flags).",
+   "Enable SSL for connection (automatically enabled if an ssl option is used).",
    &opt_use_ssl, &opt_use_ssl, 0, GET_BOOL, OPT_ARG, 0, 0, 0,
    0, 0, 0},
 #endif
@@ -6869,6 +6983,110 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
+
+#ifdef HAVE_YASSL
+
+static char *
+my_asn1_time_to_string(ASN1_TIME *time, char *buf, size_t len)
+{
+  return yaSSL_ASN1_TIME_to_string(time, buf, len);
+}
+
+#else /* openssl */
+
+static char *
+my_asn1_time_to_string(ASN1_TIME *time, char *buf, size_t len)
+{
+  int n_read;
+  char *res= NULL;
+  BIO *bio= BIO_new(BIO_s_mem());
+
+  if (bio == NULL)
+    return NULL;
+
+  if (!ASN1_TIME_print(bio, time))
+    goto end;
+
+  n_read= BIO_read(bio, buf, (int) (len - 1));
+
+  if (n_read > 0)
+  {
+    buf[n_read]= 0;
+    res= buf;
+  }
+
+end:
+  BIO_free(bio);
+  return res;
+}
+
+#endif
+
+
+/**
+  Handler function for the 'ssl_get_server_not_before' variable
+
+  @param      thd  the mysql thread structure
+  @param      var  the data for the variable
+  @param[out] buf  the string to put the value of the variable into
+
+  @return          status
+  @retval     0    success
+*/
+
+static int
+show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_CHAR;
+  if(thd->vio_ok() && thd->net.vio->ssl_arg)
+  {
+    SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
+    X509 *cert= SSL_get_certificate(ssl);
+    ASN1_TIME *not_before= X509_get_notBefore(cert);
+
+    var->value= my_asn1_time_to_string(not_before, buff,
+                                       SHOW_VAR_FUNC_BUFF_SIZE);
+    if (!var->value)
+      return 1;
+    var->value= buff;
+  }
+  else
+    var->value= empty_c_string;
+  return 0;
+}
+
+
+/**
+  Handler function for the 'ssl_get_server_not_after' variable
+
+  @param      thd  the mysql thread structure
+  @param      var  the data for the variable
+  @param[out] buf  the string to put the value of the variable into
+
+  @return          status
+  @retval     0    success
+*/
+
+static int
+show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff)
+{
+  var->type= SHOW_CHAR;
+  if(thd->vio_ok() && thd->net.vio->ssl_arg)
+  {
+    SSL *ssl= (SSL*) thd->net.vio->ssl_arg;
+    X509 *cert= SSL_get_certificate(ssl);
+    ASN1_TIME *not_after= X509_get_notAfter(cert);
+
+    var->value= my_asn1_time_to_string(not_after, buff,
+                                       SHOW_VAR_FUNC_BUFF_SIZE);
+    if (!var->value)
+      return 1;
+  }
+  else
+    var->value= empty_c_string;
+  return 0;
+}
+
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 
 static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
@@ -7049,6 +7267,10 @@ SHOW_VAR status_vars[]= {
   {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_FUNC},
   {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_FUNC},
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_FUNC},
+  {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before,
+    SHOW_FUNC},
+  {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after,
+    SHOW_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
@@ -7267,7 +7489,7 @@ static int mysql_init_variables(void)
   character_set_filesystem= &my_charset_bin;
 
   opt_specialflag= SPECIAL_ENGLISH;
-  unix_sock= base_ip_sock= extra_ip_sock= INVALID_SOCKET;
+  unix_sock= base_ip_sock= extra_ip_sock= MYSQL_INVALID_SOCKET;
   mysql_home_ptr= mysql_home;
   pidfile_name_ptr= pidfile_name;
   log_error_file_ptr= log_error_file;
@@ -7713,6 +7935,74 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_MAX_LONG_DATA_SIZE:
     max_long_data_size_used= true;
+    break;
+  case OPT_PFS_INSTRUMENT:
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+    /* Parse instrument name and value from argument string */
+    char* name = argument,*p, *val;
+
+    /* Assignment required */
+    if (!(p= strchr(argument, '=')))
+    {
+       my_getopt_error_reporter(WARNING_LEVEL,
+                             "Missing value for performance_schema_instrument "
+                             "'%s'", argument);
+      return 0;
+    }
+
+    /* Option value */
+    val= p + 1;
+    if (!*val)
+    {
+       my_getopt_error_reporter(WARNING_LEVEL,
+                             "Missing value for performance_schema_instrument "
+                             "'%s'", argument);
+      return 0;
+    }
+
+    /* Trim leading spaces from instrument name */
+    while (*name && my_isspace(mysqld_charset, *name))
+      name++;
+
+    /* Trim trailing spaces and slashes from instrument name */
+    while (p > argument && (my_isspace(mysqld_charset, p[-1]) || p[-1] == '/'))
+      p--;
+    *p= 0;
+
+    if (!*name)
+    {
+       my_getopt_error_reporter(WARNING_LEVEL,
+                             "Invalid instrument name for "
+                             "performance_schema_instrument '%s'", argument);
+      return 0;
+    }
+
+    /* Trim leading spaces from option value */
+    while (*val && my_isspace(mysqld_charset, *val))
+      val++;
+
+    /* Trim trailing spaces from option value */
+    if ((p= my_strchr(mysqld_charset, val, val+strlen(val), ' ')) != NULL)
+      *p= 0;
+
+    if (!*val)
+    {
+       my_getopt_error_reporter(WARNING_LEVEL,
+                             "Invalid value for performance_schema_instrument "
+                             "'%s'", argument);
+      return 0;
+    }
+
+    /* Add instrument name and value to array of configuration options */
+    if (add_pfs_instr_to_array(name, val))
+    {
+       my_getopt_error_reporter(WARNING_LEVEL,
+                             "Invalid value for performance_schema_instrument "
+                             "'%s'", argument);
+      return 0;
+    }
+
+#endif
     break;
   }
   return 0;
@@ -8299,23 +8589,305 @@ void refresh_status(THD *thd)
   mysql_mutex_unlock(&LOCK_thread_count);
 }
 
+PSI_stage_info stage_after_create= { 0, "After create", 0};
+PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
+PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
+PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
+PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};
+PSI_stage_info stage_checking_privileges_on_cached_query= { 0, "checking privileges on cached query", 0};
+PSI_stage_info stage_checking_query_cache_for_query= { 0, "checking query cache for query", 0};
+PSI_stage_info stage_cleaning_up= { 0, "cleaning up", 0};
+PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
+PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
+PSI_stage_info stage_converting_heap_to_myisam= { 0, "converting HEAP to MyISAM", 0};
+PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
+PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
+PSI_stage_info stage_copy_to_tmp_table= { 0, "copy to tmp table", 0};
+PSI_stage_info stage_creating_delayed_handler= { 0, "Creating delayed handler", 0};
+PSI_stage_info stage_creating_sort_index= { 0, "Creating sort index", 0};
+PSI_stage_info stage_creating_table= { 0, "creating table", 0};
+PSI_stage_info stage_creating_tmp_table= { 0, "Creating tmp table", 0};
+PSI_stage_info stage_deleting_from_main_table= { 0, "deleting from main table", 0};
+PSI_stage_info stage_deleting_from_reference_tables= { 0, "deleting from reference tables", 0};
+PSI_stage_info stage_discard_or_import_tablespace= { 0, "discard_or_import_tablespace", 0};
+PSI_stage_info stage_end= { 0, "end", 0};
+PSI_stage_info stage_executing= { 0, "executing", 0};
+PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
+PSI_stage_info stage_explaining= { 0, "explaining", 0};
+PSI_stage_info stage_finished_reading_one_binlog_switching_to_next_binlog= { 0, "Finished reading one binlog; switching to next binlog", 0};
+PSI_stage_info stage_flushing_relay_log_and_master_info_repository= { 0, "Flushing relay log and master info repository.", 0};
+PSI_stage_info stage_flushing_relay_log_info_file= { 0, "Flushing relay-log info file.", 0};
+PSI_stage_info stage_freeing_items= { 0, "freeing items", 0};
+PSI_stage_info stage_fulltext_initialization= { 0, "FULLTEXT initialization", 0};
+PSI_stage_info stage_got_handler_lock= { 0, "got handler lock", 0};
+PSI_stage_info stage_got_old_table= { 0, "got old table", 0};
+PSI_stage_info stage_init= { 0, "init", 0};
+PSI_stage_info stage_insert= { 0, "insert", 0};
+PSI_stage_info stage_invalidating_query_cache_entries_table= { 0, "invalidating query cache entries (table)", 0};
+PSI_stage_info stage_invalidating_query_cache_entries_table_list= { 0, "invalidating query cache entries (table list)", 0};
+PSI_stage_info stage_killing_slave= { 0, "Killing slave", 0};
+PSI_stage_info stage_logging_slow_query= { 0, "logging slow query", 0};
+PSI_stage_info stage_making_temp_file_append_before_load_data= { 0, "Making temporary file (append) before replaying LOAD DATA INFILE.", 0};
+PSI_stage_info stage_making_temp_file_create_before_load_data= { 0, "Making temporary file (create) before replaying LOAD DATA INFILE.", 0};
+PSI_stage_info stage_manage_keys= { 0, "manage keys", 0};
+PSI_stage_info stage_master_has_sent_all_binlog_to_slave= { 0, "Master has sent all binlog to slave; waiting for binlog to be updated", 0};
+PSI_stage_info stage_opening_tables= { 0, "Opening tables", 0};
+PSI_stage_info stage_optimizing= { 0, "optimizing", 0};
+PSI_stage_info stage_preparing= { 0, "preparing", 0};
+PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
+PSI_stage_info stage_query_end= { 0, "query end", 0};
+PSI_stage_info stage_queueing_master_event_to_the_relay_log= { 0, "Queueing master event to the relay log", 0};
+PSI_stage_info stage_reading_event_from_the_relay_log= { 0, "Reading event from the relay log", 0};
+PSI_stage_info stage_registering_slave_on_master= { 0, "Registering slave on master", 0};
+PSI_stage_info stage_removing_duplicates= { 0, "Removing duplicates", 0};
+PSI_stage_info stage_removing_tmp_table= { 0, "removing tmp table", 0};
+PSI_stage_info stage_rename= { 0, "rename", 0};
+PSI_stage_info stage_rename_result_table= { 0, "rename result table", 0};
+PSI_stage_info stage_requesting_binlog_dump= { 0, "Requesting binlog dump", 0};
+PSI_stage_info stage_reschedule= { 0, "reschedule", 0};
+PSI_stage_info stage_searching_rows_for_update= { 0, "Searching rows for update", 0};
+PSI_stage_info stage_sending_binlog_event_to_slave= { 0, "Sending binlog event to slave", 0};
+PSI_stage_info stage_sending_cached_result_to_client= { 0, "sending cached result to client", 0};
+PSI_stage_info stage_sending_data= { 0, "Sending data", 0};
+PSI_stage_info stage_setup= { 0, "setup", 0};
+PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for the slave I/O thread to update it", 0};
+PSI_stage_info stage_sorting_for_group= { 0, "Sorting for group", 0};
+PSI_stage_info stage_sorting_for_order= { 0, "Sorting for order", 0};
+PSI_stage_info stage_sorting_result= { 0, "Sorting result", 0};
+PSI_stage_info stage_statistics= { 0, "statistics", 0};
+PSI_stage_info stage_sql_thd_waiting_until_delay= { 0, "Waiting until MASTER_DELAY seconds after master executed event", 0 };
+PSI_stage_info stage_storing_result_in_query_cache= { 0, "storing result in query cache", 0};
+PSI_stage_info stage_storing_row_into_queue= { 0, "storing row into queue", 0};
+PSI_stage_info stage_system_lock= { 0, "System lock", 0};
+PSI_stage_info stage_update= { 0, "update", 0};
+PSI_stage_info stage_updating= { 0, "updating", 0};
+PSI_stage_info stage_updating_main_table= { 0, "updating main table", 0};
+PSI_stage_info stage_updating_reference_tables= { 0, "updating reference tables", 0};
+PSI_stage_info stage_upgrading_lock= { 0, "upgrading lock", 0};
+PSI_stage_info stage_user_lock= { 0, "User lock", 0};
+PSI_stage_info stage_user_sleep= { 0, "User sleep", 0};
+PSI_stage_info stage_verifying_table= { 0, "verifying table", 0};
+PSI_stage_info stage_waiting_for_delay_list= { 0, "waiting for delay_list", 0};
+PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log= { 0, "waiting for GTID to be written to binary log", 0};
+PSI_stage_info stage_waiting_for_handler_insert= { 0, "waiting for handler insert", 0};
+PSI_stage_info stage_waiting_for_handler_lock= { 0, "waiting for handler lock", 0};
+PSI_stage_info stage_waiting_for_handler_open= { 0, "waiting for handler open", 0};
+PSI_stage_info stage_waiting_for_insert= { 0, "Waiting for INSERT", 0};
+PSI_stage_info stage_waiting_for_master_to_send_event= { 0, "Waiting for master to send event", 0};
+PSI_stage_info stage_waiting_for_master_update= { 0, "Waiting for master update", 0};
+PSI_stage_info stage_waiting_for_relay_log_space= { 0, "Waiting for the slave SQL thread to free enough relay log space", 0};
+PSI_stage_info stage_waiting_for_slave_mutex_on_exit= { 0, "Waiting for slave mutex on exit", 0};
+PSI_stage_info stage_waiting_for_slave_thread_to_start= { 0, "Waiting for slave thread to start", 0};
+PSI_stage_info stage_waiting_for_table_flush= { 0, "Waiting for table flush", 0};
+PSI_stage_info stage_waiting_for_query_cache_lock= { 0, "Waiting for query cache lock", 0};
+PSI_stage_info stage_waiting_for_the_next_event_in_relay_log= { 0, "Waiting for the next event in relay log", 0};
+PSI_stage_info stage_waiting_for_the_slave_thread_to_advance_position= { 0, "Waiting for the slave SQL thread to advance position", 0};
+PSI_stage_info stage_waiting_to_finalize_termination= { 0, "Waiting to finalize termination", 0};
+PSI_stage_info stage_waiting_to_get_readlock= { 0, "Waiting to get readlock", 0};
+PSI_stage_info stage_slave_waiting_workers_to_exit= { 0, "Waiting for workers to exit", 0};
+PSI_stage_info stage_slave_waiting_worker_to_release_partition= { 0, "Waiting for Slave Worker to release partition", 0};
+PSI_stage_info stage_slave_waiting_worker_to_free_events= { 0, "Waiting for Slave Workers to free pending events", 0};
+PSI_stage_info stage_slave_waiting_worker_queue= { 0, "Waiting for Slave Worker queue", 0};
+PSI_stage_info stage_slave_waiting_event_from_coordinator= { 0, "Waiting for an event from Coordinator", 0};
 
-/*****************************************************************************
-  Instantiate variables for missing storage engines
-  This section should go away soon
-*****************************************************************************/
+#ifdef HAVE_PSI_INTERFACE
 
-/*****************************************************************************
-  Instantiate templates
-*****************************************************************************/
+static PSI_file_info all_server_files[]=
+{
+#ifdef HAVE_MMAP
+  { &key_file_map, "map", 0},
+#endif /* HAVE_MMAP */
+  { &key_file_binlog, "binlog", 0},
+  { &key_file_binlog_index, "binlog_index", 0},
+  { &key_file_relaylog, "relaylog", 0},
+  { &key_file_relaylog_index, "relaylog_index", 0},
+  { &key_file_casetest, "casetest", 0},
+  { &key_file_dbopt, "dbopt", 0},
+  { &key_file_des_key_file, "des_key_file", 0},
+  { &key_file_ERRMSG, "ERRMSG", 0},
+  { &key_select_to_file, "select_to_file", 0},
+  { &key_file_fileparser, "file_parser", 0},
+  { &key_file_frm, "FRM", 0},
+  { &key_file_global_ddl_log, "global_ddl_log", 0},
+  { &key_file_load, "load", 0},
+  { &key_file_loadfile, "LOAD_FILE", 0},
+  { &key_file_log_event_data, "log_event_data", 0},
+  { &key_file_log_event_info, "log_event_info", 0},
+  { &key_file_master_info, "master_info", 0},
+  { &key_file_misc, "misc", 0},
+  { &key_file_partition, "partition", 0},
+  { &key_file_pid, "pid", 0},
+  { &key_file_query_log, "query_log", 0},
+  { &key_file_relay_log_info, "relay_log_info", 0},
+  { &key_file_send_file, "send_file", 0},
+  { &key_file_slow_log, "slow_log", 0},
+  { &key_file_tclog, "tclog", 0},
+  { &key_file_trg, "trigger_name", 0},
+  { &key_file_trn, "trigger", 0},
+  { &key_file_init, "init", 0}
+};
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-/* Used templates */
-template class I_List<THD>;
-template class I_List_iterator<THD>;
-template class I_List<i_string>;
-template class I_List<i_string_pair>;
-template class I_List<Statement>;
-template class I_List_iterator<Statement>;
+PSI_stage_info *all_server_stages[]=
+{
+  & stage_after_create,
+  & stage_allocating_local_table,
+  & stage_changing_master,
+  & stage_checking_master_version,
+  & stage_checking_permissions,
+  & stage_checking_privileges_on_cached_query,
+  & stage_checking_query_cache_for_query,
+  & stage_cleaning_up,
+  & stage_closing_tables,
+  & stage_connecting_to_master,
+  & stage_converting_heap_to_myisam,
+  & stage_copying_to_group_table,
+  & stage_copying_to_tmp_table,
+  & stage_copy_to_tmp_table,
+  & stage_creating_delayed_handler,
+  & stage_creating_sort_index,
+  & stage_creating_table,
+  & stage_creating_tmp_table,
+  & stage_deleting_from_main_table,
+  & stage_deleting_from_reference_tables,
+  & stage_discard_or_import_tablespace,
+  & stage_end,
+  & stage_executing,
+  & stage_execution_of_init_command,
+  & stage_explaining,
+  & stage_finished_reading_one_binlog_switching_to_next_binlog,
+  & stage_flushing_relay_log_and_master_info_repository,
+  & stage_flushing_relay_log_info_file,
+  & stage_freeing_items,
+  & stage_fulltext_initialization,
+  & stage_got_handler_lock,
+  & stage_got_old_table,
+  & stage_init,
+  & stage_insert,
+  & stage_invalidating_query_cache_entries_table,
+  & stage_invalidating_query_cache_entries_table_list,
+  & stage_killing_slave,
+  & stage_logging_slow_query,
+  & stage_making_temp_file_append_before_load_data,
+  & stage_making_temp_file_create_before_load_data,
+  & stage_manage_keys,
+  & stage_master_has_sent_all_binlog_to_slave,
+  & stage_opening_tables,
+  & stage_optimizing,
+  & stage_preparing,
+  & stage_purging_old_relay_logs,
+  & stage_query_end,
+  & stage_queueing_master_event_to_the_relay_log,
+  & stage_reading_event_from_the_relay_log,
+  & stage_registering_slave_on_master,
+  & stage_removing_duplicates,
+  & stage_removing_tmp_table,
+  & stage_rename,
+  & stage_rename_result_table,
+  & stage_requesting_binlog_dump,
+  & stage_reschedule,
+  & stage_searching_rows_for_update,
+  & stage_sending_binlog_event_to_slave,
+  & stage_sending_cached_result_to_client,
+  & stage_sending_data,
+  & stage_setup,
+  & stage_slave_has_read_all_relay_log,
+  & stage_sorting_for_group,
+  & stage_sorting_for_order,
+  & stage_sorting_result,
+  & stage_sql_thd_waiting_until_delay,
+  & stage_statistics,
+  & stage_storing_result_in_query_cache,
+  & stage_storing_row_into_queue,
+  & stage_system_lock,
+  & stage_update,
+  & stage_updating,
+  & stage_updating_main_table,
+  & stage_updating_reference_tables,
+  & stage_upgrading_lock,
+  & stage_user_lock,
+  & stage_user_sleep,
+  & stage_verifying_table,
+  & stage_waiting_for_delay_list,
+  & stage_waiting_for_handler_insert,
+  & stage_waiting_for_handler_lock,
+  & stage_waiting_for_handler_open,
+  & stage_waiting_for_insert,
+  & stage_waiting_for_master_to_send_event,
+  & stage_waiting_for_master_update,
+  & stage_waiting_for_slave_mutex_on_exit,
+  & stage_waiting_for_slave_thread_to_start,
+  & stage_waiting_for_table_flush,
+  & stage_waiting_for_query_cache_lock,
+  & stage_waiting_for_the_next_event_in_relay_log,
+  & stage_waiting_for_the_slave_thread_to_advance_position,
+  & stage_waiting_to_finalize_termination,
+  & stage_waiting_to_get_readlock
+};
+
+PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;
+
+static PSI_socket_info all_server_sockets[]=
+{
+  { &key_socket_tcpip, "server_tcpip_socket", PSI_FLAG_GLOBAL},
+  { &key_socket_unix, "server_unix_socket", PSI_FLAG_GLOBAL},
+  { &key_socket_client_connection, "client_connection", 0}
+};
+
+/**
+  Initialise all the performance schema instrumentation points
+  used by the server.
+*/
+void init_server_psi_keys(void)
+{
+  const char* category= "sql";
+  int count;
+
+  count= array_elements(all_server_mutexes);
+  mysql_mutex_register(category, all_server_mutexes, count);
+
+  count= array_elements(all_server_rwlocks);
+  mysql_rwlock_register(category, all_server_rwlocks, count);
+
+  count= array_elements(all_server_conds);
+  mysql_cond_register(category, all_server_conds, count);
+
+  count= array_elements(all_server_threads);
+  mysql_thread_register(category, all_server_threads, count);
+
+  count= array_elements(all_server_files);
+  mysql_file_register(category, all_server_files, count);
+
+  count= array_elements(all_server_stages);
+  mysql_stage_register(category, all_server_stages, count);
+
+  count= array_elements(all_server_sockets);
+  mysql_socket_register(category, all_server_sockets, count);
+
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+  init_sql_statement_info();
+  count= array_elements(sql_statement_info);
+  mysql_statement_register(category, sql_statement_info, count);
+
+  category= "com";
+  init_com_statement_info();
+  count= array_elements(com_statement_info);
+  mysql_statement_register(category, com_statement_info, count);
+
+  /*
+    When a new packet is received,
+    it is instrumented as "statement/com/".
+    Based on the packet type found, it later mutates to the
+    proper narrow type, for example
+    "statement/com/query" or "statement/com/ping".
+    In cases of "statement/com/query", SQL queries are given to
+    the parser, which mutates the statement type to an even more
+    narrow classification, for example "statement/sql/select".
+  */
+  stmt_info_new_packet.m_key= 0;
+  stmt_info_new_packet.m_name= "";
+  stmt_info_new_packet.m_flags= PSI_FLAG_MUTABLE;
+  mysql_statement_register(category, & stmt_info_new_packet, 1);
 #endif
+}
 
+#endif /* HAVE_PSI_INTERFACE */

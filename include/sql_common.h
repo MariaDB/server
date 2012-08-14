@@ -32,6 +32,8 @@ struct mysql_async_context;
 struct st_mysql_options_extention {
   char *plugin_dir;
   char *default_auth;
+  char *ssl_crl;				/* PEM CRL file */
+  char *ssl_crlpath;				/* PEM directory of CRL-s? */
   void (*report_progress)(const MYSQL *mysql,
                           unsigned int stage,
                           unsigned int max_stage,

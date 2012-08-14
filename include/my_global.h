@@ -90,17 +90,6 @@
 #define IF_WIN(A,B) B
 #endif
 
-#ifndef EMBEDDED_LIBRARY
-#ifdef WITH_NDB_BINLOG
-#define HAVE_NDB_BINLOG 1
-#endif
-#endif /* !EMBEDDED_LIBRARY */
-
-#ifndef EMBEDDED_LIBRARY
-#define HAVE_REPLICATION
-#define HAVE_EXTERNAL_CLIENT
-#endif
-
 #if defined (_WIN32)
 /*
  off_t is 32 bit long. We do not use C runtime functions
@@ -1018,6 +1007,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_ETIMEDOUT WSAETIMEDOUT
 #define SOCKET_EWOULDBLOCK WSAEWOULDBLOCK
 #define SOCKET_EADDRINUSE WSAEADDRINUSE
+#define SOCKET_ECONNRESET WSAECONNRESET
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
 #else /* Unix */
@@ -1028,6 +1018,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_ETIMEDOUT SOCKET_EINTR
 #define SOCKET_EWOULDBLOCK EWOULDBLOCK
 #define SOCKET_EADDRINUSE EADDRINUSE
+#define SOCKET_ECONNRESET ECONNRESET
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
 #endif
@@ -1541,6 +1532,12 @@ static inline double rint(double x)
 
 #undef HAVE_SMEM				/* No shared memory */
 
+#else
+#ifdef WITH_NDB_BINLOG
+#define HAVE_NDB_BINLOG 1
+#endif
+#define HAVE_REPLICATION
+#define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
 
 #endif /* my_global_h */

@@ -1,6 +1,5 @@
 /*
-   Copyright (c) 2005-2008 MySQL AB, 2009 Sun Microsystems, Inc.
-   Use is subject to license terms.
+   Copyright (c) 2005, 2011, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -712,7 +711,8 @@ int DoProcessReply(SSL& ssl)
         return 0;
     }
     uint ready = ssl.getSocket().get_ready();
-    if (!ready) return 1; 
+    if (!ready)
+      ready= 64;
 
     // add buffered data if its there
     input_buffer* buffered = ssl.useBuffers().TakeRawInput();

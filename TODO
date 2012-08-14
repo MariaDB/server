@@ -4,10 +4,17 @@ Featured copied/merged
 - storage/innodb/*
 - storage/perfschema
 - sql/share/errmsg-utf8.txt
+- mysqltest/suite/perfschema
 - All CF_XXX states in sql_class.h.
 - handler error messages.
 - Removed timestamp handling from all handler::write and handler::update
   methods.
+- Added PSI_CALLS to handler.cc
+- Added thd->m_statement_psi
+- Added variables Sys_ssl_crl & Sys_ssl_crlpath
+  (Including support in all clients)
+- Added Ssl_server_not_before & Ssl_server_not_after variables
+  (Including changes to yassl)
 
 Features recoded
 - Better error messages
@@ -16,6 +23,7 @@ Features recoded
 Fetures half done:
 - Support for TRANSACTION READ ONLY | READ WRITE
 - CF_XXX states added to init_update_queries() but not otherwise used.
+- Merge sql/rpl_mi.cc (To get Sys_ssl_crl ? crlpath)
 
 Short time TODO:
 - Add support for TRANSACTION READ ONLY | READ WRITE in sql_yacc.yy
@@ -27,3 +35,12 @@ Short time TODO:
 - Enable performance_schema.host_cache in scripts/mysql_system_tables.sql
 
 - Add full support for timestamp. (remove timestamp handling from ha_write())
+
+- Add  Sys_my_bind_addr(); Needed for perfschema
+
+- Add THD_STAGE_INFO everywhere.
+
+- mysql_socket_shutdown() was removed from vio/viosocket.cc.
+  It was replaced with inline function in include/mysql/psi/mysql_socket.h
+  but this doesn't call DisconnectEx(). We should check if we need to
+  add this to the inline function...
