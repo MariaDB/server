@@ -1,5 +1,5 @@
-/*
-   Copyright (c) 2005, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2005, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -477,8 +477,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   void mark_xids_active(uint xid_count);
 
 public:
-  MYSQL_LOG::generate_name;
-  MYSQL_LOG::is_open;
+  using MYSQL_LOG::generate_name;
+  using MYSQL_LOG::is_open;
 
   /* This is relay log */
   bool is_relay_log;
