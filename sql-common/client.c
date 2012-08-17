@@ -775,7 +775,7 @@ restart:
     DBUG_PRINT("error",("Wrong connection or packet. fd: %s  len: %lu",
 			vio_description(net->vio),len));
 #ifdef MYSQL_SERVER
-    if (net->vio && vio_was_interrupted(net->vio))
+    if (net->vio && (net->last_errno == ER_NET_READ_INTERRUPTED))
       return (packet_error);
 #endif /*MYSQL_SERVER*/
     end_server(mysql);

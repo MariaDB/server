@@ -451,6 +451,16 @@ int sslconnect(struct st_VioSSLFd *ptr, Vio *vio, long timeout, unsigned long *e
 }
 
 
+int vio_ssl_blocking(Vio *vio __attribute__((unused)),
+		     my_bool set_blocking_mode,
+		     my_bool *old_mode)
+{
+  /* Mode is always blocking */
+  *old_mode= 1;
+  /* Return error if we try to change to non_blocking mode */
+  return (set_blocking_mode ? 0 : 1);
+}
+
 my_bool vio_ssl_has_data(Vio *vio)
 {
   return SSL_pending(vio->ssl_arg) > 0 ? TRUE : FALSE;

@@ -186,12 +186,12 @@ bool read_texts(const char *file_name, const char *language,
     goto err;
   funktpos=2;
   if (head[0] != (uchar) 254 || head[1] != (uchar) 254 ||
-      head[2] != 2 || head[3] != 1)
+      head[2] != 2 || head[3] != 2)
     goto err; /* purecov: inspected */
   textcount=head[4];
 
   error_message_charset_info= system_charset_info;
-  length=uint2korr(head+6); count=uint2korr(head+8);
+  length=uint4korr(head+6); count=uint2korr(head+10);
 
   if (count < error_messages)
   {
@@ -203,7 +203,7 @@ Error message file '%s' had only %d error messages, but it should contain at lea
   }
 
   if (!(*point= (const char**)
-	my_malloc((size_t) (length+count*sizeof(char*)),MYF(0))))
+	my_malloc((size_t) (max(length,count*2)+count*sizeof(char*)),MYF(0))))
   {
     funktpos=3;					/* purecov: inspected */
     goto err;					/* purecov: inspected */

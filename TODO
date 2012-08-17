@@ -1,4 +1,4 @@
-State of MERGE between MariaDB 5.5 and MySQL 5.6.5
+State of MERGE between MariaDB 5.5 and MySQL 5.6.5-m8
 
 Featured copied/merged
 - storage/innodb/*

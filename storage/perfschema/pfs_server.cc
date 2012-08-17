@@ -157,7 +157,6 @@ static void destroy_pfs_thread(void *key)
 static void cleanup_performance_schema(void)
 {
   cleanup_instrument_config();
-/*  Disabled: Bug#5666
   cleanup_instruments();
   cleanup_sync_class();
   cleanup_thread_class();
@@ -182,8 +181,8 @@ static void cleanup_performance_schema(void)
   cleanup_account();
   cleanup_account_hash();
   cleanup_digest();
+  cleanup_digest_hash();
   PFS_atomic::cleanup();
-*/
 }
 
 void shutdown_performance_schema(void)

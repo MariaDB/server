@@ -119,6 +119,10 @@ void cleanup_account(void)
   account_array= NULL;
   pfs_free(account_instr_class_waits_array);
   account_instr_class_waits_array= NULL;
+  pfs_free(account_instr_class_stages_array);
+  account_instr_class_stages_array= 0;
+  pfs_free(account_instr_class_statements_array);
+  account_instr_class_statements_array=0;
   account_max= 0;
 }
 

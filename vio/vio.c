@@ -106,6 +106,8 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->was_timeout    =vio_was_timeout;
     vio->vioclose	=vio_close_pipe;
     vio->peer_addr	=vio_peer_addr;
+    vio->vioblocking	=vio_blocking;
+    vio->is_blocking	=vio_is_blocking;
     vio->io_wait        =no_io_wait;
     vio->is_connected   =vio_is_connected_pipe;
     vio->has_data       =has_no_data;
@@ -126,6 +128,8 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->was_timeout    =vio_was_timeout;
     vio->vioclose	=vio_close_shared_memory;
     vio->peer_addr	=vio_peer_addr;
+    vio->vioblocking	=vio_blocking;
+    vio->is_blocking	=vio_is_blocking;
     vio->io_wait        =no_io_wait;
     vio->is_connected   =vio_is_connected_shared_memory;
     vio->has_data       =vio_shared_memory_has_data;
@@ -146,6 +150,8 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
     vio->was_timeout    =vio_was_timeout;
     vio->vioclose	=vio_ssl_close;
     vio->peer_addr	=vio_peer_addr;
+    vio->vioblocking	=vio_ssl_blocking;
+    vio->is_blocking	=vio_is_blocking;
     vio->io_wait        =vio_io_wait;
     vio->is_connected   =vio_is_connected;
     vio->has_data       =vio_ssl_has_data;
@@ -164,6 +170,8 @@ static void vio_init(Vio *vio, enum enum_vio_type type,
   vio->was_timeout      =vio_was_timeout;
   vio->vioclose         =vio_close;
   vio->peer_addr        =vio_peer_addr;
+  vio->vioblocking	=vio_blocking;
+  vio->is_blocking	=vio_is_blocking;
   vio->io_wait          =vio_io_wait;
   vio->is_connected     =vio_is_connected;
   vio->shutdown         =vio_socket_shutdown;
