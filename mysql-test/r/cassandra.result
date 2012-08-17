@@ -1,0 +1,20 @@
+drop table if exists t0, t1;
+create table t1 (a int) engine=cassandra 
+thrift_host='localhost' keyspace='foo' column_family='colfam';
+ERROR 42000: Incorrect column name 'First column must be named 'rowkey''
+create table t1 (a int primary key, b int) engine=cassandra
+thrift_host='localhost' keyspace='foo' column_family='colfam';
+ERROR 42000: Incorrect column name 'First column must be named 'rowkey''
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='127.0.0.2' keyspace='foo' column_family='colfam';
+ERROR HY000: Unable to connect to foreign data source: connect() failed: Connection refused [1]
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='localhost' keyspace='no_such_keyspace' column_family='colfam';
+ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace no_such_keyspace does not exist]
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+thrift_host='localhost' keyspace='no_such_keyspace';
+ERROR HY000: Can't create table 'test.t1' (errno: 140)
+create table t1 (rowkey char(36) primary key, column1 char(60)) engine=cassandra 
+thrift_host='localhost' keyspace='mariadbtest' column_family='cf1';
+insert into t1 values ('key0', 'data1');
+drop table t1;
