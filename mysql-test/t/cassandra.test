@@ -1,0 +1,68 @@
+#
+# Tests for cassandra storage engine
+#
+--source include/have_cassandra.inc
+
+--disable_warnings
+drop table if exists t0, t1;
+--enable_warnings
+
+# Test various errors on table creation.
+--error ER_WRONG_COLUMN_NAME
+create table t1 (a int) engine=cassandra 
+  thrift_host='localhost' keyspace='foo' column_family='colfam';
+
+--error ER_WRONG_COLUMN_NAME
+create table t1 (a int primary key, b int) engine=cassandra
+  thrift_host='localhost' keyspace='foo' column_family='colfam';
+
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+  thrift_host='127.0.0.2' keyspace='foo' column_family='colfam';
+
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+  thrift_host='localhost' keyspace='no_such_keyspace' column_family='colfam';
+
+# No column family specified
+--error ER_CANT_CREATE_TABLE
+create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
+  thrift_host='localhost' keyspace='no_such_keyspace';
+
+############################################################################
+## Cassandra initialization:
+############################################################################
+--disable_parsing
+
+./cqlsh --cql3
+
+CREATE KEYSPACE mariadbtest
+  WITH strategy_class = 'org.apache.cassandra.locator.SimpleStrategy'
+  AND strategy_options:replication_factor='1';
+
+USE mariadbtest;
+create columnfamily cf1 ( pk varchar primary key, data1 varchar);
+
+--enable_parsing
+############################################################################
+## Cassandra initialization ends
+############################################################################
+
+# Now, create a table for real and insert data
+create table t1 (rowkey char(36) primary key, column1 char(60)) engine=cassandra 
+  thrift_host='localhost' keyspace='mariadbtest' column_family='cf1';
+
+insert into t1 values ('key0', 'data1');
+
+drop table t1;
+
+############################################################################
+## Cassandra cleanup
+############################################################################
+--disable_parsing
+drop columnfamily cf1;
+--enable_parsing
+############################################################################
+## Cassandra cleanup ends
+############################################################################
+
