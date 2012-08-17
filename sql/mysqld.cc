@@ -3752,8 +3752,6 @@ static int init_common_variables()
   global_system_variables.character_set_results= default_charset_info;
   global_system_variables.character_set_client=  default_charset_info;
 
-  global_system_variables.use_stat_tables= 0;
- 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
                               MY_CS_PRIMARY, MYF(MY_WME))))
