@@ -88,7 +88,6 @@ int	vio_keepalive(Vio *vio, my_bool	onoff);
 my_bool	vio_should_retry(Vio *vio);
 /* Check that operation was timed out */
 my_bool vio_was_timeout(Vio *vio);
-my_bool	vio_was_interrupted(Vio *vio);
 /* Short text description of the socket for those, who are curious.. */
 const char* vio_description(Vio *vio);
 /* Return the type of the connection */
@@ -192,12 +191,10 @@ void vio_end(void);
 #define vio_keepalive(vio, set_keep_alive)	(vio)->viokeepalive(vio, set_keep_alive)
 #define vio_should_retry(vio) 			(vio)->should_retry(vio)
 #define vio_was_timeout(vio)                    (vio)->was_timeout(vio)
-#define vio_was_interrupted(vio) 		(vio)->was_interrupted(vio)
 #define vio_close(vio)				((vio)->vioclose)(vio)
 #define vio_shutdown(vio,how)			((vio)->shutdown)(vio,how)
 #define vio_peer_addr(vio, buf, prt, buflen)	(vio)->peer_addr(vio, buf, prt, buflen)
 #define vio_io_wait(vio, event, timeout)        (vio)->io_wait(vio, event, timeout)
-#define vio_timeout(vio, which, seconds)	(vio)->timeout(vio, which, seconds)
 #define vio_is_connected(vio)                   (vio)->is_connected(vio)
 #endif /* !defined(DONT_MAP_VIO) */
 
@@ -260,7 +257,6 @@ struct st_vio
   void    (*in_addr)(Vio*, struct sockaddr_storage*);
   my_bool (*should_retry)(Vio*);
   my_bool (*was_timeout)(Vio*);
-  my_bool (*was_interrupted)(Vio*);
   int     (*vioclose)(Vio*);
   my_bool (*is_connected)(Vio*);
   int (*shutdown)(Vio *, int);

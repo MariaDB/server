@@ -467,6 +467,10 @@ void cleanup_instruments(void)
   global_instr_class_stages_array= NULL;
   pfs_free(global_instr_class_statements_array);
   global_instr_class_statements_array= NULL;
+  pfs_free(thread_instr_class_statements_array);
+  thread_instr_class_statements_array= NULL;
+  pfs_free(thread_instr_class_stages_array);
+  thread_instr_class_stages_array= NULL;
   DBUG_VOID_RETURN;
 }
 

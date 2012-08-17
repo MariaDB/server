@@ -39,7 +39,7 @@
 #ifndef DBUG_OFF
 #define TRASH_FILL(A,B,C) do { const size_t trash_tmp= (B) ; bfill(A, trash_tmp, C); MEM_UNDEFINED(A, trash_tmp); } while (0)
 #else
-#define TRASH_FILL(A,B,C) do{ const size_t trash_tmp= (B) ; MEM_CHECK_ADDRESSABLE(A,trash_tmp);MEM_UNDEFINED(A,trash_tmp);} while (0)
+#define TRASH_FILL(A,B,C) do{ const size_t trash_tmp __attribute((unused)) = (B) ; MEM_CHECK_ADDRESSABLE(A,trash_tmp);MEM_UNDEFINED(A,trash_tmp);} while (0)
 #endif
 #define TRASH_ALLOC(A,B) TRASH_FILL(A,B,0xA5)
 #define TRASH_FREE(A,B) TRASH_FILL(A,B,0x8F)

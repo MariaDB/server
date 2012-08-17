@@ -295,7 +295,7 @@ void net_clear(NET *net, my_bool clear_buffer __attribute__((unused)))
   {
     size_t count;
     int ready;
-    while ((ready= net_data_is_ready(net->vio->sd)) > 0)
+    while ((ready= net_data_is_ready(vio_fd(net->vio))) > 0)
     {
       /* The socket is ready */
       if ((long) (count= vio_read(net->vio, net->buff,
@@ -895,7 +895,7 @@ my_real_read(NET *net, size_t *complen)
 			      remain, vio_errno(net->vio), (long) length));
 	  len= packet_error;
 	  net->error= 2;				/* Close socket */
-          net->last_errno= (vio_was_interrupted(net->vio) ?
+          net->last_errno= (vio_was_timeout(net->vio) ?
                                    ER_NET_READ_INTERRUPTED :
                                    ER_NET_READ_ERROR);
           MYSQL_SERVER_my_error(net->last_errno, MYF(0));
@@ -1160,13 +1160,12 @@ void my_net_set_read_timeout(NET *net, uint timeout)
 {
   DBUG_ENTER("my_net_set_read_timeout");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
-  if (net->read_timeout == timeout)
-    DBUG_VOID_RETURN;
-  net->read_timeout= timeout;
-#ifdef NO_ALARM
-  if (net->vio)
-    vio_timeout(net->vio, 0, timeout);
-#endif
+  if (net->read_timeout != timeout)
+  {
+    net->read_timeout= timeout;
+    if (net->vio)
+      vio_timeout(net->vio, 0, timeout);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1175,12 +1174,11 @@ void my_net_set_write_timeout(NET *net, uint timeout)
 {
   DBUG_ENTER("my_net_set_write_timeout");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
-  if (net->write_timeout == timeout)
-    DBUG_VOID_RETURN;
-  net->write_timeout= timeout;
-#ifdef NO_ALARM
-  if (net->vio)
-    vio_timeout(net->vio, 1, timeout);
-#endif
+  if (net->write_timeout != timeout)
+  {
+    net->write_timeout= timeout;
+    if (net->vio)
+      vio_timeout(net->vio, 1, timeout);
+  }
   DBUG_VOID_RETURN;
 }

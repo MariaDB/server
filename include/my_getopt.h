@@ -87,8 +87,6 @@ struct my_option
 
 
 typedef my_bool (*my_get_one_option)(int, const struct my_option *, char *);
-typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
-  ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);
 
 /**
   Used to retrieve a reference to the object (variable) that holds the value

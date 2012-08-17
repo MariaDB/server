@@ -50,7 +50,7 @@ static char *default_dbug_option= (char*) "d:t:O,/tmp/comp_err.trace";
 #endif
 
 /* Header for errmsg.sys files */
-uchar file_head[]= { 254, 254, 2, 1 };
+uchar file_head[]= { 254, 254, 2, 2 };
 /* Store positions to each error message row to store in errmsg.sys header */
 uint file_pos[MAX_ROWS];
 
@@ -371,8 +371,8 @@ static int create_sys_files(struct languages *lang_head,
     bzero((uchar*) head, HEADER_LENGTH);
     bmove((uchar *) head, (uchar *) file_head, 4);
     head[4]= 1;
-    int2store(head + 6, length);
-    int2store(head + 8, row_count);
+    int4store(head + 6, length);
+    int2store(head + 10, row_count);
     head[30]= csnum;
 
     my_fseek(to, 0l, MY_SEEK_SET, MYF(0));
