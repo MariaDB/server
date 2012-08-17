@@ -1,5 +1,8 @@
 --source include/have_stat_tables.inc
 
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
 set @save_use_stat_tables=@@use_stat_tables;
 
 set use_stat_tables='preferably';
