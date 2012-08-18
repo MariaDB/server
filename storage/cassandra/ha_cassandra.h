@@ -24,6 +24,7 @@ typedef struct st_cassandra_share {
   THR_LOCK lock;
 } CASSANDRA_SHARE;
 
+class ColumnDataConverter;
 
 /** @brief
   Class definition for the storage engine
@@ -38,6 +39,12 @@ class ha_cassandra: public handler
   /* pre-allocated array of #fields elements */
   NameAndValue *names_and_vals;
   NameAndValue *get_names_and_vals();
+
+
+  ColumnDataConverter **field_converters;
+  uint n_field_converters;
+  bool setup_field_converters(Field **field, uint n_fields);
+  void free_field_converters();
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()

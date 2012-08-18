@@ -212,7 +212,8 @@ static handler* cassandra_create_handler(handlerton *hton,
 
 ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg),
-   se(NULL), names_and_vals(NULL)
+   se(NULL), names_and_vals(NULL),
+   field_converters(NULL)
 {}
 
 
@@ -246,6 +247,12 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
   if (se->connect(options->host, options->keyspace))
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
+    DBUG_RETURN(HA_ERR_NO_CONNECTION);
+  }
+
+  if (setup_field_converters(table->field, table->s->fields))
+  {
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "setup_field_converters");
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
 
@@ -317,16 +324,6 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
-/*
-  pfield++;
-  if (strcmp((*pfield)->field_name, "data"))
-  {
-    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "Second column must be named 'data'");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-  }
-*/
-  
-
 
 #ifndef DBUG_OFF
 /*  
@@ -358,29 +355,12 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
-
-  /* 
-    TODO: what about mapping the primary key? It has a 'type', too...
-    see CfDef::key_validation_class ? see also CfDef::key_alias?
-  */
-  se->first_ddl_column();
-  char *col_name;
-  int  col_name_len;
-  char *col_type;
-  int col_type_len;
-  while (!se->next_ddl_column(&col_name, &col_name_len, &col_type,
-                              &col_type_len))
+  
+  if (setup_field_converters(table_arg->s->field, table_arg->s->fields))
   {
-    /* Mapping for the 1st field is already known */
-    for (Field **field= table_arg->s->field + 1; *field; field++)
-    {
-      if (!strcmp((*field)->field_name, col_name))
-      {
-        //map_field_to_type(field, col_type);
-      }
-    }
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "setup_field_converters");
+    DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
-
   DBUG_RETURN(0);
 }
 
@@ -391,36 +371,223 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
 
 */
 
-const char * const validator_bigint="org.apache.cassandra.db.marshal.LongType";
-const char * const validator_int="org.apache.cassandra.db.marshal.Int32Type";
+/* Converter base */
+class ColumnDataConverter
+{
+public:
+  Field *field;
+
+  /* This will save Cassandra's data in the Field */
+  virtual void cassandra_to_mariadb(const char *cass_data, 
+                                    int cass_data_len)=0;
+
+  /*
+    This will get data from the Field pointer, store Cassandra's form
+    in internal buffer, and return pointer/size.
+  */
+  virtual void mariadb_to_cassandra(char **cass_data, int *cass_data_len)=0;
+  virtual ~ColumnDataConverter() {};
+};
+
+
+class DoubleDataConverter : public ColumnDataConverter
+{
+  double buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    DBUG_ASSERT(cass_data_len == sizeof(double));
+    double *pdata= (double*) cass_data;
+    field->store(*pdata);
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    buf= field->val_real();
+    *cass_data= (char*)&buf;
+    *cass_data_len=sizeof(double);
+  }
+  ~DoubleDataConverter(){}
+};
+
+
+class FloatDataConverter : public ColumnDataConverter
+{
+  float buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    DBUG_ASSERT(cass_data_len == sizeof(float));
+    float *pdata= (float*) cass_data;
+    field->store(*pdata);
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    buf= field->val_real();
+    *cass_data= (char*)&buf;
+    *cass_data_len=sizeof(float);
+  }
+  ~FloatDataConverter(){}
+};
+
+
+class BigintDataConverter : public ColumnDataConverter
+{
+  longlong buf;
+public:
+  void flip(const char *from, char* to)
+  {
+    to[0]= from[7];
+    to[1]= from[6];
+    to[2]= from[5];
+    to[3]= from[4];
+    to[4]= from[3];
+    to[5]= from[2];
+    to[6]= from[1];
+    to[7]= from[0];
+  }
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    longlong tmp;
+    DBUG_ASSERT(cass_data_len == sizeof(longlong));
+    flip(cass_data, (char*)&tmp);
+    field->store(tmp);
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    longlong tmp= field->val_int();
+    flip((const char*)&tmp, (char*)&buf);
+    *cass_data= (char*)&buf;
+    *cass_data_len=sizeof(longlong);
+  }
+  ~BigintDataConverter(){}
+};
+
+
+class StringCopyConverter : public ColumnDataConverter
+{
+  String buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    field->store(cass_data, cass_data_len,field->charset());
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    String *pstr= field->val_str(&buf);
+    *cass_data= (char*)pstr->c_ptr();
+    *cass_data_len= pstr->length();
+  }
+  ~StringCopyConverter(){}
+};
+
+
+const char * const validator_bigint=  "org.apache.cassandra.db.marshal.LongType";
+const char * const validator_int=     "org.apache.cassandra.db.marshal.Int32Type";
 const char * const validator_counter= "org.apache.cassandra.db.marshal.CounterColumnType";
 
-const char * const validator_float= "org.apache.cassandra.db.marshal.FloatType";
-const char * const validator_double= "org.apache.cassandra.db.marshal.DoubleType";
+const char * const validator_float=   "org.apache.cassandra.db.marshal.FloatType";
+const char * const validator_double=  "org.apache.cassandra.db.marshal.DoubleType";
 
-void map_field_to_type(Field *field, const char *validator_name)
+const char * const validator_blob=    "org.apache.cassandra.db.marshal.BytesType";
+const char * const validator_ascii=   "org.apache.cassandra.db.marshal.AsciiType";
+const char * const validator_text=    "org.apache.cassandra.db.marshal.UTF8Type";
+
+
+ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
 {
+  ColumnDataConverter *res= NULL;
+
   switch(field->type()) {
     case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_LONGLONG:
       if (!strcmp(validator_name, validator_bigint))
-      {
-        //setup bigint validator
-      }
+        res= new BigintDataConverter;
       break;
     case MYSQL_TYPE_FLOAT:
       if (!strcmp(validator_name, validator_float))
+        res= new FloatDataConverter;
       break;
     case MYSQL_TYPE_DOUBLE:
       if (!strcmp(validator_name, validator_double))
+        res= new DoubleDataConverter;
       break;
-    default:
-      DBUG_ASSERT(0);
+
+    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_VARCHAR:
+      if (!strcmp(validator_name, validator_blob) ||
+          !strcmp(validator_name, validator_ascii) ||
+          !strcmp(validator_name, validator_text))
+      {
+        res= new StringCopyConverter;
+      }
+      break;
+    default:;
   }
+  return res;
 }
 
+
+bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
+{
+  char *col_name;
+  int  col_name_len;
+  char *col_type;
+  int col_type_len;
+
+  DBUG_ASSERT(!field_converters);
+  size_t memsize= sizeof(ColumnDataConverter*) * n_fields;
+  if (!(field_converters= (ColumnDataConverter**)my_malloc(memsize, MYF(0))))
+    return true;
+  bzero(field_converters, memsize);
+  n_field_converters= n_fields;
+
+  /* 
+    TODO: what about mapping the primary key? It has a 'type', too...
+    see CfDef::key_validation_class ? see also CfDef::key_alias?
+  */
+
+  se->first_ddl_column();
+  uint n_mapped= 0;
+  while (!se->next_ddl_column(&col_name, &col_name_len, &col_type,
+                              &col_type_len))
+  {
+    /* Mapping for the 1st field is already known */
+    for (Field **field= field_arg + 1; *field; field++)
+    {
+      if (!strcmp((*field)->field_name, col_name))
+      {
+        n_mapped++;
+        ColumnDataConverter **conv= field_converters + (*field)->field_index;
+        if (!(*conv= map_field_to_validator(*field, col_type)))
+          return true;
+        (*conv)->field= *field;
+      }
+    }
+  }
+
+  if (n_mapped != n_fields - 1)
+    return true;
+
+  return false;
+}
+
+
+void ha_cassandra::free_field_converters()
+{
+  if (field_converters)
+  {
+    for (uint i=0; i < n_field_converters; i++)
+      delete field_converters[i];
+    my_free(field_converters);
+    field_converters= NULL;
+  }
+}
 
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
@@ -445,27 +612,42 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
   str= table->field[0]->val_str(&tmp);
   
   bool found;
-  if (se->get_slice((char*)str->ptr(), str->length(), get_names_and_vals(), &found))
+  if (se->get_slice((char*)str->ptr(), str->length(), &found))
     rc= HA_ERR_INTERNAL_ERROR;
+  
+  /* TODO: what if we're not reading all columns?? */
+  if (!found)
+  {
+    rc= HA_ERR_KEY_NOT_FOUND;
+  }
   else
   {
-    if (found)
-    {
-      //NameAndValue *nv= get_names_and_vals();
-      // TODO: walk through the (name, value) pairs and return values.
-    }
-    else
-      rc= HA_ERR_KEY_NOT_FOUND;
-  }
-#ifdef NEW_CODE
-  
-  se->get_slice();
+    char *cass_name;
+    char *cass_value;
+    int cass_value_len;
+    Field **field;
 
-  for each column
-  {
-    find column;
+    /* Start with all fields being NULL */
+    for (field= table->field + 1; *field; field++)
+      (*field)->set_null();
+
+    while (!se->get_next_read_column(&cass_name, &cass_value, &cass_value_len))
+    {
+      // map to our column. todo: use hash or something..
+      int idx=1;
+      for (field= table->field + 1; *field; field++)
+      {
+        idx++;
+        if (!strcmp((*field)->field_name, cass_name))
+        {
+          int fieldnr= (*field)->field_index;
+          (*field)->set_notnull();
+          field_converters[fieldnr]->cassandra_to_mariadb(cass_value, cass_value_len);
+          break;
+        }
+      }
+    }
   }
-#endif
 
   DBUG_RETURN(rc);
 }
@@ -475,35 +657,34 @@ int ha_cassandra::write_row(uchar *buf)
 {
   my_bitmap_map *old_map;
   char buff[512]; 
-  NameAndValue *tuple;
-  NameAndValue *nv;
   DBUG_ENTER("ha_cassandra::write_row");
   
-  /* Temporary malloc-happy code just to get INSERTs to work */
-  nv= tuple= get_names_and_vals();
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
-
-  for (Field **field= table->field; *field; field++, nv++)
+  
+  /* Convert the key (todo: unify with the rest of the processing) */
   {
+    Field *pk_col= table->field[0];
     String tmp(buff,sizeof(buff), &my_charset_bin);
-    tmp.length(0);
     String *str;
-    str= (*field)->val_str(&tmp);
-    nv->name= (char*)(*field)->field_name;
-    nv->value_len= str->length();
-    nv->value= (char*)my_malloc(nv->value_len, MYF(0));
-    memcpy(nv->value, str->ptr(), nv->value_len);
+    tmp.length(0);
+    str= pk_col->val_str(&tmp);
+
+    se->start_prepare_insert(str->ptr(), str->length());
   }
-  nv->name= NULL;
+
+  /* Convert other fields */
+  for (uint i= 1; i < table->s->fields; i++)
+  {
+    char *cass_data;
+    int cass_data_len;
+    field_converters[i]->mariadb_to_cassandra(&cass_data, &cass_data_len);
+    se->add_insert_column(field_converters[i]->field->field_name, 
+                          cass_data, cass_data_len);
+  }
+
   dbug_tmp_restore_column_map(table->read_set, old_map);
   
-  //invoke!
-  bool res= se->insert(tuple);
-
-  for (nv= tuple; nv->name; nv++)
-  {
-    my_free(nv->value);
-  }
+  bool res= se->do_insert();
 
   DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);
 }

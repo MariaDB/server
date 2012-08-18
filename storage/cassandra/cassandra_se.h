@@ -43,10 +43,14 @@ public:
                                int *value_len)=0;
 
   /* Writes */
-  virtual bool insert(NameAndValue *fields)=0;
+  virtual void start_prepare_insert(const char *key, int key_len)=0;
+  virtual void add_insert_column(const char *name, const char *value, 
+                                 int value_len)=0;
+  virtual bool do_insert()=0;
 
   /* Reads */
-  virtual bool get_slice(char *key, size_t key_len, NameAndValue *row, bool *found)=0 ;
+  virtual bool get_slice(char *key, size_t key_len, bool *found)=0 ;
+  virtual bool get_next_read_column(char **name, char **value, int *value_len)=0;
 
   /* Passing error messages up to ha_cassandra */
   char err_buffer[512];
