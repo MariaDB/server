@@ -716,6 +716,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           !(compl_result_code=
             collect_statistics_for_table(thd, table->table)))
         compl_result_code= update_statistics_for_table(thd, table->table);
+      if (compl_result_code)
+        result_code= HA_ADMIN_FAILED;
     }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)
