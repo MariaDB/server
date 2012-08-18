@@ -1926,7 +1926,7 @@ void Column_statistics_collected::finish(ha_rows rows)
 */
 
 static
-int collect_statistics_for_index(TABLE *table, uint index)
+int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
 {
   int rc= 0;
   KEY *key_info= &table->key_info[index];
@@ -1944,6 +1944,9 @@ int collect_statistics_for_index(TABLE *table, uint index)
   rc= table->file->ha_index_first(table->record[0]);
   while (rc != HA_ERR_END_OF_FILE)
   {
+    if (thd->killed)
+      break;
+
     if (rc)
       break;
     rows++;
@@ -1953,7 +1956,7 @@ int collect_statistics_for_index(TABLE *table, uint index)
   table->key_read= 0;
   table->file->ha_index_end();
 
-  rc= (rc == HA_ERR_END_OF_FILE) ? 0 : 1;
+  rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
 
   if (!rc)
     index_prefix_calc.get_avg_frequency();
@@ -2040,6 +2043,9 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   {  
     while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
     {
+      if (thd->killed)
+        break;
+
       if (rc)
         break;
 
@@ -2054,7 +2060,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     }
     file->ha_rnd_end();
   }
-  rc= rc == HA_ERR_END_OF_FILE ? 0 : 1;
+  rc= (rc == HA_ERR_END_OF_FILE && !thd->killed) ? 0 : 1;
 
   /* 
     Calculate values for all statistical characteristics on columns and
@@ -2087,7 +2093,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     /* Collect statistics for indexes */
     while ((key= it++) != key_map::Iterator::BITMAP_END)
     {
-      if ((rc= collect_statistics_for_index(table, key)))
+      if ((rc= collect_statistics_for_index(thd, table, key)))
         break;
     }
 
