@@ -22,4 +22,7 @@ select * from t1;
 rowkey	data1	data2
 	data1-value	123456
 	data1-value2	34543
+delete from t1;
+select * from t1;
+rowkey	data1	data2
 drop table t1;

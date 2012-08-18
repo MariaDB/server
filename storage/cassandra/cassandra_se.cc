@@ -95,6 +95,8 @@ public:
   /* Setup that's necessary before a multi-row read. (todo: use it before point lookups, too) */
   void clear_read_columns();
   void add_read_column(const char *name);
+  
+  bool truncate();
 };
 
 
@@ -396,5 +398,25 @@ void Cassandra_se_impl::add_read_column(const char *name_arg)
   std::string name(name_arg);
   slice_pred.__isset.column_names= true;
   slice_pred.column_names.push_back(name);
+}
+
+
+bool Cassandra_se_impl::truncate()
+{
+  bool res= true;
+  try {
+    
+    cass->truncate(column_family);
+    res= false;
+
+  } catch (InvalidRequestException ire) {
+    print_error("%s [%s]", ire.what(), ire.why.c_str());
+  } catch (UnavailableException ue) {
+    print_error("UnavailableException: %s", ue.what());
+  } catch (TimedOutException te) {
+    print_error("TimedOutException: %s", te.what());
+  }
+
+  return res;
 }
 

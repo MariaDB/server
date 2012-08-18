@@ -55,6 +55,11 @@ create table t1 (rowkey char(36) primary key, data1 varchar(60), data2 bigint) e
 insert into t1 values ('rowkey10', 'data1-value', 123456);
 insert into t1 values ('rowkey11', 'data1-value2', 34543);
 select * from t1;
+
+# Check if deletion works
+delete from t1;
+select * from t1;
+
 drop table t1;
 
 ############################################################################
