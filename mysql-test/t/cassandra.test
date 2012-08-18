@@ -36,12 +36,12 @@ create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra
 
 ./cqlsh --cql3
 
-CREATE KEYSPACE mariadbtest
+CREATE KEYSPACE mariadbtest2
   WITH strategy_class = 'org.apache.cassandra.locator.SimpleStrategy'
   AND strategy_options:replication_factor='1';
 
-USE mariadbtest;
-create columnfamily cf1 ( pk varchar primary key, data1 varchar);
+USE mariadbtest2;
+create columnfamily cf1 ( pk varchar primary key, data1 varchar, data2 bigint);
 
 --enable_parsing
 ############################################################################
@@ -49,11 +49,12 @@ create columnfamily cf1 ( pk varchar primary key, data1 varchar);
 ############################################################################
 
 # Now, create a table for real and insert data
-create table t1 (rowkey char(36) primary key, data1 varchar(60)) engine=cassandra 
-  thrift_host='localhost' keyspace='mariadbtest' column_family='cf1';
+create table t1 (rowkey char(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
+  thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
 
-insert into t1 values ('key0', 'data1');
-
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+select * from t1;
 drop table t1;
 
 ############################################################################
