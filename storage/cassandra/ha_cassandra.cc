@@ -746,6 +746,18 @@ int ha_cassandra::rnd_next(uchar *buf)
   DBUG_RETURN(rc);
 }
 
+
+int ha_cassandra::delete_all_rows()
+{
+  bool bres;
+  DBUG_ENTER("ha_cassandra::delete_all_rows");
+
+  bres= se->truncate();
+
+  DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
 /////////////////////////////////////////////////////////////////////////////
@@ -857,13 +869,6 @@ int ha_cassandra::delete_table(const char *name)
 int ha_cassandra::delete_row(const uchar *buf)
 {
   DBUG_ENTER("ha_cassandra::delete_row");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-
-
-int ha_cassandra::delete_all_rows()
-{
-  DBUG_ENTER("ha_cassandra::delete_all_rows");
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
