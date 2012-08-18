@@ -7,22 +7,6 @@
 */
 
 
-/* 
-  Storage for (name,value) pairs. name==NULL means 'non-object'.
-
-  This should be used for 
-  - shipping data from sql to cassandra for INSERTs 
-  - shipping data from cassandra to SQL for record reads.
-
-*/
-class NameAndValue
-{
-public:
-  char *name;
-  char *value;
-  size_t value_len;
-};
-
 /*
   Interface to one cassandra column family, i.e. one 'table'
 */
@@ -51,6 +35,15 @@ public:
   /* Reads */
   virtual bool get_slice(char *key, size_t key_len, bool *found)=0 ;
   virtual bool get_next_read_column(char **name, char **value, int *value_len)=0;
+
+  /* Reads, multi-row scans */
+  virtual bool get_range_slices()=0;
+  virtual void finish_reading_range_slices()=0;
+  virtual bool get_next_range_slice_row()=0;
+  
+  /* read_set setup */
+  virtual void clear_read_columns()=0;
+  virtual void add_read_column(const char *name)=0;
 
   /* Passing error messages up to ha_cassandra */
   char err_buffer[512];

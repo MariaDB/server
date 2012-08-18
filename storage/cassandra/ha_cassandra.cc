@@ -212,8 +212,7 @@ static handler* cassandra_create_handler(handlerton *hton,
 
 ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg),
-   se(NULL), names_and_vals(NULL),
-   field_converters(NULL)
+   se(NULL), field_converters(NULL)
 {}
 
 
@@ -265,11 +264,7 @@ int ha_cassandra::close(void)
   DBUG_ENTER("ha_cassandra::close");
   delete se;
   se= NULL;
-  if (names_and_vals)
-  {
-    my_free(names_and_vals);
-    names_and_vals= NULL;
-  }
+  free_field_converters();
   DBUG_RETURN(free_share(share));
 }
 
@@ -589,6 +584,7 @@ void ha_cassandra::free_field_converters()
   }
 }
 
+
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
@@ -622,34 +618,49 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
   }
   else
   {
-    char *cass_name;
-    char *cass_value;
-    int cass_value_len;
-    Field **field;
+    read_cassandra_columns();
+  }
 
-    /* Start with all fields being NULL */
+  DBUG_RETURN(rc);
+}
+
+
+void ha_cassandra::read_cassandra_columns()
+{
+  char *cass_name;
+  char *cass_value;
+  int cass_value_len;
+  Field **field;
+  
+  /* 
+    cassandra_to_mariadb() calls will use field->store(...) methods, which
+    require that the column is in the table->write_set
+  */
+  my_bitmap_map *old_map;
+  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+
+  /* Start with all fields being NULL */
+  for (field= table->field + 1; *field; field++)
+    (*field)->set_null();
+
+  while (!se->get_next_read_column(&cass_name, &cass_value, &cass_value_len))
+  {
+    // map to our column. todo: use hash or something..
+    int idx=1;
     for (field= table->field + 1; *field; field++)
-      (*field)->set_null();
-
-    while (!se->get_next_read_column(&cass_name, &cass_value, &cass_value_len))
     {
-      // map to our column. todo: use hash or something..
-      int idx=1;
-      for (field= table->field + 1; *field; field++)
+      idx++;
+      if (!strcmp((*field)->field_name, cass_name))
       {
-        idx++;
-        if (!strcmp((*field)->field_name, cass_name))
-        {
-          int fieldnr= (*field)->field_index;
-          (*field)->set_notnull();
-          field_converters[fieldnr]->cassandra_to_mariadb(cass_value, cass_value_len);
-          break;
-        }
+        int fieldnr= (*field)->field_index;
+        (*field)->set_notnull();
+        field_converters[fieldnr]->cassandra_to_mariadb(cass_value, cass_value_len);
+        break;
       }
     }
   }
 
-  DBUG_RETURN(rc);
+  dbug_tmp_restore_column_map(table->write_set, old_map);
 }
 
 
@@ -690,19 +701,50 @@ int ha_cassandra::write_row(uchar *buf)
 }
 
 
-NameAndValue *ha_cassandra::get_names_and_vals()
+int ha_cassandra::rnd_init(bool scan)
 {
-  if (names_and_vals)
-    return names_and_vals;
-  else
-  {
-    size_t size= sizeof(NameAndValue) * (table->s->fields + 1);
-    names_and_vals= (NameAndValue*)my_malloc(size ,0);
-    memset(names_and_vals, 0, size);
-    return names_and_vals;
-  }
+  bool bres;
+  DBUG_ENTER("ha_cassandra::rnd_init");
+  if (!scan)
+    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+
+  se->clear_read_columns();
+  for (uint i= 1; i < table->s->fields; i++)
+    se->add_read_column(table->field[i]->field_name);
+
+  bres= se->get_range_slices();
+
+  DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
 }
 
+
+int ha_cassandra::rnd_end()
+{
+  DBUG_ENTER("ha_cassandra::rnd_end");
+
+  se->finish_reading_range_slices();
+  DBUG_RETURN(0);
+}
+
+
+int ha_cassandra::rnd_next(uchar *buf)
+{
+  int rc;
+  DBUG_ENTER("ha_cassandra::rnd_next");
+
+  // Unpack and return the next record.
+  if (se->get_next_range_slice_row())
+  {
+    rc= HA_ERR_END_OF_FILE;
+  }
+  else
+  {
+    read_cassandra_columns();
+    rc= 0;
+  }
+
+  DBUG_RETURN(rc);
+}
 
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
@@ -740,27 +782,6 @@ int ha_cassandra::index_last(uchar *buf)
   int rc;
   DBUG_ENTER("ha_cassandra::index_last");
   rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
-
-int ha_cassandra::rnd_init(bool scan)
-{
-  DBUG_ENTER("ha_cassandra::rnd_init");
-  DBUG_RETURN(0);
-}
-
-int ha_cassandra::rnd_end()
-{
-  DBUG_ENTER("ha_cassandra::rnd_end");
-  DBUG_RETURN(0);
-}
-
-
-int ha_cassandra::rnd_next(uchar *buf)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::rnd_next");
-  rc= HA_ERR_END_OF_FILE;
   DBUG_RETURN(rc);
 }
 

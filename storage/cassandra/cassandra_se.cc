@@ -60,7 +60,12 @@ class Cassandra_se_impl: public Cassandra_se_interface
   std::string key_to_insert;
   int64_t insert_timestamp;
   std::vector<Mutation>* insert_list;
+   
+  /* Resultset we're reading */
+  std::vector<KeySlice> key_slice_vec;
+  std::vector<KeySlice>::iterator key_slice_it;
 
+  SlicePredicate slice_pred;
 public:
   Cassandra_se_impl() : cass(NULL) {}
   virtual ~Cassandra_se_impl(){ delete cass; }
@@ -78,10 +83,18 @@ public:
   void add_insert_column(const char *name, const char *value, int value_len);
   bool do_insert();
 
-  /* Reads */
+  /* Reads, point lookups */
   bool get_slice(char *key, size_t key_len, bool *found);
   bool get_next_read_column(char **name, char **value, int *value_len);
 
+  /* Reads, multi-row scans */
+  bool get_range_slices();
+  void finish_reading_range_slices();
+  bool get_next_range_slice_row();
+
+  /* Setup that's necessary before a multi-row read. (todo: use it before point lookups, too) */
+  void clear_read_columns();
+  void add_read_column(const char *name);
 };
 
 
@@ -265,7 +278,7 @@ bool Cassandra_se_impl::get_slice(char *key, size_t key_len, bool *found)
 
   try {
     cass->get_slice(column_data_vec, rowkey_str, cparent, slice_pred, 
-                    ConsistencyLevel::ONE);
+                    cur_consistency_level);
 
     if (column_data_vec.size() == 0)
     {
@@ -317,4 +330,71 @@ bool Cassandra_se_impl::get_next_read_column(char **name, char **value,
   return false;
 }
 
+
+bool Cassandra_se_impl::get_range_slices() //todo: start_range/end_range as parameters
+{
+  bool res= true;
+  
+  ColumnParent cparent;
+  cparent.column_family= column_family;
+  
+  /* SlicePredicate can be used to limit columns we will retrieve */
+   // Try passing nothing...
+
+  KeyRange key_range; // Try passing nothing, too.
+  key_range.__isset.start_key=true;
+  key_range.__isset.end_key=true;
+  key_range.start_key.assign("", 0);
+  key_range.end_key.assign("", 0);
+
+  try {
+  
+    cass->get_range_slices(key_slice_vec,
+                           cparent, slice_pred, key_range, 
+                           cur_consistency_level);
+    res= false;
+
+  } catch (InvalidRequestException ire) {
+    print_error("%s [%s]", ire.what(), ire.why.c_str());
+  } catch (UnavailableException ue) {
+    print_error("UnavailableException: %s", ue.what());
+  } catch (TimedOutException te) {
+    print_error("TimedOutException: %s", te.what());
+  }
+
+  key_slice_it= key_slice_vec.begin();
+  return res;
+}
+
+
+bool Cassandra_se_impl::get_next_range_slice_row()
+{
+  if (key_slice_it == key_slice_vec.end())
+    return true;
+  
+  column_data_vec= key_slice_it->columns;
+  column_data_it= column_data_vec.begin();
+  key_slice_it++;
+  return false;
+}
+
+
+void Cassandra_se_impl::finish_reading_range_slices()
+{
+  key_slice_vec.clear();
+}
+
+
+void Cassandra_se_impl::clear_read_columns()
+{
+  slice_pred.column_names.clear();
+}
+
+
+void Cassandra_se_impl::add_read_column(const char *name_arg)
+{
+  std::string name(name_arg);
+  slice_pred.__isset.column_names= true;
+  slice_pred.column_names.push_back(name);
+}
 
