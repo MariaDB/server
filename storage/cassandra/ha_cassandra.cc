@@ -625,7 +625,7 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
                                  key_part_map keypart_map,
                                  enum ha_rkey_function find_flag)
 {
-  int rc;
+  int rc= 0;
   DBUG_ENTER("ha_cassandra::index_read_map");
   
   if (find_flag != HA_READ_KEY_EXACT)
@@ -824,9 +824,15 @@ int ha_cassandra::delete_all_rows()
 
 int ha_cassandra::delete_row(const uchar *buf)
 {
+  bool bres;
   DBUG_ENTER("ha_cassandra::delete_row");
-  // todo: delete the row we've just read.
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  
+  bres= se->remove_row();
+  
+  if (bres)
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+  
+  DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
 }
 
 

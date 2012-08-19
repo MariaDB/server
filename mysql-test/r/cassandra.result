@@ -14,8 +14,11 @@ ERROR HY000: Unable to connect to foreign data source: Default TException. [Keys
 create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
 thrift_host='localhost' keyspace='no_such_keyspace';
 ERROR HY000: Unable to connect to foreign data source: thrift_host, keyspace, and column_family table options must be s
+# Now, create a table for real and insert data
 create table t1 (rowkey varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
 thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
+# Just in case there were left-overs from previous:
+delete from t1;
 select * from t1;
 rowkey	data1	data2
 insert into t1 values ('rowkey10', 'data1-value', 123456);
@@ -33,6 +36,12 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select * from t1 where rowkey='rowkey11';
 rowkey	data1	data2
 rowkey11	data1-value2	34543
+delete from t1 where rowkey='rowkey11';
+select * from t1;
+rowkey	data1	data2
+rowkey12	data1-value3	454
+rowkey10	data1-value	123456
+rowkey11	NULL	NULL
 delete from t1;
 select * from t1;
 rowkey	data1	data2

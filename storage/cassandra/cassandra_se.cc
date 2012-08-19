@@ -101,6 +101,10 @@ public:
   void add_read_column(const char *name);
   
   bool truncate();
+  bool remove_row();
+
+  /* Non-inherited utility functions: */
+  int64_t get_i64_timestamp();
 };
 
 
@@ -215,6 +219,18 @@ void Cassandra_se_impl::get_rowkey_type(char **name, char **type)
 /////////////////////////////////////////////////////////////////////////////
 // Data writes
 /////////////////////////////////////////////////////////////////////////////
+int64_t Cassandra_se_impl::get_i64_timestamp()
+{
+  struct timeval td;
+  gettimeofday(&td, NULL);
+  int64_t ms = td.tv_sec;
+  ms = ms * 1000;
+  int64_t usec = td.tv_usec;
+  usec = usec / 1000;
+  ms += usec;
+  
+  return ms;
+}
 
 void Cassandra_se_impl::start_prepare_insert(const char *key, int key_len)
 {
@@ -226,14 +242,7 @@ void Cassandra_se_impl::start_prepare_insert(const char *key, int key_len)
   cf_mut[column_family]= std::vector<Mutation>();
   insert_list= &cf_mut[column_family];
 
-  struct timeval td;
-  gettimeofday(&td, NULL);
-  int64_t ms = td.tv_sec;
-  ms = ms * 1000;
-  int64_t usec = td.tv_usec;
-  usec = usec / 1000;
-  ms += usec;
-  insert_timestamp= ms;
+  insert_timestamp= get_i64_timestamp();
 }
 
 
@@ -448,3 +457,25 @@ bool Cassandra_se_impl::truncate()
   return res;
 }
 
+bool Cassandra_se_impl::remove_row()
+{
+  bool res= true;
+
+  ColumnPath column_path;
+  column_path.column_family= column_family;
+
+  try {
+    
+    cass->remove(rowkey, column_path, get_i64_timestamp(), cur_consistency_level);
+    res= false;
+
+  } catch (InvalidRequestException ire) {
+    print_error("%s [%s]", ire.what(), ire.why.c_str());
+  } catch (UnavailableException ue) {
+    print_error("UnavailableException: %s", ue.what());
+  } catch (TimedOutException te) {
+    print_error("TimedOutException: %s", te.what());
+  }
+
+  return res;
+}
