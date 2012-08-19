@@ -48,6 +48,8 @@ public:
   virtual void add_read_column(const char *name)=0;
   
   virtual bool truncate()=0;
+  virtual bool remove_row()=0;
+
   /* Passing error messages up to ha_cassandra */
   char err_buffer[512];
   const char *error_str() { return err_buffer; }
