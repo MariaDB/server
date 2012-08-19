@@ -25,6 +25,7 @@ public:
   virtual void first_ddl_column()=0;
   virtual bool next_ddl_column(char **name, int *name_len, char **value, 
                                int *value_len)=0;
+  virtual void get_rowkey_type(char **name, char **type)=0;
 
   /* Writes */
   virtual void start_prepare_insert(const char *key, int key_len)=0;
@@ -35,6 +36,7 @@ public:
   /* Reads */
   virtual bool get_slice(char *key, size_t key_len, bool *found)=0 ;
   virtual bool get_next_read_column(char **name, char **value, int *value_len)=0;
+  virtual void get_read_rowkey(char **value, int *value_len)=0;
 
   /* Reads, multi-row scans */
   virtual bool get_range_slices()=0;
