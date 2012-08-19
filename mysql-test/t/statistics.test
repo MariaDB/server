@@ -353,6 +353,11 @@ SELECT * FROM mysql.table_stat;
 SELECT * FROM mysql.column_stat;
 SELECT * FROM mysql.index_stat;
 
+DELETE FROM mysql.index_stat WHERE table_name='t1' AND index_name='primary';
+SELECT * FROM mysql.index_stat;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
+SELECT * FROM mysql.index_stat;
+
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;

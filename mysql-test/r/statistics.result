@@ -893,6 +893,25 @@ test	t1	idx2	2	2.3846
 test	t1	idx4	1	6.2000
 test	t1	idx4	2	1.6875
 test	t1	idx4	3	1.1304
+DELETE FROM mysql.index_stat WHERE table_name='t1' AND index_name='primary';
+SELECT * FROM mysql.index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.index_stat;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+test	t1	PRIMARY	1	1.0000
 DELETE FROM mysql.table_stat;
 DELETE FROM mysql.column_stat;
 DELETE FROM mysql.index_stat;
