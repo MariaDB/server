@@ -254,6 +254,8 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
 
+  info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+
   DBUG_RETURN(0);
 }
 
@@ -307,6 +309,12 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   if (strcmp((*pfield)->field_name, "rowkey"))
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be named 'rowkey'");
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+  }
+
+  if (!((*pfield)->flags & NOT_NULL_FLAG))
+  {
+    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be NOT NULL");
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
@@ -633,13 +641,6 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
 
   uint key_len= calculate_key_len(table, active_index, key, keypart_map);
   store_key_image_to_rec(table->field[0], (uchar*)key, key_len);
-#if 0  
-  char buff[256]; 
-  String tmp(buff,sizeof(buff), &my_charset_bin);
-  tmp.length(0);
-  String *str;
-  str= table->field[0]->val_str(&tmp);
-#endif
 
   char *cass_key;
   int cass_key_len;
@@ -717,23 +718,11 @@ void ha_cassandra::read_cassandra_columns(bool unpack_pk)
 int ha_cassandra::write_row(uchar *buf)
 {
   my_bitmap_map *old_map;
-//  char buff[512]; 
   DBUG_ENTER("ha_cassandra::write_row");
   
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
   
-  /* Convert the key (todo: unify with the rest of the processing) */
-#if 0  
-  {
-    Field *pk_col= table->field[0];
-    String tmp(buff,sizeof(buff), &my_charset_bin);
-    String *str;
-    tmp.length(0);
-    str= pk_col->val_str(&tmp);
-
-    se->start_prepare_insert(str->ptr(), str->length());
-  }
-#endif
+  /* Convert the key */
   char *cass_key;
   int cass_key_len;
   rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
@@ -836,6 +825,57 @@ int ha_cassandra::delete_row(const uchar *buf)
 }
 
 
+int ha_cassandra::info(uint flag)
+{
+  DBUG_ENTER("ha_cassandra::info");
+  
+  if (!table)
+    return 1;
+
+  if (flag & HA_STATUS_VARIABLE)
+  {
+    stats.records= 1000;
+    //TODO: any other stats?
+  }
+  if (flag & HA_STATUS_CONST)
+  {
+    ref_length= table->field[0]->key_length();
+  }
+
+  DBUG_RETURN(0);
+}
+
+
+void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
+              uint key_length, bool with_zerofill);
+
+
+void ha_cassandra::position(const uchar *record)
+{
+  DBUG_ENTER("ha_cassandra::position");
+  
+  /* Copy the primary key to rowid */
+  key_copy(ref, (uchar*)record, &table->key_info[0],
+           table->field[0]->key_length(), true);
+
+  DBUG_VOID_RETURN;
+}
+
+
+int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
+{
+  int rc;
+  DBUG_ENTER("ha_cassandra::rnd_pos");
+  
+  int save_active_index= active_index;
+  rc= index_read_map(buf, pos, key_part_map(1), HA_READ_KEY_EXACT);
+
+  active_index= save_active_index;
+
+  DBUG_RETURN(rc);
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
 /////////////////////////////////////////////////////////////////////////////
@@ -875,19 +915,6 @@ int ha_cassandra::index_last(uchar *buf)
   DBUG_RETURN(rc);
 }
 
-void ha_cassandra::position(const uchar *record)
-{
-  DBUG_ENTER("ha_cassandra::position");
-  DBUG_VOID_RETURN;
-}
-
-int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::rnd_pos");
-  rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
 
 ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
                                      key_range *max_key)
@@ -903,13 +930,6 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
 
   DBUG_ENTER("ha_cassandra::update_row");
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-
-
-int ha_cassandra::info(uint flag)
-{
-  DBUG_ENTER("ha_cassandra::info");
-  DBUG_RETURN(0);
 }
 
 
@@ -940,7 +960,10 @@ int ha_cassandra::external_lock(THD *thd, int lock_type)
 int ha_cassandra::delete_table(const char *name)
 {
   DBUG_ENTER("ha_cassandra::delete_table");
-  /* This is not implemented but we want someone to be able that it works. */
+  /* 
+    Cassandra table is just a view. Dropping it doesn't affect the underlying
+    column family.
+  */
   DBUG_RETURN(0);
 }
 
