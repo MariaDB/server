@@ -1597,7 +1597,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         analyze_table_list analyze_table_elem_spec
         opt_persistent_stat_clause persistent_stat_spec
         persistent_column_stat_spec persistent_index_stat_spec
-        table_column_list table_index_list
+        table_column_list table_index_list table_index_name
         check start checksum
         field_list field_list_item field_spec kill column_def key_def
         keycache_list keycache_list_or_parts assign_to_keycache
@@ -7312,17 +7312,24 @@ table_column_list:
 table_index_list:
           /* empty */
           {}
-        | ident 
-          {
-            Lex->index_list->push_back((LEX_STRING*)
-            sql_memdup(&$1, sizeof(LEX_STRING)));
-          }
-        | table_index_list ',' ident
-          {
-            Lex->index_list->push_back((LEX_STRING*)
-            sql_memdup(&$3, sizeof(LEX_STRING)));
-          }
+        | table_index_name 
+        | table_index_list ',' table_index_name
         ;
+
+table_index_name:
+          ident
+          {
+            Lex->index_list->push_back(
+              (LEX_STRING*) sql_memdup(&$1, sizeof(LEX_STRING)));
+          }
+        |
+          PRIMARY_SYM
+          {
+            LEX_STRING str= {(char*) "PRIMARY", 7};
+            Lex->index_list->push_back(
+              (LEX_STRING*) sql_memdup(&str, sizeof(LEX_STRING)));
+          }  
+        ;  
 
 binlog_base64_event:
           BINLOG_SYM TEXT_STRING_sys
