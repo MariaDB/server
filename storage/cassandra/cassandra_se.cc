@@ -64,6 +64,8 @@ class Cassandra_se_impl: public Cassandra_se_interface
   /* Resultset we're reading */
   std::vector<KeySlice> key_slice_vec;
   std::vector<KeySlice>::iterator key_slice_it;
+  
+  std::string rowkey; /* key of the record we're returning now */
 
   SlicePredicate slice_pred;
 public:
@@ -77,6 +79,7 @@ public:
   bool setup_ddl_checks();
   void first_ddl_column();
   bool next_ddl_column(char **name, int *name_len, char **value, int *value_len);
+  void get_rowkey_type(char **name, char **type);
 
   /* Writes */
   void start_prepare_insert(const char *key, int key_len);
@@ -86,6 +89,7 @@ public:
   /* Reads, point lookups */
   bool get_slice(char *key, size_t key_len, bool *found);
   bool get_next_read_column(char **name, char **value, int *value_len);
+  void get_read_rowkey(char **value, int *value_len);
 
   /* Reads, multi-row scans */
   bool get_range_slices();
@@ -193,6 +197,21 @@ bool Cassandra_se_impl::next_ddl_column(char **name, int *name_len,
   return false;
 }
 
+
+void Cassandra_se_impl::get_rowkey_type(char **name, char **type)
+{
+  if (cf_def.__isset.key_validation_class)
+    *type= (char*)cf_def.key_validation_class.c_str();
+  else
+    *type= NULL;
+
+  if (cf_def.__isset.key_alias)
+    *name= (char*)cf_def.key_alias.c_str();
+  else
+    *name= NULL;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Data writes
 /////////////////////////////////////////////////////////////////////////////
@@ -269,8 +288,7 @@ bool Cassandra_se_impl::get_slice(char *key, size_t key_len, bool *found)
   ColumnParent cparent;
   cparent.column_family= column_family;
 
-  std::string rowkey_str;
-  rowkey_str.assign(key, key_len);
+  rowkey.assign(key, key_len);
 
   SlicePredicate slice_pred;
   SliceRange sr;
@@ -279,7 +297,7 @@ bool Cassandra_se_impl::get_slice(char *key, size_t key_len, bool *found)
   slice_pred.__set_slice_range(sr);
 
   try {
-    cass->get_slice(column_data_vec, rowkey_str, cparent, slice_pred, 
+    cass->get_slice(column_data_vec, rowkey, cparent, slice_pred, 
                     cur_consistency_level);
 
     if (column_data_vec.size() == 0)
@@ -333,6 +351,15 @@ bool Cassandra_se_impl::get_next_read_column(char **name, char **value,
 }
 
 
+/* Return the rowkey for the record that was read */
+
+void Cassandra_se_impl::get_read_rowkey(char **value, int *value_len)
+{
+  *value= (char*)rowkey.c_str();
+  *value_len= rowkey.length();
+}
+
+
 bool Cassandra_se_impl::get_range_slices() //todo: start_range/end_range as parameters
 {
   bool res= true;
@@ -375,6 +402,7 @@ bool Cassandra_se_impl::get_next_range_slice_row()
     return true;
   
   column_data_vec= key_slice_it->columns;
+  rowkey= key_slice_it->key;
   column_data_it= column_data_vec.begin();
   key_slice_it++;
   return false;

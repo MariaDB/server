@@ -212,7 +212,7 @@ static handler* cassandra_create_handler(handlerton *hton,
 
 ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg),
-   se(NULL), field_converters(NULL)
+   se(NULL), field_converters(NULL),rowkey_converter(NULL)
 {}
 
 
@@ -251,7 +251,6 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
 
   if (setup_field_converters(table->field, table->s->fields))
   {
-    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "setup_field_converters");
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
 
@@ -341,8 +340,12 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
 */
 #endif
   DBUG_ASSERT(!se);
-  if (!options->host || !options->keyspace || !options->column_family)
+  if (!options->host  || !options->keyspace || !options->column_family)
+  {
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), 
+             "thrift_host, keyspace, and column_family table options must be specified");
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+  }
   se= get_cassandra_se();
   se->set_column_family(options->column_family);
   if (se->connect(options->host, options->keyspace))
@@ -515,6 +518,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
 
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_VARCHAR:
+    //case MYSQL_TYPE_STRING:  <-- todo: should we allow end-padded 'CHAR(N)'?
       if (!strcmp(validator_name, validator_blob) ||
           !strcmp(validator_name, validator_ascii) ||
           !strcmp(validator_name, validator_text))
@@ -560,7 +564,12 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
         n_mapped++;
         ColumnDataConverter **conv= field_converters + (*field)->field_index;
         if (!(*conv= map_field_to_validator(*field, col_type)))
+        {
+          se->print_error("Failed to map column %s to datatype %s", 
+                          (*field)->field_name, col_type);
+          my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
           return true;
+        }
         (*conv)->field= *field;
       }
     }
@@ -568,6 +577,28 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
 
   if (n_mapped != n_fields - 1)
     return true;
+  
+  /* 
+    Setup type conversion for row_key. It may also have a name, but we ignore
+    it currently
+  */
+  se->get_rowkey_type(&col_name, &col_type);
+  if (col_type != NULL)
+  {
+    if (!(rowkey_converter= map_field_to_validator(*field_arg, col_type)))
+    {
+      se->print_error("Failed to map PRIMARY KEY to datatype %s", col_type);
+      my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+      return true;
+    }
+    rowkey_converter->field= *field_arg;
+  }
+  else
+  {
+    se->print_error("Cassandra's rowkey has no defined datatype (todo: support this)");
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+    return true;
+  }
 
   return false;
 }
@@ -575,6 +606,9 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
 
 void ha_cassandra::free_field_converters()
 {
+  delete rowkey_converter;
+  rowkey_converter= NULL;
+
   if (field_converters)
   {
     for (uint i=0; i < n_field_converters; i++)
@@ -588,8 +622,8 @@ void ha_cassandra::free_field_converters()
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
-                               key_part_map keypart_map,
-                               enum ha_rkey_function find_flag)
+                                 key_part_map keypart_map,
+                                 enum ha_rkey_function find_flag)
 {
   int rc;
   DBUG_ENTER("ha_cassandra::index_read_map");
@@ -597,19 +631,26 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
   if (find_flag != HA_READ_KEY_EXACT)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 
-  // todo: decode the search key.
   uint key_len= calculate_key_len(table, active_index, key, keypart_map);
   store_key_image_to_rec(table->field[0], (uchar*)key, key_len);
-
+#if 0  
   char buff[256]; 
   String tmp(buff,sizeof(buff), &my_charset_bin);
   tmp.length(0);
   String *str;
   str= table->field[0]->val_str(&tmp);
-  
+#endif
+
+  char *cass_key;
+  int cass_key_len;
+  rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+
   bool found;
-  if (se->get_slice((char*)str->ptr(), str->length(), &found))
+  if (se->get_slice(cass_key, cass_key_len, &found))
+  {
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
     rc= HA_ERR_INTERNAL_ERROR;
+  }
   
   /* TODO: what if we're not reading all columns?? */
   if (!found)
@@ -618,14 +659,14 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
   }
   else
   {
-    read_cassandra_columns();
+    read_cassandra_columns(false);
   }
 
   DBUG_RETURN(rc);
 }
 
 
-void ha_cassandra::read_cassandra_columns()
+void ha_cassandra::read_cassandra_columns(bool unpack_pk)
 {
   char *cass_name;
   char *cass_value;
@@ -659,6 +700,15 @@ void ha_cassandra::read_cassandra_columns()
       }
     }
   }
+  
+  if (unpack_pk)
+  {
+    /* Unpack rowkey to primary key */
+    field= table->field;
+    (*field)->set_notnull();
+    se->get_read_rowkey(&cass_value, &cass_value_len);
+    rowkey_converter->cassandra_to_mariadb(cass_value, cass_value_len);
+  }
 
   dbug_tmp_restore_column_map(table->write_set, old_map);
 }
@@ -667,12 +717,13 @@ void ha_cassandra::read_cassandra_columns()
 int ha_cassandra::write_row(uchar *buf)
 {
   my_bitmap_map *old_map;
-  char buff[512]; 
+//  char buff[512]; 
   DBUG_ENTER("ha_cassandra::write_row");
   
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
   
   /* Convert the key (todo: unify with the rest of the processing) */
+#if 0  
   {
     Field *pk_col= table->field[0];
     String tmp(buff,sizeof(buff), &my_charset_bin);
@@ -682,6 +733,11 @@ int ha_cassandra::write_row(uchar *buf)
 
     se->start_prepare_insert(str->ptr(), str->length());
   }
+#endif
+  char *cass_key;
+  int cass_key_len;
+  rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+  se->start_prepare_insert(cass_key, cass_key_len);
 
   /* Convert other fields */
   for (uint i= 1; i < table->s->fields; i++)
@@ -696,6 +752,9 @@ int ha_cassandra::write_row(uchar *buf)
   dbug_tmp_restore_column_map(table->read_set, old_map);
   
   bool res= se->do_insert();
+
+  if (res)
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
 
   DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);
 }
@@ -713,6 +772,8 @@ int ha_cassandra::rnd_init(bool scan)
     se->add_read_column(table->field[i]->field_name);
 
   bres= se->get_range_slices();
+  if (bres)
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
 
   DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
 }
@@ -739,7 +800,7 @@ int ha_cassandra::rnd_next(uchar *buf)
   }
   else
   {
-    read_cassandra_columns();
+    read_cassandra_columns(true);
     rc= 0;
   }
 
@@ -753,8 +814,19 @@ int ha_cassandra::delete_all_rows()
   DBUG_ENTER("ha_cassandra::delete_all_rows");
 
   bres= se->truncate();
+  
+  if (bres)
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
 
   DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
+}
+
+
+int ha_cassandra::delete_row(const uchar *buf)
+{
+  DBUG_ENTER("ha_cassandra::delete_row");
+  // todo: delete the row we've just read.
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 
@@ -815,7 +887,8 @@ ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
                                      key_range *max_key)
 {
   DBUG_ENTER("ha_cassandra::records_in_range");
-  DBUG_RETURN(10);                         // low number to force index usage
+  //DBUG_RETURN(10);                         // low number to force index usage
+  DBUG_RETURN(HA_POS_ERROR);
 }
 
 
@@ -863,13 +936,6 @@ int ha_cassandra::delete_table(const char *name)
   DBUG_ENTER("ha_cassandra::delete_table");
   /* This is not implemented but we want someone to be able that it works. */
   DBUG_RETURN(0);
-}
-
-
-int ha_cassandra::delete_row(const uchar *buf)
-{
-  DBUG_ENTER("ha_cassandra::delete_row");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 

@@ -38,10 +38,13 @@ class ha_cassandra: public handler
 
   ColumnDataConverter **field_converters;
   uint n_field_converters;
+
+  ColumnDataConverter *rowkey_converter;
+
   bool setup_field_converters(Field **field, uint n_fields);
   void free_field_converters();
   
-  void read_cassandra_columns();
+  void read_cassandra_columns(bool unpack_pk);
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()
