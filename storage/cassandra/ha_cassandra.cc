@@ -212,7 +212,8 @@ static handler* cassandra_create_handler(handlerton *hton,
 
 ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg),
-   se(NULL), field_converters(NULL),rowkey_converter(NULL)
+   se(NULL), field_converters(NULL), rowkey_converter(NULL),
+   rnd_batch_size(10*1000)
 {}
 
 
@@ -760,7 +761,8 @@ int ha_cassandra::rnd_init(bool scan)
   for (uint i= 1; i < table->s->fields; i++)
     se->add_read_column(table->field[i]->field_name);
 
-  bres= se->get_range_slices();
+  se->read_batch_size= rnd_batch_size;
+  bres= se->get_range_slices(false);
   if (bres)
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
 
@@ -780,17 +782,23 @@ int ha_cassandra::rnd_end()
 int ha_cassandra::rnd_next(uchar *buf)
 {
   int rc;
+  bool reached_eof;
   DBUG_ENTER("ha_cassandra::rnd_next");
 
   // Unpack and return the next record.
-  if (se->get_next_range_slice_row())
+  if (se->get_next_range_slice_row(&reached_eof))
   {
-    rc= HA_ERR_END_OF_FILE;
+    rc= HA_ERR_INTERNAL_ERROR;
   }
   else
   {
-    read_cassandra_columns(true);
-    rc= 0;
+    if (reached_eof)
+      rc= HA_ERR_END_OF_FILE;
+    else
+    {
+      read_cassandra_columns(true);
+      rc= 0;
+    }
   }
 
   DBUG_RETURN(rc);

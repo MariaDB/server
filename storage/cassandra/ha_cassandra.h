@@ -45,6 +45,8 @@ class ha_cassandra: public handler
   void free_field_converters();
   
   void read_cassandra_columns(bool unpack_pk);
+
+  ha_rows rnd_batch_size;
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()
