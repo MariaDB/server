@@ -39,9 +39,11 @@ public:
   virtual void get_read_rowkey(char **value, int *value_len)=0;
 
   /* Reads, multi-row scans */
-  virtual bool get_range_slices()=0;
+  int read_batch_size;
+
+  virtual bool get_range_slices(bool last_key_as_start_key)=0;
   virtual void finish_reading_range_slices()=0;
-  virtual bool get_next_range_slice_row()=0;
+  virtual bool get_next_range_slice_row(bool *eof)=0;
   
   /* read_set setup */
   virtual void clear_read_columns()=0;

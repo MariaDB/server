@@ -68,6 +68,7 @@ class Cassandra_se_impl: public Cassandra_se_interface
   std::string rowkey; /* key of the record we're returning now */
 
   SlicePredicate slice_pred;
+  bool get_slices_returned_less;
 public:
   Cassandra_se_impl() : cass(NULL) {}
   virtual ~Cassandra_se_impl(){ delete cass; }
@@ -92,9 +93,9 @@ public:
   void get_read_rowkey(char **value, int *value_len);
 
   /* Reads, multi-row scans */
-  bool get_range_slices();
+  bool get_range_slices(bool last_key_as_start_key);
   void finish_reading_range_slices();
-  bool get_next_range_slice_row();
+  bool get_next_range_slice_row(bool *eof);
 
   /* Setup that's necessary before a multi-row read. (todo: use it before point lookups, too) */
   void clear_read_columns();
@@ -369,7 +370,7 @@ void Cassandra_se_impl::get_read_rowkey(char **value, int *value_len)
 }
 
 
-bool Cassandra_se_impl::get_range_slices() //todo: start_range/end_range as parameters
+bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
 {
   bool res= true;
   
@@ -380,17 +381,27 @@ bool Cassandra_se_impl::get_range_slices() //todo: start_range/end_range as para
    // Try passing nothing...
 
   KeyRange key_range; // Try passing nothing, too.
-  key_range.__isset.start_key=true;
-  key_range.__isset.end_key=true;
-  key_range.start_key.assign("", 0);
-  key_range.end_key.assign("", 0);
+  key_range.__isset.start_key= true;
+  key_range.__isset.end_key= true;
 
+  if (last_key_as_start_key)
+    key_range.start_key= rowkey;
+  else
+    key_range.start_key.assign("", 0);
+
+  key_range.end_key.assign("", 0);
+  key_range.count= read_batch_size;
   try {
   
     cass->get_range_slices(key_slice_vec,
                            cparent, slice_pred, key_range, 
                            cur_consistency_level);
     res= false;
+
+    if (key_slice_vec.size() < (uint)read_batch_size)
+      get_slices_returned_less= true;
+    else
+      get_slices_returned_less= false;
 
   } catch (InvalidRequestException ire) {
     print_error("%s [%s]", ire.what(), ire.why.c_str());
@@ -405,11 +416,32 @@ bool Cassandra_se_impl::get_range_slices() //todo: start_range/end_range as para
 }
 
 
-bool Cassandra_se_impl::get_next_range_slice_row()
+/* Switch to next row. This may produce an error */
+bool Cassandra_se_impl::get_next_range_slice_row(bool *eof)
 {
   if (key_slice_it == key_slice_vec.end())
-    return true;
-  
+  {
+    if (get_slices_returned_less)
+    {
+      *eof= true;
+      return false;
+    }
+
+    /*
+      We have read through all columns in this batch. Try getting the next
+      batch.
+    */
+    if (get_range_slices(true))
+      return true;
+
+    if (key_slice_vec.empty())
+    {
+      *eof= true;
+      return false;
+    }
+  }
+ 
+  *eof= false;
   column_data_vec= key_slice_it->columns;
   rowkey= key_slice_it->key;
   column_data_it= column_data_vec.begin();
