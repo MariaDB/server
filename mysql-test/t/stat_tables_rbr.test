@@ -1,0 +1,18 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # Bug mdev-463: assertion failure when running ANALYZE with RBR on
+--echo # 
+
+SET GLOBAL use_stat_tables = PREFERABLY;
+
+--connect (con1,localhost,root,,)
+CREATE TABLE t1 (i INT) ENGINE=InnoDB;
+ANALYZE TABLE t1;
+
+# Cleanup
+DROP TABLE t1;
+SET GLOBAL use_stat_tables = DEFAULT;
+--disconnect con1
+
