@@ -78,11 +78,17 @@ public:
   ulonglong table_flags() const
   {
     /*
-      We are saying that this engine is just statement capable to have
-      an engine that can only handle statement-based logging. This is
-      used in testing.
+      HA_BINLOG_STMT_CAPABLE
+        We are saying that this engine is just statement capable to have
+        an engine that can only handle statement-based logging. This is
+        used in testing.
+      HA_REC_NOT_IN_SEQ 
+        If we don't set it, filesort crashes, because it assumes rowids are 
+        1..8 byte numbers 
     */
-    return HA_BINLOG_STMT_CAPABLE;
+    return HA_BINLOG_STMT_CAPABLE | 
+           HA_REC_NOT_IN_SEQ; 
+
   }
 
   /** @brief
