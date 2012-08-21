@@ -45,4 +45,17 @@ rowkey11	NULL	NULL
 delete from t1;
 select * from t1;
 rowkey	data1	data2
+#
+# A query with filesort (check that table_flags() & HA_REC_NOT_IN_SEQ,
+#  also check ::rnd_pos()
+#
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+insert into t1 values ('rowkey12', 'data1-value3', 454);
+select * from t1 order by data2;
+rowkey	data1	data2
+rowkey12	data1-value3	454
+rowkey11	data1-value2	34543
+rowkey10	data1-value	123456
+delete from t1;
 drop table t1;

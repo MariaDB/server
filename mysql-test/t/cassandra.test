@@ -84,6 +84,16 @@ select * from t1;
 delete from t1;
 select * from t1;
 
+--echo #
+--echo # A query with filesort (check that table_flags() & HA_REC_NOT_IN_SEQ,
+--echo #  also check ::rnd_pos()
+--echo #
+insert into t1 values ('rowkey10', 'data1-value', 123456);
+insert into t1 values ('rowkey11', 'data1-value2', 34543);
+insert into t1 values ('rowkey12', 'data1-value3', 454);
+select * from t1 order by data2;
+
+delete from t1;
 drop table t1;
 
 ############################################################################

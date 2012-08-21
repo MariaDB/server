@@ -755,7 +755,10 @@ int ha_cassandra::rnd_init(bool scan)
   bool bres;
   DBUG_ENTER("ha_cassandra::rnd_init");
   if (!scan)
-    DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  {
+    /* Prepare for rnd_pos() calls. We don't need to anything. */
+    DBUG_RETURN(0);
+  }
 
   se->clear_read_columns();
   for (uint i= 1; i < table->s->fields; i++)
