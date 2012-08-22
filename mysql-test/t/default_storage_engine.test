@@ -3,11 +3,11 @@ if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'in
   --skip Requires built-in InnoDB.
 }
 
-let $cmd=`select replace("$MYSQLD_BOOTSTRAP_CMD", " --default-storage-engine=myisam", "")`;
+let $cmd=`select replace("$MYSQLD_BOOTSTRAP_CMD --skip-innodb", " --default-storage-engine=myisam", "")`;
 
 #
 # Now it *must* fail, because if InnoDB is compiled in, it is used as a default
-# storage engine. but $MYSQLD_BOOTSTRAP_CMD includes --skip-innodb
+# storage engine. but $cmd includes --skip-innodb
 #
 error 1;
 exec $cmd;

@@ -1,5 +1,6 @@
 # Embedded server doesn't support external clients
 --source include/not_embedded.inc
+--source include/have_innodb.inc
 
 # Don't run this test if $MYSQL_FIX_PRIVILEGE_TABLES isn't set
 # to the location of mysql_fix_privilege_tables.sql
@@ -67,7 +68,7 @@ CREATE TABLE servers ( Server_name char(64) NOT NULL DEFAULT '', Host char(64) N
 INSERT INTO servers VALUES ('test','localhost','test','root','', 0,'','mysql','root');
 
 # Run the mysql_fix_privilege_tables.sql using "mysql --force"
---exec $MYSQL --force test < $MYSQL_FIX_PRIVILEGE_TABLES
+--exec $MYSQL --force test < $MYSQL_FIX_PRIVILEGE_TABLES > $MYSQLTEST_VARDIR/log/system_mysql_db_fix50030.log 2>&1
 
 -- enable_query_log
 -- enable_result_log
@@ -78,7 +79,7 @@ INSERT INTO servers VALUES ('test','localhost','test','root','', 0,'','mysql','r
 -- disable_query_log
 
 # Drop all tables created by this test
-DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, ndb_binlog_index, proxies_priv;
+DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, ndb_binlog_index, proxies_priv, slave_master_info, slave_relay_log_info, innodb_index_stats, innodb_table_stats, slave_worker_info;
 
 -- enable_query_log
 

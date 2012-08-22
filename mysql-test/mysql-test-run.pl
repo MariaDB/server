@@ -3451,6 +3451,8 @@ sub mysql_install_db {
   mtr_add_arg($args, "--datadir=%s", $install_datadir);
   mtr_add_arg($args, "--default-storage-engine=myisam");
   mtr_add_arg($args, "--skip-$_") for @optional_plugins;
+  # starting from 10.0 bootstrap scripts require InnoDB
+  mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
@@ -4699,6 +4701,7 @@ sub extract_warning_lines ($$) {
      qr/Plugin 'ndbcluster' will be forced to shutdown/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
+     qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
      qr/Slave: Unknown table 't1' Error_code: 1051/,
      qr/Slave SQL:.*(Error_code: [[:digit:]]+|Query:.*)/,
