@@ -66,6 +66,8 @@ Warning	140	InnoDB: ignoring KEY_BLOCK_SIZE=9.
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t0	Compact	16384	0
 test	t00	Compact	16384	0
 test	t1	Compact	16384	0
@@ -88,16 +90,22 @@ alter table t1 row_format=dynamic;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Dynamic	16384	0
 alter table t1 row_format=compact;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Compact	16384	0
 alter table t1 row_format=redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Redundant	16384	0
 drop table t1;
 create table t1(a int not null, b text, index(b(10))) engine=innodb
@@ -118,6 +126,8 @@ a	left(b,40)
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Compressed	2048	1024
 test	t2	Compact	16384	0
 drop table t1,t2;
@@ -210,6 +220,8 @@ create table t11(id int primary key) engine = innodb row_format = redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Compact	16384	0
 test	t10	Compact	16384	0
 test	t11	Redundant	16384	0
@@ -249,6 +261,8 @@ key_block_size = 8 row_format = default;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t1	Compressed	8192	0
 test	t5	Compressed	8192	0
 drop table t1, t5;
@@ -279,6 +293,8 @@ Error	1005	Can't create table 'test.t2' (errno: 140 "Wrong create options")
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 set global innodb_file_per_table = off;
 create table t1 (id int primary key) engine = innodb key_block_size = 1;
 ERROR HY000: Can't create table 'test.t1' (errno: 140 "Wrong create options")
@@ -327,6 +343,8 @@ create table t9 (id int primary key) engine = innodb row_format = redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t8	Compact	16384	0
 test	t9	Redundant	16384	0
 drop table t8, t9;
@@ -379,6 +397,8 @@ create table t9 (id int primary key) engine = innodb row_format = redundant;
 SELECT table_schema, table_name, row_format, data_length, index_length
 FROM information_schema.tables WHERE engine='innodb';
 table_schema	table_name	row_format	data_length	index_length
+mysql	innodb_index_stats	Compact	16384	0
+mysql	innodb_table_stats	Compact	16384	0
 test	t8	Compact	16384	0
 test	t9	Redundant	16384	0
 drop table t8, t9;

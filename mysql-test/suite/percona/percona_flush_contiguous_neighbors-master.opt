@@ -1,1 +1,1 @@
---innodb_flush_neighbor_pages=cont
+--loose-innodb_flush_neighbor_pages=cont

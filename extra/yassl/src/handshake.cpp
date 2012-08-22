@@ -529,7 +529,7 @@ void ProcessOldClientHello(input_buffer& input, SSL& ssl)
     ato16(len, randomLen);
 
     if (ch.suite_len_ > MAX_SUITE_SZ || sessionLen > ID_LEN ||
-                                        randomLen > RAN_LEN) {
+        randomLen > RAN_LEN) {
         ssl.SetError(bad_input);
         return;
     }

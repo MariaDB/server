@@ -13,5 +13,6 @@
 #
 
 --source include/not_embedded.inc
+--source include/have_innodb.inc
 let $my_where = WHERE table_schema = 'mysql';
 --source suite/funcs_1/datadict/tables1.inc

@@ -1,5 +1,6 @@
 -- source include/mysql_upgrade_preparation.inc
 -- source include/have_working_dns.inc
+-- source include/have_innodb.inc
 
 #
 # Basic test that we can run mysql_upgrde and that it finds the

@@ -11,6 +11,7 @@ user1@localhost
 SHOW VARIABLES LIKE "%read_only%";
 Variable_name	Value
 read_only	ON
+tx_read_only	OFF
 INSERT INTO db1.t1 VALUES (1);
 ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
 DROP DATABASE db1;

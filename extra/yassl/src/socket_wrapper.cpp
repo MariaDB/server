@@ -202,8 +202,22 @@ uint Socket::receive(byte* buf, unsigned int sz, int flags)
 // wait if blocking for input, return false for error
 bool Socket::wait()
 {
-    byte b;
-    return receive(&b, 1, MSG_PEEK) != static_cast<uint>(-1);
+    char b;
+    int recvd = ::recv(socket_, &b, 1, MSG_PEEK);
+
+    if (recvd == -1) {
+        if (get_lastError() == SOCKET_EWOULDBLOCK || 
+            get_lastError() == SOCKET_EAGAIN) {
+            wouldBlock_  = true; // would have blocked this time only
+            nonBlocking_ = true; // socket nonblocking, win32 only way to tell
+            return 1;
+        }
+    }
+    else if (recvd == 0)
+      return 0;                                 // Non blocking & no data
+
+    return 1;                                   // Data can be read
+
 }
 
 

@@ -2062,6 +2062,10 @@ bool show_master_info(THD* thd, Master_info* mi)
                                              FN_REFLEN));
   field_list.push_back(new Item_return_int("Master_Server_Id", sizeof(ulong),
                                            MYSQL_TYPE_LONG));
+  field_list.push_back(new Item_empty_string("Master_SSL_Crl",
+                                             sizeof(mi->ssl_crl)));
+  field_list.push_back(new Item_empty_string("Master_SSL_Crlpath",
+                                             sizeof(mi->ssl_crlpath)));
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2210,6 +2214,10 @@ bool show_master_info(THD* thd, Master_info* mi)
     }
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
+    // Master_Ssl_Crl
+    protocol->store(mi->ssl_ca, &my_charset_bin);
+    // Master_Ssl_Crlpath
+    protocol->store(mi->ssl_capath, &my_charset_bin);
 
     mysql_mutex_unlock(&mi->rli.err_lock);
     mysql_mutex_unlock(&mi->err_lock);
@@ -4659,6 +4667,10 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                   mi->ssl_ca[0]?mi->ssl_ca:0,
                   mi->ssl_capath[0]?mi->ssl_capath:0,
                   mi->ssl_cipher[0]?mi->ssl_cipher:0);
+    mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
+                  &mi->ssl_verify_server_cert);
+    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, 
+                  mi->ssl_crlpath[0] ? mi->ssl_crlpath : 0);
     mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
                   &mi->ssl_verify_server_cert);
   }
