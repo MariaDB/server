@@ -369,6 +369,17 @@ o_orderkey	p_partkey
 set optimizer_switch=@save_optimizer_switch;
 DROP DATABASE dbt3_s001;
 use test;
+#
+# Bug mdev-473: ANALYZE table locked for write
+# 
+set use_stat_tables='complementary';
+create table t1 (i int);
+lock table t1 write;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+alter table t1 add column a varchar(8);
+drop table t1;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
