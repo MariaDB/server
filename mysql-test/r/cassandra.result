@@ -59,3 +59,11 @@ rowkey11	data1-value2	34543
 rowkey10	data1-value	123456
 delete from t1;
 drop table t1;
+#
+# MDEV-476: Cassandra: Server crashes in calculate_key_len on DELETE with ORDER BY
+#
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+INSERT INTO t1 VALUES (1,1),(2,2);
+DELETE FROM t1 ORDER BY a LIMIT 1;
+DROP TABLE t1;

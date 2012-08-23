@@ -645,7 +645,13 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
 
   char *cass_key;
   int cass_key_len;
+  my_bitmap_map *old_map;
+
+  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+
   rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+
+  dbug_tmp_restore_column_map(table->read_set, old_map);
 
   bool found;
   if (se->get_slice(cass_key, cass_key_len, &found))
@@ -879,6 +885,7 @@ int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
   DBUG_ENTER("ha_cassandra::rnd_pos");
   
   int save_active_index= active_index;
+  active_index= 0; /* The primary key */
   rc= index_read_map(buf, pos, key_part_map(1), HA_READ_KEY_EXACT);
 
   active_index= save_active_index;
