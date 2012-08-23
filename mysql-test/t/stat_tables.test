@@ -152,4 +152,19 @@ DROP DATABASE dbt3_s001;
 
 use test;
 
+--echo #
+--echo # Bug mdev-473: ANALYZE table locked for write
+--echo # 
+
+set use_stat_tables='complementary';
+
+create table t1 (i int);
+
+lock table t1 write;
+analyze table t1;
+alter table t1 add column a varchar(8);
+
+drop table t1;
+
+
 set use_stat_tables=@save_use_stat_tables;

@@ -9669,10 +9669,6 @@ unlock_tables_n_open_system_tables_for_write(THD *thd,
 
   DBUG_ENTER("unlock_tables_n_open_system_tables_for_write");
 
-  if (thd->lock)
-    mysql_unlock_tables(thd, thd->lock);
-  thd->lock= 0;
-
   lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
   thd->reset_n_backup_open_tables_state(backup);
 
