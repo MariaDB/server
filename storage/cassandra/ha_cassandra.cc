@@ -527,7 +527,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
 
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_VARCHAR:
-    //case MYSQL_TYPE_STRING:  <-- todo: should we allow end-padded 'CHAR(N)'?
+    case MYSQL_TYPE_STRING: // these are space padded strings.
       if (!strcmp(validator_name, validator_blob) ||
           !strcmp(validator_name, validator_ascii) ||
           !strcmp(validator_name, validator_text))
@@ -893,7 +893,19 @@ int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(rc);
 }
 
+#if 0
+void ha_cassandra::start_bulk_insert(ha_rows rows)
+{
+  /* Do nothing? */
+}
 
+
+int ha_cassandra::end_bulk_insert()
+{
+  // TODO!
+  return 0;
+}
+#endif 
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
 /////////////////////////////////////////////////////////////////////////////

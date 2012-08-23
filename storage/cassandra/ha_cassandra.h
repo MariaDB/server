@@ -145,7 +145,10 @@ public:
   */
   virtual double read_time(uint, uint, ha_rows rows)
   { return (double) rows /  20.0+1; }
-
+#if 0
+  virtual void start_bulk_insert(ha_rows rows);
+  virtual int end_bulk_insert();
+#endif  
   /*
     Everything below are methods that we implement in ha_example.cc.
 
