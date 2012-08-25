@@ -4005,6 +4005,7 @@ end_with_restore_list:
     {
       /* Reset the isolation level if no chaining transaction. */
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
     }
     /* Disconnect the current client connection. */
     if (tx_release)
