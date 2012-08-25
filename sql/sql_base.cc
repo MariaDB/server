@@ -4722,7 +4722,7 @@ lock_table_names(THD *thd,
       if (thd->tx_read_only)
       {
         my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
-        return true;
+        DBUG_RETURN(true);
       }
 
       if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
