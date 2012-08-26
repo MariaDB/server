@@ -47,6 +47,9 @@ class ha_cassandra: public handler
   void read_cassandra_columns(bool unpack_pk);
 
   ha_rows rnd_batch_size;
+
+  bool doing_insert_batch;
+  ha_rows insert_rows_batched;
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()
@@ -145,10 +148,12 @@ public:
   */
   virtual double read_time(uint, uint, ha_rows rows)
   { return (double) rows /  20.0+1; }
-#if 0
+
   virtual void start_bulk_insert(ha_rows rows);
   virtual int end_bulk_insert();
-#endif  
+  
+  virtual int reset();
+  
   /*
     Everything below are methods that we implement in ha_example.cc.
 

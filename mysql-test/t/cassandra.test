@@ -109,6 +109,24 @@ DELETE FROM t1 ORDER BY a LIMIT 1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # Batched INSERT
+--echo #
+show variables like 'cassandra_insert_batch_size';
+show status like 'cassandra_row_insert%';
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+
+INSERT INTO t1 VALUES (1,1),(2,2);
+DELETE FROM t1 ORDER BY a LIMIT 1;
+
+DROP TABLE t1;
+show status like 'cassandra_row_insert%';
+
+--echo # FLUSH STATUS doesn't work for our variables, just like with InnoDB.
+flush status;
+show status like 'cassandra_row_insert%';
+
 ############################################################################
 ## Cassandra cleanup
 ############################################################################
