@@ -28,7 +28,8 @@ public:
   virtual void get_rowkey_type(char **name, char **type)=0;
 
   /* Writes */
-  virtual void start_prepare_insert(const char *key, int key_len)=0;
+  virtual void clear_insert_buffer()=0;
+  virtual void start_row_insert(const char *key, int key_len)=0;
   virtual void add_insert_column(const char *name, const char *value, 
                                  int value_len)=0;
   virtual bool do_insert()=0;
@@ -57,5 +58,15 @@ public:
   const char *error_str() { return err_buffer; }
   void print_error(const char *format, ...);
 };
+
+/* A structure with global counters */
+class Cassandra_status_vars
+{
+public:
+  ulong row_inserts;
+  ulong row_insert_batches;
+};
+extern Cassandra_status_vars cassandra_counters;
+
 
 Cassandra_se_interface *get_cassandra_se();

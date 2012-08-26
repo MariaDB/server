@@ -57,7 +57,6 @@ class Cassandra_se_impl: public Cassandra_se_interface
   typedef std::map<std::string,  ColumnFamilyToMutation> KeyToCfMutationMap;
    
   KeyToCfMutationMap batch_mutation; /* Prepare operation here */
-  std::string key_to_insert;
   int64_t insert_timestamp;
   std::vector<Mutation>* insert_list;
    
@@ -83,7 +82,8 @@ public:
   void get_rowkey_type(char **name, char **type);
 
   /* Writes */
-  void start_prepare_insert(const char *key, int key_len);
+  void clear_insert_buffer();
+  void start_row_insert(const char *key, int key_len);
   void add_insert_column(const char *name, const char *value, int value_len);
   bool do_insert();
 
@@ -233,10 +233,17 @@ int64_t Cassandra_se_impl::get_i64_timestamp()
   return ms;
 }
 
-void Cassandra_se_impl::start_prepare_insert(const char *key, int key_len)
+
+void Cassandra_se_impl::clear_insert_buffer()
 {
-  key_to_insert.assign(key, key_len);
   batch_mutation.clear();
+}
+
+
+void Cassandra_se_impl::start_row_insert(const char *key, int key_len)
+{
+  std::string key_to_insert;
+  key_to_insert.assign(key, key_len);
   batch_mutation[key_to_insert]= ColumnFamilyToMutation();
   ColumnFamilyToMutation& cf_mut= batch_mutation[key_to_insert];
 
@@ -270,6 +277,10 @@ bool Cassandra_se_impl::do_insert()
   try {
     
     cass->batch_mutate(batch_mutation, cur_consistency_level);
+
+    cassandra_counters.row_inserts+= batch_mutation.size();
+    cassandra_counters.row_insert_batches++;
+
     res= false;
 
   } catch (InvalidRequestException ire) {

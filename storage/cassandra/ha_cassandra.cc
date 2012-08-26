@@ -56,6 +56,23 @@ ha_create_table_option cassandra_table_option_list[]=
 };
 
 
+static MYSQL_THDVAR_ULONG(insert_batch_size, PLUGIN_VAR_RQCMDARG,
+  "Number of rows in an INSERT batch",
+  NULL, NULL, /*default*/ 100, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
+
+
+static struct st_mysql_sys_var* cassandra_system_variables[]= {
+  MYSQL_SYSVAR(insert_batch_size),
+//  MYSQL_SYSVAR(enum_var),
+//  MYSQL_SYSVAR(ulong_var),
+  NULL
+};
+
+
+Cassandra_status_vars cassandra_counters;
+Cassandra_status_vars cassandra_counters_copy;
+
+
 /**
   @brief
   Function we use in the creation of our hash to get key.
@@ -727,13 +744,16 @@ int ha_cassandra::write_row(uchar *buf)
   my_bitmap_map *old_map;
   DBUG_ENTER("ha_cassandra::write_row");
   
+  if (!doing_insert_batch)
+    se->clear_insert_buffer();
+
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
   
   /* Convert the key */
   char *cass_key;
   int cass_key_len;
   rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
-  se->start_prepare_insert(cass_key, cass_key_len);
+  se->start_row_insert(cass_key, cass_key_len);
 
   /* Convert other fields */
   for (uint i= 1; i < table->s->fields; i++)
@@ -747,12 +767,47 @@ int ha_cassandra::write_row(uchar *buf)
 
   dbug_tmp_restore_column_map(table->read_set, old_map);
   
-  bool res= se->do_insert();
+  bool res;
+  
+  if (doing_insert_batch)
+  {
+    res= 0;
+    if (++insert_rows_batched >= /*insert_batch_size*/
+                                 THDVAR(table->in_use, insert_batch_size))
+    {
+      res= se->do_insert();
+      insert_rows_batched= 0;
+    }
+  }
+  else
+    res= se->do_insert();
 
   if (res)
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
 
   DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);
+}
+
+
+void ha_cassandra::start_bulk_insert(ha_rows rows)
+{
+  doing_insert_batch= true;
+  insert_rows_batched= 0;
+
+  se->clear_insert_buffer();
+}
+
+
+int ha_cassandra::end_bulk_insert()
+{
+  DBUG_ENTER("ha_cassandra::end_bulk_insert");
+  
+  /* Flush out the insert buffer */
+  doing_insert_batch= false;
+  bool bres= se->do_insert();
+  se->clear_insert_buffer();
+
+  DBUG_RETURN(bres? HA_ERR_INTERNAL_ERROR: 0);
 }
 
 
@@ -893,19 +948,14 @@ int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(rc);
 }
 
-#if 0
-void ha_cassandra::start_bulk_insert(ha_rows rows)
-{
-  /* Do nothing? */
-}
 
-
-int ha_cassandra::end_bulk_insert()
+int ha_cassandra::reset()
 {
-  // TODO!
+  doing_insert_batch= false;
   return 0;
 }
-#endif 
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
 /////////////////////////////////////////////////////////////////////////////
@@ -1023,12 +1073,24 @@ bool ha_cassandra::check_if_incompatible_data(HA_CREATE_INFO *info,
 // Dummy implementations end
 /////////////////////////////////////////////////////////////////////////////
 
-
-static struct st_mysql_sys_var* cassandra_system_variables[]= {
-//  MYSQL_SYSVAR(enum_var),
-//  MYSQL_SYSVAR(ulong_var),
-  NULL
+static SHOW_VAR cassandra_status_variables[]= {
+  {"row_inserts",
+    (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
+  {"row_insert_batches",
+    (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
+  {NullS, NullS, SHOW_LONG}
 };
+
+
+static int show_cassandra_vars(THD *thd, SHOW_VAR *var, char *buff)
+{
+  //innodb_export_status();
+  cassandra_counters_copy= cassandra_counters; 
+
+  var->type= SHOW_ARRAY;
+  var->value= (char *) &cassandra_status_variables;
+  return 0;
+}
 
 
 struct st_mysql_storage_engine cassandra_storage_engine=
@@ -1036,7 +1098,7 @@ struct st_mysql_storage_engine cassandra_storage_engine=
 
 static struct st_mysql_show_var func_status[]=
 {
-//  {"example_func_example",  (char *)show_func_example, SHOW_FUNC},
+  {"Cassandra",  (char *)show_cassandra_vars, SHOW_FUNC},
   {0,0,SHOW_UNDEF}
 };
 
