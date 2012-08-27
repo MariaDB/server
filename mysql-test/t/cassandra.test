@@ -117,6 +117,7 @@ show status like 'cassandra_row_insert%';
 CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
 
+delete from t1;
 INSERT INTO t1 VALUES (1,1),(2,2);
 DELETE FROM t1 ORDER BY a LIMIT 1;
 
@@ -127,6 +128,40 @@ show status like 'cassandra_row_insert%';
 flush status;
 show status like 'cassandra_row_insert%';
 
+--echo #
+--echo # Batched Key Access
+--echo #
+
+--echo # Control variable (we are not yet able to make use of MRR's buffer)
+show variables like 'cassandra_multi%';
+
+--echo # MRR-related status variables:
+show status like 'cassandra_multi%';
+
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+delete from t1;
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+set @tmp_jcl=@@join_cache_level;
+set join_cache_level=8;
+explain select * from t1 A, t1 B where B.rowkey=A.a;
+
+select * from t1 A, t1 B where B.rowkey=A.a;
+show status like 'cassandra_multi%';
+
+# The following INSERTs are really UPDATEs
+insert into t1 values(1, 8);
+insert into t1 values(3, 8);
+insert into t1 values(5, 8);
+insert into t1 values(7, 8);
+
+select * from t1 A, t1 B where B.rowkey=A.a;
+show status like 'cassandra_multi%';
+
+
+delete from t1;
+drop table t1;
 ############################################################################
 ## Cassandra cleanup
 ############################################################################

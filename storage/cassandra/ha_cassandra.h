@@ -154,6 +154,24 @@ public:
   
   virtual int reset();
   
+
+  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+  int multi_range_read_next(range_id_t *range_info);
+  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                      void *seq_init_param, 
+                                      uint n_ranges, uint *bufsz,
+                                      uint *flags, COST_VECT *cost);
+  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                uint key_parts, uint *bufsz, 
+                                uint *flags, COST_VECT *cost);
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+
+private:
+  bool source_exhausted;
+  bool mrr_start_read();
+public:
+
   /*
     Everything below are methods that we implement in ha_example.cc.
 

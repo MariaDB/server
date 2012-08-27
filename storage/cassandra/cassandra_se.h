@@ -41,11 +41,16 @@ public:
 
   /* Reads, multi-row scans */
   int read_batch_size;
-
   virtual bool get_range_slices(bool last_key_as_start_key)=0;
   virtual void finish_reading_range_slices()=0;
   virtual bool get_next_range_slice_row(bool *eof)=0;
   
+  /* Reads, MRR scans */
+  virtual void new_lookup_keys()=0;
+  virtual int  add_lookup_key(const char *key, size_t key_len)=0;
+  virtual bool multiget_slice()=0;
+  virtual bool get_next_multiget_row()=0;
+
   /* read_set setup */
   virtual void clear_read_columns()=0;
   virtual void add_read_column(const char *name)=0;
@@ -59,13 +64,20 @@ public:
   void print_error(const char *format, ...);
 };
 
+
 /* A structure with global counters */
 class Cassandra_status_vars
 {
 public:
   ulong row_inserts;
   ulong row_insert_batches;
+  
+  ulong multiget_reads;
+  ulong multiget_keys_scanned;
+  ulong multiget_rows_read;
 };
+
+
 extern Cassandra_status_vars cassandra_counters;
 
 

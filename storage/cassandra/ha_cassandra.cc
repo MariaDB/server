@@ -60,12 +60,32 @@ static MYSQL_THDVAR_ULONG(insert_batch_size, PLUGIN_VAR_RQCMDARG,
   "Number of rows in an INSERT batch",
   NULL, NULL, /*default*/ 100, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
+static MYSQL_THDVAR_ULONG(multiget_batch_size, PLUGIN_VAR_RQCMDARG,
+  "Number of rows in a multiget(MRR) batch",
+  NULL, NULL, /*default*/ 100, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
 static struct st_mysql_sys_var* cassandra_system_variables[]= {
   MYSQL_SYSVAR(insert_batch_size),
+  MYSQL_SYSVAR(multiget_batch_size),
 //  MYSQL_SYSVAR(enum_var),
 //  MYSQL_SYSVAR(ulong_var),
   NULL
+};
+
+
+static SHOW_VAR cassandra_status_variables[]= {
+  {"row_inserts",
+    (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
+  {"row_insert_batches",
+    (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
+
+  {"multiget_reads",
+    (char*) &cassandra_counters.multiget_reads,      SHOW_LONG},
+  {"multiget_keys_scanned",
+    (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
+  {"multiget_rows_read",
+    (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
+  {NullS, NullS, SHOW_LONG}
 };
 
 
@@ -772,8 +792,7 @@ int ha_cassandra::write_row(uchar *buf)
   if (doing_insert_batch)
   {
     res= 0;
-    if (++insert_rows_batched >= /*insert_batch_size*/
-                                 THDVAR(table->in_use, insert_batch_size))
+    if (++insert_rows_batched >= THDVAR(table->in_use, insert_batch_size))
     {
       res= se->do_insert();
       insert_rows_batched= 0;
@@ -955,6 +974,135 @@ int ha_cassandra::reset()
   return 0;
 }
 
+/////////////////////////////////////////////////////////////////////////////
+// MRR implementation
+/////////////////////////////////////////////////////////////////////////////
+
+
+/*
+ - The key can be only primary key
+  - allow equality-ranges only.
+  - anything else?
+*/
+ha_rows ha_cassandra::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                                  void *seq_init_param, 
+                                                  uint n_ranges, uint *bufsz,
+                                                  uint *flags, COST_VECT *cost)
+{
+  /* No support for const ranges so far */
+  return HA_POS_ERROR;
+}
+
+
+ha_rows ha_cassandra::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                              uint key_parts, uint *bufsz, 
+                              uint *flags, COST_VECT *cost)
+{
+  /* Can only be equality lookups on the primary key... */
+  // TODO anything else?
+  *flags &= ~HA_MRR_USE_DEFAULT_IMPL;
+  *flags |= HA_MRR_NO_ASSOCIATION;
+
+  return 10;
+}
+
+
+int ha_cassandra::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                          uint n_ranges, uint mode, HANDLER_BUFFER *buf)
+{
+  int res;
+  mrr_iter= seq->init(seq_init_param, n_ranges, mode);
+  mrr_funcs= *seq;
+  res= mrr_start_read();
+  return (res? HA_ERR_INTERNAL_ERROR: 0);
+}
+
+
+bool ha_cassandra::mrr_start_read()
+{
+  uint key_len;
+
+  my_bitmap_map *old_map;
+  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  
+  se->new_lookup_keys();
+
+  while (!(source_exhausted= mrr_funcs.next(mrr_iter, &mrr_cur_range)))
+  {
+    char *cass_key;
+    int cass_key_len;
+    
+    DBUG_ASSERT(mrr_cur_range.range_flag & EQ_RANGE);
+
+    uchar *key= (uchar*)mrr_cur_range.start_key.key;
+    key_len= mrr_cur_range.start_key.length;
+    //key_len= calculate_key_len(table, active_index, key, keypart_map); // NEED THIS??
+    store_key_image_to_rec(table->field[0], (uchar*)key, key_len);
+
+    rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+    
+    // Primitive buffer control
+    if (se->add_lookup_key(cass_key, cass_key_len) > 
+        THDVAR(table->in_use, multiget_batch_size))
+      break;
+  }
+
+  dbug_tmp_restore_column_map(table->read_set, old_map);
+
+  return se->multiget_slice();
+}
+
+
+int ha_cassandra::multi_range_read_next(range_id_t *range_info)
+{
+  int res;
+  while(1)
+  {
+    if (!se->get_next_multiget_row())
+    {
+      read_cassandra_columns(true);
+      res= 0;
+      break;
+    }
+    else 
+    {
+      if (source_exhausted)
+      {
+        res= HA_ERR_END_OF_FILE;
+        break;
+      }
+      else
+      {
+        if (mrr_start_read())
+        {
+          res= HA_ERR_INTERNAL_ERROR;
+          break;
+        }
+      }
+    }
+    /* 
+      We get here if we've refilled the buffer and done another read. Try
+      reading from results again
+    */
+  }
+  return res;
+}
+
+
+int ha_cassandra::multi_range_read_explain_info(uint mrr_mode, char *str, size_t size)
+{
+  const char *mrr_str= "multiget_slice";
+
+  if (!(mrr_mode & HA_MRR_USE_DEFAULT_IMPL))
+  {
+    uint mrr_str_len= strlen(mrr_str);
+    uint copy_len= min(mrr_str_len, size);
+    memcpy(str, mrr_str, size);
+    return copy_len;
+  }
+  return 0;
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations start
@@ -1072,15 +1220,6 @@ bool ha_cassandra::check_if_incompatible_data(HA_CREATE_INFO *info,
 /////////////////////////////////////////////////////////////////////////////
 // Dummy implementations end
 /////////////////////////////////////////////////////////////////////////////
-
-static SHOW_VAR cassandra_status_variables[]= {
-  {"row_inserts",
-    (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
-  {"row_insert_batches",
-    (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
-  {NullS, NullS, SHOW_LONG}
-};
-
 
 static int show_cassandra_vars(THD *thd, SHOW_VAR *var, char *buff)
 {

@@ -100,7 +100,18 @@ public:
   /* Setup that's necessary before a multi-row read. (todo: use it before point lookups, too) */
   void clear_read_columns();
   void add_read_column(const char *name);
-  
+ 
+  /* Reads, MRR scans */
+  void new_lookup_keys();
+  int  add_lookup_key(const char *key, size_t key_len);
+  bool multiget_slice();
+
+  std::vector<std::string> mrr_keys; /* TODO: can we use allocator to put them onto MRR buffer? */
+  std::map<std::string, std::vector<ColumnOrSuperColumn> > mrr_result;
+  std::map<std::string, std::vector<ColumnOrSuperColumn> >::iterator mrr_result_it;
+
+  bool get_next_multiget_row();
+
   bool truncate();
   bool remove_row();
 
@@ -522,3 +533,72 @@ bool Cassandra_se_impl::remove_row()
 
   return res;
 }
+
+/////////////////////////////////////////////////////////////////////////////
+// MRR reads
+/////////////////////////////////////////////////////////////////////////////
+
+void Cassandra_se_impl::new_lookup_keys()
+{
+  mrr_keys.clear();
+}
+
+
+int Cassandra_se_impl::add_lookup_key(const char *key, size_t key_len)
+{
+  mrr_keys.push_back(std::string(key, key_len));
+  return mrr_keys.size();
+}
+
+
+bool Cassandra_se_impl::multiget_slice()
+{
+  ColumnParent cparent;
+  cparent.column_family= column_family;
+
+  SlicePredicate slice_pred;
+  SliceRange sr;
+  sr.start = "";
+  sr.finish = "";
+  slice_pred.__set_slice_range(sr);
+
+  bool res= true;
+
+  try {
+    
+    cassandra_counters.multiget_reads++;
+    cassandra_counters.multiget_keys_scanned += mrr_keys.size();
+
+    cass->multiget_slice(mrr_result, mrr_keys, cparent, slice_pred, 
+                         cur_consistency_level);
+
+    cassandra_counters.multiget_rows_read += mrr_result.size();
+    
+    res= false;
+    mrr_result_it= mrr_result.begin();
+
+  } catch (InvalidRequestException ire) {
+    print_error("%s [%s]", ire.what(), ire.why.c_str());
+  } catch (UnavailableException ue) {
+    print_error("UnavailableException: %s", ue.what());
+  } catch (TimedOutException te) {
+    print_error("TimedOutException: %s", te.what());
+  }
+
+  return res;
+}
+
+
+bool Cassandra_se_impl::get_next_multiget_row()
+{
+  if (mrr_result_it == mrr_result.end())
+    return true; /* EOF */
+
+  column_data_vec= mrr_result_it->second;
+  rowkey= mrr_result_it->first;
+
+  column_data_it= column_data_vec.begin();
+  mrr_result_it++;
+  return false;
+}
+

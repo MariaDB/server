@@ -3876,8 +3876,11 @@ int JOIN_TAB_SCAN_MRR::next()
       If a record in in an incremental cache contains no fields then the
       association for the last record in cache will be equal to cache->end_pos
     */ 
+    /* 
+    psergey: this makes no sense where HA_MRR_NO_ASSOC is used.
     DBUG_ASSERT(cache->buff <= (uchar *) (*ptr) &&
                 (uchar *) (*ptr) <= cache->end_pos);
+    */
     if (join_tab->table->vfield)
       update_virtual_fields(join->thd, join_tab->table);
   }
@@ -4543,7 +4546,7 @@ bool JOIN_CACHE_BKAH::prepare_look_for_matches(bool skip_last)
 {
   last_matching_rec_ref_ptr= next_matching_rec_ref_ptr= 0;
   if (no_association &&
-      (curr_matching_chain= get_matching_chain_by_join_key()))
+      !(curr_matching_chain= get_matching_chain_by_join_key())) //psergey: added '!'
     return 1;
   last_matching_rec_ref_ptr= get_next_rec_ref(curr_matching_chain);
   return 0;
