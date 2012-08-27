@@ -380,6 +380,17 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
 alter table t1 add column a varchar(8);
 drop table t1;
+#
+# Bug mdev-487: memory leak in ANALYZE with stat tables
+# 
+SET  use_stat_tables = 'preferably';
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+DELETE FROM t1 WHERE a=1;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_stat_tables_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;

@@ -179,6 +179,7 @@ public:
   inline void init(THD *thd, Field * table_field);
   inline void add(ha_rows rowno);
   inline void finish(ha_rows rows); 
+  inline void cleanup();
 };
 
 
@@ -1895,6 +1896,22 @@ void Column_statistics_collected::finish(ha_rows rows)
 
 /**
   @brief
+  Clean up auxiliary structures used for aggregation
+*/
+
+inline
+void Column_statistics_collected::cleanup()
+{
+  if (count_distinct)
+  { 
+    delete count_distinct;
+    count_distinct= NULL;
+  }
+}
+
+
+/**
+  @brief
   Collect statistical data on an index
 
   @param 
@@ -2047,7 +2064,11 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         break;
 
       if (rc)
+      {
+        if (rc == HA_ERR_RECORD_DELETED)
+          continue;
         break;
+      }
 
       for (field_ptr= table->field; *field_ptr; field_ptr++)
       {
@@ -2071,14 +2092,17 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   {
     table->collected_stats->cardinality_is_null= FALSE;
     table->collected_stats->cardinality= rows;
+  }
 
-    for (field_ptr= table->field; *field_ptr; field_ptr++)
-    {
-      table_field= *field_ptr;
-      if (!bitmap_is_set(table->read_set, table_field->field_index))
-        continue;
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    table_field= *field_ptr;
+    if (!bitmap_is_set(table->read_set, table_field->field_index))
+      continue;
+    if (!rc)
       table_field->collected_stats->finish(rows);
-    }
+    else
+      table_field->collected_stats->cleanup();
   }
 
   if (!rc)
