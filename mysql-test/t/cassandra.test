@@ -159,9 +159,19 @@ insert into t1 values(7, 8);
 select * from t1 A, t1 B where B.rowkey=A.a;
 show status like 'cassandra_multi%';
 
-
 delete from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-480: TRUNCATE TABLE on a Cassandra table does not remove rows
+--echo #
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2);
+truncate table t1;
+select * from t1;
+drop table t1;
+ 
 ############################################################################
 ## Cassandra cleanup
 ############################################################################

@@ -156,3 +156,13 @@ Cassandra_multiget_keys_scanned	16
 Cassandra_multiget_rows_read	16
 delete from t1;
 drop table t1;
+#
+# MDEV-480: TRUNCATE TABLE on a Cassandra table does not remove rows
+#
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+INSERT INTO t1 VALUES (0,0),(1,1),(2,2);
+truncate table t1;
+select * from t1;
+rowkey	a
+drop table t1;
