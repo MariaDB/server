@@ -142,7 +142,12 @@ static int cassandra_init_func(void *p)
 
   cassandra_hton->state=   SHOW_OPTION_YES;
   cassandra_hton->create=  cassandra_create_handler;
-  cassandra_hton->flags=   HTON_CAN_RECREATE;
+  /* 
+    Don't specify HTON_CAN_RECREATE in flags. re-create is used by TRUNCATE
+    TABLE to create an *empty* table from scratch. Cassandra table won't be
+    emptied if re-created.
+  */
+  cassandra_hton->flags=   0; 
   cassandra_hton->table_options= cassandra_table_option_list;
   //cassandra_hton->field_options= example_field_option_list;
   cassandra_hton->field_options= NULL;
