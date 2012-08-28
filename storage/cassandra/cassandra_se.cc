@@ -93,6 +93,10 @@ public:
   void get_read_rowkey(char **value, int *value_len);
 
   /* Reads, multi-row scans */
+private:
+  bool have_rowkey_to_skip;
+  std::string rowkey_to_skip;
+public:
   bool get_range_slices(bool last_key_as_start_key);
   void finish_reading_range_slices();
   bool get_next_range_slice_row(bool *eof);
@@ -106,15 +110,17 @@ public:
   int  add_lookup_key(const char *key, size_t key_len);
   bool multiget_slice();
 
+private:
   std::vector<std::string> mrr_keys; /* TODO: can we use allocator to put them onto MRR buffer? */
   std::map<std::string, std::vector<ColumnOrSuperColumn> > mrr_result;
   std::map<std::string, std::vector<ColumnOrSuperColumn> >::iterator mrr_result_it;
-
+public:
   bool get_next_multiget_row();
 
   bool truncate();
   bool remove_row();
 
+private:
   /* Non-inherited utility functions: */
   int64_t get_i64_timestamp();
 };
@@ -407,9 +413,17 @@ bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
   key_range.__isset.end_key= true;
 
   if (last_key_as_start_key)
+  {
     key_range.start_key= rowkey;
+
+    have_rowkey_to_skip= true;
+    rowkey_to_skip= rowkey;
+  }
   else
+  {
+    have_rowkey_to_skip= false;
     key_range.start_key.assign("", 0);
+  }
 
   key_range.end_key.assign("", 0);
   key_range.count= read_batch_size;
@@ -441,6 +455,7 @@ bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
 /* Switch to next row. This may produce an error */
 bool Cassandra_se_impl::get_next_range_slice_row(bool *eof)
 {
+restart:
   if (key_slice_it == key_slice_vec.end())
   {
     if (get_slices_returned_less)
@@ -462,7 +477,13 @@ bool Cassandra_se_impl::get_next_range_slice_row(bool *eof)
       return false;
     }
   }
- 
+  
+  if (have_rowkey_to_skip && !rowkey_to_skip.compare(key_slice_it->key))
+  {
+    key_slice_it++;
+    goto restart;
+  }
+
   *eof= false;
   column_data_vec= key_slice_it->columns;
   rowkey= key_slice_it->key;
