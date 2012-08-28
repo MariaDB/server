@@ -166,3 +166,20 @@ truncate table t1;
 select * from t1;
 rowkey	a
 drop table t1;
+#
+# MDEV-494, part #1: phantom row for big full-scan selects
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+insert into t1 select A.a + 10 * B.a + 100*C.a, 12345 from t0 A, t0 B, t0 C;
+select count(*) from t1;
+count(*)
+1000
+select count(*) from t1 where a=12345;
+count(*)
+1000
+delete from t1;
+drop table t1;
+drop table t0;
