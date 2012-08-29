@@ -342,23 +342,16 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   ha_table_option_struct *options= table_arg->s->option_struct;
   DBUG_ENTER("ha_cassandra::create");
   DBUG_ASSERT(options);
-  //psergey-todo: This is called for CREATE TABLE... check options here.
   
-/*
-  if (table_arg->s->fields != 2)
-  {
-    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "The table must have two fields");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-  }
-*/
 
   Field **pfield= table_arg->s->field;
+/*  
   if (strcmp((*pfield)->field_name, "rowkey"))
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be named 'rowkey'");
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
-
+*/
   if (!((*pfield)->flags & NOT_NULL_FLAG))
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be NOT NULL");
@@ -369,10 +362,10 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
       table_arg->key_info[0].key_parts != 1 ||
       table_arg->key_info[0].key_part[0].fieldnr != 1)
   {
-    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "Table must have one PRIMARY KEY(rowkey)");
+    my_error(ER_WRONG_COLUMN_NAME, MYF(0), 
+             "Table must have PRIMARY KEY defined over the first column");
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
-
 
 #ifndef DBUG_OFF
 /*  
@@ -519,6 +512,36 @@ public:
 };
 
 
+class Int32DataConverter : public ColumnDataConverter
+{
+  int32_t buf;
+public:
+  void flip(const char *from, char* to)
+  {
+    to[0]= from[3];
+    to[1]= from[2];
+    to[2]= from[1];
+    to[3]= from[0];
+  }
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    int32_t tmp;
+    DBUG_ASSERT(cass_data_len == sizeof(int32_t));
+    flip(cass_data, (char*)&tmp);
+    field->store(tmp);
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    int32_t tmp= field->val_int();
+    flip((const char*)&tmp, (char*)&buf);
+    *cass_data= (char*)&buf;
+    *cass_data_len=sizeof(int32_t);
+  }
+  ~Int32DataConverter(){}
+};
+
+
 class StringCopyConverter : public ColumnDataConverter
 {
   String buf;
@@ -557,15 +580,16 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
   switch(field->type()) {
     case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_SHORT:
-    case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_LONGLONG:
       if (!strcmp(validator_name, validator_bigint))
         res= new BigintDataConverter;
       break;
+
     case MYSQL_TYPE_FLOAT:
       if (!strcmp(validator_name, validator_float))
         res= new FloatDataConverter;
       break;
+
     case MYSQL_TYPE_DOUBLE:
       if (!strcmp(validator_name, validator_double))
         res= new DoubleDataConverter;
@@ -581,6 +605,12 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
         res= new StringCopyConverter;
       }
       break;
+
+    case MYSQL_TYPE_LONG:
+      if (!strcmp(validator_name, validator_int))
+        res= new Int32DataConverter;
+      break;
+
     default:;
   }
   return res;
@@ -600,11 +630,6 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     return true;
   bzero(field_converters, memsize);
   n_field_converters= n_fields;
-
-  /* 
-    TODO: what about mapping the primary key? It has a 'type', too...
-    see CfDef::key_validation_class ? see also CfDef::key_alias?
-  */
 
   se->first_ddl_column();
   uint n_mapped= 0;
@@ -634,10 +659,23 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     return true;
   
   /* 
-    Setup type conversion for row_key. It may also have a name, but we ignore
-    it currently
+    Setup type conversion for row_key.
   */
   se->get_rowkey_type(&col_name, &col_type);
+  if (col_name && strcmp(col_name, (*field_arg)->field_name))
+  {
+    se->print_error("PRIMARY KEY column must match Cassandra's name '%s'", col_name);
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+    return true;
+  }
+  if (!col_name && strcmp("rowkey", (*field_arg)->field_name))
+  {
+    se->print_error("target column family has no key_alias defined, "
+                    "PRIMARY KEY column must be named 'rowkey'");
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+    return true;
+  }
+
   if (col_type != NULL)
   {
     if (!(rowkey_converter= map_field_to_validator(*field_arg, col_type)))

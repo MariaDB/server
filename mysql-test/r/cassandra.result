@@ -1,10 +1,10 @@
 drop table if exists t0, t1;
 create table t1 (a int) engine=cassandra 
 thrift_host='localhost' keyspace='foo' column_family='colfam';
-ERROR 42000: Incorrect column name 'First column must be named 'rowkey''
+ERROR 42000: Incorrect column name 'First column must be NOT NULL'
 create table t1 (a int primary key, b int) engine=cassandra
 thrift_host='localhost' keyspace='foo' column_family='colfam';
-ERROR 42000: Incorrect column name 'First column must be named 'rowkey''
+ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace foo does not exist]
 create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
 thrift_host='127.0.0.2' keyspace='foo' column_family='colfam';
 ERROR HY000: Unable to connect to foreign data source: connect() failed: Connection refused [1]
@@ -15,36 +15,36 @@ create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra
 thrift_host='localhost' keyspace='no_such_keyspace';
 ERROR HY000: Unable to connect to foreign data source: thrift_host, keyspace, and column_family table options must be s
 # Now, create a table for real and insert data
-create table t1 (rowkey varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
+create table t1 (pk varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
 thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
 # Just in case there were left-overs from previous:
 delete from t1;
 select * from t1;
-rowkey	data1	data2
+pk	data1	data2
 insert into t1 values ('rowkey10', 'data1-value', 123456);
 insert into t1 values ('rowkey11', 'data1-value2', 34543);
 insert into t1 values ('rowkey12', 'data1-value3', 454);
 select * from t1;
-rowkey	data1	data2
+pk	data1	data2
 rowkey12	data1-value3	454
 rowkey10	data1-value	123456
 rowkey11	data1-value2	34543
 explain
-select * from t1 where rowkey='rowkey11';
+select * from t1 where pk='rowkey11';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	38	const	1	
-select * from t1 where rowkey='rowkey11';
-rowkey	data1	data2
+select * from t1 where pk='rowkey11';
+pk	data1	data2
 rowkey11	data1-value2	34543
-delete from t1 where rowkey='rowkey11';
+delete from t1 where pk='rowkey11';
 select * from t1;
-rowkey	data1	data2
+pk	data1	data2
 rowkey12	data1-value3	454
 rowkey10	data1-value	123456
 rowkey11	NULL	NULL
 delete from t1;
 select * from t1;
-rowkey	data1	data2
+pk	data1	data2
 #
 # A query with filesort (check that table_flags() & HA_REC_NOT_IN_SEQ,
 #  also check ::rnd_pos()
@@ -53,7 +53,7 @@ insert into t1 values ('rowkey10', 'data1-value', 123456);
 insert into t1 values ('rowkey11', 'data1-value2', 34543);
 insert into t1 values ('rowkey12', 'data1-value3', 454);
 select * from t1 order by data2;
-rowkey	data1	data2
+pk	data1	data2
 rowkey12	data1-value3	454
 rowkey11	data1-value2	34543
 rowkey10	data1-value	123456
@@ -183,3 +183,19 @@ count(*)
 delete from t1;
 drop table t1;
 drop table t0;
+# 32-bit INT type support
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, intcol INT) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (10,10);
+insert into t1 values (12,12);
+delete from t1;
+drop table t1;
+# 
+# Try accessing column family w/o explicitly defined columns
+#
+CREATE TABLE t1 (my_primary_key varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+ERROR HY000: Internal error: 'target column family has no key_alias defined, PRIMARY KEY column must be named 'rowkey''
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+DROP TABLE t1;
