@@ -477,64 +477,64 @@ public:
   ~FloatDataConverter(){}
 };
 
+static void flip64(const char *from, char* to)
+{
+  to[0]= from[7];
+  to[1]= from[6];
+  to[2]= from[5];
+  to[3]= from[4];
+  to[4]= from[3];
+  to[5]= from[2];
+  to[6]= from[1];
+  to[7]= from[0];
+}
 
 class BigintDataConverter : public ColumnDataConverter
 {
   longlong buf;
 public:
-  void flip(const char *from, char* to)
-  {
-    to[0]= from[7];
-    to[1]= from[6];
-    to[2]= from[5];
-    to[3]= from[4];
-    to[4]= from[3];
-    to[5]= from[2];
-    to[6]= from[1];
-    to[7]= from[0];
-  }
   void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
   {
     longlong tmp;
     DBUG_ASSERT(cass_data_len == sizeof(longlong));
-    flip(cass_data, (char*)&tmp);
+    flip64(cass_data, (char*)&tmp);
     field->store(tmp);
   }
   
   void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     longlong tmp= field->val_int();
-    flip((const char*)&tmp, (char*)&buf);
+    flip64((const char*)&tmp, (char*)&buf);
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(longlong);
   }
   ~BigintDataConverter(){}
 };
 
+static void flip32(const char *from, char* to)
+{
+  to[0]= from[3];
+  to[1]= from[2];
+  to[2]= from[1];
+  to[3]= from[0];
+}
 
 class Int32DataConverter : public ColumnDataConverter
 {
   int32_t buf;
 public:
-  void flip(const char *from, char* to)
-  {
-    to[0]= from[3];
-    to[1]= from[2];
-    to[2]= from[1];
-    to[3]= from[0];
-  }
   void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
   {
     int32_t tmp;
     DBUG_ASSERT(cass_data_len == sizeof(int32_t));
-    flip(cass_data, (char*)&tmp);
+    flip32(cass_data, (char*)&tmp);
     field->store(tmp);
   }
   
   void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     int32_t tmp= field->val_int();
-    flip((const char*)&tmp, (char*)&buf);
+    flip32((const char*)&tmp, (char*)&buf);
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(int32_t);
   }
@@ -561,6 +561,34 @@ public:
 };
 
 
+class TimestampDataConverter : public ColumnDataConverter
+{
+  int64_t buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    int64_t tmp;
+    DBUG_ASSERT(cass_data_len==8);
+    flip64(cass_data, (char*)&tmp);
+    ((Field_timestamp*)field)->store_TIME(tmp / 1000, tmp % 1000);
+  }
+  
+  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    my_time_t ts_time;
+    ulong ts_millis;
+    int64_t tmp;
+    ts_time= ((Field_timestamp*)field)->get_timestamp(&ts_millis);
+
+    tmp= ts_time * 1000 + ts_millis;
+    flip64((const char*)&tmp, (char*)&buf);
+
+    *cass_data= (char*)&buf;
+    *cass_data_len= 8;
+  }
+  ~TimestampDataConverter(){}
+};
+
 const char * const validator_bigint=  "org.apache.cassandra.db.marshal.LongType";
 const char * const validator_int=     "org.apache.cassandra.db.marshal.Int32Type";
 const char * const validator_counter= "org.apache.cassandra.db.marshal.CounterColumnType";
@@ -572,6 +600,7 @@ const char * const validator_blob=    "org.apache.cassandra.db.marshal.BytesType
 const char * const validator_ascii=   "org.apache.cassandra.db.marshal.AsciiType";
 const char * const validator_text=    "org.apache.cassandra.db.marshal.UTF8Type";
 
+const char * const validator_timestamp="org.apache.cassandra.db.marshal.DateType";
 
 ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
 {
@@ -581,7 +610,8 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
     case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONGLONG:
-      if (!strcmp(validator_name, validator_bigint))
+      if (!strcmp(validator_name, validator_bigint) ||
+          0/*!strcmp(validator_name, validator_timestamp)*/)
         res= new BigintDataConverter;
       break;
 
@@ -593,6 +623,11 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
     case MYSQL_TYPE_DOUBLE:
       if (!strcmp(validator_name, validator_double))
         res= new DoubleDataConverter;
+      break;
+    
+    case MYSQL_TYPE_TIMESTAMP:
+      if (!strcmp(validator_name, validator_timestamp))
+        res= new TimestampDataConverter;
       break;
 
     case MYSQL_TYPE_VAR_STRING:

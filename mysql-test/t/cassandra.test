@@ -47,6 +47,8 @@ create columnfamily cf2 (rowkey bigint primary key, a bigint);
 
 create columnfamily cf3 (rowkey bigint primary key, intcol int);
 
+create columnfamily cf4 (rowkey bigint primary key, datecol timestamp);
+
 ./cassandra-cli 
 
 CREATE COLUMN FAMILY cf10
@@ -219,6 +221,18 @@ CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
 
 DROP TABLE t1;
 
+--echo # 
+--echo # Timestamp datatype support
+--echo #
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+
+delete from t2;
+insert into t2 values (1, '2012-08-29 01:23:45');
+select * from t2;
+delete from t2;
+
+drop table t2;
 ############################################################################
 ## Cassandra cleanup
 ############################################################################

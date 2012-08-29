@@ -199,3 +199,15 @@ ERROR HY000: Internal error: 'target column family has no key_alias defined, PRI
 CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
 DROP TABLE t1;
+# 
+# Timestamp datatype support
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+delete from t2;
+insert into t2 values (1, '2012-08-29 01:23:45');
+select * from t2;
+rowkey	datecol
+1	2012-08-29 01:23:45
+delete from t2;
+drop table t2;
