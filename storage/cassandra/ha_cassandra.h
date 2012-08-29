@@ -46,8 +46,6 @@ class ha_cassandra: public handler
   
   void read_cassandra_columns(bool unpack_pk);
 
-  ha_rows rnd_batch_size;
-
   bool doing_insert_batch;
   ha_rows insert_rows_batched;
 public:

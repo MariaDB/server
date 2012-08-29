@@ -64,9 +64,14 @@ static MYSQL_THDVAR_ULONG(multiget_batch_size, PLUGIN_VAR_RQCMDARG,
   "Number of rows in a multiget(MRR) batch",
   NULL, NULL, /*default*/ 100, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
+static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
+  "Number of rows in an rnd_read (full scan) batch",
+  NULL, NULL, /*default*/ 10*1000, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
+
 static struct st_mysql_sys_var* cassandra_system_variables[]= {
   MYSQL_SYSVAR(insert_batch_size),
   MYSQL_SYSVAR(multiget_batch_size),
+  MYSQL_SYSVAR(rnd_batch_size),
 //  MYSQL_SYSVAR(enum_var),
 //  MYSQL_SYSVAR(ulong_var),
   NULL
@@ -254,8 +259,7 @@ static handler* cassandra_create_handler(handlerton *hton,
 
 ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg),
-   se(NULL), field_converters(NULL), rowkey_converter(NULL),
-   rnd_batch_size(10*1000)
+   se(NULL), field_converters(NULL), rowkey_converter(NULL)
 {}
 
 
@@ -849,7 +853,7 @@ int ha_cassandra::rnd_init(bool scan)
   for (uint i= 1; i < table->s->fields; i++)
     se->add_read_column(table->field[i]->field_name);
 
-  se->read_batch_size= rnd_batch_size;
+  se->read_batch_size= THDVAR(table->in_use, rnd_batch_size);
   bres= se->get_range_slices(false);
   if (bres)
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
