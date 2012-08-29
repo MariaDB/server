@@ -194,6 +194,7 @@ drop table t0;
 ############################################################################
 --disable_parsing
 drop columnfamily cf1;
+drop columnfamily cf2;
 --enable_parsing
 ############################################################################
 ## Cassandra cleanup ends
