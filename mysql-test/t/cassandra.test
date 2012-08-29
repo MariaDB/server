@@ -232,7 +232,51 @@ insert into t2 values (1, '2012-08-29 01:23:45');
 select * from t2;
 delete from t2;
 
+--echo #
+--echo # (no MDEV#) Check that insert counters work correctly
+--echo #
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+let $start_inserts=`select variable_value from information_schema.SESSION_STATUS 
+                   where variable_name ='Cassandra_row_inserts'`;
+let $start_insert_batches=`select variable_value from information_schema.SESSION_STATUS 
+                          where variable_name ='Cassandra_row_insert_batches'`;
+
+set cassandra_insert_batch_size=10;
+insert into t2 select A.a+10*B.a, now() from t0 A, t0 B;
+
+--disable_query_log
+eval select
+   (select variable_value - $start_inserts from information_schema.SESSION_STATUS 
+     where variable_name ='Cassandra_row_inserts') 
+   AS 'inserts',
+   (select variable_value - $start_insert_batches from information_schema.SESSION_STATUS 
+     where variable_name ='Cassandra_row_insert_batches') 
+   AS 'insert_batches';
+--enable_query_log
+
+let $start_inserts=`select variable_value from information_schema.SESSION_STATUS 
+                   where variable_name ='Cassandra_row_inserts'`;
+let $start_insert_batches=`select variable_value from information_schema.SESSION_STATUS 
+                          where variable_name ='Cassandra_row_insert_batches'`;
+
+set cassandra_insert_batch_size=1;
+insert into t2 select A.a+10*B.a+100, now() from t0 A, t0 B;
+
+--disable_query_log
+eval select
+   (select variable_value - $start_inserts from information_schema.SESSION_STATUS 
+     where variable_name ='Cassandra_row_inserts') 
+   AS 'inserts',
+   (select variable_value - $start_insert_batches from information_schema.SESSION_STATUS 
+     where variable_name ='Cassandra_row_insert_batches') 
+   AS 'insert_batches';
+--enable_query_log
+
+delete from t2;
 drop table t2;
+drop table t0;
+
 ############################################################################
 ## Cassandra cleanup
 ############################################################################

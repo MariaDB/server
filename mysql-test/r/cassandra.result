@@ -210,4 +210,19 @@ select * from t2;
 rowkey	datecol
 1	2012-08-29 01:23:45
 delete from t2;
+#
+# (no MDEV#) Check that insert counters work correctly
+#
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set cassandra_insert_batch_size=10;
+insert into t2 select A.a+10*B.a, now() from t0 A, t0 B;
+inserts	insert_batches
+100	10
+set cassandra_insert_batch_size=1;
+insert into t2 select A.a+10*B.a+100, now() from t0 A, t0 B;
+inserts	insert_batches
+100	100
+delete from t2;
 drop table t2;
+drop table t0;
