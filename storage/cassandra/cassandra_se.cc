@@ -291,6 +291,15 @@ void Cassandra_se_impl::add_insert_column(const char *name, const char *value,
 bool Cassandra_se_impl::do_insert()
 {
   bool res= true;
+  
+  /*
+    zero-size mutations are allowed by Cassandra's batch_mutate but lets not 
+    do them (we may attempt to do it if there is a bulk insert that stores
+    exactly @@cassandra_insert_batch_size*n elements.
+  */
+  if (batch_mutation.empty())
+    return false;
+
   try {
     
     cass->batch_mutate(batch_mutation, cur_consistency_level);
@@ -298,6 +307,7 @@ bool Cassandra_se_impl::do_insert()
     cassandra_counters.row_inserts+= batch_mutation.size();
     cassandra_counters.row_insert_batches++;
 
+    clear_insert_buffer();
     res= false;
 
   } catch (InvalidRequestException ire) {
@@ -622,4 +632,5 @@ bool Cassandra_se_impl::get_next_multiget_row()
   mrr_result_it++;
   return false;
 }
+
 
