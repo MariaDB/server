@@ -567,20 +567,27 @@ class TimestampDataConverter : public ColumnDataConverter
 public:
   void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
   {
+    /* Cassandra data is milliseconds-since-epoch in network byte order */
     int64_t tmp;
     DBUG_ASSERT(cass_data_len==8);
     flip64(cass_data, (char*)&tmp);
-    ((Field_timestamp*)field)->store_TIME(tmp / 1000, tmp % 1000);
+    /*
+      store_TIME's arguments: 
+      - seconds since epoch
+      - microsecond fraction of a second.
+    */
+    ((Field_timestamp*)field)->store_TIME(tmp / 1000, (tmp % 1000)*1000);
   }
-  
+
   void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     my_time_t ts_time;
-    ulong ts_millis;
+    ulong ts_microsec;
     int64_t tmp;
-    ts_time= ((Field_timestamp*)field)->get_timestamp(&ts_millis);
-
-    tmp= ts_time * 1000 + ts_millis;
+    ts_time= ((Field_timestamp*)field)->get_timestamp(&ts_microsec);
+    
+    /* Cassandra needs milliseconds-since-epoch */
+    tmp= ts_time * 1000 + ts_microsec/1000;
     flip64((const char*)&tmp, (char*)&buf);
 
     *cass_data= (char*)&buf;
