@@ -12,7 +12,7 @@ drop table if exists t0, t1;
 create table t1 (a int) engine=cassandra 
   thrift_host='localhost' keyspace='foo' column_family='colfam';
 
---error ER_WRONG_COLUMN_NAME
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
 create table t1 (a int primary key, b int) engine=cassandra
   thrift_host='localhost' keyspace='foo' column_family='colfam';
 
@@ -45,13 +45,22 @@ create columnfamily cf1 ( pk varchar primary key, data1 varchar, data2 bigint);
 
 create columnfamily cf2 (rowkey bigint primary key, a bigint);
 
+create columnfamily cf3 (rowkey bigint primary key, intcol int);
+
+./cassandra-cli 
+
+CREATE COLUMN FAMILY cf10
+  WITH comparator = UTF8Type
+  AND key_validation_class=UTF8Type
+  AND default_validation_class = UTF8Type;
+
 --enable_parsing
 ############################################################################
 ## Cassandra initialization ends
 ############################################################################
 
 --echo # Now, create a table for real and insert data
-create table t1 (rowkey varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
+create table t1 (pk varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
   thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
 
 --echo # Just in case there were left-overs from previous:
@@ -64,8 +73,8 @@ insert into t1 values ('rowkey12', 'data1-value3', 454);
 select * from t1;
 
 explain
-select * from t1 where rowkey='rowkey11';
-select * from t1 where rowkey='rowkey11';
+select * from t1 where pk='rowkey11';
+select * from t1 where pk='rowkey11';
 
 # Deletion functions weirdly: it sets all columns to NULL
 #   but when If I do this in cassandra-cli:
@@ -80,7 +89,7 @@ select * from t1 where rowkey='rowkey11';
 #
 # CQL seems to simply ignore all "incomplete" records. 
 
-delete from t1 where rowkey='rowkey11';
+delete from t1 where pk='rowkey11';
 select * from t1;
 
 delete from t1;
@@ -189,6 +198,27 @@ select count(*) from t1 where a=12345;
 delete from t1;
 drop table t1;
 drop table t0;
+
+--echo # 32-bit INT type support
+CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, intcol INT) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (10,10);
+insert into t1 values (12,12);
+delete from t1;
+drop table t1;
+
+--echo # 
+--echo # Try accessing column family w/o explicitly defined columns
+--echo #
+--error ER_INTERNAL_ERROR
+CREATE TABLE t1 (my_primary_key varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
+
+DROP TABLE t1;
+
 ############################################################################
 ## Cassandra cleanup
 ############################################################################
