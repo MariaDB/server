@@ -2911,7 +2911,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
       Check if we're trying to take a write lock in a read only transaction.
     */
     if (table_list->mdl_request.type >= MDL_SHARED_WRITE &&
-        thd->tx_read_only)
+        thd->tx_read_only &&
+        !(flags & (MYSQL_OPEN_HAS_MDL_LOCK |
+                   MYSQL_LOCK_LOG_TABLE    |
+                   MYSQL_LOCK_IGNORE_GLOBAL_READ_ONLY)))
     {
       my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
       DBUG_RETURN(true);
