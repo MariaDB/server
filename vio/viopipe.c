@@ -48,7 +48,7 @@ static size_t wait_overlapped_result(Vio *vio, int timeout)
   timeout_ms= timeout >= 0 ? timeout : INFINITE;
 
   /* Wait for the overlapped operation to be completed. */
-  ret= WaitForSingleObjectEx(vio->pipe_overlapped.hEvent, timeout_ms, TRUE);
+  wait_status= WaitForSingleObjectEx(vio->pipe_overlapped.hEvent, timeout_ms, TRUE);
 
   /*
     WaitForSingleObjects will normally return WAIT_OBJECT_O (success,
@@ -78,7 +78,7 @@ size_t vio_read_pipe(Vio *vio, uchar *buf, size_t count)
   DWORD transferred;
   size_t ret= (size_t) -1;
   DBUG_ENTER("vio_read_pipe");
-  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d", vio->sd, buf,
+  DBUG_PRINT("enter", ("sd: %p  buf: %p  size: %d", vio->hPipe, buf,
                        (int) count));
 
   disable_iocp_notification(&vio->overlapped);
@@ -111,7 +111,7 @@ size_t vio_write_pipe(Vio *vio, const uchar *buf, size_t count)
   DWORD transferred;
   size_t ret= (size_t) -1;
   DBUG_ENTER("vio_write_pipe");
-  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d", vio->sd, buf,
+  DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %d", vio->hPipe, buf,
                        (int) count));
 
   disable_iocp_notification(&vio->pipe_overlapped);
