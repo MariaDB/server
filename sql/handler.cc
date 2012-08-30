@@ -3009,7 +3009,7 @@ void handler::print_error(int error, myf errflag)
     textno=ER_TABLE_DEF_CHANGED;
     break;
   case HA_ERR_NO_SUCH_TABLE:
-    my_error(ER_NO_SUCH_TABLE, errflag, table_share->db.str,
+    my_error(ER_NO_SUCH_TABLE_IN_ENGINE, errflag, table_share->db.str,
              table_share->table_name.str);
     DBUG_VOID_RETURN;
   case HA_ERR_RBR_LOGGING_FAILED:
@@ -4800,10 +4800,14 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
               db_type->show_status(db_type, thd, stat_print, stat) ? 1 : 0;
   }
 
-  if (!result)
+  /*
+    We also check thd->is_error() as Innodb may return 0 even if
+    there was an error.
+  */
+  if (!result && !thd->is_error())
     my_eof(thd);
   else if (!thd->is_error())
-    my_error(ER_GET_ERRNO, MYF(0), 0);
+    my_error(ER_GET_ERRNO, MYF(0), errno);
   return result;
 }
 

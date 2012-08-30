@@ -272,8 +272,11 @@ Item_equal *find_item_equal(COND_EQUAL *cond_equal, Field *field,
                             bool *inherited_fl);
 JOIN_TAB *first_depth_first_tab(JOIN* join);
 JOIN_TAB *next_depth_first_tab(JOIN* join, JOIN_TAB* tab);
-JOIN_TAB *first_breadth_first_tab(JOIN *join);
-JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab);
+
+enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
+JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind);
+JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
+                                 JOIN_TAB *tab);
 
 /**
   This handles SELECT with and without UNION.
@@ -6410,7 +6413,8 @@ greedy_search(JOIN      *join,
   uint      size_remain;    // cardinality of remaining_tables
   POSITION  best_pos;
   JOIN_TAB  *best_table; // the next plan node to be added to the curr QEP
-  uint      n_tables; // ==join->tables or # tables in the sj-mat nest we're optimizing
+  // ==join->tables or # tables in the sj-mat nest we're optimizing
+  uint      n_tables __attribute__((unused));
 
   DBUG_ENTER("greedy_search");
 
@@ -6650,15 +6654,15 @@ double JOIN::get_examined_rows()
 {
   ha_rows examined_rows;
   double prev_fanout= 1;
-  JOIN_TAB *tab= first_breadth_first_tab(this);
+  JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
   JOIN_TAB *prev_tab= tab;
 
   examined_rows= tab->get_examined_rows();
 
-  while ((tab= next_breadth_first_tab(this, tab)))
+  while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
   {
     prev_fanout *= prev_tab->records_read;
-    examined_rows+= tab->get_examined_rows() * prev_fanout;
+    examined_rows+= (ha_rows) (tab->get_examined_rows() * prev_fanout);
     prev_tab= tab;
   }
   return examined_rows;
@@ -7270,23 +7274,30 @@ prev_record_reads(POSITION *positions, uint idx, table_map found_ref)
   Enumerate join tabs in breadth-first fashion, including const tables.
 */
 
-JOIN_TAB *first_breadth_first_tab(JOIN *join)
+JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind)
 {
-  return join->join_tab; /* There's always one (i.e. first) table */
+  /* There's always one (i.e. first) table */
+  return (tabs_kind == WALK_EXECUTION_TABS)? join->join_tab:
+                                             join->table_access_tabs;
 }
 
 
-JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
+JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
+                                 JOIN_TAB *tab)
 {
+  JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, tabs_kind);
+  const uint n_top_tabs_count= (tabs_kind == WALK_EXECUTION_TABS)? 
+                                  join->top_join_tab_count:
+                                  join->top_table_access_tabs_count;
   if (!tab->bush_root_tab)
   {
     /* We're at top level. Get the next top-level tab */
     tab++;
-    if (tab < join->join_tab + join->top_join_tab_count)
+    if (tab < first_top_tab + n_top_tabs_count)
       return tab;
 
     /* No more top-level tabs. Switch to enumerating SJM nest children */
-    tab= join->join_tab;
+    tab= first_top_tab;
   }
   else
   {
@@ -7310,7 +7321,7 @@ JOIN_TAB *next_breadth_first_tab(JOIN *join, JOIN_TAB *tab)
     Ok, "tab" points to a top-level table, and we need to find the next SJM
     nest and enter it.
   */
-  for (; tab < join->join_tab + join->top_join_tab_count; tab++)
+  for (; tab < first_top_tab + n_top_tabs_count; tab++)
   {
     if (tab->bush_children)
       return tab->bush_children->start;
@@ -7334,7 +7345,7 @@ JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables with_const
 
 JOIN_TAB *next_top_level_tab(JOIN *join, JOIN_TAB *tab)
 {
-  tab= next_breadth_first_tab(join, tab);
+  tab= next_breadth_first_tab(join, WALK_EXECUTION_TABS, tab);
   if (tab && tab->bush_root_tab)
     tab= NULL;
   return tab;
@@ -7634,6 +7645,12 @@ get_best_combination(JOIN *join)
 
   join->top_join_tab_count= join->join_tab_ranges.head()->end - 
                             join->join_tab_ranges.head()->start;
+  /*
+    Save pointers to select join tabs for SHOW EXPLAIN
+  */
+  join->table_access_tabs= join->join_tab;
+  join->top_table_access_tabs_count= join->top_join_tab_count;
+
   update_depend_map(join);
   DBUG_RETURN(0);
 }
@@ -10529,7 +10546,7 @@ void JOIN::join_free()
     Optimization: if not EXPLAIN and we are done with the JOIN,
     free all tables.
   */
-  bool full= !(select_lex->uncacheable);
+  bool full= !(select_lex->uncacheable) &&  !(thd->lex->describe);
   bool can_unlock= full;
   DBUG_ENTER("JOIN::join_free");
 
@@ -11890,9 +11907,9 @@ static int compare_fields_by_table_order(Item *field1,
   bool outer_ref= 0;
   Item_field *f1= (Item_field *) (field1->real_item());
   Item_field *f2= (Item_field *) (field2->real_item());
-  if (f1->const_item())
+  if (field1->const_item() || f1->const_item())
     return 1;
-  if (f2->const_item())
+  if (field2->const_item() || f2->const_item())
     return -1;
   if (f2->used_tables() & OUTER_REF_TABLE_BIT)
   {  
@@ -16473,7 +16490,7 @@ int report_error(TABLE *table, int error)
       && !table->in_use->killed)
   {
     push_warning_printf(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, error,
-                        "Got error %d when reading table `%s`.`%s`",
+                        "Got error %d when reading table %`s.%`s",
                         error, table->s->db.str, table->s->table_name.str);
     sql_print_error("Got error %d when reading table '%s'",
 		    error, table->s->path.str);
@@ -21397,8 +21414,8 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
 
-    for (JOIN_TAB *tab= first_breadth_first_tab(join); tab;
-         tab= next_breadth_first_tab(join, tab))
+    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
+         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
       if (tab->bush_root_tab)
       {
@@ -21481,16 +21498,8 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
       else
       {
         TABLE_LIST *real_table= table->pos_in_table_list;
-        /*
-          Internal temporary tables have no corresponding table reference
-          object. Such a table may appear in EXPLAIN when a subquery that needs
-          a temporary table has been executed, and JOIN::exec replaced the
-          original JOIN with a plan to access the data in the temp table
-          (made by JOIN::make_simple_join).
-        */
-        const char *tab_name= real_table ? real_table->alias :
-                                           "internal_tmp_table";
-	item_list.push_back(new Item_string(tab_name, strlen(tab_name), cs));
+	item_list.push_back(new Item_string(real_table->alias,
+                                            strlen(real_table->alias), cs));
       }
       /* "partitions" column */
       if (join->thd->lex->describe & DESCRIBE_PARTITIONS)

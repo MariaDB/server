@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+   Copyright (c) 2008, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2000,7 +2000,7 @@ bool mysql_show_binlog_events(THD* thd)
         description_event->checksum_alg= ev->checksum_alg;
 
       if (event_count >= limit_start &&
-	  ev->net_send(protocol, linfo.log_file_name, pos))
+	  ev->net_send(thd, protocol, linfo.log_file_name, pos))
       {
 	errmsg = "Net error";
 	delete ev;

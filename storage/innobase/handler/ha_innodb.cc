@@ -8418,9 +8418,10 @@ ha_innobase::info_low(
 				                }
                                                 else if (rec_per_key > 1) {
                                                         rec_per_key =
-                                                        k_rec_per_key *
-						        (double)rec_per_key /
-							n_rows;
+                                                        (ha_rows)
+                                                          (k_rec_per_key *
+						          (double)rec_per_key /
+                                                           n_rows);
 						}
                                                 
 				                key_info->rec_per_key[k++]=
@@ -9575,6 +9576,7 @@ innodb_show_status(
 	const long		MAX_STATUS_SIZE = 1048576;
 	ulint			trx_list_start = ULINT_UNDEFINED;
 	ulint			trx_list_end = ULINT_UNDEFINED;
+        bool res;
 
 	DBUG_ENTER("innodb_show_status");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -9638,12 +9640,13 @@ innodb_show_status(
 
 	mutex_exit(&srv_monitor_file_mutex);
 
-	stat_print(thd, innobase_hton_name, (uint) strlen(innobase_hton_name),
-		   STRING_WITH_LEN(""), str, flen);
+	res= stat_print(thd, innobase_hton_name,
+                        (uint) strlen(innobase_hton_name),
+                        STRING_WITH_LEN(""), str, flen);
 
 	my_free(str);
 
-	DBUG_RETURN(FALSE);
+	DBUG_RETURN(res);
 }
 
 /************************************************************************//**
@@ -11712,7 +11715,7 @@ static MYSQL_SYSVAR_ULONG(read_ahead_threshold, srv_read_ahead_threshold,
   "trigger a readahead.",
   NULL, NULL, 56, 0, 64, 0);
 
-#ifdef UNIV_DEBUG
+#ifdef UNIV_DEBUG_never
 static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
   PLUGIN_VAR_RQCMDARG,
   "Debug flags for InnoDB to limit TRX_RSEG_N_SLOTS for trx_rsegf_undo_find_free()",
