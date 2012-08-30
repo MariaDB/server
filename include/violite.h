@@ -263,11 +263,6 @@ struct st_vio
   my_bool (*has_data) (Vio*);
   int (*io_wait)(Vio*, enum enum_vio_io_event, int);
   my_bool (*connect)(Vio*, struct sockaddr *, socklen_t, int);
-#ifdef _WIN32
-  HANDLE hPipe;
-  DWORD thread_id; /* Used on XP only by vio_shutdown() */
-  OVERLAPPED overlapped;
-#endif
 #ifdef HAVE_OPENSSL
   void	  *ssl_arg;
 #endif
@@ -282,5 +277,13 @@ struct st_vio
   size_t  shared_memory_remain;
   char    *shared_memory_pos;
 #endif /* HAVE_SMEM */
+#ifdef _WIN32
+  HANDLE hPipe;
+  OVERLAPPED overlapped;
+  DWORD thread_id; /* Used on XP only by vio_shutdown() */
+  OVERLAPPED pipe_overlapped;
+  DWORD read_timeout_ms;
+  DWORD write_timeout_ms;
+#endif
 };
 #endif /* vio_violite_h_ */

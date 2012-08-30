@@ -5582,11 +5582,8 @@ void handle_connections_sockets()
     fds[socket_count].events= POLLIN;   \
     socket_count++
 #else
-  fd_set readFDs,clientFDs;
-  uint max_used_connection= (uint)
-    max(max(mysql_socket_getfd(base_ip_sock), mysql_socket_getfd(unix_sock)),
-        mysqld_socket_getfd(extra_ip_sock)) + 1;
 #define setup_fds(X)    FD_SET(mysql_socket_getfd(X),&clientFDs)
+  fd_set readFDs,clientFDs;
   FD_ZERO(&clientFDs);
 #endif
 
@@ -5615,8 +5612,7 @@ void handle_connections_sockets()
     retval= poll(fds, socket_count, -1);
 #else
     readFDs=clientFDs;
-
-    retval= select((int) max_used_connection,&readFDs,0,0,0);
+    retval= select((int) 0,&readFDs,0,0,0);
 #endif
 
     if (retval < 0)
@@ -5648,13 +5644,13 @@ void handle_connections_sockets()
       }
     }
 #else  // HAVE_POLL
-    if (FD_ISSET(base_ip_sock,&readFDs))
+    if (FD_ISSET(mysql_socket_getfd(base_ip_sock),&readFDs))
     {
       sock=  base_ip_sock;
       flags= ip_flags;
     }
     else
-    if (FD_ISSET(extra_ip_sock,&readFDs))
+    if (FD_ISSET(mysql_socket_getfd(extra_ip_sock),&readFDs))
     {
       sock=  extra_ip_sock;
       flags= extra_ip_flags;

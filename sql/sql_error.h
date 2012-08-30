@@ -193,6 +193,10 @@ public:
   MYSQL_ERROR::enum_warning_level get_level() const
   { return m_level; }
 
+  /** Destructor. */
+  ~MYSQL_ERROR()
+  {}
+
 private:
   /*
     The interface of MYSQL_ERROR is mostly private, by design,
@@ -234,9 +238,7 @@ private:
   */
   MYSQL_ERROR(MEM_ROOT *mem_root);
 
-  /** Destructor. */
-  ~MYSQL_ERROR()
-  {}
+
 
   /**
     Copy optional condition items attributes.
