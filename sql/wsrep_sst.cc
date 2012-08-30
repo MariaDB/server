@@ -202,7 +202,7 @@ bool wsrep_sst_wait ()
 }
 
 // Signal end of SST
-void wsrep_sst_complete (wsrep_uuid_t* sst_uuid,
+void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
                          wsrep_seqno_t sst_seqno,
                          bool          needed)
 {
@@ -242,8 +242,7 @@ struct sst_thread_arg
 
   sst_thread_arg (const char* c) : cmd(c), err(-1), ret_str(0)
   {
-    mysql_mutex_init(key_LOCK_wsrep_sst_thread, 
-		   &lock, MY_MUTEX_INIT_FAST);
+    mysql_mutex_init(key_LOCK_wsrep_sst_thread, &lock, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_COND_wsrep_sst_thread, &cond, NULL);
   }
 
@@ -382,8 +381,8 @@ static ssize_t sst_prepare_other (const char*  method,
   const char* sst_dir= mysql_real_data_home;
 
   int ret= snprintf (cmd_str, cmd_len,
-                     "wsrep_sst_%s 'joiner' '%s' '%s' '%s' '%s' '%d' 2>sst.err",
-                     method, addr_in, (sst_auth_real) ? sst_auth_real : "", 
+                     "wsrep_sst_%s 'joiner' '%s' '%s' '%s' '%s' '%d'",
+                     method, addr_in, (sst_auth_real) ? sst_auth_real : "",
                      sst_dir, wsrep_defaults_file, (int)getpid());
 
   if (ret < 0 || ret >= cmd_len)
@@ -416,7 +415,7 @@ static ssize_t sst_prepare_other (const char*  method,
 //extern ulong my_bind_addr;
 extern uint  mysqld_port;
 
-/*! Just tells donor where ti sent mysqldump */
+/*! Just tells donor where to send mysqldump */
 static ssize_t sst_prepare_mysqldump (const char*  addr_in,
                                       const char** addr_out)
 {
@@ -497,7 +496,7 @@ ssize_t wsrep_sst_prepare (void** msg)
   }
   else
   {
-    ssize_t ret= default_ip (ip_buf, ip_max);
+    ssize_t ret= guess_ip (ip_buf, ip_max);
 
     if (ret && ret < ip_max)
     {

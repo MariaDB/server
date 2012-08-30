@@ -1429,22 +1429,12 @@ run_again:
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					if (thr->fk_cascade_depth == 0) {
-						err = wsrep_append_foreign_key(
-							thr_get_trx(thr),
-							foreign,
-							rec, 
-							check_index, 
-							check_ref, TRUE);
-					} else {
-					  fprintf(stderr, "WSREP: skipping FK key append\n");
-						err = wsrep_append_foreign_key(
-							thr_get_trx(thr),
-							foreign,
-							rec, 
-							check_index, 
-							TRUE, TRUE);
-					}
+                                       err = wsrep_append_foreign_key(
+                                               thr_get_trx(thr),
+                                               foreign,
+                                               rec, 
+                                               check_index, 
+                                               check_ref, TRUE);
 #endif /* WITH_WSREP */
 					goto end_scan;
 				} else if (foreign->type != 0) {
@@ -1475,14 +1465,6 @@ run_again:
 						goto end_scan;
 					}
 
-#ifdef WITH_WSREP_REMOVED
-					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
-						foreign,
-						rec, 
-						check_index, 
-						FALSE);
-#endif /* WITH_WSREP */
 					/* row_ins_foreign_check_on_constraint
 					may have repositioned pcur on a
 					different block */

@@ -236,7 +236,7 @@ mysql> SHOW STATUS LIKE 'wsrep%';
    - If performing a rolling upgrade on a running cluster, set
      wsrep_sst_method=mysqldump.
      You might also need to configure wsrep_sst_receive_address and
-     wsrep_sst_auth appropriately. Mysqldump is the only way to transfer data
+     wsrep_sst_auth appropriately. mysqldump is the only way to transfer data
      from 5.1.x to 5.5.x reliably.
    - remove innodb_plugin settings from configuration files.
 
@@ -291,6 +291,15 @@ wsrep_cluster_address=
 
 wsrep_cluster_name="my_wsrep_cluster"
    Logical cluster name, must be the same for all nodes of the cluster.
+
+wsrep_node_address=
+   An option to explicitly specify the network address of the node in the form
+   <address>[:port] if autoguessing for some reason does not produce desirable
+   results (multiple network interfaces, NAT, etc.)
+   If not explicitly overridden by wsrep_sst_receive_address, the <address> part
+   will be used to listen for SST (see below). And the whole <address>[:port]
+   will be passed to wsrep provider to be used as a base address in its
+   communications.
 
 wsrep_node_name=
    Human readable node name (for easier log reading only). Defaults to hostname.

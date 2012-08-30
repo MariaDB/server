@@ -18,10 +18,8 @@
 
 #include "mysqld.h"
 typedef struct st_mysql_show_var SHOW_VAR;
-//#include <mysql.h>
 #include <sql_priv.h>
 #include "../wsrep/wsrep_api.h"
-//#include <sql_class.h>
 
 class set_var;
 class THD;
@@ -77,6 +75,7 @@ extern const char* wsrep_provider_name;
 extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 extern int         wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
+extern void        wsrep_free_status(THD *thd);
 
 #define WSREP_SST_ADDRESS_AUTO "AUTO"
 // MySQL variables funcs

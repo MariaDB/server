@@ -2400,6 +2400,7 @@ public:
   enum enum_server_command  wsrep_retry_command;
   enum wsrep_consistency_check_mode 
                             wsrep_consistency_check;
+  wsrep_stats_var*          wsrep_status_vars;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

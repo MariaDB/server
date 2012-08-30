@@ -2535,7 +2535,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS:
   {
 #ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd)) goto error;
+    if (lex->sql_command == SQLCOM_SHOW_STATUS) wsrep_free_status(thd);
 #endif /* WITH_WSREP */
     execute_show_status(thd, all_tables);
     break;

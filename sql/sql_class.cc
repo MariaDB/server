@@ -1005,6 +1005,7 @@ THD::THD()
   wsrep_retry_query_len = 0;
   wsrep_retry_command   = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_status_vars     = 0;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1557,6 +1558,7 @@ THD::~THD()
   mysql_mutex_unlock(&LOCK_wsrep_thd);
   mysql_mutex_destroy(&LOCK_wsrep_thd);
   if (wsrep_rli) delete wsrep_rli;
+  if (wsrep_status_vars) wsrep->stats_free(wsrep, wsrep_status_vars);
 #endif
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY

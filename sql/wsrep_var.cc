@@ -464,31 +464,27 @@ wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep)
   }
 }
 
-static wsrep_stats_var*  wsrep_status_vars = NULL;
-
 #if DYNAMIC
 // somehow this mysql status thing works only with statically allocated arrays.
 static SHOW_VAR*          mysql_status_vars = NULL;
 static int                mysql_status_len  = -1;
 #else
-static SHOW_VAR           mysql_status_vars[100 + 1];
-static const int          mysql_status_len  = 100;
+static SHOW_VAR           mysql_status_vars[512 + 1];
+static const int          mysql_status_len  = 512;
 #endif
 
-static void export_wsrep_status_to_mysql()
+static void export_wsrep_status_to_mysql(THD* thd)
 {
   int wsrep_status_len, i;
 
-  if (wsrep_status_vars) wsrep->stats_free (wsrep, wsrep_status_vars);
+  thd->wsrep_status_vars = wsrep->stats_get(wsrep);
 
-  wsrep_status_vars = wsrep->stats_get (wsrep);
-
-  if (!wsrep_status_vars) {
+  if (!thd->wsrep_status_vars) {
     return;
   }
 
   for (wsrep_status_len = 0;
-       wsrep_status_vars[wsrep_status_len].name != NULL;
+       thd->wsrep_status_vars[wsrep_status_len].name != NULL;
        wsrep_status_len++);
 
 #if DYNAMIC
@@ -511,7 +507,7 @@ static void export_wsrep_status_to_mysql()
 #endif
 
   for (i = 0; i < wsrep_status_len; i++)
-    wsrep_assign_to_mysql (mysql_status_vars + i, wsrep_status_vars + i);
+    wsrep_assign_to_mysql (mysql_status_vars + i, thd->wsrep_status_vars + i);
 
   mysql_status_vars[wsrep_status_len].name  = NullS;
   mysql_status_vars[wsrep_status_len].value = NullS;
@@ -520,8 +516,17 @@ static void export_wsrep_status_to_mysql()
 
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 {
-  export_wsrep_status_to_mysql();
+  export_wsrep_status_to_mysql(thd);
   var->type= SHOW_ARRAY;
   var->value= (char *) &mysql_status_vars;
   return 0;
+}
+
+void wsrep_free_status (THD* thd)
+{
+  if (thd->wsrep_status_vars)
+  {
+    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
+    thd->wsrep_status_vars = 0;
+  }
 }

@@ -5080,7 +5080,7 @@ void wsrep_wait_appliers_close(THD *thd)
   /* and wait for them to die */
   mysql_mutex_lock(&LOCK_thread_count);
   while (have_wsrep_appliers(thd) > 0)
-   {
+  {
     mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)",thread_count));
   }

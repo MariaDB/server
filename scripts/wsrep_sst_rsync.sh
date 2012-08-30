@@ -23,14 +23,14 @@ RSYNC_CONF=
 
 cleanup_joiner()
 {
-    echo "Joiner cleanup:" >&2
-set -x
+    echo -n "Joiner rsync SST cleanup..." >&2
     local PID=$(cat "$RSYNC_PID" 2>/dev/null || echo 0)
-    [ "0" != "$PID" ] && kill $PID && sleep 0.5 && kill -9 $PID || :
-set +x
+    [ "0" != "$PID" ] && kill $PID && sleep 0.5 && kill -9 $PID >/dev/null 2>&1 \
+    || :
     rm -rf "$RSYNC_CONF"
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
+    echo " done." >&2
 }
 
 check_pid()

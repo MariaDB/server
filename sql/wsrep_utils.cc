@@ -316,7 +316,7 @@ thd::~thd ()
 extern ulong my_bind_addr;
 extern uint  mysqld_port;
 
-size_t default_ip (char* buf, size_t buf_len)
+size_t guess_ip (char* buf, size_t buf_len)
 {
   size_t ip_len = 0;
 
@@ -325,64 +325,83 @@ size_t default_ip (char* buf, size_t buf_len)
     return 0;
   }
 
-  if (htonl(INADDR_ANY) == my_bind_addr) {
-    // binds to all interfaces, try to find the address of the first one
-#if (TARGET_OS_LINUX == 1)
-    const char cmd[] = "/sbin/ifconfig | "
-        "grep -m1 -1 -E '^[a-z]?eth[0-9]' | tail -n 1 | "
-        "awk '{ print $2 }' | awk -F : '{ print $2 }'";
-#elif defined(__sun__)
-    const char cmd[] = "/sbin/ifconfig -a | "
-        "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
-#else
-    char *cmd;
-#error "OS not supported"
-#endif
-    wsp::process proc (cmd, "r");
+  if (htonl(INADDR_ANY) != my_bind_addr) {
+    uint8_t* b = (uint8_t*)&my_bind_addr;
+    ip_len = snprintf (buf, buf_len,
+                       "%hhu.%hhu.%hhu.%hhu", b[0],b[1],b[2],b[3]);
+    return ip_len;
+  }
 
-    if (NULL != proc.pipe()) {
-      char* ret;
+  // mysqld binds to all interfaces - try IP from wsrep_node_address
+  if (wsrep_node_address && wsrep_node_address[0] != '\0') {
+    const char* const colon_ptr = strchr(wsrep_node_address, ':');
 
-      ret = fgets (buf, buf_len, proc.pipe());
+    if (colon_ptr)
+      ip_len = colon_ptr - wsrep_node_address;
+    else
+      ip_len = strlen(wsrep_node_address);
 
-      if (proc.wait()) return 0;
-
-      if (NULL == ret) {
-        WSREP_ERROR("Failed to read output of: '%s'", cmd);
-        return 0;
-      }
-    }
-    else {
-      WSREP_ERROR("Failed to execute: '%s'", cmd);
+    if (ip_len >= buf_len) {
+      WSREP_WARN("default_ip(): buffer too short: %zu <= %zd", buf_len, ip_len);
       return 0;
     }
 
-    // clear possible \n at the end of ip string left by fgets()
-    ip_len = strlen (buf);
-    if (ip_len > 0 && '\n' == buf[ip_len - 1]) {
-      ip_len--;
-      buf[ip_len] = '\0';
-    }
+    memcpy (buf, wsrep_node_address, ip_len);
+    buf[ip_len] = '\0';
+    return ip_len;
+  }
 
-    if (INADDR_NONE == inet_addr(buf)) {
-      if (strlen(buf) != 0) {
-        WSREP_WARN("Shell command returned invalid address: '%s'", buf);
-      }
+  // try to find the address of the first one
+#if (TARGET_OS_LINUX == 1)
+  const char cmd[] = "/sbin/ifconfig | "
+      "grep -m1 -1 -E '^[a-z]?eth[0-9]' | tail -n 1 | "
+      "awk '{ print $2 }' | awk -F : '{ print $2 }'";
+#elif defined(__sun__)
+  const char cmd[] = "/sbin/ifconfig -a | "
+      "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
+#else
+  char *cmd;
+#error "OS not supported"
+#endif
+  wsp::process proc (cmd, "r");
+
+  if (NULL != proc.pipe()) {
+    char* ret;
+
+    ret = fgets (buf, buf_len, proc.pipe());
+
+    if (proc.wait()) return 0;
+
+    if (NULL == ret) {
+      WSREP_ERROR("Failed to read output of: '%s'", cmd);
       return 0;
     }
   }
   else {
-    uint8_t* b = (uint8_t*)&my_bind_addr;
-    ip_len = snprintf (buf, buf_len,
-                       "%hhu.%hhu.%hhu.%hhu", b[0],b[1],b[2],b[3]);
+    WSREP_ERROR("Failed to execute: '%s'", cmd);
+    return 0;
+  }
+
+  // clear possible \n at the end of ip string left by fgets()
+  ip_len = strlen (buf);
+  if (ip_len > 0 && '\n' == buf[ip_len - 1]) {
+    ip_len--;
+    buf[ip_len] = '\0';
+  }
+
+  if (INADDR_NONE == inet_addr(buf)) {
+    if (strlen(buf) != 0) {
+      WSREP_WARN("Shell command returned invalid address: '%s'", buf);
+    }
+    return 0;
   }
 
   return ip_len;
 }
 
-size_t default_address(char* buf, size_t buf_len)
+size_t guess_address(char* buf, size_t buf_len)
 {
-  size_t addr_len = default_ip (buf, buf_len);
+  size_t addr_len = guess_ip (buf, buf_len);
 
   if (addr_len && addr_len < buf_len) {
     addr_len += snprintf (buf + addr_len, buf_len - addr_len,
