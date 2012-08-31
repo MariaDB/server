@@ -15,6 +15,8 @@ Featured copied/merged
   (Including support in all clients)
 - Added Ssl_server_not_before & Ssl_server_not_after variables
   (Including changes to yassl)
+- Added all mysql systems tables
+- TRANSACTION READ ONLY | READ WRITE
 
 Features recoded
 - Better error messages
@@ -26,17 +28,17 @@ Fetures half done:
 - Merge sql/rpl_mi.cc (To get Sys_ssl_crl & crlpath)
 
 Short time TODO:
-- Add support for TRANSACTION READ ONLY | READ WRITE in sql_yacc.yy
-  (support for variable tx_read_only)
+- Add test cases for InnoDB
 
 - merge hostname.cc / hostname.h
 - add support for host_error()
-
 - Enable performance_schema.host_cache in scripts/mysql_system_tables.sql
 
-- Add full support for timestamp. (remove timestamp handling from ha_write())
+- Add full support for automatic timestamp.
+ (remove timestamp handling from ha_write())
+  - Timour is working on this
 
-- Add  Sys_my_bind_addr(); Needed for perfschema
+- Add Sys_my_bind_addr(); Needed for perfschema
 
 - Add THD_STAGE_INFO everywhere.
 
