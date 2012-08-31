@@ -2001,14 +2001,14 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler)
 {
   handler *save_file= file, *org_file;
   my_bool org_key_read;
-  THD *thd;
+  THD *thd= head->in_use;
   DBUG_ENTER("QUICK_RANGE_SELECT::init_ror_merged_scan");
 
   in_ror_merged_scan= 1;
   if (reuse_handler)
   {
     DBUG_PRINT("info", ("Reusing handler 0x%lx", (long) file));
-    if (init() || reset())
+    if (init())
     {
       DBUG_RETURN(1);
     }
@@ -2023,7 +2023,6 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler)
     DBUG_RETURN(0);
   }
 
-  thd= head->in_use;
   if (!(file= head->file->clone(head->s->normalized_path.str, thd->mem_root)))
   {
     /* 
@@ -2043,7 +2042,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler)
   if (file->ha_external_lock(thd, F_RDLCK))
     goto failure;
 
-  if (init() || reset())
+  if (init())
   {
     file->ha_external_lock(thd, F_UNLCK);
     file->ha_close();
@@ -2090,7 +2089,18 @@ end:
   head->key_read= org_key_read;
   bitmap_copy(&column_bitmap, head->read_set);
   head->column_bitmaps_set(&column_bitmap, &column_bitmap);
-
+ 
+  if (reset())
+  {
+    if (!reuse_handler)
+    {
+      file->ha_external_lock(thd, F_UNLCK);
+      file->ha_close();
+      goto failure;
+    }
+    else
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 
 failure:
@@ -11793,9 +11803,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         have_min= TRUE;
       else if (min_max_item->sum_func() == Item_sum::MAX_FUNC)
         have_max= TRUE;
-      else if (min_max_item->sum_func() == Item_sum::COUNT_DISTINCT_FUNC ||
-               min_max_item->sum_func() == Item_sum::SUM_DISTINCT_FUNC ||
-               min_max_item->sum_func() == Item_sum::AVG_DISTINCT_FUNC)
+      else if (is_agg_distinct &&
+               (min_max_item->sum_func() == Item_sum::COUNT_DISTINCT_FUNC ||
+                min_max_item->sum_func() == Item_sum::SUM_DISTINCT_FUNC ||
+                min_max_item->sum_func() == Item_sum::AVG_DISTINCT_FUNC))
         continue;
       else
         DBUG_RETURN(NULL);

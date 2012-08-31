@@ -504,10 +504,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
                             "Assigning value %d.", plugin->plugin->name, idx);
         hton->db_type= (enum legacy_db_type) idx;
       }
-      installed_htons[hton->db_type]= hton;
-      tmp= hton->savepoint_offset;
-      hton->savepoint_offset= savepoint_alloc_size;
-      savepoint_alloc_size+= tmp;
 
       /*
         In case a plugin is uninstalled and re-installed later, it should
@@ -2558,8 +2554,19 @@ int handler::update_auto_increment()
         reservation means potentially losing unused values).
         Note that in prelocked mode no estimation is given.
       */
+
       if ((auto_inc_intervals_count == 0) && (estimation_rows_to_insert > 0))
         nb_desired_values= estimation_rows_to_insert;
+      else if ((auto_inc_intervals_count == 0) &&
+               (thd->lex->many_values.elements > 0))
+      {
+        /*
+          For multi-row inserts, if the bulk inserts cannot be started, the
+          handler::estimation_rows_to_insert will not be set. But we still
+          want to reserve the autoinc values.
+        */
+        nb_desired_values= thd->lex->many_values.elements;
+      }
       else /* go with the increasing defaults */
       {
         /* avoid overflow in formula, with this if() */
@@ -3002,7 +3009,7 @@ void handler::print_error(int error, myf errflag)
     textno=ER_TABLE_DEF_CHANGED;
     break;
   case HA_ERR_NO_SUCH_TABLE:
-    my_error(ER_NO_SUCH_TABLE, errflag, table_share->db.str,
+    my_error(ER_NO_SUCH_TABLE_IN_ENGINE, errflag, table_share->db.str,
              table_share->table_name.str);
     DBUG_VOID_RETURN;
   case HA_ERR_RBR_LOGGING_FAILED:
@@ -4793,10 +4800,14 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
               db_type->show_status(db_type, thd, stat_print, stat) ? 1 : 0;
   }
 
-  if (!result)
+  /*
+    We also check thd->is_error() as Innodb may return 0 even if
+    there was an error.
+  */
+  if (!result && !thd->is_error())
     my_eof(thd);
   else if (!thd->is_error())
-    my_error(ER_GET_ERRNO, MYF(0), 0);
+    my_error(ER_GET_ERRNO, MYF(0), errno);
   return result;
 }
 
@@ -5075,6 +5086,8 @@ int handler::ha_write_row(uchar *buf)
   rows_changed++;
   if (unlikely(error= binlog_log_row(table, 0, buf, log_func)))
     DBUG_RETURN(error); /* purecov: inspected */
+
+  DEBUG_SYNC_C("ha_write_row_end");
   DBUG_RETURN(0);
 }
 
