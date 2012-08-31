@@ -599,7 +599,7 @@ public:
     ts_time= ((Field_timestamp*)field)->get_timestamp(&ts_microsec);
     
     /* Cassandra needs milliseconds-since-epoch */
-    tmp= ts_time * 1000 + ts_microsec/1000;
+    tmp= ((int64_t)ts_time) * 1000 + ts_microsec/1000;
     flip64((const char*)&tmp, (char*)&buf);
 
     *cass_data= (char*)&buf;
