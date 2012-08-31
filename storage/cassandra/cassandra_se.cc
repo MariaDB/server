@@ -416,9 +416,8 @@ bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
   cparent.column_family= column_family;
   
   /* SlicePredicate can be used to limit columns we will retrieve */
-   // Try passing nothing...
 
-  KeyRange key_range; // Try passing nothing, too.
+  KeyRange key_range;
   key_range.__isset.start_key= true;
   key_range.__isset.end_key= true;
 

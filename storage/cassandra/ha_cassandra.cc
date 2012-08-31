@@ -302,6 +302,7 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
   }
 
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
+  insert_lineno= 0;
 
   DBUG_RETURN(0);
 }
@@ -407,6 +408,7 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "setup_field_converters");
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
+  insert_lineno= 0;
   DBUG_RETURN(0);
 }
 
@@ -430,8 +432,13 @@ public:
   /*
     This will get data from the Field pointer, store Cassandra's form
     in internal buffer, and return pointer/size.
+
+    @return
+      false - OK
+      true  - Failed to convert value (completely, there is no value to insert
+              at all).
   */
-  virtual void mariadb_to_cassandra(char **cass_data, int *cass_data_len)=0;
+  virtual bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)=0;
   virtual ~ColumnDataConverter() {};
 };
 
@@ -447,11 +454,12 @@ public:
     field->store(*pdata);
   }
   
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     buf= field->val_real();
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(double);
+    return false;
   }
   ~DoubleDataConverter(){}
 };
@@ -468,11 +476,12 @@ public:
     field->store(*pdata);
   }
   
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     buf= field->val_real();
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(float);
+    return false;
   }
   ~FloatDataConverter(){}
 };
@@ -501,12 +510,13 @@ public:
     field->store(tmp);
   }
   
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     longlong tmp= field->val_int();
     flip64((const char*)&tmp, (char*)&buf);
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(longlong);
+    return false;
   }
   ~BigintDataConverter(){}
 };
@@ -531,12 +541,13 @@ public:
     field->store(tmp);
   }
   
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     int32_t tmp= field->val_int();
     flip32((const char*)&tmp, (char*)&buf);
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(int32_t);
+    return false;
   }
   ~Int32DataConverter(){}
 };
@@ -551,11 +562,12 @@ public:
     field->store(cass_data, cass_data_len,field->charset());
   }
   
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     String *pstr= field->val_str(&buf);
     *cass_data= (char*)pstr->c_ptr();
     *cass_data_len= pstr->length();
+    return false;
   }
   ~StringCopyConverter(){}
 };
@@ -579,7 +591,7 @@ public:
     ((Field_timestamp*)field)->store_TIME(tmp / 1000, (tmp % 1000)*1000);
   }
 
-  void mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     my_time_t ts_time;
     ulong ts_microsec;
@@ -592,8 +604,83 @@ public:
 
     *cass_data= (char*)&buf;
     *cass_data_len= 8;
+    return false;
   }
   ~TimestampDataConverter(){}
+};
+
+
+
+static int convert_hex_digit(const char c)
+{
+  int num;
+  if (c >= '0' && c <= '9')
+    num= c - '0';
+  else if (c >= 'A' && c <= 'F')
+    num= c - 'A' + 10;
+  else if (c >= 'a' && c <= 'f')
+    num= c - 'a' + 10;
+  else
+    return -1; /* Couldn't convert */
+  return num;
+}
+
+
+const char map2number[]="0123456789abcdef";
+
+class UuidDataConverter : public ColumnDataConverter
+{
+  char buf[16]; /* Binary UUID representation */
+  String str_buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    DBUG_ASSERT(cass_data_len==16);
+    char str[37];
+    char *ptr= str;
+    /* UUID arrives as 16-byte number in network byte order */
+    for (uint i=0; i < 16; i++)
+    {
+      *(ptr++)= map2number[(cass_data[i] >> 4) & 0xF];
+      *(ptr++)= map2number[cass_data[i] & 0xF];
+      if (i == 3 || i == 5 || i == 7 || i == 9)
+        *(ptr++)= '-';
+    }
+    *ptr= 0;
+    field->store(str, 36,field->charset());
+  }
+
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    String *uuid_str= field->val_str(&str_buf);
+    char *pstr= (char*)uuid_str->c_ptr();
+
+    if (uuid_str->length() != 36) 
+      return true;
+    
+    int lower, upper;
+    for (uint i=0; i < 16; i++)
+    {
+      if ((upper= convert_hex_digit(pstr[0])) == -1 ||
+          (lower= convert_hex_digit(pstr[1])) == -1)
+      {
+        return true;
+      }
+      buf[i]= lower | (upper << 4);
+      pstr += 2;
+      if (i == 3 || i == 5 || i == 7 || i == 9)
+      {
+        if (pstr[0] != '-')
+          return true;
+        pstr++;
+      }
+    }
+     
+    *cass_data= buf;
+    *cass_data_len= 16;
+    return false;
+  }
+  ~UuidDataConverter(){}
 };
 
 const char * const validator_bigint=  "org.apache.cassandra.db.marshal.LongType";
@@ -609,6 +696,8 @@ const char * const validator_text=    "org.apache.cassandra.db.marshal.UTF8Type"
 
 const char * const validator_timestamp="org.apache.cassandra.db.marshal.DateType";
 
+const char * const validator_uuid= "org.apache.cassandra.db.marshal.UUIDType";
+
 ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
 {
   ColumnDataConverter *res= NULL;
@@ -617,8 +706,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
     case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONGLONG:
-      if (!strcmp(validator_name, validator_bigint) ||
-          0/*!strcmp(validator_name, validator_timestamp)*/)
+      if (!strcmp(validator_name, validator_bigint))
         res= new BigintDataConverter;
       break;
 
@@ -637,9 +725,18 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
         res= new TimestampDataConverter;
       break;
 
-    case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_STRING: // these are space padded CHAR(n) strings.
+      if (!strcmp(validator_name, validator_uuid) && 
+          field->real_type() == MYSQL_TYPE_STRING &&
+          field->field_length == 36) 
+      {
+        // UUID maps to CHAR(36), its text representation
+        res= new UuidDataConverter;
+        break;
+      }
+      /* fall through: */
     case MYSQL_TYPE_VARCHAR:
-    case MYSQL_TYPE_STRING: // these are space padded strings.
+    case MYSQL_TYPE_VAR_STRING:
       if (!strcmp(validator_name, validator_blob) ||
           !strcmp(validator_name, validator_ascii) ||
           !strcmp(validator_name, validator_text))
@@ -698,7 +795,11 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
   }
 
   if (n_mapped != n_fields - 1)
+  {
+    se->print_error("Some of SQL fields were not mapped to Cassandra's fields"); 
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
     return true;
+  }
   
   /* 
     Setup type conversion for row_key.
@@ -775,7 +876,11 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
 
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
 
-  rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+  if (rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len))
+  {
+    /* We get here when making lookups like uuid_column='not-an-uuid' */
+    DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
+  }
 
   dbug_tmp_restore_column_map(table->read_set, old_map);
 
@@ -858,10 +963,18 @@ int ha_cassandra::write_row(uchar *buf)
 
   old_map= dbug_tmp_use_all_columns(table, table->read_set);
   
+  insert_lineno++;
+
   /* Convert the key */
   char *cass_key;
   int cass_key_len;
-  rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len);
+  if (rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len))
+  {
+    my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
+             rowkey_converter->field->field_name, insert_lineno);
+    dbug_tmp_restore_column_map(table->read_set, old_map);
+    DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+  }
   se->start_row_insert(cass_key, cass_key_len);
 
   /* Convert other fields */
@@ -869,7 +982,13 @@ int ha_cassandra::write_row(uchar *buf)
   {
     char *cass_data;
     int cass_data_len;
-    field_converters[i]->mariadb_to_cassandra(&cass_data, &cass_data_len);
+    if (field_converters[i]->mariadb_to_cassandra(&cass_data, &cass_data_len))
+    {
+      my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
+               field_converters[i]->field->field_name, insert_lineno);
+      dbug_tmp_restore_column_map(table->read_set, old_map);
+      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+    }
     se->add_insert_column(field_converters[i]->field->field_name, 
                           cass_data, cass_data_len);
   }
@@ -892,7 +1011,7 @@ int ha_cassandra::write_row(uchar *buf)
 
   if (res)
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
-
+  
   DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);
 }
 
@@ -1060,6 +1179,7 @@ int ha_cassandra::rnd_pos(uchar *buf, uchar *pos)
 int ha_cassandra::reset()
 {
   doing_insert_batch= false;
+  insert_lineno= 0;
   return 0;
 }
 
