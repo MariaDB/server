@@ -48,6 +48,9 @@ class ha_cassandra: public handler
 
   bool doing_insert_batch;
   ha_rows insert_rows_batched;
+  
+  /* Used to produce 'wrong column %s at row %lu' warnings */
+  ha_rows insert_lineno;
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()
