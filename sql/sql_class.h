@@ -1844,6 +1844,7 @@ public:
     MEM_ROOT mem_root; // Transaction-life memory allocation pool
     void cleanup()
     {
+      DBUG_ENTER("thd::cleanup");
       changed_tables= 0;
       savepoints= 0;
       /*
@@ -1855,6 +1856,7 @@ public:
       if (!xid_state.rm_error)
         xid_state.xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
+      DBUG_VOID_RETURN;
     }
     my_bool is_active()
     {
@@ -3028,7 +3030,7 @@ public:
     if (global_system_variables.log_warnings > threshold)
     {
       Security_context *sctx= &main_security_ctx;
-      sql_print_warning(ER(ER_NEW_ABORTING_CONNECTION),
+      sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db ? db : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
