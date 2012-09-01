@@ -7201,6 +7201,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   List<Item>   fields;
   List<Item>   all_fields;
   ha_rows examined_rows;
+  ha_rows found_rows;
   bool auto_increment_field_copied= 0;
   ulonglong save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
@@ -7284,8 +7285,9 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                       &tables, fields, all_fields, order) ||
           !(sortorder= make_unireg_sortorder(order, &length, NULL)) ||
           (from->sort.found_records= filesort(thd, from, sortorder, length,
-                                              (SQL_SELECT *) 0, HA_POS_ERROR,
-                                              1, &examined_rows)) ==
+                                              NULL, HA_POS_ERROR,
+                                              true,
+                                              &examined_rows, &found_rows)) ==
           HA_POS_ERROR)
         goto err;
     }
