@@ -4652,8 +4652,20 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     if (table_share && table_share->table_category != TABLE_CATEGORY_SYSTEM)
     {
       if (!table_share->stats_can_be_read && 
-          !alloc_statistics_for_table_share(thd, table_share, FALSE))    
+          !alloc_statistics_for_table_share(thd, table_share, FALSE))
+      {    
+        KEY *key_info= table_share->key_info;
+        KEY *key_info_end= key_info + table_share->keys;
+        KEY *table_key_info= tables->table->key_info;
+        for ( ; key_info < key_info_end; key_info++, table_key_info++)
+          table_key_info->read_stats= key_info->read_stats;
+        Field **field_ptr= table_share->field;
+        Field **table_field_ptr= tables->table->field;
+        for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+          (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+  
 	table_share->stats_can_be_read= TRUE;
+      }
 	
       if (table_share->stats_can_be_read && !table_share->stats_is_read)
       {    
