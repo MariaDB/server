@@ -2722,6 +2722,27 @@ public:
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
 
+  inline void get_binlog_format(enum_binlog_format *format,
+                                enum_binlog_format *current_format)
+  {
+    *format= (enum_binlog_format) variables.binlog_format;
+    *current_format= current_stmt_binlog_format;
+  }
+  inline void set_binlog_format(enum_binlog_format format,
+                                enum_binlog_format current_format)
+  {
+    DBUG_ENTER("set_binlog_format");
+    variables.binlog_format= format;
+    current_stmt_binlog_format= current_format;
+    DBUG_VOID_RETURN;
+  }
+  inline void set_binlog_format_stmt()
+  {
+    DBUG_ENTER("set_binlog_format_stmt");
+    variables.binlog_format=    BINLOG_FORMAT_STMT;
+    current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    DBUG_VOID_RETURN;
+  }
   /*
     @todo Make these methods private or remove them completely.  Only
     decide_logging_format should call them. /Sven
@@ -2752,16 +2773,26 @@ public:
 
     DBUG_VOID_RETURN;
   }
+
   inline void set_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("set_current_stmt_binlog_format_row");
     current_stmt_binlog_format= BINLOG_FORMAT_ROW;
     DBUG_VOID_RETURN;
   }
-  inline void clear_current_stmt_binlog_format_row()
+  /* Set binlog format temporarily to statement. Returns old format */
+  inline enum_binlog_format set_current_stmt_binlog_format_stmt()
   {
-    DBUG_ENTER("clear_current_stmt_binlog_format_row");
+    enum_binlog_format orig_format= current_stmt_binlog_format;
+    DBUG_ENTER("set_current_stmt_binlog_format_stmt");
     current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    DBUG_RETURN(orig_format);
+  }
+  inline void restore_stmt_binlog_format(enum_binlog_format format)
+  {
+    DBUG_ENTER("restore_stmt_binlog_format");
+    DBUG_ASSERT(!is_current_stmt_binlog_format_row());
+    current_stmt_binlog_format= format;
     DBUG_VOID_RETURN;
   }
   inline void reset_current_stmt_binlog_format_row()
@@ -2791,7 +2822,7 @@ public:
       if (variables.binlog_format == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
-        clear_current_stmt_binlog_format_row();
+        set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
   }
@@ -4084,6 +4115,11 @@ public:
   and that may end up in the binary log.
 */
 #define CF_CAN_GENERATE_ROW_EVENTS (1U << 9)
+
+/**
+  Statement that need the binlog format to be unchanged.
+*/
+#define CF_FORCE_ORIGINAL_BINLOG_FORMAT (1U << 10)
 
 /* Bits in server_command_flags */
 

@@ -350,7 +350,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_CREATE_EVENT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILES]=    CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILE]=     CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND | CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_SHOW_CLIENT_STATS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_USER_STATS]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_TABLE_STATS]=  CF_STATUS_COMMAND;
@@ -384,6 +384,19 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CALL]=      CF_REEXECUTION_FRAGILE |
                                        CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+
+  /*
+    We don't want to change to statement based replication for these commands
+  */
+  sql_command_flags[SQLCOM_ROLLBACK]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate ALTER TABLE for temp tables in row format */
+  sql_command_flags[SQLCOM_ALTER_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate TRUNCATE for temp tables in row format */
+  sql_command_flags[SQLCOM_TRUNCATE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate DROP for temp tables in row format */
+  sql_command_flags[SQLCOM_DROP_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* One can change replication mode with SET */
+  sql_command_flags[SQLCOM_SET_OPTION]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
 
   /*
     The following admin table operations are allowed
@@ -2101,6 +2114,22 @@ mysql_execute_command(THD *thd)
                                        CF_REPORT_PROGRESS);
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
+
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
+
+  /*
+    Force statement logging for DDL commands to allow us to update
+    privilege, system or statistic tables directly without the updates
+    getting logged.
+  */
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format_stmt();
 
   /*
     End a active transaction so that this command will have it's
@@ -4529,6 +4558,11 @@ finish:
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
     DEBUG_SYNC(thd, "execute_command_after_close_tables");
 #endif
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format(orig_binlog_format,
+                           orig_current_stmt_binlog_format);
 
   if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
   {

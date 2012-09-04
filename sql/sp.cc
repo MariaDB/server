@@ -984,9 +984,6 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
   enum_check_fields saved_count_cuted_fields;
 
   bool store_failed= FALSE;
-
-  bool save_binlog_row_based;
-
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %d  name: %.*s", (int) type,
                        (int) sp->m_name.length,
@@ -1003,14 +1000,6 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   saved_count_cuted_fields= thd->count_cuted_fields;
   thd->count_cuted_fields= CHECK_FIELD_WARN;
@@ -1217,10 +1206,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
 done:
   thd->count_cuted_fields= saved_count_cuted_fields;
   thd->variables.sql_mode= saved_mode;
-  /* Restore the state of binlog format */
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(ret);
 }
 
@@ -1245,7 +1231,6 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
 {
   TABLE *table;
   int ret;
-  bool save_binlog_row_based;
   MDL_key::enum_mdl_namespace mdl_type= type == TYPE_ENUM_FUNCTION ?
                                         MDL_key::FUNCTION : MDL_key::PROCEDURE;
   DBUG_ENTER("sp_drop_routine");
@@ -1267,9 +1252,6 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
     row-based replication.  The flag will be reset at the end of the
     statement.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
-
   if ((ret= db_find_routine_aux(thd, type, name, table)) == SP_OK)
   {
     if (table->file->ha_delete_row(table->record[0]))
@@ -1296,10 +1278,7 @@ sp_drop_routine(THD *thd, stored_procedure_type type, sp_name *name)
         sp_cache_flush_obsolete(spc, &sp);
     }
   }
-  /* Restore the state of binlog format */
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(ret);
 }
 
@@ -1327,7 +1306,6 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
 {
   TABLE *table;
   int ret;
-  bool save_binlog_row_based;
   MDL_key::enum_mdl_namespace mdl_type= type == TYPE_ENUM_FUNCTION ?
                                         MDL_key::FUNCTION : MDL_key::PROCEDURE;
   DBUG_ENTER("sp_update_routine");
@@ -1344,14 +1322,6 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
 
   if (!(table= open_proc_table_for_update(thd)))
     DBUG_RETURN(SP_OPEN_TABLE_FAILED);
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication. The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   if ((ret= db_find_routine_aux(thd, type, name, table)) == SP_OK)
   {
@@ -1406,10 +1376,7 @@ sp_update_routine(THD *thd, stored_procedure_type type, sp_name *name,
     sp_cache_invalidate();
   }
 err:
-  /* Restore the state of binlog format */
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(ret);
 }
 
