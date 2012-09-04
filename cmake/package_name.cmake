@@ -120,7 +120,7 @@ IF(NOT VERSION)
   ELSEIF(MYSQL_SERVER_SUFFIX)
     SET(PRODUCT_TAG "${MYSQL_SERVER_SUFFIX}")  # Already has a leading dash
   ELSE()
-    SET(PRODUCT_TAG)
+    SET(PRODUCT_TAG "-galera")
   ENDIF()
 
   IF("${VERSION}" MATCHES "-ndb-")
