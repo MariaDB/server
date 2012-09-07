@@ -266,3 +266,13 @@ rowkey	col1
 9b5658dc-f32f-11e1-94cd-f46d046e9f09	1234
 delete from t2;
 drop table t2;
+CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol varchar(12)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t2 values (0, 0);
+insert into t2 values (1, 1);
+select * from t2;
+rowkey	boolcol
+0	0
+1	1
+delete from t2;
+drop table t2;

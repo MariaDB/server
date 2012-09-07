@@ -53,6 +53,8 @@ create columnfamily cf5 (rowkey bigint primary key, uuidcol uuid);
 
 create columnfamily cf6 (rowkey uuid primary key, col1 int);
 
+create columnfamily cf7 (rowkey int primary key, boolcol boolean);
+
 ./cassandra-cli 
 
 CREATE COLUMN FAMILY cf10
@@ -329,6 +331,16 @@ select * from t2;
 delete from t2;
 drop table t2;
 
+
+# create columnfamily cf7 (rowkey int primary key, boolcol boolean);
+CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol varchar(12)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t2 values (0, 0);
+insert into t2 values (1, 1);
+select * from t2;
+delete from t2;
+drop table t2;
+
 ############################################################################
 ## Cassandra cleanup
 ############################################################################
@@ -337,6 +349,9 @@ drop columnfamily cf1;
 drop columnfamily cf2;
 drop columnfamily cf3;
 drop columnfamily cf4;
+drop columnfamily cf5;
+drop columnfamily cf6;
+drop columnfamily cf7;
 --enable_parsing
 ############################################################################
 ## Cassandra cleanup ends

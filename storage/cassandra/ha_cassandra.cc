@@ -529,6 +529,28 @@ static void flip32(const char *from, char* to)
   to[3]= from[0];
 }
 
+
+class TinyintDataConverter : public ColumnDataConverter
+{
+  char buf;
+public:
+  void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
+  {
+    DBUG_ASSERT(cass_data_len == 1);
+    field->store(cass_data[0]);
+  }
+
+  bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
+  {
+    buf= field->val_int()? 1 : 0; /* TODO: error handling? */
+    *cass_data= (char*)&buf;
+    *cass_data_len= 1;
+    return false;
+  }
+  ~TinyintDataConverter(){}
+};
+
+
 class Int32DataConverter : public ColumnDataConverter
 {
   int32_t buf;
@@ -683,6 +705,7 @@ public:
   ~UuidDataConverter(){}
 };
 
+
 const char * const validator_bigint=  "org.apache.cassandra.db.marshal.LongType";
 const char * const validator_int=     "org.apache.cassandra.db.marshal.Int32Type";
 const char * const validator_counter= "org.apache.cassandra.db.marshal.CounterColumnType";
@@ -698,12 +721,20 @@ const char * const validator_timestamp="org.apache.cassandra.db.marshal.DateType
 
 const char * const validator_uuid= "org.apache.cassandra.db.marshal.UUIDType";
 
+const char * const validator_boolean= "org.apache.cassandra.db.marshal.BooleanType";
+
 ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
 {
   ColumnDataConverter *res= NULL;
 
   switch(field->type()) {
     case MYSQL_TYPE_TINY:
+      if (!strcmp(validator_name, validator_boolean))
+      {
+        res= new TinyintDataConverter;
+        break;
+      }
+      /* fall through: */
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONGLONG:
       if (!strcmp(validator_name, validator_bigint))
