@@ -312,7 +312,7 @@ int dynamic_column_error_message(enum_dyncol_func_result rc);
 /* open_and_lock_tables with optional derived handling */
 int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 
-int read_statistics_for_table(THD *thd, TABLE *table);
+int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
                                      bool is_safe);

@@ -1726,7 +1726,7 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
   Field **field_ptr;
   uint cnt= 0;
 
-  DBUG_ENTER("alloc_statistics_for_table");
+  DBUG_ENTER("alloc_statistics_for_table_share");
 
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
@@ -2245,6 +2245,8 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   thd         The thread handle
   @param
   table       The table to read statistics on
+  @param
+  stat_tables The array of TABLE_LIST objects for statistical tables
 
   @details
   For each statistical table the function looks for the rows from this
@@ -2252,54 +2254,42 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   the data from statistical columns of it is read into the appropriate
   fields of internal structures for 'table'. Later at the query processing
   this data are supposed to be used by the optimizer. 
-  The function is called in function open_tables.
+  The parameter stat_tables should point to an array of TABLE_LIST
+  objects for all statistical tables linked into a list. All statistical
+  tables are supposed to be opened.  
+  The function is called by read_statistics_for_table_if_needed().
 
   @retval
-  0         If data has been successfully read from all statistical tables  
+  0         If data has been successfully read for the table  
   @retval
   1         Otherwise
 
   @note
-  The function first calls the function open_system_tables_for_read to
-  be able to read info from the statistical tables. On success the data is
-  read from one table after another after which the statistical tables are
-  closed. Objects of the helper classes Table_stat, Column_stat and Index_stat
+  Objects of the helper classes Table_stat, Column_stat and Index_stat
   are employed to read statistical data from the statistical tables. 
-  TODO. Consider a variant when statistical tables are opened and closed
-  only once for all tables, not for every table of the query as it's done
   now.        
 */
 
-int read_statistics_for_table(THD *thd, TABLE *table)
+static
+int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
   uint i;
   TABLE *stat_table;
   Field *table_field;
   Field **field_ptr;
   KEY *key_info, *key_info_end;
-  TABLE_LIST tables[STATISTICS_TABLES];
-  Open_tables_backup open_tables_backup;
   TABLE_SHARE *table_share= table->s;
 
   DBUG_ENTER("read_statistics_for_table");
 
-  init_table_list_for_stat_tables(tables, FALSE);  
-  init_mdl_requests(tables);
-  
-  if (open_system_tables_for_read(thd, tables, &open_tables_backup))
-  {
-    thd->clear_error();
-    DBUG_RETURN(0);
-  }
-
   /* Read statistics from the statistical table table_stat */
-  stat_table= tables[TABLE_STAT].table;
+  stat_table= stat_tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
   table_stat.set_key_fields();
   table_stat.get_stat_values();
    
   /* Read statistics from the statistical table column_stat */
-  stat_table= tables[COLUMN_STAT].table;
+  stat_table= stat_tables[COLUMN_STAT].table;
   Column_stat column_stat(stat_table, table);
   for (field_ptr= table_share->field; *field_ptr; field_ptr++)
   {
@@ -2309,7 +2299,7 @@ int read_statistics_for_table(THD *thd, TABLE *table)
   }
 
   /* Read statistics from the statistical table index_stat */
-  stat_table= tables[INDEX_STAT].table;
+  stat_table= stat_tables[INDEX_STAT].table;
   Index_stat index_stat(stat_table, table);
   for (key_info= table_share->key_info,
        key_info_end= key_info + table_share->keys;
@@ -2369,6 +2359,124 @@ int read_statistics_for_table(THD *thd, TABLE *table)
     }
   }
       
+  DBUG_RETURN(0);
+}
+
+
+/**
+  @brief
+  Check whether any statistics is to be read for tables from a table list
+
+  @param
+  thd         The thread handle
+  @param
+  tables      The tables list for whose tables the check is to be done
+
+  @details
+  The function checks whether for any of the tables opened and locked for
+  a statement statistics from statistical tables is needed to be read.
+
+  @retval
+  TRUE        statistics for any of the tables is needed to be read 
+  @retval
+  FALSE       Otherwise
+*/
+
+static
+bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
+{
+  if (thd->bootstrap || thd->variables.use_stat_tables == 0)
+    return FALSE;
+
+  if (!tables)
+    return FALSE;
+  
+  switch(thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+    break;
+  default: 
+    return FALSE;
+  }
+
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    if (!tl->is_view_or_derived() && tl->table)
+    {
+      TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && 
+          table_share->stats_can_be_read &&
+          !table_share->stats_is_read)
+        return TRUE;
+    } 
+  }
+
+  return FALSE;
+}
+
+
+/**
+  @brief
+  Read statistics for tables from a table list if it is needed
+
+  @param
+  thd         The thread handle
+  @param
+  tables      The tables list for whose tables to read statistics
+
+  @details
+  The function first checks whether for any of the tables opened and locked
+  for a statement statistics from statistical tables is needed to be read.
+  Then, if so, it opens system statistical tables for read and reads
+  the statistical data from them for those tables from the list for which it
+  makes sense. Then the function closes system statistical tables.
+
+  @retval
+  0       Statistics for tables was successfully read  
+  @retval
+  1       Otherwise
+*/
+
+int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
+{
+  TABLE_LIST stat_tables[STATISTICS_TABLES];
+  Open_tables_backup open_tables_backup;
+
+  DBUG_ENTER("read_statistics_for_table_if_needed");
+
+  if (!statistics_for_tables_is_needed(thd, tables))
+    DBUG_RETURN(0);
+
+  init_table_list_for_stat_tables(stat_tables, FALSE);  
+  init_mdl_requests(stat_tables);
+  if (open_system_tables_for_read(thd, stat_tables, &open_tables_backup))
+  {
+    thd->clear_error();
+    DBUG_RETURN(1);
+  }
+
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    if (!tl->is_view_or_derived() && tl->table)
+    { 
+      TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && 
+          table_share->stats_can_be_read &&
+	  !table_share->stats_is_read)
+      {
+        (void) read_statistics_for_table(thd, tl->table, stat_tables);
+        table_share->stats_is_read= TRUE;
+      }
+    }
+  }  
+
   close_system_tables(thd, &open_tables_backup);
 
   DBUG_RETURN(0);
