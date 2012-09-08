@@ -526,7 +526,7 @@ SELECT MAKETIME(0, 0, 4294967296);
 SELECT MAKETIME(CAST(-1 AS UNSIGNED), 0, 0);
 
 # check if EXTRACT() handles out-of-range values correctly
-SELECT EXTRACT(HOUR FROM '100000:02:03');
+SELECT EXTRACT(HOUR FROM '10000:02:03');
 
 # check if we get proper warnings if both input string truncation
 # and out-of-range value occur
