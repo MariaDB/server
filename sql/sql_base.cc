@@ -4665,13 +4665,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
           (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
   
 	table_share->stats_can_be_read= TRUE;
-      }
-	
-      if (table_share->stats_can_be_read && !table_share->stats_is_read)
-      {    
-         (void) read_statistics_for_table(thd, tables->table);
-         table_share->stats_is_read= TRUE;
-      }  
+      }	
     }
   }
 
@@ -5615,6 +5609,8 @@ bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
   if (lock_tables(thd, tables, counter, flags))
     goto err;
 
+  (void) read_statistics_for_tables_if_needed(thd, tables);
+  
   if (derived)
   {
     if (mysql_handle_derived(thd->lex, DT_INIT))

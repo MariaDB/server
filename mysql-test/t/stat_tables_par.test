@@ -40,7 +40,7 @@ select * from mysql.index_stat;
 #    assumes that start the code of memory allocation for stats data has this line:
 #
 #       DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
-#       DEBUG_SYNC(thd, "statistics_mem_alloc-start2");
+#       DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
 #
 
 let $Q6=
