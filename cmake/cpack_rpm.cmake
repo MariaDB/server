@@ -27,7 +27,7 @@ SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                                 ManPagesTest Readme ManPagesClient Test 
                                 Common Client SharedLibraries)
 
-SET(CPACK_RPM_PACKAGE_NAME "MariaDB")
+SET(CPACK_RPM_PACKAGE_NAME "MariaDB-Galera")
 SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 
 SET(CPACK_RPM_PACKAGE_RELEASE 1) # FIX: add distribution name here
@@ -81,6 +81,7 @@ SET(CPACK_RPM_devel_PACKAGE_PROVIDES "MariaDB-devel MySQL-devel mysql-devel")
 
 SET(CPACK_RPM_server_PACKAGE_OBSOLETES "MariaDB mysql mysql-server MySQL-server MySQL-OurDelta-server")
 SET(CPACK_RPM_server_PACKAGE_PROVIDES "MariaDB MariaDB-server MySQL-server config(MariaDB-server) msqlormysql mysql mysql-server")
+SET(CPACK_RPM_server_PACKAGE_REQUIRES "${CPACK_RPM_PACKAGE_REQUIRES} galera")
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)
 SET(CPACK_RPM_server_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-postin.sh)
@@ -118,7 +119,7 @@ IF (compat_rpm)
   # Make sure that for these distribuions all our rpms require
   # MariaDB-compat, that will replace mysql-libs-5.1
   IF(RPM MATCHES "(rhel|centos)6")
-    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-compat")
+    SET(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-Galera-compat")
   ENDIF()
 ENDIF(compat_rpm)
 
