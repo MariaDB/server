@@ -175,7 +175,6 @@ public:
   */
   TABLE *table;                                 // Pointer for table
   TABLE *orig_table;                            // Pointer to original table
-  THD *thd;                                     // Used when table == NULL
   const char * const *table_name;
   const char *field_name;
   /** reference to the list of options or NULL */
@@ -452,7 +451,7 @@ public:
   */
   inline bool real_maybe_null(void) { return null_ptr != 0; }
 
-  inline THD *get_thd() { return table ? table->in_use : thd; }
+  inline THD *get_thd() { return table ? table->in_use : current_thd; }
 
   enum {
     LAST_NULL_BYTE_UNDEF= 0
@@ -492,7 +491,7 @@ public:
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
-  Field *clone(THD *thd_arg, MEM_ROOT *mem_root, my_ptrdiff_t diff);
+  Field *clone(MEM_ROOT *mem_root, my_ptrdiff_t diff);
   inline void move_field(uchar *ptr_arg,uchar *null_ptr_arg,uchar null_bit_arg)
   {
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;
