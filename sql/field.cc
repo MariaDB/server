@@ -1319,7 +1319,7 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const char *field_name_arg)
-  :ptr(ptr_arg), null_ptr(null_ptr_arg), table(0), orig_table(0), thd(0),
+  :ptr(ptr_arg), null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), part_of_sortkey(0),
@@ -1874,12 +1874,11 @@ Field *Field::clone(MEM_ROOT *root, TABLE *new_table, my_ptrdiff_t diff,
 }
 
 
-Field *Field::clone(THD *thd_arg, MEM_ROOT *root, my_ptrdiff_t diff)
+Field *Field::clone(MEM_ROOT *root, my_ptrdiff_t diff)
 {
   Field *tmp;
   if ((tmp= (Field*) memdup_root(root,(char*) this,size_of())))
   {
-    tmp->thd= thd_arg;
     tmp->move_field_offset(diff);
   }
   return tmp;
@@ -2780,7 +2779,7 @@ int Field_new_decimal::store(longlong nr, bool unsigned_val)
   }
   if (store_value(&decimal_value))
     err= 1;
-  else if (err && !thd->got_warning)
+  else if (err && !get_thd()->got_warning)
     err= warn_if_overflow(err);
   return err;
 }

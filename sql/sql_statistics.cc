@@ -1586,7 +1586,7 @@ void create_min_max_stistical_fields_for_table_share(THD *thd,
         Field *fld;
         table_field= *field_ptr;
         my_ptrdiff_t diff= record - table_share->default_values;
-        if (!(fld= table_field->clone(thd, &table_share->mem_root, diff)))
+        if (!(fld= table_field->clone(&table_share->mem_root, diff)))
           continue;
         store_address_if_first(i == 0 ?
                                (void **) &table_field->read_stats->min_value :
