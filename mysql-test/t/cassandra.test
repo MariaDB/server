@@ -30,11 +30,20 @@ create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra
   thrift_host='localhost' keyspace='no_such_keyspace';
 
 ############################################################################
-## Cassandra initialization:
+## Cassandra initialization
 ############################################################################
---disable_parsing
 
-./cqlsh --cql3
+# Step 1: remove the keyspace that could be left over from the previous test
+--remove_files_wildcard $MYSQLTEST_VARDIR cassandra_test_cleanup.cql
+--write_file $MYSQLTEST_VARDIR/cassandra_test_cleanup.cql
+drop keyspace mariadbtest2;
+EOF
+--error 0,1,2
+--system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_cleanup.cql
+
+# Step 2: create new keyspace and test column families
+--remove_files_wildcard $MYSQLTEST_VARDIR cassandra_test_init.cql
+--write_file $MYSQLTEST_VARDIR/cassandra_test_init.cql
 
 CREATE KEYSPACE mariadbtest2
   WITH strategy_class = 'org.apache.cassandra.locator.SimpleStrategy'
@@ -55,14 +64,27 @@ create columnfamily cf6 (rowkey uuid primary key, col1 int);
 
 create columnfamily cf7 (rowkey int primary key, boolcol boolean);
 
-./cassandra-cli 
+create columnfamily cf8 (rowkey int primary key, countercol counter);
 
+EOF
+--error 0,1,2
+--system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
+
+
+# Step 3: Cassandra's CQL doesn't allow certain kinds of queries. Run them in
+# CLI
+--remove_files_wildcard $MYSQLTEST_VARDIR cassandra_test_init.cli
+--write_file $MYSQLTEST_VARDIR/cassandra_test_init.cli
+use mariadbtest2;
 CREATE COLUMN FAMILY cf10
   WITH comparator = UTF8Type
   AND key_validation_class=UTF8Type
   AND default_validation_class = UTF8Type;
+EOF
 
---enable_parsing
+--error 0,1,2
+--system cassandra-cli -f $MYSQLTEST_VARDIR/cassandra_test_init.cli
+
 ############################################################################
 ## Cassandra initialization ends
 ############################################################################
