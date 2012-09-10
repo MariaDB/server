@@ -501,23 +501,31 @@ static void flip64(const char *from, char* to)
 class BigintDataConverter : public ColumnDataConverter
 {
   longlong buf;
+  bool flip; /* is false when reading counter columns */
 public:
   void cassandra_to_mariadb(const char *cass_data, int cass_data_len)
   {
     longlong tmp;
     DBUG_ASSERT(cass_data_len == sizeof(longlong));
-    flip64(cass_data, (char*)&tmp);
+    if (flip)
+      flip64(cass_data, (char*)&tmp);
+    else
+      memcpy(&tmp, cass_data, sizeof(longlong));
     field->store(tmp);
   }
   
   bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     longlong tmp= field->val_int();
-    flip64((const char*)&tmp, (char*)&buf);
+    if (flip)
+      flip64((const char*)&tmp, (char*)&buf);
+    else
+      memcpy(&buf, &tmp, sizeof(longlong));
     *cass_data= (char*)&buf;
     *cass_data_len=sizeof(longlong);
     return false;
   }
+  BigintDataConverter(bool flip_arg) : flip(flip_arg) {}
   ~BigintDataConverter(){}
 };
 
@@ -723,6 +731,7 @@ const char * const validator_uuid= "org.apache.cassandra.db.marshal.UUIDType";
 
 const char * const validator_boolean= "org.apache.cassandra.db.marshal.BooleanType";
 
+
 ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
 {
   ColumnDataConverter *res= NULL;
@@ -737,10 +746,13 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
       /* fall through: */
     case MYSQL_TYPE_SHORT:
     case MYSQL_TYPE_LONGLONG:
-      if (!strcmp(validator_name, validator_bigint))
-        res= new BigintDataConverter;
+    {
+      bool is_counter= false;
+      if (!strcmp(validator_name, validator_bigint) ||
+          (is_counter= !strcmp(validator_name, validator_counter)))
+        res= new BigintDataConverter(!is_counter);
       break;
-
+    }
     case MYSQL_TYPE_FLOAT:
       if (!strcmp(validator_name, validator_float))
         res= new FloatDataConverter;

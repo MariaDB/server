@@ -378,21 +378,37 @@ bool Cassandra_se_impl::get_slice(char *key, size_t key_len, bool *found)
 bool Cassandra_se_impl::get_next_read_column(char **name, char **value, 
                                              int *value_len)
 {
+  bool use_counter=false;
   while (1)
   {
     if (column_data_it == column_data_vec.end())
       return true;
 
-    if (((*column_data_it).__isset.column))
+    if ((*column_data_it).__isset.column)
       break; /* Ok it's a real column. Should be always the case. */
+
+    if ((*column_data_it).__isset.counter_column)
+    {
+      use_counter= true;
+      break;
+    }
 
     column_data_it++;
   }
 
   ColumnOrSuperColumn& cs= *column_data_it;
-  *name= (char*)cs.column.name.c_str();
-  *value= (char*)cs.column.value.c_str();
-  *value_len= cs.column.value.length();
+  if (use_counter)
+  {
+    *name= (char*)cs.counter_column.name.c_str();
+    *value= (char*)&cs.counter_column.value;
+    *value_len= sizeof(cs.counter_column.value);
+  }
+  else
+  {
+    *name= (char*)cs.column.name.c_str();
+    *value= (char*)cs.column.value.c_str();
+    *value_len= cs.column.value.length();
+  }
 
   column_data_it++;
   return false;

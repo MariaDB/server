@@ -64,7 +64,9 @@ create columnfamily cf6 (rowkey uuid primary key, col1 int);
 
 create columnfamily cf7 (rowkey int primary key, boolcol boolean);
 
-create columnfamily cf8 (rowkey int primary key, countercol counter);
+create columnfamily cf8 (rowkey varchar primary key, countercol counter);
+update cf8 set countercol=countercol+1 where rowkey='cnt1';
+update cf8 set countercol=countercol+100 where rowkey='cnt2';
 
 EOF
 --error 0,1,2
@@ -355,13 +357,20 @@ drop table t2;
 
 
 # create columnfamily cf7 (rowkey int primary key, boolcol boolean);
-CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol varchar(12)) ENGINE=CASSANDRA
+CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol bool) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
 insert into t2 values (0, 0);
 insert into t2 values (1, 1);
 select * from t2;
 delete from t2;
 drop table t2;
+
+
+# Counter type
+# create columnfamily cf8 (rowkey int primary key, countercol counter);
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf8';
+select * from t2;
 
 ############################################################################
 ## Cassandra cleanup
