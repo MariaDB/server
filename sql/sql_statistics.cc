@@ -2171,6 +2171,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   Open_tables_backup open_tables_backup;
   uint i;
   int err;
+  bool save_binlog_row_based;
   int rc= 0;
   TABLE *stat_table;
 
@@ -2187,6 +2188,9 @@ int update_statistics_for_table(THD *thd, TABLE *table)
     DBUG_RETURN(rc);
   }
    
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
+
   /* Update the statistical table table_stat */
   stat_table= tables[TABLE_STAT].table;
   Table_stat table_stat(stat_table, table);
@@ -2230,6 +2234,9 @@ int update_statistics_for_table(THD *thd, TABLE *table)
         rc= 1;
     }
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -2510,6 +2517,7 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
 {
   int err;
+  bool save_binlog_row_based;
   TABLE *stat_table;
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
@@ -2527,6 +2535,9 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
     thd->clear_error();
     DBUG_RETURN(rc);
   }
+
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
 
   /* Delete statistics on table from the statistical table index_stat */
   stat_table= tables[INDEX_STAT].table;
@@ -2560,6 +2571,9 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
     if (err & !rc)
       rc= 1;
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -2595,6 +2609,7 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
 {
   int err;
+  bool save_binlog_row_based;
   TABLE *stat_table;
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
@@ -2613,6 +2628,9 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
     DBUG_RETURN(rc);
   }
 
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
+
   stat_table= tables.table;
   Column_stat column_stat(stat_table, tab);
   column_stat.set_key_fields(col);
@@ -2622,6 +2640,9 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
     if (err)
       rc= 1;
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -2657,6 +2678,7 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
 {
   int err;
+  bool save_binlog_row_based;
   TABLE *stat_table;
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
@@ -2675,6 +2697,9 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
     DBUG_RETURN(rc);
   }
 
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
+
   stat_table= tables.table;
   Index_stat index_stat(stat_table, tab);
   index_stat.set_index_prefix_key_fields(key_info);
@@ -2684,6 +2709,9 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
     if (err && !rc)
       rc= 1;
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -2722,6 +2750,7 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
                                 LEX_STRING *new_db, LEX_STRING *new_tab)
 {
   int err;
+  bool save_binlog_row_based;
   TABLE *stat_table;
   TABLE_LIST tables[STATISTICS_TABLES];
   Open_tables_backup open_tables_backup;
@@ -2739,6 +2768,9 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
     thd->clear_error();
     DBUG_RETURN(rc);
   }
+
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
 
   /* Rename table in the statistical table index_stat */
   stat_table= tables[INDEX_STAT].table;
@@ -2774,6 +2806,9 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
     if (err & !rc)
       rc= 1;
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
 
   close_system_tables(thd, &open_tables_backup);
 
@@ -2812,6 +2847,7 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
                                  const char *new_name)
 {
   int err;
+  bool save_binlog_row_based;
   TABLE *stat_table;
   TABLE_LIST tables;
   Open_tables_backup open_tables_backup;
@@ -2830,6 +2866,9 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
     DBUG_RETURN(rc);
   }
 
+  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+    thd->clear_current_stmt_binlog_format_row();
+
   /* Rename column in the statistical table table_stat */
   stat_table= tables.table;
   Column_stat column_stat(stat_table, tab);
@@ -2840,6 +2879,10 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
     if (err & !rc)
       rc= 1;
   }
+
+  if (save_binlog_row_based)
+    thd->set_current_stmt_binlog_format_row();
+
   close_system_tables(thd, &open_tables_backup);
 
   DBUG_RETURN(rc);
