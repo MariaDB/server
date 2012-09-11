@@ -323,7 +323,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int result_code;
   int compl_result_code;
   bool need_repair_or_alter= 0;
-  bool save_binlog_row_based= 0;
 
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
@@ -418,11 +417,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         */
 
         open_error= open_and_lock_tables(thd, table, TRUE, 0);
-        if (lex->sql_command == SQLCOM_ANALYZE)
-	{
-          if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-            thd->clear_current_stmt_binlog_format_row();
-        }
       }
       thd->prepare_derived_at_open= FALSE;
 
@@ -962,8 +956,6 @@ send_result_message:
     trans_commit_stmt(thd);
     trans_commit_implicit(thd);
     close_thread_tables(thd);
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     thd->mdl_context.release_transactional_locks();
 
     /*
@@ -996,8 +988,6 @@ err:
   trans_rollback_stmt(thd);
   trans_rollback(thd);
   close_thread_tables(thd);			// Shouldn't be needed
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   thd->mdl_context.release_transactional_locks();
   if (table)
     table->table=0;
