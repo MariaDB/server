@@ -371,6 +371,7 @@ drop table t2;
 CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf8';
 select * from t2;
+drop table t2;
 
 ############################################################################
 ## Cassandra cleanup
