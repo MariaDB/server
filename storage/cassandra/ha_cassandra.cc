@@ -595,7 +595,7 @@ public:
   bool mariadb_to_cassandra(char **cass_data, int *cass_data_len)
   {
     String *pstr= field->val_str(&buf);
-    *cass_data= (char*)pstr->c_ptr();
+    *cass_data= (char*)pstr->ptr();
     *cass_data_len= pstr->length();
     return false;
   }
