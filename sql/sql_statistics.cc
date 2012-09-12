@@ -2908,15 +2908,17 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 {
   uint use_stat_table_mode= thd->variables.use_stat_tables;
   table->used_stat_records= 
-    (use_stat_table_mode <= 1 || !table->s->read_stats ||
-      table->s->read_stats->cardinality_is_null) ?
+    (use_stat_table_mode <= 1 ||
+     !table->s->stats_is_read || !table->s->read_stats ||
+     table->s->read_stats->cardinality_is_null) ?
     table->file->stats.records : table->s->read_stats->cardinality;
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > 1  && key_info->read_stats &&
+      (use_stat_table_mode > 1  && table->s->stats_is_read &&
+       key_info->read_stats &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
