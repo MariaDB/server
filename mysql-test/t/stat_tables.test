@@ -180,4 +180,28 @@ ANALYZE TABLE t1;
 
 DROP TABLE t1;
 
+--echo #
+--echo # Bug mdev-518: corrupted/missing statistical tables
+--echo # 
+
+CREATE TABLE t1 (i int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+FLUSH TABLE t1;
+SET use_stat_tables='never';
+EXPLAIN SELECT * FROM t1;
+
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD.save
+
+FLUSH TABLES;
+SET use_stat_tables='preferably';
+--disable_warnings
+EXPLAIN SELECT * FROM t1;
+--enable_warnings
+
+# Cleanup
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD
+DROP TABLE t1;
+
 set use_stat_tables=@save_use_stat_tables;
+
