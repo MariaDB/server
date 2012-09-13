@@ -218,7 +218,7 @@ extern pthread_key(MEM_ROOT**,THR_MALLOC);
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
-       key_LOCK_pool;
+       key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL

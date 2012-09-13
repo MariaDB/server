@@ -715,7 +715,8 @@ char **orig_argv;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
-PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool;
+PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
+  key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
@@ -756,6 +757,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_sync, "TC_LOG_MMAP::LOCK_sync", 0},
   { &key_LOCK_active, "TC_LOG_MMAP::LOCK_active", 0},
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pool", 0},
+  { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
@@ -4418,7 +4420,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
 
   if (opt_bin_log && mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
-                                        WRITE_CACHE, 0, max_binlog_size, 0, TRUE))
+                                        WRITE_CACHE, max_binlog_size, 0, TRUE))
     unireg_abort(1);
 
 #ifdef HAVE_REPLICATION

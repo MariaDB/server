@@ -1757,13 +1757,12 @@ past_checksum:
   /* Announce MariaDB slave capabilities. */
   DBUG_EXECUTE_IF("simulate_slave_capability_none", goto after_set_capability;);
   {
-    const char *q=
-      DBUG_EVALUATE_IF("simulate_slave_capability_old_53",
-                       "SET @mariadb_slave_capability="
-                           STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE),
-                       "SET @mariadb_slave_capability="
-                           STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE));
-    if (mysql_real_query(mysql, q, strlen(q)))
+    int rc= DBUG_EVALUATE_IF("simulate_slave_capability_old_53",
+        mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))),
+        mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
+    if (rc)
     {
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))

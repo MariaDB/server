@@ -133,7 +133,7 @@ if  (`SELECT @@global.binlog_format = 'STATEMENT'`)
 {
   #must show two INSERT DELAYED
   --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
-  --let $binlog_limit= 1,6
+  --let $binlog_limit= 2,6
   --source include/show_binlog_events.inc
 }
 select * from t1;

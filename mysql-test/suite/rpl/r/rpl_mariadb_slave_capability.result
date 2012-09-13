@@ -54,7 +54,7 @@ master-bin.000002	#	Query	#	#	COMMIT
 SELECT * FROM t1;
 a
 2
-show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 4,5;
+show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 5,5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000005	#	Query	#	#	BEGIN
 slave-relay-bin.000005	#	Query	#	#	# Dummy ev

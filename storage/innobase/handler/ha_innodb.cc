@@ -347,6 +347,7 @@ static int innobase_rollback_to_savepoint(handlerton *hton, THD* thd,
 static int innobase_savepoint(handlerton *hton, THD* thd, void *savepoint);
 static int innobase_release_savepoint(handlerton *hton, THD* thd,
            void *savepoint);
+static void innobase_checkpoint_request(handlerton *hton, void *cookie);
 static handler *innobase_create_handler(handlerton *hton,
                                         TABLE_SHARE *table,
                                         MEM_ROOT *mem_root);
@@ -2250,6 +2251,7 @@ innobase_init(
         innobase_hton->recover=innobase_xa_recover;
         innobase_hton->commit_by_xid=innobase_commit_by_xid;
         innobase_hton->rollback_by_xid=innobase_rollback_by_xid;
+        innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
         innobase_hton->create_cursor_read_view=innobase_create_cursor_view;
         innobase_hton->set_cursor_read_view=innobase_set_cursor_view;
         innobase_hton->close_cursor_read_view=innobase_close_cursor_view;
@@ -3004,6 +3006,19 @@ innobase_rollback_trx(
 	error = trx_rollback_for_mysql(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
+}
+
+/*****************************************************************//**
+Handle a commit checkpoint request from server layer.
+We simply flush the redo log immediately and do the notify call.*/
+static
+void
+innobase_checkpoint_request(
+	handlerton *hton,
+	void *cookie)
+{
+	log_buffer_flush_to_disk();
+	commit_checkpoint_notify_ha(hton, cookie);
 }
 
 /*****************************************************************//**
@@ -11460,10 +11475,17 @@ static MYSQL_SYSVAR_STR(file_format_max, innobase_file_format_max,
 
 static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   PLUGIN_VAR_OPCMDARG,
-  "Set to 0 (write and flush once per second),"
-  " 1 (write and flush at each commit)"
-  " or 2 (write at commit, flush once per second).",
-  NULL, NULL, 1, 0, 2, 0);
+  "Controls the durability/speed trade-off for commits."
+  " Set to 0 (write and flush redo log to disk only once per second),"
+  " 1 (flush to disk at each commit),"
+  " 2 (write to log at commit but flush to disk only once per second)"
+  " or 3 (flush to disk at prepare and at commit, slower and usually redundant)."
+  " 1 and 3 guarantees that after a crash, committed transactions will"
+  " not be lost and will be consistent with the binlog and other transactional"
+  " engines. 2 can get inconsistent and lose transactions if there is a"
+  " power failure or kernel crash but not if mysqld crashes. 0 has no"
+  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
+  NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_STR(flush_method, innobase_file_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

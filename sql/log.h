@@ -49,6 +49,7 @@ class TC_LOG
                             bool need_prepare_ordered,
                             bool need_commit_ordered) = 0;
   virtual int unlog(ulong cookie, my_xid xid)=0;
+  virtual void commit_checkpoint_notify(void *cookie)= 0;
 
 protected:
   /*
@@ -98,7 +99,11 @@ public:
     return 1;
   }
   int unlog(ulong cookie, my_xid xid)  { return 0; }
+  void commit_checkpoint_notify(void *cookie) { DBUG_ASSERT(0); };
 };
+
+#define TC_LOG_PAGE_SIZE   8192
+#define TC_LOG_MIN_SIZE    (3*TC_LOG_PAGE_SIZE)
 
 #ifdef HAVE_MMAP
 class TC_LOG_MMAP: public TC_LOG
@@ -109,6 +114,12 @@ class TC_LOG_MMAP: public TC_LOG
     PS_ERROR,                // last sync failed
     PS_DIRTY                 // new xids added since last sync
   } PAGE_STATE;
+
+  struct pending_cookies {
+    uint count;
+    uint pending_count;
+    ulong cookies[TC_LOG_PAGE_SIZE];
+  };
 
   private:
   typedef struct st_page {
@@ -141,7 +152,7 @@ class TC_LOG_MMAP: public TC_LOG
     one has to use active->lock.
     Same for LOCK_pool and LOCK_sync
   */
-  mysql_mutex_t LOCK_active, LOCK_pool, LOCK_sync;
+  mysql_mutex_t LOCK_active, LOCK_pool, LOCK_sync, LOCK_pending_checkpoint;
   mysql_cond_t COND_pool, COND_active;
   /*
     Queue of threads that need to call commit_ordered().
@@ -163,14 +174,16 @@ class TC_LOG_MMAP: public TC_LOG
   */
   mysql_cond_t COND_queue_busy;
   my_bool commit_ordered_queue_busy;
+  pending_cookies* pending_checkpoint;
 
   public:
-  TC_LOG_MMAP(): inited(0) {}
+  TC_LOG_MMAP(): inited(0), pending_checkpoint(0) {}
   int open(const char *opt_name);
   void close();
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
+  void commit_checkpoint_notify(void *cookie);
   int recover();
 
   private:
@@ -178,6 +191,7 @@ class TC_LOG_MMAP: public TC_LOG
   void get_active_from_pool();
   int sync();
   int overflow();
+  int delete_entry(ulong cookie);
 };
 #else
 #define TC_LOG_MMAP TC_LOG_DUMMY
@@ -356,12 +370,32 @@ private:
 
 /*
   We assign each binlog file an internal ID, used to identify them for unlog().
-  Ids start from BINLOG_COOKIE_START; the value BINLOG_COOKIE_DUMMY is special
-  meaning "no binlog" (we cannot use zero as that is reserved for error return
-  from log_and_order).
-*/
-#define BINLOG_COOKIE_DUMMY 1
-#define BINLOG_COOKIE_START 2
+  The IDs start from 0 and increment for each new binlog created.
+
+  In unlog() we need to know the ID of the binlog file that the corresponding
+  transaction was written into. We also need a special value for a corner
+  case where there is no corresponding binlog id (since nothing was logged).
+  And we need an error flag to mark that unlog() must return failure.
+
+  We use the following macros to pack all of this information into the single
+  ulong available with log_and_order() / unlog().
+
+  Note that we cannot use the value 0 for cookie, as that is reserved as error
+  return value from log_and_order().
+  */
+#define BINLOG_COOKIE_ERROR_RETURN 0
+#define BINLOG_COOKIE_DUMMY_ID 1
+#define BINLOG_COOKIE_BASE 2
+#define BINLOG_COOKIE_DUMMY(error_flag) \
+  ( (BINLOG_COOKIE_DUMMY_ID<<1) | ((error_flag)&1) )
+#define BINLOG_COOKIE_MAKE(id, error_flag) \
+  ( (((id)+BINLOG_COOKIE_BASE)<<1) | ((error_flag)&1) )
+#define BINLOG_COOKIE_GET_ERROR_FLAG(c) ((c) & 1)
+#define BINLOG_COOKIE_GET_ID(c) ( ((ulong)(c)>>1) - BINLOG_COOKIE_BASE )
+#define BINLOG_COOKIE_IS_DUMMY(c) \
+  ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
+
+void binlog_checkpoint_callback(void *cookie);
 
 class binlog_cache_mngr;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
@@ -401,11 +435,25 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     IO_CACHE *error_cache;
     /* This is the `all' parameter for ha_commit_ordered(). */
     bool all;
+    /*
+      True if we need to increment xid_count in trx_group_commit_leader() and
+      decrement in unlog() (this is needed if there is a participating engine
+      that does not implement the commit_checkpoint_request() handlerton
+      method).
+    */
+    bool need_unlog;
+    /*
+      Fields used to pass the necessary information to the last thread in a
+      group commit, only used when opt_optimize_thread_scheduling is not set.
+    */
+    bool check_purge;
+    ulong binlog_id;
   };
 
   /*
     A list of struct xid_count_per_binlog is used to keep track of how many
-    XIDs are in prepared, but not committed, state in each binlog.
+    XIDs are in prepared, but not committed, state in each binlog. And how
+    many commit_checkpoint_request()'s are pending.
 
     When count drops to zero in a binlog after rotation, it means that there
     are no more XIDs in prepared state, so that binlog is no longer needed
@@ -418,10 +466,10 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     char *binlog_name;
     uint binlog_name_len;
     ulong binlog_id;
+    /* Total prepared XIDs and pending checkpoint requests in this binlog. */
     long xid_count;
     xid_count_per_binlog();   /* Give link error if constructor used. */
   };
-  ulong current_binlog_id;
   I_List<xid_count_per_binlog> binlog_xid_count_list;
   /*
     When this is set, a RESET MASTER is in progress.
@@ -432,6 +480,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     checkpoint arrives - when all have arrived, RESET MASTER will complete.
   */
   bool reset_master_pending;
+  friend void binlog_checkpoint_callback(void *cookie);
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
@@ -464,15 +513,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   uint file_id;
   uint open_count;				// For replication
   int readers_count;
-  bool need_start_event;
-  /*
-    no_auto_events means we don't want any of these automatic events :
-    Start/Rotate/Stop. That is, in 4.x when we rotate a relay log, we don't
-    want a Rotate_log event to be written to the relay log. When we start a
-    relay log etc. So in 4.x this is 1 for relay logs, 0 for binlogs.
-    In 5.0 it's 0 for relay logs too!
-  */
-  bool no_auto_events;
   /* Queue of transactions queued up to participate in group commit. */
   group_commit_entry *group_commit_queue;
   /*
@@ -508,10 +548,12 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   */
   int new_file_without_locking();
   int new_file_impl(bool need_lock);
+  void do_checkpoint_request(ulong binlog_id);
+  void purge();
   int write_transaction_or_stmt(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
-  void mark_xid_done(ulong cookie);
+  void mark_xid_done(ulong cookie, bool write_checkpoint);
   void mark_xids_active(ulong cookie, uint xid_count);
 
 public:
@@ -572,6 +614,7 @@ public:
   */
   char last_commit_pos_file[FN_REFLEN];
   my_off_t last_commit_pos_offset;
+  ulong current_binlog_id;
 
   MYSQL_BIN_LOG(uint *sync_period);
   /*
@@ -600,6 +643,7 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered);
   int unlog(ulong cookie, my_xid xid);
+  void commit_checkpoint_notify(void *cookie);
   int recover(LOG_INFO *linfo, const char *last_log_name, IO_CACHE *first_log,
               Format_description_log_event *fdle);
 #if !defined(MYSQL_CLIENT)
@@ -629,15 +673,14 @@ public:
   void signal_update();
   void wait_for_update_relay_log(THD* thd);
   int  wait_for_update_bin_log(THD* thd, const struct timespec * timeout);
-  void set_need_start_event() { need_start_event = 1; }
-  void init(bool no_auto_events_arg, ulong max_size);
+  void init(ulong max_size);
   void init_pthread_objects();
   void cleanup();
   bool open(const char *log_name,
             enum_log_type log_type,
             const char *new_name,
 	    enum cache_type io_cache_type_arg,
-	    bool no_auto_events_arg, ulong max_size,
+	    ulong max_size,
             bool null_created,
             bool need_mutex);
   bool open_index_file(const char *index_file_name_arg,
@@ -674,7 +717,7 @@ public:
   bool can_purge_log(const char *log_file_name);
   int update_log_index(LOG_INFO* linfo, bool need_update_threads);
   int rotate(bool force_rotate, bool* check_purge);
-  void purge();
+  void checkpoint_and_purge(ulong binlog_id);
   int rotate_and_purge(bool force_rotate);
   /**
      Flush binlog cache and synchronize to disk.

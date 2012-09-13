@@ -63,15 +63,15 @@ binlog_snapshot_file	master-bin.000001
 binlog_snapshot_position	945
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000002	286		
+master-bin.000002	326		
 COMMIT;
 SHOW STATUS LIKE 'binlog_snapshot_%';
 Variable_name	Value
 binlog_snapshot_file	master-bin.000002
-binlog_snapshot_position	286
+binlog_snapshot_position	326
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000002	286		
+master-bin.000002	326		
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	4	Format_desc	1	246	Server ver: #, Binlog ver: #

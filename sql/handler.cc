@@ -644,6 +644,43 @@ void ha_checkpoint_state(bool disable)
 }
 
 
+struct st_commit_checkpoint_request {
+  void *cookie;
+  void (*pre_hook)(void *);
+};
+
+static my_bool commit_checkpoint_request_handlerton(THD *unused1, plugin_ref plugin,
+                                           void *data)
+{
+  st_commit_checkpoint_request *st= (st_commit_checkpoint_request *)data;
+  handlerton *hton= plugin_data(plugin, handlerton *);
+  if (hton->state == SHOW_OPTION_YES && hton->commit_checkpoint_request)
+  {
+    void *cookie= st->cookie;
+    if (st->pre_hook)
+      (*st->pre_hook)(cookie);
+    (*hton->commit_checkpoint_request)(hton, cookie);
+  }
+  return FALSE;
+}
+
+
+/*
+  Invoke commit_checkpoint_request() in all storage engines that implement it.
+
+  If pre_hook is non-NULL, the hook will be called prior to each invocation.
+*/
+void
+ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *))
+{
+  st_commit_checkpoint_request st;
+  st.cookie= cookie;
+  st.pre_hook= pre_hook;
+  plugin_foreach(NULL, commit_checkpoint_request_handlerton,
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &st);
+}
+
+
 
 static my_bool closecon_handlerton(THD *thd, plugin_ref plugin,
                                    void *unused)
@@ -1281,6 +1318,7 @@ int ha_commit_trans(THD *thd, bool all)
     goto done;
   }
 
+  DEBUG_SYNC(thd, "ha_commit_trans_before_log_and_order");
   cookie= tc_log->log_and_order(thd, xid, all, need_prepare_ordered,
                                 need_commit_ordered);
   if (!cookie)
@@ -1777,6 +1815,17 @@ bool mysql_xa_recover(THD *thd)
   my_eof(thd);
   DBUG_RETURN(0);
 }
+
+/*
+  Called by engine to notify TC that a new commit checkpoint has been reached.
+  See comments on handlerton method commit_checkpoint_request() for details.
+*/
+void
+commit_checkpoint_notify_ha(handlerton *hton, void *cookie)
+{
+  tc_log->commit_checkpoint_notify(cookie);
+}
+
 
 /**
   @details
