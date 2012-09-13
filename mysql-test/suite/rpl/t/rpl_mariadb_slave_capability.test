@@ -61,7 +61,7 @@ connection slave;
 SELECT * FROM t1;
 let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
 let $binlog_start= 0;
-let $binlog_limit=4,5;
+let $binlog_limit=5,5;
 --source include/show_relaylog_events.inc
 
 --echo # Test that slave which cannot tolerate holes in binlog stream but

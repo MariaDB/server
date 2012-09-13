@@ -213,7 +213,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       but a destructor will take care of that
     */
     if (rli->relay_log.open_index_file(opt_relaylog_index_name, ln, TRUE) ||
-        rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND, 0,
+        rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
                             (max_relay_log_size ? max_relay_log_size :
                             max_binlog_size), 1, TRUE))
     {

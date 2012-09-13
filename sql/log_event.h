@@ -2911,7 +2911,7 @@ public:
   Binlog_checkpoint_log_event(const char *binlog_file_name_arg,
                               uint binlog_file_len_arg);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol *protocol);
+  void pack_info(THD *thd, Protocol *protocol);
 #endif
 #else
   void print(FILE *file, PRINT_EVENT_INFO *print_event_info);

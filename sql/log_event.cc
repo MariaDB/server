@@ -5874,7 +5874,7 @@ Rotate_log_event::do_shall_skip(Relay_log_info *rli)
 **************************************************************************/
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-void Binlog_checkpoint_log_event::pack_info(Protocol *protocol)
+void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
 {
   protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
 }

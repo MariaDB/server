@@ -1025,7 +1025,8 @@ trx_commit_off_kernel(
 			trx->must_flush_log_later = TRUE;
 		} else if (srv_flush_log_at_trx_commit == 0) {
 			/* Do nothing */
-		} else if (srv_flush_log_at_trx_commit == 1) {
+		} else if (srv_flush_log_at_trx_commit == 1 ||
+			   srv_flush_log_at_trx_commit == 3) {
 			if (srv_unix_file_flush_method == SRV_UNIX_NOSYNC) {
 				/* Write the log but do not flush it to disk */
 
@@ -1712,7 +1713,11 @@ trx_commit_complete_for_mysql(
 		/* Do nothing */
 	} else if (srv_flush_log_at_trx_commit == 0) {
 		/* Do nothing */
-	} else if (srv_flush_log_at_trx_commit == 1) {
+	} else if (srv_flush_log_at_trx_commit == 1 && trx->active_commit_ordered) {
+		/* Do nothing - we already flushed the prepare and binlog write
+		to disk, so transaction is durable (will be recovered from
+		binlog if necessary) */
+	} else if (srv_flush_log_at_trx_commit == 1 || srv_flush_log_at_trx_commit == 3) {
 		if (srv_unix_file_flush_method == SRV_UNIX_NOSYNC) {
 			/* Write the log but do not flush it to disk */
 
@@ -1992,7 +1997,7 @@ trx_prepare_off_kernel(
 
 		if (srv_flush_log_at_trx_commit == 0) {
 			/* Do nothing */
-		} else if (srv_flush_log_at_trx_commit == 1) {
+		} else if (srv_flush_log_at_trx_commit == 1 || srv_flush_log_at_trx_commit == 3) {
 			if (srv_unix_file_flush_method == SRV_UNIX_NOSYNC) {
 				/* Write the log but do not flush it to disk */
 

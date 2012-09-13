@@ -34,8 +34,8 @@ DELIMITER /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
-#010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 use `new_test1`/*!*/;
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
@@ -230,8 +230,8 @@ DELIMITER /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Start: binlog v 4, server v #.##.## created 010909  4:46:40 at startup
 ROLLBACK/*!*/;
-#010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
+#010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 use `new_test1`/*!*/;
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
