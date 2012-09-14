@@ -1420,14 +1420,41 @@ int ha_cassandra::extra(enum ha_extra_function operation)
 }
 
 
+/* The following function was copied from ha_blackhole::store_lock: */
 THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
-                                       THR_LOCK_DATA **to,
-                                       enum thr_lock_type lock_type)
+                                         THR_LOCK_DATA **to,
+                                         enum thr_lock_type lock_type)
 {
+  DBUG_ENTER("ha_cassandra::store_lock");
   if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK)
-    lock.type=lock_type;
+  {
+    /*
+      Here is where we get into the guts of a row level lock.
+      If TL_UNLOCK is set
+      If we are not doing a LOCK TABLE or DISCARD/IMPORT
+      TABLESPACE, then allow multiple writers
+    */
+
+    if ((lock_type >= TL_WRITE_CONCURRENT_INSERT &&
+         lock_type <= TL_WRITE) && !thd_in_lock_tables(thd)
+        && !thd_tablespace_op(thd))
+      lock_type = TL_WRITE_ALLOW_WRITE;
+
+    /*
+      In queries of type INSERT INTO t1 SELECT ... FROM t2 ...
+      MySQL would use the lock TL_READ_NO_INSERT on t2, and that
+      would conflict with TL_WRITE_ALLOW_WRITE, blocking all inserts
+      to t2. Convert the lock to a normal read lock to allow
+      concurrent inserts to t2.
+    */
+
+    if (lock_type == TL_READ_NO_INSERT && !thd_in_lock_tables(thd))
+      lock_type = TL_READ;
+
+    lock.type= lock_type;
+  }
   *to++= &lock;
-  return to;
+  DBUG_RETURN(to);
 }
 
 
