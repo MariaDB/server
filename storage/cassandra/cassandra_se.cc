@@ -160,6 +160,8 @@ bool Cassandra_se_impl::connect(const char *host, const char *keyspace_arg)
     print_error("%s [%s]", ire.what(), ire.why.c_str());
   }catch(NotFoundException nfe){
     print_error("%s", nfe.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   }catch (...) {
     print_error("Unknown exception");
   }
@@ -191,6 +193,8 @@ bool Cassandra_se_impl::setup_ddl_checks()
     print_error("%s [%s]", ire.what(), ire.why.c_str());
   } catch (NotFoundException nfe) {
     print_error("keyspace not found: %s", nfe.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
@@ -318,6 +322,8 @@ bool Cassandra_se_impl::do_insert()
     print_error("UnavailableException: %s", ue.what());
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
@@ -372,6 +378,8 @@ bool Cassandra_se_impl::get_slice(char *key, size_t key_len, bool *found)
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
     return true;
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
     return true;
@@ -477,6 +485,8 @@ bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
     print_error("UnavailableException: %s", ue.what());
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
@@ -561,6 +571,8 @@ bool Cassandra_se_impl::truncate()
     print_error("UnavailableException: %s", ue.what());
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
@@ -586,6 +598,8 @@ bool Cassandra_se_impl::remove_row()
     print_error("UnavailableException: %s", ue.what());
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
@@ -642,6 +656,8 @@ bool Cassandra_se_impl::multiget_slice()
     print_error("UnavailableException: %s", ue.what());
   } catch (TimedOutException te) {
     print_error("TimedOutException: %s", te.what());
+  }catch(TException e){
+    print_error("Thrift exception: %s", e.what());
   } catch (...) {
     print_error("Unknown exception");
   }
