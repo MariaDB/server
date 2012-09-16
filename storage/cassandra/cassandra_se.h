@@ -17,7 +17,7 @@ public:
   
   virtual ~Cassandra_se_interface(){};
   /* Init */
-  virtual bool connect(const char *host, const char *port)=0;
+  virtual bool connect(const char *host, int port, const char *keyspace)=0;
   virtual void set_column_family(const char *cfname) = 0;
    
   /* Check underlying DDL */
@@ -82,3 +82,4 @@ extern Cassandra_status_vars cassandra_counters;
 
 
 Cassandra_se_interface *get_cassandra_se();
+

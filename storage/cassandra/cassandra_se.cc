@@ -73,7 +73,7 @@ public:
   virtual ~Cassandra_se_impl(){ delete cass; }
   
   /* Connection and DDL checks */
-  bool connect(const char *host, const char *keyspace);
+  bool connect(const char *host, int port, const char *keyspace);
   void set_column_family(const char *cfname) { column_family.assign(cfname); }
 
   bool setup_ddl_checks();
@@ -135,7 +135,7 @@ Cassandra_se_interface *get_cassandra_se()
 }
 
 
-bool Cassandra_se_impl::connect(const char *host, const char *keyspace_arg)
+bool Cassandra_se_impl::connect(const char *host, int port, const char *keyspace_arg)
 {
   bool res= true;
   
@@ -143,7 +143,7 @@ bool Cassandra_se_impl::connect(const char *host, const char *keyspace_arg)
   
   try {
     boost::shared_ptr<TTransport> socket = 
-      boost::shared_ptr<TSocket>(new TSocket(host, 9160));
+      boost::shared_ptr<TSocket>(new TSocket(host, port));
     boost::shared_ptr<TTransport> tr = 
       boost::shared_ptr<TFramedTransport>(new TFramedTransport (socket));
     boost::shared_ptr<TProtocol> p = 
@@ -678,5 +678,6 @@ bool Cassandra_se_impl::get_next_multiget_row()
   mrr_result_it++;
   return false;
 }
+
 
 
