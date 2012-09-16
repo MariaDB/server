@@ -38,7 +38,8 @@ mysql_mutex_t cassandra_mutex;
 
 struct ha_table_option_struct
 {
-  const char *host;
+  const char *thrift_host;
+  int         thrift_port;
   const char *keyspace;
   const char *column_family;
 };
@@ -49,7 +50,8 @@ ha_create_table_option cassandra_table_option_list[]=
   /*
     one option that takes an arbitrary string
   */
-  HA_TOPTION_STRING("thrift_host", host),
+  HA_TOPTION_STRING("thrift_host", thrift_host),
+  HA_TOPTION_NUMBER("thrift_port", thrift_port, 9160, 1, 65535, 0),
   HA_TOPTION_STRING("keyspace", keyspace),
   HA_TOPTION_STRING("column_family", column_family),
   HA_TOPTION_END
@@ -283,14 +285,14 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
   
   ha_table_option_struct *options= table->s->option_struct;
   fprintf(stderr, "ha_cass: open thrift_host=%s keyspace=%s column_family=%s\n", 
-          options->host, options->keyspace, options->column_family);
+          options->thrift_host, options->keyspace, options->column_family);
   
   DBUG_ASSERT(!se);
-  if (!options->host || !options->keyspace || !options->column_family)
+  if (!options->thrift_host || !options->keyspace || !options->column_family)
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   se= get_cassandra_se();
   se->set_column_family(options->column_family);
-  if (se->connect(options->host, options->keyspace))
+  if (se->connect(options->thrift_host, options->thrift_port, options->keyspace))
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
@@ -389,7 +391,7 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
 */
 #endif
   DBUG_ASSERT(!se);
-  if (!options->host  || !options->keyspace || !options->column_family)
+  if (!options->thrift_host  || !options->keyspace || !options->column_family)
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), 
              "thrift_host, keyspace, and column_family table options must be specified");
@@ -397,7 +399,7 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   }
   se= get_cassandra_se();
   se->set_column_family(options->column_family);
-  if (se->connect(options->host, options->keyspace))
+  if (se->connect(options->thrift_host, options->thrift_port, options->keyspace))
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
