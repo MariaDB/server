@@ -6305,7 +6305,10 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && num_write_row >= 10000) {
 #ifdef WITH_WSREP
-		WSREP_DEBUG("forced commit: %s", wsrep_thd_query(user_thd));
+		if (wsrep_on(user_thd) && sql_command == SQLCOM_LOAD) {
+			WSREP_DEBUG("forced trx split for LOAD: %s", 
+				    wsrep_thd_query(user_thd));
+		}
 #endif /* WITH_WSREP */
 		/* ALTER TABLE is COMMITted at every 10000 copied rows.
 		The IX table lock for the original table has to be re-issued.
