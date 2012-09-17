@@ -190,6 +190,31 @@ wsrep_pick_url() {
   echo $url
 }
 
+# Run mysqld with --wsrep-recover and parse recovered position from log.
+# Position will be stored in wsrep_start_position_opt global.
+wsrep_recovery() {
+  cmd="$@"
+  wr_logfile=$(mktemp)
+  log_notice "WSREP: Running position recovery"
+  $cmd --log_error=$wr_logfile --wsrep-recover
+  rp=$(grep "WSREP: Recovered position:" $wr_logfile)
+  if [ -z "$rp" ]; then
+    skipped=$(grep WSREP $wr_logfile | grep "skipping position recovery")
+    if [ -z "$skipped" ]; then
+      log_error "WSREP: Failed to recover position: " \
+          `cat $wr_logfile`;
+    else
+      log_notice "WSREP: Position recovery skipped"
+    fi
+  else
+    start_pos=$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
+        | sed 's/^[ \t]*//')
+    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
+    log_notice "WSREP: Recovered position $start_pos"
+  fi
+  rm $wr_logfile
+}
+
 parse_arguments() {
   # We only need to pass arguments through to the server if we don't
   # handle them here.  So, we collect unrecognized options (passed on
@@ -787,7 +812,8 @@ do
 done
 cmd="$cmd $args"
 # Avoid 'nohup: ignoring input' warning
-test -n "$NOHUP_NICENESS" && cmd="$cmd < /dev/null"
+nohup_redir=""
+test -n "$NOHUP_NICENESS" && nohup_redir=" < /dev/null"
 
 log_notice "Starting $MYSQLD daemon with databases from $DATADIR"
 
@@ -808,9 +834,11 @@ do
 
   if [ -z "$url" ]
   then
-    eval_log_error "$cmd"
+    wsrep_recovery "$cmd"
+    eval_log_error "$cmd $wsrep_start_position_opt $nohup_redir"
   else
-    eval_log_error "$cmd --wsrep_cluster_address=$url"
+    wsrep_recovery "$cmd"
+    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url $nohup_redir"
   fi
 
   end_time=`date +%M%S`

@@ -4884,6 +4884,17 @@ static inline bool is_replaying_connection(THD *thd)
   return ret;
 }
 
+static inline bool is_committing_connection(THD *thd)
+{
+  bool ret;
+
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  ret=  (thd->wsrep_query_state == QUERY_COMMITTING) ? true : false;
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  return ret;
+}
+
 static bool have_client_connections()
 {
   THD *tmp;
@@ -4935,6 +4946,44 @@ static void wsrep_close_thread(THD *thd)
     }
     mysql_mutex_unlock(&thd->mysys_var->mutex);
   }
+}
+
+static my_bool have_committing_connections()
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (!is_client_connection(tmp))
+      continue;
+
+    if (is_committing_connection(tmp))
+    {
+      mysql_mutex_unlock(&LOCK_thread_count);
+      return TRUE;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return FALSE;
+}
+
+int wsrep_wait_committing_connections_close(int wait_time)
+{
+  int sleep_time= 100;
+
+  while (have_committing_connections() && wait_time > 0)
+  {
+    WSREP_DEBUG("wait for committing transaction to close: %d", wait_time);
+    my_sleep(sleep_time);
+    wait_time -= sleep_time;
+  }
+  if (have_committing_connections())
+  {
+    return 1;
+  }
+  return 0;
 }
 
 void wsrep_close_client_connections(my_bool wait_to_end) 

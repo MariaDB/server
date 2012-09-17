@@ -143,6 +143,7 @@ extern void  wsrep_recover();
 extern void wsrep_init_startup(bool first);
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
+extern int  wsrep_wait_committing_connections_close(int wait_time);
 extern void wsrep_close_applier(THD *thd);
 extern void wsrep_wait_appliers_close(THD *thd);
 extern void wsrep_close_applier_threads(int count);
@@ -176,7 +177,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 // This is a workaround. It also prefixes all messages with "WSREP"
 #define WSREP_LOG(fun, ...)                                       \
     {                                                             \
-        char msg[256] = {'\0'};                                   \
+        char msg[1024] = {'\0'};                                  \
         snprintf(msg, sizeof(msg) - 1, ## __VA_ARGS__);           \
         fun("WSREP: %s", msg);                                    \
     }

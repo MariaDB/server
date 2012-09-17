@@ -110,7 +110,8 @@ wsrep_notify_cmd=
 # State Snapshot Transfer method
 wsrep_sst_method=mysqldump
 
-# Address on THIS node to receive SST at. DON'T SET IT TO DONOR ADDRESS!!!
+# Address which donor should send State Snapshot to.
+# Should be the address of THIS node. DON'T SET IT TO DONOR ADDRESS!!!
 # (SST method dependent. Defaults to the first IP of the first interface)
 #wsrep_sst_receive_address=
 

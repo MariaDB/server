@@ -25,6 +25,25 @@
 
 extern const char wsrep_defaults_file[];
 
+#define WSREP_SST_OPT_ROLE     "--role"
+#define WSREP_SST_OPT_ADDR     "--address"
+#define WSREP_SST_OPT_AUTH     "--auth"
+#define WSREP_SST_OPT_DATA     "--datadir"
+#define WSREP_SST_OPT_CONF     "--defaults-file"
+#define WSREP_SST_OPT_PARENT   "--parent"
+
+// mysqldump-specific options
+#define WSREP_SST_OPT_USER     "--user"
+#define WSREP_SST_OPT_PSWD     "--password"
+#define WSREP_SST_OPT_HOST     "--host"
+#define WSREP_SST_OPT_PORT     "--port"
+#define WSREP_SST_OPT_LPORT    "--local-port"
+
+// donor-specific
+#define WSREP_SST_OPT_SOCKET   "--socket"
+#define WSREP_SST_OPT_GTID     "--gtid"
+#define WSREP_SST_OPT_BYPASS   "--bypass"
+
 #define WSREP_SST_MYSQLDUMP    "mysqldump"
 #define WSREP_SST_SKIP         "skip"
 #define WSREP_SST_DEFAULT      WSREP_SST_MYSQLDUMP
@@ -41,31 +60,19 @@ static const char* sst_auth_real      = NULL;
 
 my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
-static const char *sst_methods[] = {
-  "mysqldump",
-  "rsync",
-  "rsync_wan",
-  "xtrabackup",
-  NULL
-};
-
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
     char   buff[FN_REFLEN];
     String str(buff, sizeof(buff), system_charset_info), *res;
     const char* c_str = NULL;
 
-    if ((res = var->value->val_str(&str))) {
-      c_str = res->c_ptr();
-      int i = 0;
+    if ((res   = var->value->val_str(&str)) &&
+        (c_str = res->c_ptr()) &&
+        strlen(c_str) > 0)
+        return 0;
 
-      while (sst_methods[i] && strcasecmp(sst_methods[i], c_str)) i++;
-      if (!sst_methods[i]) {
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "wsrep_sst_method", c_str ? c_str : "NULL");
-        return 1;
-      }
-    }
-    return 0;
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "wsrep_sst_method", c_str ? c_str : "NULL");
+    return 1;
 }
 
 bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
@@ -381,7 +388,13 @@ static ssize_t sst_prepare_other (const char*  method,
   const char* sst_dir= mysql_real_data_home;
 
   int ret= snprintf (cmd_str, cmd_len,
-                     "wsrep_sst_%s 'joiner' '%s' '%s' '%s' '%s' '%d'",
+                     "wsrep_sst_%s "
+                     WSREP_SST_OPT_ROLE" 'joiner' "
+                     WSREP_SST_OPT_ADDR" '%s' "
+                     WSREP_SST_OPT_AUTH" '%s' "
+                     WSREP_SST_OPT_DATA" '%s' "
+                     WSREP_SST_OPT_CONF" '%s' "
+                     WSREP_SST_OPT_PARENT" '%d'",
                      method, addr_in, (sst_auth_real) ? sst_auth_real : "",
                      sst_dir, wsrep_defaults_file, (int)getpid());
 
@@ -394,7 +407,13 @@ static ssize_t sst_prepare_other (const char*  method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str);
   mysql_mutex_lock (&arg.lock);
-  pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  ret = pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  if (ret)
+  {
+    WSREP_ERROR("sst_prepare_other(): pthread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return ret;
+  }
   mysql_cond_wait (&arg.cond, &arg.lock);
 
   *addr_out= arg.ret_str;
@@ -665,9 +684,17 @@ static int sst_donate_mysqldump (const char*         addr,
     if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
     snprintf (cmd_str, cmd_len,
-              "wsrep_sst_mysqldump '%s' '%s' '%s' '%s' '%u' '%s' '%lld' '%d'",
-              user, pswd, host, port, mysqld_port, uuid_str, (long long)seqno,
-              bypass);
+              "wsrep_sst_mysqldump "
+              WSREP_SST_OPT_USER" '%s' "
+              WSREP_SST_OPT_PSWD" '%s' "
+              WSREP_SST_OPT_HOST" '%s' "
+              WSREP_SST_OPT_PORT" '%s' "
+              WSREP_SST_OPT_LPORT" '%u' "
+              WSREP_SST_OPT_SOCKET" '%s' "
+              WSREP_SST_OPT_GTID" '%s:%lld'"
+              "%s",
+              user, pswd, host, port, mysqld_port, mysqld_unix_port, uuid_str,
+              (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
     WSREP_DEBUG("Running: '%s'", cmd_str);
 
@@ -880,10 +907,19 @@ static int sst_donate_other (const char*   method,
   char    cmd_str[cmd_len];
 
   int ret= snprintf (cmd_str, cmd_len,
-                     "wsrep_sst_%s 'donor' '%s' '%s' '%s' '%s' '%s' '%lld' '%d'"
-                     ,
-                     method, addr, sst_auth_real, mysql_real_data_home,
-                     wsrep_defaults_file, uuid, (long long) seqno, bypass);
+                     "wsrep_sst_%s "
+                     WSREP_SST_OPT_ROLE" 'donor' "
+                     WSREP_SST_OPT_ADDR" '%s' "
+                     WSREP_SST_OPT_AUTH" '%s' "
+                     WSREP_SST_OPT_SOCKET" '%s' "
+                     WSREP_SST_OPT_DATA" '%s' "
+                     WSREP_SST_OPT_CONF" '%s' "
+                     WSREP_SST_OPT_GTID" '%s:%lld'"
+                     "%s",
+                     method, addr, sst_auth_real, mysqld_unix_port,
+                     mysql_real_data_home, wsrep_defaults_file,
+                     uuid, (long long) seqno,
+                     bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
   if (ret < 0 || ret >= cmd_len)
   {
@@ -896,7 +932,13 @@ static int sst_donate_other (const char*   method,
   pthread_t tmp;
   sst_thread_arg arg(cmd_str);
   mysql_mutex_lock (&arg.lock);
-  pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  ret = pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  if (ret)
+  {
+    WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return ret;
+  }
   mysql_cond_wait (&arg.cond, &arg.lock);
 
   WSREP_INFO("sst_donor_thread signaled with %d", arg.err);

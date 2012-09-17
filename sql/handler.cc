@@ -5233,7 +5233,9 @@ void signal_log_not_needed(struct handlerton, char *log_file)
 int ha_wsrep_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 {
   DBUG_ENTER("ha_wsrep_abort_transaction");
-  if (!WSREP(bf_thd)) {
+  if (!WSREP(bf_thd) &&  
+      !(wsrep_OSU_method_options == WSREP_OSU_RSU &&
+        bf_thd->wsrep_exec_mode == TOTAL_ORDER)) {
     DBUG_RETURN(0);
   }
 

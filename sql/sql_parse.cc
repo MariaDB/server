@@ -8436,8 +8436,10 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
   THD *bf_thd     = (THD *) bf_thd_ptr;
   DBUG_ENTER("wsrep_abort_thd");
 
-  if ( (WSREP(bf_thd) || 
-	(WSREP_ON && bf_thd->wsrep_exec_mode == TOTAL_ORDER)) && victim_thd)
+  if ( (WSREP(bf_thd) ||
+         ( (WSREP_ON || wsrep_OSU_method_options == WSREP_OSU_RSU) &&  
+           bf_thd->wsrep_exec_mode == TOTAL_ORDER) )               &&
+       victim_thd)
   {
     WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                 (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);

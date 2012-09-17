@@ -30,7 +30,7 @@
 %define mysqld_group    mysql
 %define mysqldatadir    /var/lib/mysql
 
-%define release         2
+%define release         1
 
 #
 # Macros we use which are not available in all supported versions of RPM
@@ -73,9 +73,6 @@
 %if %{defined with_wsrep}
 %define mysql_version @VERSION@_wsrep_@WSREP_API_VERSION@.@WSREP_PATCH_VERSION@
 %define wsrep_version @WSREP_VERSION@
-%define wsrep_comment , wsrep_%{wsrep_version}
-%else
-%define wsrep_comment %{nil}
 %endif
 
 # ----------------------------------------------------------------------------
@@ -104,10 +101,10 @@
 # Server comment strings
 # ----------------------------------------------------------------------------
 %if %{undefined compilation_comment_debug}
-%define compilation_comment_debug       MySQL Community Server - Debug (GPL)%{wsrep_comment}
+%define compilation_comment_debug       MySQL Community Server - Debug (GPL)
 %endif
 %if %{undefined compilation_comment_release}
-%define compilation_comment_release     MySQL Community Server (GPL)%{wsrep_comment}
+%define compilation_comment_release     MySQL Community Server (GPL)
 %endif
 
 # ----------------------------------------------------------------------------
@@ -1098,9 +1095,11 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_bindir}/resolve_stack_dump
 %attr(755, root, root) %{_bindir}/resolveip
 %if %{defined with_wsrep}
+%attr(755, root, root) %{_bindir}/wsrep_sst_common
 %attr(755, root, root) %{_bindir}/wsrep_sst_mysqldump
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync_wan
+%attr(755, root, root) %{_bindir}/wsrep_sst_xtrabackup
 %endif
 
 %attr(755, root, root) %{_sbindir}/mysqld

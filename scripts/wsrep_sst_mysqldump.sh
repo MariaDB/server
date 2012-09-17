@@ -17,22 +17,9 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
-USER=$1
-PSWD=$2
-HOST=$3
-PORT=$4
-LOCAL_HOST="127.0.0.1"
-LOCAL_PORT=$5
-UUID=$6
-SEQNO=$7
-BYPASS=$8
+. $(dirname $0)/wsrep_sst_common
 
 EINVAL=22
-
-err()
-{
-    echo "SST error: $*" >&2
-}
 
 local_ip()
 {
@@ -51,16 +38,18 @@ local_ip()
     return 1
 }
 
-if test -z "$USER";  then err "USER cannot be nil"; exit $EINVAL; fi
-if test -z "$HOST";  then err "HOST cannot be nil"; exit $EINVAL; fi
-if test -z "$PORT";  then err "PORT cannot be nil"; exit $EINVAL; fi
-if test -z "$LOCAL_PORT"; then err "LOCAL_PORT cannot be nil"; exit $EINVAL; fi
-if test -z "$UUID";  then err "UUID cannot be nil"; exit $EINVAL; fi
-if test -z "$SEQNO"; then err "SEQNO cannot be nil"; exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_USER";  then err "USER cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_HOST";  then err "HOST cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_PORT";  then err "PORT cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_LPORT"; then err "LPORT cannot be nil"; exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_SOCKET";then err "SOCKET cannot be nil";exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_GTID";  then err "GTID cannot be nil";  exit $EINVAL; fi
 
-if local_ip $HOST && [ "$PORT" = "$LOCAL_PORT" ]
+if local_ip $WSREP_SST_OPT_HOST && \
+   [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
-    err "destination address '$HOST:$PORT' matches source address."
+    wsrep_log_error \
+    "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT' matches source address."
     exit $EINVAL
 fi
 
@@ -68,18 +57,17 @@ fi
 if ! mysql --version | grep 'Distrib 5.5' >/dev/null
 then
     mysql --version >&2
-    err "this procedure requires MySQL client version 5.5.x"
+    err "this operation requires MySQL client version 5.5.x"
     exit $EINVAL
 fi
 
-AUTH="-u$USER"
-if test -n "$PSWD"; then AUTH="$AUTH -p$PSWD"; fi
+AUTH="-u$WSREP_SST_OPT_USER"
+if test -n "$WSREP_SST_OPT_PSWD"; then AUTH="$AUTH -p$WSREP_SST_OPT_PSWD"; fi
 
 STOP_WSREP="SET wsrep_on=OFF;"
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-#MYSQLDUMP="@bindir@/mysqldump $AUTH -h$LOCAL_HOST -P$LOCAL_PORT \
-MYSQLDUMP="mysqldump $AUTH -h$LOCAL_HOST -P$LOCAL_PORT \
+MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases"
@@ -102,10 +90,10 @@ PREPARE stmt FROM @str;
 EXECUTE stmt;
 DROP PREPARE stmt;"
 
-SET_START_POSITION="SET GLOBAL wsrep_start_position='$UUID:$SEQNO';"
+SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
-#MYSQL="@bindir@/mysql -u'$USER' -p'$PSWD' -h'$HOST' -P'$PORT'"
-MYSQL="mysql $AUTH -h$HOST -P$PORT --disable-reconnect --connect_timeout=10"
+MYSQL="mysql $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
+"--disable-reconnect --connect_timeout=10"
 
 # need to disable logging when loading the dump
 # reason is that dump contains ALTER TABLE for log tables, and
@@ -119,14 +107,14 @@ $MYSQL -e"$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
 RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
 RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
 
-if [ $BYPASS -eq 0 ]
+if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
 then
     (echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX \
     && echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG \
     && echo $SET_START_POSITION \
     || echo "SST failed to complete;") | $MYSQL
 else
-    echo "Bypassing state dump." >&2
+    wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
 fi
 

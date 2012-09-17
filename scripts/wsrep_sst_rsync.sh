@@ -21,9 +21,11 @@
 RSYNC_PID=
 RSYNC_CONF=
 
+. $(dirname $0)/wsrep_sst_common
+
 cleanup_joiner()
 {
-    echo -n "Joiner rsync SST cleanup..." >&2
+    wsrep_log_info "Joiner cleanup."
     local PID=$(cat "$RSYNC_PID" 2>/dev/null || echo 0)
     [ "0" != "$PID" ] && kill $PID && sleep 0.5 && kill -9 $PID >/dev/null 2>&1 \
     || :
@@ -50,25 +52,16 @@ check_pid_and_port()
     grep LISTEN | grep \:$rsync_port | grep $rsync_pid/rsync >/dev/null
 }
 
-ROLE=$1
-ADDR=$2
-AUTH=$3
-DATA=$4
-CONF=$5
-
-MAGIC_FILE="$DATA/rsync_sst_complete"
+MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
-if [ "$ROLE" = "donor" ]
+if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
-    UUID=$6
-    SEQNO=$7
-    BYPASS=$8
 
-    if [ $BYPASS -eq 0 ]
+    if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
 
-        FLUSHED="$DATA/tables_flushed"
+        FLUSHED="$WSREP_SST_OPT_DATA/tables_flushed"
         rm -rf "$FLUSHED"
 
         # Use deltaxfer only for WAN
@@ -100,7 +93,8 @@ then
 
         RC=0
         rsync --archive --no-times --ignore-times --inplace --delete --quiet \
-              $WHOLE_FILE_OPT "${FILTER[@]}" "$DATA" rsync://$ADDR || RC=$?
+              $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA" \
+              rsync://$WSREP_SST_OPT_ADDR || RC=$?
 
         [ $RC -ne 0 ] && echo "rsync returned code $RC:" >> /dev/stderr
 
@@ -108,9 +102,9 @@ then
         0)  RC=0   # Success
             ;;
         12) RC=71  # EPROTO
-            echo "rsync server on the other end has incompatible protocol. " \
-                 "Make sure you have the same version of rsync on all nodes."\
-                 >> /dev/stderr
+            wsrep_log_error \
+                 "rsync server on the other end has incompatible protocol. " \
+                 "Make sure you have the same version of rsync on all nodes."
             ;;
         22) RC=12  # ENOMEM
             ;;
@@ -121,23 +115,24 @@ then
         [ $RC -ne 0 ] && exit $RC
 
     else # BYPASS
-        STATE="$UUID:$SEQNO"
+        wsrep_log_info "Bypassing state dump."
+        STATE="$WSREP_SST_OPT_GTID"
     fi
 
     echo "continue" # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
-    rsync -aqc "$MAGIC_FILE" rsync://$ADDR
+    rsync -aqc "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
 
     echo "done $STATE"
 
-elif [ "$ROLE" = "joiner" ]
+elif [ "$WSREP_SST_OPT_ROLE" = "joiner" ]
 then
-    MYSQLD_PID=$6
+    MYSQLD_PID=$WSREP_SST_OPT_PARENT
 
     MODULE="rsync_sst"
 
-    RSYNC_PID="$DATA/$MODULE.pid"
+    RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
 
     if check_pid $RSYNC_PID
     then
@@ -146,6 +141,7 @@ then
     fi
     rm -rf "$RSYNC_PID"
 
+    ADDR=$WSREP_SST_OPT_ADDR
     RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
     if [ -z "$RSYNC_PORT" ]
     then
@@ -159,13 +155,13 @@ then
 
     MYUID=$(id -u)
     MYGID=$(id -g)
-    RSYNC_CONF="$DATA/$MODULE.conf"
+    RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
 [$MODULE]
-	path = $DATA
+	path = $WSREP_SST_OPT_DATA
 	read only = no
 	timeout = 300
 	uid = $MYUID
@@ -207,7 +203,7 @@ EOF
 
 #    cleanup_joiner
 else
-    echo "Unrecognized role: $ROLE"
+    echo "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL
 fi
 

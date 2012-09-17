@@ -581,6 +581,15 @@ void wsrep_deinit()
 
 void wsrep_recover()
 {
+  if (!memcmp(&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)) &&
+      local_seqno == -2)
+  {
+    char uuid_str[40];
+    wsrep_uuid_print(&local_uuid, uuid_str, sizeof(uuid_str));
+    WSREP_INFO("Position %s:%lld given at startup, skipping position recovery",
+               uuid_str, (long long)local_seqno);
+    return;
+  }
   XID xid;
   memset(&xid, 0, sizeof(xid));
   xid.formatID= -1;
@@ -1103,9 +1112,31 @@ static int wsrep_RSU_begin(THD *thd, char *db_, char *table_)
   ret = wsrep->desync(wsrep);
   if (ret != WSREP_OK)
   {
-    WSREP_WARN("desync failed %d for %s", ret, thd->query());
+    WSREP_WARN("RSU desync failed %d for %s", ret, thd->query());
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
     return(ret);
   }
+  mysql_mutex_lock(&LOCK_wsrep_replaying);
+  wsrep_replaying++;
+  mysql_mutex_unlock(&LOCK_wsrep_replaying);
+
+  if (wsrep_wait_committing_connections_close(5000))
+  {
+    /* no can do, bail out from DDL */
+    WSREP_WARN("RSU failed due to pending transactions, %s", thd->query());
+    mysql_mutex_lock(&LOCK_wsrep_replaying);
+    wsrep_replaying--;
+    mysql_mutex_unlock(&LOCK_wsrep_replaying);
+
+    ret = wsrep->resync(wsrep);
+    if (ret != WSREP_OK)
+    {
+      WSREP_WARN("resync failed %d for %s", ret, thd->query());
+    }
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
+    return(1);
+  }
+
   wsrep_seqno_t seqno = wsrep->pause(wsrep);
   if (seqno == WSREP_SEQNO_UNDEFINED)
   {
@@ -1122,6 +1153,11 @@ static void wsrep_RSU_end(THD *thd)
   wsrep_status_t ret(WSREP_WARNING);
   WSREP_DEBUG("RSU END: %lld, %d : %s", (long long)thd->wsrep_trx_seqno,
                thd->wsrep_exec_mode, thd->query() );
+
+
+  mysql_mutex_lock(&LOCK_wsrep_replaying);
+  wsrep_replaying--;
+  mysql_mutex_unlock(&LOCK_wsrep_replaying);
 
   ret = wsrep->resume(wsrep);
   if (ret != WSREP_OK)
