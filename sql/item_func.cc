@@ -5455,10 +5455,10 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::print(String *str, enum_query_type query_type)
+void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
-  str->append(name.str,name.length);
+  append_identifier(thd, str, name.str, name.length);
 }
 
 
@@ -6057,6 +6057,8 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
   Item *UNINIT_VAR(item);                        // Safe as arg_count is > 1
+
+  status_var_increment(thd->status_var.feature_fulltext);
 
   maybe_null=1;
   join_key=0;
@@ -6827,4 +6829,63 @@ longlong Item_func_uuid_short::val_int()
   val= uuid_value++;
   mysql_mutex_unlock(&LOCK_short_uuid_generator);
   return (longlong) val;
+}
+
+
+/**
+  Last_value - return last argument.
+*/
+
+void Item_func_last_value::evaluate_sideeffects()
+{
+  DBUG_ASSERT(fixed == 1 && arg_count > 0);
+  for (uint i= 0; i < arg_count-1 ; i++)
+    args[i]->val_int();
+}
+
+String *Item_func_last_value::val_str(String *str)
+{
+  String *tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_str(str);
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+longlong Item_func_last_value::val_int()
+{
+  longlong tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_int();
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+double Item_func_last_value::val_real()
+{
+  double tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_real();
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
+{
+  my_decimal *tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_decimal(decimal_value);
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+
+void Item_func_last_value::fix_length_and_dec()
+{
+  last_value=          args[arg_count -1];
+  decimals=            last_value->decimals;
+  max_length=          last_value->max_length;
+  collation.set(last_value->collation.collation);
+  maybe_null=          last_value->maybe_null;
+  unsigned_flag=       last_value->unsigned_flag;
 }

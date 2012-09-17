@@ -284,6 +284,13 @@ struct sql_ex_info
   MAX_SIZE_LOG_EVENT_STATUS + /* status */ \
   NAME_LEN + 1)
 
+/*
+  The new option is added to handle large packets that are sent from the master 
+  to the slave. It is used to increase the thd(max_allowed) for both the
+  DUMP thread on the master and the SQL/IO thread on the slave. 
+*/
+#define MAX_MAX_ALLOWED_PACKET 1024*1024*1024
+
 /* 
    Event header offsets; 
    these point to places inside the fixed header.
@@ -1058,14 +1065,15 @@ public:
   */
   static void init_show_field_list(List<Item>* field_list);
 #ifdef HAVE_REPLICATION
-  int net_send(Protocol *protocol, const char* log_name, my_off_t pos);
+  int net_send(THD *thd, Protocol *protocol, const char* log_name,
+               my_off_t pos);
 
   /*
     pack_info() is used by SHOW BINLOG EVENTS; as print() it prepares and sends
     a string to display to the user, so it resembles print().
   */
 
-  virtual void pack_info(Protocol *protocol);
+  virtual void pack_info(THD *thd, Protocol *protocol);
 
 #endif /* HAVE_REPLICATION */
   virtual const char* get_db()
@@ -1802,7 +1810,7 @@ public:
                   bool using_trans, bool direct, bool suppress_use, int error);
   const char* get_db() { return db; }
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print_query_header(IO_CACHE* file, PRINT_EVENT_INFO* print_event_info);
@@ -1932,7 +1940,7 @@ public:
 
 #ifdef MYSQL_SERVER
   Slave_log_event(THD* thd_arg, Relay_log_info* rli);
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
@@ -2165,9 +2173,9 @@ protected:
                      const Format_description_log_event* description_event);
 
 public:
-  uint get_query_buffer_length();
-  void print_query(bool need_db, const char *cs, char *buf, char **end,
-                   char **fn_start, char **fn_end);
+  void print_query(THD *thd, bool need_db, const char *cs, String *buf,
+                   my_off_t *fn_start, my_off_t *fn_end,
+                   const char *qualify_db);
   ulong thread_id;
   ulong slave_proxy_id;
   uint32 table_name_len;
@@ -2228,7 +2236,7 @@ public:
                   Name_resolution_context *context);
   const char* get_db() { return db; }
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2325,7 +2333,7 @@ public:
 #ifdef MYSQL_SERVER
   Start_log_event_v3();
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   Start_log_event_v3() {}
@@ -2489,7 +2497,7 @@ Intvar_log_event(THD* thd_arg,uchar type_arg, ulonglong val_arg,
       cache_type= Log_event::EVENT_NO_CACHE;
   }
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2569,7 +2577,7 @@ class Rand_log_event: public Log_event
       cache_type= Log_event::EVENT_NO_CACHE;
   }
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2618,7 +2626,7 @@ class Xid_log_event: public Log_event
        cache_type= Log_event::EVENT_NO_CACHE;
    }
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2666,6 +2674,7 @@ public:
   bool is_null;
   uchar flags;
 #ifdef MYSQL_SERVER
+  bool deferred;
   User_var_log_event(THD* thd_arg, char *name_arg, uint name_len_arg,
                      char *val_arg, ulong val_len_arg, Item_result type_arg,
 		     uint charset_number_arg, uchar flags_arg,
@@ -2673,13 +2682,13 @@ public:
     :Log_event(thd_arg, 0, using_trans),
     name(name_arg), name_len(name_len_arg), val(val_arg),
     val_len(val_len_arg), type(type_arg), charset_number(charset_number_arg),
-    flags(flags_arg)
+    flags(flags_arg), deferred(false)
     {
       is_null= !val;
       if (direct)
         cache_type= Log_event::EVENT_NO_CACHE;
     }
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
 #endif
@@ -2690,6 +2699,13 @@ public:
   Log_event_type get_type_code() { return USER_VAR_EVENT;}
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
+  /* 
+     Getter and setter for deferred User-event. 
+     Returns true if the event is not applied directly 
+     and which case the applier adjusts execution path.
+  */
+  bool is_deferred() { return deferred; }
+  void set_deferred() { deferred= val; }
 #endif
   bool is_valid() const { return 1; }
 
@@ -2810,7 +2826,7 @@ public:
 		   uint ident_len_arg,
 		   ulonglong pos_arg, uint flags);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2871,7 +2887,7 @@ public:
 			uchar* block_arg, uint block_len_arg,
 			bool using_trans);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -2943,7 +2959,7 @@ public:
   Append_block_log_event(THD* thd, const char* db_arg, uchar* block_arg,
 			 uint block_len_arg, bool using_trans);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
   virtual int get_create_or_append() const;
 #endif /* HAVE_REPLICATION */
 #else
@@ -2984,7 +3000,7 @@ public:
 #ifdef MYSQL_SERVER
   Delete_file_log_event(THD* thd, const char* db_arg, bool using_trans);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -3025,7 +3041,7 @@ public:
 #ifdef MYSQL_SERVER
   Execute_load_log_event(THD* thd, const char* db_arg, bool using_trans);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -3121,7 +3137,7 @@ public:
                                bool using_trans, bool direct,
                                bool suppress_use, int errcode);
 #ifdef HAVE_REPLICATION
-  void pack_info(Protocol* protocol);
+  void pack_info(THD *thd, Protocol* protocol);
 #endif /* HAVE_REPLICATION */
 #else
   void print(FILE* file, PRINT_EVENT_INFO* print_event_info);
@@ -3207,7 +3223,7 @@ public:
 #endif
 
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
-  virtual void pack_info(Protocol*);
+  virtual void pack_info(THD *thd, Protocol*);
 #endif
 
 #ifdef MYSQL_CLIENT
@@ -3621,7 +3637,7 @@ public:
 #endif
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual void pack_info(Protocol *protocol);
+  virtual void pack_info(THD *thd, Protocol *protocol);
 #endif
 
 #ifdef MYSQL_CLIENT
@@ -3733,7 +3749,7 @@ public:
   flag_set get_flags(flag_set flags_arg) const { return m_flags & flags_arg; }
 
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
-  virtual void pack_info(Protocol *protocol);
+  virtual void pack_info(THD *thd, Protocol *protocol);
 #endif
 
 #ifdef MYSQL_CLIENT
@@ -4180,7 +4196,7 @@ public:
 #endif
 
 #ifdef MYSQL_SERVER
-  void pack_info(Protocol*);
+  void pack_info(THD *thd, Protocol*);
 #endif
 
   Incident_log_event(const char *buf, uint event_len,
@@ -4278,6 +4294,16 @@ bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
 bool event_checksum_test(uchar *buf, ulong event_len, uint8 alg);
 uint8 get_checksum_alg(const char* buf, ulong len);
 extern TYPELIB binlog_checksum_typelib;
+
+#ifndef MYSQL_CLIENT
+/**
+   The function is called by slave applier in case there are
+   active table filtering rules to force gathering events associated
+   with Query-log-event into an array to execute
+   them once the fate of the Query is determined for execution.
+*/
+bool slave_execute_deferred_events(THD *thd);
+#endif
 
 /**
   @} (end of group Replication)

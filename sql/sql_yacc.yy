@@ -1064,6 +1064,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  KILL_SYM
 %token  LANGUAGE_SYM                  /* SQL-2003-R */
 %token  LAST_SYM                      /* SQL-2003-N */
+%token  LAST_VALUE
 %token  LE                            /* OPERATOR */
 %token  LEADING                       /* SQL-2003-R */
 %token  LEAVES
@@ -5644,7 +5645,23 @@ type:
             $$= MYSQL_TYPE_VARCHAR;
           }
         | YEAR_SYM opt_field_length field_options
-          { $$=MYSQL_TYPE_YEAR; }
+          {
+            if (Lex->length)
+            {
+              errno= 0;
+              ulong length= strtoul(Lex->length, NULL, 10);
+              if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH && length != 4)
+              {
+                char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
+                my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
+                push_warning_printf(YYTHD, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                                    ER_WARN_DEPRECATED_SYNTAX,
+                                    ER(ER_WARN_DEPRECATED_SYNTAX),
+                                    buff, "YEAR(4)");
+              }
+            }
+            $$=MYSQL_TYPE_YEAR;
+          }
         | DATE_SYM
           { $$=MYSQL_TYPE_DATE; }
         | TIME_SYM opt_field_length
@@ -5856,9 +5873,9 @@ attribute:
           NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
         | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
         | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
-        | ON UPDATE_SYM NOW_SYM opt_time_precision
+        | ON UPDATE_SYM NOW_SYM optional_braces
           {
-            Item *item= new (YYTHD->mem_root) Item_func_now_local($4);
+            Item *item= new (YYTHD->mem_root) Item_func_now_local(6);
             if (item == NULL)
               MYSQL_YYABORT;
             Lex->on_update_value= item;
@@ -5950,9 +5967,9 @@ type_with_opt_collate:
 
 
 now_or_signed_literal:
-          NOW_SYM opt_time_precision
+          NOW_SYM optional_braces
           {
-            $$= new (YYTHD->mem_root) Item_func_now_local($2);
+            $$= new (YYTHD->mem_root) Item_func_now_local(6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -8871,6 +8888,12 @@ function_call_conflict:
         | IF '(' expr ',' expr ',' expr ')'
           {
             $$= new (YYTHD->mem_root) Item_func_if($3,$5,$7);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | LAST_VALUE '(' expr_list ')'
+          {
+            $$= new (YYTHD->mem_root) Item_func_last_value(* $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -12128,7 +12151,7 @@ load_data_set_elem:
             if (lex->update_list.push_back($1) || 
                 lex->value_list.push_back($4))
                 MYSQL_YYABORT;
-            $4->set_name($3, (uint) ($5 - $3), YYTHD->charset());
+            $4->set_name_no_truncate($3, (uint) ($5 - $3), YYTHD->charset());
           }
         ;
 
@@ -13072,6 +13095,7 @@ keyword_sp:
         | ISSUER_SYM               {}
         | INSERT_METHOD            {}
         | KEY_BLOCK_SIZE           {}
+        | LAST_VALUE               {}
         | LAST_SYM                 {}
         | LEAVES                   {}
         | LESS_SYM                 {}

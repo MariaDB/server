@@ -4170,7 +4170,6 @@ bool LEX::is_partition_management() const
            alter_info.flags == ALTER_REORGANIZE_PARTITION));
 }
 
-
 #ifdef MYSQL_SERVER
 uint binlog_unsafe_map[256];
 
