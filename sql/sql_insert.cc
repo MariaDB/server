@@ -4090,7 +4090,7 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
 #else
   if (mysql_bin_log.is_open())
-#endif
+#endif /* WITH_WSREP */
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -4100,7 +4100,23 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               /* suppress_use */ FALSE,
                               errcode);
   }
+#ifdef WITH_WSREP
+  const CSET_STRING query_save = thd->query_string;
+  thd->set_query_inner((char*)query.ptr(), query.length(), system_charset_info);
+
+  WSREP_TO_ISOLATION_BEGIN((*tables)->s->db.str, (*tables)->s->table_name.str, NULL);
+  WSREP_TO_ISOLATION_END;
+
+  thd_binlog_trx_reset(thd);
+  thd->query_string     = query_save;
+  thd->wsrep_exec_mode  = LOCAL_STATE;
+#endif /* WITH_WSREP */
   return result;
+#ifdef WITH_WSREP
+ error:
+  WSREP_WARN("TO isolation failed: %s", thd->query());
+  return 0;
+#endif
 }
 
 void select_create::store_values(List<Item> &values)

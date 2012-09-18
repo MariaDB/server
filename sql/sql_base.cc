@@ -5078,9 +5078,6 @@ restart:
     }
   }
 #ifdef WITH_WSREP
-#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
-  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto err;
-
   if ((thd->lex->sql_command== SQLCOM_INSERT         ||
        thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
        thd->lex->sql_command== SQLCOM_REPLACE        ||
@@ -5094,6 +5091,7 @@ restart:
     {
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
     }
+ error:
 #endif
 
 err:
