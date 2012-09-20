@@ -1056,8 +1056,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
       WSREP_DEBUG("Deadlock error for: %s", thd->query());
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
-      thd->killed= NOT_KILLED;
-      thd->mysys_var->abort= 0;
+      thd->killed               = NOT_KILLED;
+      thd->mysys_var->abort     = 0;
+      thd->wsrep_conflict_state = NO_CONFLICT;
+      thd->wsrep_retry_counter  = 0;
+
       goto dispatch_end;
     }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
