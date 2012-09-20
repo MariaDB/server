@@ -1,6 +1,18 @@
 /* 
-  MP AB copyrights 
-*/
+   Copyright (c) 2012, Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif
@@ -26,6 +38,8 @@ typedef struct st_cassandra_share {
 
 class ColumnDataConverter;
 
+struct ha_table_option_struct;
+
 /** @brief
   Class definition for the storage engine
 */
@@ -45,6 +59,7 @@ class ha_cassandra: public handler
   void free_field_converters();
   
   void read_cassandra_columns(bool unpack_pk);
+  int check_table_options(struct ha_table_option_struct* options);
 
   bool doing_insert_batch;
   ha_rows insert_rows_batched;

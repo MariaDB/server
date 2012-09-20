@@ -356,6 +356,9 @@ delete from t2;
 drop table t2;
 
 
+--echo # 
+--echo # boolean datatype support
+--echo #
 # create columnfamily cf7 (rowkey int primary key, boolcol boolean);
 CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol bool) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
@@ -366,10 +369,26 @@ delete from t2;
 drop table t2;
 
 
-# Counter type
+--echo # 
+--echo # Counter datatype support (read-only)
+--echo #
 # create columnfamily cf8 (rowkey int primary key, countercol counter);
 CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf8';
+select * from t2;
+drop table t2;
+
+--echo # 
+--echo # Check that @@cassandra_default_thrift_host works
+--echo #
+show variables like 'cassandra_default_thrift_host';
+--error ER_GLOBAL_VARIABLE
+set cassandra_default_thrift_host='localhost';
+set global cassandra_default_thrift_host='localhost';
+
+--echo # Try creating a table without specifying thrift_host:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
+  keyspace='mariadbtest2' column_family = 'cf8';
 select * from t2;
 drop table t2;
 
