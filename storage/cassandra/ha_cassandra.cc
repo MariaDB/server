@@ -1,6 +1,18 @@
 /* 
-  MP AB copyrights 
-*/
+   Copyright (c) 2012, Monty Program Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation        // gcc: Class implementation
@@ -70,12 +82,54 @@ static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
   "Number of rows in an rnd_read (full scan) batch",
   NULL, NULL, /*default*/ 10*1000, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
+mysql_mutex_t cassandra_default_host_lock;
+static char* cassandra_default_thrift_host = NULL;
+static char cassandra_default_host_buf[256]="";
+
+static void 
+cassandra_default_thrift_host_update(THD *thd, 
+                                     struct st_mysql_sys_var* var,
+                                     void* var_ptr, /*!< out: where the
+                                                    formal string goes */
+                                     const void* save) /*!< in: immediate result 
+                                                       from check function */
+{
+  const char *new_host= *((char**)save);
+  const size_t max_len= sizeof(cassandra_default_host_buf);
+
+  mysql_mutex_lock(&cassandra_default_host_lock);
+  
+  if (new_host)
+  {
+    strncpy(cassandra_default_host_buf, new_host, max_len);
+    cassandra_default_host_buf[max_len]= 0;
+    cassandra_default_thrift_host= cassandra_default_host_buf;
+  }
+  else
+  {
+    cassandra_default_host_buf[0]= 0;
+    cassandra_default_thrift_host= NULL;
+  }
+  
+  *((const char**)var_ptr)= cassandra_default_thrift_host;
+
+  mysql_mutex_unlock(&cassandra_default_host_lock);
+}
+
+
+static MYSQL_SYSVAR_STR(default_thrift_host, cassandra_default_thrift_host,
+                        PLUGIN_VAR_RQCMDARG, 
+                        "Default host for Cassandra thrift connections", 
+                        /*check*/NULL,
+                        cassandra_default_thrift_host_update, 
+                        /*default*/NULL);
+
 static struct st_mysql_sys_var* cassandra_system_variables[]= {
   MYSQL_SYSVAR(insert_batch_size),
   MYSQL_SYSVAR(multiget_batch_size),
   MYSQL_SYSVAR(rnd_batch_size),
-//  MYSQL_SYSVAR(enum_var),
-//  MYSQL_SYSVAR(ulong_var),
+
+  MYSQL_SYSVAR(default_thrift_host),
   NULL
 };
 
@@ -158,6 +212,9 @@ static int cassandra_init_func(void *p)
   cassandra_hton->table_options= cassandra_table_option_list;
   //cassandra_hton->field_options= example_field_option_list;
   cassandra_hton->field_options= NULL;
+  
+  mysql_mutex_init(0 /* no instrumentation */, 
+                   &cassandra_default_host_lock, MY_MUTEX_INIT_FAST);
 
   DBUG_RETURN(0);
 }
@@ -171,6 +228,7 @@ static int cassandra_done_func(void *p)
     error= 1;
   my_hash_free(&cassandra_open_tables);
   mysql_mutex_destroy(&cassandra_mutex);
+  mysql_mutex_destroy(&cassandra_default_host_lock);
   DBUG_RETURN(error);
 }
 
@@ -277,22 +335,23 @@ const char **ha_cassandra::bas_ext() const
 
 int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
 {
+  ha_table_option_struct *options= table->s->option_struct;
+  int res;
   DBUG_ENTER("ha_cassandra::open");
 
   if (!(share = get_share(name, table)))
     DBUG_RETURN(1);
   thr_lock_data_init(&share->lock,&lock,NULL);
   
-  ha_table_option_struct *options= table->s->option_struct;
-  fprintf(stderr, "ha_cass: open thrift_host=%s keyspace=%s column_family=%s\n", 
-          options->thrift_host, options->keyspace, options->column_family);
-  
   DBUG_ASSERT(!se);
-  if (!options->thrift_host || !options->keyspace || !options->column_family)
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+  if ((res= check_table_options(options)))
+    DBUG_RETURN(res);
+
   se= get_cassandra_se();
   se->set_column_family(options->column_family);
-  if (se->connect(options->thrift_host, options->thrift_port, options->keyspace))
+  const char *thrift_host= options->thrift_host? options->thrift_host:
+                           cassandra_default_thrift_host;
+  if (se->connect(thrift_host, options->thrift_port, options->keyspace))
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
@@ -320,6 +379,27 @@ int ha_cassandra::close(void)
 }
 
 
+int ha_cassandra::check_table_options(ha_table_option_struct *options)
+{
+  if (!options->thrift_host && (!cassandra_default_thrift_host ||
+                                !cassandra_default_thrift_host[0]))
+  {
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), 
+             "thrift_host table option must be specified, or "
+             "@@cassandra_default_thrift_host must be set");
+    return HA_WRONG_CREATE_OPTION;
+  }
+
+  if (!options->keyspace || !options->column_family)
+  {
+    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), 
+             "keyspace and column_family table options must be specified");
+    return HA_WRONG_CREATE_OPTION;
+  }
+  return 0;
+}
+
+
 /**
   @brief
   create() is called to create a database. The variable name will have the name
@@ -343,18 +423,11 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info)
 {
   ha_table_option_struct *options= table_arg->s->option_struct;
+  int res;
   DBUG_ENTER("ha_cassandra::create");
   DBUG_ASSERT(options);
   
-
   Field **pfield= table_arg->s->field;
-/*  
-  if (strcmp((*pfield)->field_name, "rowkey"))
-  {
-    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be named 'rowkey'");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-  }
-*/
   if (!((*pfield)->flags & NOT_NULL_FLAG))
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be NOT NULL");
@@ -391,15 +464,14 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
 */
 #endif
   DBUG_ASSERT(!se);
-  if (!options->thrift_host  || !options->keyspace || !options->column_family)
-  {
-    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), 
-             "thrift_host, keyspace, and column_family table options must be specified");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-  }
+  if ((res= check_table_options(options)))
+    DBUG_RETURN(res);
+
   se= get_cassandra_se();
   se->set_column_family(options->column_family);
-  if (se->connect(options->thrift_host, options->thrift_port, options->keyspace))
+  const char *thrift_host= options->thrift_host? options->thrift_host:
+                           cassandra_default_thrift_host;
+  if (se->connect(thrift_host, options->thrift_port, options->keyspace))
   {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
     DBUG_RETURN(HA_ERR_NO_CONNECTION);

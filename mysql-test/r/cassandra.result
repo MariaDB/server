@@ -13,7 +13,7 @@ thrift_host='localhost' keyspace='no_such_keyspace' column_family='colfam';
 ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace no_such_keyspace does not exist]
 create table t1 (rowkey char(10) primary key, column1 char(10)) engine=cassandra 
 thrift_host='localhost' keyspace='no_such_keyspace';
-ERROR HY000: Unable to connect to foreign data source: thrift_host, keyspace, and column_family table options must be s
+ERROR HY000: Unable to connect to foreign data source: keyspace and column_family table options must be specified
 # Now, create a table for real and insert data
 create table t1 (pk varchar(36) primary key, data1 varchar(60), data2 bigint) engine=cassandra 
 thrift_host='localhost' keyspace='mariadbtest2' column_family='cf1';
@@ -266,6 +266,9 @@ rowkey	col1
 9b5658dc-f32f-11e1-94cd-f46d046e9f09	1234
 delete from t2;
 drop table t2;
+# 
+# boolean datatype support
+#
 CREATE TABLE t2 (rowkey int PRIMARY KEY, boolcol bool) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
 insert into t2 values (0, 0);
@@ -276,8 +279,28 @@ rowkey	boolcol
 1	1
 delete from t2;
 drop table t2;
+# 
+# Counter datatype support (read-only)
+#
 CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf8';
+select * from t2;
+rowkey	countercol
+cnt1	1
+cnt2	100
+drop table t2;
+# 
+# Check that @@cassandra_default_thrift_host works
+#
+show variables like 'cassandra_default_thrift_host';
+Variable_name	Value
+cassandra_default_thrift_host	
+set cassandra_default_thrift_host='localhost';
+ERROR HY000: Variable 'cassandra_default_thrift_host' is a GLOBAL variable and should be set with SET GLOBAL
+set global cassandra_default_thrift_host='localhost';
+# Try creating a table without specifying thrift_host:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, countercol bigint) ENGINE=CASSANDRA
+keyspace='mariadbtest2' column_family = 'cf8';
 select * from t2;
 rowkey	countercol
 cnt1	1
