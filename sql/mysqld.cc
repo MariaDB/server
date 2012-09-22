@@ -360,7 +360,7 @@ static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
 
-bool opt_bin_log, opt_ignore_builtin_innodb= 0;
+bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -482,6 +482,7 @@ ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong query_cache_size=0;
 ulong refresh_version;  /* Increments on each reload */
+ulong executed_events=0;
 query_id_t global_query_id;
 my_atomic_rwlock_t global_query_id_lock;
 my_atomic_rwlock_t thread_running_lock;
@@ -579,7 +580,7 @@ char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
      mysql_charsets_dir[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file;
-char *lc_messages_dir_ptr, *log_error_file_ptr;
+char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
 int mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
@@ -2026,13 +2027,19 @@ static struct passwd *check_user(const char *user)
     if (!(tmp_user_info= getpwuid(atoi(user))))
       goto err;
   }
+
   return tmp_user_info;
   /* purecov: end */
 
 err:
   sql_print_error("Fatal error: Can't change to run as user '%s' ;  Please check that the user exists!\n",user);
   unireg_abort(1);
+#endif
+  return NULL;
+}
 
+static inline void allow_coredumps()
+{
 #ifdef PR_SET_DUMPABLE
   if (test_flags & TEST_CORE_ON_SIGNAL)
   {
@@ -2040,10 +2047,8 @@ err:
     (void) prctl(PR_SET_DUMPABLE, 1);
   }
 #endif
-
-#endif
-  return NULL;
 }
+
 
 static void set_user(const char *user, struct passwd *user_info_arg)
 {
@@ -2071,6 +2076,7 @@ static void set_user(const char *user, struct passwd *user_info_arg)
     sql_perror("setuid");
     unireg_abort(1);
   }
+  allow_coredumps();
 #endif
   /* purecov: end */
 }
@@ -2090,6 +2096,7 @@ static void set_effective_user(struct passwd *user_info_arg)
     sql_perror("setreuid");
     unireg_abort(1);
   }
+  allow_coredumps();
 #endif
 }
 
@@ -4166,14 +4173,15 @@ static int init_server_components()
     unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
-  if (opt_log_slave_updates && !opt_bin_log)
+  if (!opt_bin_log_used)
   {
-    sql_print_warning("You need to use --log-bin to make "
-                    "--log-slave-updates work.");
+    if (opt_log_slave_updates)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--log-slave-updates work.");
+    if (binlog_format_used)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--binlog-format work.");
   }
-  if (!opt_bin_log && binlog_format_used)
-    sql_print_warning("You need to use --log-bin to make "
-                      "--binlog-format work.");
 
   /* Check that we have not let the format to unspecified at this point */
   DBUG_ASSERT((uint)global_system_variables.binlog_format <=
@@ -6220,7 +6228,7 @@ struct my_option my_long_options[]=
   {"language", 'L',
    "Client error messages in given language. May be given as a full path. "
    "Deprecated. Use --lc-messages-dir instead.",
-   &lc_messages_dir_ptr, &lc_messages_dir_ptr, 0,
+   0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"lc-messages", 0,
    "Set the language used for the error messages.",
@@ -6941,6 +6949,16 @@ SHOW_VAR status_vars[]= {
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
+  {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
+  {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
+  {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
+  {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
+  {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
+  {"Feature_locale",           (char*) offsetof(STATUS_VAR, feature_locale), SHOW_LONG_STATUS},
+  {"Feature_subquery",         (char*) offsetof(STATUS_VAR, feature_subquery), SHOW_LONG_STATUS},
+  {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
+  {"Feature_trigger",         (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_xml",             (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Flush_commands",           (char*) &refresh_version,        SHOW_LONG_NOFLUSH},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
@@ -6980,6 +6998,7 @@ SHOW_VAR status_vars[]= {
   {"Opened_files",             (char*) &my_file_total_opened, SHOW_LONG_NOFLUSH},
   {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_table_definitions", (char*) offsetof(STATUS_VAR, opened_shares), SHOW_LONG_STATUS},
+  {"Opened_views",            (char*) offsetof(STATUS_VAR, opened_views), SHOW_LONG_STATUS},
   {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_FUNC},
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
@@ -7212,7 +7231,7 @@ static int mysql_init_variables(void)
   myisam_test_invalid_symlink= test_if_data_home_dir;
 #endif
   opt_log= opt_slow_log= 0;
-  opt_bin_log= 0;
+  opt_bin_log= opt_bin_log_used= 0;
   opt_disable_networking= opt_skip_show_db=0;
   opt_skip_name_resolve= 0;
   opt_ignore_builtin_innodb= 0;
@@ -7264,10 +7283,10 @@ static int mysql_init_variables(void)
   mysql_home_ptr= mysql_home;
   pidfile_name_ptr= pidfile_name;
   log_error_file_ptr= log_error_file;
-  lc_messages_dir_ptr= lc_messages_dir;
   protocol_version= PROTOCOL_VERSION;
   what_to_log= ~ (1L << (uint) COM_TIME);
   refresh_version= 1L;	/* Increments on each reload */
+  executed_events= 0;
   global_query_id= thread_id= 1L;
   my_atomic_rwlock_init(&global_query_id_lock);
   my_atomic_rwlock_init(&thread_running_lock);
@@ -7453,7 +7472,6 @@ mysqld_get_one_option(int optid,
     break;
   case 'L':
     strmake(lc_messages_dir, argument, sizeof(lc_messages_dir)-1);
-    lc_messages_dir_ptr= lc_messages_dir;
     break;
   case OPT_BINLOG_FORMAT:
     binlog_format_used= true;
@@ -7482,6 +7500,7 @@ mysqld_get_one_option(int optid,
     break;
   case (int) OPT_BIN_LOG:
     opt_bin_log= test(argument != disabled_my_option);
+    opt_bin_log_used= 1;
     break;
   case (int) OPT_LOG_BASENAME:
   {

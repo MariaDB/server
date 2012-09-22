@@ -5677,7 +5677,7 @@ bool Field_newdate::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   if (!tmp)
     return fuzzydate & TIME_NO_ZERO_DATE;
   if (!ltime->month || !ltime->day)
-    return !(fuzzydate & TIME_FUZZY_DATE);
+    return fuzzydate & TIME_NO_ZERO_IN_DATE;
   return 0;
 }
 
@@ -9395,9 +9395,12 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 
 #ifdef HAVE_SPATIAL
     if (f_is_geom(pack_flag))
+    {
+      status_var_increment(current_thd->status_var.feature_gis);
       return new Field_geom(ptr,null_pos,null_bit,
 			    unireg_check, field_name, share,
 			    pack_length, geom_type);
+    }
 #endif
     if (f_is_blob(pack_flag))
       return new Field_blob(ptr,null_pos,null_bit,
