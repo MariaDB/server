@@ -295,6 +295,7 @@ drop table t2;
 show variables like 'cassandra_default_thrift_host';
 Variable_name	Value
 cassandra_default_thrift_host	
+set @tmp=@@cassandra_default_thrift_host;
 set cassandra_default_thrift_host='localhost';
 ERROR HY000: Variable 'cassandra_default_thrift_host' is a GLOBAL variable and should be set with SET GLOBAL
 set global cassandra_default_thrift_host='localhost';
@@ -306,3 +307,22 @@ rowkey	countercol
 cnt1	1
 cnt2	100
 drop table t2;
+set global cassandra_default_thrift_host=@tmp;
+#
+# Consistency settings
+#
+show variables like 'cassandra_%consistency';
+Variable_name	Value
+cassandra_read_consistency	ONE
+cassandra_write_consistency	ONE
+set @tmp=@@cassandra_write_consistency;
+# Unfortunately, there is no easy way to check if setting have the effect..
+set cassandra_write_consistency='ONE';
+set cassandra_write_consistency='QUORUM';
+set cassandra_write_consistency='LOCAL_QUORUM';
+set cassandra_write_consistency='EACH_QUORUM';
+set cassandra_write_consistency='ALL';
+set cassandra_write_consistency='ANY';
+set cassandra_write_consistency='TWO';
+set cassandra_write_consistency='THREE';
+set cassandra_write_consistency=@tmp;
