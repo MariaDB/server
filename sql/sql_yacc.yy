@@ -1064,6 +1064,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  KILL_SYM
 %token  LANGUAGE_SYM                  /* SQL-2003-R */
 %token  LAST_SYM                      /* SQL-2003-N */
+%token  LAST_VALUE
 %token  LE                            /* OPERATOR */
 %token  LEADING                       /* SQL-2003-R */
 %token  LEAVES
@@ -5872,9 +5873,9 @@ attribute:
           NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
         | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
         | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
-        | ON UPDATE_SYM NOW_SYM opt_time_precision
+        | ON UPDATE_SYM NOW_SYM optional_braces
           {
-            Item *item= new (YYTHD->mem_root) Item_func_now_local($4);
+            Item *item= new (YYTHD->mem_root) Item_func_now_local(6);
             if (item == NULL)
               MYSQL_YYABORT;
             Lex->on_update_value= item;
@@ -5966,9 +5967,9 @@ type_with_opt_collate:
 
 
 now_or_signed_literal:
-          NOW_SYM opt_time_precision
+          NOW_SYM optional_braces
           {
-            $$= new (YYTHD->mem_root) Item_func_now_local($2);
+            $$= new (YYTHD->mem_root) Item_func_now_local(6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -8887,6 +8888,12 @@ function_call_conflict:
         | IF '(' expr ',' expr ',' expr ')'
           {
             $$= new (YYTHD->mem_root) Item_func_if($3,$5,$7);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | LAST_VALUE '(' expr_list ')'
+          {
+            $$= new (YYTHD->mem_root) Item_func_last_value(* $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -13088,6 +13095,7 @@ keyword_sp:
         | ISSUER_SYM               {}
         | INSERT_METHOD            {}
         | KEY_BLOCK_SIZE           {}
+        | LAST_VALUE               {}
         | LAST_SYM                 {}
         | LEAVES                   {}
         | LESS_SYM                 {}
