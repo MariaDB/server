@@ -82,6 +82,35 @@ static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
   "Number of rows in an rnd_read (full scan) batch",
   NULL, NULL, /*default*/ 10*1000, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
+/* These match values in enum_cassandra_consistency_level */
+const char *cassandra_consistency_level[] = 
+{
+  "ONE",
+  "QUORUM",
+  "LOCAL_QUORUM",
+  "EACH_QUORUM",
+  "ALL",
+  "ANY",
+  "TWO",
+  "THREE",
+   NullS
+};
+
+TYPELIB cassandra_consistency_level_typelib= {
+  array_elements(cassandra_consistency_level) - 1, "",
+  cassandra_consistency_level, NULL
+};
+
+
+static MYSQL_THDVAR_ENUM(write_consistency, PLUGIN_VAR_RQCMDARG,
+  "Cassandra consistency level to use for write operations", NULL, NULL,
+  ONE, &cassandra_consistency_level_typelib);
+
+static MYSQL_THDVAR_ENUM(read_consistency, PLUGIN_VAR_RQCMDARG,
+  "Cassandra consistency level to use for read operations", NULL, NULL,
+  ONE, &cassandra_consistency_level_typelib);
+
+
 mysql_mutex_t cassandra_default_host_lock;
 static char* cassandra_default_thrift_host = NULL;
 static char cassandra_default_host_buf[256]="";
@@ -130,6 +159,8 @@ static struct st_mysql_sys_var* cassandra_system_variables[]= {
   MYSQL_SYSVAR(rnd_batch_size),
 
   MYSQL_SYSVAR(default_thrift_host),
+  MYSQL_SYSVAR(write_consistency),
+  MYSQL_SYSVAR(read_consistency),
   NULL
 };
 
@@ -1297,6 +1328,11 @@ int ha_cassandra::reset()
 {
   doing_insert_batch= false;
   insert_lineno= 0;
+  if (se)
+  {
+    se->set_consistency_levels(THDVAR(table->in_use, read_consistency),
+                               THDVAR(table->in_use, write_consistency));
+  }
   return 0;
 }
 

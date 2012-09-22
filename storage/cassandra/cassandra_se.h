@@ -7,6 +7,19 @@
 */
 
 
+/* We need to define this here so that ha_cassandra.cc also has access to it */
+typedef enum
+{
+  ONE = 1-1,
+  QUORUM = 2-1,
+  LOCAL_QUORUM = 3-1,
+  EACH_QUORUM = 4-1,
+  ALL = 5-1,
+  ANY = 6-1,
+  TWO = 7-1,
+  THREE = 8-1,
+} enum_cassandra_consistency_level;
+
 /*
   Interface to one cassandra column family, i.e. one 'table'
 */
@@ -19,6 +32,9 @@ public:
   /* Init */
   virtual bool connect(const char *host, int port, const char *keyspace)=0;
   virtual void set_column_family(const char *cfname) = 0;
+
+  /* Settings */
+  virtual void set_consistency_levels(ulong read_cons_level, ulong write_cons_level)=0;
    
   /* Check underlying DDL */
   virtual bool setup_ddl_checks()=0;
