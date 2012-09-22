@@ -1088,15 +1088,20 @@ public:
   uint		db_stat;		/* mode of file as in handler.h */
   /* number of select if it is derived table */
   uint          derived_select_number;
-  int		current_lock;           /* Type of lock on table */
-  bool copy_blobs;			/* copy_blobs when storing */
-
   /*
     0 or JOIN_TYPE_{LEFT|RIGHT}. Currently this is only compared to 0.
     If maybe_null !=0, this table is inner w.r.t. some outer join operation,
     and null_row may be true.
   */
   uint maybe_null;
+  int		current_lock;           /* Type of lock on table */
+  bool copy_blobs;			/* copy_blobs when storing */
+  /*
+    Set if next_number_field is in the UPDATE fields of INSERT ... ON DUPLICATE
+    KEY UPDATE.
+  */
+  bool next_number_field_updated;
+
   /*
     If true, the current table row is considered to have all columns set to 
     NULL, including columns declared as "not null" (see maybe_null).
@@ -1964,6 +1969,7 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+  TABLE *get_real_join_table();
   bool is_leaf_for_name_resolution();
   inline TABLE_LIST *top_table()
     { return belong_to_view ? belong_to_view : this; }
