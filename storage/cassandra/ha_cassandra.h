@@ -58,7 +58,7 @@ class ha_cassandra: public handler
   bool setup_field_converters(Field **field, uint n_fields);
   void free_field_converters();
   
-  void read_cassandra_columns(bool unpack_pk);
+  int read_cassandra_columns(bool unpack_pk);
   int check_table_options(struct ha_table_option_struct* options);
 
   bool doing_insert_batch;
@@ -66,6 +66,8 @@ class ha_cassandra: public handler
   
   /* Used to produce 'wrong column %s at row %lu' warnings */
   ha_rows insert_lineno;
+  void print_conversion_error(const char *field_name, 
+                              char *cass_value, int cass_value_len);
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()

@@ -68,6 +68,11 @@ create columnfamily cf8 (rowkey varchar primary key, countercol counter);
 update cf8 set countercol=countercol+1 where rowkey='cnt1';
 update cf8 set countercol=countercol+100 where rowkey='cnt2';
 
+create columnfamily cf9 (rowkey varchar primary key, varint_col varint);
+insert into cf9 (rowkey, varint_col) values ('val-01', 1);
+insert into cf9 (rowkey, varint_col) values ('val-0x123456', 1193046);
+insert into cf9 (rowkey, varint_col) values ('val-0x12345678', 305419896);
+
 EOF
 --error 0,1,2
 --system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
@@ -412,6 +417,25 @@ set cassandra_write_consistency='TWO';
 set cassandra_write_consistency='THREE';
 
 set cassandra_write_consistency=@tmp;
+
+--echo #
+--echo # varint datatype support
+--echo #
+# create columnfamily cf9 (rowkey varchar primary key, varint_col varint);
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(32)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+--sorted_result
+select rowkey, hex(varint_col) from t2;
+drop table t2;
+
+--echo # now, let's check what happens when MariaDB's column is not wide enough:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(2)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+--sorted_result
+--error ER_INTERNAL_ERROR
+select rowkey, hex(varint_col) from t2;
+drop table t2;
+
 
 ############################################################################
 ## Cassandra cleanup

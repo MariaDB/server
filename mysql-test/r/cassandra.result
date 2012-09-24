@@ -326,3 +326,20 @@ set cassandra_write_consistency='ANY';
 set cassandra_write_consistency='TWO';
 set cassandra_write_consistency='THREE';
 set cassandra_write_consistency=@tmp;
+#
+# varint datatype support
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+select rowkey, hex(varint_col) from t2;
+rowkey	hex(varint_col)
+val-01	01
+val-0x123456	123456
+val-0x12345678	12345678
+drop table t2;
+# now, let's check what happens when MariaDB's column is not wide enough:
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(2)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
+select rowkey, hex(varint_col) from t2;
+ERROR HY000: Internal error: 'Unable to convert value of field `varint_col` from cassandra's data  format. Source has 4 bytes, data: 12345678'
+drop table t2;
