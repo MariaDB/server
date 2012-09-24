@@ -848,9 +848,7 @@ const char * const validator_uuid= "org.apache.cassandra.db.marshal.UUIDType";
 
 const char * const validator_boolean= "org.apache.cassandra.db.marshal.BooleanType";
 
-/*
-  VARINTs are stored as little-endian big numbers.
-*/
+/* VARINTs are stored as big-endian big numbers. */
 const char * const validator_varint= "org.apache.cassandra.db.marshal.IntegerType";
 
 
@@ -900,19 +898,32 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
         break;
       }
       /* fall through: */
-    case MYSQL_TYPE_VARCHAR:
     case MYSQL_TYPE_VAR_STRING:
+    case MYSQL_TYPE_VARCHAR:
     {
-      bool is_varint;
+      /*
+        Cassandra's "varint" type is a binary-encoded arbitary-length
+        big-endian number. 
+        - It can be mapped to VARBINARY(N), with sufficiently big N.
+        - If the value does not fit into N bytes, it is an error. We should not
+          truncate it, because that is just as good as returning garbage.
+        - varint should not be mapped to BINARY(N), because BINARY(N) values
+          are zero-padded, which will work as multiplying the value by
+          2^k for some value of k.
+      */
+      if (field->type() == MYSQL_TYPE_VARCHAR && 
+          field->binary() &&
+          !strcmp(validator_name, validator_varint))
+      {
+        res= new StringCopyConverter(field->field_length);
+        break;
+      }
+
       if (!strcmp(validator_name, validator_blob) ||
           !strcmp(validator_name, validator_ascii) ||
-          !strcmp(validator_name, validator_text) ||
-          (is_varint= !strcmp(validator_name, validator_varint)))
+          !strcmp(validator_name, validator_text))
       {
-        size_t max_size= (size_t)-1;
-        if (is_varint)
-          max_size= field->field_length;
-        res= new StringCopyConverter(max_size);
+        res= new StringCopyConverter((size_t)-1);
       }
       break;
     }
