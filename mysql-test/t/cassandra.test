@@ -73,6 +73,11 @@ insert into cf9 (rowkey, varint_col) values ('val-01', 1);
 insert into cf9 (rowkey, varint_col) values ('val-0x123456', 1193046);
 insert into cf9 (rowkey, varint_col) values ('val-0x12345678', 305419896);
 
+create columnfamily cf11 (rowkey varchar primary key, decimal_col decimal);
+insert into cf11 (rowkey, decimal_col) values ('val_0.5', 0.5);
+insert into cf11 (rowkey, decimal_col) values ('val_1.5', 1.5);
+insert into cf11 (rowkey, decimal_col) values ('val_1234', 1234);
+
 EOF
 --error 0,1,2
 --system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
@@ -436,6 +441,28 @@ CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(2)) ENGINE
 select rowkey, hex(varint_col) from t2;
 drop table t2;
 
+--echo #
+--echo # Decimal datatype support
+--echo #
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+select rowkey, hex(decimal_col) from t2;
+drop table t2;
+
+--echo #
+--echo # Mapping TIMESTAMP -> int64
+--echo #
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t2 values (1, '2012-08-29 01:23:45');
+INSERT INTO t2 VALUES (10,'2012-08-29 01:23:46');
+drop table t2;
+
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+select * from t2;
+
+drop table t2;
 
 ############################################################################
 ## Cassandra cleanup

@@ -343,3 +343,29 @@ thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
 select rowkey, hex(varint_col) from t2;
 ERROR HY000: Internal error: 'Unable to convert value for field `varint_col` from Cassandra's data format. Source data is 4 bytes, 0x12345678'
 drop table t2;
+#
+# Decimal datatype support
+#
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+select rowkey, hex(decimal_col) from t2;
+rowkey	hex(decimal_col)
+val_1.5	000000010F
+val_0.5	0000000105
+val_1234	0000000004D2
+drop table t2;
+#
+# Mapping TIMESTAMP -> int64
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t2 values (1, '2012-08-29 01:23:45');
+INSERT INTO t2 VALUES (10,'2012-08-29 01:23:46');
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+select * from t2;
+rowkey	datecol
+1	1346189025000
+10	1346189026000
+drop table t2;
