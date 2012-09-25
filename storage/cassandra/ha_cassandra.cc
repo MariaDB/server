@@ -850,6 +850,7 @@ const char * const validator_boolean= "org.apache.cassandra.db.marshal.BooleanTy
 
 /* VARINTs are stored as big-endian big numbers. */
 const char * const validator_varint= "org.apache.cassandra.db.marshal.IntegerType";
+const char * const validator_decimal= "org.apache.cassandra.db.marshal.DecimalType";
 
 
 ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_name)
@@ -869,6 +870,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
     {
       bool is_counter= false;
       if (!strcmp(validator_name, validator_bigint) ||
+          !strcmp(validator_name, validator_timestamp) ||
           (is_counter= !strcmp(validator_name, validator_counter)))
         res= new BigintDataConverter(!is_counter);
       break;
@@ -913,7 +915,8 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
       */
       if (field->type() == MYSQL_TYPE_VARCHAR && 
           field->binary() &&
-          !strcmp(validator_name, validator_varint))
+          (!strcmp(validator_name, validator_varint) ||
+           !strcmp(validator_name, validator_decimal)))
       {
         res= new StringCopyConverter(field->field_length);
         break;
