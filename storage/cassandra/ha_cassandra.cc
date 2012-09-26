@@ -992,7 +992,20 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
 
   if (n_mapped != n_fields - 1)
   {
-    se->print_error("Some of SQL fields were not mapped to Cassandra's fields"); 
+    Field *first_unmapped= NULL;
+    /* Find the first field */
+    for (uint i= 1; i < n_fields;i++)
+    {
+      if (!field_converters[i])
+      {
+        first_unmapped= field_arg[i];
+        break;
+      }
+    }
+    DBUG_ASSERT(first_unmapped);
+
+    se->print_error("Field `%s` could not be mapped to any field in Cassandra",
+                    first_unmapped->field_name); 
     my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
     return true;
   }
