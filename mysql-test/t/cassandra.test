@@ -472,8 +472,8 @@ drop table t2;
 CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
 
---error ER_INTERNAL_ERROR
-alter table t2 column_family='cf9';
+#--error ER_INTERNAL_ERROR
+#alter table t2 column_family='cf9';
 
 drop table t2;
 
@@ -489,6 +489,8 @@ let $c2= `select variable_value from information_schema.global_status
 --disable_query_log
 eval select ($c2 - $c1) as 'Writes made during ALTER TABLE';
 --enable_query_log
+
+drop table t2;
 
 ############################################################################
 ## Cassandra cleanup
