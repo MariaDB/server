@@ -82,6 +82,11 @@ static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
   "Number of rows in an rnd_read (full scan) batch",
   NULL, NULL, /*default*/ 10*1000, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
+static MYSQL_THDVAR_ULONG(failure_retries, PLUGIN_VAR_RQCMDARG,
+  "Number of times to retry Cassandra calls that failed due to timeouts or "
+  "network communication problems. The default, 0, means not to retry.",
+  NULL, NULL, /*default*/ 0, /*min*/ 0, /*max*/ 1024*1024*1024, 0);
+
 /* These match values in enum_cassandra_consistency_level */
 const char *cassandra_consistency_level[] = 
 {
@@ -161,6 +166,7 @@ static struct st_mysql_sys_var* cassandra_system_variables[]= {
   MYSQL_SYSVAR(default_thrift_host),
   MYSQL_SYSVAR(write_consistency),
   MYSQL_SYSVAR(read_consistency),
+  MYSQL_SYSVAR(failure_retries),
   NULL
 };
 
@@ -177,6 +183,11 @@ static SHOW_VAR cassandra_status_variables[]= {
     (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
   {"multiget_rows_read",
     (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
+
+  {"timeout_exceptions",
+    (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
+  {"unavailable_exceptions",
+    (char*) &cassandra_counters.unavailable_exceptions, SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -1678,7 +1689,6 @@ bool ha_cassandra::check_if_incompatible_data(HA_CREATE_INFO *info,
 
 static int show_cassandra_vars(THD *thd, SHOW_VAR *var, char *buff)
 {
-  //innodb_export_status();
   cassandra_counters_copy= cassandra_counters; 
 
   var->type= SHOW_ARRAY;

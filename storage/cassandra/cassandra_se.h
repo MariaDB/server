@@ -91,6 +91,9 @@ public:
   ulong multiget_reads;
   ulong multiget_keys_scanned;
   ulong multiget_rows_read;
+
+  ulong timeout_exceptions;
+  ulong unavailable_exceptions;
 };
 
 
