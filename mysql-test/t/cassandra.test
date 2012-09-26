@@ -78,6 +78,8 @@ insert into cf11 (rowkey, decimal_col) values ('val_0.5', 0.5);
 insert into cf11 (rowkey, decimal_col) values ('val_1.5', 1.5);
 insert into cf11 (rowkey, decimal_col) values ('val_1234', 1234);
 
+create columnfamily cf12 (rowkey varchar primary key, decimal_col decimal);
+
 EOF
 --error 0,1,2
 --system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
@@ -463,6 +465,30 @@ CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
 select * from t2;
 
 drop table t2;
+
+--echo #
+--echo # Check whether changing parameters with ALTER TABLE works.
+--echo #
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+
+--error ER_INTERNAL_ERROR
+alter table t2 column_family='cf9';
+
+drop table t2;
+
+CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, decimal_col varbinary(32)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf11';
+
+let $c1= `select variable_value from information_schema.global_status 
+          where variable_name like 'cassandra_row_inserts'`;
+alter table t2 column_family='cf12';
+let $c2= `select variable_value from information_schema.global_status 
+          where variable_name like 'cassandra_row_inserts'`;
+
+--disable_query_log
+eval select ($c2 - $c1) as 'Writes made during ALTER TABLE';
+--enable_query_log
 
 ############################################################################
 ## Cassandra cleanup

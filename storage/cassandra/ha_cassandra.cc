@@ -1676,9 +1676,8 @@ int ha_cassandra::delete_table(const char *name)
 bool ha_cassandra::check_if_incompatible_data(HA_CREATE_INFO *info,
                                             uint table_changes)
 {
-  //ha_table_option_struct *param_old, *param_new;
   DBUG_ENTER("ha_cassandra::check_if_incompatible_data");
-
+  /* Checked, we intend to have this empty for Cassandra SE. */
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 
