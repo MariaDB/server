@@ -594,8 +594,8 @@ bool Cassandra_se_impl::retryable_remove_row()
 }
 
 /*
-  This function will try a Cassandra operation, and handle errors.
-
+  Try calling a function, catching possible Cassandra errors, and re-trying
+   for "transient" errors.
 */
 bool Cassandra_se_impl::try_operation(retryable_func_t func_to_call)
 {
