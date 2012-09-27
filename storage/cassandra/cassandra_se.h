@@ -20,6 +20,14 @@ typedef enum
   THREE = 8-1,
 } enum_cassandra_consistency_level;
 
+
+class Column_name_enumerator
+{
+public:
+  virtual const char* get_next_name()=0;
+  virtual ~Column_name_enumerator(){}
+};
+
 /*
   Interface to one cassandra column family, i.e. one 'table'
 */
@@ -45,6 +53,8 @@ public:
 
   /* Writes */
   virtual void clear_insert_buffer()=0;
+  virtual void add_row_deletion(const char *key, int key_len,
+                                Column_name_enumerator *col_names)=0;
   virtual void start_row_insert(const char *key, int key_len)=0;
   virtual void add_insert_column(const char *name, const char *value, 
                                  int value_len)=0;

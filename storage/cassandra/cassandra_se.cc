@@ -99,6 +99,8 @@ public:
   void clear_insert_buffer();
   void start_row_insert(const char *key, int key_len);
   void add_insert_column(const char *name, const char *value, int value_len);
+  void add_row_deletion(const char *key, int key_len,
+                        Column_name_enumerator *col_names);
   
   bool do_insert();
 
@@ -310,6 +312,42 @@ void Cassandra_se_impl::start_row_insert(const char *key, int key_len)
   insert_list= &cf_mut[column_family];
 
   insert_timestamp= get_i64_timestamp();
+}
+
+
+void Cassandra_se_impl::add_row_deletion(const char *key, int key_len, 
+                                         Column_name_enumerator *col_names)
+{
+  std::string key_to_delete;
+  key_to_delete.assign(key, key_len);
+  
+  batch_mutation[key_to_delete]= ColumnFamilyToMutation();
+  ColumnFamilyToMutation& cf_mut= batch_mutation[key_to_delete];
+
+  cf_mut[column_family]= std::vector<Mutation>();
+  std::vector<Mutation> &mutation_list= cf_mut[column_family];
+
+  Mutation mut;
+  mut.__isset.deletion= true;
+  mut.deletion.__isset.timestamp= true;
+  mut.deletion.timestamp= get_i64_timestamp();
+  mut.deletion.__isset.predicate= true;
+  
+  /*
+    Attempting to delete columns with SliceRange causes exception with message
+    "Deletion does not yet support SliceRange predicates".
+
+    Delete all columns individually.
+  */
+  SlicePredicate slice_pred;
+  slice_pred.__isset.column_names= true;
+  const char *col_name;
+  while ((col_name= col_names->get_next_name()))
+    slice_pred.column_names.push_back(std::string(col_name));
+
+  mut.deletion.predicate= slice_pred;
+
+  mutation_list.push_back(mut);
 }
 
 
@@ -531,7 +569,13 @@ restart:
     }
   }
   
-  if (have_rowkey_to_skip && !rowkey_to_skip.compare(key_slice_it->key))
+  /*
+    (1) - skip the last row that we have read in the previous batch.
+    (2) - Rows that were deleted show up as rows without any columns. Skip
+          them, like CQL does.
+  */
+  if ((have_rowkey_to_skip && !rowkey_to_skip.compare(key_slice_it->key)) || // (1)
+      key_slice_it->columns.size() == 0) // (2)
   {
     key_slice_it++;
     goto restart;
