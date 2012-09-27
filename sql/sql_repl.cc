@@ -587,7 +587,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
       return NULL;
   }
 
-  thd_proc_info(thd, "Sending binlog event to slave");
+  THD_STAGE_INFO(thd, stage_sending_binlog_event_to_slave);
 
   pos= my_b_tell(log);
   if (RUN_HOOK(binlog_transmit, before_send_event,
@@ -1040,7 +1040,7 @@ impossible position";
 #ifndef DBUG_OFF
           ulong hb_info_counter= 0;
 #endif
-          const char* old_msg= thd->proc_info;
+          PSI_stage_info old_stage;
           signal_cnt= mysql_bin_log.signal_cnt;
           do 
           {
@@ -1049,9 +1049,9 @@ impossible position";
               DBUG_ASSERT(heartbeat_ts);
               set_timespec_nsec(*heartbeat_ts, heartbeat_period);
             }
-            thd->enter_cond(log_cond, log_lock,
-                            "Master has sent all binlog to slave; "
-                            "waiting for binlog to be updated");
+            thd->ENTER_COND(log_cond, log_lock,
+                            &stage_master_has_sent_all_binlog_to_slave,
+                            &old_stage);
             ret= mysql_bin_log.wait_for_update_bin_log(thd, heartbeat_ts);
             DBUG_ASSERT(ret == 0 || (heartbeat_period != 0));
             if (ret == ETIMEDOUT || ret == ETIME)
@@ -1068,14 +1068,14 @@ impossible position";
               /* reset transmit packet for the heartbeat event */
               if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg))
               {
-                thd->exit_cond(old_msg);
+                thd->EXIT_COND(&old_stage);
                 goto err;
               }
               if (send_heartbeat_event(net, packet, p_coord, current_checksum_alg))
               {
                 errmsg = "Failed on my_net_write()";
                 my_errno= ER_UNKNOWN_ERROR;
-                thd->exit_cond(old_msg);
+                thd->EXIT_COND(&old_stage);
                 goto err;
               }
             }
@@ -1084,7 +1084,7 @@ impossible position";
               DBUG_PRINT("wait",("binary log received update or a broadcast signal caught"));
             }
           } while (signal_cnt == mysql_bin_log.signal_cnt && !thd->killed);
-          thd->exit_cond(old_msg);
+          thd->EXIT_COND(&old_stage);
         }
         break;
             
@@ -1111,7 +1111,7 @@ impossible position";
       bool loop_breaker = 0;
       /* need this to break out of the for loop from switch */
 
-      thd_proc_info(thd, "Finished reading one binlog; switching to next binlog");
+      THD_STAGE_INFO(thd, stage_finished_reading_one_binlog_switching_to_next_binlog);
       switch (mysql_bin_log.find_next_log(&linfo, 1)) {
       case 0:
 	break;
@@ -1164,7 +1164,7 @@ end:
 
   RUN_HOOK(binlog_transmit, transmit_stop, (thd, flags));
   my_eof(thd);
-  thd_proc_info(thd, "Waiting to finalize termination");
+  THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
   mysql_mutex_lock(&LOCK_thread_count);
   thd->current_linfo = 0;
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -1172,7 +1172,7 @@ end:
   DBUG_VOID_RETURN;
 
 err:
-  thd_proc_info(thd, "Waiting to finalize termination");
+  THD_STAGE_INFO(thd, stage_waiting_to_finalize_termination);
   if (my_errno == ER_MASTER_FATAL_ERROR_READING_BINLOG && my_b_inited(&log))
   {
     /* 
@@ -1372,7 +1372,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
 
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
     DBUG_RETURN(1);
-  thd_proc_info(thd, "Killing slave");
+  THD_STAGE_INFO(thd, stage_killing_slave);
   int thread_mask;
   lock_slave_threads(mi);
   // Get a mask of _running_ threads
@@ -1399,7 +1399,6 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
                  ER(ER_SLAVE_WAS_NOT_RUNNING));
   }
   unlock_slave_threads(mi);
-  thd_proc_info(thd, 0);
 
   if (slave_errno)
   {
@@ -1520,7 +1519,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
 
   while ((tmp=it++))
   {
-    if (tmp->command == COM_BINLOG_DUMP &&
+    if (tmp->get_command() == COM_BINLOG_DUMP &&
        tmp->server_id == slave_server_id)
     {
       mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
@@ -1575,7 +1574,7 @@ bool change_master(THD* thd, Master_info* mi)
     goto err;
   }
 
-  thd_proc_info(thd, "Changing master");
+  THD_STAGE_INFO(thd, stage_changing_master);
   /* 
     We need to check if there is an empty master_host. Otherwise
     change master succeeds, a master.info file is created containing 
@@ -1693,10 +1692,15 @@ bool change_master(THD* thd, Master_info* mi)
     strmake(mi->ssl_cipher, lex_mi->ssl_cipher, sizeof(mi->ssl_cipher)-1);
   if (lex_mi->ssl_key)
     strmake(mi->ssl_key, lex_mi->ssl_key, sizeof(mi->ssl_key)-1);
+  if (lex_mi->ssl_crl)
+    strmake(mi->ssl_crl, lex_mi->ssl_crl, sizeof(mi->ssl_crl)-1);
+  if (lex_mi->ssl_crlpath)
+    strmake(mi->ssl_crlpath, lex_mi->ssl_crlpath, sizeof(mi->ssl_crlpath)-1);
+
 #ifndef HAVE_OPENSSL
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
       lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
-      lex_mi->ssl_verify_server_cert )
+      lex_mi->ssl_verify_server_cert || lex_mi->ssl_crl || lex_mi->ssl_crlpath)
     push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                  ER_SLAVE_IGNORED_SSL_PARAMS, ER(ER_SLAVE_IGNORED_SSL_PARAMS));
 #endif
@@ -1761,7 +1765,7 @@ bool change_master(THD* thd, Master_info* mi)
   if (need_relay_log_purge)
   {
     relay_log_purge= 1;
-    thd_proc_info(thd, "Purging old relay logs");
+    THD_STAGE_INFO(thd, stage_purging_old_relay_logs);
     if (purge_relay_logs(&mi->rli, thd,
 			 0 /* not only reset, but also reinit */,
 			 &errmsg))
@@ -1832,7 +1836,6 @@ bool change_master(THD* thd, Master_info* mi)
 
 err:
   unlock_slave_threads(mi);
-  thd_proc_info(thd, 0);
   if (ret == FALSE)
     my_ok(thd);
   DBUG_RETURN(ret);

@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates
-   Copyright (c) 2012, Monty Program Ab
+/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -88,6 +87,7 @@ be any number of TL_WRITE_CONCURRENT_INSERT locks aktive at the same time.
 #include "mysys_priv.h"
 
 #include "thr_lock.h"
+#include "mysql/psi/mysql_table.h"
 #include <m_string.h>
 #include <errno.h>
 
@@ -504,7 +504,7 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   mysql_cond_t *cond= &thread_var->suspend;
   struct timespec wait_timeout;
   enum enum_thr_lock_result result= THR_LOCK_ABORTED;
-  const char *old_proc_info;
+  PSI_stage_info old_stage;
   my_bool use_wait_callbacks= FALSE;
   DBUG_ENTER("wait_for_lock");
 
@@ -544,7 +544,8 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   thread_var->current_cond=  cond;
   data->cond= cond;
 
-  old_proc_info= proc_info_hook(NULL, "Waiting for table level lock",
+  proc_info_hook(NULL, &stage_waiting_for_table_level_lock,
+                 &old_stage,
                                __func__, __FILE__, __LINE__);
 
   /*
@@ -640,7 +641,7 @@ wait_for_lock(struct st_lock_list *wait, THR_LOCK_DATA *data,
   thread_var->current_cond=  0;
   mysql_mutex_unlock(&thread_var->mutex);
 
-  proc_info_hook(NULL, old_proc_info, __func__, __FILE__, __LINE__);
+  proc_info_hook(NULL, &old_stage, NULL, __func__, __FILE__, __LINE__);
 
   DBUG_RETURN(result);
 }
@@ -653,12 +654,17 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
   enum enum_thr_lock_result result= THR_LOCK_SUCCESS;
   struct st_lock_list *wait_queue;
   enum thr_lock_type lock_type= data->type;
+  MYSQL_TABLE_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("thr_lock");
 
   data->next=0;
   data->cond=0;					/* safety */
   data->owner= owner;                           /* Must be reset ! */
   data->priority&= ~THR_LOCK_LATE_PRIV;
+
+  MYSQL_START_TABLE_LOCK_WAIT(locker, &state, data->m_psi,
+                              PSI_TABLE_LOCK, lock_type);
+
   mysql_mutex_lock(&lock->mutex);
   DBUG_PRINT("lock",("data: 0x%lx  thread: 0x%lx  lock: 0x%lx  type: %d",
                      (long) data, data->owner->thread_id,
@@ -888,9 +894,12 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
     wait_queue= &lock->write_wait;
   }
   /* Can't get lock yet;  Wait for it */
-  DBUG_RETURN(wait_for_lock(wait_queue, data, 0, lock_wait_timeout));
+  result= wait_for_lock(wait_queue, data, 0, lock_wait_timeout);
+  MYSQL_END_TABLE_LOCK_WAIT(locker);
+  DBUG_RETURN(result);
 end:
   mysql_mutex_unlock(&lock->mutex);
+  MYSQL_END_TABLE_LOCK_WAIT(locker);
   DBUG_RETURN(result);
 }
 

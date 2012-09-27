@@ -206,8 +206,8 @@ extern void (*fatal_error_handler_hook)(uint my_err, const char *str,
 extern uint my_file_limit;
 extern ulonglong my_thread_stack_size;
 
-extern const char *(*proc_info_hook)(MYSQL_THD, const char *, const char *,
-                                     const char *, const unsigned int);
+extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
+                              const char *, const char *, const unsigned int);
 
 #ifdef HAVE_LARGE_PAGES
 extern my_bool my_use_large_pages;
@@ -252,9 +252,7 @@ extern const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
 extern const char *my_defaults_file;
 
-#ifndef timed_mutexes
 extern my_bool timed_mutexes;
-#endif
 
 enum loglevel {
    ERROR_LEVEL,

@@ -3587,9 +3587,9 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     }
     else if (MYSQL_VERSION_ID == table->s->mysql_version)
     {
-      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED),
-                   table->alias.c_ptr(),
+      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
+                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
+                   table->s->db.str, table->s->table_name.str,
                    table_def->count, table->s->fields);
       DBUG_RETURN(TRUE);
     }
@@ -3835,7 +3835,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mdl_context->find_deadlock();
 
   wait_status= mdl_context->m_wait.timed_wait(thd, abstime, TRUE,
-                                              "Waiting for table flush");
+                                              &stage_waiting_for_table_flush);
 
   mdl_context->done_waiting_for();
 

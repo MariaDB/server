@@ -3,6 +3,7 @@
 
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
+--source include/have_innodb.inc
 
 #
 # Bug#12790483 OBJECTS_SUMMARY_GLOBAL_BY_TYPE AND RENAME TABLE

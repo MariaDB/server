@@ -19,7 +19,7 @@ let $check_ipv6_just_check= 1;
 
 # Determine if IPV4 mapped to IPV6 supported
 let $check_ipv4_mapped_just_check= 1;
---source include/check_ipv4_mapped.inc
+--source include/have_ipv4_mapped.inc
 
 let $my_localhost= 127.0.0.1;
 

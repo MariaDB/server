@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
 
 /* variable declarations are in sys_vars.cc now !!! */
 
@@ -493,6 +489,10 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type)
       if (type == OPT_GLOBAL && var->check_type(type))
         continue;
 
+      /* don't show non-visible variables */
+      if (var->not_visible())
+        continue;
+
       show->name= var->name.str;
       show->value= (char*) var;
       show->type= SHOW_SYS;
@@ -533,6 +533,11 @@ sys_var *intern_find_sys_var(const char *str, uint length)
   */
   var= (sys_var*) my_hash_search(&system_variable_hash,
                               (uchar*) str, length ? length : strlen(str));
+
+  /* Don't show non-visible variables. */
+  if (var && var->not_visible())
+    return NULL;
+
   return var;
 }
 

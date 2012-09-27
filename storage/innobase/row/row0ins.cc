@@ -24,8 +24,9 @@ Created 4/20/1996 Heikki Tuuri
 *******************************************************/
 
 #include "m_string.h" /* for my_sys.h */
-#include "my_sys.h" /* DEBUG_SYNC_C_IF_THD */
 #include "row0ins.h"
+
+#define DEBUG_SYNC_C_IF_THD(A,B) DEBUG_SYNC(A,B)
 
 #ifdef UNIV_NONINL
 #include "row0ins.ic"

@@ -180,9 +180,9 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   param.max_rows= max_rows;
 
   if (select && select->quick)
-    status_var_increment(thd->status_var.filesort_range_count);
+    thd->inc_status_sort_range();
   else
-    status_var_increment(thd->status_var.filesort_scan_count);
+    thd->inc_status_sort_scan();
   thd->query_plan_flags|= QPLAN_FILESORT;
 
   // If number of rows is not known, use as much of sort buffer as possible. 
@@ -346,8 +346,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     }
   }
   else
-    statistic_add(thd->status_var.filesort_rows,
-		  (ulong) num_rows, &LOCK_status);
+    thd->inc_status_sort_rows(num_rows);
   *examined_rows= param.examined_rows;
 #ifdef SKIP_DBUG_IN_FILESORT
   DBUG_POP();			/* Ok to DBUG */
@@ -1218,6 +1217,7 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
                   BUFFPEK *lastbuff, BUFFPEK *Fb, BUFFPEK *Tb,
                   int flag)
 {
+  THD *thd= current_thd;
   int error;
   uint rec_length,res_length,offset;
   size_t sort_length;
@@ -1233,11 +1233,11 @@ int merge_buffers(SORTPARAM *param, IO_CACHE *from_file,
   uchar *src;
   killed_state not_killable;
   uchar *unique_buff= param->unique_buff;
-  volatile killed_state *killed= &current_thd->killed;
+  volatile killed_state *killed= &thd->killed;
   DBUG_ENTER("merge_buffers");
 
-  status_var_increment(current_thd->status_var.filesort_merge_passes);
-  current_thd->query_plan_fsort_passes++;
+  thd->inc_status_sort_merge_passes();
+  thd->query_plan_fsort_passes++;
   if (param->not_killable)
   {
     killed= &not_killable;

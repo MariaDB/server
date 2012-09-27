@@ -16,3 +16,4 @@ innodb-trx
 innodb
 innodb-cmpmem
 innodb-trx
+innodb-metrics

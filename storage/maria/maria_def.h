@@ -923,6 +923,8 @@ extern PSI_thread_key key_thread_checkpoint, key_thread_find_all_keys,
 extern PSI_file_key key_file_translog, key_file_kfile, key_file_dfile,
                     key_file_control, key_file_tmp;
 
+extern PSI_stage_info stage_waiting_for_a_resource;
+
 #endif
 
 /* This is used by _ma_calc_xxx_key_length och _ma_store_key */

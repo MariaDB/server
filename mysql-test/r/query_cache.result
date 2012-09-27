@@ -652,14 +652,14 @@ select * from t1;
 a
 1
 2
-SET OPTION SQL_SELECT_LIMIT=1;
+SET SQL_SELECT_LIMIT=1;
 select * from t1;
 a
 1
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
 Qcache_queries_in_cache	2
-SET OPTION SQL_SELECT_LIMIT=DEFAULT;
+SET SQL_SELECT_LIMIT=DEFAULT;
 drop table t1;
 flush query cache;
 reset query cache;
@@ -1932,6 +1932,18 @@ set local query_cache_type= on;
 select @@query_cache_size, @@global.query_cache_type, @@local.query_cache_type;
 @@query_cache_size	@@global.query_cache_type	@@local.query_cache_type
 20971520	ON	ON
+#
+# Bug#12977203: SERVER CRASH ON A DERIVED TABLE WITH QUERY CACHE ENABLED
+#
+SET @qc= @@query_cache_size;
+SET GLOBAL query_cache_size=1355776;
+CREATE TABLE t1 (f1 blob);
+SELECT COUNT(*) FROM (SELECT * FROM t1 ) tt;
+COUNT(*)
+0
+DROP TABLE t1;
+SET GLOBAL query_cache_size= @qc;
+#
 restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size= default;

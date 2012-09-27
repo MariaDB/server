@@ -3849,7 +3849,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   /*
     STEP 1: Get temporary table name
   */
-  statistic_increment(thd->status_var.created_tmp_tables, &LOCK_status);
+  thd->inc_status_created_tmp_tables();
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
     temp_pool_slot = bitmap_lock_set_next(&temp_pool);
 

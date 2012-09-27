@@ -870,7 +870,6 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_wakeup_ready, "THD::COND_wakeup_ready", 0},
   { &key_COND_cache_status_changed, "Query_cache::COND_cache_status_changed", 0},
   { &key_COND_manager, "COND_manager", PSI_FLAG_GLOBAL},
-  { &key_COND_rpl_status, "COND_rpl_status", PSI_FLAG_GLOBAL},
   { &key_COND_server_started, "COND_server_started", PSI_FLAG_GLOBAL},
   { &key_delayed_insert_cond, "Delayed_insert::cond", 0},
   { &key_delayed_insert_cond_client, "Delayed_insert::cond_client", 0},
@@ -1941,7 +1940,6 @@ static void clean_up_mutexes()
 #endif /* HAVE_OPENSSL */
 #ifdef HAVE_REPLICATION
   mysql_mutex_destroy(&LOCK_rpl_status);
-  mysql_cond_destroy(&COND_rpl_status);
 #endif /* HAVE_REPLICATION */
   mysql_mutex_destroy(&LOCK_active_mi);
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
@@ -2343,6 +2341,9 @@ static void network_init(void)
       sql_perror("Can't start server : UNIX Socket "); /* purecov: inspected */
       unireg_abort(1);				/* purecov: inspected */
     }
+
+    mysql_socket_set_thread_owner(unix_sock);
+
     bzero((char*) &UNIXaddr, sizeof(UNIXaddr));
     UNIXaddr.sun_family = AF_UNIX;
     strmov(UNIXaddr.sun_path, mysqld_unix_port);
@@ -4002,7 +4003,6 @@ static int init_thread_environment()
   mysql_cond_init(key_COND_flush_thread_cache, &COND_flush_thread_cache, NULL);
 #ifdef HAVE_REPLICATION
   mysql_mutex_init(key_LOCK_rpl_status, &LOCK_rpl_status, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_rpl_status, &COND_rpl_status, NULL);
 #endif
   mysql_mutex_init(key_LOCK_server_started,
                    &LOCK_server_started, MY_MUTEX_INIT_FAST);
@@ -4233,7 +4233,7 @@ static int init_server_components()
 
   /* set up the hook before initializing plugins which may use it */
   error_handler_hook= my_message_sql;
-  proc_info_hook= set_thd_proc_info;
+  proc_info_hook= set_thd_stage_info;
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
@@ -4483,7 +4483,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     global_system_variables.table_plugin= plugin;
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
-#if defined(WITH_ARIA_STORAGE_ENGINE) && defined(USE_ARIA_FOR_TMP_TABLES)
+#ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
     sql_print_error("Aria engine is not enabled or did not start. The Aria engine must be enabled to continue as mysqld was configured with --with-aria-tmp-tables");
@@ -5577,6 +5577,7 @@ void handle_connections_sockets()
   struct pollfd fds[3]; // for ip_sock, unix_sock and extra_ip_sock
   MYSQL_SOCKET  pfs_fds[3]; // for performance schema
 #define setup_fds(X)                    \
+    mysql_socket_set_thread_owner(X);             \
     pfs_fds[socket_count]= (X);                   \
     fds[socket_count].fd= mysql_socket_getfd(X);  \
     fds[socket_count].events= POLLIN;   \
@@ -5792,6 +5793,8 @@ void handle_connections_sockets()
       delete thd;
       continue;
     }
+
+    init_net_server_extension(thd);
     if (is_unix_sock)
       thd->security_ctx->host=(char*) my_localhost;
 
@@ -7155,9 +7158,9 @@ SHOW_VAR status_vars[]= {
   {"Compression",              (char*) &show_net_compression, SHOW_FUNC},
   {"Connections",              (char*) &thread_id,              SHOW_LONG_NOFLUSH},
   {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_DOUBLE_STATUS},
-  {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables), SHOW_LONG_STATUS},
+  {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
   {"Created_tmp_files",	       (char*) &my_tmp_file_created,	SHOW_LONG},
-  {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables), SHOW_LONG_STATUS},
+  {"Created_tmp_tables",       (char*) offsetof(STATUS_VAR, created_tmp_tables_), SHOW_LONG_STATUS},
   {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
@@ -7220,11 +7223,11 @@ SHOW_VAR status_vars[]= {
 #ifdef HAVE_REPLICATION
   {"Rpl_status",               (char*) &show_rpl_status,          SHOW_FUNC},
 #endif
-  {"Select_full_join",         (char*) offsetof(STATUS_VAR, select_full_join_count), SHOW_LONG_STATUS},
-  {"Select_full_range_join",   (char*) offsetof(STATUS_VAR, select_full_range_join_count), SHOW_LONG_STATUS},
-  {"Select_range",             (char*) offsetof(STATUS_VAR, select_range_count), SHOW_LONG_STATUS},
-  {"Select_range_check",       (char*) offsetof(STATUS_VAR, select_range_check_count), SHOW_LONG_STATUS},
-  {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count), SHOW_LONG_STATUS},
+  {"Select_full_join",         (char*) offsetof(STATUS_VAR, select_full_join_count_), SHOW_LONG_STATUS},
+  {"Select_full_range_join",   (char*) offsetof(STATUS_VAR, select_full_range_join_count_), SHOW_LONG_STATUS},
+  {"Select_range",             (char*) offsetof(STATUS_VAR, select_range_count_), SHOW_LONG_STATUS},
+  {"Select_range_check",       (char*) offsetof(STATUS_VAR, select_range_check_count_), SHOW_LONG_STATUS},
+  {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_LONG},
 #ifdef HAVE_REPLICATION
   {"Slave_retried_transactions",(char*) &show_slave_retried_trans, SHOW_FUNC},
@@ -7234,10 +7237,10 @@ SHOW_VAR status_vars[]= {
 #endif
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},
-  {"Sort_merge_passes",	       (char*) offsetof(STATUS_VAR, filesort_merge_passes), SHOW_LONG_STATUS},
-  {"Sort_range",	       (char*) offsetof(STATUS_VAR, filesort_range_count), SHOW_LONG_STATUS},
-  {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows), SHOW_LONG_STATUS},
-  {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count), SHOW_LONG_STATUS},
+  {"Sort_merge_passes",	       (char*) offsetof(STATUS_VAR, filesort_merge_passes_), SHOW_LONG_STATUS},
+  {"Sort_range",	       (char*) offsetof(STATUS_VAR, filesort_range_count_), SHOW_LONG_STATUS},
+  {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows_), SHOW_LONG_STATUS},
+  {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
   {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_FUNC},
@@ -8585,6 +8588,43 @@ void refresh_status(THD *thd)
   mysql_mutex_unlock(&LOCK_thread_count);
 }
 
+#ifdef HAVE_PSI_INTERFACE
+static PSI_file_info all_server_files[]=
+{
+#ifdef HAVE_MMAP
+  { &key_file_map, "map", 0},
+#endif /* HAVE_MMAP */
+  { &key_file_binlog, "binlog", 0},
+  { &key_file_binlog_index, "binlog_index", 0},
+  { &key_file_relaylog, "relaylog", 0},
+  { &key_file_relaylog_index, "relaylog_index", 0},
+  { &key_file_casetest, "casetest", 0},
+  { &key_file_dbopt, "dbopt", 0},
+  { &key_file_des_key_file, "des_key_file", 0},
+  { &key_file_ERRMSG, "ERRMSG", 0},
+  { &key_select_to_file, "select_to_file", 0},
+  { &key_file_fileparser, "file_parser", 0},
+  { &key_file_frm, "FRM", 0},
+  { &key_file_global_ddl_log, "global_ddl_log", 0},
+  { &key_file_load, "load", 0},
+  { &key_file_loadfile, "LOAD_FILE", 0},
+  { &key_file_log_event_data, "log_event_data", 0},
+  { &key_file_log_event_info, "log_event_info", 0},
+  { &key_file_master_info, "master_info", 0},
+  { &key_file_misc, "misc", 0},
+  { &key_file_partition, "partition", 0},
+  { &key_file_pid, "pid", 0},
+  { &key_file_query_log, "query_log", 0},
+  { &key_file_relay_log_info, "relay_log_info", 0},
+  { &key_file_send_file, "send_file", 0},
+  { &key_file_slow_log, "slow_log", 0},
+  { &key_file_tclog, "tclog", 0},
+  { &key_file_trg, "trigger_name", 0},
+  { &key_file_trn, "trigger", 0},
+  { &key_file_init, "init", 0}
+};
+#endif /* HAVE_PSI_INTERFACE */
+
 PSI_stage_info stage_after_create= { 0, "After create", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
@@ -8595,7 +8635,7 @@ PSI_stage_info stage_checking_query_cache_for_query= { 0, "checking query cache 
 PSI_stage_info stage_cleaning_up= { 0, "cleaning up", 0};
 PSI_stage_info stage_closing_tables= { 0, "closing tables", 0};
 PSI_stage_info stage_connecting_to_master= { 0, "Connecting to master", 0};
-PSI_stage_info stage_converting_heap_to_myisam= { 0, "converting HEAP to MyISAM", 0};
+PSI_stage_info stage_converting_heap_to_myisam= { 0, "converting HEAP to " TMP_ENGINE_NAME, 0};
 PSI_stage_info stage_copying_to_group_table= { 0, "Copying to group table", 0};
 PSI_stage_info stage_copying_to_tmp_table= { 0, "Copying to tmp table", 0};
 PSI_stage_info stage_copy_to_tmp_table= { 0, "copy to tmp table", 0};
@@ -8606,6 +8646,7 @@ PSI_stage_info stage_creating_tmp_table= { 0, "Creating tmp table", 0};
 PSI_stage_info stage_deleting_from_main_table= { 0, "deleting from main table", 0};
 PSI_stage_info stage_deleting_from_reference_tables= { 0, "deleting from reference tables", 0};
 PSI_stage_info stage_discard_or_import_tablespace= { 0, "discard_or_import_tablespace", 0};
+PSI_stage_info stage_enabling_keys= { 0, "enabling keys", 0};
 PSI_stage_info stage_end= { 0, "end", 0};
 PSI_stage_info stage_executing= { 0, "executing", 0};
 PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
@@ -8647,6 +8688,7 @@ PSI_stage_info stage_sending_cached_result_to_client= { 0, "sending cached resul
 PSI_stage_info stage_sending_data= { 0, "Sending data", 0};
 PSI_stage_info stage_setup= { 0, "setup", 0};
 PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for the slave I/O thread to update it", 0};
+PSI_stage_info stage_sorting= { 0, "Sorting", 0};
 PSI_stage_info stage_sorting_for_group= { 0, "Sorting for group", 0};
 PSI_stage_info stage_sorting_for_order= { 0, "Sorting for order", 0};
 PSI_stage_info stage_sorting_result= { 0, "Sorting result", 0};
@@ -8688,41 +8730,6 @@ PSI_stage_info stage_slave_waiting_event_from_coordinator= { 0, "Waiting for an 
 
 #ifdef HAVE_PSI_INTERFACE
 
-static PSI_file_info all_server_files[]=
-{
-#ifdef HAVE_MMAP
-  { &key_file_map, "map", 0},
-#endif /* HAVE_MMAP */
-  { &key_file_binlog, "binlog", 0},
-  { &key_file_binlog_index, "binlog_index", 0},
-  { &key_file_relaylog, "relaylog", 0},
-  { &key_file_relaylog_index, "relaylog_index", 0},
-  { &key_file_casetest, "casetest", 0},
-  { &key_file_dbopt, "dbopt", 0},
-  { &key_file_des_key_file, "des_key_file", 0},
-  { &key_file_ERRMSG, "ERRMSG", 0},
-  { &key_select_to_file, "select_to_file", 0},
-  { &key_file_fileparser, "file_parser", 0},
-  { &key_file_frm, "FRM", 0},
-  { &key_file_global_ddl_log, "global_ddl_log", 0},
-  { &key_file_load, "load", 0},
-  { &key_file_loadfile, "LOAD_FILE", 0},
-  { &key_file_log_event_data, "log_event_data", 0},
-  { &key_file_log_event_info, "log_event_info", 0},
-  { &key_file_master_info, "master_info", 0},
-  { &key_file_misc, "misc", 0},
-  { &key_file_partition, "partition", 0},
-  { &key_file_pid, "pid", 0},
-  { &key_file_query_log, "query_log", 0},
-  { &key_file_relay_log_info, "relay_log_info", 0},
-  { &key_file_send_file, "send_file", 0},
-  { &key_file_slow_log, "slow_log", 0},
-  { &key_file_tclog, "tclog", 0},
-  { &key_file_trg, "trigger_name", 0},
-  { &key_file_trn, "trigger", 0},
-  { &key_file_init, "init", 0}
-};
-
 PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
@@ -8746,6 +8753,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_deleting_from_main_table,
   & stage_deleting_from_reference_tables,
   & stage_discard_or_import_tablespace,
+  & stage_enabling_keys,
   & stage_end,
   & stage_executing,
   & stage_execution_of_init_command,
@@ -8787,6 +8795,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_sending_data,
   & stage_setup,
   & stage_slave_has_read_all_relay_log,
+  & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,
   & stage_sorting_result,

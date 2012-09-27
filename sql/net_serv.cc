@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2012, Monty Program Ab
+   Copyright (c) 2010, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA */
 
 /**
   @file
@@ -112,11 +112,15 @@ extern void query_cache_insert(const char *packet, ulong length,
 #define update_statistics(A)
 #endif
 
+#ifdef MYSQL_SERVER
+/* Additional instrumentation hooks for the server */
+#include "mysql_com_server.h"
+#endif
+
 #define TEST_BLOCKING		8
 #define MAX_PACKET_LENGTH (256L*256L*256L-1)
 
-static my_bool net_write_buff(NET *net,const uchar *packet,ulong len);
-
+static my_bool net_write_buff(NET *, const uchar *, ulong);
 
 /** Init with packet info. */
 
@@ -139,10 +143,14 @@ my_bool my_net_init(NET *net, Vio* vio)
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
   net->unused= 0;
+#ifdef MYSQL_SERVER
+  net->extension= NULL;
+#endif
 
-  if (vio != 0)					/* If real connection */
+  if (vio)
   {
-    net->fd  = vio_fd(vio);			/* For perl DBI/DBD */
+    /* For perl DBI/DBD. */
+    net->fd= vio_fd(vio);
 #if defined(MYSQL_SERVER) && !defined(__WIN__)
     if (!(test_flags & TEST_BLOCKING))
     {
@@ -262,7 +270,10 @@ static int net_data_is_ready(my_socket sd)
 #endif /* EMBEDDED_LIBRARY */
 
 /**
-   Intialize NET handler for new reads:
+  Clear (reinitialize) the NET structure for a new command.
+
+  @remark Performs debug checking of the socket buffer to
+          ensure that the protocol sequence is correct.
 
    - Read from socket until there is nothing more to read. Discard
      what is read.
@@ -347,7 +358,7 @@ my_bool net_flush(NET *net)
   {
     error=test(net_real_write(net, net->buff,
 			      (size_t) (net->write_pos - net->buff)));
-    net->write_pos=net->buff;
+    net->write_pos= net->buff;
   }
   /* Sync packet number if using compression */
   if (net->compress)
@@ -363,15 +374,13 @@ my_bool net_flush(NET *net)
 /**
   Write a logical packet with packet header.
 
-  Format: Packet length (3 bytes), packet number(1 byte)
-  When compression is used a 3 byte compression length is added
+  Format: Packet length (3 bytes), packet number (1 byte)
+  When compression is used, a 3 byte compression length is added.
 
-  @note
-    If compression is used the original package is modified!
+  @note If compression is used, the original packet is modified!
 */
 
-my_bool
-my_net_write(NET *net,const uchar *packet,size_t len)
+my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 {
   uchar buff[NET_HEADER_SIZE];
   int rc;
@@ -415,6 +424,7 @@ my_net_write(NET *net,const uchar *packet,size_t len)
   MYSQL_NET_WRITE_DONE(rc);
   return rc;
 }
+
 
 /**
   Send a command to the server.
@@ -820,6 +830,19 @@ my_real_read(NET *net, size_t *complen)
   my_bool net_blocking=vio_is_blocking(net->vio);
   uint32 remain= (net->compress ? NET_HEADER_SIZE+COMP_HEADER_SIZE :
 		  NET_HEADER_SIZE);
+#ifdef MYSQL_SERVER
+  size_t count= remain;
+  struct st_net_server *server_extension;
+  server_extension= static_cast<st_net_server*> (net->extension);
+  if (server_extension != NULL)
+  {
+    void *user_data= server_extension->m_user_data;
+    DBUG_ASSERT(server_extension->m_before_header != NULL);
+    DBUG_ASSERT(server_extension->m_after_header != NULL);
+    server_extension->m_before_header(net, user_data, count);
+  }
+#endif
+
   *complen = 0;
 
   net->reading_or_writing=1;
@@ -976,6 +999,14 @@ my_real_read(NET *net, size_t *complen)
 	}
 	pos=net->buff + net->where_b;
 	remain = (uint32) len;
+#ifdef MYSQL_SERVER
+        if (server_extension != NULL)
+        {
+          void *user_data= server_extension->m_user_data;
+          server_extension->m_after_header(net, user_data, count, 0);
+          server_extension=  NULL;
+        }
+#endif
       }
     }
 
@@ -991,6 +1022,14 @@ end:
 #ifdef DEBUG_DATA_PACKETS
   if (len != packet_error)
     DBUG_DUMP("data", net->buff+net->where_b, len);
+#endif
+#ifdef MYSQL_SERVER
+  if (server_extension != NULL)
+  {
+    void *user_data= server_extension->m_user_data;
+    server_extension->m_after_header(net, user_data, count, 1);
+    DBUG_ASSERT(len == packet_error || len == 0);
+  }
 #endif
   return(len);
 }

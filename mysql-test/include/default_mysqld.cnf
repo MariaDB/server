@@ -1,4 +1,5 @@
 # Copyright (c) 2007, 2010, Oracle and/or its affiliates
+# Copyright (c) 2010, 2012, Monty Program Ab
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,6 +41,7 @@ loose-feedback-user-info=  mysql-test
 
 loose-innodb_data_file_path=      ibdata1:10M:autoextend
 loose-innodb_buffer_pool_size=    8M
+loose-innodb_lru_scan_depth=      100
 loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
 loose-innodb_log_buffer_size=     1M
@@ -52,10 +54,28 @@ slave-net-timeout=120
 loose-enable-performance-schema
 # Run tests with a small number of instrumented objects
 # to limit memory consumption with MTR
-loose-performance-schema-max-mutex-instances=10000
-loose-performance-schema-max-rwlock-instances=10000
+loose-performance-schema-max-mutex-instances=5000
+loose-performance-schema-max-rwlock-instances=5000
 loose-performance-schema-max-table-instances=500
 loose-performance-schema-max-table-handles=1000
+
+loose-performance-schema-events-stages-history-long-size=1000
+loose-performance-schema-events-statements-history-long-size=1000
+loose-performance-schema-max-thread-instances=200
+
+loose-performance-schema-instrument='%=ON'
+
+loose-performance-schema-consumer-events-stages-current=ON
+loose-performance-schema-consumer-events-stages-history=ON
+loose-performance-schema-consumer-events-stages-history-long=ON
+loose-performance-schema-consumer-events-statements-current=ON
+loose-performance-schema-consumer-events-statements-history=ON
+loose-performance-schema-consumer-events-statements-history-long=ON
+loose-performance-schema-consumer-events-waits-current=ON
+loose-performance-schema-consumer-events-waits-history=ON
+loose-performance-schema-consumer-events-waits-history-long=ON
+loose-performance-schema-consumer-global-instrumentation=ON
+loose-performance-schema-consumer-thread-instrumentation=ON
 
 binlog-direct-non-transactional-updates
 

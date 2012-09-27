@@ -15,6 +15,7 @@ let $engine_type= InnoDB;
 eval create table test.t1 (col1 bigint, col2 varchar(30)) engine = $engine_type;
 show create table test.t1;
 insert into test.t1 values(1,'One');
+eval set default_storage_engine=$engine_type;
 
 --source ../include/table_io_setup_helper.inc
 let $schema_to_dump= 'test';

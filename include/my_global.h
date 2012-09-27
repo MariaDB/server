@@ -16,8 +16,7 @@
 
 /* This is the include file that should be included 'first' in every C file. */
 
-#ifndef _global_h
-#define _global_h
+#ifndef MY_GLOBAL_INCLUDED
 #define MY_GLOBAL_INCLUDED
 
 /* Client library users on Windows need this macro defined here. */

@@ -441,11 +441,10 @@ static my_bool win32_init_tcp_ip()
 }
 #endif /* __WIN__ */
 
-#ifdef HAVE_PSI_INTERFACE
-
 PSI_stage_info stage_waiting_for_table_level_lock=
 {0, "Waiting for table level lock", 0};
 
+#ifdef HAVE_PSI_INTERFACE
 #if !defined(HAVE_PREAD) && !defined(_WIN32)
 PSI_mutex_key key_my_file_info_mutex;
 #endif /* !defined(HAVE_PREAD) && !defined(_WIN32) */
@@ -457,7 +456,7 @@ PSI_mutex_key key_LOCK_localtime_r;
 PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock, key_LOCK_alarm,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
-  key_THR_LOCK_isam, key_THR_LOCK_lock, key_THR_LOCK_malloc,
+  key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads,
   key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_uuid_generator;
@@ -478,7 +477,6 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_my_thread_var_mutex, "my_thread_var::mutex", 0},
   { &key_THR_LOCK_charset, "THR_LOCK_charset", PSI_FLAG_GLOBAL},
   { &key_THR_LOCK_heap, "THR_LOCK_heap", PSI_FLAG_GLOBAL},
-  { &key_THR_LOCK_isam, "THR_LOCK_isam", PSI_FLAG_GLOBAL},
   { &key_THR_LOCK_lock, "THR_LOCK_lock", PSI_FLAG_GLOBAL},
   { &key_THR_LOCK_malloc, "THR_LOCK_malloc", PSI_FLAG_GLOBAL},
   { &key_THR_LOCK_mutex, "THR_LOCK::mutex", 0},
@@ -566,3 +564,4 @@ void my_init_mysys_psi_keys()
   mysql_stage_register(category, all_mysys_stages, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
+

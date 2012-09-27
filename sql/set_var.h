@@ -112,6 +112,7 @@ public:
   int scope() const { return flags & SCOPE_MASK; }
   CHARSET_INFO *charset(THD *thd);
   bool is_readonly() const { return flags & READONLY; }
+  bool not_visible() const { return flags & INVISIBLE; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name

@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +11,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 /*
   Description of the query cache:
@@ -411,23 +412,28 @@ const uchar *query_state_map;
 struct Query_cache_wait_state
 {
   THD *m_thd;
-  const char *m_proc_info;
+  PSI_stage_info m_old_stage;
+  const char *m_func;
+  const char *m_file;
+  int m_line;
 
   Query_cache_wait_state(THD *thd, const char *func,
                          const char *file, unsigned int line)
   : m_thd(thd),
-    m_proc_info(NULL)
+    m_old_stage(),
+    m_func(func), m_file(file), m_line(line)
   {
     if (m_thd)
-      m_proc_info= set_thd_proc_info(m_thd,
-                                     "Waiting for query cache lock",
-                                     func, file, line);
+      set_thd_stage_info(m_thd,
+                         &stage_waiting_for_query_cache_lock,
+                         &m_old_stage,
+                         m_func, m_file, m_line);
   }
 
   ~Query_cache_wait_state()
   {
     if (m_thd)
-      set_thd_proc_info(m_thd, m_proc_info, NULL, NULL, 0);
+      set_thd_stage_info(m_thd, &m_old_stage, NULL, m_func, m_file, m_line);
   }
 };
 
@@ -1140,7 +1146,7 @@ Query_cache::abort(Query_cache_tls *query_cache_tls)
   if (query_block)
   {
     thd= current_thd;
-    thd_proc_info(thd, "storing result in query cache");
+    THD_STAGE_INFO(thd, stage_storing_result_in_query_cache);
     DUMP(this);
     BLOCK_LOCK_WR(query_block);
     // The following call will remove the lock on query_block
@@ -1191,7 +1197,7 @@ void Query_cache::end_of_result(THD *thd)
       suitable size if needed and setting block type. Since this is the last
       block, the writer should be dropped.
     */
-    thd_proc_info(thd, "storing result in query cache");
+    THD_STAGE_INFO(thd, stage_storing_result_in_query_cache);
     DUMP(this);
     BLOCK_LOCK_WR(query_block);
     Query_cache_query *header= query_block->query();
@@ -1847,7 +1853,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     DBUG_PRINT("qcache", ("No active database"));
   }
 
-  thd_proc_info(thd, "checking query cache for query");
+  THD_STAGE_INFO(thd, stage_checking_query_cache_for_query);
 
   // fill all gaps between fields with 0 to get repeatable key
   bzero(&flags, QUERY_CACHE_FLAGS_SIZE);
@@ -1938,7 +1944,7 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
   }
       
   // Check access;
-  thd_proc_info(thd, "checking privileges on cached query");
+  THD_STAGE_INFO(thd, stage_checking_privileges_on_cached_query);
   block_table= query_block->table(0);
   block_table_end= block_table+query_block->n_tables;
   for (; block_table != block_table_end; block_table++)
@@ -2044,7 +2050,7 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     Send cached result to client
   */
 #ifndef EMBEDDED_LIBRARY
-  thd_proc_info(thd, "sending cached result to client");
+  THD_STAGE_INFO(thd, stage_sending_cached_result_to_client);
   do
   {
     DBUG_PRINT("qcache", ("Results  (len: %lu  used: %lu  headers: %lu)",
@@ -2145,7 +2151,7 @@ void Query_cache::invalidate(THD *thd, CHANGED_TABLE_LIST *tables_used)
 
   for (; tables_used; tables_used= tables_used->next)
   {
-    thd_proc_info(thd, "invalidating query cache entries (table list)");
+    THD_STAGE_INFO(thd, stage_invalidating_query_cache_entries_table_list);
     invalidate_table(thd, (uchar*) tables_used->key, tables_used->key_length);
     DBUG_PRINT("qcache", ("db: %s  table: %s", tables_used->key,
                           tables_used->key+
@@ -2174,7 +2180,7 @@ void Query_cache::invalidate_locked_for_write(THD *thd,
 
   for (; tables_used; tables_used= tables_used->next_local)
   {
-    thd_proc_info(thd, "invalidating query cache entries (table)");
+    THD_STAGE_INFO(thd, stage_invalidating_query_cache_entries_table);
     if (tables_used->lock_type >= TL_WRITE_ALLOW_WRITE &&
         tables_used->table)
     {
@@ -2301,6 +2307,9 @@ void Query_cache::invalidate(THD *thd, char *db)
 void Query_cache::invalidate_by_MyISAM_filename(const char *filename)
 {
   DBUG_ENTER("Query_cache::invalidate_by_MyISAM_filename");
+
+  if (is_disabled())
+    DBUG_VOID_RETURN;
 
   /* Calculate the key outside the lock to make the lock shorter */
   char key[MAX_DBKEY_LENGTH];

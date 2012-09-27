@@ -4,8 +4,8 @@
 # are used.
 ###################################################################################
 --source include/have_binlog_format_mixed.inc
---source include/master-slave.inc
 --source include/have_innodb.inc
+--source include/master-slave.inc
 
 --source extra/rpl_tests/rpl_drop_create_temp_table.test
 --source include/rpl_end.inc

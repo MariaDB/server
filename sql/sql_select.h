@@ -29,20 +29,11 @@
 #endif
 
 #include "procedure.h"
-#include <myisam.h>
 #include "sql_array.h"                        /* Array */
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 
 
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-#include <maria.h>
-#endif
-#if defined(USE_ARIA_FOR_TMP_TABLES)
-#define TMP_ENGINE_HTON maria_hton
-#else
-#define TMP_ENGINE_HTON myisam_hton
-#endif
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1
 #define KEY_OPTIMIZE_REF_OR_NULL	2
@@ -1704,8 +1695,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                         bool make_copy_field,
                         uint convert_blob_length);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo, 
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options, my_bool big_tables);
 
 /*
@@ -1769,12 +1760,12 @@ TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			const char* alias, bool do_not_open=FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
-                                         ENGINE_COLUMNDEF *start_recinfo,
-                                         ENGINE_COLUMNDEF **recinfo, 
+                                         TMP_ENGINE_COLUMNDEF *start_recinfo,
+                                         TMP_ENGINE_COLUMNDEF **recinfo, 
                                          int error, bool ignore_last_dupp_key_error);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo, 
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options, my_bool big_tables);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);

@@ -42,7 +42,7 @@ count(name)
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_log_throttle_qni";
 count(name)
-1
+0
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_status";
 count(name)
@@ -58,7 +58,7 @@ count(name)
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_uuid_generator";
 count(name)
-1
+0
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_delayed_status";
 count(name)
@@ -82,7 +82,7 @@ count(name)
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_manager";
 count(name)
-1
+0
 select count(name) from mutex_instances
 where name like "wait/synch/mutex/sql/LOCK_global_system_variables";
 count(name)
@@ -166,7 +166,7 @@ count(name)
 select count(name) from cond_instances
 where name like "wait/synch/cond/sql/COND_manager";
 count(name)
-1
+0
 select count(name) from cond_instances
 where name like "wait/synch/cond/sql/COND_thread_cache";
 count(name)

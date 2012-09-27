@@ -143,14 +143,30 @@ enum {
 
   /* 5.1.16 added value of master_ssl_verify_server_cert */
   LINE_FOR_MASTER_SSL_VERIFY_SERVER_CERT= 15,
-  /* 6.0 added value of master_heartbeat_period */
+
+  /* 5.5 added value of master_heartbeat_period */
   LINE_FOR_MASTER_HEARTBEAT_PERIOD= 16,
+
   /* MySQL Cluster 6.3 added master_bind */
   LINE_FOR_MASTER_BIND = 17,
+
   /* 6.0 added value of master_ignore_server_id */
   LINE_FOR_REPLICATE_IGNORE_SERVER_IDS= 18,
+
+  /* 6.0 added value of master_uuid */
+  LINE_FOR_MASTER_UUID= 19,
+
+  /* line for master_retry_count */
+  LINE_FOR_MASTER_RETRY_COUNT= 20,
+
+  /* line for ssl_crl */
+  LINE_FOR_SSL_CRL= 21,
+
+  /* line for ssl_crl */
+  LINE_FOR_SSL_CRLPATH= 22,
+
   /* Number of lines currently used when saving master info file */
-  LINES_IN_MASTER_INFO= LINE_FOR_REPLICATE_IGNORE_SERVER_IDS
+  LINES_IN_MASTER_INFO= LINE_FOR_SSL_CRLPATH
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -384,6 +400,23 @@ file '%s')", fname);
         sql_print_error("Failed to initialize master info ignore_server_ids");
         goto errwithmsg;
       }
+
+      /* reserved */
+      if (lines >= LINE_FOR_MASTER_UUID &&
+	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  goto errwithmsg;
+
+      /* Starting from 5.5 the master_retry_count may be in the repository. */
+      if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
+	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  goto errwithmsg;
+
+      if (lines >= LINE_FOR_SSL_CRLPATH &&
+	  (init_strvar_from_file(mi->ssl_crl, sizeof(mi->ssl_crl),
+                                 &mi->file, "") ||
+	   init_strvar_from_file(mi->ssl_crlpath, sizeof(mi->ssl_crlpath),
+                                 &mi->file, "")))
+	  goto errwithmsg;
     }
 
 #ifndef HAVE_OPENSSL
@@ -523,14 +556,16 @@ int flush_master_info(Master_info* mi,
   sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
   my_b_seek(file, 0L);
   my_b_printf(file,
-              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n",
+              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
               mi->host, mi->user,
               mi->password, mi->port, mi->connect_retry,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
-              heartbeat_buf, "", ignore_server_ids_buf);
+              heartbeat_buf, "", ignore_server_ids_buf,
+              "", 0,
+              mi->ssl_crl, mi->ssl_crlpath);
   my_free(ignore_server_ids_buf);
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err && 
