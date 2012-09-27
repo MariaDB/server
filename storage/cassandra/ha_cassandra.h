@@ -69,6 +69,7 @@ class ha_cassandra: public handler
   ha_rows insert_lineno;
   void print_conversion_error(const char *field_name, 
                               char *cass_value, int cass_value_len);
+  int connect_and_check_options(TABLE *table_arg);
 public:
   ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_cassandra()
@@ -152,7 +153,8 @@ public:
    */
   uint max_supported_key_length()    const { return 16*1024; /* just to return something*/ }
   
-  /* At the moment, we're ok with default handler::index_init() implementation. */
+  int index_init(uint idx, bool sorted);
+
   int index_read_map(uchar * buf, const uchar * key,
                      key_part_map keypart_map,
                      enum ha_rkey_function find_flag);

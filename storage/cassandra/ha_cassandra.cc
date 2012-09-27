@@ -375,21 +375,16 @@ const char **ha_cassandra::bas_ext() const
 }
 
 
-int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
+int ha_cassandra::connect_and_check_options(TABLE *table_arg)
 {
-  ha_table_option_struct *options= table->s->option_struct;
+  ha_table_option_struct *options= table_arg->s->option_struct;
   int res;
-  DBUG_ENTER("ha_cassandra::open");
+  DBUG_ENTER("ha_cassandra::connect_and_check_options");
 
-  if (!(share = get_share(name, table)))
-    DBUG_RETURN(1);
-  thr_lock_data_init(&share->lock,&lock,NULL);
-  
-  DBUG_ASSERT(!se);
   if ((res= check_table_options(options)))
     DBUG_RETURN(res);
 
-  se= get_cassandra_se();
+  se= create_cassandra_se();
   se->set_column_family(options->column_family);
   const char *thrift_host= options->thrift_host? options->thrift_host:
                            cassandra_default_thrift_host;
@@ -399,10 +394,35 @@ int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
 
-  if (setup_field_converters(table->field, table->s->fields))
+  if (setup_field_converters(table_arg->field, table_arg->s->fields))
   {
     DBUG_RETURN(HA_ERR_NO_CONNECTION);
   }
+
+  DBUG_RETURN(0);
+}
+
+
+int ha_cassandra::open(const char *name, int mode, uint test_if_locked)
+{
+  DBUG_ENTER("ha_cassandra::open");
+
+  if (!(share = get_share(name, table)))
+    DBUG_RETURN(1);
+  thr_lock_data_init(&share->lock,&lock,NULL);
+  
+  DBUG_ASSERT(!se);
+  /*
+    Don't do the following on open: it prevents SHOW CREATE TABLE when the server
+    has gone away.
+  */
+  /*
+  int res;
+  if ((res= connect_and_check_options(table)))
+  {
+    DBUG_RETURN(res);
+  }
+  */
 
   info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
   insert_lineno= 0;
@@ -444,7 +464,7 @@ int ha_cassandra::check_table_options(ha_table_option_struct *options)
 
 /**
   @brief
-  create() is called to create a database. The variable name will have the name
+  create() is called to create a table. The variable name will have the name
   of the table.
 
   @details
@@ -485,45 +505,10 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
-#ifndef DBUG_OFF
-/*  
-  DBUG_PRINT("info", ("strparam: '%-.64s'  ullparam: %llu  enumparam: %u  "\
-                      "boolparam: %u",
-                      (options->strparam ? options->strparam : "<NULL>"),
-                      options->ullparam, options->enumparam, options->boolparam));
-
-  psergey-todo: check table definition!
-  for (Field **field= table_arg->s->field; *field; field++)
-  {
-    ha_field_option_struct *field_options= (*field)->option_struct;
-    DBUG_ASSERT(field_options);
-    DBUG_PRINT("info", ("field: %s  complex: '%-.64s'",
-                         (*field)->field_name,
-                         (field_options->complex_param_to_parse_it_in_engine ?
-                          field_options->complex_param_to_parse_it_in_engine :
-                          "<NULL>")));
-  }
-*/
-#endif
   DBUG_ASSERT(!se);
-  if ((res= check_table_options(options)))
+  if ((res= connect_and_check_options(table_arg)))
     DBUG_RETURN(res);
 
-  se= get_cassandra_se();
-  se->set_column_family(options->column_family);
-  const char *thrift_host= options->thrift_host? options->thrift_host:
-                           cassandra_default_thrift_host;
-  if (se->connect(thrift_host, options->thrift_port, options->keyspace))
-  {
-    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), se->error_str());
-    DBUG_RETURN(HA_ERR_NO_CONNECTION);
-  }
-  
-  if (setup_field_converters(table_arg->s->field, table_arg->s->fields))
-  {
-    my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0), "setup_field_converters");
-    DBUG_RETURN(HA_ERR_NO_CONNECTION);
-  }
   insert_lineno= 0;
   DBUG_RETURN(0);
 }
@@ -1064,6 +1049,14 @@ void ha_cassandra::free_field_converters()
 }
 
 
+int ha_cassandra::index_init(uint idx, bool sorted)
+{
+  int ires;
+  if (!se && (ires= connect_and_check_options(table)))
+    return ires;
+  return 0;
+}
+
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
@@ -1198,8 +1191,12 @@ err:
 int ha_cassandra::write_row(uchar *buf)
 {
   my_bitmap_map *old_map;
+  int ires;
   DBUG_ENTER("ha_cassandra::write_row");
   
+  if (!se && (ires= connect_and_check_options(table)))
+    DBUG_RETURN(ires);
+
   if (!doing_insert_batch)
     se->clear_insert_buffer();
 
@@ -1260,6 +1257,10 @@ int ha_cassandra::write_row(uchar *buf)
 
 void ha_cassandra::start_bulk_insert(ha_rows rows)
 {
+  int ires;
+  if (!se && (ires= connect_and_check_options(table)))
+    return;
+
   doing_insert_batch= true;
   insert_rows_batched= 0;
 
@@ -1283,7 +1284,12 @@ int ha_cassandra::end_bulk_insert()
 int ha_cassandra::rnd_init(bool scan)
 {
   bool bres;
+  int ires;
   DBUG_ENTER("ha_cassandra::rnd_init");
+
+  if (!se && (ires= connect_and_check_options(table)))
+    DBUG_RETURN(ires);
+
   if (!scan)
   {
     /* Prepare for rnd_pos() calls. We don't need to anything. */
@@ -1338,7 +1344,11 @@ int ha_cassandra::rnd_next(uchar *buf)
 int ha_cassandra::delete_all_rows()
 {
   bool bres;
+  int ires;
   DBUG_ENTER("ha_cassandra::delete_all_rows");
+
+  if (!se && (ires= connect_and_check_options(table)))
+    DBUG_RETURN(ires);
 
   bres= se->truncate();
   

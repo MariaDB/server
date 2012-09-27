@@ -110,5 +110,5 @@ public:
 extern Cassandra_status_vars cassandra_counters;
 
 
-Cassandra_se_interface *get_cassandra_se();
+Cassandra_se_interface *create_cassandra_se();
 
