@@ -496,6 +496,8 @@ public:
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(Item *a,Item *b,Item *c) :Item_func(a,b,c)
   { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(Item *a,Item *b,Item *c, Item *d) :Item_func(a,b,c,d)
+  { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(List<Item> &list) :Item_func(list)
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item_int_func *item) :Item_func(thd, item)
@@ -1522,6 +1524,7 @@ class Item_master_pos_wait :public Item_int_func
 public:
   Item_master_pos_wait(Item *a,Item *b) :Item_int_func(a,b) {}
   Item_master_pos_wait(Item *a,Item *b,Item *c) :Item_int_func(a,b,c) {}
+  Item_master_pos_wait(Item *a,Item *b, Item *c, Item *d) :Item_int_func(a,b,c,d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
   void fix_length_and_dec() { max_length=21; maybe_null=1;}

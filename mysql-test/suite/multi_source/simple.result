@@ -1,0 +1,64 @@
+change master 'slave1' to master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
+change master 'slave2' to master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
+start slave 'slave1';
+start slave 'slave2';
+show full slave status;
+Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
+slave1	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	286	mysqld-relay-bin-slave1.000002	572	master-bin.000001	Yes	Yes							0		0	286	875	None		0	No						0	No	0		0			1
+slave2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-slave2.000002	572	master-bin.000001	Yes	Yes							0		0	286	875	None		0	No						0	No	0		0			2
+stop slave 'slave1';
+show slave 'slave1' status;
+Slave_IO_State	
+Master_Host	127.0.0.1
+Master_User	root
+Master_Port	MYPORT_1
+Connect_Retry	60
+Master_Log_File	master-bin.000001
+Read_Master_Log_Pos	286
+Relay_Log_File	mysqld-relay-bin-slave1.000002
+Relay_Log_Pos	572
+Relay_Master_Log_File	master-bin.000001
+Slave_IO_Running	No
+Slave_SQL_Running	No
+Replicate_Do_DB	
+Replicate_Ignore_DB	
+Replicate_Do_Table	
+Replicate_Ignore_Table	
+Replicate_Wild_Do_Table	
+Replicate_Wild_Ignore_Table	
+Last_Errno	0
+Last_Error	
+Skip_Counter	0
+Exec_Master_Log_Pos	286
+Relay_Log_Space	875
+Until_Condition	None
+Until_Log_File	
+Until_Log_Pos	0
+Master_SSL_Allowed	No
+Master_SSL_CA_File	
+Master_SSL_CA_Path	
+Master_SSL_Cert	
+Master_SSL_Cipher	
+Master_SSL_Key	
+Seconds_Behind_Master	NULL
+Master_SSL_Verify_Server_Cert	No
+Last_IO_Errno	0
+Last_IO_Error	
+Last_SQL_Errno	0
+Last_SQL_Error	
+Replicate_Ignore_Server_Ids	
+Master_Server_Id	1
+reset slave 'slave1';
+show full slave status;
+Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
+slave1		127.0.0.1	root	MYPORT_1	60		4	mysqld-relay-bin-slave1.000001	4		No	No							0		0	0	265	None		0	No						NULL	No	0		0			1
+slave2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-slave2.000002	572	master-bin.000001	Yes	Yes							0		0	286	875	None		0	No						0	No	0		0			2
+reset slave 'slave1' all;
+show full slave status;
+Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
+slave2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-slave2.000002	572	master-bin.000001	Yes	Yes							0		0	286	875	None		0	No						0	No	0		0			2
+stop slave 'slave2';
+show full slave status;
+Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
+slave2		127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-slave2.000002	572	master-bin.000001	No	No							0		0	286	875	None		0	No						NULL	No	0		0			2
+reset slave 'slave2' all;

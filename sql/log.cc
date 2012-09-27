@@ -40,6 +40,7 @@
 #include "rpl_rli.h"
 #include "sql_audit.h"
 #include "log_slow.h"
+#include "mysqld.h"
 
 #include <my_dir.h>
 #include <stdarg.h>
@@ -6980,8 +6981,25 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   time_t skr;
   struct tm tm_tmp;
   struct tm *start;
+  THD *thd;
+  int tag_length= 0;
+  char tag[NAME_LEN];
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
+
+  if (mysqld_server_initialized && (thd= current_thd))
+  {
+    if (thd->connection_name.length)
+    {
+      /*
+        Add tag for slaves so that the user can see from which connection
+        the error originates.
+      */
+      tag_length= my_snprintf(tag, sizeof(tag), ER(ER_MASTER_LOG_PREFIX),
+                              (int) thd->connection_name.length,
+                              thd->connection_name.str);
+    }
+  }
 
   mysql_mutex_lock(&LOCK_error_log);
 
@@ -6989,7 +7007,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(stderr, "%02d%02d%02d %2d:%02d:%02d [%s] %.*s\n",
+  fprintf(stderr, "%02d%02d%02d %2d:%02d:%02d [%s] %.*s%.*s\n",
           start->tm_year % 100,
           start->tm_mon+1,
           start->tm_mday,
@@ -6998,6 +7016,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           start->tm_sec,
           (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
            "Warning" : "Note"),
+          tag_length, tag,
           (int) length, buffer);
 
   fflush(stderr);

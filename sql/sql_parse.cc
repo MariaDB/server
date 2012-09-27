@@ -82,6 +82,7 @@
 #include <myisam.h>
 #include <my_dir.h>
 #include "rpl_handler.h"
+#include "rpl_mi.h"
 
 #include "sp_head.h"
 #include "sp.h"
@@ -2343,10 +2344,41 @@ case SQLCOM_PREPARE:
 #ifdef HAVE_REPLICATION
   case SQLCOM_CHANGE_MASTER:
   {
+    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+    Master_info *mi;
+    bool new_master= 0;
+
     if (check_global_access(thd, SUPER_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    res = change_master(thd,active_mi);
+
+    mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                           MYSQL_ERROR::WARN_LEVEL_NOTE);
+
+    if (mi == NULL)
+    {
+      /* New replication created */
+      mi= new Master_info(&lex_mi->connection_name, relay_log_recovery); 
+      if (!mi || mi->error())
+      {
+        delete mi;
+        res= 1;
+        mysql_mutex_unlock(&LOCK_active_mi);
+        break;
+      }
+      new_master= 1;
+    }
+
+    res= change_master(thd, mi);
+    if (res && new_master)
+    {
+      /*
+        The new master was added by change_master(). Remove it as it didn't
+        work.
+      */
+      master_info_index->remove_master_info(&lex_mi->connection_name);
+    }
+
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
@@ -2356,15 +2388,19 @@ case SQLCOM_PREPARE:
     if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    if (active_mi != NULL)
-    {
-      res = show_master_info(thd, active_mi);
-    }
+
+    if (lex->verbose)
+      res= show_all_master_info(thd);
     else
     {
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                   WARN_NO_MASTER_INFO, ER(WARN_NO_MASTER_INFO));
-      my_ok(thd);
+      LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+      Master_info *mi;
+      mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                             MYSQL_ERROR::WARN_LEVEL_ERROR);
+      if (mi != NULL)
+      {
+        res= show_master_info(thd, mi, 0);
+      }
     }
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -2664,40 +2700,53 @@ end_with_restore_list:
 #ifdef HAVE_REPLICATION
   case SQLCOM_SLAVE_START:
   {
+    LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+    Master_info *mi;
     mysql_mutex_lock(&LOCK_active_mi);
-    start_slave(thd,active_mi,1 /* net report*/);
+
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      start_slave(thd, mi, 1 /* net report*/);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
   case SQLCOM_SLAVE_STOP:
-  /*
-    If the client thread has locked tables, a deadlock is possible.
-    Assume that
-    - the client thread does LOCK TABLE t READ.
-    - then the master updates t.
-    - then the SQL slave thread wants to update t,
-      so it waits for the client thread because t is locked by it.
+  {
+    LEX_MASTER_INFO *lex_mi;
+    Master_info *mi;
+    /*
+      If the client thread has locked tables, a deadlock is possible.
+      Assume that
+      - the client thread does LOCK TABLE t READ.
+      - then the master updates t.
+      - then the SQL slave thread wants to update t,
+        so it waits for the client thread because t is locked by it.
     - then the client thread does SLAVE STOP.
       SLAVE STOP waits for the SQL slave thread to terminate its
       update t, which waits for the client thread because t is locked by it.
-    To prevent that, refuse SLAVE STOP if the
-    client thread has locked tables
-  */
-  if (thd->locked_tables_mode ||
-      thd->in_active_multi_stmt_transaction() || thd->global_read_lock.is_acquired())
-  {
-    my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-               ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
-    goto error;
-  }
-  {
+      To prevent that, refuse SLAVE STOP if the
+      client thread has locked tables
+    */
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+
+    lex_mi= &thd->lex->mi;
     mysql_mutex_lock(&LOCK_active_mi);
-    stop_slave(thd,active_mi,1/* net report*/);
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      stop_slave(thd, mi, 1/* net report*/);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
 #endif /* HAVE_REPLICATION */
-
   case SQLCOM_RENAME_TABLE:
   {
     if (execute_rename_table(thd, first_table, all_tables))

@@ -796,6 +796,30 @@ static Sys_var_lexstring Sys_init_connect(
        DEFAULT(""), &PLock_sys_init_connect, NOT_IN_BINLOG,
        ON_CHECK(check_init_string));
 
+#ifdef HAVE_REPLICATION
+static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
+{
+  LEX_STRING tmp;
+  tmp.str= var->save_result.string_value.str;
+  tmp.length= var->save_result.string_value.length;
+  if (check_master_connection_name(&tmp))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+             "DEFAULT_MASTER_CONNECTION");
+    return true;
+  }
+  return false;
+}
+
+static Sys_var_session_lexstring Sys_default_master_connection(
+       "default_master_connection",
+       "Master connection to use for all slave variables and slave commands",
+       SESSION_ONLY(default_master_connection),
+       NO_CMD_LINE, IN_SYSTEM_CHARSET,
+       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection),
+       ON_UPDATE(0));
+#endif
+
 static Sys_var_charptr Sys_init_file(
        "init_file", "Read SQL commands from this file at startup",
        READ_ONLY GLOBAL_VAR(opt_init_file),
@@ -3454,47 +3478,67 @@ static Sys_var_uint Sys_slave_net_timeout(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_slave_net_timeout));
 
-static bool check_slave_skip_counter(sys_var *self, THD *thd, set_var *var)
+
+/*
+  Access a multi_source variable
+  Return 0 + warning if it doesn't exist
+*/
+
+uint Sys_var_multi_source_uint::
+get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
-  bool result= false;
+  Master_info *mi;
+  uint res= 0;                                  // Default value
   mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  if (active_mi->rli.slave_running)
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_WARN);
+  if (mi)
   {
-    my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
-    result= true;
+    mysql_mutex_lock(&mi->rli.data_lock);
+    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    mysql_mutex_unlock(&mi->rli.data_lock);
   }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
+  mysql_mutex_unlock(&LOCK_active_mi);    
+  return res;
+}
+  
+
+static bool update_slave_skip_counter(sys_var *self, THD *thd,
+                                      enum_var_type type)
+{
+  bool result= true;
+  Master_info *mi;
+  mysql_mutex_lock(&LOCK_active_mi);
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_ERROR);
+  if (mi)
+  {
+    mysql_mutex_lock(&mi->rli.run_lock);
+    if (mi->rli.slave_running)
+      my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
+    else
+    {
+      result= false;                            // ok
+      mysql_mutex_lock(&mi->rli.data_lock);
+      /* The value was stored temporarly in thd */
+      mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
+      mysql_mutex_unlock(&mi->rli.data_lock);
+    }
+    mysql_mutex_unlock(&mi->rli.run_lock);
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   return result;
 }
-static bool fix_slave_skip_counter(sys_var *self, THD *thd, enum_var_type type)
-{
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  /*
-    The following test should normally never be true as we test this
-    in the check function;  To be safe against multiple
-    SQL_SLAVE_SKIP_COUNTER request, we do the check anyway
-  */
-  if (!active_mi->rli.slave_running)
-  {
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    active_mi->rli.slave_skip_counter= sql_slave_skip_counter;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
-  }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return 0;
-}
-static Sys_var_uint Sys_slave_skip_counter(
-       "sql_slave_skip_counter", "sql_slave_skip_counter",
-       GLOBAL_VAR(sql_slave_skip_counter), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_skip_counter),
-       ON_UPDATE(fix_slave_skip_counter));
+
+static Sys_var_multi_source_uint
+Sys_slave_skip_counter("sql_slave_skip_counter",
+                       "Skip the next N events from the master log",
+                       SESSION_VAR(slave_skip_counter),
+                       offsetof(Master_info, rli.slave_skip_counter),
+                       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+                       ON_UPDATE(update_slave_skip_counter));
 
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
