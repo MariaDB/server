@@ -1605,11 +1605,95 @@ ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
 }
 
 
+class Column_name_enumerator_impl : public Column_name_enumerator
+{
+  ha_cassandra *obj;
+  uint idx;
+public:
+  Column_name_enumerator_impl(ha_cassandra *obj_arg) : obj(obj_arg), idx(1) {}
+  const char* get_next_name()
+  {
+    if (idx == obj->table->s->fields)
+      return NULL;
+    else
+      return obj->table->field[idx++]->field_name;
+  }
+};
+
+
 int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
 {
-
+  my_bitmap_map *old_map;
   DBUG_ENTER("ha_cassandra::update_row");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  /* Currently, it is guaranteed that new_data == table->record[0] */
+  
+  /* For now, just rewrite the full record */
+  se->clear_insert_buffer();
+  
+
+  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+
+  char *old_key;
+  int old_key_len;
+  se->get_read_rowkey(&old_key, &old_key_len);
+
+  /* Get the key we're going to write */
+  char *new_key;
+  int new_key_len;
+  if (rowkey_converter->mariadb_to_cassandra(&new_key, &new_key_len))
+  {
+    my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
+             rowkey_converter->field->field_name, insert_lineno);
+    dbug_tmp_restore_column_map(table->read_set, old_map);
+    DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+  }
+
+  /*
+    Compare it to the key we've read. For all types that Cassandra supports, 
+    binary byte-wise comparison can be used
+  */
+  bool new_primary_key;
+  if (new_key_len != old_key_len || memcmp(old_key, new_key, new_key_len))
+    new_primary_key= true;
+  else
+    new_primary_key= false;
+
+
+  if (new_primary_key)
+  {
+    /* 
+      Primary key value changed. This is essentially a DELETE + INSERT. 
+      Add a DELETE operation into the batch
+    */
+    Column_name_enumerator_impl name_enumerator(this);
+    se->add_row_deletion(old_key, old_key_len, &name_enumerator);
+  }
+
+  se->start_row_insert(new_key, new_key_len);
+
+  /* Convert other fields */
+  for (uint i= 1; i < table->s->fields; i++)
+  {
+    char *cass_data;
+    int cass_data_len;
+    if (field_converters[i]->mariadb_to_cassandra(&cass_data, &cass_data_len))
+    {
+      my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
+               field_converters[i]->field->field_name, insert_lineno);
+      dbug_tmp_restore_column_map(table->read_set, old_map);
+      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+    }
+    se->add_insert_column(field_converters[i]->field->field_name, 
+                          cass_data, cass_data_len);
+  }
+  dbug_tmp_restore_column_map(table->read_set, old_map);
+  
+  bool res= se->do_insert();
+
+  if (res)
+    my_error(ER_INTERNAL_ERROR, MYF(0), se->error_str());
+  
+  DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);
 }
 
 

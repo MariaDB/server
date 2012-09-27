@@ -45,6 +45,7 @@ struct ha_table_option_struct;
 */
 class ha_cassandra: public handler
 {
+  friend class Column_name_enumerator_impl;
   THR_LOCK_DATA lock;      ///< MySQL lock
   CASSANDRA_SHARE *share;    ///< Shared lock info
   
