@@ -223,7 +223,12 @@ void cleanup_instrument_config()
   
   /* Ignore if another thread has already deallocated the array */
   if (my_atomic_cas32(&pfs_instr_config_state, &desired_state, PFS_INSTR_CONFIG_DEALLOCATED))
+  {
+    PFS_instr_config **array=dynamic_element(&pfs_instr_config_array, 0, PFS_instr_config**);
+    for (uint i=0; i < pfs_instr_config_array.elements; i++)
+      my_free(array[i]);
     delete_dynamic(&pfs_instr_config_array);
+  }
 }
 
 /**

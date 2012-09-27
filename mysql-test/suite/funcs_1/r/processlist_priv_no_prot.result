@@ -37,7 +37,7 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
 )  DEFAULT CHARSET=utf8
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
-ID	root	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	root	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 SELECT * FROM processlist  ORDER BY id;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
@@ -110,7 +110,7 @@ PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
 )  DEFAULT CHARSET=utf8
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM processlist  ORDER BY id;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM processlist  ORDER BY id	TIME_MS	0	0	0.000
@@ -173,7 +173,7 @@ Grants for ddicttestuser1@localhost
 GRANT PROCESS ON *.* TO 'ddicttestuser1'@'localhost' IDENTIFIED BY PASSWORD '*22DA61451703738F203CDB9DB041ACBA1F4760B1'
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -188,7 +188,7 @@ SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -212,7 +212,7 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 ID	root	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID		HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID		HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID		HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -236,7 +236,7 @@ SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -276,7 +276,7 @@ Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -302,7 +302,7 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -356,7 +356,7 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -385,7 +385,7 @@ GRANT USAGE ON *.* TO 'ddicttestuser2'@'localhost' IDENTIFIED BY PASSWORD '*22DA
 SHOW processlist;
 Id	User	Host	db	Command	Time	State	Info	Progress
 ID	ddicttestuser2	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser2	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -414,7 +414,7 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000
@@ -450,7 +450,7 @@ ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
 ID	ddicttestuser1	HOST_NAME	information_schema	Sleep	TIME		NULL	TIME_MS
-ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	NULL	SHOW processlist	TIME_MS
+ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	init	SHOW processlist	TIME_MS
 SELECT * FROM information_schema.processlist;
 ID	USER	HOST	DB	COMMAND	TIME	STATE	INFO	TIME_MS	STAGE	MAX_STAGE	PROGRESS
 ID	ddicttestuser1	HOST_NAME	information_schema	Query	TIME	executing	SELECT * FROM information_schema.processlist	TIME_MS	0	0	0.000

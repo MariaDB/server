@@ -3288,45 +3288,45 @@ ER_NONEXISTING_GRANT 42000
         swe "Det finns inget privilegium definierat för användare '%-.48s' på '%-.64s'"
         ukr "Повноважень не визначено для користувача '%-.48s' з хосту '%-.64s'"
 ER_TABLEACCESS_DENIED_ERROR 42000 
-        cze "%-.32s p-Bříkaz nepřístupný pro uživatele: '%-.48s'@'%-.64s' pro tabulku '%-.192s'"
-        dan "%-.32s-kommandoen er ikke tilladt for brugeren '%-.48s'@'%-.64s' for tabellen '%-.192s'"
-        nla "%-.32s commando geweigerd voor gebruiker: '%-.48s'@'%-.64s' voor tabel '%-.192s'"
-        eng "%-.32s command denied to user '%-.48s'@'%-.64s' for table '%-.192s'"
-        jps "コマンド %-.32s は ユーザー '%-.48s'@'%-.64s' ,テーブル '%-.192s' に対して許可されていません",
-        est "%-.32s käsk ei ole lubatud kasutajale '%-.48s'@'%-.64s' tabelis '%-.192s'"
-        fre "La commande '%-.32s' est interdite à l'utilisateur: '%-.48s'@'@%-.64s' sur la table '%-.192s'"
-        ger "%-.32s Befehl nicht erlaubt für Benutzer '%-.48s'@'%-.64s' auf Tabelle '%-.192s'"
-        hun "%-.32s parancs a '%-.48s'@'%-.64s' felhasznalo szamara nem engedelyezett a '%-.192s' tablaban"
-        ita "Comando %-.32s negato per l'utente: '%-.48s'@'%-.64s' sulla tabella '%-.192s'"
-        jpn "コマンド %-.32s は ユーザー '%-.48s'@'%-.64s' ,テーブル '%-.192s' に対して許可されていません"
-        kor "'%-.32s' 명령은 다음 사용자에게 거부되었습니다. : '%-.48s'@'%-.64s' for 테이블 '%-.192s'"
-        por "Comando '%-.32s' negado para o usuário '%-.48s'@'%-.64s' na tabela '%-.192s'"
-        rum "Comanda %-.32s interzisa utilizatorului: '%-.48s'@'%-.64s' pentru tabela '%-.192s'"
-        rus "Команда %-.32s запрещена пользователю '%-.48s'@'%-.64s' для таблицы '%-.192s'"
-        serbian "%-.32s komanda zabranjena za korisnika '%-.48s'@'%-.64s' za tabelu '%-.192s'"
-        spa "%-.32s comando negado para usuario: '%-.48s'@'%-.64s' para tabla '%-.192s'"
-        swe "%-.32s ej tillåtet för '%-.48s'@'%-.64s' för tabell '%-.192s'"
-        ukr "%-.32s команда заборонена користувачу: '%-.48s'@'%-.64s' у таблиці '%-.192s'"
+        cze "%-.128s p-Bříkaz nepřístupný pro uživatele: '%-.48s'@'%-.64s' pro tabulku '%-.192s'"
+        dan "%-.128s-kommandoen er ikke tilladt for brugeren '%-.48s'@'%-.64s' for tabellen '%-.192s'"
+        nla "%-.128s commando geweigerd voor gebruiker: '%-.48s'@'%-.64s' voor tabel '%-.192s'"
+        eng "%-.128s command denied to user '%-.48s'@'%-.64s' for table '%-.192s'"
+        jps "コマンド %-.128s は ユーザー '%-.48s'@'%-.64s' ,テーブル '%-.192s' に対して許可されていません",
+        est "%-.128s käsk ei ole lubatud kasutajale '%-.48s'@'%-.64s' tabelis '%-.192s'"
+        fre "La commande '%-.128s' est interdite à l'utilisateur: '%-.48s'@'@%-.64s' sur la table '%-.192s'"
+        ger "%-.128s Befehl nicht erlaubt für Benutzer '%-.48s'@'%-.64s' auf Tabelle '%-.192s'"
+        hun "%-.128s parancs a '%-.48s'@'%-.64s' felhasznalo szamara nem engedelyezett a '%-.192s' tablaban"
+        ita "Comando %-.128s negato per l'utente: '%-.48s'@'%-.64s' sulla tabella '%-.192s'"
+        jpn "コマンド %-.128s は ユーザー '%-.48s'@'%-.64s' ,テーブル '%-.192s' に対して許可されていません"
+        kor "'%-.128s' 명령은 다음 사용자에게 거부되었습니다. : '%-.48s'@'%-.64s' for 테이블 '%-.192s'"
+        por "Comando '%-.128s' negado para o usuário '%-.48s'@'%-.64s' na tabela '%-.192s'"
+        rum "Comanda %-.128s interzisa utilizatorului: '%-.48s'@'%-.64s' pentru tabela '%-.192s'"
+        rus "Команда %-.128s запрещена пользователю '%-.48s'@'%-.64s' для таблицы '%-.192s'"
+        serbian "%-.128s komanda zabranjena za korisnika '%-.48s'@'%-.64s' za tabelu '%-.192s'"
+        spa "%-.128s comando negado para usuario: '%-.48s'@'%-.64s' para tabla '%-.192s'"
+        swe "%-.128s ej tillåtet för '%-.48s'@'%-.64s' för tabell '%-.192s'"
+        ukr "%-.128s команда заборонена користувачу: '%-.48s'@'%-.64s' у таблиці '%-.192s'"
 ER_COLUMNACCESS_DENIED_ERROR 42000 
-        cze "%-.32s p-Bříkaz nepřístupný pro uživatele: '%-.48s'@'%-.64s' pro sloupec '%-.192s' v tabulce '%-.192s'"
-        dan "%-.32s-kommandoen er ikke tilladt for brugeren '%-.48s'@'%-.64s' for kolonne '%-.192s' in tabellen '%-.192s'"
-        nla "%-.32s commando geweigerd voor gebruiker: '%-.48s'@'%-.64s' voor kolom '%-.192s' in tabel '%-.192s'"
-        eng "%-.32s command denied to user '%-.48s'@'%-.64s' for column '%-.192s' in table '%-.192s'"
-        jps "コマンド %-.32s は ユーザー '%-.48s'@'%-.64s'¥n カラム '%-.192s' テーブル '%-.192s' に対して許可されていません",
-        est "%-.32s käsk ei ole lubatud kasutajale '%-.48s'@'%-.64s' tulbale '%-.192s' tabelis '%-.192s'"
-        fre "La commande '%-.32s' est interdite à l'utilisateur: '%-.48s'@'@%-.64s' sur la colonne '%-.192s' de la table '%-.192s'"
-        ger "%-.32s Befehl nicht erlaubt für Benutzer '%-.48s'@'%-.64s' und Feld '%-.192s' in Tabelle '%-.192s'"
-        hun "%-.32s parancs a '%-.48s'@'%-.64s' felhasznalo szamara nem engedelyezett a '%-.192s' mezo eseten a '%-.192s' tablaban"
-        ita "Comando %-.32s negato per l'utente: '%-.48s'@'%-.64s' sulla colonna '%-.192s' della tabella '%-.192s'"
-        jpn "コマンド %-.32s は ユーザー '%-.48s'@'%-.64s'\n カラム '%-.192s' テーブル '%-.192s' に対して許可されていません"
-        kor "'%-.32s' 명령은 다음 사용자에게 거부되었습니다. : '%-.48s'@'%-.64s' for 칼럼 '%-.192s' in 테이블 '%-.192s'"
-        por "Comando '%-.32s' negado para o usuário '%-.48s'@'%-.64s' na coluna '%-.192s', na tabela '%-.192s'"
-        rum "Comanda %-.32s interzisa utilizatorului: '%-.48s'@'%-.64s' pentru coloana '%-.192s' in tabela '%-.192s'"
-        rus "Команда %-.32s запрещена пользователю '%-.48s'@'%-.64s' для столбца '%-.192s' в таблице '%-.192s'"
-        serbian "%-.32s komanda zabranjena za korisnika '%-.48s'@'%-.64s' za kolonu '%-.192s' iz tabele '%-.192s'"
-        spa "%-.32s comando negado para usuario: '%-.48s'@'%-.64s' para columna '%-.192s' en la tabla '%-.192s'"
-        swe "%-.32s ej tillåtet för '%-.48s'@'%-.64s' för kolumn '%-.192s' i tabell '%-.192s'"
-        ukr "%-.32s команда заборонена користувачу: '%-.48s'@'%-.64s' для стовбця '%-.192s' у таблиці '%-.192s'"
+        cze "%-.128s p-Bříkaz nepřístupný pro uživatele: '%-.48s'@'%-.64s' pro sloupec '%-.192s' v tabulce '%-.192s'"
+        dan "%-.128s-kommandoen er ikke tilladt for brugeren '%-.48s'@'%-.64s' for kolonne '%-.192s' in tabellen '%-.192s'"
+        nla "%-.128s commando geweigerd voor gebruiker: '%-.48s'@'%-.64s' voor kolom '%-.192s' in tabel '%-.192s'"
+        eng "%-.128s command denied to user '%-.48s'@'%-.64s' for column '%-.192s' in table '%-.192s'"
+        jps "コマンド %-.128s は ユーザー '%-.48s'@'%-.64s'¥n カラム '%-.192s' テーブル '%-.192s' に対して許可されていません",
+        est "%-.128s käsk ei ole lubatud kasutajale '%-.48s'@'%-.64s' tulbale '%-.192s' tabelis '%-.192s'"
+        fre "La commande '%-.128s' est interdite à l'utilisateur: '%-.48s'@'@%-.64s' sur la colonne '%-.192s' de la table '%-.192s'"
+        ger "%-.128s Befehl nicht erlaubt für Benutzer '%-.48s'@'%-.64s' und Feld '%-.192s' in Tabelle '%-.192s'"
+        hun "%-.128s parancs a '%-.48s'@'%-.64s' felhasznalo szamara nem engedelyezett a '%-.192s' mezo eseten a '%-.192s' tablaban"
+        ita "Comando %-.128s negato per l'utente: '%-.48s'@'%-.64s' sulla colonna '%-.192s' della tabella '%-.192s'"
+        jpn "コマンド %-.128s は ユーザー '%-.48s'@'%-.64s'\n カラム '%-.192s' テーブル '%-.192s' に対して許可されていません"
+        kor "'%-.128s' 명령은 다음 사용자에게 거부되었습니다. : '%-.48s'@'%-.64s' for 칼럼 '%-.192s' in 테이블 '%-.192s'"
+        por "Comando '%-.128s' negado para o usuário '%-.48s'@'%-.64s' na coluna '%-.192s', na tabela '%-.192s'"
+        rum "Comanda %-.128s interzisa utilizatorului: '%-.48s'@'%-.64s' pentru coloana '%-.192s' in tabela '%-.192s'"
+        rus "Команда %-.128s запрещена пользователю '%-.48s'@'%-.64s' для столбца '%-.192s' в таблице '%-.192s'"
+        serbian "%-.128s komanda zabranjena za korisnika '%-.48s'@'%-.64s' za kolonu '%-.192s' iz tabele '%-.192s'"
+        spa "%-.128s comando negado para usuario: '%-.48s'@'%-.64s' para columna '%-.192s' en la tabla '%-.192s'"
+        swe "%-.128s ej tillåtet för '%-.48s'@'%-.64s' för kolumn '%-.192s' i tabell '%-.192s'"
+        ukr "%-.128s команда заборонена користувачу: '%-.48s'@'%-.64s' для стовбця '%-.192s' у таблиці '%-.192s'"
 ER_ILLEGAL_GRANT_FOR_TABLE 42000 
         cze "Neplatn-Bý příkaz GRANT/REVOKE. Prosím, přečtěte si v manuálu, jaká privilegia je možné použít."
         dan "Forkert GRANT/REVOKE kommando. Se i brugervejledningen hvilke privilegier der kan specificeres."
@@ -5330,8 +5330,8 @@ ER_VIEW_CHECK_FAILED
         rus "проверка CHECK OPTION для VIEW '%-.192s.%-.192s' провалилась"
         ukr "Перевірка CHECK OPTION для VIEW '%-.192s.%-.192s' не пройшла"
 ER_PROCACCESS_DENIED_ERROR 42000 
-        eng "%-.32s command denied to user '%-.48s'@'%-.64s' for routine '%-.192s'"
-        ger "Befehl %-.32s nicht zulässig für Benutzer '%-.48s'@'%-.64s' in Routine '%-.192s'"
+        eng "%-.128s command denied to user '%-.48s'@'%-.64s' for routine '%-.192s'"
+        ger "Befehl %-.128s nicht zulässig für Benutzer '%-.48s'@'%-.64s' in Routine '%-.192s'"
 ER_RELAY_LOG_FAIL  
         eng "Failed purging old relay logs: %s"
         ger "Bereinigen alter Relais-Logs fehlgeschlagen: %s"
@@ -5912,10 +5912,12 @@ ER_EVENT_OPEN_TABLE_FAILED
 ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         eng "No datetime expression provided"
         ger "Kein DATETIME-Ausdruck angegeben"
-ER_COL_COUNT_DOESNT_MATCH_CORRUPTED
+
+ER_UNUSED_2
         eng "Column count of mysql.%s is wrong. Expected %d, found %d. The table is probably corrupted"
         ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d gefunden. Tabelle ist wahrscheinlich beschädigt"
-ER_CANNOT_LOAD_FROM_TABLE
+
+ER_UNUSED_3
         eng "Cannot load from mysql.%s. The table is probably corrupted"
         ger "Kann mysql.%s nicht einlesen. Tabelle ist wahrscheinlich beschädigt"
 ER_EVENT_CANNOT_DELETE
@@ -5944,7 +5946,7 @@ ER_CANT_WRITE_LOCK_LOG_TABLE
 ER_CANT_LOCK_LOG_TABLE
         eng "You can't use locks with log tables."
         ger "Log-Tabellen können nicht gesperrt werden."
-ER_FOREIGN_DUPLICATE_KEY 23000 S1009
+ER_UNUSED_4
         eng "Upholding foreign key constraints for table '%.192s', entry '%-.192s', key %d would lead to a duplicate entry"
         ger "Aufrechterhalten der Fremdschlüssel-Beschränkungen für Tabelle '%.192s', Eintrag '%-.192s', Schlüssel %d würde zu einem doppelten Eintrag führen"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
@@ -6070,8 +6072,8 @@ ER_EVENT_CANNOT_CREATE_IN_THE_PAST
   eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was dropped immediately after creation."
   ger "Ausführungszeit des Events liegt in der Vergangenheit, und es wurde ON COMPLETION NOT PRESERVE gesetzt. Das Event wurde unmittelbar nach Erzeugung gelöscht."
 ER_EVENT_CANNOT_ALTER_IN_THE_PAST
-  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was dropped immediately after creation."
-  ger "Ausführungszeit des Events liegt in der Vergangenheit, und es wurde ON COMPLETION NOT PRESERVE gesetzt. Das Event wurde unmittelbar nach Erzeugung gelöscht."
+  eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was not changed. Specify a time in the future."
+  ger "Execution Zeitpunkt des Ereignisses in der Vergangenheit liegt, und es war NACH ABSCHLUSS Set nicht erhalten. Die Veranstaltung wurde nicht verändert. Geben Sie einen Zeitpunkt in der Zukunft."
 ER_SLAVE_INCIDENT
   eng "The incident %s occured on the master. Message: %-.64s"
   ger "Der Vorfall %s passierte auf dem Master. Meldung: %-.64s"
@@ -6485,6 +6487,7 @@ ER_PLUGIN_NO_UNINSTALL
 ER_PLUGIN_NO_INSTALL
   eng "Plugin '%s' is marked as not dynamically installable. You have to stop the server to install it."
 
+
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
   eng "Statements writing to a table with an auto-increment column after selecting from another table are unsafe because the order in which rows are retrieved determines what (if any) rows will be written. This order cannot be predicted and may differ on master and the slave."
 
@@ -6514,6 +6517,7 @@ ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2
 ER_CANNOT_LOAD_FROM_TABLE_V2
   eng "Cannot load from %s.%s. The table is probably corrupted"
   ger "Kann %s.%s nicht einlesen. Tabelle ist wahrscheinlich beschädigt"
+
 
 ER_MASTER_DELAY_VALUE_OUT_OF_RANGE
   eng "The requested value %u for the master delay exceeds the maximum %u"

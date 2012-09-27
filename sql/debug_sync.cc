@@ -1520,6 +1520,8 @@ static void debug_sync(THD *thd, const char *sync_point_name, size_t name_len)
 {
   if (!thd)
     thd= current_thd;
+  if (!thd)
+    return;
 
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   st_debug_sync_action  *action;

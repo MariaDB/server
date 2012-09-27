@@ -1096,7 +1096,7 @@ void prepare_new_connection_state(THD* thd)
     TODO: refactor this to avoid code duplication there
   */
   thd->proc_info= 0;
-  thd->command= COM_SLEEP;
+  thd->set_command(COM_SLEEP);
   thd->set_time();
   thd->init_for_queries();
 
@@ -1241,6 +1241,7 @@ void do_handle_one_connection(THD *thd_arg)
   {
     bool create_user= TRUE;
 
+    mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
     if (thd_prepare_connection(thd))
     {
       create_user= FALSE;

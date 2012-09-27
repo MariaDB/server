@@ -510,14 +510,14 @@ const char *set_thd_proc_info(THD *thd_arg, const char *info,
 }
 
 extern "C"
-void set_thd_stage_info(void *opaque_thd,
+void set_thd_stage_info(void *thd_arg,
                         const PSI_stage_info *new_stage,
                         PSI_stage_info *old_stage,
                         const char *calling_func,
                         const char *calling_file,
                         const unsigned int calling_line)
 {
-  THD *thd= (THD*) opaque_thd;
+  THD *thd= (THD*) thd_arg;
   if (thd == NULL)
     thd= current_thd;
 
@@ -558,24 +558,26 @@ void THD::enter_stage(const PSI_stage_info *new_stage,
   return;
 }
 
-
-extern "C"
-const char* thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond,
-                           mysql_mutex_t *mutex, const char *msg)
+void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
+                    const PSI_stage_info *stage, PSI_stage_info *old_stage,
+                    const char *src_function, const char *src_file,
+                    int src_line)
 {
   if (!thd)
     thd= current_thd;
 
-  return thd->enter_cond(cond, mutex, msg);
+  return thd->enter_cond(cond, mutex, stage, old_stage, src_function, src_file,
+                         src_line);
 }
 
-extern "C"
-void thd_exit_cond(MYSQL_THD thd, const char *old_msg)
+void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
+                   const char *src_function, const char *src_file,
+                   int src_line)
 {
   if (!thd)
     thd= current_thd;
 
-  thd->exit_cond(old_msg);
+  thd->exit_cond(stage, src_function, src_file, src_line);
   return;
 }
 
@@ -789,7 +791,7 @@ THD::THD()
    first_successful_insert_id_in_prev_stmt_for_binlog(0),
    first_successful_insert_id_in_cur_stmt(0),
    stmt_depends_on_first_successful_insert_id_in_prev_stmt(FALSE),
-   examined_row_count(0),
+   m_examined_row_count(0),
    accessed_rows_and_keys(0),
    warning_info(&main_warning_info),
    stmt_da(&main_da),
@@ -841,7 +843,7 @@ THD::THD()
   my_hash_clear(&handler_tables_hash);
   tmp_table=0;
   cuted_fields= 0L;
-  sent_row_count= 0L;
+  m_sent_row_count= 0L;
   limit_found_rows= 0;
   m_row_count_func= -1;
   statement_id_counter= 0UL;
@@ -902,7 +904,7 @@ THD::THD()
   where= THD::DEFAULT_WHERE;
   server_id = ::server_id;
   slave_net = 0;
-  command=COM_CONNECT;
+  m_command=COM_CONNECT;
   *scramble= '\0';
 
   /* Call to init() below requires fully initialized Open_tables_state. */
@@ -2335,7 +2337,7 @@ int select_send::send_data(List<Item> &items)
     DBUG_RETURN(TRUE);
   }
 
-  thd->sent_row_count++;
+  thd->inc_sent_row_count(1);
 
   if (thd->vio_ok())
     DBUG_RETURN(protocol->write());
@@ -2427,7 +2429,7 @@ select_to_file::~select_to_file()
 
 select_export::~select_export()
 {
-  thd->sent_row_count=row_count;
+  thd->set_sent_row_count(row_count);
 }
 
 
@@ -4133,8 +4135,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   backup->enable_slow_log= enable_slow_log;
   backup->query_plan_flags= query_plan_flags;
   backup->limit_found_rows= limit_found_rows;
-  backup->examined_row_count= examined_row_count;
-  backup->sent_row_count=   sent_row_count;
+  backup->examined_row_count= m_examined_row_count;
+  backup->sent_row_count=   m_sent_row_count;
   backup->cuted_fields=     cuted_fields;
   backup->client_capabilities= client_capabilities;
   backup->savepoints= transaction.savepoints;
@@ -4157,8 +4159,8 @@ void THD::reset_sub_statement_state(Sub_statement_state *backup,
   /* Disable result sets */
   client_capabilities &= ~CLIENT_MULTI_RESULTS;
   in_sub_stmt|= new_state;
-  examined_row_count= 0;
-  sent_row_count= 0;
+  m_examined_row_count= 0;
+  m_sent_row_count= 0;
   cuted_fields= 0;
   transaction.savepoints= 0;
   first_successful_insert_id_in_cur_stmt= 0;
@@ -4205,7 +4207,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
   first_successful_insert_id_in_cur_stmt= 
     backup->first_successful_insert_id_in_cur_stmt;
   limit_found_rows= backup->limit_found_rows;
-  sent_row_count=   backup->sent_row_count;
+  set_sent_row_count(backup->sent_row_count);
   client_capabilities= backup->client_capabilities;
   /*
     If we've left sub-statement mode, reset the fatal error flag.
@@ -4223,7 +4225,7 @@ void THD::restore_sub_statement_state(Sub_statement_state *backup)
     The following is added to the old values as we are interested in the
     total complexity of the query
   */
-  examined_row_count+= backup->examined_row_count;
+  inc_examined_row_count(backup->examined_row_count);
   cuted_fields+=       backup->cuted_fields;
   DBUG_VOID_RETURN;
 }
@@ -4238,31 +4240,31 @@ void THD::set_statement(Statement *stmt)
 
 void THD::set_sent_row_count(ha_rows count)
 {
-  sent_row_count= count;
-  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, sent_row_count);
+  m_sent_row_count= count;
+  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
 void THD::set_examined_row_count(ha_rows count)
 {
-  examined_row_count= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, examined_row_count);
+  m_examined_row_count= count;
+  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 }
 
 void THD::inc_sent_row_count(ha_rows count)
 {
-  sent_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, sent_row_count);
+  m_sent_row_count+= count;
+  MYSQL_SET_STATEMENT_ROWS_SENT(m_statement_psi, m_sent_row_count);
 }
 
 void THD::inc_examined_row_count(ha_rows count)
 {
-  examined_row_count+= count;
-  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, examined_row_count);
+  m_examined_row_count+= count;
+  MYSQL_SET_STATEMENT_ROWS_EXAMINED(m_statement_psi, m_examined_row_count);
 }
 
 void THD::inc_status_created_tmp_disk_tables()
 {
-  status_var_increment(status_var.created_tmp_disk_tables);
+  status_var_increment(status_var.created_tmp_disk_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_created_tmp_disk_tables)(m_statement_psi, 1);
 #endif
@@ -4270,7 +4272,7 @@ void THD::inc_status_created_tmp_disk_tables()
 
 void THD::inc_status_created_tmp_tables()
 {
-  status_var_increment(status_var.created_tmp_tables);
+  status_var_increment(status_var.created_tmp_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_created_tmp_tables)(m_statement_psi, 1);
 #endif
@@ -4278,7 +4280,7 @@ void THD::inc_status_created_tmp_tables()
 
 void THD::inc_status_select_full_join()
 {
-  status_var_increment(status_var.select_full_join_count);
+  status_var_increment(status_var.select_full_join_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_select_full_join)(m_statement_psi, 1);
 #endif
@@ -4286,7 +4288,7 @@ void THD::inc_status_select_full_join()
 
 void THD::inc_status_select_full_range_join()
 {
-  status_var_increment(status_var.select_full_range_join_count);
+  status_var_increment(status_var.select_full_range_join_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_select_full_range_join)(m_statement_psi, 1);
 #endif
@@ -4294,7 +4296,7 @@ void THD::inc_status_select_full_range_join()
 
 void THD::inc_status_select_range()
 {
-  status_var_increment(status_var.select_range_count);
+  status_var_increment(status_var.select_range_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_select_range)(m_statement_psi, 1);
 #endif
@@ -4302,7 +4304,7 @@ void THD::inc_status_select_range()
 
 void THD::inc_status_select_range_check()
 {
-  status_var_increment(status_var.select_range_check_count);
+  status_var_increment(status_var.select_range_check_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_select_range_check)(m_statement_psi, 1);
 #endif
@@ -4310,7 +4312,7 @@ void THD::inc_status_select_range_check()
 
 void THD::inc_status_select_scan()
 {
-  status_var_increment(status_var.select_scan_count);
+  status_var_increment(status_var.select_scan_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_select_scan)(m_statement_psi, 1);
 #endif
@@ -4318,7 +4320,7 @@ void THD::inc_status_select_scan()
 
 void THD::inc_status_sort_merge_passes()
 {
-  status_var_increment(status_var.filesort_merge_passes);
+  status_var_increment(status_var.filesort_merge_passes_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_sort_merge_passes)(m_statement_psi, 1);
 #endif
@@ -4326,7 +4328,7 @@ void THD::inc_status_sort_merge_passes()
 
 void THD::inc_status_sort_range()
 {
-  status_var_increment(status_var.filesort_range_count);
+  status_var_increment(status_var.filesort_range_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_sort_range)(m_statement_psi, 1);
 #endif
@@ -4334,7 +4336,7 @@ void THD::inc_status_sort_range()
 
 void THD::inc_status_sort_rows(ha_rows count)
 {
-  statistic_add(status_var.filesort_rows, count, &LOCK_status);
+  statistic_add(status_var.filesort_rows_, count, &LOCK_status);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_sort_rows)(m_statement_psi, count);
 #endif
@@ -4342,7 +4344,7 @@ void THD::inc_status_sort_rows(ha_rows count)
 
 void THD::inc_status_sort_scan()
 {
-  status_var_increment(status_var.filesort_scan_count);
+  status_var_increment(status_var.filesort_scan_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
   PSI_CALL(inc_statement_sort_scan)(m_statement_psi, 1);
 #endif
@@ -4366,9 +4368,9 @@ void THD::set_status_no_good_index_used()
 
 void THD::set_command(enum enum_server_command command_arg)
 {
-  command= command_arg;
+  m_command= command_arg;
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_CALL(set_thread_command)(command);
+  PSI_CALL(set_thread_command)(m_command);
 #endif
 }
 
@@ -4379,6 +4381,10 @@ void THD::set_query(const CSET_STRING &string_arg)
   mysql_mutex_lock(&LOCK_thd_data);
   set_query_inner(string_arg);
   mysql_mutex_unlock(&LOCK_thd_data);
+
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_CALL(set_thread_info)(query(), query_length());
+#endif
 }
 
 /** Assign a new value to thd->query and thd->query_id.  */

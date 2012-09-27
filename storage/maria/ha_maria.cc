@@ -347,29 +347,33 @@ static PSI_file_info all_aria_files[]=
   { &key_file_control, "control", PSI_FLAG_GLOBAL}
 };
 
+static PSI_stage_info *all_aria_stages[]=
+{
+  & stage_waiting_for_a_resource
+};
 
 static void init_aria_psi_keys(void)
 {
   const char* category= "aria";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_aria_mutexes);
-  PSI_server->register_mutex(category, all_aria_mutexes, count);
+  mysql_mutex_register(category, all_aria_mutexes, count);
 
   count= array_elements(all_aria_rwlocks);
-  PSI_server->register_rwlock(category, all_aria_rwlocks, count);
+  mysql_rwlock_register(category, all_aria_rwlocks, count);
 
   count= array_elements(all_aria_conds);
-  PSI_server->register_cond(category, all_aria_conds, count);
+  mysql_cond_register(category, all_aria_conds, count);
 
   count= array_elements(all_aria_threads);
-  PSI_server->register_thread(category, all_aria_threads, count);
+  mysql_thread_register(category, all_aria_threads, count);
 
   count= array_elements(all_aria_files);
-  PSI_server->register_file(category, all_aria_files, count);
+  mysql_file_register(category, all_aria_files, count);
+
+  count= array_elements(all_aria_stages);
+  mysql_stage_register(category, all_aria_stages, count);
 }
 #else
 #define init_aria_psi_keys() /* no-op */

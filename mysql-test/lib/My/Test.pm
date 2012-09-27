@@ -100,7 +100,7 @@ sub write_test {
 
   my $serialized= Storable::freeze($test);
   $serialized =~ s/([\x0d\x0a\\])/sprintf("\\%02x", ord($1))/eg;
-  print $sock $header, "\n", $serialized, "\n";
+  send $sock,$header. "\n". $serialized. "\n", 0;
 }
 
 
@@ -111,8 +111,7 @@ sub read_test {
   $serialized =~ s/\\([0-9a-fA-F]{2})/chr(hex($1))/eg;
   my $test= Storable::thaw($serialized);
   use Data::Dumper;
-  # We get a stack trace here when 
-  die "wrong class (hack attempt?): ".ref($test)."\n".Dumper(\$test, $serialized) . " Stack trace: "
+  die "wrong class (hack attempt?): ".ref($test)."\n".Dumper(\$test, $serialized)
     unless ref($test) eq 'My::Test';
   resfile_from_test($test) if $::opt_resfile;
   return $test;

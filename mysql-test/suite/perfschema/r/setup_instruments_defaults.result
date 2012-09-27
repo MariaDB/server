@@ -8,7 +8,6 @@ AND enabled = 'yes' AND timed = 'no'
 ORDER BY name;
 NAME	ENABLED	TIMED
 wait/synch/mutex/sql/LOCK_user_conn	YES	NO
-wait/synch/mutex/sql/LOCK_uuid_generator	YES	NO
 SELECT * FROM performance_schema.setup_instruments
 WHERE name = 'wait/synch/mutex/sql/LOCK_thread_count'
 AND enabled = 'no' AND timed = 'no';

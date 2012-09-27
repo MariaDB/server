@@ -111,6 +111,7 @@ int main(int, char **)
   plan(6);
   MY_INIT("pfs_user-oom-t");
   do_all_tests();
+  my_end(0);
   return 0;
 }
 

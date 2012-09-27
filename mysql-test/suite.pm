@@ -24,6 +24,10 @@ sub skip_combinations {
   $skip{'include/have_debug.inc'} = 'Requires debug build'
              unless defined $::mysqld_variables{'debug-dbug'};
 
+  $skip{'include/have_ssl_communication.inc'} =
+  $skip{'include/have_ssl.inc'} = 'Requires SSL'
+             unless defined $::mysqld_variables{'ssl-ca'};
+
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
 
   $skip{'t/plugin_loaderr.test'} = 'needs compiled-in innodb'

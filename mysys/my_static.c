@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000-2008 MySQL AB, 2009 Sun Microsystems, Inc.
-   Use is subject to license terms.
+/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -78,18 +77,19 @@ void (*error_handler_hook)(uint error, const char *str, myf MyFlags)=
 void (*fatal_error_handler_hook)(uint error, const char *str, myf MyFlags)=
   my_message_stderr;
 
-static const char *proc_info_dummy(void *a __attribute__((unused)),
-                                   const char *b __attribute__((unused)),
-                                   const char *c __attribute__((unused)),
-                                   const char *d __attribute__((unused)),
-                                   const unsigned int e __attribute__((unused)))
+static void proc_info_dummy(void *a __attribute__((unused)),
+                            const PSI_stage_info *b __attribute__((unused)),
+                            PSI_stage_info *c __attribute__((unused)),
+                            const char *d __attribute__((unused)),
+                            const char *e __attribute__((unused)),
+                            const unsigned int f __attribute__((unused)))
 {
-  return 0;
+  return;
 }
 
 /* this is to be able to call set_thd_proc_info from the C code */
-const char *(*proc_info_hook)(void *, const char *, const char *, const char *,
-                              const unsigned int)= proc_info_dummy;
+void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
+                       const char *, const char *, const unsigned int)= proc_info_dummy;
 void (*debug_sync_C_callback_ptr)(MYSQL_THD, const char *, size_t)= 0;
 
 	/* How to disable options */

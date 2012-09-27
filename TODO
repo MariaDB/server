@@ -25,7 +25,6 @@ Features recoded
 Fetures half done:
 - Support for TRANSACTION READ ONLY | READ WRITE
 - CF_XXX states added to init_update_queries() but not otherwise used.
-- Merge sql/rpl_mi.cc (To get Sys_ssl_crl & crlpath)
 
 Short time TODO:
 - Add test cases for InnoDB
@@ -40,9 +39,27 @@ Short time TODO:
 
 - Add Sys_my_bind_addr(); Needed for perfschema
 
-- Add THD_STAGE_INFO everywhere.
-
 - mysql_socket_shutdown() was removed from vio/viosocket.cc.
   It was replaced with inline function in include/mysql/psi/mysql_socket.h
   but this doesn't call DisconnectEx(). We should check if we need to
   add this to the inline function...
+
+Sergei's notes:
+  davi.arnaut@oracle.com-20110531135209-8kxz4np8c4gav6s2 (soket timeouts)
+  jorgen.loland@oracle.com-20100830063809-z3n0eu7qp1h5v3ip
+  georgi.kodinov@oracle.com-20100705115749-wbpt45mgjqmpvp07 (--drop-trigger)
+  magnus.blaudd@sun.com-20100526100500-4cmalb9khnsj4ptt (--bind-addr)
+  alfranio.correia@oracle.com-20110512172919-c1b5kmum4h52g0ni (binlogging of DROP TEMPORARY)
+  anders.song@greatopensource.com-20110105052107-zoab0bsf5a6xxk2y (don't binlog rolled back changes)
+  mysql-test/suite/perfschema/disabled.def
+  why --source include/have_innodb.inc in lots of tests? (with no other changes)
+  WTF "invisible sysvars" ?
+  Sys_var_tx_read_only not needed (must be the same as Sys_var_tx_isolation)
+  SIGNAL/RESIGNAL ?
+  fix mysql-test to know the difference between compiled-in innodb and compiled-in xtradb
+  remove my_getopt_use_args_separator
+  Master_info::read_info & Master_info::write_info
+  rpl_slave.cc
+  XXX in mysql_client_test
+  net_serv.cc
+

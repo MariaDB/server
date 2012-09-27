@@ -38,6 +38,7 @@ show create table events_waits_summary_global_by_event_name;
 show create table file_instances;
 show create table file_summary_by_event_name;
 show create table file_summary_by_instance;
+--error 1146
 show create table host_cache;
 show create table hosts;
 show create table mutex_instances;

@@ -64,8 +64,6 @@ const char *join_type_str[]={ "UNKNOWN","system","const","eq_ref","ref",
                               "index_merge", "hash_ALL", "hash_range",
                               "hash_index", "hash_index_merge" };
 
-const char *copy_to_tmp_table= "Copying to tmp table";
-
 struct st_sargable_param;
 
 static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
@@ -150,9 +148,6 @@ static COND *optimize_cond(JOIN *join, COND *conds,
                            Item::cond_result *cond_value, 
                            COND_EQUAL **cond_equal);
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
-static bool create_internal_tmp_table_from_heap2(THD *, TABLE *,
-                                     ENGINE_COLUMNDEF *, ENGINE_COLUMNDEF **, 
-                                     int, bool, handlerton *, const char *);
 static int do_select(JOIN *join,List<Item> *fields,TABLE *tmp_table,
 		     Procedure *proc);
 
@@ -956,7 +951,7 @@ JOIN::optimize()
   optimized= 1;
   DEBUG_SYNC(thd, "before_join_optimize");
 
-  thd_proc_info(thd, "optimizing");
+  THD_STAGE_INFO(thd, stage_optimizing);
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
@@ -1196,7 +1191,7 @@ JOIN::optimize()
   sort_by_table= get_sort_by_table(order, group_list, select_lex->leaf_tables);
 
   /* Calculate how to do the join */
-  thd_proc_info(thd, "statistics");
+  THD_STAGE_INFO(thd, stage_statistics);
   if (make_join_statistics(this, select_lex->leaf_tables, conds, &keyuse) ||
       thd->is_fatal_error)
   {
@@ -1221,7 +1216,7 @@ JOIN::optimize()
     select_distinct= select_distinct && (const_tables != table_count);
   }
 
-  thd_proc_info(thd, "preparing");
+  THD_STAGE_INFO(thd, stage_preparing);
   if (result->initialize_tables(this))
   {
     DBUG_PRINT("error",("Error: initialize_tables() failed"));
@@ -1785,7 +1780,7 @@ int JOIN::init_execution()
   if (need_tmp)
   {
     DBUG_PRINT("info",("Creating tmp table"));
-    thd_proc_info(thd, "Creating tmp table");
+    THD_STAGE_INFO(thd, stage_copying_to_tmp_table);
 
     init_items_ref_array();
 
@@ -1830,7 +1825,7 @@ int JOIN::init_execution()
     if (group_list && simple_group)
     {
       DBUG_PRINT("info",("Sorting for group"));
-      thd_proc_info(thd, "Sorting for group");
+      THD_STAGE_INFO(thd, stage_sorting_for_group);
       if (create_sort_index(thd, this, group_list,
 			    HA_POS_ERROR, HA_POS_ERROR, FALSE) ||
 	  alloc_group_fields(this, group_list) ||
@@ -1853,7 +1848,7 @@ int JOIN::init_execution()
 
       if (!group_list && ! exec_tmp_table1->distinct && order && simple_order)
       {
-        thd_proc_info(thd, "Sorting for order");
+        THD_STAGE_INFO(thd, stage_sorting_for_order);
         if (create_sort_index(thd, this, order,
                               HA_POS_ERROR, HA_POS_ERROR, TRUE))
         {
@@ -2177,7 +2172,7 @@ JOIN::exec()
   int      tmp_error;
   DBUG_ENTER("JOIN::exec");
 
-  thd_proc_info(thd, "executing");
+  THD_STAGE_INFO(thd, stage_executing);
   error= 0;
   if (procedure)
   {
@@ -2185,7 +2180,8 @@ JOIN::exec()
     if (procedure->change_columns(procedure_fields_list) ||
 	result->prepare(procedure_fields_list, unit))
     {
-      thd->limit_found_rows= thd->examined_row_count= 0;
+      thd->set_examined_row_count(0);
+      thd->limit_found_rows= 0;
       DBUG_VOID_RETURN;
     }
     columns_list= &procedure_fields_list;
@@ -2226,7 +2222,7 @@ JOIN::exec()
 	{
 	  error= (int) result->send_eof();
 	  send_records= ((select_options & OPTION_FOUND_ROWS) ? 1 :
-                         thd->sent_row_count);
+                         thd->get_sent_row_count());
 	}
       }
       else
@@ -2237,7 +2233,7 @@ JOIN::exec()
     }
     /* Single select (without union) always returns 0 or 1 row */
     thd->limit_found_rows= send_records;
-    thd->examined_row_count= 0;
+    thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }
   /*
@@ -2374,7 +2370,7 @@ JOIN::exec()
     curr_tmp_table= exec_tmp_table1;
 
     /* Copy data to the temporary table */
-    thd_proc_info(thd, copy_to_tmp_table);
+    THD_STAGE_INFO(thd, stage_copying_to_tmp_table);
     DBUG_PRINT("info", ("%s", thd->proc_info));
     if (!curr_join->sort_and_group &&
         curr_join->const_tables != curr_join->table_count)
@@ -2515,7 +2511,7 @@ JOIN::exec()
       }
       if (curr_join->group_list)
       {
-	thd_proc_info(thd, "Creating sort index");
+	THD_STAGE_INFO(thd, stage_creating_sort_index);
 	if (curr_join->join_tab == join_tab && save_join_tab())
 	{
 	  DBUG_VOID_RETURN;
@@ -2529,7 +2525,7 @@ JOIN::exec()
         sortorder= curr_join->sortorder;
       }
       
-      thd_proc_info(thd, "Copying to group table");
+      THD_STAGE_INFO(thd, stage_copying_to_group_table);
       DBUG_PRINT("info", ("%s", thd->proc_info));
       if (curr_join != this)
       {
@@ -2614,7 +2610,7 @@ JOIN::exec()
 
     if (curr_join->select_distinct && ! curr_join->group_list)
     {
-      thd_proc_info(thd, "Removing duplicates");
+      THD_STAGE_INFO(thd, stage_removing_duplicates);
       if (remove_duplicates(curr_join, curr_tmp_table,
 			    *curr_fields_list, curr_join->tmp_having))
 	DBUG_VOID_RETURN;
@@ -2685,7 +2681,7 @@ JOIN::exec()
   if (curr_join->group_list || curr_join->order)
   {
     DBUG_PRINT("info",("Sorting for send_result_set_metadata"));
-    thd_proc_info(thd, "Sorting result");
+    THD_STAGE_INFO(thd, stage_sorting_result);
     /* If we have already done the group, add HAVING to sorted table */
     if (curr_join->tmp_having && ! curr_join->group_list && 
 	! curr_join->sort_and_group)
@@ -2816,7 +2812,7 @@ JOIN::exec()
   curr_join->fields= curr_fields_list;
   curr_join->procedure= procedure;
 
-  thd_proc_info(thd, "Sending data");
+  THD_STAGE_INFO(thd, stage_sending_data);
   DBUG_PRINT("info", ("%s", thd->proc_info));
   result->send_result_set_metadata((procedure ? curr_join->procedure_fields_list :
                                     *curr_fields_list),
@@ -2825,9 +2821,9 @@ JOIN::exec()
   thd->limit_found_rows= curr_join->send_records;
 
   /* Accumulate the counts from all join iterations of all join parts. */
-  thd->examined_row_count+= curr_join->examined_rows;
+  thd->inc_examined_row_count(curr_join->examined_rows);
   DBUG_PRINT("counts", ("thd->examined_row_count: %lu",
-                        (ulong) thd->examined_row_count));
+                        (ulong) thd->get_examined_row_count()));
 
   /* 
     With EXPLAIN EXTENDED we have to restore original ref_array
@@ -3017,7 +3013,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
 
     if (!(join= new JOIN(thd, fields, select_options, result)))
 	DBUG_RETURN(TRUE);
-    thd_proc_info(thd, "init");
+    THD_STAGE_INFO(thd, stage_init);
     thd->lex->used_tables=0;
     if ((err= join->prepare(rref_pointer_array, tables, wild_num,
                             conds, og_num, order, group, having, proc_param,
@@ -3052,7 +3048,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
 err:
   if (free_join)
   {
-    thd_proc_info(thd, "end");
+    THD_STAGE_INFO(thd, stage_end);
     err|= select_lex->cleanup();
     DBUG_RETURN(err || thd->is_error());
   }
@@ -10052,10 +10048,10 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       /* These init changes read_record */
       if (tab->use_quick == 2)
       {
-	join->thd->server_status|=SERVER_QUERY_NO_GOOD_INDEX_USED;
+        join->thd->set_status_no_good_index_used();
 	tab->read_first_record= join_init_quick_read_record;
 	if (statistics)
-	  status_var_increment(join->thd->status_var.select_range_check_count);
+	  join->thd->inc_status_select_range_check();
       }
       else
       {
@@ -10066,14 +10062,14 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  if (tab->select && tab->select->quick)
 	  {
 	    if (statistics)
-	      status_var_increment(join->thd->status_var.select_range_count);
+	      join->thd->inc_status_select_range();
 	  }
 	  else
 	  {
-	    join->thd->server_status|=SERVER_QUERY_NO_INDEX_USED;
+            join->thd->set_status_no_index_used();
 	    if (statistics)
 	    {
-	      status_var_increment(join->thd->status_var.select_scan_count);
+              join->thd->inc_status_select_scan();
 	      join->thd->query_plan_flags|= QPLAN_FULL_SCAN;
 	    }
 	  }
@@ -10083,16 +10079,14 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  if (tab->select && tab->select->quick)
 	  {
 	    if (statistics)
-	      status_var_increment(join->thd->status_var.
-                                   select_full_range_join_count);
+              join->thd->inc_status_select_full_range_join();
 	  }
 	  else
 	  {
-	    join->thd->server_status|=SERVER_QUERY_NO_INDEX_USED;
+            join->thd->set_status_no_index_used();
 	    if (statistics)
 	    {
-	      status_var_increment(join->thd->status_var.
-                                   select_full_join_count);
+              join->thd->inc_status_select_full_join();
 	      join->thd->query_plan_flags|= QPLAN_FULL_JOIN;
 	    }
 	  }
@@ -11037,7 +11031,8 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
       result->send_eof();				// Should be safe
   }
   /* Update results for FOUND_ROWS */
-  join->thd->limit_found_rows= join->thd->examined_row_count= 0;
+  join->thd->limit_found_rows= 0;
+  join->thd->set_examined_row_count(0);
   DBUG_RETURN(0);
 }
 
@@ -14118,7 +14113,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   KEY *keyinfo;
   KEY_PART_INFO *key_part_info;
   Item **copy_func;
-  ENGINE_COLUMNDEF *recinfo;
+  TMP_ENGINE_COLUMNDEF *recinfo;
   /*
     total_uneven_bit_length is uneven bit length for visible fields
     hidden_uneven_bit_length is uneven bit length for hidden fields
@@ -14133,7 +14128,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
               (int) distinct, (int) save_sum_fields,
               (ulong) rows_limit,test(group)));
 
-  status_var_increment(thd->status_var.created_tmp_tables);
+  thd->inc_status_created_tmp_tables();
   thd->query_plan_flags|= QPLAN_TMP_TABLE;
 
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
@@ -15077,8 +15072,7 @@ bool open_tmp_table(TABLE *table)
 }
 
 
-#if defined(WITH_ARIA_STORAGE_ENGINE) && defined(USE_ARIA_FOR_TMP_TABLES)
-
+#ifdef USE_ARIA_FOR_TMP_TABLES
 /*
   Create internal (MyISAM or Maria) temporary table
 
@@ -15094,12 +15088,12 @@ bool open_tmp_table(TABLE *table)
     Create an internal emporary table according to passed description. The is
     assumed to have one unique index or constraint.
 
-    The passed array or ENGINE_COLUMNDEF structures must have this form:
+    The passed array or TMP_ENGINE_COLUMNDEF structures must have this form:
 
       1. 1-byte column (afaiu for 'deleted' flag) (note maybe not 1-byte
          when there are many nullable columns)
       2. Table columns
-      3. One free ENGINE_COLUMNDEF element (*recinfo points here)
+      3. One free TMP_ENGINE_COLUMNDEF element (*recinfo points here)
    
     This function may use the free element to create hash column for unique
     constraint.
@@ -15111,8 +15105,8 @@ bool open_tmp_table(TABLE *table)
 
 
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo, 
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options, my_bool big_tables)
 {
   int error;
@@ -15237,26 +15231,12 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     table->db_stat=0;
     goto err;
   }
-  status_var_increment(table->in_use->status_var.created_tmp_disk_tables);
+  table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   DBUG_RETURN(0);
  err:
   DBUG_RETURN(1);
-}
-
-
-bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
-                                         ENGINE_COLUMNDEF *start_recinfo,
-                                         ENGINE_COLUMNDEF **recinfo, 
-                                         int error,
-                                         bool ignore_last_dupp_key_error)
-{
-  return create_internal_tmp_table_from_heap2(thd, table, 
-                                              start_recinfo, recinfo, error,
-                                              ignore_last_dupp_key_error,
-                                              maria_hton,
-                                              "converting HEAP to Aria");
 }
 
 #else
@@ -15276,12 +15256,12 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
     Create an internal emporary table according to passed description. The is
     assumed to have one unique index or constraint.
 
-    The passed array or ENGINE_COLUMNDEF structures must have this form:
+    The passed array or TMP_ENGINE_COLUMNDEF structures must have this form:
 
       1. 1-byte column (afaiu for 'deleted' flag) (note maybe not 1-byte
          when there are many nullable columns)
       2. Table columns
-      3. One free ENGINE_COLUMNDEF element (*recinfo points here)
+      3. One free TMP_ENGINE_COLUMNDEF element (*recinfo points here)
    
     This function may use the free element to create hash column for unique
     constraint.
@@ -15294,8 +15274,8 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 /* Create internal MyISAM temporary table */
 
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo,
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo,
                                ulonglong options, my_bool big_tables)
 {
   int error;
@@ -15397,7 +15377,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     table->db_stat=0;
     goto err;
   }
-  status_var_increment(table->in_use->status_var.created_tmp_disk_tables);
+  table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
   table->created= TRUE;
@@ -15407,24 +15387,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 }
 
 
-/**
-  If a HEAP table gets full, create a MyISAM table and copy all rows to this
-*/
-
-bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
-                                         ENGINE_COLUMNDEF *start_recinfo,
-                                         ENGINE_COLUMNDEF **recinfo, 
-                                         int error,
-                                         bool ignore_last_dupp_key_error)
-{
-  return create_internal_tmp_table_from_heap2(thd, table, 
-                                              start_recinfo, recinfo, error,
-                                              ignore_last_dupp_key_error,
-                                              myisam_hton,
-                                              "converting HEAP to MyISAM");
-}
-
-#endif /* WITH_MARIA_STORAGE_ENGINE */
+#endif /* USE_ARIA_FOR_TMP_TABLES */
 
 
 /*
@@ -15433,20 +15396,18 @@ bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
 */
 
 
-static bool
-create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
-                                     ENGINE_COLUMNDEF *start_recinfo,
-                                     ENGINE_COLUMNDEF **recinfo, 
-                                     int error,
-                                     bool ignore_last_dupp_key_error,
-                                     handlerton *hton,
-                                     const char *proc_info)
+bool
+create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
+                                    TMP_ENGINE_COLUMNDEF *start_recinfo,
+                                    TMP_ENGINE_COLUMNDEF **recinfo, 
+                                    int error,
+                                    bool ignore_last_dupp_key_error)
 {
   TABLE new_table;
   TABLE_SHARE share;
   const char *save_proc_info;
   int write_err= 0;
-  DBUG_ENTER("create_internal_tmp_table_from_heap2");
+  DBUG_ENTER("create_internal_tmp_table_from_heap");
 
   if (table->s->db_type() != heap_hton || 
       error != HA_ERR_RECORD_FILE_FULL)
@@ -15461,13 +15422,13 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
   new_table= *table;
   share= *table->s;
   new_table.s= &share;
-  new_table.s->db_plugin= ha_lock_engine(thd, hton);
+  new_table.s->db_plugin= ha_lock_engine(thd, TMP_ENGINE_HTON);
   if (!(new_table.file= get_new_handler(&share, &new_table.mem_root,
                                         new_table.s->db_type())))
     DBUG_RETURN(1);				// End of memory
 
   save_proc_info=thd->proc_info;
-  thd_proc_info(thd, proc_info);
+  THD_STAGE_INFO(thd, stage_converting_heap_to_myisam);
 
   new_table.no_rows= table->no_rows;
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
@@ -15534,8 +15495,8 @@ create_internal_tmp_table_from_heap2(THD *thd, TABLE *table,
   table->file->change_table_ptr(table, table->s);
   table->use_all_columns();
   if (save_proc_info)
-    thd_proc_info(thd, save_proc_info == copy_to_tmp_table ?
-                  "Copying to tmp table on disk" : save_proc_info);
+    thd_proc_info(thd, (!strcmp(save_proc_info,"Copying to tmp table") ?
+                  "Copying to tmp table on disk" : save_proc_info));
   DBUG_RETURN(0);
 
  err:
@@ -15563,7 +15524,7 @@ free_tmp_table(THD *thd, TABLE *entry)
   DBUG_PRINT("enter",("table: %s",entry->alias.c_ptr()));
 
   save_proc_info=thd->proc_info;
-  thd_proc_info(thd, "removing tmp table");
+  THD_STAGE_INFO(thd, stage_removing_tmp_table);
 
   if (entry->file && entry->created)
   {

@@ -1215,9 +1215,13 @@ ssize_t vio_pending(Vio *vio)
 my_bool vio_is_no_name_error(int err_code)
 {
 #ifdef _WIN32
+
   return err_code == WSANO_DATA || err_code == EAI_NONAME;
+
 #else
+
   return err_code == EAI_NONAME;
+
 #endif
 }
 
@@ -1256,6 +1260,8 @@ int vio_getnameinfo(const struct sockaddr *sa,
 #endif /* HAVE_IPV6 */
   }
 
-  return getnameinfo(sa, sa_length, hostname, hostname_size,
-                     port, port_size, flags);
+  return getnameinfo(sa, sa_length,
+                     hostname, hostname_size,
+                     port, port_size,
+                     flags);
 }

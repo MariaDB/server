@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011 Monty Program Ab
+   Copyright (c) 2009, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,10 +20,6 @@
   Handler-calling-functions
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_handler.h"
@@ -42,6 +38,7 @@
 #include "transaction.h"
 #include "myisam.h"
 #include "probes_mysql.h"
+#include <mysql/psi/mysql_table.h>
 #include "debug_sync.h"         // DEBUG_SYNC
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -363,9 +360,9 @@ int ha_init_errors(void)
   SETMSG(HA_ERR_TOO_MANY_CONCURRENT_TRXS, ER_DEFAULT(ER_TOO_MANY_CONCURRENT_TRXS));
   SETMSG(HA_ERR_INDEX_COL_TOO_LONG,	ER_DEFAULT(ER_INDEX_COLUMN_TOO_LONG));
   SETMSG(HA_ERR_INDEX_CORRUPT,		ER_DEFAULT(ER_INDEX_CORRUPT));
+  SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
-  SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -505,10 +502,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
                             "Assigning value %d.", plugin->plugin->name, idx);
         hton->db_type= (enum legacy_db_type) idx;
       }
-      installed_htons[hton->db_type]= hton;
-      tmp= hton->savepoint_offset;
-      hton->savepoint_offset= savepoint_alloc_size;
-      savepoint_alloc_size+= tmp;
 
       /*
         In case a plugin is uninstalled and re-installed later, it should
@@ -721,7 +714,7 @@ void ha_close_connection(THD* thd)
   end. Such nested transaction was internally referred to as
   a "statement transaction" and gave birth to the term.
 
-  <Historical note ends>
+  (Historical note ends)
 
   Since then a statement transaction is started for each statement
   that accesses transactional tables or uses the binary log.  If
@@ -2343,6 +2336,150 @@ int handler::ha_close(void)
   DBUG_RETURN(close());
 }
 
+int handler::ha_rnd_next(uchar *buf)
+{
+  int result;
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+    { result= rnd_next(buf); })
+  if (!result)
+  {
+    update_rows_read();
+    increment_statistics(&SSV::ha_read_rnd_next_count);
+  }
+  else if (result == HA_ERR_RECORD_DELETED)
+    increment_statistics(&SSV::ha_read_rnd_deleted_count);
+  else
+    increment_statistics(&SSV::ha_read_rnd_next_count);
+
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_rnd_pos(uchar *buf, uchar *pos)
+{
+  int result;
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
+    { result= rnd_pos(buf, pos); })
+  increment_statistics(&SSV::ha_read_rnd_count);
+  if (!result)
+    update_rows_read();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_read_map(uchar *buf, const uchar *key,
+                                      key_part_map keypart_map,
+                                      enum ha_rkey_function find_flag)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_read_map(buf, key, keypart_map, find_flag); })
+  increment_statistics(&SSV::ha_read_key_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+/*
+  @note: Other index lookup/navigation functions require prior
+  handler->index_init() call. This function is different, it requires
+  that the scan is not initialized, and accepts "uint index" as an argument.
+*/
+
+int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
+                                          key_part_map keypart_map,
+                                          enum ha_rkey_function find_flag)
+{
+  int result;
+  DBUG_ASSERT(inited==NONE);
+  DBUG_ASSERT(end_range == NULL);
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, index, 0,
+    { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
+  increment_statistics(&SSV::ha_read_key_count);
+  if (!result)
+  {
+    update_rows_read();
+    index_rows_read[index]++;
+  }
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_next(uchar * buf)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_next(buf); })
+  increment_statistics(&SSV::ha_read_next_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_prev(uchar * buf)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_prev(buf); })
+  increment_statistics(&SSV::ha_read_prev_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_first(uchar * buf)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_first(buf); })
+  increment_statistics(&SSV::ha_read_first_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_last(uchar * buf)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_last(buf); })
+  increment_statistics(&SSV::ha_read_last_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
+int handler::ha_index_next_same(uchar *buf, const uchar *key, uint keylen)
+{
+  int result;
+  DBUG_ASSERT(inited==INDEX);
+
+  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
+    { result= index_next_same(buf, key, keylen); })
+  increment_statistics(&SSV::ha_read_next_count);
+  if (!result)
+    update_index_statistics();
+  table->status=result ? STATUS_NOT_FOUND: 0;
+  return result;
+}
+
 /* Initialize handler for random reading, with error handling */
 
 int handler::ha_rnd_init_with_error(bool scan)
@@ -2931,44 +3068,28 @@ void handler::print_error(int error, myf errflag)
   }
   case HA_ERR_FOREIGN_DUPLICATE_KEY:
   {
-    uint key_nr= get_dup_key(error);
-    if ((int) key_nr >= 0)
-    {
-      uint max_length;
-      /* Write the key in the error message */
-      char key[MAX_KEY_LENGTH];
-      String str(key,sizeof(key),system_charset_info);
-      /* Table is opened and defined at this point */
+    char rec_buf[MAX_KEY_LENGTH];
+    String rec(rec_buf, sizeof(rec_buf), system_charset_info);
+    /* Table is opened and defined at this point */
+    key_unpack(&rec, table, 0 /* just print the subset of fields that are
+                              part of the first index, printing the whole
+                              row from there is not easy */);
 
-      /*
-        Use primary_key instead of key_nr because key_nr is a key
-        number in the child FK table, not in our 'table'. See
-        Bug#12661768 UPDATE IGNORE CRASHES SERVER IF TABLE IS INNODB
-        AND IT IS PARENT FOR OTHER ONE This bug gets a better fix in
-        MySQL 5.6, but it is too risky to get that in 5.1 and 5.5
-        (extending the handler interface and adding new error message
-        codes)
-      */
-      if (table->s->primary_key < MAX_KEY)
-        key_unpack(&str,table,table->s->primary_key);
-      else
-      {
-        LEX_CUSTRING tmp= {USTRING_WITH_LEN("Unknown key value")};
-        str.set((const char*) tmp.str, tmp.length, system_charset_info);
+    char child_table_name[NAME_LEN + 1];
+    char child_key_name[NAME_LEN + 1];
+    if (get_foreign_dup_key(child_table_name, sizeof(child_table_name),
+                            child_key_name, sizeof(child_key_name)))
+    {
+      my_error(ER_FOREIGN_DUPLICATE_KEY_WITH_CHILD_INFO, errflag,
+               table_share->table_name.str, rec.c_ptr_safe(),
+               child_table_name, child_key_name);
       }
-      max_length= (MYSQL_ERRMSG_SIZE-
-                   (uint) strlen(ER(ER_FOREIGN_DUPLICATE_KEY)));
-      if (str.length() >= max_length)
-      {
-        str.length(max_length-4);
-        str.append(STRING_WITH_LEN("..."));
-      }
-      my_error(ER_FOREIGN_DUPLICATE_KEY, errflag, table_share->table_name.str,
-               str.c_ptr_safe(), key_nr+1);
-      DBUG_VOID_RETURN;
+    else
+    {
+      my_error(ER_FOREIGN_DUPLICATE_KEY_WITHOUT_CHILD_INFO, errflag,
+               table_share->table_name.str, rec.c_ptr_safe());
     }
-    textno= ER_DUP_KEY;
-    break;
+    DBUG_VOID_RETURN;
   }
   case HA_ERR_NULL_IN_SPATIAL:
     my_error(ER_CANT_CREATE_GEOMETRY_OBJECT, errflag);

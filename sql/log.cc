@@ -822,10 +822,10 @@ bool Log_to_csv_event_handler::
   if (table->field[3]->store_time(&t))
     goto err;
   /* rows_sent */
-  if (table->field[4]->store((longlong) thd->sent_row_count, TRUE))
+  if (table->field[4]->store((longlong) thd->get_sent_row_count(), TRUE))
     goto err;
   /* rows_examined */
-  if (table->field[5]->store((longlong) thd->examined_row_count, TRUE))
+  if (table->field[5]->store((longlong) thd->get_examined_row_count(), TRUE))
     goto err;
 
   /* fill database field */
@@ -1252,8 +1252,8 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
     if (!query)
     {
       is_command= TRUE;
-      query= command_name[thd->command].str;
-      query_length= command_name[thd->command].length;
+      query= command_name[thd->get_command()].str;
+      query_length= command_name[thd->get_command()].length;
     }
 
     for (current_handler= slow_log_handler_list; *current_handler ;)
@@ -2067,9 +2067,7 @@ bool MYSQL_BIN_LOG::check_write_error(THD *thd)
 static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_set");
-
-  binlog_trans_log_savepos(thd, (my_off_t*) sv);
-  /* Write it to the binary log */
+  int error= 1;
 
   String log_query;
   if (log_query.append(STRING_WITH_LEN("SAVEPOINT ")) ||
@@ -2078,9 +2076,25 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
       log_query.append("`"))
     DBUG_RETURN(1);
   int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
-  Query_log_event qinfo(thd, log_query.ptr(), log_query.length(),
+  Query_log_event qinfo(thd, log_query.c_ptr_safe(), log_query.length(),
                         TRUE, FALSE, TRUE, errcode);
-  DBUG_RETURN(mysql_bin_log.write(&qinfo));
+  /* 
+    We cannot record the position before writing the statement
+    because a rollback to a savepoint (.e.g. consider it "S") would
+    prevent the savepoint statement (i.e. "SAVEPOINT S") from being
+    written to the binary log despite the fact that the server could
+    still issue other rollback statements to the same savepoint (i.e. 
+    "S"). 
+    Given that the savepoint is valid until the server releases it,
+    ie, until the transaction commits or it is released explicitly,
+    we need to log it anyway so that we don't have "ROLLBACK TO S"
+    or "RELEASE S" without the preceding "SAVEPOINT S" in the binary
+    log.
+  */
+  if (!(error= mysql_bin_log.write(&qinfo)))
+    binlog_trans_log_savepos(thd, (my_off_t*) sv);
+
+  DBUG_RETURN(error);
 }
 
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
@@ -2771,8 +2785,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                     (ulong) thd->thread_id, (thd->db ? thd->db : ""),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
-                    (ulong) thd->sent_row_count,
-                    (ulong) thd->examined_row_count) == (size_t) -1)
+                    (ulong) thd->get_sent_row_count(),
+                    (ulong) thd->get_examined_row_count()) == (size_t) -1)
       tmp_errno= errno;
      if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
@@ -6253,15 +6267,14 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry)
 
 void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
 {
-  const char *old_msg;
+  PSI_stage_info old_stage;
   DBUG_ENTER("wait_for_update_relay_log");
 
-  old_msg= thd->enter_cond(&update_cond, &LOCK_log,
-                           "Slave has read all relay log; "
-                           "waiting for the slave I/O "
-                           "thread to update it" );
+  thd->ENTER_COND(&update_cond, &LOCK_log,
+                  &stage_slave_has_read_all_relay_log,
+                  &old_stage);
   mysql_cond_wait(&update_cond, &LOCK_log);
-  thd->exit_cond(old_msg);
+  thd->EXIT_COND(&old_stage);
   DBUG_VOID_RETURN;
 }
 

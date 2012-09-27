@@ -947,23 +947,37 @@ static PSI_thread_info all_events_threads[]=
   { &key_thread_event_scheduler, "event_scheduler", PSI_FLAG_GLOBAL},
   { &key_thread_event_worker, "event_worker", 0}
 };
+#endif /* HAVE_PSI_INTERFACE */
+
+PSI_stage_info stage_waiting_on_empty_queue= { 0, "Waiting on empty queue", 0};
+PSI_stage_info stage_waiting_for_next_activation= { 0, "Waiting for next activation", 0};
+PSI_stage_info stage_waiting_for_scheduler_to_stop= { 0, "Waiting for the scheduler to stop", 0};
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_stage_info *all_events_stages[]=
+{
+  & stage_waiting_on_empty_queue,
+  & stage_waiting_for_next_activation,
+  & stage_waiting_for_scheduler_to_stop
+};
 
 static void init_events_psi_keys(void)
 {
   const char* category= "sql";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_events_mutexes);
-  PSI_server->register_mutex(category, all_events_mutexes, count);
+  mysql_mutex_register(category, all_events_mutexes, count);
 
   count= array_elements(all_events_conds);
-  PSI_server->register_cond(category, all_events_conds, count);
+  mysql_cond_register(category, all_events_conds, count);
 
   count= array_elements(all_events_threads);
-  PSI_server->register_thread(category, all_events_threads, count);
+  mysql_thread_register(category, all_events_threads, count);
+
+  count= array_elements(all_events_stages);
+  mysql_stage_register(category, all_events_stages, count);
+
 }
 #endif /* HAVE_PSI_INTERFACE */
 

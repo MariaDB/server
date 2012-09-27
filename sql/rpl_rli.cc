@@ -1,4 +1,5 @@
 /* Copyright (c) 2006, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -10,8 +11,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 #include "sql_priv.h"
 #include "unireg.h"                             // HAVE_*
@@ -687,7 +688,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
   ulong init_abort_pos_wait;
   int error=0;
   struct timespec abstime; // for timeout checking
-  const char *msg;
+  PSI_stage_info old_stage;
   DBUG_ENTER("Relay_log_info::wait_for_pos");
 
   if (!inited)
@@ -698,9 +699,9 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
 
   set_timespec(abstime,timeout);
   mysql_mutex_lock(&data_lock);
-  msg= thd->enter_cond(&data_cond, &data_lock,
-                       "Waiting for the slave SQL thread to "
-                       "advance position");
+  thd->ENTER_COND(&data_cond, &data_lock,
+                  &stage_waiting_for_the_slave_thread_to_advance_position,
+                  &old_stage);
   /*
      This function will abort when it notices that some CHANGE MASTER or
      RESET MASTER has changed the master info.
@@ -844,7 +845,7 @@ int Relay_log_info::wait_for_pos(THD* thd, String* log_name,
   }
 
 err:
-  thd->exit_cond(msg);
+  thd->EXIT_COND(&old_stage);
   DBUG_PRINT("exit",("killed: %d  abort: %d  slave_running: %d \
 improper_arguments: %d  timed_out: %d",
                      thd->killed_errno(),

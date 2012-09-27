@@ -1144,3 +1144,4 @@ sql/db.opt
 ./_CPack_Packages
 ./install_manifest_*.txt
 typescript
+storage/perfschema/gen_pfs_lex_token

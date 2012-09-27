@@ -1471,6 +1471,7 @@ void execute_ddl_log_recovery()
   THD *thd;
   DDL_LOG_ENTRY ddl_log_entry;
   char file_name[FN_REFLEN];
+  static char recover_query_string[]= "INTERNAL DDL LOG RECOVER IN PROGRESS";
   DBUG_ENTER("execute_ddl_log_recovery");
 
   /*
@@ -1490,6 +1491,9 @@ void execute_ddl_log_recovery()
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
+  thd->set_query(recover_query_string, strlen(recover_query_string));
+
+  /* this also initialize LOCK_gdl */
   num_entries= read_ddl_log_header();
   for (i= 1; i < num_entries + 1; i++)
   {
@@ -4337,7 +4341,7 @@ bool mysql_create_table_no_lock(THD *thd,
     }
   }
 
-  thd_proc_info(thd, "creating table");
+  THD_STAGE_INFO(thd, stage_creating_table);
 
 #ifdef HAVE_READLINK
   {
@@ -4453,7 +4457,7 @@ bool mysql_create_table_no_lock(THD *thd,
 
   error= FALSE;
 err:
-  thd_proc_info(thd, "After create");
+  THD_STAGE_INFO(thd, stage_after_create);
   delete file;
   DBUG_RETURN(error);
 
@@ -4642,6 +4646,20 @@ mysql_rename_table(handlerton *base, const char *old_db,
     my_error(ER_NOT_SUPPORTED_YET, MYF(0), "ALTER TABLE");
   else if (error)
     my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
+
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  /*
+    Remove the old table share from the pfs table share array. The new table
+    share will be created when the renamed table is first accessed.
+   */
+  if (likely(error == 0))
+  {
+    my_bool temp_table= (my_bool)is_prefix(old_name, tmp_file_prefix);
+    PSI_CALL(drop_table_share)(temp_table, old_db, strlen(old_db),
+                               old_name, strlen(old_name));
+  }
+#endif
+
   DBUG_RETURN(error != 0);
 }
 
@@ -4834,7 +4852,7 @@ mysql_discard_or_import_tablespace(THD *thd,
     ALTER TABLE
   */
 
-  thd_proc_info(thd, "discard_or_import_tablespace");
+  THD_STAGE_INFO(thd, stage_discard_or_import_tablespace);
 
   discard= test(tablespace_op == DISCARD_TABLESPACE);
 
@@ -4852,7 +4870,7 @@ mysql_discard_or_import_tablespace(THD *thd,
 
   error= table->file->ha_discard_or_import_tablespace(discard);
 
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
 
   if (error)
     goto err;
@@ -5954,7 +5972,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     to simplify further comparisions: we want to see if it's a RENAME
     later just by comparing the pointers, avoiding the need for strcmp.
   */
-  thd_proc_info(thd, "init");
+  THD_STAGE_INFO(thd, stage_init);
   table_name=table_list->table_name;
   alias= (lower_case_table_names == 2) ? table_list->alias : table_name;
   db=table_list->db;
@@ -6148,7 +6166,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     goto err;
   }
   
-  thd_proc_info(thd, "setup");
+  THD_STAGE_INFO(thd, stage_setup);
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&
       !table->s->tmp_table) // no need to touch frm
   {
@@ -6181,7 +6199,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
     if (!error && (new_name != table_name || new_db != db))
     {
-      thd_proc_info(thd, "rename");
+      THD_STAGE_INFO(thd, stage_rename);
       /*
         Then do a 'simple' rename of the table. First we need to close all
         instances of 'source' table.
@@ -6675,7 +6693,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     if (!table->s->tmp_table && need_lock_for_indexes &&
         wait_while_table_is_used(thd, table, extra_func))
       goto err_new_table_cleanup;
-    thd_proc_info(thd, "manage keys");
+    THD_STAGE_INFO(thd, stage_manage_keys);
     DEBUG_SYNC(thd, "alter_table_manage_keys");
     alter_table_manage_keys(table, table->file->indexes_are_disabled(),
                             alter_info->keys_onoff);
@@ -6866,7 +6884,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       (mysql_execute_command()) to release metadata locks.
   */
 
-  thd_proc_info(thd, "rename result table");
+  THD_STAGE_INFO(thd, stage_rename_result_table);
   my_snprintf(old_name, sizeof(old_name), "%s2-%lx-%lx", tmp_file_prefix,
 	      current_pid, thd->thread_id);
   if (lower_case_table_names)
@@ -7032,7 +7050,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (thd->locked_tables_list.reopen_tables(thd))
     goto err_with_mdl;
 
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
 
   DBUG_EXECUTE_IF("sleep_alter_before_main_binlog", my_sleep(6000000););
   DEBUG_SYNC(thd, "alter_table_before_main_binlog");
@@ -7278,7 +7296,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
       tables.alias= tables.table_name= from->s->table_name.str;
       tables.db= from->s->db.str;
 
-      thd_proc_info(thd, "Sorting");
+      THD_STAGE_INFO(thd, stage_sorting);
       if (thd->lex->select_lex.setup_ref_array(thd, order_num) ||
           setup_order(thd, thd->lex->select_lex.ref_pointer_array,
                       &tables, fields, all_fields, order) ||
@@ -7292,7 +7310,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
     thd_progress_next_stage(thd);
   }
 
-  thd_proc_info(thd, "copy to tmp table");
+  THD_STAGE_INFO(thd, stage_copy_to_tmp_table);
   /* Tell handler that we have values for all columns in the to table */
   to->use_all_columns();
   to->mark_virtual_columns_for_write(TRUE);
@@ -7389,7 +7407,7 @@ err:
   free_io_cache(from);
   delete [] copy;
 
-  thd_proc_info(thd, "Enabling keys");
+  THD_STAGE_INFO(thd, stage_enabling_keys);
   thd_progress_next_stage(thd);
 
   if (error > 0)

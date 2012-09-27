@@ -2015,6 +2015,29 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
+  /**
+    Retrieves the names of the table and the key for which there was a
+    duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
+
+    If any of the table or key name is not available this method will return
+    false and will not change any of child_table_name or child_key_name.
+
+    @param child_table_name[out]    Table name
+    @param child_table_name_len[in] Table name buffer size
+    @param child_key_name[out]      Key name
+    @param child_key_name_len[in]   Key name buffer size
+
+    @retval  true                  table and key names were available
+                                   and were written into the corresponding
+                                   out parameters.
+    @retval  false                 table and key names were not available,
+                                   the out parameters were not touched.
+  */
+  virtual bool get_foreign_dup_key(char *child_table_name,
+                                   uint child_table_name_len,
+                                   char *child_key_name,
+                                   uint child_key_name_len)
+  { DBUG_ASSERT(false); return(false); }
   void reset_statistics()
   {
     rows_read= rows_changed= rows_tmp_read= 0;
@@ -2193,18 +2216,17 @@ protected:
   }
 public:
 
-  /* Similar functions like the above, but does statistics counting */
-  inline int ha_index_read_map(uchar * buf, const uchar * key,
-                               key_part_map keypart_map,
-                               enum ha_rkey_function find_flag);
-  inline int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
-                                   key_part_map keypart_map,
-                                   enum ha_rkey_function find_flag);
-  inline int ha_index_next(uchar * buf);
-  inline int ha_index_prev(uchar * buf);
-  inline int ha_index_first(uchar * buf);
-  inline int ha_index_last(uchar * buf);
-  inline int ha_index_next_same(uchar *buf, const uchar *key, uint keylen);
+  int ha_index_read_map(uchar * buf, const uchar * key,
+                        key_part_map keypart_map,
+                        enum ha_rkey_function find_flag);
+  int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
+                            key_part_map keypart_map,
+                            enum ha_rkey_function find_flag);
+  int ha_index_next(uchar * buf);
+  int ha_index_prev(uchar * buf);
+  int ha_index_first(uchar * buf);
+  int ha_index_last(uchar * buf);
+  int ha_index_next_same(uchar *buf, const uchar *key, uint keylen);
   /*
     TODO: should we make for those functions non-virtual ha_func_name wrappers,
     too?
@@ -2276,8 +2298,8 @@ public:
 
   /* Same as above, but with statistics */
   inline int ha_ft_read(uchar *buf);
-  inline int ha_rnd_next(uchar *buf);
-  inline int ha_rnd_pos(uchar *buf, uchar *pos);
+  int ha_rnd_next(uchar *buf);
+  int ha_rnd_pos(uchar *buf, uchar *pos);
   inline int ha_rnd_pos_by_record(uchar *buf);
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
@@ -2756,7 +2778,7 @@ private:
   */
 
   virtual int open(const char *name, int mode, uint test_if_locked)=0;
-  /* Note: ha_index_read_idx_map() may buypass index_init() */
+  /* Note: ha_index_read_idx_map() may bypass index_init() */
   virtual int index_init(uint idx, bool sorted) { return 0; }
   virtual int index_end() { return 0; }
   /**

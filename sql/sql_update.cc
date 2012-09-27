@@ -301,7 +301,7 @@ int mysql_update(THD *thd,
   if (table_list->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 
-  thd_proc_info(thd, "init");
+  THD_STAGE_INFO(thd, stage_init);
   table= table_list->table;
 
   if (!table_list->single_table_updatable())
@@ -429,7 +429,7 @@ int mysql_update(THD *thd,
   /* If running in safe sql mode, don't allow updates without keys */
   if (table->quick_keys.is_clear_all())
   {
-    thd->server_status|=SERVER_QUERY_NO_INDEX_USED;
+    thd->set_status_no_index_used();
     if (safe_update && !using_limit)
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
@@ -509,7 +509,7 @@ int mysql_update(THD *thd,
       {
 	goto err;
       }
-      thd->examined_row_count+= examined_rows;
+      thd->inc_examined_row_count(examined_rows);
       /*
 	Filesort has already found and selected the rows we want to update,
 	so we don't need the where clause
@@ -554,14 +554,14 @@ int mysql_update(THD *thd,
       else
         init_read_record_idx(&info, thd, table, 1, used_index, reverse);
 
-      thd_proc_info(thd, "Searching rows for update");
+      THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
 
       while (!(error=info.read_record(&info)) && !thd->killed)
       {
         if (table->vfield)
           update_virtual_fields(thd, table);
-        thd->examined_row_count++;
+        thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
           if (table->file->was_semi_consistent_read())
@@ -637,7 +637,7 @@ int mysql_update(THD *thd,
   */
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-  thd_proc_info(thd, "Updating");
+  THD_STAGE_INFO(thd, stage_updating);
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= test(!ignore &&
@@ -677,7 +677,7 @@ int mysql_update(THD *thd,
   {
     if (table->vfield)
       update_virtual_fields(thd, table);
-    thd->examined_row_count++;
+    thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
       if (table->file->was_semi_consistent_read())
@@ -878,7 +878,7 @@ int mysql_update(THD *thd,
 
   end_read_record(&info);
   delete select;
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   /*
@@ -1446,7 +1446,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-  thd_proc_info(thd, "updating main table");
+  THD_STAGE_INFO(thd, stage_updating_main_table);
 
   tables_to_update= get_table_map(fields);
 
@@ -2265,7 +2265,7 @@ bool multi_update::send_eof()
   ulonglong id;
   killed_state killed_status= NOT_KILLED;
   DBUG_ENTER("multi_update::send_eof");
-  thd_proc_info(thd, "updating reference tables");
+  THD_STAGE_INFO(thd, stage_updating_reference_tables);
 
   /* 
      Does updates for the last n - 1 tables, returns 0 if ok;
@@ -2279,7 +2279,7 @@ bool multi_update::send_eof()
     later carried out killing should not affect binlogging.
   */
   killed_status= (local_error == 0) ? NOT_KILLED : thd->killed;
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
 
   /* We must invalidate the query cache before binlog writing and
   ha_autocommit_... */

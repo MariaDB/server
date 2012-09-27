@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2003, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /*
   This file is included by both libmysql.c (the MySQL client C API)
@@ -38,10 +39,6 @@
 
 #include "mysql.h"
 
-#ifndef __WIN__
-#include <netdb.h>
-#endif
-
 /* Remove client convenience wrappers */
 #undef max_allowed_packet
 #undef net_buffer_length
@@ -62,6 +59,7 @@ my_bool	net_flush(NET *net);
 #else  /*EMBEDDED_LIBRARY*/
 #define CLI_MYSQL_REAL_CONNECT STDCALL mysql_real_connect
 #endif /*EMBEDDED_LIBRARY*/
+
 #include <my_sys.h>
 #include <mysys_err.h>
 #include <m_string.h>
@@ -70,6 +68,7 @@ my_bool	net_flush(NET *net);
 #include "mysqld_error.h"
 #include "errmsg.h"
 #include <violite.h>
+
 #if !defined(__WIN__)
 #include <my_pthread.h>				/* because of signal()	*/
 #endif /* !defined(__WIN__) */
@@ -77,14 +76,12 @@ my_bool	net_flush(NET *net);
 #include <sys/stat.h>
 #include <signal.h>
 #include <time.h>
+
 #ifdef	 HAVE_PWD_H
 #include <pwd.h>
 #endif
+
 #if !defined(__WIN__)
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
 #ifdef HAVE_SELECT_H
 #  include <select.h>
 #endif
@@ -96,9 +93,7 @@ my_bool	net_flush(NET *net);
 #  include <sys/un.h>
 #endif
 
-#if defined(__WIN__)
-#define perror(A)
-#else
+#ifndef _WIN32
 #include <errno.h>
 #define SOCKET_ERROR -1
 #endif
@@ -117,6 +112,7 @@ my_bool	net_flush(NET *net);
 
 #define native_password_plugin_name "mysql_native_password"
 #define old_password_plugin_name    "mysql_old_password"
+
 
 uint		mysql_port=0;
 char		*mysql_unix_port= 0;
@@ -805,9 +801,9 @@ restart:
       
       pos+=2;
       len-=2;
-      if (protocol_41(mysql) && (char) pos[0] == '#')
+      if (protocol_41(mysql) && pos[0] == '#')
       {
-	strmake(net->sqlstate, (char*) pos+1, SQLSTATE_LENGTH);
+	strmake(net->sqlstate, pos+1, SQLSTATE_LENGTH);
 	pos+= SQLSTATE_LENGTH+1;
       }
       else
@@ -821,7 +817,7 @@ restart:
       }
 
       (void) strmake(net->last_error,(char*) pos,
-		     min((uint) len,(uint) sizeof(net->last_error)-1));
+		     MY_MIN((uint) len,(uint) sizeof(net->last_error)-1));
     }
     else
       set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
@@ -1206,7 +1202,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
   }
 
   if (!(tmp= my_strdup(cmd,MYF(MY_WME))) ||
-      insert_dynamic(options->init_commands, (uchar*)&tmp))
+      insert_dynamic(options->init_commands, &tmp))
   {
     my_free(tmp);
     return 1;
@@ -1222,22 +1218,17 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
                   MYF(MY_WME | MY_ZEROFILL));                    \
     (OPTS)->extension->X= (VAL);
 
-#define EXTENSION_SET_STRING_MAYBE_NULL(OPTS, X, STR)                       \
-    if ((OPTS)->extension)                                       \
-      my_free((OPTS)->extension->X);                             \
-  EXTENSION_SET(OPTS, X, (STR) ? my_strdup((STR), MYF(MY_WME)) : NullS);
-
 #define EXTENSION_SET_STRING(OPTS, X, STR)                       \
     if ((OPTS)->extension)                                       \
       my_free((OPTS)->extension->X);                             \
-  EXTENSION_SET(OPTS, X, my_strdup((STR), MYF(MY_WME)))
+  EXTENSION_SET(OPTS, X, (STR) ? my_strdup((STR), MYF(MY_WME)) : NULL);
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SET_SSL_OPTION(OPTS, opt_var, arg)        \
   my_free((OPTS)->opt_var);                       \
   (OPTS)->opt_var= arg ? my_strdup(arg, MYF(MY_WME)) : NULL;
 #define EXTENSION_SET_SSL_STRING(OPTS, X, STR) \
-  EXTENSION_SET_STRING_MAYBE_NULL((OPTS), X, (STR));
+  EXTENSION_SET_STRING((OPTS), X, (STR));
 #else
 #define SET_SSL_OPTION(OPTS, opt_var,arg) do { } while(0)
 #define EXTENSION_SET_SSL_STRING(OPTS, X, STR) do { } while(0)
@@ -4244,10 +4235,10 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
       mysql->options.client_flag&= ~CLIENT_SSL_VERIFY_SERVER_CERT;
     break;
   case MYSQL_PLUGIN_DIR:
-    EXTENSION_SET_STRING_MAYBE_NULL(&mysql->options, plugin_dir, arg);
+    EXTENSION_SET_STRING(&mysql->options, plugin_dir, arg);
     break;
   case MYSQL_DEFAULT_AUTH:
-    EXTENSION_SET_STRING_MAYBE_NULL(&mysql->options, default_auth, arg);
+    EXTENSION_SET_STRING(&mysql->options, default_auth, arg);
     break;
   case MYSQL_PROGRESS_CALLBACK:
     if (!mysql->options.extension)

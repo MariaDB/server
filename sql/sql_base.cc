@@ -529,6 +529,7 @@ static void table_def_unuse_table(TABLE *table)
   DBUG_ASSERT(! table->s->has_old_version());
 
   table->in_use= 0;
+
   /* Remove table from the list of tables used in this share. */
   table->s->used_tables.remove(table);
   /* Add table to the list of unused TABLE objects for this share. */
@@ -627,6 +628,13 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
     DBUG_RETURN(0);
   }
   share->ref_count++;				// Mark in use
+
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  share->m_psi= PSI_CALL(get_table_share)(false, share);
+#else
+  share->m_psi= NULL;
+#endif
+
   DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
                       (ulong) share, share->ref_count));
   DBUG_RETURN(share);
@@ -1629,6 +1637,10 @@ bool close_thread_table(THD *thd, TABLE **table_ptr)
     free_field_buffers_larger_than(table, MAX_TDC_BLOB_SIZE);
     table->file->ha_reset();
   }
+
+  /* Do this *before* entering the LOCK_open critical section. */
+  if (table->file != NULL)
+    table->file->unbind_psi();
 
   mysql_mutex_lock(&LOCK_open);
 
@@ -2724,6 +2736,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   int error;
   TABLE_SHARE *share;
   my_hash_value_type hash_value;
+  bool recycled_free_table;
+
   DBUG_ENTER("open_table");
 
   /* an open table operation needs a lot of the stack space */
@@ -3033,6 +3047,11 @@ retry_share:
     DBUG_RETURN(TRUE);
   }
 
+  /*
+    Check if this TABLE_SHARE-object corresponds to a view. Note, that there is
+    no need to call TABLE_SHARE::has_old_version() as we do for regular tables,
+    because view shares are always up to date.
+  */
   if (share->is_view)
   {
     /*
@@ -3142,6 +3161,7 @@ retry_share:
   {
     table= share->free_tables.front();
     table_def_use_table(thd, table);
+    recycled_free_table= true;
     /* We need to release share as we have EXTRA reference to it in our hands. */
     release_table_share(share);
   }
@@ -3153,6 +3173,7 @@ retry_share:
 
     mysql_mutex_unlock(&LOCK_open);
 
+    recycled_free_table= false;
     /* make a new table */
     if (!(table=(TABLE*) my_malloc(sizeof(*table),MYF(MY_WME))))
       goto err_lock;
@@ -3193,6 +3214,13 @@ retry_share:
   }
 
   mysql_mutex_unlock(&LOCK_open);
+
+  /* Call rebind_psi outside of the LOCK_open critical section. */
+  if (recycled_free_table)
+  {
+    DBUG_ASSERT(table->file != NULL);
+    table->file->rebind_psi();
+  }
 
   table->mdl_ticket= mdl_ticket;
 
@@ -4914,7 +4942,7 @@ restart:
   table_to_open= start;
   sroutine_to_open= (Sroutine_hash_entry**) &thd->lex->sroutines_list.first;
   *counter= 0;
-  thd_proc_info(thd, "Opening tables");
+  THD_STAGE_INFO(thd, stage_opening_tables);
 
   /*
     If we are executing LOCK TABLES statement or a DDL statement
@@ -5105,7 +5133,6 @@ restart:
   }
 
 err:
-  thd_proc_info(thd, 0);
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -5479,7 +5506,7 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   /* should not be used in a prelocked_mode context, see NOTE above */
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  thd_proc_info(thd, "Opening table");
+  THD_STAGE_INFO(thd, stage_opening_tables);
   thd->current_tablenr= 0;
   /* open_ltable can be used only for BASIC TABLEs */
   table_list->required_type= FRMTYPE_TABLE;
@@ -5548,7 +5575,6 @@ end:
       trans_rollback_stmt(thd);
     close_thread_tables(thd);
   }
-  thd_proc_info(thd, 0);
   DBUG_RETURN(table);
 }
 
@@ -5796,7 +5822,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
             query_table->lock_type >= TL_WRITE_ALLOW_WRITE &&
             unique_keys > 1 && thd->lex->sql_command == SQLCOM_INSERT &&
             /* Duplicate key update is not supported by INSERT DELAYED */
-            thd->command != COM_DELAYED_INSERT &&
+            thd->get_command() != COM_DELAYED_INSERT &&
             thd->lex->duplicates == DUP_UPDATE)
           thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
       }
@@ -6033,8 +6059,21 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
   init_tmp_table_share(thd, share, saved_cache_key, key_length,
                        strend(saved_cache_key)+1, tmp_path);
 
-  if (open_table_def(thd, share, 0) ||
-      open_table_from_share(thd, share, table_name,
+  if (open_table_def(thd, share, 0))
+  {
+    /* No need to lock share->mutex as this is not needed for tmp tables */
+    free_table_share(share);
+    my_free(tmp_table);
+    DBUG_RETURN(0);
+  }
+
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  share->m_psi= PSI_CALL(get_table_share)(true, share);
+#else
+  share->m_psi= NULL;
+#endif
+
+  if (open_table_from_share(thd, share, table_name,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX),
                             READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
@@ -9394,7 +9433,7 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     List_iterator<Item_func_match> li(*(select_lex->ftfunc_list));
     Item_func_match *ifm;
     DBUG_PRINT("info",("Performing FULLTEXT search"));
-    thd_proc_info(thd, "FULLTEXT initialization");
+    THD_STAGE_INFO(thd, stage_fulltext_initialization);
 
     while ((ifm=li++))
       ifm->init_search(no_order);

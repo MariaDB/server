@@ -13,17 +13,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
-
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 #ifndef SQL_CLASS_INCLUDED
 #define SQL_CLASS_INCLUDED
 
 /* Classes in mysql */
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
 
 #include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #ifdef MYSQL_SERVER
@@ -49,6 +44,17 @@
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
 
+extern "C"
+void set_thd_stage_info(void *thd,
+                        const PSI_stage_info *new_stage,
+                        PSI_stage_info *old_stage,
+                        const char *calling_func,
+                        const char *calling_file,
+                        const unsigned int calling_line);
+                        
+#define THD_STAGE_INFO(thd, stage) \
+  (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
+
 class Reprepare_observer;
 class Relay_log_info;
 
@@ -71,7 +77,7 @@ enum enum_delay_key_write { DELAY_KEY_WRITE_NONE, DELAY_KEY_WRITE_ON,
 			    DELAY_KEY_WRITE_ALL };
 enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRICT,
                             SLAVE_EXEC_MODE_IDEMPOTENT,
-                            SLAVE_EXEC_MODE_LAST_BIT};
+                            SLAVE_EXEC_MODE_LAST_BIT };
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 enum enum_mark_columns
@@ -594,8 +600,8 @@ typedef struct system_status_var
 {
   ulong com_other;
   ulong com_stat[(uint) SQLCOM_END];
-  ulong created_tmp_disk_tables;
-  ulong created_tmp_tables;
+  ulong created_tmp_disk_tables_;
+  ulong created_tmp_tables_;
   ulong ha_commit_count;
   ulong ha_delete_count;
   ulong ha_read_first_count;
@@ -643,16 +649,16 @@ typedef struct system_status_var
   ulong net_big_packet_count;
   ulong opened_tables;
   ulong opened_shares;
-  ulong select_full_join_count;
-  ulong select_full_range_join_count;
-  ulong select_range_count;
-  ulong select_range_check_count;
-  ulong select_scan_count;
+  ulong select_full_join_count_;
+  ulong select_full_range_join_count_;
+  ulong select_range_count_;
+  ulong select_range_check_count_;
+  ulong select_scan_count_;
   ulong long_query_count;
-  ulong filesort_merge_passes;
-  ulong filesort_range_count;
-  ulong filesort_rows;
-  ulong filesort_scan_count;
+  ulong filesort_merge_passes_;
+  ulong filesort_range_count_;
+  ulong filesort_rows_;
+  ulong filesort_scan_count_;
   /* Prepared statements and binary protocol */
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -1693,11 +1699,14 @@ public:
   uint dbug_sentry; // watch out for memory corruption
 #endif
   struct st_my_thread_var *mysys_var;
+private:
   /*
     Type of current query: COM_STMT_PREPARE, COM_QUERY, etc. Set from
     first byte of the packet in do_command()
   */
-  enum enum_server_command command;
+  enum enum_server_command m_command;
+
+public:
   uint32     server_id;
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
@@ -2112,11 +2121,12 @@ public:
 
   ha_rows    cuted_fields;
 
+private:
   /*
     number of rows we actually sent to the client, including "synthetic"
     rows in ROLLUP etc.
   */
-  ha_rows    sent_row_count;
+  ha_rows    m_sent_row_count;
 
   /**
     Number of rows read and/or evaluated for a statement. Used for
@@ -2128,12 +2138,14 @@ public:
     statement including ORDER BY could possibly evaluate the row in
     filesort() before reading it for e.g. update.
   */
-  ha_rows    examined_row_count;
-  /**
-    The number of rows and/or keys examined by the query, both read,
-    changed or written.
-  */
-  ulonglong accessed_rows_and_keys;
+  ha_rows    m_examined_row_count;
+
+public:
+  ha_rows get_sent_row_count() const
+  { return m_sent_row_count; }
+
+  ha_rows get_examined_row_count() const
+  { return m_examined_row_count; }
 
   void set_sent_row_count(ha_rows count);
   void set_examined_row_count(ha_rows count);
@@ -2155,6 +2167,13 @@ public:
   void inc_status_sort_scan();
   void set_status_no_index_used();
   void set_status_no_good_index_used();
+
+  /**
+    The number of rows and/or keys examined by the query, both read,
+    changed or written.
+  */
+  ulonglong accessed_rows_and_keys;
+
   /**
     Check if the number of rows accessed by a statement exceeded
     LIMIT ROWS EXAMINED. If so, signal the query engine to stop execution.
@@ -2472,22 +2491,20 @@ public:
                    int errcode);
 #endif
 
-  /*
-    For enter_cond() / exit_cond() to work the mutex must be got before
-    enter_cond(); this mutex is then released by exit_cond().
-    Usage must be: lock mutex; enter_cond(); your code; exit_cond().
-  */
-  inline const char* enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
-                                const char* msg)
+  inline void
+  enter_cond(mysql_cond_t *cond, mysql_mutex_t* mutex,
+             const PSI_stage_info *stage, PSI_stage_info *old_stage,
+             const char *src_function, const char *src_file,
+             int src_line)
   {
-    const char* old_msg = proc_info;
     mysql_mutex_assert_owner(mutex);
     mysys_var->current_mutex = mutex;
     mysys_var->current_cond = cond;
-    proc_info = msg;
-    return old_msg;
+    enter_stage(stage, old_stage, src_function, src_file, src_line);
   }
-  inline void exit_cond(const char* old_msg)
+  inline void exit_cond(const PSI_stage_info *stage,
+                        const char *src_function, const char *src_file,
+                        int src_line)
   {
     /*
       Putting the mutex unlock in thd->exit_cond() ensures that
@@ -2499,7 +2516,7 @@ public:
     mysql_mutex_lock(&mysys_var->mutex);
     mysys_var->current_mutex = 0;
     mysys_var->current_cond = 0;
-    proc_info = old_msg;
+    enter_stage(stage, NULL, src_function, src_file, src_line);
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
@@ -2511,6 +2528,9 @@ public:
     my_hrtime_t hrtime= my_hrtime();
     start_time= hrtime_to_my_time(hrtime);
     start_time_sec_part= hrtime_sec_part(hrtime);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_CALL(set_thread_start_time)(start_time);
+#endif
   }
   inline void set_start_time()
   {
@@ -2518,6 +2538,9 @@ public:
     {
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
+#ifdef HAVE_PSI_THREAD_INTERFACE
+      PSI_CALL(set_thread_start_time)(start_time);
+#endif
     }
     else
       set_current_time();
@@ -2892,6 +2915,7 @@ public:
   */
   bool set_db(const char *new_db, size_t new_db_len)
   {
+    bool result;
     /* Do not reallocate memory if current chunk is big enough. */
     if (db && new_db && db_length >= new_db_len)
       memcpy(db, new_db, new_db_len+1);
@@ -2904,7 +2928,12 @@ public:
         db= NULL;
     }
     db_length= db ? new_db_len : 0;
-    return new_db && !db;
+    result= new_db && !db;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    if (result)
+      PSI_CALL(set_thread_db)(new_db, new_db_len);
+#endif
+    return result;
   }
 
   /**
@@ -2922,6 +2951,9 @@ public:
   {
     db= new_db;
     db_length= new_db_len;
+#ifdef HAVE_PSI_THREAD_INTERFACE
+    PSI_CALL(set_thread_db)(new_db, new_db_len);
+#endif
   }
   /*
     Copy the current database to the argument. Use the current arena to
@@ -3040,7 +3072,7 @@ public:
   virtual void set_statement(Statement *stmt);
   void set_command(enum enum_server_command command);
   inline enum enum_server_command get_command() const
-  { return command; }
+  { return m_command; }
 
   /**
     Assign a new value to thd->query and thd->query_id and mysys_var.
@@ -3497,12 +3529,18 @@ public:
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
 #include <maria.h>
+#else
+#undef USE_ARIA_FOR_TMP_TABLES
 #endif
 
 #ifdef USE_ARIA_FOR_TMP_TABLES
-#define ENGINE_COLUMNDEF MARIA_COLUMNDEF
+#define TMP_ENGINE_COLUMNDEF MARIA_COLUMNDEF
+#define TMP_ENGINE_HTON maria_hton
+#define TMP_ENGINE_NAME "Aria"
 #else
-#define ENGINE_COLUMNDEF MI_COLUMNDEF
+#define TMP_ENGINE_COLUMNDEF MI_COLUMNDEF
+#define TMP_ENGINE_HTON myisam_hton
+#define TMP_ENGINE_NAME "MyISAM"
 #endif
 
 /*
@@ -3525,7 +3563,7 @@ public:
   Copy_field *save_copy_field, *save_copy_field_end;
   uchar	    *group_buff;
   Item	    **items_to_copy;			/* Fields in tmp table */
-  ENGINE_COLUMNDEF *recinfo, *start_recinfo;
+  TMP_ENGINE_COLUMNDEF *recinfo, *start_recinfo;
   KEY *keyinfo;
   ha_rows end_write_records;
   /**
@@ -4244,114 +4282,6 @@ inline void handler::decrement_statistics(ulong SSV::*offset) const
   status_var_decrement(table->in_use->status_var.*offset);
 }
 
-inline int handler::ha_index_read_map(uchar * buf, const uchar * key,
-                                      key_part_map keypart_map,
-                                      enum ha_rkey_function find_flag)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_key_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_read_map(buf, key, keypart_map,
-                                              find_flag); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-
-/*
-  @note: Other index lookup/navigation functions require prior
-  handler->index_init() call. This function is different, it requires
-  that the scan is not initialized, and accepts "uint index" as an argument.
-*/
-
-inline int handler::ha_index_read_idx_map(uchar * buf, uint index,
-                                          const uchar * key,
-                                          key_part_map keypart_map,
-                                          enum ha_rkey_function find_flag)
-{
-  int error;
-  DBUG_ASSERT(inited==NONE);
-  increment_statistics(&SSV::ha_read_key_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, index, 0,
-                      { error= index_read_idx_map(buf, index, key, keypart_map,
-                                                  find_flag); })
-  if (!error)
-  {
-    update_rows_read();
-    index_rows_read[index]++;
-  }
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_index_next(uchar * buf)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_next_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_next(buf); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_index_prev(uchar * buf)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_prev_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_prev(buf); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_index_first(uchar * buf)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_first_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_first(buf); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_index_last(uchar * buf)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_last_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_last(buf); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_index_next_same(uchar *buf, const uchar *key,
-                                       uint keylen)
-{
-  int error;
-  DBUG_ASSERT(inited==INDEX);
-  increment_statistics(&SSV::ha_read_next_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, active_index, 0,
-                      { error= index_next_same(buf, key, keylen); })
-  if (!error)
-    update_index_statistics();
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
 
 inline int handler::ha_ft_read(uchar *buf)
 {
@@ -4359,37 +4289,6 @@ inline int handler::ha_ft_read(uchar *buf)
   if (!error)
     update_rows_read();
 
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_rnd_next(uchar *buf)
-{
-  int error;
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
-                      { error= rnd_next(buf); })
-  if (!error)
-  {
-    update_rows_read();
-    increment_statistics(&SSV::ha_read_rnd_next_count);
-  }
-  else if (error == HA_ERR_RECORD_DELETED)
-    increment_statistics(&SSV::ha_read_rnd_deleted_count);
-  else
-    increment_statistics(&SSV::ha_read_rnd_next_count);
-
-  table->status=error ? STATUS_NOT_FOUND: 0;
-  return error;
-}
-
-inline int handler::ha_rnd_pos(uchar *buf, uchar *pos)
-{
-  int error;
-  increment_statistics(&SSV::ha_read_rnd_count);
-  MYSQL_TABLE_IO_WAIT(m_psi, PSI_TABLE_FETCH_ROW, MAX_KEY, 0,
-                      { error= rnd_pos(buf, pos); })
-  if (!error)
-    update_rows_read();
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
 }
@@ -4436,16 +4335,50 @@ inline int handler::ha_update_tmp_row(const uchar *old_data, uchar *new_data)
 
 extern pthread_attr_t *get_connection_attrib(void);
 
-extern "C"
-void set_thd_stage_info(void *thd,
-                        const PSI_stage_info *new_stage,
-                        PSI_stage_info *old_stage,
-                        const char *calling_func,
-                        const char *calling_file,
-                        const unsigned int calling_line);
-                        
-#define THD_STAGE_INFO(thd, stage) \
-  (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
+/**
+   Set thread entering a condition
+
+   This function should be called before putting a thread to wait for
+   a condition. @a mutex should be held before calling this
+   function. After being waken up, @f thd_exit_cond should be called.
+
+   @param thd      The thread entering the condition, NULL means current thread
+   @param cond     The condition the thread is going to wait for
+   @param mutex    The mutex associated with the condition, this must be
+                   held before call this function
+   @param stage    The new process message for the thread
+   @param old_stage The old process message for the thread
+   @param src_function The caller source function name
+   @param src_file The caller source file name
+   @param src_line The caller source line number
+*/
+void thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond, mysql_mutex_t *mutex,
+                    const PSI_stage_info *stage, PSI_stage_info *old_stage,
+                    const char *src_function, const char *src_file,
+                    int src_line);
+
+#define THD_ENTER_COND(P1, P2, P3, P4, P5) \
+  thd_enter_cond(P1, P2, P3, P4, P5, __func__, __FILE__, __LINE__)
+
+/**
+   Set thread leaving a condition
+
+   This function should be called after a thread being waken up for a
+   condition.
+
+   @param thd      The thread entering the condition, NULL means current thread
+   @param stage    The process message, ususally this should be the old process
+                   message before calling @f thd_enter_cond
+   @param src_function The caller source function name
+   @param src_file The caller source file name
+   @param src_line The caller source line number
+*/
+void thd_exit_cond(MYSQL_THD thd, const PSI_stage_info *stage,
+                   const char *src_function, const char *src_file,
+                   int src_line);
+
+#define THD_EXIT_COND(P1, P2) \
+  thd_exit_cond(P1, P2, __func__, __FILE__, __LINE__)
 
 #endif /* MYSQL_SERVER */
 

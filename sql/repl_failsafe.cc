@@ -44,7 +44,6 @@
 
 ulong rpl_status=RPL_NULL;
 mysql_mutex_t LOCK_rpl_status;
-mysql_cond_t COND_rpl_status;
 HASH slave_list;
 
 const char *rpl_role_type[] = {"MASTER","SLAVE",NullS};
@@ -70,7 +69,6 @@ void change_rpl_status(ulong from_status, ulong to_status)
   mysql_mutex_lock(&LOCK_rpl_status);
   if (rpl_status == from_status || rpl_status == RPL_ANY)
     rpl_status = to_status;
-  mysql_cond_signal(&COND_rpl_status);
   mysql_mutex_unlock(&LOCK_rpl_status);
 }
 

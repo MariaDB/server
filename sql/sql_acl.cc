@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2011, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
 /*
@@ -750,10 +750,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   acl_cache->clear(1);				// Clear locked hostname cache
 
   init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0);
-  if (init_read_record(&read_record_info,thd,table= tables[0].table,NULL,1,0, 
-                       FALSE))
+  if (init_read_record(&read_record_info, thd, table= tables[0].table,
+                       NULL, 1, 1, FALSE))
     goto end;
-
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST),20,50);
   while (!(read_record_info.read_record(&read_record_info)))
@@ -802,10 +801,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_hosts);
 
-  if (init_read_record(&read_record_info,thd,table=tables[1].table,NULL,1,0,
-                       FALSE))
+  if (init_read_record(&read_record_info, thd, table=tables[1].table,
+                       NULL, 1, 1, FALSE))
     goto end;
-
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER),50,100);
   password_length= table->field[2]->field_length /
@@ -1004,10 +1002,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_users);
 
-  if (init_read_record(&read_record_info,thd,table=tables[2].table,NULL,1,0,
-                       FALSE))
+  if (init_read_record(&read_record_info, thd, table=tables[2].table,
+                       NULL, 1, 1, FALSE))
     goto end;
-
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB),50,100);
   while (!(read_record_info.read_record(&read_record_info)))
@@ -1070,8 +1067,9 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                                50, 100);
   if (tables[3].table)
   {
-    init_read_record(&read_record_info, thd, table= tables[3].table, NULL, 1, 
-                     0, FALSE);
+    if (init_read_record(&read_record_info, thd, table= tables[3].table,
+                         NULL, 1, 1, FALSE))
+      goto end;
     table->use_all_columns();
     while (!(read_record_info.read_record(&read_record_info)))
     {
@@ -1304,7 +1302,7 @@ static ulong get_sort(uint count,...)
         chars= 128;                             // Marker that chars existed
       }
     }
-    sort= (sort << 8) + (wild_pos ? min(wild_pos, 127) : chars);
+    sort= (sort << 8) + (wild_pos ? min(wild_pos, 127U) : chars);
   }
   va_end(args);
   return sort;
@@ -3939,7 +3937,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 
     db_name= table_list->db;
     table_name= table_list->table_name;
-
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, is_proc, 1);
     if (!grant_name)
@@ -4093,6 +4090,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       result= TRUE;
       continue;
     }
+
     /*
       No User, but a password?
       They did GRANT ... TO CURRENT_USER() IDENTIFIED BY ... !
@@ -4100,6 +4098,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     */
     if (!tmp_Str->user.str && tmp_Str->password.str)
       Str->password= tmp_Str->password;
+
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            test(thd->variables.sql_mode &
@@ -5683,7 +5682,7 @@ void get_privilege_desc(char *to, uint max_length, ulong access)
 {
   uint pos;
   char *start=to;
-  DBUG_ASSERT(max_length >= 30);		// For end ',' removal
+  DBUG_ASSERT(max_length >= 30);                // For end ', ' removal
 
   if (access)
   {
@@ -5694,9 +5693,11 @@ void get_privilege_desc(char *to, uint max_length, ulong access)
 	  command_lengths[pos] + (uint) (to-start) < max_length)
       {
 	to= strmov(to, command_array[pos]);
-	*to++=',';
+        *to++= ',';
+        *to++= ' ';
       }
     }
+    to--;                                       // Remove end ' '
     to--;					// Remove end ','
   }
   *to=0;
@@ -9200,6 +9201,13 @@ bool acl_authenticate(THD *thd, uint connect_errors,
     thd->stmt_da->disable_status();
   else
     my_ok(thd);
+
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_CALL(set_thread_user_host)(thd->main_security_ctx.user,
+                                 strlen(thd->main_security_ctx.user),
+                                 thd->main_security_ctx.host_or_ip,
+                                 strlen(thd->main_security_ctx.host_or_ip));
+#endif
 
   /* Ready to handle queries */
   DBUG_RETURN(0);

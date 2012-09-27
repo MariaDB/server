@@ -605,7 +605,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   thd->profiling.set_query_source(buf, len);
 #endif
 
-  thd_proc_info(thd, "Execution of init_command");
+  THD_STAGE_INFO(thd, stage_execution_of_init_command);
   save_client_capabilities= thd->client_capabilities;
   thd->client_capabilities|= CLIENT_MULTI_QUERIES;
   /*
@@ -641,7 +641,6 @@ static void handle_bootstrap_impl(THD *thd)
   thd->thread_stack= (char*) &thd;
 #endif /* EMBEDDED_LIBRARY */
 
-  thd_proc_info(thd, 0);
   thd->security_ctx->user= (char*) my_strdup("boot", MYF(MY_WME));
   thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=0;
   /*
@@ -1258,7 +1257,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       /* PSI begin */
       thd->m_statement_psi=
         MYSQL_START_STATEMENT(&thd->m_statement_state,
-                              com_statement_info[command]. m_key,
+                              com_statement_info[command].m_key,
                               thd->db, thd->db_length);
       THD_STAGE_INFO(thd, stage_init);
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
@@ -1608,7 +1607,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   log_slow_statement(thd);
 
-  thd_proc_info(thd, "cleaning up");
+  THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
   thd->set_command(COM_SLEEP);
 
@@ -1617,7 +1616,6 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->m_statement_psi= NULL;
 
   dec_thread_running();
-  thd_proc_info(thd, 0);
   thd->packet.shrink(thd->variables.net_buffer_length);	// Reclaim some memory
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
 
@@ -1672,16 +1670,15 @@ void log_slow_statement(THD *thd)
   if (thd->enable_slow_log)
   {
     ulonglong end_utime_of_query= thd->current_utime();
-    thd_proc_info(thd, "logging slow query");
 
     if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
          ((thd->server_status &
            (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
           opt_log_queries_not_using_indexes &&
            !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
-        thd->examined_row_count >= thd->variables.min_examined_row_limit)
+        thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
     {
-      thd_proc_info(thd, "logging slow query");
+      THD_STAGE_INFO(thd, stage_logging_slow_query);
       thd->status_var.long_query_count++;
       slow_log_print(thd, thd->query(), thd->query_length(), 
                      end_utime_of_query);
@@ -3251,7 +3248,7 @@ end_with_restore_list:
     if (add_item_to_list(thd, new Item_null()))
       goto error;
 
-    thd_proc_info(thd, "init");
+    THD_STAGE_INFO(thd, stage_init);
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
       break;
 
@@ -4654,7 +4651,7 @@ create_sp_error:
     my_ok(thd);
     break;
   }
-  thd_proc_info(thd, "query end");
+  THD_STAGE_INFO(thd, stage_query_end);
   thd->update_stats();
 
   /*
@@ -4710,9 +4707,8 @@ finish:
 
   lex->unit.cleanup();
   /* Free tables */
-  thd_proc_info(thd, "closing tables");
+  THD_STAGE_INFO(thd, stage_closing_tables);
   close_thread_tables(thd);
-  thd_proc_info(thd, 0);
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
@@ -4813,9 +4809,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->sent_row_count)
+  if (!thd->get_sent_row_count())
     status_var_increment(thd->status_var.empty_queries);
-  status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
+  status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
 
@@ -5031,7 +5027,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     dummy= 0;
   }
 
-  thd_proc_info(thd, "checking permissions");
+  THD_STAGE_INFO(thd, stage_checking_permissions);
   if ((!db || !db[0]) && !thd->db && !dont_check_global_grants)
   {
     DBUG_PRINT("error",("No database"));
@@ -5652,7 +5648,7 @@ void THD::reset_for_next_command(bool calculate_userstat)
   thd->stmt_da->reset_diagnostics_area();
   thd->warning_info->reset_for_next_command();
   thd->rand_used= 0;
-  thd->sent_row_count= thd->examined_row_count= 0;
+  thd->m_sent_row_count= thd->m_examined_row_count= 0;
   thd->accessed_rows_and_keys= 0;
 
   /* Copy data for user stats */
@@ -5943,7 +5939,7 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 
       query_cache_abort(&thd->query_cache_tls);
     }
-    thd_proc_info(thd, "freeing items");
+    THD_STAGE_INFO(thd, stage_freeing_items);
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
     thd->end_statement();
@@ -6780,7 +6776,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->command == COM_DAEMON)
+    if (tmp->get_command() == COM_DAEMON)
       continue;
     if (tmp->thread_id == id)
     {
@@ -6860,7 +6856,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->command == COM_DAEMON)
+    if (tmp->get_command() == COM_DAEMON)
       continue;
     /*
       Check that hostname (if given) and user name matches.

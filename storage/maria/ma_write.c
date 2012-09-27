@@ -237,7 +237,7 @@ int maria_write(MARIA_HA *info, uchar *record)
             /* running. now we wait */
             WT_RESOURCE_ID rc;
             int res;
-            const char *old_proc_info; 
+            PSI_stage_info old_stage_info;
 
             rc.type= &ma_rc_dup_unique;
             /* TODO savepoint id when we'll have them */
@@ -249,11 +249,10 @@ int maria_write(MARIA_HA *info, uchar *record)
               my_errno= HA_ERR_LOCK_DEADLOCK;
               goto err;
             }
-            old_proc_info= proc_info_hook(0,
-                                          "waiting for a resource",
-                                          __func__, __FILE__, __LINE__);
+            proc_info_hook(0, &stage_waiting_for_a_resource, &old_stage_info,
+                           __func__, __FILE__, __LINE__);
             res= wt_thd_cond_timedwait(info->trn->wt, & blocker->state_lock);
-            proc_info_hook(0, old_proc_info, __func__, __FILE__, __LINE__);
+            proc_info_hook(0, &old_stage_info, 0, __func__, __FILE__, __LINE__);
 
             mysql_mutex_unlock(& blocker->state_lock);
             if (res != WT_OK)

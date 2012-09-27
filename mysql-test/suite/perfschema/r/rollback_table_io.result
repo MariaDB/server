@@ -7,6 +7,7 @@ t1	CREATE TABLE `t1` (
   `col2` varchar(30) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 insert into test.t1 values(1,'One');
+set default_storage_engine=InnoDB;
 drop table if exists test.marker;
 create table test.marker(a int);
 update performance_schema.setup_consumers set enabled='NO';
