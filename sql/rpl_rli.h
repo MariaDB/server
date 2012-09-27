@@ -25,7 +25,6 @@
 
 struct RPL_TABLE_LIST;
 class Master_info;
-extern uint sql_slave_skip_counter;
 
 /****************************************************************************
 
@@ -230,7 +229,7 @@ public:
     skipping one or more events in the master log that have caused
     errors, and have been manually applied by DBA already.
   */
-  volatile uint32 slave_skip_counter;
+  volatile uint slave_skip_counter;     /* Must be uint */
   volatile ulong abort_pos_wait;	/* Incremented on change master */
   volatile ulong slave_run_id;		/* Incremented on slave start */
   mysql_mutex_t log_space_lock;

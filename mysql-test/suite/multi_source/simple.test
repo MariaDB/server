@@ -1,0 +1,38 @@
+#
+# Simple multi-master test
+#
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1 
+eval change master 'slave1' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'slave2' to master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+start slave 'slave1';
+start slave 'slave2';
+--sleep 5
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+show full slave status;
+
+stop slave 'slave1';
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+query_vertical show slave 'slave1' status;
+
+reset slave 'slave1';
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+show full slave status;
+
+reset slave 'slave1' all;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+show full slave status;
+
+stop slave 'slave2';
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
+show full slave status;
+
+#
+# clean up
+#
+reset slave 'slave2' all; 

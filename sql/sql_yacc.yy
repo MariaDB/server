@@ -65,6 +65,7 @@
 #include <myisammrg.h>
 #include "keycaches.h"
 #include "set_var.h"
+#include "rpl_mi.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -1904,7 +1905,7 @@ help:
 /* change master */
 
 change:
-          CHANGE MASTER_SYM TO_SYM
+          CHANGE MASTER_SYM optional_connection_name TO_SYM
           {
             Lex->sql_command = SQLCOM_CHANGE_MASTER;
           }
@@ -2052,6 +2053,29 @@ master_file_def:
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
         ;
+
+optional_connection_name:
+          /* empty */
+          {
+            THD *thd= YYTHD;
+            LEX *lex= thd->lex;
+            lex->mi.connection_name= thd->variables.default_master_connection;
+          }
+        | connection_name;
+        ;
+
+connection_name:
+        TEXT_STRING_sys
+        {
+           Lex->mi.connection_name= $1;
+#ifdef HAVE_REPLICATION
+           if (check_master_connection_name(&$1))
+           {
+              my_error(ER_WRONG_ARGUMENTS, MYF(0), "MASTER_CONNECTION_NAME");
+              MYSQL_YYABORT;
+           }
+#endif
+         }
 
 /* create a table */
 
@@ -7074,7 +7098,7 @@ opt_to:
 */
 
 slave:
-          START_SYM SLAVE slave_thread_opts
+          START_SYM SLAVE optional_connection_name slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -7083,14 +7107,14 @@ slave:
           }
           slave_until
           {}
-        | STOP_SYM SLAVE slave_thread_opts
+        | STOP_SYM SLAVE optional_connection_name slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
             lex->type = 0;
             /* If you change this code don't forget to update SLAVE STOP too */
           }
-        | SLAVE START_SYM slave_thread_opts
+        | SLAVE optional_connection_name START_SYM slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -7098,7 +7122,7 @@ slave:
           }
           slave_until
           {}
-        | SLAVE STOP_SYM slave_thread_opts
+        | SLAVE optional_connection_name STOP_SYM slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
@@ -11558,9 +11582,23 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_MASTER_STAT;
           }
-        | SLAVE STATUS_SYM
+        | FULL SLAVE STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            Lex->verbose= 1;
+          }
+        | SLAVE STATUS_SYM
+          {
+            THD *thd= YYTHD;
+            LEX *lex= thd->lex;
+            lex->mi.connection_name= thd->variables.default_master_connection;
+            lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            lex->verbose= 0;
+          }
+        | SLAVE connection_name STATUS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            Lex->verbose= 0;
           }
         | CLIENT_STATS_SYM
           {
@@ -11824,7 +11862,7 @@ flush_option:
           { Lex->type|= REFRESH_LOG; }
         | STATUS_SYM
           { Lex->type|= REFRESH_STATUS; }
-        | SLAVE
+        | SLAVE optional_connection_name 
           { 
             Lex->type|= REFRESH_SLAVE;
             Lex->reset_slave_info.all= false;
@@ -11871,6 +11909,7 @@ reset_options:
 
 reset_option:
           SLAVE               { Lex->type|= REFRESH_SLAVE; }
+          optional_connection_name
           slave_reset_options { }
         | MASTER_SYM          { Lex->type|= REFRESH_MASTER; }
         | QUERY_SYM CACHE_SYM { Lex->type|= REFRESH_QUERY_CACHE;}

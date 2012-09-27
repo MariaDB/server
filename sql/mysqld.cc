@@ -673,8 +673,7 @@ pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
 
-int mysqld_server_started= 0;
-
+int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
@@ -1761,7 +1760,12 @@ void clean_up(bool print_message)
   if (cleanup_done++)
     return; /* purecov: inspected */
 
-  close_active_mi();
+#ifdef HAVE_REPLICATION
+  // We must call end_slave() as clean_up may have been called during startup
+  end_slave();
+  if (use_slave_mask)
+    bitmap_free(&slave_error_mask);
+#endif
   stop_handle_manager();
   release_ddl_log();
 
@@ -1776,10 +1780,6 @@ void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
 
-#ifdef HAVE_REPLICATION
-  if (use_slave_mask)
-    bitmap_free(&slave_error_mask);
-#endif
   my_tz_free();
   my_dboptions_cache_free();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4626,6 +4626,7 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
+  mysqld_server_started= mysqld_server_initialized= 0;
   orig_argc= argc;
   orig_argv= argv;
   my_getopt_use_args_separator= TRUE;
@@ -4890,16 +4891,6 @@ int mysqld_main(int argc, char **argv)
     opt_skip_slave_start= 1;
 
   binlog_unsafe_map_init();
-  /*
-    init_slave() must be called after the thread keys are created.
-    Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
-    places) assume that active_mi != 0, so let's fail if it's 0 (out of
-    memory); a message has already been printed.
-  */
-  if (init_slave() && !active_mi)
-  {
-    unireg_abort(1);
-  }
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   initialize_performance_schema_acl(opt_bootstrap);
@@ -4917,8 +4908,16 @@ int mysqld_main(int argc, char **argv)
 
   execute_ddl_log_recovery();
 
+  /*
+    We must have LOCK_open before LOCK_global_system_variables because
+    LOCK_open is hold while sql_plugin.c::intern_sys_var_ptr() is called.
+  */
+  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
+
   if (Events::init(opt_noacl || opt_bootstrap))
     unireg_abort(1);
+
+  mysqld_server_initialized= 1;
 
   if (opt_bootstrap)
   {
@@ -4932,20 +4931,26 @@ int mysqld_main(int argc, char **argv)
       exit(0);
     }
   }
+
+  create_shutdown_thread();
+  start_handle_manager();
+
+  /*
+    init_slave() must be called after the thread keys are created.
+    Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
+    places) assume that active_mi != 0, so let's fail if it's 0 (out of
+    memory); a message has already been printed.
+  */
+  if (init_slave() && !active_mi)
+  {
+    unireg_abort(1);
+  }
+
   if (opt_init_file && *opt_init_file)
   {
     if (read_init_file(opt_init_file))
       unireg_abort(1);
   }
-
-  /*
-    We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is hold while sql_plugin.c::intern_sys_var_ptr() is called.
-  */
-  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
-
-  create_shutdown_thread();
-  start_handle_manager();
 
   sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
                         ((unix_sock == INVALID_SOCKET) ? (char*) ""
@@ -6524,12 +6529,17 @@ static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
 
 static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
   var->type= SHOW_MY_BOOL;
   mysql_mutex_lock(&LOCK_active_mi);
   var->value= buff;
-  *((my_bool *)buff)= (my_bool) (active_mi && 
-                                 active_mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
-                                 active_mi->rli.slave_running);
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_WARN);
+  *((my_bool *)buff)= (my_bool) (mi && 
+                                 mi->slave_running ==
+                                 MYSQL_SLAVE_RUN_CONNECT &&
+                                 mi->rli.slave_running);
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }

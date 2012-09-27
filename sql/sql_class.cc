@@ -799,6 +799,9 @@ THD::THD()
   progress.max_counter= 0;
   current_linfo =  0;
   slave_thread = 0;
+  connection_name.str= 0;
+  connection_name.length= 0;
+
   bzero(&variables, sizeof(variables));
   thread_id= 0;
   one_shot_set= 0;
@@ -1166,7 +1169,14 @@ void THD::init(void)
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
+
+  variables.default_master_connection.str= default_master_connection_buff;
+  ::strmake(variables.default_master_connection.str,
+            global_system_variables.default_master_connection.str,
+            variables.default_master_connection.length);
+
   mysql_mutex_unlock(&LOCK_global_system_variables);
+
   server_status= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;

@@ -4310,11 +4310,11 @@ ER_BAD_SLAVE
         swe "Servern är inte konfigurerade som en replikationsslav. Ändra konfigurationsfilen eller gör CHANGE MASTER TO"
         ukr "Сервер не зконфігуровано як підлеглий, виправте це у файлі конфігурації або з CHANGE MASTER TO"
 ER_MASTER_INFO  
-        eng "Could not initialize master info structure; more error messages can be found in the MariaDB error log"
-        fre "Impossible d'initialiser les structures d'information de maître, vous trouverez des messages d'erreur supplémentaires dans le journal des erreurs de MariaDB"
-        ger "Konnte Master-Info-Struktur nicht initialisieren. Weitere Fehlermeldungen können im MariaDB-Error-Log eingesehen werden"
-        serbian "Nisam mogao da inicijalizujem informacionu strukturu glavnog servera, proverite da li imam privilegije potrebne za pristup file-u 'master.info'"
-        swe "Kunde inte initialisera replikationsstrukturerna. See MariaDB fel fil för mera information"
+        eng "Could not initialize master info structure for '%.*s'; more error messages can be found in the MariaDB error log"
+        fre "Impossible d'initialiser les structures d'information de maître '%.*s', vous trouverez des messages d'erreur supplémentaires dans le journal des erreurs de MariaDB"
+        ger "Konnte Master-Info-Struktur '%.*s' nicht initialisieren. Weitere Fehlermeldungen können im MariaDB-Error-Log eingesehen werden"
+        serbian "Nisam mogao da inicijalizujem informacionu strukturu glavnog servera, proverite da li imam privilegije potrebne za pristup file-u 'master.info' '%.*s'"
+        swe "Kunde inte initialisera replikationsstrukturerna för '%.*s'. See MariaDB fel fil för mera information"
 ER_SLAVE_THREAD  
         dan "Kunne ikke danne en slave-tråd; check systemressourcerne"
         nla "Kon slave thread niet aanmaken, controleer systeem resources"
@@ -6156,8 +6156,8 @@ ER_DELAYED_NOT_SUPPORTED
   eng "DELAYED option not supported for table '%-.192s'"
   ger "Die DELAYED-Option wird für Tabelle '%-.192s' nicht unterstützt"
 WARN_NO_MASTER_INFO  
-  eng "The master info structure does not exist"
-  ger "Die Master-Info-Struktur existiert nicht"
+  eng "There is no master connection '%.*s'"
+  ger "Die Master-Info-Struktur existiert nicht '%.*s'"
 WARN_OPTION_IGNORED
   eng "<%-.64s> option ignored"
   ger "Option <%-.64s> ignoriert"
@@ -6588,3 +6588,8 @@ ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
+ER_CONNECTION_ALREADY_EXISTS
+        eng "Connection '%.*s' already exists"
+ER_MASTER_LOG_PREFIX
+        eng "Master '%.*s': "
+

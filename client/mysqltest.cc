@@ -253,6 +253,8 @@ static void init_re(void);
 static int match_re(my_regex_t *, char *);
 static void free_re(void);
 
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command);
 static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, ulong search_len,
                    const char *replace_str, ulong replace_len);
@@ -4580,7 +4582,8 @@ void do_wait_for_slave_to_stop(struct st_command *c __attribute__((unused)))
 }
 
 
-void do_sync_with_master2(struct st_command *command, long offset)
+void do_sync_with_master2(struct st_command *command, long offset,
+                          const char *connection_name)
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
@@ -4591,8 +4594,9 @@ void do_sync_with_master2(struct st_command *command, long offset)
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d)",
-          master_pos.file, master_pos.pos + offset, timeout);
+  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+          master_pos.file, master_pos.pos + offset, timeout,
+          connection_name);
 
   if (mysql_query(mysql, query_buf))
     die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
@@ -4652,16 +4656,32 @@ void do_sync_with_master(struct st_command *command)
   long offset= 0;
   char *p= command->first_argument;
   const char *offset_start= p;
+  char *start, *buff= 0;
+  start= (char*) "";
+
   if (*offset_start)
   {
     for (; my_isdigit(charset_info, *p); p++)
       offset = offset * 10 + *p - '0';
 
-    if(*p && !my_isspace(charset_info, *p))
+    if (*p && !my_isspace(charset_info, *p) && *p != ',')
       die("Invalid integer argument \"%s\"", offset_start);
+
+    while (*p && my_isspace(charset_info, *p))
+      p++;
+    if (*p == ',')
+    {
+      p++;
+      while (*p && my_isspace(charset_info, *p))
+        p++;
+      start= buff= (char*)my_malloc(strlen(p)+1,MYF(MY_WME | MY_FAE));
+      get_string(&buff, &p, command);
+    }
     command->last_argument= p;
   }
-  do_sync_with_master2(command, offset);
+  do_sync_with_master2(command, offset, start);
+  if (buff)
+    my_free(start);
   return;
 }
 
@@ -5286,7 +5306,7 @@ void do_get_errcodes(struct st_command *command)
     {
       die("The sqlstate definition must start with an uppercase S");
     }
-    else if (*p == 'E')
+    else if (*p == 'E' || *p == 'W')
     {
       /* Error name string */
 
@@ -5295,9 +5315,9 @@ void do_get_errcodes(struct st_command *command)
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
-    else if (*p == 'e')
+    else if (*p == 'e' || *p == 'w')
     {
-      die("The error name definition must start with an uppercase E");
+      die("The error name definition must start with an uppercase E or W");
     }
     else
     {
@@ -5360,8 +5380,8 @@ void do_get_errcodes(struct st_command *command)
   If string is a '$variable', return the value of the variable.
 */
 
-char *get_string(char **to_ptr, char **from_ptr,
-                 struct st_command *command)
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command)
 {
   char c, sep;
   char *to= *to_ptr, *from= *from_ptr, *start=to;
@@ -9288,7 +9308,7 @@ int main(int argc, char **argv)
 	  select_connection(command);
 	else
 	  select_connection_name("slave");
-	do_sync_with_master2(command, 0);
+	do_sync_with_master2(command, 0, "");
 	break;
       }
       case Q_COMMENT:

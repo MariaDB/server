@@ -206,19 +206,37 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       name_warning_sent= 1;
     }
 
+    /* For multimaster, add connection name to relay log filenames */
+    Master_info* mi= rli->mi;
+    char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
+    char *buf_relaylog_index_name= opt_relaylog_index_name;
+
+    create_signed_file_name(buf_relay_logname, sizeof(buf_relay_logname),
+                            ln, '-', &mi->connection_name);
+    ln= buf_relay_logname;
+
+    if (opt_relaylog_index_name)
+    {
+      buf_relaylog_index_name= buf_relaylog_index_name_buff; 
+      create_signed_file_name(buf_relaylog_index_name_buff,
+                              sizeof(buf_relaylog_index_name_buff),
+                              opt_relaylog_index_name, '-',
+                              &mi->connection_name);
+    }
+
     rli->relay_log.is_relay_log= TRUE;
 
     /*
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
-    if (rli->relay_log.open_index_file(opt_relaylog_index_name, ln, TRUE) ||
+    if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
                             (max_relay_log_size ? max_relay_log_size :
                             max_binlog_size), 1, TRUE))
     {
       mysql_mutex_unlock(&rli->data_lock);
-      sql_print_error("Failed in open_log() called from init_relay_log_info()");
+      sql_print_error("Failed when trying to open logs for '%s' in init_relay_log_info(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }
   }

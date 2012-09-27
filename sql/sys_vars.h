@@ -633,6 +633,88 @@ public:
   }
 };
 
+
+/*
+  A LEX_STRING stored only in thd->variables
+  Only to be used for small buffers
+*/
+
+class Sys_var_session_lexstring: public sys_var
+{
+  size_t max_length;
+public:
+  Sys_var_session_lexstring(const char *name_arg,
+                            const char *comment, int flag_args,
+                            ptrdiff_t off, size_t size, CMD_LINE getopt,
+                            enum charset_enum is_os_charset_arg,
+                            const char *def_val, size_t max_length_arg,
+                            on_check_function on_check_func=0,
+                            on_update_function on_update_func=0)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
+              getopt.arg_type, SHOW_CHAR, (intptr)def_val,
+              0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func,
+              0, 0),max_length(max_length_arg)
+  {
+    option.var_type= GET_NO_ARG;
+    SYSVAR_ASSERT(scope() == ONLY_SESSION)
+    *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
+  }
+  bool do_check(THD *thd, set_var *var)
+  {
+    char buff[STRING_BUFFER_USUAL_SIZE];
+    String str(buff, sizeof(buff), system_charset_info), *res;
+
+    if (!(res=var->value->val_str(&str)))
+      var->save_result.string_value.str= const_cast<char*>("");
+    else
+    {
+      if (res->length() > max_length)
+      {
+        my_error(ER_WRONG_STRING_LENGTH, MYF(0),
+                 res->ptr(), name.str, (int) max_length);
+        return true;
+      }
+      var->save_result.string_value.str= thd->strmake(res->ptr(),
+                                                      res->length());
+      var->save_result.string_value.length= res->length();
+    }
+    return false;
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    LEX_STRING *tmp= &session_var(thd, LEX_STRING);
+    tmp->length= var->save_result.string_value.length;
+    /* Store as \0 terminated string (just to be safe) */
+    strmake(tmp->str, var->save_result.string_value.str, tmp->length);
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(FALSE);
+    return false;
+  }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    char *ptr= (char*)(intptr)option.def_value;
+    var->save_result.string_value.str= ptr;
+  }
+  void global_save_default(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(FALSE);
+  }
+  uchar *session_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    return (uchar*) &session_var(thd, LEX_STRING);
+  }
+  uchar *global_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    DBUG_ASSERT(FALSE);
+  }
+  bool check_update_type(Item_result type)
+  { return type != STRING_RESULT; }
+};
+
+
 #ifndef DBUG_OFF
 /**
   @@session.dbug and @@global.dbug variables.
@@ -1389,6 +1471,7 @@ public:
 };
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
+
 /**
   The class for bit variables - a variant of boolean that stores the value
   in a bit.
@@ -1861,6 +1944,65 @@ public:
   {}
   bool global_update(THD *thd, set_var *var);
 };
+
+/*
+  Class for handing multi-source replication variables
+  Variable values are store in Master_info, but to make it possible to
+  access variable without locks we also store it thd->variables.
+  These can be used as GLOBAL or SESSION, but both points to the same
+  variable.  This is to make things compatible with MySQL 5.5 where variables
+  like sql_slave_skip_counter are GLOBAL.
+*/
+
+class Sys_var_multi_source_uint :public Sys_var_uint
+{ 
+  ptrdiff_t master_info_offset;
+public:
+  Sys_var_multi_source_uint(const char *name_arg,
+                            const char *comment, int flag_args,
+                            ptrdiff_t off, size_t size,
+                            ptrdiff_t master_info_offset_arg,
+                            uint min_val, uint max_val, uint def_val,
+                            uint block_size,
+                            on_update_function on_update_func)
+    :Sys_var_uint(name_arg, comment, flag_args, off, size,
+                  NO_CMD_LINE, min_val, max_val, def_val, block_size,
+                  0, VARIABLE_NOT_IN_BINLOG, 0, on_update_func),
+    master_info_offset(master_info_offset_arg)
+  {
+    /* No global storage of variables. Cause a crash if we try an update */
+    option.value= (uchar**)1;
+  }
+  bool session_update(THD *thd, set_var *var)
+  {
+    session_var(thd, uint)= (uint) (var->save_result.ulonglong_value);
+    /* Value should be moved to multi_master in on_update_func */
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var)
+  {
+    return session_update(thd, var);
+  }
+  void session_save_default(THD *thd, set_var *var)
+  {
+    /* Use value given in variable declaration */
+    global_save_default(thd, var);
+  }
+  uchar *session_value_ptr(THD *thd,LEX_STRING *base)
+  {
+    uint *tmp, res;
+    tmp= (uint*) (((uchar*)&(thd->variables)) + offset);
+    res= get_master_info_uint_value(thd, master_info_offset);
+    *tmp= res;
+    return (uchar*) tmp;
+  }
+  uchar *global_value_ptr(THD *thd, LEX_STRING *base)
+  {
+    return session_value_ptr(thd, base);
+  }
+  uint get_master_info_uint_value(THD *thd, ptrdiff_t offset);
+};
+
 
 /****************************************************************************
   Used templates

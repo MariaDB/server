@@ -4393,27 +4393,36 @@ Create_func_master_pos_wait::create_native(THD *thd, LEX_STRING name,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
+  if (arg_count < 2 || arg_count >4)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    return func;
+  }
+
+  thd->lex->safe_to_cache_query= 0;
+
+  Item *param_1= item_list->pop();
+  Item *param_2= item_list->pop();
   switch (arg_count) {
   case 2:
   {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
     func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2);
-    thd->lex->safe_to_cache_query= 0;
     break;
   }
   case 3:
   {
-    Item *param_1= item_list->pop();
-    Item *param_2= item_list->pop();
     Item *param_3= item_list->pop();
     func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2, param_3);
     thd->lex->safe_to_cache_query= 0;
     break;
   }
-  default:
+  case 4:
   {
-    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name.str);
+    Item *param_3= item_list->pop();
+    Item *param_4= item_list->pop();
+    func= new (thd->mem_root) Item_master_pos_wait(param_1, param_2, param_3,
+                                                   param_4);
+    thd->lex->safe_to_cache_query= 0;
     break;
   }
   }

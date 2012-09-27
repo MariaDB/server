@@ -286,6 +286,7 @@ struct LEX_MASTER_INFO
   char *host, *user, *password, *log_file_name;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *relay_log_name;
+  LEX_STRING connection_name;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
