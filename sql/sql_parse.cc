@@ -2377,6 +2377,7 @@ case SQLCOM_PREPARE:
         work.
       */
       master_info_index->remove_master_info(&lex_mi->connection_name);
+      delete mi;
     }
 
     mysql_mutex_unlock(&LOCK_active_mi);

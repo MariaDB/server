@@ -3598,11 +3598,11 @@ err:
 
 /**
   Delete all logs refered to in the index file.
-  Start writing to a new log file.
 
   The new index file will only contain this file.
 
-  @param thd		Thread
+  @param thd		  Thread
+  @param create_new_log  1 if we should start writing to a new log file
 
   @note
     If not called from slave thread, write start event to new log
@@ -3613,7 +3613,7 @@ err:
     1   error
 */
 
-bool MYSQL_BIN_LOG::reset_logs(THD* thd)
+bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 {
   LOG_INFO linfo;
   bool error=0;
@@ -3780,7 +3780,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd)
       goto err;
     }
   }
-  if (!open_index_file(index_file_name, 0, FALSE))
+  if (create_new_log && !open_index_file(index_file_name, 0, FALSE))
     if ((error= open(save_name, log_type, 0, io_cache_type, max_size, 0, FALSE)))
       goto err;
   my_free((void *) save_name);

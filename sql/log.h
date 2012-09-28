@@ -748,7 +748,7 @@ public:
   int register_create_index_entry(const char* entry);
   int purge_index_entry(THD *thd, ulonglong *decrease_log_space,
                         bool need_mutex);
-  bool reset_logs(THD* thd);
+  bool reset_logs(THD* thd, bool create_new_log);
   void close(uint exiting);
   void clear_inuse_flag_when_closing(File file);
 

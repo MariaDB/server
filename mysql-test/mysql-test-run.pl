@@ -174,6 +174,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     heap
     innodb
     maria
+    multi_source
     optimizer_unfixed_bugs
     oqgraph
     parts

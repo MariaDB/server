@@ -3,6 +3,9 @@
 #
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connection slave
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 
 eval change master 'slave1' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
@@ -15,6 +18,16 @@ set default_master_connection = 'slave2';
 start slave 'slave2';
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
+
+# Ensure that all data is in the relay log
+--connection master1
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave1'
+--connection master2
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave2'
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show full slave status;
