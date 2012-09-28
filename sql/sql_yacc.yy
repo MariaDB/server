@@ -11453,7 +11453,7 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_BINLOG_EVENTS;
           } opt_limit_clause_init
-        | RELAYLOG_SYM EVENTS_SYM binlog_in binlog_from
+        | RELAYLOG_SYM optional_connection_name EVENTS_SYM binlog_in binlog_from
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_RELAYLOG_EVENTS;
