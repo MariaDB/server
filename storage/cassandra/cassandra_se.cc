@@ -17,6 +17,12 @@
 
 #include "cassandra_se.h"
 
+struct st_mysql_lex_string
+{
+  char *str;
+  size_t length;
+};
+
 using namespace std;
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
@@ -74,6 +80,7 @@ class Cassandra_se_impl: public Cassandra_se_interface
   std::string rowkey; /* key of the record we're returning now */
 
   SlicePredicate slice_pred;
+  SliceRange slice_pred_sr;
   bool get_slices_returned_less;
   bool get_slice_found_rows;
 public:
@@ -91,6 +98,8 @@ public:
   void first_ddl_column();
   bool next_ddl_column(char **name, int *name_len, char **value, int *value_len);
   void get_rowkey_type(char **name, char **type);
+  size_t get_ddl_size();
+  const char* get_default_validator();
 
   /* Settings */
   void set_consistency_levels(ulong read_cons_level, ulong write_cons_level);
@@ -98,15 +107,19 @@ public:
   /* Writes */
   void clear_insert_buffer();
   void start_row_insert(const char *key, int key_len);
-  void add_insert_column(const char *name, const char *value, int value_len);
+  void add_insert_column(const char *name, int name_len,
+                         const char *value, int value_len);
+  void add_insert_delete_column(const char *name, int name_len);
   void add_row_deletion(const char *key, int key_len,
-                        Column_name_enumerator *col_names);
-  
+                        Column_name_enumerator *col_names,
+                        LEX_STRING *names, uint nnames);
+
   bool do_insert();
 
   /* Reads, point lookups */
   bool get_slice(char *key, size_t key_len, bool *found);
-  bool get_next_read_column(char **name, char **value, int *value_len);
+  bool get_next_read_column(char **name, int *name_len,
+                            char **value, int *value_len );
   void get_read_rowkey(char **value, int *value_len);
 
   /* Reads, multi-row scans */
@@ -122,6 +135,7 @@ public:
 
   /* Setup that's necessary before a multi-row read. (todo: use it before point lookups, too) */
   void clear_read_columns();
+  void clear_read_all_columns();
   void add_read_column(const char *name);
  
   /* Reads, MRR scans */
@@ -277,6 +291,16 @@ void Cassandra_se_impl::get_rowkey_type(char **name, char **type)
     *name= NULL;
 }
 
+size_t Cassandra_se_impl::get_ddl_size()
+{
+  return cf_def.column_metadata.size();
+}
+
+const char* Cassandra_se_impl::get_default_validator()
+{
+  return cf_def.default_validation_class.c_str();
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Data writes
@@ -315,8 +339,9 @@ void Cassandra_se_impl::start_row_insert(const char *key, int key_len)
 }
 
 
-void Cassandra_se_impl::add_row_deletion(const char *key, int key_len, 
-                                         Column_name_enumerator *col_names)
+void Cassandra_se_impl::add_row_deletion(const char *key, int key_len,
+                                         Column_name_enumerator *col_names,
+                                         LEX_STRING *names, uint nnames)
 {
   std::string key_to_delete;
   key_to_delete.assign(key, key_len);
@@ -344,6 +369,9 @@ void Cassandra_se_impl::add_row_deletion(const char *key, int key_len,
   const char *col_name;
   while ((col_name= col_names->get_next_name()))
     slice_pred.column_names.push_back(std::string(col_name));
+  for (uint i= 0; i < nnames; i++)
+    slice_pred.column_names.push_back(std::string(names[i].str,
+                                                  names[i].length));
 
   mut.deletion.predicate= slice_pred;
 
@@ -351,7 +379,9 @@ void Cassandra_se_impl::add_row_deletion(const char *key, int key_len,
 }
 
 
-void Cassandra_se_impl::add_insert_column(const char *name, const char *value, 
+void Cassandra_se_impl::add_insert_column(const char *name,
+                                          int name_len,
+                                          const char *value,
                                           int value_len)
 {
   Mutation mut;
@@ -359,11 +389,31 @@ void Cassandra_se_impl::add_insert_column(const char *name, const char *value,
   mut.column_or_supercolumn.__isset.column= true;
 
   Column& col=mut.column_or_supercolumn.column;
-  col.name.assign(name);
+  if (name_len)
+    col.name.assign(name, name_len);
+  else
+    col.name.assign(name);
   col.value.assign(value, value_len);
   col.timestamp= insert_timestamp;
   col.__isset.value= true;
   col.__isset.timestamp= true;
+  insert_list->push_back(mut);
+}
+
+void Cassandra_se_impl::add_insert_delete_column(const char *name,
+                                                 int name_len)
+{
+  Mutation mut;
+  mut.__isset.deletion= true;
+  mut.deletion.__isset.timestamp= true;
+  mut.deletion.timestamp= insert_timestamp;
+  mut.deletion.__isset.predicate= true;
+
+  SlicePredicate slice_pred;
+  slice_pred.__isset.column_names= true;
+  slice_pred.column_names.push_back(std::string(name, name_len));
+  mut.deletion.predicate= slice_pred;
+
   insert_list->push_back(mut);
 }
 
@@ -444,8 +494,8 @@ bool Cassandra_se_impl::retryable_get_slice()
 }
 
 
-bool Cassandra_se_impl::get_next_read_column(char **name, char **value, 
-                                             int *value_len)
+bool Cassandra_se_impl::get_next_read_column(char **name, int *name_len,
+                                             char **value, int *value_len)
 {
   bool use_counter=false;
   while (1)
@@ -468,12 +518,14 @@ bool Cassandra_se_impl::get_next_read_column(char **name, char **value,
   ColumnOrSuperColumn& cs= *column_data_it;
   if (use_counter)
   {
+    *name_len= cs.counter_column.name.size();
     *name= (char*)cs.counter_column.name.c_str();
     *value= (char*)&cs.counter_column.value;
     *value_len= sizeof(cs.counter_column.value);
   }
   else
   {
+    *name_len= cs.column.name.size();
     *name= (char*)cs.column.name.c_str();
     *value= (char*)cs.column.value.c_str();
     *value_len= cs.column.value.length();
@@ -599,6 +651,13 @@ void Cassandra_se_impl::finish_reading_range_slices()
 void Cassandra_se_impl::clear_read_columns()
 {
   slice_pred.column_names.clear();
+}
+
+void Cassandra_se_impl::clear_read_all_columns()
+{
+  slice_pred_sr.start = "";
+  slice_pred_sr.finish = "";
+  slice_pred.__set_slice_range(slice_pred_sr);
 }
 
 

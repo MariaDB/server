@@ -11,7 +11,7 @@ namespace org { namespace apache { namespace cassandra {
 const cassandraConstants g_cassandra_constants;
 
 cassandraConstants::cassandraConstants() {
-  cassandra_const_VERSION = "19.32.0";
+  cassandra_const_VERSION = (char *)"19.32.0";
 }
 
 }}} // namespace

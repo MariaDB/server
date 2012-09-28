@@ -12,7 +12,7 @@ SET(cassandra_sources
      gen-cpp/Cassandra.h)
 
 #INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
-INCLUDE_DIRECTORIES(AFTER /home/psergey/cassandra/thrift/include/thrift/) 
+INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift) 
 # 
 STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})

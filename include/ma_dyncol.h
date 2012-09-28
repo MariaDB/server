@@ -39,6 +39,12 @@
 */
 #define MAX_DYNAMIC_COLUMN_LENGTH 0X1FFFFFFFL
 
+/*
+  Limits of implementation
+*/
+#define MAX_NAME_LENGTH 255
+#define MAX_TOTAL_NAME_LENGTH 65535
+
 /* NO and OK is the same used just to show semantics */
 #define ER_DYNCOL_NO ER_DYNCOL_OK
 
@@ -50,7 +56,8 @@ enum enum_dyncol_func_result
   ER_DYNCOL_LIMIT=  -2,            /* Some limit reached */
   ER_DYNCOL_RESOURCE= -3,          /* Out of resourses */
   ER_DYNCOL_DATA= -4,              /* Incorrect input data */
-  ER_DYNCOL_UNKNOWN_CHARSET= -5    /* Unknown character set */
+  ER_DYNCOL_UNKNOWN_CHARSET= -5,   /* Unknown character set */
+  ER_DYNCOL_TRUNCATED= 2           /* OK, but data was truncated */
 };
 
 typedef DYNAMIC_STRING DYNAMIC_COLUMN;
@@ -81,6 +88,7 @@ struct st_dynamic_column_value
     struct {
       LEX_STRING value;
       CHARSET_INFO *charset;
+      my_bool nonfreeable;
     } string;
     struct {
       decimal_digit_t buffer[DECIMAL_BUFF_LENGTH];
@@ -108,6 +116,13 @@ dynamic_column_create_many_fmt(DYNAMIC_COLUMN *str,
                                uchar *column_keys,
                                DYNAMIC_COLUMN_VALUE *values,
                                my_bool names);
+enum enum_dyncol_func_result
+dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
+                                        uint column_count,
+                                        void *column_keys,
+                                        DYNAMIC_COLUMN_VALUE *values,
+                                        my_bool new_str,
+                                        my_bool string_keys);
 
 enum enum_dyncol_func_result
 dynamic_column_update(DYNAMIC_COLUMN *org, uint column_nr,
@@ -162,6 +177,21 @@ dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json);
 
 #define dynamic_column_initialize(A) memset((A), 0, sizeof(*(A)))
 #define dynamic_column_column_free(V) dynstr_free(V)
+
+/* conversion of values to 3 base types */
+enum enum_dyncol_func_result
+dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
+                       CHARSET_INFO *cs, my_bool quote);
+enum enum_dyncol_func_result
+dynamic_column_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val);
+enum enum_dyncol_func_result
+dynamic_column_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val);
+
+
+enum enum_dyncol_func_result
+dynamic_column_vals(DYNAMIC_COLUMN *str,
+                    DYNAMIC_ARRAY *names, DYNAMIC_ARRAY *vals,
+                    char **free_names);
 
 /***************************************************************************
  Internal functions, don't use if you don't know what you are doing...

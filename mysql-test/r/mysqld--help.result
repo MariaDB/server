@@ -89,6 +89,24 @@ The following options may be given as the first argument:
  --bulk-insert-buffer-size=# 
  Size of tree cache used in bulk insert optimisation. Note
  that this is a limit per thread!
+ --cassandra[=name]  Enable or disable CASSANDRA plugin. Possible values are
+ ON, OFF, FORCE (don't start if the plugin fails to load).
+ --cassandra-default-thrift-host=name 
+ Default host for Cassandra thrift connections
+ --cassandra-failure-retries=# 
+ Number of times to retry Cassandra calls that failed due
+ to timeouts or network communication problems. The
+ default, 0, means not to retry.
+ --cassandra-insert-batch-size=# 
+ Number of rows in an INSERT batch
+ --cassandra-multiget-batch-size=# 
+ Number of rows in a multiget(MRR) batch
+ --cassandra-read-consistency=name 
+ Cassandra consistency level to use for read operations
+ --cassandra-rnd-batch-size=# 
+ Number of rows in an rnd_read (full scan) batch
+ --cassandra-write-consistency=name 
+ Cassandra consistency level to use for write operations
  --character-set-client-handshake 
  Don't ignore client side character set value sent during
  handshake.
@@ -863,6 +881,14 @@ binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 1024
 binlog-stmt-cache-size 32768
 bulk-insert-buffer-size 8388608
+cassandra ON
+cassandra-default-thrift-host (No default value)
+cassandra-failure-retries 0
+cassandra-insert-batch-size 100
+cassandra-multiget-batch-size 100
+cassandra-read-consistency ONE
+cassandra-rnd-batch-size 10000
+cassandra-write-consistency ONE
 character-set-client-handshake TRUE
 character-set-filesystem binary
 character-set-server latin1

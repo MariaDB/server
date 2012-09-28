@@ -6,6 +6,8 @@
   both together causes compile errors due to conflicts).
 */
 
+struct st_mysql_lex_string;
+typedef struct st_mysql_lex_string LEX_STRING;
 
 /* We need to define this here so that ha_cassandra.cc also has access to it */
 typedef enum
@@ -50,19 +52,25 @@ public:
   virtual bool next_ddl_column(char **name, int *name_len, char **value, 
                                int *value_len)=0;
   virtual void get_rowkey_type(char **name, char **type)=0;
+  virtual size_t get_ddl_size()=0;
+  virtual const char* get_default_validator()=0;
 
   /* Writes */
   virtual void clear_insert_buffer()=0;
   virtual void add_row_deletion(const char *key, int key_len,
-                                Column_name_enumerator *col_names)=0;
+                                Column_name_enumerator *col_names,
+                                LEX_STRING *names, uint nnames)=0;
   virtual void start_row_insert(const char *key, int key_len)=0;
-  virtual void add_insert_column(const char *name, const char *value, 
+  virtual void add_insert_delete_column(const char *name, int name_len)= 0;
+  virtual void add_insert_column(const char *name, int name_len,
+                                 const char *value,
                                  int value_len)=0;
   virtual bool do_insert()=0;
 
   /* Reads */
   virtual bool get_slice(char *key, size_t key_len, bool *found)=0 ;
-  virtual bool get_next_read_column(char **name, char **value, int *value_len)=0;
+  virtual bool get_next_read_column(char **name, int *name_len,
+                                    char **value, int *value_len)=0;
   virtual void get_read_rowkey(char **value, int *value_len)=0;
 
   /* Reads, multi-row scans */
@@ -70,7 +78,7 @@ public:
   virtual bool get_range_slices(bool last_key_as_start_key)=0;
   virtual void finish_reading_range_slices()=0;
   virtual bool get_next_range_slice_row(bool *eof)=0;
-  
+
   /* Reads, MRR scans */
   virtual void new_lookup_keys()=0;
   virtual int  add_lookup_key(const char *key, size_t key_len)=0;
@@ -79,8 +87,9 @@ public:
 
   /* read_set setup */
   virtual void clear_read_columns()=0;
+  virtual void clear_read_all_columns()=0;
   virtual void add_read_column(const char *name)=0;
-  
+
   virtual bool truncate()=0;
   virtual bool remove_row()=0;
 

@@ -94,6 +94,18 @@ CREATE COLUMN FAMILY cf10
   WITH comparator = UTF8Type
   AND key_validation_class=UTF8Type
   AND default_validation_class = UTF8Type;
+
+CREATE COLUMN FAMILY cfd1
+  WITH comparator = UTF8Type
+  AND key_validation_class=UTF8Type 
+  AND default_validation_class = UTF8Type;
+SET cfd1['1']['very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_long_name']='1';
+
+CREATE COLUMN FAMILY cfd2 
+  WITH comparator = UTF8Type
+    AND key_validation_class=Int32Type
+    AND default_validation_class = UTF8Type;
+
 EOF
 
 --error 0,1,2
@@ -463,7 +475,7 @@ drop table t2;
 CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
 select * from t2;
-
+delete from t2;
 drop table t2;
 
 --echo #
@@ -510,6 +522,118 @@ select * from t1;
 
 delete from t1;
 drop table t1;
+
+--echo #
+--echo # Dynamic columns support
+--echo #
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+drop table t2;
+
+--echo #error: dynamic column is not a blob
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36) DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+
+--echo #error: double dynamic column
+--error ER_WRONG_FIELD_SPEC
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1, textcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+
+--echo #
+--echo # Dynamic column read
+--echo #
+#prepare data
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+insert into t2 values(1,'9b5658dc-f32f-11e1-94cd-f46d046e9f09');
+insert into t2 values(2,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+drop table t2;
+
+#test dynamic column read
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+select rowkey, column_list(dyn), column_get(dyn, 'uuidcol' as char) from t2;
+drop table t2;
+
+#cleanup data
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+  thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+drop table t2;
+
+--echo #
+--echo # Dynamic column insert
+--echo #
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+insert into t2 values (1, column_create("dyn1", 1, "dyn2", "two")); 
+select rowkey, column_json(dyn) from t2;
+delete from t2;
+drop table t2;
+--echo # bigint
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'a', 254324)); 
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'a', 2543)); 
+select rowkey, column_json(dyn) from t1;
+delete from t1;
+drop table t1;
+--echo # int
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'intcol', 254324)); 
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'intcol', 2543)); 
+select rowkey, column_json(dyn) from t1;
+delete from t1;
+drop table t1;
+--echo # timestamp
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'datecol', 254324)); 
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'datecol', 2543)); 
+select rowkey, column_json(dyn) from t1;
+delete from t1;
+drop table t1;
+--echo # boolean
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 254324)); 
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 0)); 
+select rowkey, column_json(dyn) from t1;
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, "dyn2", null, "dyn3", "3"); 
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, "dyn1", null) where rowkey= 1;
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, "dyn3", null, "a", "ddd");
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, "12345678901234", "ddd");
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, "12345678901234", null);
+select rowkey, column_json(dyn) from t1;
+update t1 set dyn=column_add(dyn, 'boolcol', null) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+update t1 set rowkey= 3, dyn=column_add(dyn, "dyn1", null, 'boolcol', 0) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+delete from t1;
+drop table t1;
+
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd1';
+--error ER_INTERNAL_ERROR
+select * from t1;
+drop table t1;
+
+# MDEV-560
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+DELETE FROM t1;
+insert into t1 values (1, column_create("dyn", 1));
+select rowkey, column_list(dyn) from t1;
+# Cleanup
+delete from t1;
+DROP TABLE t1;
+
+# MDEV-561 (incorrect format data to dynamic column)
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+--error ER_DYN_COL_WRONG_FORMAT
+insert into t1 values (1,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+delete from t1;
+DROP TABLE t1;
+
 
 ############################################################################
 ## Cassandra cleanup

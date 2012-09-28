@@ -68,6 +68,8 @@ uint32 copy_and_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 
 #define MAX_OFFSET_LENGTH  5
 
+#define DYNCOL_NUM_CHAR 6
+
 my_bool dynamic_column_has_names(DYNAMIC_COLUMN *str)
 {
   if (str->length < 1)
@@ -211,7 +213,7 @@ static my_bool check_limit_num(const void *val)
 
 static my_bool check_limit_str(const void *val)
 {
-  return (*((LEX_STRING **)val))->length > 255;
+  return (*((LEX_STRING **)val))->length > MAX_NAME_LENGTH;
 }
 
 
@@ -288,7 +290,7 @@ my_bool put_header_entry_str(DYN_HEADER *hdr,
                              size_t offset)
 {
   LEX_STRING *column_name= (LEX_STRING *)column_key;
-  DBUG_ASSERT(column_name->length <= 255);
+  DBUG_ASSERT(column_name->length <= MAX_NAME_LENGTH);
   hdr->entry[0]= column_name->length;
   DBUG_ASSERT(hdr->name - hdr->nmpool < (long) 0x10000L);
   int2store(hdr->entry + 1, hdr->name - hdr->nmpool);
@@ -1381,6 +1383,9 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
                        DYNCOL_SYZERESERVE))
       goto err;
   }
+  if (!column_count)
+    return ER_DYNCOL_OK;
+
   bzero(str->str, fmt->fixed_hdr);
   str->length= fmt->fixed_hdr;
 
@@ -1501,7 +1506,7 @@ calc_var_sizes(DYN_HEADER *hdr,
   @return ER_DYNCOL_* return code
 */
 
-static enum enum_dyncol_func_result
+enum enum_dyncol_func_result
 dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
                                         uint column_count,
                                         void *column_keys,
@@ -1761,7 +1766,7 @@ static my_bool
 find_column(DYN_HEADER *hdr, uint numkey, LEX_STRING *strkey)
 {
   LEX_STRING nmkey;
-  char nmkeybuff[6]; /* to fit max 2 bytes number */
+  char nmkeybuff[DYNCOL_NUM_CHAR]; /* to fit max 2 bytes number */
   DBUG_ASSERT(hdr->header != NULL);
 
   if (hdr->header + hdr->header_size > hdr->data_end)
@@ -2169,10 +2174,10 @@ dynamic_column_list_str(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_lexstr)
     if (header.format == DYNCOL_FMT_NUM)
     {
       uint nm= uint2korr(read);
-      tmp.str= my_malloc(6, MYF(0));
+      tmp.str= my_malloc(DYNCOL_NUM_CHAR, MYF(0));
       if (!tmp.str)
         return ER_DYNCOL_RESOURCE;
-      tmp.length= snprintf(tmp.str, 6, "%u", nm);
+      tmp.length= snprintf(tmp.str, DYNCOL_NUM_CHAR, "%u", nm);
     }
     else
     {
@@ -2208,7 +2213,7 @@ find_place(DYN_HEADER *hdr, void *key, my_bool string_keys)
   uint mid, start, end, val;
   int flag;
   LEX_STRING str;
-  char buff[6];
+  char buff[DYNCOL_NUM_CHAR];
   my_bool need_conversion= ((string_keys ? DYNCOL_FMT_STR : DYNCOL_FMT_NUM) !=
                             hdr->format);
   LINT_INIT(flag);                              /* 100 % safe */
@@ -2425,7 +2430,7 @@ dynamic_column_update_copy(DYNAMIC_COLUMN *str, PLAN *plan,
       size_t offs;
       uint nm;
       DYNAMIC_COLUMN_TYPE tp;
-      char buff[6];
+      char buff[DYNCOL_NUM_CHAR];
 
       if (hdr->format == DYNCOL_FMT_NUM)
       {
@@ -3438,7 +3443,7 @@ end:
 
 enum enum_dyncol_func_result
 dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
-                       my_bool quote)
+                       CHARSET_INFO *cs, my_bool quote)
 {
   char buff[40];
   int len;
@@ -3468,24 +3473,22 @@ dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
         char *alloc= NULL;
         char *from= val->x.string.value.str;
         uint bufflen;
-        my_bool conv= !my_charset_same(val->x.string.charset,
-                                       &my_charset_utf8_general_ci);
+        my_bool conv= !my_charset_same(val->x.string.charset, cs);
         my_bool rc;
         len= val->x.string.value.length;
-        bufflen= (len * (conv ? my_charset_utf8_general_ci.mbmaxlen : 1));
+        bufflen= (len * (conv ? cs->mbmaxlen : 1));
         if (dynstr_realloc(str, bufflen))
             return ER_DYNCOL_RESOURCE;
 
         // guaranty UTF-8 string for value
-        if (!my_charset_same(val->x.string.charset,
-                             &my_charset_utf8_general_ci))
+        if (!my_charset_same(val->x.string.charset, cs))
         {
           uint dummy_errors;
           if (!quote)
           {
             /* convert to the destination */
             str->length+= copy_and_convert_extended(str->str, bufflen,
-                                                    &my_charset_utf8_general_ci,
+                                                    cs,
                                                     from, len,
                                                     val->x.string.charset,
                                                     &dummy_errors);
@@ -3494,8 +3497,7 @@ dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
           if ((alloc= (char *)my_malloc(bufflen, MYF(0))))
           {
             len=
-              copy_and_convert_extended(alloc, bufflen,
-                                        &my_charset_utf8_general_ci,
+              copy_and_convert_extended(alloc, bufflen, cs,
                                         from, len, val->x.string.charset,
                                         &dummy_errors);
             from= alloc;
@@ -3542,6 +3544,155 @@ dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
   }
   return(ER_DYNCOL_OK);
 }
+
+
+enum enum_dyncol_func_result
+dynamic_column_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val)
+{
+  enum enum_dyncol_func_result rc= ER_DYNCOL_OK;
+  *ll= 0;
+  switch (val->type) {
+  case DYN_COL_INT:
+      *ll= val->x.long_value;
+      break;
+    case DYN_COL_UINT:
+      *ll= (longlong)val->x.ulong_value;
+      if (val->x.ulong_value > ULONGLONG_MAX)
+         rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_DOUBLE:
+      *ll= (longlong)val->x.double_value;
+      if (((double) *ll) != val->x.double_value)
+        rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_STRING:
+      {
+        longlong i= 0, sign= 1;
+        char *src= val->x.string.value.str;
+        uint len= val->x.string.value.length;
+
+        while (len && my_isspace(&my_charset_latin1, *src)) src++,len--;
+
+        if (len)
+        {
+          if (*src == '-')
+          {
+            sign= -1;
+            src++;
+          } else if (*src == '-')
+            src++;
+          while(len && my_isdigit(&my_charset_latin1, *src))
+          {
+            i= i * 10 + (*src - '0');
+            src++;
+          }
+        }
+        else
+          rc= ER_DYNCOL_TRUNCATED;
+        if (len)
+          rc= ER_DYNCOL_TRUNCATED;
+        *ll= i * sign;
+        break;
+      }
+    case DYN_COL_DECIMAL:
+      if (decimal2longlong(&val->x.decimal.value, ll) != E_DEC_OK)
+        rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_DATETIME:
+      *ll= (val->x.time_value.year * 10000000000L +
+            val->x.time_value.month * 100000000L +
+            val->x.time_value.day * 1000000 +
+            val->x.time_value.hour * 10000 +
+            val->x.time_value.minute * 100 +
+            val->x.time_value.second) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_DATE:
+      *ll= (val->x.time_value.year * 10000 +
+            val->x.time_value.month * 100 +
+            val->x.time_value.day) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_TIME:
+      *ll= (val->x.time_value.hour * 10000 +
+            val->x.time_value.minute * 100 +
+            val->x.time_value.second) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_NULL:
+      rc= ER_DYNCOL_TRUNCATED;
+      break;
+    default:
+      return(ER_DYNCOL_FORMAT);
+  }
+  return(rc);
+}
+
+
+enum enum_dyncol_func_result
+dynamic_column_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val)
+{
+  enum enum_dyncol_func_result rc= ER_DYNCOL_OK;
+  *dbl= 0;
+  switch (val->type) {
+  case DYN_COL_INT:
+      *dbl= (double)val->x.long_value;
+      if (((longlong) *dbl) != val->x.long_value)
+        rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_UINT:
+      *dbl= (double)val->x.ulong_value;
+      if (((ulonglong) *dbl) != val->x.ulong_value)
+        rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_DOUBLE:
+      *dbl= val->x.double_value;
+      break;
+    case DYN_COL_STRING:
+      {
+        char *str, *end;
+        if ((str= malloc(val->x.string.value.length + 1)))
+          return ER_DYNCOL_RESOURCE;
+        memcpy(str, val->x.string.value.str, val->x.string.value.length);
+        str[val->x.string.value.length]= '\0';
+        *dbl= strtod(str, &end);
+        if (*end != '\0')
+          rc= ER_DYNCOL_TRUNCATED;
+      }
+    case DYN_COL_DECIMAL:
+      if (decimal2double(&val->x.decimal.value, dbl) != E_DEC_OK)
+        rc= ER_DYNCOL_TRUNCATED;
+      break;
+    case DYN_COL_DATETIME:
+      *dbl= (double)(val->x.time_value.year * 10000000000L +
+                     val->x.time_value.month * 100000000L +
+                     val->x.time_value.day * 1000000 +
+                     val->x.time_value.hour * 10000 +
+                     val->x.time_value.minute * 100 +
+                     val->x.time_value.second) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_DATE:
+      *dbl= (double)(val->x.time_value.year * 10000 +
+                     val->x.time_value.month * 100 +
+                     val->x.time_value.day) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_TIME:
+      *dbl= (double)(val->x.time_value.hour * 10000 +
+                     val->x.time_value.minute * 100 +
+                     val->x.time_value.second) *
+        (val->x.time_value.neg ? -1 : 1);
+      break;
+    case DYN_COL_NULL:
+      rc= ER_DYNCOL_TRUNCATED;
+      break;
+    default:
+      return(ER_DYNCOL_FORMAT);
+  }
+  return(rc);
+}
+
 
 /**
   Convert to JSON
@@ -3602,10 +3753,11 @@ dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json)
     if (header.format == DYNCOL_FMT_NUM)
     {
       uint nm= uint2korr(header.entry);
-      if (dynstr_realloc(json, 6 + 3))
+      if (dynstr_realloc(json, DYNCOL_NUM_CHAR + 3))
         goto err;
       json->str[json->length++]= '"';
-      json->length+= (snprintf(json->str + json->length, 6, "%u", nm));
+      json->length+= (snprintf(json->str + json->length,
+                               DYNCOL_NUM_CHAR, "%u", nm));
     }
     else
     {
@@ -3619,7 +3771,8 @@ dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json)
     }
     json->str[json->length++]= '"';
     json->str[json->length++]= ':';
-    if ((rc= dynamic_column_val_str(json, &val, TRUE)) < 0 ||
+    if ((rc= dynamic_column_val_str(json, &val,
+                                    &my_charset_utf8_general_ci, TRUE)) < 0 ||
         dynstr_append_mem(json, "}", 1))
       goto err;
   }
@@ -3629,5 +3782,101 @@ dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json)
 
 err:
   json->length= 0;
+  return rc;
+}
+
+
+/**
+  Convert to DYNAMIC_COLUMN_VALUE values and names (LEX_STING) dynamic array
+
+  @param str             The packed string
+  @param names           Where to put names
+  @param vals            Where to put values
+  @param free_names      pointer to free names buffer if there is it.
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_vals(DYNAMIC_COLUMN *str,
+                    DYNAMIC_ARRAY *names, DYNAMIC_ARRAY *vals,
+                    char **free_names)
+{
+  DYN_HEADER header;
+  char *nm;
+  uint i;
+  enum enum_dyncol_func_result rc;
+
+  *free_names= 0;
+  bzero(names, sizeof(DYNAMIC_ARRAY));        /* In case of errors */
+  bzero(vals, sizeof(DYNAMIC_ARRAY));         /* In case of errors */
+  if (str->length == 0)
+    return ER_DYNCOL_OK;                      /* no columns */
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  if (header.entry_size * header.column_count + FIXED_HEADER_SIZE >
+      str->length)
+    return ER_DYNCOL_FORMAT;
+
+  if (init_dynamic_array(names, sizeof(LEX_STRING),
+                         header.column_count, 0) ||
+      init_dynamic_array(vals, sizeof(DYNAMIC_COLUMN_VALUE),
+                         header.column_count, 0) ||
+      (header.format == DYNCOL_FMT_NUM &&
+       !(*free_names= (char *)malloc(DYNCOL_NUM_CHAR * header.column_count))))
+  {
+    rc= ER_DYNCOL_RESOURCE;
+    goto err;
+  }
+  nm= *free_names;
+
+  for (i= 0, header.entry= header.header;
+       i < header.column_count;
+       i++, header.entry+= header.entry_size)
+  {
+    DYNAMIC_COLUMN_VALUE val;
+    LEX_STRING name;
+    header.length=
+      hdr_interval_length(&header, header.entry + header.entry_size);
+    header.data= header.dtpool + header.offset;
+    /*
+      Check that the found data is withing the ranges. This can happen if
+      we get data with wrong offsets.
+    */
+    if (header.length == DYNCOL_OFFSET_ERROR ||
+        header.length > INT_MAX || header.offset > header.data_size)
+    {
+      rc= ER_DYNCOL_FORMAT;
+      goto err;
+    }
+    if ((rc= dynamic_column_get_value(&header, &val)) < 0)
+      goto err;
+
+    if (header.format == DYNCOL_FMT_NUM)
+    {
+      uint num= uint2korr(header.entry);
+      name.str= nm;
+      name.length= snprintf(nm, DYNCOL_NUM_CHAR, "%u", num);
+      nm+= name.length + 1;
+    }
+    else
+    {
+      name.length= header.entry[0];
+      name.str= (char *)header.nmpool + uint2korr(header.entry + 1);
+    }
+    /* following is preallocated and so do not fail */
+    (void) insert_dynamic(names, (uchar *)&name);
+    (void) insert_dynamic(vals, (uchar *)&val);
+  }
+  return ER_DYNCOL_OK;
+
+err:
+  delete_dynamic(names);
+  delete_dynamic(vals);
+  if (*free_names)
+    my_free(*free_names);
+  *free_names= 0;
   return rc;
 }
