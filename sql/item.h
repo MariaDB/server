@@ -523,7 +523,7 @@ public:
 
 struct st_dyncall_create_def
 {
-  Item  *num, *value;
+  Item  *key, *value;
   CHARSET_INFO *cs;
   uint len, frac;
   DYNAMIC_COLUMN_TYPE type;

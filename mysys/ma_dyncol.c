@@ -29,7 +29,11 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 #include <ma_dyncol.h>
+#include <my_time.h>
 
+uint32 copy_and_convert(char *to, uint32 to_length, CHARSET_INFO *to_cs,
+			const char *from, uint32 from_length,
+			CHARSET_INFO *from_cs, uint *errors);
 /*
   Flag byte bits
 
@@ -37,18 +41,39 @@
 */
 /* mask to get above bits */
 #define DYNCOL_FLG_OFFSET  3
+#define DYNCOL_FLG_NAMES  4
 /* All known flags mask */
-#define DYNCOL_FLG_KNOWN  3
+#define DYNCOL_FLG_KNOWN  7
+
+/* formats */
+#define DYNCOL_FMT_NUM 0
+#define DYNCOL_FMT_STR 1
 
 /* dynamic column size reserve */
 #define DYNCOL_SYZERESERVE 80
 
+#define DYNCOL_OFFSET_ERROR 0xffffffff
+
 /* length of fixed string header 1 byte - flags, 2 bytes - columns counter */
 #define FIXED_HEADER_SIZE 3
+/*
+  length of fixed string header with names
+  1 byte - flags, 2 bytes - columns counter,  2 bytes - name pool size
+*/
+#define FIXED_HEADER_SIZE_NM 5
 
 #define COLUMN_NUMBER_SIZE 2
+/* 1 byte name length + 2 bytes offset from the name pool */
+#define COLUMN_NAMEPTR_SIZE 3
 
 #define MAX_OFFSET_LENGTH  5
+
+my_bool dynamic_column_has_names(DYNAMIC_COLUMN *str)
+{
+  if (str->length < 1)
+    return FALSE;
+  return test(str->str[0] & DYNCOL_FLG_NAMES);
+}
 
 static enum enum_dyncol_func_result
 dynamic_column_time_store(DYNAMIC_COLUMN *str,
@@ -62,6 +87,311 @@ dynamic_column_time_read_internal(DYNAMIC_COLUMN_VALUE *store_it_here,
 static enum enum_dyncol_func_result
 dynamic_column_date_read_internal(DYNAMIC_COLUMN_VALUE *store_it_here,
                                   uchar *data, size_t length);
+static enum enum_dyncol_func_result
+dynamic_column_get_internal(DYNAMIC_COLUMN *str,
+                                DYNAMIC_COLUMN_VALUE *store_it_here,
+                                uint num_key, LEX_STRING *str_key);
+static enum enum_dyncol_func_result
+dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
+                               LEX_STRING *str_key);
+enum enum_dyncol_func_result
+dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
+                               uint add_column_count,
+                               void *column_keys,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool string_keys);
+static int plan_sort_num(const void *a, const void *b);
+static int plan_sort_str(const void *a, const void *b);
+
+/*
+  Structure to hold information about dynamic columns record and
+  iterate through it.
+*/
+
+struct st_dyn_header
+{
+  uchar *header, *nmpool, *dtpool, *data_end;
+  size_t offset_size;
+  size_t entry_size;
+  size_t header_size;
+  size_t nmpool_size;
+  size_t data_size;
+  /* DYNCOL_FMT_NUM - numeric columns, DYNCOL_FMT_STR - column names */
+  uint format;
+  uint column_count;
+
+  uchar *entry, *data, *name;
+  size_t offset;
+  uint length;
+  enum enum_dynamic_column_type type;
+};
+
+typedef struct st_dyn_header DYN_HEADER;
+
+static inline my_bool read_fixed_header(DYN_HEADER *hdr,
+                                        DYNAMIC_COLUMN *str);
+static void set_fixed_header(DYNAMIC_COLUMN *str,
+                             uint offset_size,
+                             uint column_count);
+static my_bool type_and_offset_store(uchar *place, size_t offset_size,
+                                     DYNAMIC_COLUMN_TYPE type,
+                                     size_t offset);
+
+/*
+  Calculate entry size (E) and header size (H) by offset size (O) and column
+  count (C) and fixed part of entry size (F).
+*/
+
+#define calc_param(E,H,F,O,C) do { \
+  (*(E))= (O) + F;                 \
+  (*(H))= (*(E)) * (C);            \
+}while(0);
+
+
+/**
+  Name pool size functions, for numeric format it is 0
+*/
+
+size_t name_size_num(void *keys __attribute__((unused)),
+                     uint i __attribute__((unused)))
+{
+  return 0;
+}
+
+
+/**
+  Name pool size functions.
+*/
+size_t name_size_str(void *keys, uint i)
+{
+  return ((LEX_STRING *) keys)[i].length;
+}
+
+
+/**
+  Comparator function for references on column numbers for qsort
+  (numeric format)
+*/
+
+static int column_sort_num(const void *a, const void *b)
+{
+  return **((uint **)a) - **((uint **)b);
+}
+
+
+/**
+  Comparator function for references on column numbers for qsort
+  (names format)
+*/
+
+static int column_sort_str(const void *a, const void *b)
+{
+  LEX_STRING *s1= *((LEX_STRING **)a);
+  LEX_STRING *s2= *((LEX_STRING **)b);
+  int rc= s1->length - s2->length;
+  if (rc == 0)
+    rc= memcmp((void *)s1->str, (void *)s2->str, (size_t) s1->length);
+  return rc;
+}
+
+
+/**
+  Check limit function (numeric format)
+*/
+
+static my_bool check_limit_num(const void *val)
+{
+  return **((uint **)val) > UINT_MAX16;
+}
+
+
+/**
+  Check limit function (names format)
+*/
+
+static my_bool check_limit_str(const void *val)
+{
+  return (*((LEX_STRING **)val))->length > 255;
+}
+
+
+/**
+  Write numeric format static header part.
+*/
+
+void set_fixed_header_num(DYNAMIC_COLUMN *str, DYN_HEADER *hdr)
+{
+  set_fixed_header(str, hdr->offset_size, hdr->column_count);
+  hdr->header= (uchar *)str->str + FIXED_HEADER_SIZE;
+  hdr->nmpool= hdr->dtpool= hdr->header + hdr->header_size;
+}
+
+
+/**
+  Write names format static header part.
+*/
+
+void set_fixed_header_str(DYNAMIC_COLUMN *str, DYN_HEADER *hdr)
+{
+  set_fixed_header(str, hdr->offset_size, hdr->column_count);
+  str->str[0]|= DYNCOL_FLG_NAMES;
+  int2store(str->str + 3, hdr->nmpool_size);
+  hdr->header= (uchar *)str->str + FIXED_HEADER_SIZE_NM;
+  hdr->nmpool= hdr->header + hdr->header_size;
+  hdr->dtpool= hdr->nmpool + hdr->nmpool_size;
+}
+
+
+/**
+  Write numeric format header entry
+   2 bytes - column number
+   1-4 bytes - data offset combined with type
+
+  @param hdr             descriptor of dynamic column record
+  @param column_key      pointer to uint (column number)
+  @param value           value which will be written (only type used)
+  @param offset          offset of the data
+*/
+
+my_bool put_header_entry_num(DYN_HEADER *hdr,
+                             void *column_key,
+                             DYNAMIC_COLUMN_VALUE *value,
+                             size_t offset)
+{
+  uint *column_number= (uint *)column_key;
+  int2store(hdr->entry, *column_number);
+  DBUG_ASSERT(hdr->nmpool_size == 0);
+  if (type_and_offset_store(hdr->entry, hdr->offset_size,
+                            value->type,
+                            offset))
+      return TRUE;
+  hdr->entry= hdr->entry + hdr->entry_size;
+  return FALSE;
+}
+
+
+/**
+  Write names format header entry
+   1 byte - name length
+   2 bytes - name offset in the name pool
+   1-4 bytes - data offset combined with type
+
+  @param hdr             descriptor of dynamic column record
+  @param column_key      pointer to LEX_STRING (column name)
+  @param value           value which will be written (only type used)
+  @param offset          offset of the data
+*/
+
+my_bool put_header_entry_str(DYN_HEADER *hdr,
+                             void *column_key,
+                             DYNAMIC_COLUMN_VALUE *value,
+                             size_t offset)
+{
+  LEX_STRING *column_name= (LEX_STRING *)column_key;
+  DBUG_ASSERT(column_name->length <= 255);
+  hdr->entry[0]= column_name->length;
+  DBUG_ASSERT(hdr->name - hdr->nmpool < (long) 0x10000L);
+  int2store(hdr->entry + 1, hdr->name - hdr->nmpool);
+  memcpy(hdr->name, column_name->str, column_name->length);
+  DBUG_ASSERT(hdr->nmpool_size != 0 || column_name->length == 0);
+  if (type_and_offset_store(hdr->entry + 1, hdr->offset_size,
+                            value->type,
+                            offset))
+    return TRUE;
+  hdr->entry+= hdr->entry_size;
+  hdr->name+= column_name->length;
+  return FALSE;
+}
+
+
+/**
+  Format descriptor, contain constants and function references for
+  format processing
+*/
+
+struct st_service_funcs
+{
+  /* size of fixed header */
+  uint fixed_hdr;
+  /* size of fixed part of header entry */
+  uint fixed_hdr_entry;
+
+  /*size of array element which stores keys */
+  uint key_size_in_array;
+
+  size_t (*name_size)
+    (void *, uint);
+  int (*column_sort)
+    (const void *a, const void *b);
+  my_bool (*check_limit)
+    (const void *val);
+  void (*set_fixed_hdr)
+    (DYNAMIC_COLUMN *str, DYN_HEADER *hdr);
+  my_bool (*put_header_entry)(DYN_HEADER *hdr,
+                              void *column_key,
+                              DYNAMIC_COLUMN_VALUE *value,
+                              size_t offset);
+  int (*plan_sort)(const void *a, const void *b);
+};
+
+
+/**
+  Actual our 2 format descriptors
+*/
+
+static struct st_service_funcs fmt_data[2]=
+{
+  {
+    FIXED_HEADER_SIZE,
+    COLUMN_NUMBER_SIZE,
+    sizeof(uint),
+    &name_size_num,
+    &column_sort_num,
+    &check_limit_num,
+    &set_fixed_header_num,
+    &put_header_entry_num,
+    &plan_sort_num
+  },
+  {
+    FIXED_HEADER_SIZE_NM,
+    COLUMN_NAMEPTR_SIZE,
+    sizeof(LEX_STRING),
+    &name_size_str,
+    &column_sort_str,
+    &check_limit_str,
+    &set_fixed_header_str,
+    &put_header_entry_str,
+    &plan_sort_str
+  }
+};
+
+
+/**
+  Read dynamic column record header and fill the descriptor
+
+  @param hdr             dynamic columns record descriptor to fill
+  @param str             dynamic columns record
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+init_read_hdr(DYN_HEADER *hdr, DYNAMIC_COLUMN *str)
+{
+  if (read_fixed_header(hdr, str))
+    return ER_DYNCOL_FORMAT;
+  hdr->header= (uchar*)str->str + fmt_data[hdr->format].fixed_hdr;
+  calc_param(&hdr->entry_size, &hdr->header_size,
+             fmt_data[hdr->format].fixed_hdr_entry, hdr->offset_size,
+             hdr->column_count);
+  hdr->nmpool= hdr->header + hdr->header_size;
+  hdr->dtpool= hdr->nmpool + hdr->nmpool_size;
+  hdr->data_size= str->length - fmt_data[hdr->format].fixed_hdr -
+    hdr->header_size - hdr->nmpool_size;
+  hdr->data_end= (uchar*)str->str + str->length;
+  return ER_DYNCOL_OK;
+}
+
 
 /**
   Initialize dynamic column string with (make it empty but correct format)
@@ -82,11 +412,8 @@ static my_bool dynamic_column_init_str(DYNAMIC_COLUMN *str, size_t size)
     - First \0 is flags
     - other 2 \0 is number of fields
   */
-  if (init_dynamic_string(str, NULL,
-                          size + FIXED_HEADER_SIZE, DYNCOL_SYZERESERVE))
+  if (init_dynamic_string(str, NULL, size, DYNCOL_SYZERESERVE))
     return TRUE;
-  bzero(str->str, FIXED_HEADER_SIZE);
-  str->length= FIXED_HEADER_SIZE;
   return FALSE;
 }
 
@@ -902,37 +1229,42 @@ static size_t dynamic_column_offset_bytes(size_t data_length)
   @param offset          Offset to be written
 */
 
-static void type_and_offset_store(uchar *place, size_t offset_size,
-                                  DYNAMIC_COLUMN_TYPE type,
-                                  size_t offset)
+static my_bool type_and_offset_store(uchar *place, size_t offset_size,
+                                     DYNAMIC_COLUMN_TYPE type,
+                                     size_t offset)
 {
   ulong val = (((ulong) offset) << 3) | (type - 1);
   DBUG_ASSERT(type != DYN_COL_NULL);
   DBUG_ASSERT(((type - 1) & (~7)) == 0); /* fit in 3 bits */
 
   /* Index entry starts with column number; Jump over it */
-  place+= COLUMN_NUMBER_SIZE;                   
+  place+= COLUMN_NUMBER_SIZE;
 
   switch (offset_size) {
   case 1:
-    DBUG_ASSERT(offset < 0x1f);          /* all 1 value is reserved */
+    if (offset >= 0x1f)          /* all 1 value is reserved */
+      return TRUE;
     place[0]= (uchar)val;
     break;
   case 2:
-    DBUG_ASSERT(offset < 0x1fff);        /* all 1 value is reserved */
+    if (offset >= 0x1fff)        /* all 1 value is reserved */
+      return TRUE;
     int2store(place, val);
     break;
   case 3:
-    DBUG_ASSERT(offset < 0x1fffff);      /* all 1 value is reserved */
+    if (offset >= 0x1fffff)      /* all 1 value is reserved */
+      return TRUE;
     int3store(place, val);
     break;
   case 4:
-    DBUG_ASSERT(offset < 0x1fffffff);    /* all 1 value is reserved */
+    if (offset >= 0x1fffffff)    /* all 1 value is reserved */
+      return TRUE;
     int4store(place, val);
     break;
   default:
-    DBUG_ASSERT(0);                             /* impossible */
+      return TRUE;
   }
+  return FALSE;
 }
 
 
@@ -941,45 +1273,40 @@ static void type_and_offset_store(uchar *place, size_t offset_size,
 
   @param type            Where to put type info
   @param offset          Where to put offset info
-  @param place           Beginning of the index entry
+  @param place           beginning of the type and offset
   @param offset_size     Size of offset field in bytes
 */
 
-static void type_and_offset_read(DYNAMIC_COLUMN_TYPE *type,
-                                 size_t *offset,
-                                 uchar *place, size_t offset_size)
+static my_bool type_and_offset_read(DYNAMIC_COLUMN_TYPE *type,
+                                    size_t *offset,
+                                    uchar *place, size_t offset_size)
 {
   ulong UNINIT_VAR(val);
+  ulong UNINIT_VAR(lim);
 
-  place+= COLUMN_NUMBER_SIZE;                 /* skip column number */
   switch (offset_size) {
   case 1:
     val= (ulong)place[0];
+    lim= 0x1f;
     break;
   case 2:
     val= uint2korr(place);
+    lim= 0x1fff;
     break;
   case 3:
     val= uint3korr(place);
+    lim= 0x1fffff;
     break;
   case 4:
     val= uint4korr(place);
+    lim= 0x1fffffff;
     break;
   default:
     DBUG_ASSERT(0);                             /* impossible */
   }
   *type= (val & 0x7) + 1;
   *offset= val >> 3;
-}
-
-
-/**
-  Comparator function for references on column numbers for qsort
-*/
-
-static int column_sort(const void *a, const void *b)
-{
-  return **((uint **)a) - **((uint **)b);
+  return (*offset >= lim);
 }
 
 
@@ -1003,27 +1330,13 @@ static void set_fixed_header(DYNAMIC_COLUMN *str,
   DBUG_ASSERT((str->str[0] & (~DYNCOL_FLG_KNOWN)) == 0);
 }
 
-/*
-  Calculate entry size (E) and header size (H) by offset size (O) and column
-  count (C).
-*/
-
-#define calc_param(E,H,O,C) do { \
-  (*(E))= (O) + COLUMN_NUMBER_SIZE;           \
-  (*(H))= (*(E)) * (C);                       \
-}while(0);
-
-
 /**
   Adds columns into the empty string
 
-  @param str             String where to write the data
-  @param header_size     Size of the header without fixed part
-  @param offset_size     Size of offset field in bytes
+  @param str             String where to write the data (the record)
+  @param hdr             Dynamic columns record descriptor
   @param column_count    Number of columns in the arrays
-  @parem not_null_count  Number of non-null columns in the arrays
-  @param data_size       Size of the data segment
-  @param column_numbers  Array of columns numbers
+  @param column_keys     Array of columns keys (uint or LEX_STRING)
   @param values          Array of columns values
   @param new_str         True if we need to allocate new string
 
@@ -1032,42 +1345,51 @@ static void set_fixed_header(DYNAMIC_COLUMN *str,
 
 static enum enum_dyncol_func_result
 dynamic_new_column_store(DYNAMIC_COLUMN *str,
-                         size_t header_size,
-                         size_t offset_size,
+                         DYN_HEADER *hdr,
                          uint column_count,
-                         uint not_null_count,
-                         size_t data_size,
-                         uint *column_numbers,
+                         void *column_keys,
                          DYNAMIC_COLUMN_VALUE *values,
                          my_bool new_str)
 {
-  uchar *header_end;
-  uint **columns_order;
+  struct st_service_funcs *fmt= fmt_data + hdr->format;
+  void **columns_order;
+  uchar *element;
   uint i;
-  uint entry_size= COLUMN_NUMBER_SIZE + offset_size;
   enum enum_dyncol_func_result rc= ER_DYNCOL_RESOURCE;
+  size_t all_headers_size;
 
-  if (!(columns_order= malloc(sizeof(uint*)*column_count)))
+  if (!(columns_order= malloc(sizeof(void*)*column_count)))
     return ER_DYNCOL_RESOURCE;
   if (new_str)
   {
     if (dynamic_column_init_str(str,
-                                data_size + header_size + DYNCOL_SYZERESERVE))
+                                fmt->fixed_hdr +
+                                hdr->header_size +
+                                hdr->nmpool_size +
+                                hdr->data_size +
+                                DYNCOL_SYZERESERVE))
       goto err;
   }
   else
   {
     str->length= 0;
-    if (dynstr_realloc(str, data_size + header_size + DYNCOL_SYZERESERVE))
+    if (dynstr_realloc(str,
+                       fmt->fixed_hdr +
+                       hdr->header_size +
+                       hdr->nmpool_size +
+                       hdr->data_size +
+                       DYNCOL_SYZERESERVE))
       goto err;
-    bzero(str->str, FIXED_HEADER_SIZE);
-    str->length= FIXED_HEADER_SIZE;
   }
+  bzero(str->str, fmt->fixed_hdr);
+  str->length= fmt->fixed_hdr;
 
   /* sort columns for the header */
-  for (i= 0; i < column_count; i++)
-    columns_order[i]= column_numbers + i;
-  qsort(columns_order, (size_t)column_count, sizeof(uint*), &column_sort);
+  for (i= 0, element= (uchar *) column_keys;
+       i < column_count;
+       i++, element+= fmt->key_size_in_array)
+    columns_order[i]= (void *)element;
+  qsort(columns_order, (size_t)column_count, sizeof(void*), fmt->column_sort);
 
   /*
     For now we don't allow creating two columns with the same number
@@ -1076,38 +1398,43 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
   */
   for (i= 0; i < column_count - 1; i++)
   {
-    if (columns_order[i][0] > UINT_MAX16 ||
-        columns_order[i][0] == columns_order[i + 1][0])
+    if ((*fmt->check_limit)(&columns_order[i]) ||
+        (*fmt->column_sort)(&columns_order[i], &columns_order[i + 1]) == 0)
     {
       rc= ER_DYNCOL_DATA;
       goto err;
     }
   }
-  if (columns_order[i][0] > UINT_MAX16)
+  if ((*fmt->check_limit)(&columns_order[i]))
   {
     rc= ER_DYNCOL_DATA;
     goto err;
   }
 
-  DBUG_ASSERT(str->max_length >= str->length + header_size);
-  set_fixed_header(str, offset_size, not_null_count);
-  str->length+= header_size; /* reserve place for header */
-  header_end= (uchar *)str->str + FIXED_HEADER_SIZE;
+  (*fmt->set_fixed_hdr)(str, hdr);
+  /* reserve place for header and name pool */
+  str->length+= hdr->header_size + hdr->nmpool_size;
+
+  hdr->entry= hdr->header;
+  hdr->name= hdr->nmpool;
+  all_headers_size= fmt->fixed_hdr + hdr->header_size + hdr->nmpool_size;
   for (i= 0; i < column_count; i++)
   {
-    uint ord= columns_order[i] - column_numbers;
+    uint ord= ((uchar*)columns_order[i] - (uchar*)column_keys) /
+      fmt->key_size_in_array;
     if (values[ord].type != DYN_COL_NULL)
     {
       /* Store header first in the str */
-      int2store(header_end, column_numbers[ord]);
-      type_and_offset_store(header_end, offset_size,
-                            values[ord].type,
-                            str->length - header_size - FIXED_HEADER_SIZE);
+      if ((*fmt->put_header_entry)(hdr, columns_order[i], values + ord,
+                                   str->length - all_headers_size))
+      {
+        rc= ER_DYNCOL_FORMAT;
+        goto err;
+      }
 
       /* Store value in 'str + str->length' and increase str->length */
       if ((rc= data_store(str, values + ord)))
         goto err;
-      header_end+= entry_size;
     }
   }
   rc= ER_DYNCOL_OK;
@@ -1117,28 +1444,75 @@ err:
 }
 
 /**
-  Create packed string which contains given columns (internal)
+  Calculate size of header, name pool and data pool
 
-  @param str             String where to write the data
+  @param hdr             descriptor of dynamic column record
+  @param column_count    number of elements in arrays
   @param column_count    Number of columns in the arrays
-  @param column_numbers  Array of columns numbers
+  @param column_keys     Array of columns keys (uint or LEX_STRING)
   @param values          Array of columns values
-  @param new_str         True if we need allocate new string
 
   @return ER_DYNCOL_* return code
 */
 
 static enum enum_dyncol_func_result
-dynamic_column_create_many_internal(DYNAMIC_COLUMN *str,
-                                    uint column_count,
-                                    uint *column_numbers,
-                                    DYNAMIC_COLUMN_VALUE *values,
-                                    my_bool new_str)
+calc_var_sizes(DYN_HEADER *hdr,
+               uint column_count,
+               void *column_keys,
+               DYNAMIC_COLUMN_VALUE *values)
 {
-  size_t data_size= 0;
-  size_t header_size, offset_size;
+  struct st_service_funcs *fmt= fmt_data + hdr->format;
   uint i;
-  int not_null_column_count= 0;
+  hdr->nmpool_size= hdr->data_size= 0;
+  hdr->column_count= 0;
+  for (i= 0; i < column_count; i++)
+  {
+    if (values[i].type != DYN_COL_NULL)
+    {
+      size_t tmp;
+      hdr->column_count++;
+      hdr->data_size+= (tmp= dynamic_column_value_len(values + i));
+      if (tmp == (size_t) ~0)
+        return ER_DYNCOL_DATA;
+      hdr->nmpool_size+= (*fmt->name_size)(column_keys, i);
+    }
+  }
+  /* We can handle data up to 1fffffff = 536870911 bytes now */
+  if ((hdr->offset_size= dynamic_column_offset_bytes(hdr->data_size)) >=
+      MAX_OFFSET_LENGTH)
+    return ER_DYNCOL_LIMIT;
+
+  /* header entry is column number or string pointer + offset & type */
+  hdr->entry_size= fmt->fixed_hdr_entry + hdr->offset_size;
+  hdr->header_size= hdr->column_count * hdr->entry_size;
+  return ER_DYNCOL_OK;
+}
+
+/**
+  Create packed string which contains given columns (internal multi format)
+
+  @param str             String where to write the data
+  @param column_count    Number of columns in the arrays
+  @param column_keys     Array of columns keys (format dependent)
+  @param values          Array of columns values
+  @param new_str         True if we need allocate new string
+  @param string_keys     keys are strings
+
+  @return ER_DYNCOL_* return code
+*/
+
+static enum enum_dyncol_func_result
+dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
+                                        uint column_count,
+                                        void *column_keys,
+                                        DYNAMIC_COLUMN_VALUE *values,
+                                        my_bool new_str,
+                                        my_bool string_keys)
+{
+  DYN_HEADER header;
+  enum enum_dyncol_func_result rc;
+  bzero(&header, sizeof(header));
+  header.format= (string_keys ? 1 : 0);
 
   if (new_str)
   {
@@ -1146,32 +1520,12 @@ dynamic_column_create_many_internal(DYNAMIC_COLUMN *str,
     bzero(str, sizeof(DYNAMIC_COLUMN));
   }
 
-  for (i= 0; i < column_count; i++)
-  {
-    if (values[i].type != DYN_COL_NULL)
-    {
-      size_t tmp;
-      not_null_column_count++;
-      data_size+= (tmp=dynamic_column_value_len(values + i));
-      if (tmp == (size_t) ~0)
-        return ER_DYNCOL_DATA;
-    }
-  }
+  if ((rc= calc_var_sizes(&header, column_count, column_keys, values)) < 0)
+    return rc;
 
-  /* We can handle data up to 1fffffff = 536870911 bytes now */
-  if ((offset_size= dynamic_column_offset_bytes(data_size)) >=
-      MAX_OFFSET_LENGTH)
-    return ER_DYNCOL_LIMIT;
-
-  /* header entry is column number + offset & type */
-  header_size= not_null_column_count * (offset_size + 2);
-
-  return dynamic_new_column_store(str,
-                                  header_size, offset_size,
+  return dynamic_new_column_store(str, &header,
                                   column_count,
-                                  not_null_column_count,
-                                  data_size,
-                                  column_numbers, values,
+                                  column_keys, values,
                                   new_str);
 }
 
@@ -1194,11 +1548,35 @@ dynamic_column_create_many(DYNAMIC_COLUMN *str,
                            DYNAMIC_COLUMN_VALUE *values)
 {
   DBUG_ENTER("dynamic_column_create_many");
-  DBUG_RETURN(dynamic_column_create_many_internal(str, column_count,
-                                                  column_numbers, values,
-                                                  TRUE));
+  DBUG_RETURN(dynamic_column_create_many_internal_fmt(str, column_count,
+                                                      column_numbers, values,
+                                                      TRUE, FALSE));
 }
 
+/**
+  Create packed string which contains given columns
+
+  @param str             String where to write the data
+  @param column_count    Number of columns in the arrays
+  @param column_keys     Array of columns keys
+  @param values          Array of columns value
+  @param names           use string names as keys
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_create_many_fmt(DYNAMIC_COLUMN *str,
+                               uint column_count,
+                               uchar *column_keys,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool names)
+{
+  DBUG_ENTER("dynamic_column_create_many");
+  DBUG_RETURN(dynamic_column_create_many_internal_fmt(str, column_count,
+                                                      column_keys, values,
+                                                      TRUE, names));
+}
 
 /**
   Create packed string which contains given column
@@ -1239,32 +1617,46 @@ static size_t get_length_interval(uchar *entry, uchar *entry_next,
   DYNAMIC_COLUMN_TYPE type, type_next;
   DBUG_ASSERT(entry < entry_next);
 
-  type_and_offset_read(&type, &offset, entry, offset_size);
+  if (type_and_offset_read(&type, &offset, entry + COLUMN_NUMBER_SIZE,
+                           offset_size))
+      return DYNCOL_OFFSET_ERROR;
   if (entry_next >= header_end)
     return (last_offset - offset);
-  type_and_offset_read(&type_next, &offset_next, entry_next, offset_size);
+  if (type_and_offset_read(&type_next, &offset_next,
+                           entry_next + COLUMN_NUMBER_SIZE, offset_size))
+    return DYNCOL_OFFSET_ERROR;
   return (offset_next - offset);
 }
 
-/*
-  Calculate length of data of one column
 
+/**
+  Calculate length of data between given hdr->entry and next_entry
 
-  @param entry           Pointer to the first entry
-  @param header_end      Pointer to the header end
-  @param offset_size     Size of offset field in bytes
-  @param last_offset     Size of the data segment
+  @param hdr             descriptor of dynamic column record
+  @param next_entry      next header entry (can point just after last header
+                         entry)
 
   @return number of bytes
 */
 
-static size_t get_length(uchar *entry, uchar *header_end,
-                         size_t offset_size,
-                         size_t last_offset)
+static size_t hdr_interval_length(DYN_HEADER *hdr, uchar *next_entry)
 {
-  return get_length_interval(entry,
-                             entry + offset_size + COLUMN_NUMBER_SIZE,
-                             header_end, offset_size, last_offset);
+  struct st_service_funcs *fmt= fmt_data + hdr->format;
+  size_t next_entry_offset;
+  DYNAMIC_COLUMN_TYPE next_entry_type;
+  DBUG_ASSERT(hdr->entry < next_entry);
+  DBUG_ASSERT(hdr->entry >= hdr->header);
+  DBUG_ASSERT(next_entry <= hdr->header + hdr->header_size);
+
+  if (type_and_offset_read(&hdr->type, &hdr->offset,
+                           hdr->entry + fmt->fixed_hdr_entry, hdr->offset_size))
+    return DYNCOL_OFFSET_ERROR;
+  if (next_entry == hdr->header + hdr->header_size)
+    return hdr->data_size - hdr->offset;
+  if (type_and_offset_read(&next_entry_type, &next_entry_offset,
+                           next_entry + fmt->fixed_hdr_entry, hdr->offset_size))
+    return DYNCOL_OFFSET_ERROR;
+  return (next_entry_offset - hdr->offset);
 }
 
 
@@ -1272,7 +1664,7 @@ static size_t get_length(uchar *entry, uchar *header_end,
   Comparator function for references to header entries for qsort
 */
 
-static int header_compar(const void *a, const void *b)
+static int header_compar_num(const void *a, const void *b)
 {
   uint va= uint2korr((uchar*)a), vb= uint2korr((uchar*)b);
   return (va > vb ? 1 : (va < vb ? -1 : 0));
@@ -1280,70 +1672,148 @@ static int header_compar(const void *a, const void *b)
 
 
 /**
+  Find entry in the numeric format header by the column number
+
+  @param hdr             descriptor of dynamic column record
+  @param key             number to find
+
+  @return pointer to the entry or NULL
+*/
+
+static uchar *find_entry_num(DYN_HEADER *hdr, uint key)
+{
+  uchar header_entry[2+4];
+  DBUG_ASSERT(hdr->format == DYNCOL_FMT_NUM);
+  int2store(header_entry, key);
+  return hdr->entry= bsearch(header_entry, hdr->header,
+                             (size_t)hdr->column_count,
+                             hdr->entry_size, &header_compar_num);
+}
+
+
+/**
+  Find entry in the names format header by the column number
+
+  @param hdr             descriptor of dynamic column record
+  @param key             name to find
+
+  @return pointer to the entry or NULL
+*/
+static uchar *find_entry_str(DYN_HEADER *hdr, LEX_STRING *key)
+{
+  uchar *min= hdr->header;
+  uchar *max= hdr->header + (hdr->column_count - 1) * hdr->entry_size;
+  uchar *mid;
+  DBUG_ASSERT(hdr->format == DYNCOL_FMT_STR);
+  DBUG_ASSERT(hdr->nmpool != NULL);
+  while (max >= min)
+  {
+    uint len;
+    int cmp;
+    mid= hdr->header + ((min - hdr->header) + (max - hdr->header)) / 2 / hdr->entry_size * hdr->entry_size;
+    len= mid[0];
+    cmp= len - key->length;
+    if (cmp == 0)
+      cmp= memcmp(hdr->nmpool +  uint2korr(mid + 1), key->str, len);
+    if (cmp < 0)
+      min= mid + hdr->entry_size;
+    else if (cmp > 0)
+      max= mid - hdr->entry_size;
+    else
+      return mid;
+  }
+  return NULL;
+}
+
+
+/**
+  Write number in the buffer (backward direction - starts from the buffer end)
+
+  @return pointer on the number begining
+*/
+
+static char *backwritenum(char *chr, uint numkey)
+{
+  if (numkey == 0)
+    *(--chr)= '0';
+  else
+    while (numkey > 0)
+    {
+      *(--chr)= '0' + numkey % 10;
+      numkey/= 10;
+    }
+  return chr;
+}
+
+
+/**
   Find column and fill information about it
 
-  @param type            Returns type of the column
-  @param data            Returns a pointer to the data
-  @param length          Returns length of the data
-  @param offset_size     Size of offset field in bytes
-  @param column_count    Number of column in the packed string
-  @param data_end        Pointer to the data end
-  @param num             Number of the column we want to fetch
-  @param entry_pos       NULL or place where to put reference to the entry
+  @param hdr             descriptor of dynamic column record
+  @param numkey          Number of the column to fetch (if strkey is NULL)
+  @param strkey          Name of the column to fetch (or NULL)
 
   @return 0 ok
   @return 1 error in data
 */
 
 static my_bool
-find_column(DYNAMIC_COLUMN_TYPE *type, uchar **data, size_t *length,
-            uchar *header, size_t offset_size, uint column_count,
-            uchar *data_end, uint num, uchar **entry_pos)
+find_column(DYN_HEADER *hdr, uint numkey, LEX_STRING *strkey)
 {
-  uchar *entry;
-  size_t offset, total_data, header_size, entry_size;
-  uchar key[2+4];
+  LEX_STRING nmkey;
+  char nmkeybuff[6]; /* to fit max 2 bytes number */
+  DBUG_ASSERT(hdr->header != NULL);
 
-  if (!entry_pos)
-    entry_pos= &entry;
+  if (hdr->header + hdr->header_size > hdr->data_end)
+    return TRUE;
 
-  calc_param(&entry_size, &header_size, offset_size, column_count);
+  /* fix key */
+  if (hdr->format == DYNCOL_FMT_NUM && strkey != NULL)
+  {
+    char *end;
+    numkey= (uint) strtoul(strkey->str, &end, 10);
+    if (end != strkey->str + strkey->length)
+    {
+      /* we can't find non-numeric key among numeric ones */
+      hdr->type= DYN_COL_NULL;
+      return 0;
+    }
+  }
+  else if (hdr->format == DYNCOL_FMT_STR && strkey == NULL)
+  {
+    nmkey.str= backwritenum(nmkeybuff + sizeof(nmkeybuff), numkey);
+    nmkey.length= (nmkeybuff + sizeof(nmkeybuff)) - nmkey.str;
+    strkey= &nmkey;
+  }
+  if (hdr->format == DYNCOL_FMT_NUM)
+    hdr->entry= find_entry_num(hdr, numkey);
+  else
+    hdr->entry= find_entry_str(hdr, strkey);
 
-  if (header + header_size > data_end)
-    return 1;
-
-  int2store(key, num);
-  entry= bsearch(key, header, (size_t)column_count, entry_size,
-                 &header_compar);
-  if (!entry)
+  if (!hdr->entry)
   {
     /* Column not found */
-    *type= DYN_COL_NULL;
-    *entry_pos= NULL;
+    hdr->type= DYN_COL_NULL;
     return 0;
   }
-  type_and_offset_read(type, &offset, entry, offset_size);
-  total_data= data_end - (header + header_size);
-  if (offset > total_data)
-    return 1;
-  *data= header + header_size + offset;
-  *length= get_length(entry, header + header_size, offset_size,
-                      total_data);
+  hdr->length= hdr_interval_length(hdr, hdr->entry + hdr->entry_size);
+  hdr->data= hdr->dtpool + hdr->offset;
   /*
     Check that the found data is withing the ranges. This can happen if
     we get data with wrong offsets.
   */
-  if ((long) *length < 0 || offset + *length > total_data)
+  if (hdr->length == DYNCOL_OFFSET_ERROR ||
+      hdr->length > INT_MAX || hdr->offset > hdr->data_size)
     return 1;
 
-  *entry_pos= entry;
   return 0;
 }
 
 
 /**
-   Read and check the header of the dynamic string
+  Read and check the header of the dynamic string
 
+  @param hdr             descriptor of dynamic column record
   @param str             Dynamic string
 
   @retval FALSE OK
@@ -1354,22 +1824,30 @@ find_column(DYNAMIC_COLUMN_TYPE *type, uchar **data, size_t *length,
     already have handled this case.
 */
 
-static inline my_bool read_fixed_header(DYNAMIC_COLUMN *str,
-                                        size_t *offset_size,
-                                        uint *column_count)
+static inline my_bool read_fixed_header(DYN_HEADER *hdr,
+                                        DYNAMIC_COLUMN *str)
 {
   DBUG_ASSERT(str != NULL && str->length != 0);
-  if ((str->length < FIXED_HEADER_SIZE) ||
+  if ((str->length < 1)  ||
       (str->str[0] & (~DYNCOL_FLG_KNOWN)))
+    return 1;
+  hdr->format= ((str->str[0] & DYNCOL_FLG_NAMES) ?
+                DYNCOL_FMT_STR:
+                DYNCOL_FMT_NUM);
+  if ((str->length < fmt_data[hdr->format].fixed_hdr))
     return 1;                                   /* Wrong header */
-  *offset_size= (str->str[0] & DYNCOL_FLG_OFFSET) + 1;
-  *column_count= uint2korr(str->str + 1);
+  hdr->offset_size= (str->str[0] & DYNCOL_FLG_OFFSET) + 1;
+  hdr->column_count= uint2korr(str->str + 1);
+  if (hdr->format == DYNCOL_FMT_STR)
+    hdr->nmpool_size= uint2korr(str->str + 3);
+  else
+    hdr->nmpool_size= 0;
   return 0;
 }
 
 
 /**
-  Get dynamic column value
+  Get dynamic column value by column number
 
   @param str             The packed string to extract the column
   @param column_nr       Number of column to fetch
@@ -1378,60 +1856,132 @@ static inline my_bool read_fixed_header(DYNAMIC_COLUMN *str,
   @return ER_DYNCOL_* return code
 */
 
-int dynamic_column_get(DYNAMIC_COLUMN *str, uint column_nr,
+enum enum_dyncol_func_result
+dynamic_column_get(DYNAMIC_COLUMN *str, uint column_nr,
                        DYNAMIC_COLUMN_VALUE *store_it_here)
 {
-  uchar *data;
-  size_t offset_size, length;
-  uint column_count;
-  enum enum_dyncol_func_result rc= ER_DYNCOL_FORMAT;
+  return dynamic_column_get_internal(str, store_it_here, column_nr, NULL);
+}
 
-  if (str->length == 0)
-    goto null;
 
-  if (read_fixed_header(str, &offset_size, &column_count))
-    goto err;
+/**
+  Get dynamic column value by name
 
-  if (column_count == 0)
-    goto null;
+  @param str             The packed string to extract the column
+  @param name            Name of column to fetch
+  @param store_it_here   Where to store the extracted value
 
-  if (find_column(&store_it_here->type, &data, &length,
-                  (uchar*)str->str + FIXED_HEADER_SIZE,
-                  offset_size, column_count, (uchar*)str->str + str->length,
-                  column_nr, NULL))
-    goto err;
+  @return ER_DYNCOL_* return code
+*/
 
-  switch (store_it_here->type) {
+enum enum_dyncol_func_result
+dynamic_column_get_str(DYNAMIC_COLUMN *str, LEX_STRING *name,
+                           DYNAMIC_COLUMN_VALUE *store_it_here)
+{
+  DBUG_ASSERT(name != NULL);
+  return dynamic_column_get_internal(str, store_it_here, 0, name);
+}
+
+
+/**
+  Get dynamic column value by number or name
+
+  @param str             The packed string to extract the column
+  @param key             Name or number of column to fetch
+                         (depends on string_key)
+  @param store_it_here   Where to store the extracted value
+  @param string_key      True if we gave pointer to LEX_STRING.
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_get_fmt(DYNAMIC_COLUMN *str, void *key,
+                           DYNAMIC_COLUMN_VALUE *store_it_here,
+                           my_bool string_key)
+{
+  DBUG_ASSERT(key != NULL);
+  if (string_key)
+    return dynamic_column_get_internal(str, store_it_here,
+                                       0, (LEX_STRING *)key);
+  return dynamic_column_get_internal(str, store_it_here,
+                                     *((uint *)key), NULL);
+}
+
+static enum enum_dyncol_func_result
+dynamic_column_get_value(DYN_HEADER *hdr, DYNAMIC_COLUMN_VALUE *store_it_here)
+{
+  static enum enum_dyncol_func_result rc;
+  switch ((store_it_here->type= hdr->type)) {
   case DYN_COL_INT:
-    rc= dynamic_column_sint_read(store_it_here, data, length);
+    rc= dynamic_column_sint_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_UINT:
-    rc= dynamic_column_uint_read(store_it_here, data, length);
+    rc= dynamic_column_uint_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_DOUBLE:
-    rc= dynamic_column_double_read(store_it_here, data, length);
+    rc= dynamic_column_double_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_STRING:
-    rc= dynamic_column_string_read(store_it_here, data, length);
+    rc= dynamic_column_string_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_DECIMAL:
-    rc= dynamic_column_decimal_read(store_it_here, data, length);
+    rc= dynamic_column_decimal_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_DATETIME:
-    rc= dynamic_column_date_time_read(store_it_here, data, length);
+    rc= dynamic_column_date_time_read(store_it_here, hdr->data,
+                                      hdr->length);
     break;
   case DYN_COL_DATE:
-    rc= dynamic_column_date_read(store_it_here, data, length);
+    rc= dynamic_column_date_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_TIME:
-    rc= dynamic_column_time_read(store_it_here, data, length);
+    rc= dynamic_column_time_read(store_it_here, hdr->data, hdr->length);
     break;
   case DYN_COL_NULL:
     rc= ER_DYNCOL_OK;
     break;
   default:
-    goto err;
+    rc= ER_DYNCOL_FORMAT;
+    store_it_here->type= DYN_COL_NULL;
+    break;
   }
+  return rc;
+}
+
+/**
+  Get dynamic column value by number or name
+
+  @param str             The packed string to extract the column
+  @param store_it_here   Where to store the extracted value
+  @param numkey          Number of the column to fetch (if strkey is NULL)
+  @param strkey          Name of the column to fetch (or NULL)
+
+  @return ER_DYNCOL_* return code
+*/
+
+static enum enum_dyncol_func_result
+dynamic_column_get_internal(DYNAMIC_COLUMN *str,
+                            DYNAMIC_COLUMN_VALUE *store_it_here,
+                            uint num_key, LEX_STRING *str_key)
+{
+  DYN_HEADER header;
+  enum enum_dyncol_func_result rc= ER_DYNCOL_FORMAT;
+  bzero(&header, sizeof(header));
+
+  if (str->length == 0)
+    goto null;
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    goto err;
+
+  if (header.column_count == 0)
+    goto null;
+
+  if (find_column(&header, num_key, str_key))
+    goto err;
+
+  rc= dynamic_column_get_value(&header, store_it_here);
   return rc;
 
 null:
@@ -1441,128 +1991,9 @@ err:
     return rc;
 }
 
-/**
-  Delete column with given number from the packed string
-
-  @param str             The packed string to delete the column
-  @param column_nr       Number of column to delete
-
-  @return ER_DYNCOL_* return code
-*/
-
-int dynamic_column_delete(DYNAMIC_COLUMN *str, uint column_nr)
-{
-  uchar *data, *header_entry, *read, *write;
-  size_t offset_size, new_offset_size, length, entry_size, new_entry_size,
-         header_size, new_header_size, data_size, new_data_size,
-         deleted_entry_offset;
-  uint column_count, i;
-  DYNAMIC_COLUMN_TYPE type;
-
-  if (str->length == 0)
-    return ER_DYNCOL_OK;  /* no columns */
-
-  if (read_fixed_header(str, &offset_size, &column_count))
-    return ER_DYNCOL_FORMAT;
-
-  if (column_count == 0)
-  {
-    str->length= 0;
-    return ER_DYNCOL_OK;  /* no columns */
-  }
-
-  if (find_column(&type, &data, &length, (uchar*)str->str + FIXED_HEADER_SIZE,
-                  offset_size, column_count, (uchar*)str->str + str->length,
-                  column_nr, &header_entry))
-    return ER_DYNCOL_FORMAT;
-
-  if (type == DYN_COL_NULL)
-    return ER_DYNCOL_OK;  /* no such column */
-
-  if (column_count == 1)
-  {
-    /* delete the only column; Return empty string */
-    str->length= 0;
-    return ER_DYNCOL_OK;
-  }
-
-  /* Calculate entry_size and header_size */
-  calc_param(&entry_size, &header_size, offset_size, column_count);
-  data_size= str->length - FIXED_HEADER_SIZE - header_size;
-
-  new_data_size= data_size - length;
-  if ((new_offset_size= dynamic_column_offset_bytes(new_data_size)) >=
-      MAX_OFFSET_LENGTH)
-    return ER_DYNCOL_LIMIT;
-  DBUG_ASSERT(new_offset_size <= offset_size);
-
-  calc_param(&new_entry_size, &new_header_size,
-             new_offset_size, column_count - 1);
-
-  deleted_entry_offset= ((data - (uchar*) str->str) -
-                         header_size - FIXED_HEADER_SIZE);
-
-  /* rewrite header*/
-  set_fixed_header(str, new_offset_size, column_count - 1);
-  for (i= 0, write= read= (uchar *)str->str + FIXED_HEADER_SIZE;
-       i < column_count;
-       i++, read+= entry_size, write+= new_entry_size)
-  {
-    size_t offs;
-    uint nm;
-    DYNAMIC_COLUMN_TYPE tp;
-    if (read == header_entry)
-    {
-#ifndef DBUG_OFF
-      nm= uint2korr(read);
-      type_and_offset_read(&tp, &offs, read,
-                           offset_size);
-      DBUG_ASSERT(nm == column_nr);
-      DBUG_ASSERT(offs == deleted_entry_offset);
-#endif
-      write-= new_entry_size;                 /* do not move writer */
-      continue;                               /* skip removed field */
-    }
-
-    nm= uint2korr(read),
-    type_and_offset_read(&tp, &offs, read,
-                         offset_size);
-
-    if (offs > deleted_entry_offset)
-      offs-= length;              /* data stored after removed data */
-
-    int2store(write, nm);
-    type_and_offset_store(write, new_offset_size, tp, offs);
-  }
-
-  /* move data */
-  {
-    size_t first_chunk_len= ((data - (uchar *)str->str) -
-                             FIXED_HEADER_SIZE - header_size);
-    size_t second_chunk_len= new_data_size - first_chunk_len;
-    if (first_chunk_len)
-      memmove(str->str + FIXED_HEADER_SIZE + new_header_size,
-              str->str + FIXED_HEADER_SIZE + header_size,
-              first_chunk_len);
-    if (second_chunk_len)
-      memmove(str->str +
-              FIXED_HEADER_SIZE + new_header_size + first_chunk_len,
-              str->str +
-              FIXED_HEADER_SIZE + header_size + first_chunk_len + length,
-              second_chunk_len);
-  }
-
-  /* fix str length */
-  DBUG_ASSERT(str->length >=
-              FIXED_HEADER_SIZE + new_header_size + new_data_size);
-  str->length= FIXED_HEADER_SIZE + new_header_size + new_data_size;
-
-  return ER_DYNCOL_OK;
-}
-
 
 /**
-  Check existence of the column in the packed string
+  Check existence of the column in the packed string (by number)
 
   @param str             The packed string to check the column
   @param column_nr       Number of column to check
@@ -1573,31 +2004,84 @@ int dynamic_column_delete(DYNAMIC_COLUMN *str, uint column_nr)
 enum enum_dyncol_func_result
 dynamic_column_exists(DYNAMIC_COLUMN *str, uint column_nr)
 {
-  uchar *data;
-  size_t offset_size, length;
-  uint column_count;
-  DYNAMIC_COLUMN_TYPE type;
-
-  if (str->length == 0)
-    return ER_DYNCOL_NO;                        /* no columns */
-
-  if (read_fixed_header(str, &offset_size, &column_count))
-    return ER_DYNCOL_FORMAT;
-
-  if (column_count == 0)
-    return ER_DYNCOL_NO;                        /* no columns */
-
-  if (find_column(&type, &data, &length, (uchar*)str->str + FIXED_HEADER_SIZE,
-                  offset_size, column_count, (uchar*)str->str + str->length,
-                  column_nr, NULL))
-    return ER_DYNCOL_FORMAT;
-
-  return (type != DYN_COL_NULL ? ER_DYNCOL_YES : ER_DYNCOL_NO);
+  return dynamic_column_exists_internal(str, column_nr, NULL);
 }
 
 
 /**
-  List not-null columns in the packed string
+  Check existence of the column in the packed string (by name)
+
+  @param str             The packed string to check the column
+  @param name            Name of column to check
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_exists_str(DYNAMIC_COLUMN *str, LEX_STRING *name)
+{
+  DBUG_ASSERT(name != NULL);
+  return dynamic_column_exists_internal(str, 0, name);
+}
+
+
+/**
+  Check existence of the column in the packed string (by name of number)
+
+  @param str             The packed string to check the column
+  @param key             Name or number of column to fetch
+                         (depends on string_key)
+  @param string_key      True if we gave pointer to LEX_STRING.
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_exists_fmt(DYNAMIC_COLUMN *str, void *key, my_bool string_key)
+{
+  DBUG_ASSERT(key != NULL);
+  if (string_key)
+    return dynamic_column_exists_internal(str, 0, (LEX_STRING *) key);
+  return dynamic_column_exists_internal(str, *((uint *)key), NULL);
+}
+
+
+/**
+  Check existence of the column in the packed string (by name of number)
+
+  @param str             The packed string to check the column
+  @param num_key         Number of the column to fetch (if strkey is NULL)
+  @param str_key         Name of the column to fetch (or NULL)
+
+  @return ER_DYNCOL_* return code
+*/
+
+static enum enum_dyncol_func_result
+dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
+                               LEX_STRING *str_key)
+{
+  DYN_HEADER header;
+  enum enum_dyncol_func_result rc;
+  bzero(&header, sizeof(header));
+
+  if (str->length == 0)
+    return ER_DYNCOL_NO;                        /* no columns */
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  if (header.column_count == 0)
+    return ER_DYNCOL_NO;                        /* no columns */
+
+  if (find_column(&header, num_key, str_key))
+    return ER_DYNCOL_FORMAT;
+
+  return (header.type != DYN_COL_NULL ? ER_DYNCOL_YES : ER_DYNCOL_NO);
+}
+
+
+/**
+  List not-null columns in the packed string (only numeric foemat)
 
   @param str             The packed string
   @param array_of_uint   Where to put reference on created array
@@ -1608,28 +2092,31 @@ dynamic_column_exists(DYNAMIC_COLUMN *str, uint column_nr)
 enum enum_dyncol_func_result
 dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
 {
+  DYN_HEADER header;
   uchar *read;
-  size_t offset_size, entry_size;
-  uint column_count, i;
+  uint i;
+  enum enum_dyncol_func_result rc;
 
   bzero(array_of_uint, sizeof(*array_of_uint)); /* In case of errors */
   if (str->length == 0)
     return ER_DYNCOL_OK;                        /* no columns */
 
-  if (read_fixed_header(str, &offset_size, &column_count))
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  if (header.format != DYNCOL_FMT_NUM)
     return ER_DYNCOL_FORMAT;
 
-  entry_size= COLUMN_NUMBER_SIZE + offset_size;
-
-  if (entry_size * column_count + FIXED_HEADER_SIZE > str->length)
+  if (header.entry_size * header.column_count + FIXED_HEADER_SIZE >
+      str->length)
     return ER_DYNCOL_FORMAT;
 
-  if (init_dynamic_array(array_of_uint, sizeof(uint), column_count, 0))
+  if (init_dynamic_array(array_of_uint, sizeof(uint), header.column_count, 0))
     return ER_DYNCOL_RESOURCE;
 
-  for (i= 0, read= (uchar *)str->str + FIXED_HEADER_SIZE;
-       i < column_count;
-       i++, read+= entry_size)
+  for (i= 0, read= header.header;
+       i < header.column_count;
+       i++, read+= header.entry_size)
   {
     uint nm= uint2korr(read);
     /* Insert can't never fail as it's pre-allocated above */
@@ -1640,71 +2127,204 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
 
 
 /**
+  List not-null columns in the packed string (any format)
+
+  @param str             The packed string
+  @param array_of_lexstr Where to put reference on created array
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_list_str(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_lexstr)
+{
+  DYN_HEADER header;
+  uchar *read;
+  struct st_service_funcs *fmt;
+  uint i;
+  enum enum_dyncol_func_result rc;
+
+  bzero(array_of_lexstr, sizeof(*array_of_lexstr)); /* In case of errors */
+  if (str->length == 0)
+    return ER_DYNCOL_OK;                        /* no columns */
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  fmt= fmt_data + header.format;
+
+  if (header.entry_size * header.column_count + fmt->fixed_hdr >
+      str->length)
+    return ER_DYNCOL_FORMAT;
+
+  if (init_dynamic_array(array_of_lexstr, sizeof(LEX_STRING),
+                         header.column_count, 0))
+    return ER_DYNCOL_RESOURCE;
+
+  for (i= 0, read= header.header;
+       i < header.column_count;
+       i++, read+= header.entry_size)
+  {
+    LEX_STRING tmp;
+    if (header.format == DYNCOL_FMT_NUM)
+    {
+      uint nm= uint2korr(read);
+      tmp.str= my_malloc(6, MYF(0));
+      if (!tmp.str)
+        return ER_DYNCOL_RESOURCE;
+      tmp.length= snprintf(tmp.str, 6, "%u", nm);
+    }
+    else
+    {
+      tmp.length= read[0];
+      tmp.str= my_malloc(tmp.length + 1, MYF(0));
+      if(!tmp.str)
+        return ER_DYNCOL_RESOURCE;
+      memcpy(tmp.str, (const void *)header.nmpool + uint2korr(read + 1),
+             tmp.length);
+      tmp.str[tmp.length]= '\0'; // just for safety
+    }
+    /* Insert can't never fail as it's pre-allocated above */
+    (void) insert_dynamic(array_of_lexstr, (uchar *)&tmp);
+  }
+  return ER_DYNCOL_OK;
+}
+
+/**
   Find the place of the column in the header or place where it should be put
 
-  @param num             Number of the column
-  @param header          Pointer to the header
-  @param entry_size      Size of a header entry
-  @param column_count    Number of columns in the packed string
-  @param entry           Return pointer to the entry or next entry
+  @param hdr             descriptor of dynamic column record
+  @param key             Name or number of column to fetch
+                         (depends on string_key)
+  @param string_key      True if we gave pointer to LEX_STRING.
 
   @retval TRUE found
   @retval FALSE pointer set to the next row
 */
 
 static my_bool
-find_place(uint num, uchar *header, size_t entry_size,
-           uint column_count, uchar **entry)
+find_place(DYN_HEADER *hdr, void *key, my_bool string_keys)
 {
   uint mid, start, end, val;
   int flag;
+  LEX_STRING str;
+  char buff[6];
+  my_bool need_conversion= ((string_keys ? DYNCOL_FMT_STR : DYNCOL_FMT_NUM) !=
+                            hdr->format);
   LINT_INIT(flag);                              /* 100 % safe */
+  /* new format can't be numeric if the old one is names */
+  DBUG_ASSERT(string_keys ||
+              hdr->format == DYNCOL_FMT_NUM);
 
   start= 0;
-  end= column_count -1;
+  end= hdr->column_count -1;
   mid= 1;
   while (start != end)
   {
-   uint val;
-   mid= (start + end) / 2;
-   val= uint2korr(header + mid * entry_size);
-   if ((flag= CMP_NUM(num, val)) <= 0)
-     end= mid;
-   else
-     start= mid + 1;
+    uint val;
+    mid= (start + end) / 2;
+    hdr->entry= hdr->header + mid * hdr->entry_size;
+    if (!string_keys)
+    {
+      val= uint2korr(hdr->entry);
+      flag= CMP_NUM(*((uint *)key), val);
+    }
+    else
+    {
+      if (need_conversion)
+      {
+        str.str= backwritenum(buff + sizeof(buff), uint2korr(hdr->entry));
+        str.length= (buff + sizeof(buff)) - str.str;
+      }
+      else
+      {
+        DBUG_ASSERT(hdr->format == DYNCOL_FMT_STR);
+        str.length= hdr->entry[0];
+        str.str= (char *)hdr->nmpool + uint2korr(hdr->entry + 1);
+      }
+      flag= ((LEX_STRING *) key)->length - str.length;
+      if (flag == 0)
+        flag= memcmp(((LEX_STRING *) key)->str, str.str, str.length);
+    }
+    if (flag <= 0)
+      end= mid;
+    else
+      start= mid + 1;
   }
+  hdr->entry= hdr->header + start * hdr->entry_size;
   if (start != mid)
   {
-    val= uint2korr(header + start * entry_size);
-    flag= CMP_NUM(num, val);
+    if (!string_keys)
+    {
+      val= uint2korr(hdr->entry);
+      flag= CMP_NUM(*((uint *)key), val);
+    }
+    else
+    {
+      if (need_conversion)
+      {
+        str.str= backwritenum(buff + sizeof(buff), uint2korr(hdr->entry));
+        str.length= (buff + sizeof(buff)) - str.str;
+      }
+      else
+      {
+        DBUG_ASSERT(hdr->format == DYNCOL_FMT_STR);
+        str.length= hdr->entry[0];
+        str.str= (char*) hdr->nmpool + uint2korr(hdr->entry + 1);
+      }
+      flag= ((LEX_STRING *) key)->length - str.length;
+      if (flag == 0)
+        flag= memcmp(((LEX_STRING *) key)->str, str.str, str.length);
+    }
   }
-  *entry= header + start * entry_size;
   if (flag > 0)
-    *entry+= entry_size;        /* Point at next bigger key */
+    hdr->entry+= hdr->entry_size; /* Point at next bigger key */
   return flag == 0;
 }
 
 
 /*
-  Description of plan of adding/removing/updating a packed string
+  It is internal structure which describes plan of chenging the record
+  of dynamic columns
 */
 
 typedef enum {PLAN_REPLACE, PLAN_ADD, PLAN_DELETE, PLAN_NOP} PLAN_ACT;
 
 struct st_plan {
   DYNAMIC_COLUMN_VALUE *val;
-  uint *num;
+  void *key;
   uchar *place;
   size_t length;
-  int hdelta, ddelta;
+  int hdelta, ddelta, ndelta;
+  uint mv_offset, mv_length, mv_end;
   PLAN_ACT act;
 };
 typedef struct st_plan PLAN;
 
 
-static int plan_sort(const void *a, const void *b)
+/**
+  Sort function for plan by column number
+*/
+
+static int plan_sort_num(const void *a, const void *b)
 {
-  return ((PLAN *)a)->num[0] - ((PLAN *)b)->num[0];
+  return *((uint *)((PLAN *)a)->key) - *((uint *)((PLAN *)b)->key);
+}
+
+
+/**
+  Sort function for plan by column name
+*/
+
+static int plan_sort_str(const void *a, const void *b)
+{
+  int res= (((LEX_STRING *)((PLAN *)a)->key)->length -
+            ((LEX_STRING *)((PLAN *)b)->key)->length);
+  if (res == 0)
+    res= memcmp(((LEX_STRING *)((PLAN *)a)->key)->str,
+                ((LEX_STRING *)((PLAN *)b)->key)->str,
+                ((LEX_STRING *)((PLAN *)a)->key)->length);
+  return res;
 }
 
 #define DELTA_CHECK(S, D, C)        \
@@ -1714,8 +2334,555 @@ static int plan_sort(const void *a, const void *b)
             ((S) < 0 && (D) > 0))   \
   {                                 \
     (C)= TRUE;                      \
-    break;                          \
-  }                                 \
+  }
+
+/**
+  Update dynamic column by copying in a new record (string).
+
+  @param str             Dynamic column record to change
+  @param plan            Plan of changing the record
+  @param add_column_count number of records in the plan array.
+  @param hdr             descriptor of old dynamic column record
+  @param new_hdr         descriptor of new dynamic column record
+  @param convert         need conversion from numeric to names format
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_update_copy(DYNAMIC_COLUMN *str, PLAN *plan,
+                           uint add_column_count,
+                           DYN_HEADER *hdr, DYN_HEADER *new_hdr,
+                           my_bool convert)
+{
+  DYNAMIC_COLUMN tmp;
+  struct st_service_funcs *fmt= fmt_data + hdr->format,
+                          *new_fmt= fmt_data + new_hdr->format;
+  uint i, j, k;
+  size_t all_headers_size;
+
+  if (dynamic_column_init_str(&tmp,
+                              (new_fmt->fixed_hdr + new_hdr->header_size +
+                               new_hdr->nmpool_size +
+                               new_hdr->data_size + DYNCOL_SYZERESERVE)))
+  {
+    return ER_DYNCOL_RESOURCE;
+  }
+  bzero(tmp.str, new_fmt->fixed_hdr);
+  (*new_fmt->set_fixed_hdr)(&tmp, new_hdr);
+  /* Adjust tmp to contain whole the future header */
+  tmp.length= new_fmt->fixed_hdr + new_hdr->header_size + new_hdr->nmpool_size;
+
+
+  /*
+    Copy data to the new string
+    i= index in array of changes
+    j= index in packed string header index
+  */
+  new_hdr->entry= new_hdr->header;
+  new_hdr->name= new_hdr->nmpool;
+  all_headers_size= new_fmt->fixed_hdr +
+    new_hdr->header_size + new_hdr->nmpool_size;
+  for (i= 0, j= 0; i < add_column_count || j < hdr->column_count; i++)
+  {
+    size_t first_offset;
+    uint start= j, end;
+    LINT_INIT(first_offset);
+
+    /*
+      Search in i and j for the next column to add from i and where to
+      add.
+    */
+
+    while (i < add_column_count && plan[i].act == PLAN_NOP)
+      i++;                                    /* skip NOP */
+
+    if (i == add_column_count)
+      j= end= hdr->column_count;
+    else
+    {
+      /*
+        old data portion. We don't need to check that j < column_count
+        as plan[i].place is guaranteed to have a pointer inside the
+        data.
+      */
+      while (hdr->header + j * hdr->entry_size < plan[i].place)
+        j++;
+      end= j;
+      if ((plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
+        j++;                              /* data at 'j' will be removed */
+    }
+
+    /*
+      Adjust all headers since last loop.
+      We have to do this as the offset for data has moved
+    */
+    for (k= start; k < end; k++)
+    {
+      uchar *read= hdr->header + k * hdr->entry_size;
+      void *key;
+      LEX_STRING name;
+      size_t offs;
+      uint nm;
+      DYNAMIC_COLUMN_TYPE tp;
+      char buff[6];
+
+      if (hdr->format == DYNCOL_FMT_NUM)
+      {
+        if (convert)
+        {
+          name.str= backwritenum(buff + sizeof(buff), uint2korr(read));
+          name.length= (buff + sizeof(buff)) - name.str;
+          key= &name;
+        }
+        else
+        {
+          nm= uint2korr(read);                    /* Column nummber */
+          key= &nm;
+        }
+      }
+      else
+      {
+        name.length= read[0];
+        name.str= (char *) hdr->nmpool +  uint2korr(read + 1);
+        key= &name;
+      }
+      if (type_and_offset_read(&tp, &offs,
+                               read + fmt->fixed_hdr_entry, hdr->offset_size))
+          goto err;
+      if (k == start)
+        first_offset= offs;
+      else if (offs < first_offset)
+        goto err;
+
+      offs+= plan[i].ddelta;
+      {
+        DYNAMIC_COLUMN_VALUE val;
+        val.type= tp; // only the type used in the header
+        if ((*new_fmt->put_header_entry)(new_hdr, key, &val, offs))
+          goto err;
+      }
+    }
+
+    /* copy first the data that was not replaced in original packed data */
+    if (start < end)
+    {
+      size_t data_size;
+      /* Add old data last in 'tmp' */
+      hdr->entry= hdr->header + start * hdr->entry_size;
+      data_size=
+        hdr_interval_length(hdr, hdr->header + end * hdr->entry_size);
+      if (data_size == DYNCOL_OFFSET_ERROR ||
+          (long) data_size < 0 ||
+          data_size > hdr->data_size - first_offset)
+        goto err;
+
+      memcpy(tmp.str + tmp.length, (char *)hdr->dtpool + first_offset,
+             data_size);
+      tmp.length+= data_size;
+    }
+
+    /* new data adding */
+    if (i < add_column_count)
+    {
+      if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
+      {
+        if ((*new_fmt->put_header_entry)(new_hdr, plan[i].key,
+                                         plan[i].val,
+                                         tmp.length - all_headers_size))
+          goto err;
+        data_store(&tmp, plan[i].val);        /* Append new data */
+      }
+    }
+  }
+  dynamic_column_column_free(str);
+  *str= tmp;
+  return ER_DYNCOL_OK;
+err:
+  dynamic_column_column_free(&tmp);
+  return ER_DYNCOL_FORMAT;
+}
+
+enum enum_dyncol_func_result
+dynamic_column_update_move_left(DYNAMIC_COLUMN *str, PLAN *plan,
+                                size_t offset_size,
+                                size_t entry_size,
+                                size_t header_size,
+                                size_t new_offset_size,
+                                size_t new_entry_size,
+                                size_t new_header_size,
+                                uint column_count,
+                                uint new_column_count,
+                                uint add_column_count,
+                                uchar *header_end,
+                                size_t max_offset)
+{
+  uchar *write;
+  uchar *header_base= (uchar *)str->str + FIXED_HEADER_SIZE;
+  uint i, j, k;
+  size_t curr_offset;
+
+  write= (uchar *)str->str + FIXED_HEADER_SIZE;
+  set_fixed_header(str, new_offset_size, new_column_count);
+
+  /*
+    Move headers first.
+    i= index in array of changes
+    j= index in packed string header index
+  */
+  for (curr_offset= 0, i= 0, j= 0;
+       i < add_column_count || j < column_count;
+       i++)
+  {
+    size_t first_offset;
+    uint start= j, end;
+    LINT_INIT(first_offset);
+
+    /*
+      Search in i and j for the next column to add from i and where to
+      add.
+    */
+
+    while (i < add_column_count && plan[i].act == PLAN_NOP)
+      i++;                                    /* skip NOP */
+
+    if (i == add_column_count)
+      j= end= column_count;
+    else
+    {
+      /*
+        old data portion. We don't need to check that j < column_count
+        as plan[i].place is guaranteed to have a pointer inside the
+        data.
+      */
+      while (header_base + j * entry_size < plan[i].place)
+        j++;
+      end= j;
+      if ((plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
+        j++;                              /* data at 'j' will be removed */
+    }
+    plan[i].mv_end= end;
+
+    {
+      DYNAMIC_COLUMN_TYPE tp;
+      if (type_and_offset_read(&tp, &first_offset,
+                               header_base + start * entry_size +
+                               COLUMN_NUMBER_SIZE, offset_size))
+        return ER_DYNCOL_FORMAT;
+    }
+    /* find data to be moved */
+    if (start < end)
+    {
+      size_t data_size=
+        get_length_interval(header_base + start * entry_size,
+                            header_base + end * entry_size,
+                            header_end, offset_size, max_offset);
+      if (data_size == DYNCOL_OFFSET_ERROR ||
+          (long) data_size < 0 ||
+          data_size > max_offset - first_offset)
+      {
+        str->length= 0; // just something valid
+        return ER_DYNCOL_FORMAT;
+      }
+      DBUG_ASSERT(curr_offset == first_offset + plan[i].ddelta);
+      plan[i].mv_offset= first_offset;
+      plan[i].mv_length= data_size;
+      curr_offset+= data_size;
+    }
+    else
+    {
+      plan[i].mv_length= 0;
+      plan[i].mv_offset= curr_offset;
+    }
+
+    if (plan[i].ddelta == 0 && offset_size == new_offset_size &&
+        plan[i].act != PLAN_DELETE)
+      write+= entry_size * (end - start);
+    else
+    {
+      /*
+        Adjust all headers since last loop.
+        We have to do this as the offset for data has moved
+      */
+      for (k= start; k < end; k++)
+      {
+        uchar *read= header_base + k * entry_size;
+        size_t offs;
+        uint nm;
+        DYNAMIC_COLUMN_TYPE tp;
+
+        nm= uint2korr(read);                    /* Column nummber */
+        if (type_and_offset_read(&tp, &offs, read + COLUMN_NUMBER_SIZE,
+                                 offset_size))
+          return ER_DYNCOL_FORMAT;
+
+        if (k > start && offs < first_offset)
+        {
+          str->length= 0; // just something valid
+          return ER_DYNCOL_FORMAT;
+        }
+
+        offs+= plan[i].ddelta;
+        int2store(write, nm);
+        /* write rest of data at write + COLUMN_NUMBER_SIZE */
+        type_and_offset_store(write, new_offset_size, tp, offs);
+        write+= new_entry_size;
+      }
+    }
+
+    /* new data adding */
+    if (i < add_column_count)
+    {
+      if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
+      {
+        int2store(write, *((uint *)plan[i].key));
+        type_and_offset_store(write, new_offset_size,
+                              plan[i].val[0].type,
+                              curr_offset);
+        write+= new_entry_size;
+        curr_offset+= plan[i].length;
+      }
+    }
+  }
+
+  /*
+    Move data.
+    i= index in array of changes
+    j= index in packed string header index
+  */
+  str->length= (FIXED_HEADER_SIZE + new_header_size);
+  for (i= 0, j= 0;
+       i < add_column_count || j < column_count;
+       i++)
+  {
+    uint start= j, end;
+
+    /*
+      Search in i and j for the next column to add from i and where to
+      add.
+    */
+
+    while (i < add_column_count && plan[i].act == PLAN_NOP)
+      i++;                                    /* skip NOP */
+
+    j= end= plan[i].mv_end;
+    if (i != add_column_count &&
+        (plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
+      j++;
+
+    /* copy first the data that was not replaced in original packed data */
+    if (start < end && plan[i].mv_length)
+    {
+      memmove((header_base + new_header_size +
+               plan[i].mv_offset + plan[i].ddelta),
+              header_base + header_size + plan[i].mv_offset,
+              plan[i].mv_length);
+    }
+    str->length+= plan[i].mv_length;
+
+    /* new data adding */
+    if (i < add_column_count)
+    {
+      if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
+      {
+        data_store(str, plan[i].val);        /* Append new data */
+      }
+    }
+  }
+  return ER_DYNCOL_OK;
+}
+
+enum enum_dyncol_func_result
+dynamic_column_update_move_right(DYNAMIC_COLUMN *str, PLAN *plan,
+                                 size_t offset_size,
+                                 size_t entry_size,
+                                 size_t header_size,
+                                 size_t new_offset_size,
+                                 size_t new_entry_size,
+                                 size_t new_header_size,
+                                 uint column_count,
+                                 uint new_column_count,
+                                 uint add_column_count,
+                                 uchar *header_end,
+                                 size_t max_offset)
+{
+  uchar *write;
+  uchar *header_base= (uchar *)str->str + FIXED_HEADER_SIZE;
+  uint i, j, k;
+  size_t curr_offset;
+
+  write= (uchar *)str->str + FIXED_HEADER_SIZE;
+  set_fixed_header(str, new_offset_size, new_column_count);
+
+  /*
+    Move data first.
+    i= index in array of changes
+    j= index in packed string header index
+  */
+  for (curr_offset= 0, i= 0, j= 0;
+       i < add_column_count || j < column_count;
+       i++)
+  {
+    size_t first_offset;
+    uint start= j, end;
+    LINT_INIT(first_offset);
+
+    /*
+      Search in i and j for the next column to add from i and where to
+      add.
+    */
+
+    while (i < add_column_count && plan[i].act == PLAN_NOP)
+      i++;                                    /* skip NOP */
+
+    if (i == add_column_count)
+      j= end= column_count;
+    else
+    {
+      /*
+        old data portion. We don't need to check that j < column_count
+        as plan[i].place is guaranteed to have a pointer inside the
+        data.
+      */
+      while (header_base + j * entry_size < plan[i].place)
+        j++;
+      end= j;
+      if ((plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
+        j++;                              /* data at 'j' will be removed */
+    }
+    plan[i].mv_end= end;
+
+    {
+      DYNAMIC_COLUMN_TYPE tp;
+      type_and_offset_read(&tp, &first_offset,
+                           header_base + start * entry_size + COLUMN_NUMBER_SIZE, offset_size);
+    }
+    /* find data to be moved */
+    if (start < end)
+    {
+      size_t data_size=
+        get_length_interval(header_base + start * entry_size,
+                            header_base + end * entry_size,
+                            header_end, offset_size, max_offset);
+      if (data_size == DYNCOL_OFFSET_ERROR ||
+          (long) data_size < 0 ||
+          data_size > max_offset - first_offset)
+      {
+        str->length= 0; // just something valid
+        return ER_DYNCOL_FORMAT;
+      }
+      DBUG_ASSERT(curr_offset == first_offset + plan[i].ddelta);
+      plan[i].mv_offset= first_offset;
+      plan[i].mv_length= data_size;
+      curr_offset+= data_size;
+    }
+    else
+    {
+      plan[i].mv_length= 0;
+      plan[i].mv_offset= curr_offset;
+    }
+
+    if (plan[i].ddelta == 0 && offset_size == new_offset_size &&
+        plan[i].act != PLAN_DELETE)
+      write+= entry_size * (end - start);
+    else
+    {
+      /*
+        Adjust all headers since last loop.
+        We have to do this as the offset for data has moved
+      */
+      for (k= start; k < end; k++)
+      {
+        uchar *read= header_base + k * entry_size;
+        size_t offs;
+        uint nm;
+        DYNAMIC_COLUMN_TYPE tp;
+
+        nm= uint2korr(read);                    /* Column nummber */
+        type_and_offset_read(&tp, &offs, read + COLUMN_NUMBER_SIZE, offset_size);
+        if (k > start && offs < first_offset)
+        {
+          str->length= 0; // just something valid
+          return ER_DYNCOL_FORMAT;
+        }
+
+        offs+= plan[i].ddelta;
+        int2store(write, nm);
+        /* write rest of data at write + COLUMN_NUMBER_SIZE */
+        if (type_and_offset_store(write, new_offset_size, tp, offs))
+        {
+          str->length= 0; // just something valid
+          return ER_DYNCOL_FORMAT;
+        }
+        write+= new_entry_size;
+      }
+    }
+
+    /* new data adding */
+    if (i < add_column_count)
+    {
+      if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
+      {
+        int2store(write, *((uint *)plan[i].key));
+        if (type_and_offset_store(write, new_offset_size,
+                                  plan[i].val[0].type,
+                                  curr_offset))
+        {
+          str->length= 0; // just something valid
+          return ER_DYNCOL_FORMAT;
+        }
+        write+= new_entry_size;
+        curr_offset+= plan[i].length;
+      }
+    }
+  }
+
+  /*
+    Move headers.
+    i= index in array of changes
+    j= index in packed string header index
+  */
+  str->length= (FIXED_HEADER_SIZE + new_header_size);
+  for (i= 0, j= 0;
+       i < add_column_count || j < column_count;
+       i++)
+  {
+    uint start= j, end;
+
+    /*
+      Search in i and j for the next column to add from i and where to
+      add.
+    */
+
+    while (i < add_column_count && plan[i].act == PLAN_NOP)
+      i++;                                    /* skip NOP */
+
+    j= end= plan[i].mv_end;
+    if (i != add_column_count &&
+        (plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
+      j++;
+
+    /* copy first the data that was not replaced in original packed data */
+    if (start < end && plan[i].mv_length)
+    {
+      memmove((header_base + new_header_size +
+               plan[i].mv_offset + plan[i].ddelta),
+              header_base + header_size + plan[i].mv_offset,
+              plan[i].mv_length);
+    }
+    str->length+= plan[i].mv_length;
+
+    /* new data adding */
+    if (i < add_column_count)
+    {
+      if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
+      {
+        data_store(str, plan[i].val);        /* Append new data */
+      }
+    }
+  }
+  return ER_DYNCOL_OK;
+}
 
 
 /**
@@ -1728,6 +2895,8 @@ static int plan_sort(const void *a, const void *b)
 
   @return ER_DYNCOL_* return code
 */
+/* plan allocated on the stack */
+#define IN_PLACE_PLAN 4
 
 enum enum_dyncol_func_result
 dynamic_column_update_many(DYNAMIC_COLUMN *str,
@@ -1735,39 +2904,75 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
                            uint *column_numbers,
                            DYNAMIC_COLUMN_VALUE *values)
 {
-  PLAN *plan;
-  uchar *header_end;
-  long data_delta= 0;
-  uint i, j, k;
-  uint new_column_count, column_count, not_null;
+  return dynamic_column_update_many_fmt(str, add_column_count, column_numbers,
+                                        values, FALSE);
+}
+
+uint numlen(uint val)
+{
+  uint res;
+  if (val == 0)
+    return 1;
+  res= 0;
+  while(val)
+  {
+    res++;
+    val/=10;
+  }
+  return res;
+}
+
+enum enum_dyncol_func_result
+dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
+                               uint add_column_count,
+                               void *column_keys,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool string_keys)
+{
+  PLAN *plan, *alloc_plan= NULL, in_place_plan[IN_PLACE_PLAN];
+  uchar *element;
+  DYN_HEADER header, new_header;
+  struct st_service_funcs *fmt, *new_fmt;
+  long data_delta= 0, name_delta= 0;
+  uint i;
+  uint not_null;
+  int header_delta= 0;
+  int copy= FALSE;
+  int header_delta_sign, data_delta_sign;
   enum enum_dyncol_func_result rc;
-  int header_delta;
-  size_t offset_size, entry_size, header_size, data_size;
-  size_t new_offset_size, new_entry_size, new_header_size, new_data_size;
-  size_t max_offset;
+  my_bool convert;
 
   if (add_column_count == 0)
     return ER_DYNCOL_OK;
+
+  bzero(&header, sizeof(header));
+  bzero(&new_header, sizeof(new_header));
+  new_header.format= (string_keys ? DYNCOL_FMT_STR : DYNCOL_FMT_NUM);
+  new_fmt= fmt_data + new_header.format;
 
   /*
     Get columns in column order. As the data in 'str' is already
     in column order this allows to replace all columns in one loop.
   */
-
-  if (!(plan= my_malloc(sizeof(PLAN) * (add_column_count + 1), MYF(0))))
+  if (IN_PLACE_PLAN > add_column_count)
+    plan= in_place_plan;
+  else if (!(alloc_plan= plan=
+             my_malloc(sizeof(PLAN) * (add_column_count + 1), MYF(0))))
     return ER_DYNCOL_RESOURCE;
 
   not_null= add_column_count;
-  for (i= 0; i < add_column_count; i++)
+  for (i= 0, element= (uchar *) column_keys;
+       i < add_column_count;
+       i++, element+= new_fmt->key_size_in_array)
   {
-    if (column_numbers[i] > UINT_MAX16)
+    if ((*new_fmt->check_limit)(&element))
     {
       rc= ER_DYNCOL_DATA;
       goto end;
     }
 
     plan[i].val= values + i;
-    plan[i].num= column_numbers + i;
+    plan[i].key= element;
     if (values[i].type == DYN_COL_NULL)
       not_null--;
 
@@ -1783,22 +2988,32 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
   }
 
   /* Check that header is ok */
-  if (read_fixed_header(str, &offset_size, &column_count))
-  {
-    rc= ER_DYNCOL_FORMAT;
+  if ((rc= init_read_hdr(&header, str)) < 0)
     goto end;
-  }
-  if (column_count == 0)
+  fmt= fmt_data + header.format;
+  /* new format can't be numeric if the old one is names */
+  DBUG_ASSERT(new_header.format == DYNCOL_FMT_STR ||
+              header.format == DYNCOL_FMT_NUM);
+  if (header.column_count == 0)
     goto create_new_string;
 
-  qsort(plan, (size_t)add_column_count, sizeof(PLAN), &plan_sort);
+  qsort(plan, (size_t)add_column_count, sizeof(PLAN), new_fmt->plan_sort);
 
-  new_column_count= column_count;
-  calc_param(&entry_size, &header_size, offset_size, column_count);
-  max_offset= str->length - (FIXED_HEADER_SIZE + header_size);
-  header_end= (uchar*) str->str + FIXED_HEADER_SIZE + header_size;
+  new_header.column_count= header.column_count;
+  new_header.nmpool_size= header.nmpool_size;
+  if ((convert= (new_header.format == DYNCOL_FMT_STR &&
+                 header.format == DYNCOL_FMT_NUM)))
+  {
+    DBUG_ASSERT(new_header.nmpool_size == 0);
+    for(i= 0, header.entry= header.header;
+        i < header.column_count;
+        i++, header.entry+= header.entry_size)
+    {
+      new_header.nmpool_size+= numlen(uint2korr(header.entry));
+    }
+  }
 
-  if (header_size + FIXED_HEADER_SIZE > str->length)
+  if (fmt->fixed_hdr + header.header_size + header.nmpool_size > str->length)
   {
     rc= ER_DYNCOL_FORMAT;
     goto end;
@@ -1808,17 +3023,15 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
     Calculate how many columns and data is added/deleted and make a 'plan'
     for each of them.
   */
-  header_delta= 0;
   for (i= 0; i < add_column_count; i++)
   {
-    uchar *entry;
-
     /*
       For now we don't allow creating two columns with the same number
       at the time of create.  This can be fixed later to just use the later
       by comparing the pointers.
     */
-    if (i < add_column_count - 1 && plan[i].num[0] == plan[i + 1].num[0])
+    if (i < add_column_count - 1 &&
+        new_fmt->column_sort(&plan[i].key, &plan[i + 1].key) == 0)
     {
       rc= ER_DYNCOL_DATA;
       goto end;
@@ -1826,24 +3039,34 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
 
     /* Set common variables for all plans */
     plan[i].ddelta= data_delta;
+    plan[i].ndelta= name_delta;
     /* get header delta in entries */
     plan[i].hdelta= header_delta;
     plan[i].length= 0;                          /* Length if NULL */
 
-    if (find_place(plan[i].num[0],
-                   (uchar *)str->str + FIXED_HEADER_SIZE,
-                   entry_size, column_count, &entry))
+    if (find_place(&header, plan[i].key, string_keys))
     {
-      size_t entry_data_size;
+      size_t entry_data_size, entry_name_size= 0;
 
       /* Data existed; We have to replace or delete it */
 
-      entry_data_size= get_length(entry, header_end,
-                                  offset_size, max_offset);
-      if ((long) entry_data_size < 0)
+      entry_data_size= hdr_interval_length(&header, header.entry +
+                                           header.entry_size);
+      if (entry_data_size == DYNCOL_OFFSET_ERROR ||
+          (long) entry_data_size < 0)
       {
         rc= ER_DYNCOL_FORMAT;
         goto end;
+      }
+
+        //get_length(header.entry, header.dtpool, header.offset_size,
+        //header.data_size);
+      if (new_header.format == DYNCOL_FMT_STR)
+      {
+        if (header.format == DYNCOL_FMT_STR)
+          entry_name_size= header.entry[0];
+        else
+          entry_name_size= numlen(uint2korr(header.entry));
       }
 
       if (plan[i].val->type == DYN_COL_NULL)
@@ -1853,6 +3076,7 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
         plan[i].act= PLAN_DELETE;	        /* Remove old value */
         header_delta--;                         /* One row less in header */
         data_delta-= entry_data_size;           /* Less data to store */
+        name_delta-= entry_name_size;
       }
       else
       {
@@ -1867,6 +3091,10 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
           goto end;
         }
         data_delta+= plan[i].length - entry_data_size;
+        if (new_header.format == DYNCOL_FMT_STR)
+        {
+          name_delta+= ((LEX_STRING *)(plan[i].key))->length - entry_name_size;
+        }
       }
     }
     else
@@ -1891,202 +3119,105 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
           goto end;
         }
         data_delta+= plan[i].length;
+        if (new_header.format == DYNCOL_FMT_STR)
+          name_delta+= ((LEX_STRING *)plan[i].key)->length;
       }
     }
-    plan[i].place= entry;
+    plan[i].place= header.entry;
   }
   plan[add_column_count].hdelta= header_delta;
   plan[add_column_count].ddelta= data_delta;
-  new_column_count= column_count + header_delta;
+  plan[add_column_count].act= PLAN_NOP;
+  plan[add_column_count].place= header.dtpool;
+
+  new_header.column_count= header.column_count + header_delta;
 
   /*
     Check if it is only "increasing" or only "decreasing" plan for (header
     and data separately).
   */
-  data_size= str->length - header_size - FIXED_HEADER_SIZE;
-  new_data_size= data_size + data_delta;
-  if ((new_offset_size= dynamic_column_offset_bytes(new_data_size)) >=
+  new_header.data_size= header.data_size + data_delta;
+  new_header.nmpool_size= new_header.nmpool_size + name_delta;
+  DBUG_ASSERT(new_header.format != DYNCOL_FMT_NUM ||
+              new_header.nmpool_size == 0);
+  if ((new_header.offset_size=
+       dynamic_column_offset_bytes(new_header.data_size)) >=
       MAX_OFFSET_LENGTH)
   {
     rc= ER_DYNCOL_LIMIT;
     goto end;
   }
 
-#ifdef NOT_IMPLEMENTED
-  /* if (new_offset_size != offset_size) then we have to rewrite header */
-  header_delta_sign= new_offset_size - offset_size;
+  copy= ((header.format != new_header.format) ||
+         (new_header.format == DYNCOL_FMT_STR));
+  /* if (new_header.offset_size!=offset_size) then we have to rewrite header */
+  header_delta_sign=
+    ((int)new_header.offset_size + new_fmt->fixed_hdr_entry) -
+    ((int)header.offset_size + fmt->fixed_hdr_entry);
   data_delta_sign= 0;
-  for (i= 0; i < add_column_count; i++)
+  // plan[add_column_count] contains last deltas.
+  for (i= 0; i <= add_column_count && !copy; i++)
   {
     /* This is the check for increasing/decreasing */
     DELTA_CHECK(header_delta_sign, plan[i].hdelta, copy);
     DELTA_CHECK(data_delta_sign, plan[i].ddelta, copy);
   }
-#endif
-  calc_param(&new_entry_size, &new_header_size,
-             new_offset_size, new_column_count);
+  calc_param(&new_header.entry_size, &new_header.header_size,
+             new_fmt->fixed_hdr_entry,
+             new_header.offset_size, new_header.column_count);
 
   /*
-    The following code always make a copy. In future we can do a more
-    optimized version when data is only increasing / decreasing.
+    Need copy because:
+    1. Header/data parts moved in different directions.
+    2. There is no enough allocated space in the string.
+    3. Header and data moved in different directions.
   */
-
-  /*if (copy) */
-  {
-    DYNAMIC_COLUMN tmp;
-    uchar *header_base= (uchar *)str->str + FIXED_HEADER_SIZE,
-          *write;
-    if (dynamic_column_init_str(&tmp,
-                                (FIXED_HEADER_SIZE + new_header_size +
-                                 new_data_size + DYNCOL_SYZERESERVE)))
-    {
-      rc= ER_DYNCOL_RESOURCE;
-      goto end;
-    }
-    write= (uchar *)tmp.str + FIXED_HEADER_SIZE;
-    /* Adjust tmp to contain whole the future header */
-    tmp.length= FIXED_HEADER_SIZE + new_header_size;
-    set_fixed_header(&tmp, new_offset_size, new_column_count);
-    data_delta= 0;
-
-    /*
-      Copy data to the new string
-      i= index in array of changes
-      j= index in packed string header index
-    */
-
-    for (i= 0, j= 0; i < add_column_count || j < column_count; i++)
-    {
-      size_t first_offset;
-      uint start= j, end;
-      LINT_INIT(first_offset);
-
+  if (copy || /*1*/
+      str->max_length < str->length + header_delta + data_delta || /*2*/
+      ((header_delta_sign < 0 && data_delta_sign > 0) ||
+       (header_delta_sign > 0 && data_delta_sign < 0))) /*3*/
+    rc= dynamic_column_update_copy(str, plan, add_column_count,
+                                   &header, &new_header,
+                                   convert);
+  else
+    if (header_delta_sign < 0)
+      rc= dynamic_column_update_move_left(str, plan, header.offset_size,
+                                          header.entry_size,
+                                          header.header_size,
+                                          new_header.offset_size,
+                                          new_header.entry_size,
+                                          new_header.header_size,
+                                          header.column_count,
+                                          new_header.column_count,
+                                          add_column_count, header.dtpool,
+                                          header.data_size);
+    else
       /*
-        Search in i and j for the next column to add from i and where to
-        add.
-      */
-
-      while (i < add_column_count && plan[i].act == PLAN_NOP)
-        i++;                                    /* skip NOP */
-      if (i == add_column_count)
-        j= end= column_count;
-      else
-      {
-        /*
-          old data portion. We don't need to check that j < column_count
-          as plan[i].place is guaranteed to have a pointer inside the
-          data.
-        */
-        while (header_base + j * entry_size < plan[i].place)
-          j++;
-        end= j;
-        if ((plan[i].act == PLAN_REPLACE || plan[i].act == PLAN_DELETE))
-          j++;                              /* data at 'j' will be removed */
-      }
-
-      if (plan[i].ddelta == 0 && offset_size == new_offset_size)
-      {
-        uchar *read= header_base + start * entry_size;
-        DYNAMIC_COLUMN_TYPE tp;
-        /*
-          It's safe to copy the header unchanged. This is usually the
-          case for the first header block before any changed data.
-        */
-        if (start < end)                        /* Avoid memcpy with 0 */
-        {
-          size_t length= entry_size * (end - start);
-          memcpy(write, read, length);
-          write+= length;
-        }
-        /* Read first_offset */
-        type_and_offset_read(&tp, &first_offset, read, offset_size);
-      }
-      else
-      {
-        /*
-          Adjust all headers since last loop.
-          We have to do this as the offset for data has moved
-        */
-        for (k= start; k < end; k++)
-        {
-          uchar *read= header_base + k * entry_size;
-          size_t offs;
-          uint nm;
-          DYNAMIC_COLUMN_TYPE tp;
-
-          nm= uint2korr(read);                    /* Column nummber */
-          type_and_offset_read(&tp, &offs, read, offset_size);
-          if (k == start)
-            first_offset= offs;
-          else if (offs < first_offset)
-          {
-            dynamic_column_column_free(&tmp);
-            rc= ER_DYNCOL_FORMAT;
-            goto end;
-          }
-
-          offs+= plan[i].ddelta;
-          int2store(write, nm);
-          /* write rest of data at write + COLUMN_NUMBER_SIZE */
-          type_and_offset_store(write, new_offset_size, tp, offs);
-          write+= new_entry_size;
-        }
-      }
-
-      /* copy first the data that was not replaced in original packed data */
-      if (start < end)
-      {
-        /* Add old data last in 'tmp' */
-        size_t data_size=
-          get_length_interval(header_base + start * entry_size,
-                              header_base + end * entry_size,
-                              header_end, offset_size, max_offset);
-        if ((long) data_size < 0 ||
-            data_size > max_offset - first_offset)
-        {
-          dynamic_column_column_free(&tmp);
-          rc= ER_DYNCOL_FORMAT;
-          goto end;
-        }
-
-        memcpy(tmp.str + tmp.length, (char *)header_end + first_offset,
-               data_size);
-        tmp.length+= data_size;
-      }
-
-      /* new data adding */
-      if (i < add_column_count)
-      {
-        if( plan[i].act == PLAN_ADD || plan[i].act == PLAN_REPLACE)
-        {
-          int2store(write, plan[i].num[0]);
-          type_and_offset_store(write, new_offset_size,
-                                plan[i].val[0].type,
-                                tmp.length -
-                                (FIXED_HEADER_SIZE + new_header_size));
-          write+= new_entry_size;
-          data_store(&tmp, plan[i].val);        /* Append new data */
-        }
-        data_delta= plan[i].ddelta;
-      }
-    }
-    dynamic_column_column_free(str);
-    *str= tmp;
-  }
-
-  rc= ER_DYNCOL_OK;
-
+      rc= dynamic_column_update_move_right(str, plan, offset_size,
+                                           entry_size,  header_size,
+                                           new_header.offset_size,
+                                           new_header.entry_size,
+                                           new_heder.header_size, column_count,
+                                           new_header.column_count,
+                                           add_column_count, header_end,
+                                           header.data_size);
+                                         */
+      rc= dynamic_column_update_copy(str, plan, add_column_count,
+                                     &header, &new_header,
+                                     convert);
 end:
-  my_free(plan);
+  my_free(alloc_plan);
   return rc;
 
 create_new_string:
   /* There is no columns from before, so let's just add the new ones */
   rc= ER_DYNCOL_OK;
+  my_free(alloc_plan);
   if (not_null != 0)
-    rc= dynamic_column_create_many_internal(str, add_column_count,
-                                            column_numbers, values,
-                                            str->str == NULL);
+    rc= dynamic_column_create_many_internal_fmt(str, add_column_count,
+                                                (uint*)column_keys, values,
+                                                str->str == NULL,
+                                                string_keys);
   goto end;
 }
 
@@ -2106,4 +3237,397 @@ int dynamic_column_update(DYNAMIC_COLUMN *str, uint column_nr,
                           DYNAMIC_COLUMN_VALUE *value)
 {
   return dynamic_column_update_many(str, 1, &column_nr, value);
+}
+
+
+enum enum_dyncol_func_result
+dynamic_column_check(DYNAMIC_COLUMN *str)
+{
+  struct st_service_funcs *fmt;
+  enum enum_dyncol_func_result rc= ER_DYNCOL_FORMAT;
+  DYN_HEADER header;
+  uint i;
+  size_t data_offset= 0, name_offset= 0;
+  size_t prev_data_offset= 0, prev_name_offset= 0;
+  LEX_STRING name= {0,0}, prev_name= {0,0};
+  uint num= 0, prev_num= 0;
+  void *key, *prev_key;
+  enum enum_dynamic_column_type type= DYN_COL_NULL, prev_type= DYN_COL_NULL;
+
+  DBUG_ENTER("dynamic_column_check");
+
+  if (str->length == 0)
+  {
+    DBUG_PRINT("info", ("empty string is OK"));
+    DBUG_RETURN(ER_DYNCOL_OK);
+  }
+
+  bzero(&header, sizeof(header));
+
+  /* Check that header is OK */
+  if (read_fixed_header(&header, str))
+  {
+    DBUG_PRINT("info", ("Reading fixed string header failed"));
+    goto end;
+  }
+  fmt= fmt_data + header.format;
+  calc_param(&header.entry_size, &header.header_size,
+             fmt->fixed_hdr_entry, header.offset_size,
+             header.column_count);
+  /* headers are out of string length (no space for data and part of headers) */
+  if (fmt->fixed_hdr + header.header_size + header.nmpool_size > str->length)
+  {
+    DBUG_PRINT("info", ("Fixed header: %u  Header size: %u  "
+                        "Name pool size: %u  but Strig length: %u",
+                        (uint)fmt->fixed_hdr,
+                        (uint)header.header_size,
+                        (uint)header.nmpool_size,
+                        (uint)str->length));
+    goto end;
+  }
+  header.header= (uchar*)str->str + fmt->fixed_hdr;
+  header.nmpool= header.header + header.header_size;
+  header.dtpool= header.nmpool + header.nmpool_size;
+  header.data_size= str->length - fmt->fixed_hdr -
+    header.header_size - header.nmpool_size;
+
+  /* read and check headers */
+  if (header.format == DYNCOL_FMT_NUM)
+  {
+    key= &num;
+    prev_key= &prev_num;
+  }
+  else
+  {
+    key= &name;
+    prev_key= &prev_name;
+  }
+  for (i= 0, header.entry= header.header;
+       i < header.column_count;
+       i++, header.entry+= header.entry_size)
+  {
+
+    if (header.format == DYNCOL_FMT_NUM)
+    {
+       num= uint2korr(header.entry);
+    }
+    else
+    {
+      DBUG_ASSERT(header.format == DYNCOL_FMT_STR);
+      name.length= header.entry[0];
+      name_offset= uint2korr(header.entry + 1);
+      name.str= (char *)header.nmpool + name_offset;
+    }
+    if (type_and_offset_read(&type, &data_offset,
+                             header.entry + fmt->fixed_hdr_entry,
+                             header.offset_size))
+      goto end;
+
+    DBUG_ASSERT(type != DYN_COL_NULL);
+    if (data_offset > header.data_size)
+    {
+      DBUG_PRINT("info", ("Field order: %u  Data offset: %u"
+                          " > Data pool size: %u",
+                          (uint)i,
+                          (uint)name_offset,
+                          (uint)header.nmpool_size));
+      goto end;
+    }
+    if (name_offset > header.nmpool_size)
+    {
+      DBUG_PRINT("info", ("Field order: %u  Name offset: %u"
+                          " > Name pool size: %u",
+                          (uint)i,
+                          (uint)name_offset,
+                          (uint)header.nmpool_size));
+      goto end;
+    }
+    if (prev_type != DYN_COL_NULL)
+    {
+      /* It is not first entry */
+      if (prev_data_offset >= data_offset)
+      {
+        DBUG_PRINT("info", ("Field order: %u  Previous data offset: %u"
+                            " >= Current data offset: %u",
+                            (uint)i,
+                            (uint)prev_data_offset,
+                            (uint)data_offset));
+        goto end;
+      }
+      if (prev_name_offset > name_offset)
+      {
+        DBUG_PRINT("info", ("Field order: %u  Previous name offset: %u"
+                            " > Current name offset: %u",
+                            (uint)i,
+                            (uint)prev_data_offset,
+                            (uint)data_offset));
+        goto end;
+      }
+      if ((*fmt->column_sort)(&prev_key, &key) >= 0)
+      {
+        DBUG_PRINT("info", ("Field order: %u  Previous key >= Current key",
+                            (uint)i));
+        goto end;
+      }
+    }
+    prev_num= num;
+    prev_name= name;
+    prev_data_offset= data_offset;
+    prev_name_offset= name_offset;
+    prev_type= type;
+  }
+
+  /* check data, which we can */
+  for (i= 0, header.entry= header.header;
+       i < header.column_count;
+       i++, header.entry+= header.entry_size)
+  {
+    DYNAMIC_COLUMN_VALUE store;
+    // already checked by previouse pass
+    type_and_offset_read(&header.type, &header.offset,
+                         header.entry + fmt->fixed_hdr_entry,
+                         header.offset_size);
+    header.length=
+      hdr_interval_length(&header, header.entry + header.entry_size);
+    header.data= header.dtpool + header.offset;
+    switch ((header.type)) {
+    case DYN_COL_INT:
+      rc= dynamic_column_sint_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_UINT:
+      rc= dynamic_column_uint_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_DOUBLE:
+      rc= dynamic_column_double_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_STRING:
+      rc= dynamic_column_string_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_DECIMAL:
+      rc= dynamic_column_decimal_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_DATETIME:
+      rc= dynamic_column_date_time_read(&store, header.data,
+                                        header.length);
+      break;
+    case DYN_COL_DATE:
+      rc= dynamic_column_date_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_TIME:
+      rc= dynamic_column_time_read(&store, header.data, header.length);
+      break;
+    case DYN_COL_NULL:
+    default:
+      rc= ER_DYNCOL_FORMAT;
+      goto end;
+    }
+    if (rc != ER_DYNCOL_OK)
+    {
+      DBUG_ASSERT(rc < 0);
+      DBUG_PRINT("info", ("Field order: %u  Can't read data: %i",
+                          (uint)i, (int) rc));
+      goto end;
+    }
+  }
+
+  rc= ER_DYNCOL_OK;
+end:
+  DBUG_RETURN(rc);
+}
+
+
+enum enum_dyncol_func_result
+dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
+                       my_bool quote)
+{
+  char buff[40];
+  int len;
+  switch (val->type) {
+  case DYN_COL_INT:
+      len= snprintf(buff, sizeof(buff), "%lld", val->x.long_value);
+      if (dynstr_append_mem(str, buff, len))
+        return ER_DYNCOL_RESOURCE;
+      break;
+    case DYN_COL_UINT:
+      len= snprintf(buff, sizeof(buff), "%llu", val->x.ulong_value);
+      if (dynstr_append_mem(str, buff, len))
+        return ER_DYNCOL_RESOURCE;
+      break;
+    case DYN_COL_DOUBLE:
+      len= snprintf(buff, sizeof(buff), "%lg", val->x.double_value);
+      if (dynstr_realloc(str, len + (quote ? 2 : 0)))
+        return ER_DYNCOL_RESOURCE;
+      if (quote)
+        str->str[str->length++]= '"';
+      dynstr_append_mem(str, buff, len);
+      if (quote)
+        str->str[str->length++]= '"';
+      break;
+    case DYN_COL_STRING:
+      {
+        char *alloc= NULL;
+        char *from= val->x.string.value.str;
+        uint bufflen;
+        my_bool conv= !my_charset_same(val->x.string.charset,
+                                       &my_charset_utf8_general_ci);
+        my_bool rc;
+        len= val->x.string.value.length;
+        bufflen= (len * (conv ? my_charset_utf8_general_ci.mbmaxlen : 1));
+        if (dynstr_realloc(str, bufflen))
+            return ER_DYNCOL_RESOURCE;
+
+        // guaranty UTF-8 string for value
+        if (!my_charset_same(val->x.string.charset,
+                             &my_charset_utf8_general_ci))
+        {
+          uint dummy_errors;
+          if (!quote)
+          {
+            /* convert to the destination */
+            str->length+= copy_and_convert_extended(str->str, bufflen,
+                                                    &my_charset_utf8_general_ci,
+                                                    from, len,
+                                                    val->x.string.charset,
+                                                    &dummy_errors);
+            return ER_DYNCOL_OK;
+          }
+          if ((alloc= (char *)my_malloc(bufflen, MYF(0))))
+          {
+            len=
+              copy_and_convert_extended(alloc, bufflen,
+                                        &my_charset_utf8_general_ci,
+                                        from, len, val->x.string.charset,
+                                        &dummy_errors);
+            from= alloc;
+          }
+          else
+            return ER_DYNCOL_RESOURCE;
+        }
+        if (quote)
+          rc= dynstr_append_quoted(str, from, len);
+        else
+          rc= dynstr_append_mem(str, from, len);
+        if (alloc)
+          my_free(alloc);
+        if (rc)
+          return ER_DYNCOL_RESOURCE;
+        break;
+      }
+    case DYN_COL_DECIMAL:
+      len= sizeof(buff);
+      decimal2string(&val->x.decimal.value, buff, &len,
+                     0, val->x.decimal.value.frac,
+                     '0');
+      if (dynstr_append_mem(str, buff, len))
+        return ER_DYNCOL_RESOURCE;
+      break;
+    case DYN_COL_DATETIME:
+    case DYN_COL_DATE:
+    case DYN_COL_TIME:
+      len= my_TIME_to_str(&val->x.time_value, buff, AUTO_SEC_PART_DIGITS);
+      if (dynstr_realloc(str, len + (quote ? 2 : 0)))
+        return ER_DYNCOL_RESOURCE;
+      if (quote)
+        str->str[str->length++]= '"';
+      dynstr_append_mem(str, buff, len);
+      if (quote)
+        str->str[str->length++]= '"';
+      break;
+    case DYN_COL_NULL:
+      if (dynstr_append_mem(str, "null", 4))
+        return ER_DYNCOL_RESOURCE;
+      break;
+    default:
+      return(ER_DYNCOL_FORMAT);
+  }
+  return(ER_DYNCOL_OK);
+}
+
+/**
+  Convert to JSON
+
+  @param str             The packed string
+  @param json            Where to put json result
+
+  @return ER_DYNCOL_* return code
+*/
+
+enum enum_dyncol_func_result
+dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json)
+{
+  DYN_HEADER header;
+  uint i;
+  enum enum_dyncol_func_result rc;
+
+  bzero(json, sizeof(DYNAMIC_STRING));          /* In case of errors */
+  if (str->length == 0)
+    return ER_DYNCOL_OK;                        /* no columns */
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  if (header.entry_size * header.column_count + FIXED_HEADER_SIZE >
+      str->length)
+    return ER_DYNCOL_FORMAT;
+
+  if (init_dynamic_string(json, NULL, str->length * 2, 100))
+    return ER_DYNCOL_RESOURCE;
+
+  if (dynstr_append_mem(json, "[", 1))
+    return ER_DYNCOL_RESOURCE;
+  rc= ER_DYNCOL_RESOURCE;
+  for (i= 0, header.entry= header.header;
+       i < header.column_count;
+       i++, header.entry+= header.entry_size)
+  {
+    DYNAMIC_COLUMN_VALUE val;
+    if (i != 0 && dynstr_append_mem(json, ",", 1))
+      goto err;
+    header.length=
+      hdr_interval_length(&header, header.entry + header.entry_size);
+    header.data= header.dtpool + header.offset;
+    /*
+      Check that the found data is withing the ranges. This can happen if
+      we get data with wrong offsets.
+    */
+    if (header.length == DYNCOL_OFFSET_ERROR ||
+        header.length > INT_MAX || header.offset > header.data_size)
+    {
+      rc= ER_DYNCOL_FORMAT;
+      goto err;
+    }
+    if ((rc= dynamic_column_get_value(&header, &val)) < 0 ||
+        dynstr_append_mem(json, "{", 1))
+      goto err;
+    if (header.format == DYNCOL_FMT_NUM)
+    {
+      uint nm= uint2korr(header.entry);
+      if (dynstr_realloc(json, 6 + 3))
+        goto err;
+      json->str[json->length++]= '"';
+      json->length+= (snprintf(json->str + json->length, 6, "%u", nm));
+    }
+    else
+    {
+      uint len= header.entry[0];
+      if (dynstr_realloc(json, len + 3))
+        goto err;
+      json->str[json->length++]= '"';
+      memcpy(json->str + json->length, (const void *)header.nmpool +
+             uint2korr(header.entry + 1), len);
+      json->length+= len;
+    }
+    json->str[json->length++]= '"';
+    json->str[json->length++]= ':';
+    if ((rc= dynamic_column_val_str(json, &val, TRUE)) < 0 ||
+        dynstr_append_mem(json, "}", 1))
+      goto err;
+  }
+  if (dynstr_append_mem(json, "]", 1))
+    return ER_DYNCOL_RESOURCE;
+  return ER_DYNCOL_OK;
+
+err:
+  json->length= 0;
+  return rc;
 }

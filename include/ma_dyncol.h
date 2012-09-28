@@ -103,6 +103,13 @@ dynamic_column_create_many(DYNAMIC_COLUMN *str,
                            DYNAMIC_COLUMN_VALUE *values);
 
 enum enum_dyncol_func_result
+dynamic_column_create_many_fmt(DYNAMIC_COLUMN *str,
+                               uint column_count,
+                               uchar *column_keys,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool names);
+
+enum enum_dyncol_func_result
 dynamic_column_update(DYNAMIC_COLUMN *org, uint column_nr,
                       DYNAMIC_COLUMN_VALUE *value);
 enum enum_dyncol_func_result
@@ -110,16 +117,30 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
                            uint add_column_count,
                            uint *column_numbers,
                            DYNAMIC_COLUMN_VALUE *values);
+enum enum_dyncol_func_result
+dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
+                               uint add_column_count,
+                               void *column_keys,
+                               DYNAMIC_COLUMN_VALUE *values,
+                               my_bool string_keys);
 
 enum enum_dyncol_func_result
 dynamic_column_delete(DYNAMIC_COLUMN *org, uint column_nr);
 
 enum enum_dyncol_func_result
 dynamic_column_exists(DYNAMIC_COLUMN *org, uint column_nr);
+enum enum_dyncol_func_result
+dynamic_column_exists_str(DYNAMIC_COLUMN *str, LEX_STRING *name);
+enum enum_dyncol_func_result
+dynamic_column_exists_fmt(DYNAMIC_COLUMN *str, void *key, my_bool string_keys);
 
 /* List of not NULL columns */
 enum enum_dyncol_func_result
 dynamic_column_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
+enum enum_dyncol_func_result
+dynamic_column_list_str(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_lexstr);
+enum enum_dyncol_func_result
+dynamic_column_list_fmt(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array, my_bool string_keys);
 
 /*
    if the column do not exists it is NULL
@@ -127,6 +148,17 @@ dynamic_column_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
 enum enum_dyncol_func_result
 dynamic_column_get(DYNAMIC_COLUMN *org, uint column_nr,
                    DYNAMIC_COLUMN_VALUE *store_it_here);
+enum enum_dyncol_func_result
+dynamic_column_get_str(DYNAMIC_COLUMN *str, LEX_STRING *name,
+                           DYNAMIC_COLUMN_VALUE *store_it_here);
+
+my_bool dynamic_column_has_names(DYNAMIC_COLUMN *str);
+
+enum enum_dyncol_func_result
+dynamic_column_check(DYNAMIC_COLUMN *str);
+
+enum enum_dyncol_func_result
+dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json);
 
 #define dynamic_column_initialize(A) memset((A), 0, sizeof(*(A)))
 #define dynamic_column_column_free(V) dynstr_free(V)

@@ -180,5 +180,6 @@ Item *create_func_dyncol_get(THD *thd, Item *num, Item *str,
                              Cast_target cast_type,
                              const char *c_len, const char *c_dec,
                              CHARSET_INFO *cs);
+Item *create_func_dyncol_json(THD *thd, Item *str);
 #endif
 
