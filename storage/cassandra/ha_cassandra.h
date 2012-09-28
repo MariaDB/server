@@ -1,4 +1,4 @@
-/* 
+/*
    Copyright (c) 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -106,7 +106,7 @@ class ha_cassandra: public handler
 
   /* Used to produce 'wrong column %s at row %lu' warnings */
   ha_rows insert_lineno;
-  void print_conversion_error(const char *field_name, 
+  void print_conversion_error(const char *field_name,
                               char *cass_value, int cass_value_len);
   int connect_and_check_options(TABLE *table_arg);
 public:
@@ -144,12 +144,12 @@ public:
         We are saying that this engine is just statement capable to have
         an engine that can only handle statement-based logging. This is
         used in testing.
-      HA_REC_NOT_IN_SEQ 
-        If we don't set it, filesort crashes, because it assumes rowids are 
-        1..8 byte numbers 
+      HA_REC_NOT_IN_SEQ
+        If we don't set it, filesort crashes, because it assumes rowids are
+        1..8 byte numbers
     */
-    return HA_BINLOG_STMT_CAPABLE | 
-           HA_REC_NOT_IN_SEQ; 
+    return HA_BINLOG_STMT_CAPABLE |
+           HA_REC_NOT_IN_SEQ;
 
   }
 
@@ -191,7 +191,7 @@ public:
     support indexes.
    */
   uint max_supported_key_length()    const { return 16*1024; /* just to return something*/ }
-  
+
   int index_init(uint idx, bool sorted);
 
   int index_read_map(uchar * buf, const uchar * key,
@@ -211,19 +211,19 @@ public:
 
   virtual void start_bulk_insert(ha_rows rows);
   virtual int end_bulk_insert();
-  
+
   virtual int reset();
-  
+
 
   int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                             uint n_ranges, uint mode, HANDLER_BUFFER *buf);
   int multi_range_read_next(range_id_t *range_info);
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
-                                      void *seq_init_param, 
+                                      void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
                                       uint *flags, COST_VECT *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
-                                uint key_parts, uint *bufsz, 
+                                uint key_parts, uint *bufsz,
                                 uint *flags, COST_VECT *cost);
   int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
 

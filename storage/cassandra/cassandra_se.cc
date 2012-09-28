@@ -51,11 +51,11 @@ class Cassandra_se_impl: public Cassandra_se_interface
 
   ConsistencyLevel::type write_consistency;
   ConsistencyLevel::type read_consistency;
-  
+
   /* How many times to retry an operation before giving up */
   int thrift_call_retries_to_do;
 
-  
+
   /* DDL data */
   KsDef ks_def; /* KeySpace we're using (TODO: put this in table->share) */
   CfDef cf_def; /* Column family we're using (TODO: put in table->share)*/
@@ -68,15 +68,15 @@ class Cassandra_se_impl: public Cassandra_se_interface
   /* Insert preparation */
   typedef std::map<std::string, std::vector<Mutation> > ColumnFamilyToMutation;
   typedef std::map<std::string,  ColumnFamilyToMutation> KeyToCfMutationMap;
-   
+
   KeyToCfMutationMap batch_mutation; /* Prepare operation here */
   int64_t insert_timestamp;
   std::vector<Mutation>* insert_list;
-   
+
   /* Resultset we're reading */
   std::vector<KeySlice> key_slice_vec;
   std::vector<KeySlice>::iterator key_slice_it;
-  
+
   std::string rowkey; /* key of the record we're returning now */
 
   SlicePredicate slice_pred;
@@ -84,12 +84,12 @@ class Cassandra_se_impl: public Cassandra_se_interface
   bool get_slices_returned_less;
   bool get_slice_found_rows;
 public:
-  Cassandra_se_impl() : cass(NULL), 
+  Cassandra_se_impl() : cass(NULL),
                         write_consistency(ConsistencyLevel::ONE),
                         read_consistency(ConsistencyLevel::ONE),
                         thrift_call_retries_to_do(0) {}
   virtual ~Cassandra_se_impl(){ delete cass; }
-  
+
   /* Connection and DDL checks */
   bool connect(const char *host, int port, const char *keyspace);
   void set_column_family(const char *cfname) { column_family.assign(cfname); }
@@ -137,7 +137,7 @@ public:
   void clear_read_columns();
   void clear_read_all_columns();
   void add_read_column(const char *name);
- 
+
   /* Reads, MRR scans */
   void new_lookup_keys();
   int  add_lookup_key(const char *key, size_t key_len);
@@ -164,7 +164,7 @@ private:
 
   /* Non-inherited utility functions: */
   int64_t get_i64_timestamp();
-  
+
   typedef bool (Cassandra_se_impl::*retryable_func_t)();
   bool try_operation(retryable_func_t func);
 };
@@ -182,17 +182,17 @@ Cassandra_se_interface *create_cassandra_se()
 bool Cassandra_se_impl::connect(const char *host, int port, const char *keyspace_arg)
 {
   bool res= true;
-  
+
   keyspace.assign(keyspace_arg);
-  
+
   try {
-    boost::shared_ptr<TTransport> socket = 
+    boost::shared_ptr<TTransport> socket =
       boost::shared_ptr<TSocket>(new TSocket(host, port));
-    boost::shared_ptr<TTransport> tr = 
+    boost::shared_ptr<TTransport> tr =
       boost::shared_ptr<TFramedTransport>(new TFramedTransport (socket));
-    boost::shared_ptr<TProtocol> p = 
+    boost::shared_ptr<TProtocol> p =
       boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(tr));
-    
+
     cass= new CassandraClient(p);
     tr->open();
     cass->set_keyspace(keyspace_arg);
@@ -216,7 +216,7 @@ bool Cassandra_se_impl::connect(const char *host, int port, const char *keyspace
 }
 
 
-void Cassandra_se_impl::set_consistency_levels(ulong read_cons_level, 
+void Cassandra_se_impl::set_consistency_levels(ulong read_cons_level,
                                                ulong write_cons_level)
 {
   write_cons_level= (ConsistencyLevel::type)(write_cons_level + 1);
@@ -229,7 +229,7 @@ bool Cassandra_se_impl::retryable_setup_ddl_checks()
   try {
 
     cass->describe_keyspace(ks_def, keyspace);
-    
+
   } catch (NotFoundException nfe) {
     print_error("keyspace `%s` not found: %s", keyspace.c_str(), nfe.what());
     return true;
@@ -261,7 +261,7 @@ void Cassandra_se_impl::first_ddl_column()
 }
 
 
-bool Cassandra_se_impl::next_ddl_column(char **name, int *name_len, 
+bool Cassandra_se_impl::next_ddl_column(char **name, int *name_len,
                                         char **type, int *type_len)
 {
   if (column_ddl_it == cf_def.column_metadata.end())
@@ -314,7 +314,7 @@ int64_t Cassandra_se_impl::get_i64_timestamp()
   int64_t usec = td.tv_usec;
   usec = usec / 1000;
   ms += usec;
-  
+
   return ms;
 }
 
@@ -345,7 +345,7 @@ void Cassandra_se_impl::add_row_deletion(const char *key, int key_len,
 {
   std::string key_to_delete;
   key_to_delete.assign(key, key_len);
-  
+
   batch_mutation[key_to_delete]= ColumnFamilyToMutation();
   ColumnFamilyToMutation& cf_mut= batch_mutation[key_to_delete];
 
@@ -357,7 +357,7 @@ void Cassandra_se_impl::add_row_deletion(const char *key, int key_len,
   mut.deletion.__isset.timestamp= true;
   mut.deletion.timestamp= get_i64_timestamp();
   mut.deletion.__isset.predicate= true;
-  
+
   /*
     Attempting to delete columns with SliceRange causes exception with message
     "Deletion does not yet support SliceRange predicates".
@@ -439,7 +439,7 @@ bool Cassandra_se_impl::do_insert()
   */
   if (batch_mutation.empty())
     return false;
- 
+
   return try_operation(&Cassandra_se_impl::retryable_do_insert);
 }
 
@@ -449,7 +449,7 @@ bool Cassandra_se_impl::do_insert()
 /////////////////////////////////////////////////////////////////////////////
 
 /*
-  Make one key lookup. If the record is found, the result is stored locally and 
+  Make one key lookup. If the record is found, the result is stored locally and
   the caller should iterate over it.
 */
 
@@ -475,7 +475,7 @@ bool Cassandra_se_impl::retryable_get_slice()
   sr.finish = "";
   slice_pred.__set_slice_range(sr);
 
-  cass->get_slice(column_data_vec, rowkey, cparent, slice_pred, 
+  cass->get_slice(column_data_vec, rowkey, cparent, slice_pred,
                   read_consistency);
 
   if (column_data_vec.size() == 0)
@@ -548,7 +548,7 @@ void Cassandra_se_impl::get_read_rowkey(char **value, int *value_len)
 bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
 {
   get_range_slices_param_last_key_as_start_key= last_key_as_start_key;
-  
+
   return try_operation(&Cassandra_se_impl::retryable_get_range_slices);
 }
 
@@ -556,10 +556,10 @@ bool Cassandra_se_impl::get_range_slices(bool last_key_as_start_key)
 bool Cassandra_se_impl::retryable_get_range_slices()
 {
   bool last_key_as_start_key= get_range_slices_param_last_key_as_start_key;
-  
+
   ColumnParent cparent;
   cparent.column_family= column_family;
-  
+
   /* SlicePredicate can be used to limit columns we will retrieve */
 
   KeyRange key_range;
@@ -620,7 +620,7 @@ restart:
       return false;
     }
   }
-  
+
   /*
     (1) - skip the last row that we have read in the previous batch.
     (2) - Rows that were deleted show up as rows without any columns. Skip
@@ -710,16 +710,16 @@ bool Cassandra_se_impl::try_operation(retryable_func_t func_to_call)
     res= true;
 
     try {
-      
+
       if ((res= (this->*func_to_call)()))
       {
         /*
           The function call was made successfully (without timeouts, etc),
-          but something inside it returned 'true'. 
+          but something inside it returned 'true'.
           This is supposedly a failure (or "not found" or other negative
           result). We need to return this to the caller.
         */
-        n_retries= 0; 
+        n_retries= 0;
       }
 
     } catch (InvalidRequestException ire) {
@@ -735,7 +735,7 @@ bool Cassandra_se_impl::try_operation(retryable_func_t func_to_call)
         print_error("TimedOutException: %s", te.what());
     }catch(TException e){
       /* todo: we may use retry for certain kinds of Thrift errors */
-      n_retries= 0; 
+      n_retries= 0;
       print_error("Thrift exception: %s", e.what());
     } catch (...) {
       n_retries= 0; /* Don't retry */
