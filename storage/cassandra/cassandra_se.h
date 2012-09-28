@@ -37,7 +37,7 @@ class Cassandra_se_interface
 {
 public:
   Cassandra_se_interface() { err_buffer[0]=0; }
-  
+
   virtual ~Cassandra_se_interface(){};
   /* Init */
   virtual bool connect(const char *host, int port, const char *keyspace)=0;
@@ -45,11 +45,11 @@ public:
 
   /* Settings */
   virtual void set_consistency_levels(ulong read_cons_level, ulong write_cons_level)=0;
-   
+
   /* Check underlying DDL */
   virtual bool setup_ddl_checks()=0;
   virtual void first_ddl_column()=0;
-  virtual bool next_ddl_column(char **name, int *name_len, char **value, 
+  virtual bool next_ddl_column(char **name, int *name_len, char **value,
                                int *value_len)=0;
   virtual void get_rowkey_type(char **name, char **type)=0;
   virtual size_t get_ddl_size()=0;
@@ -106,7 +106,7 @@ class Cassandra_status_vars
 public:
   ulong row_inserts;
   ulong row_insert_batches;
-  
+
   ulong multiget_reads;
   ulong multiget_keys_scanned;
   ulong multiget_rows_read;
