@@ -365,8 +365,9 @@ CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
 select * from t2;
 rowkey	datecol
-1	1346189025000
-10	1346189026000
+1	1346192625000
+10	1346192626000
+delete from t2;
 drop table t2;
 #
 # Check whether changing parameters with ALTER TABLE works.
@@ -407,3 +408,141 @@ new-rowkey12	data1-value3	454
 rowkey11	updated-1	34543
 delete from t1;
 drop table t1;
+#
+# Dynamic columns support
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+drop table t2;
+#error: dynamic column is not a blob
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36) DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+ERROR 42000: Incorrect column specifier for column 'uuidcol'
+#error: double dynamic column
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol blob DYNAMIC_COLUMN_STORAGE=1, textcol blob DYNAMIC_COLUMN_STORAGE=1) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+ERROR 42000: Incorrect column specifier for column 'textcol'
+#
+# Dynamic column read
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+insert into t2 values(1,'9b5658dc-f32f-11e1-94cd-f46d046e9f09');
+insert into t2 values(2,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+select rowkey, column_list(dyn), column_get(dyn, 'uuidcol' as char) from t2;
+rowkey	column_list(dyn)	column_get(dyn, 'uuidcol' as char)
+1	`uuidcol`	9b5658dc-f32f-11e1-94cd-f46d046e9f09
+2	`uuidcol`	9b5658dc-f32f-11e1-94cd-f46d046e9f0a
+drop table t2;
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, uuidcol char(36)) ENGINE=CASSANDRA
+thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+delete from t2;
+drop table t2;
+#
+# Dynamic column insert
+#
+CREATE TABLE t2 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf5';
+insert into t2 values (1, column_create("dyn1", 1, "dyn2", "two"));
+select rowkey, column_json(dyn) from t2;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn2":"two"}]
+delete from t2;
+drop table t2;
+# bigint
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'a', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'a', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":254324},{"dyn1":"1"},{"dyn2":"two"}]
+2	[{"a":2543},{"dyn1":"1"},{"dyn2":"two"}]
+delete from t1;
+drop table t1;
+# int
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf3';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'intcol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'intcol', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn2":"two"},{"intcol":254324}]
+2	[{"dyn1":"1"},{"dyn2":"two"},{"intcol":2543}]
+delete from t1;
+drop table t1;
+# timestamp
+CREATE TABLE t1 (rowkey bigint PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'datecol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'datecol', 2543));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn2":"two"},{"datecol":254324}]
+2	[{"dyn1":"1"},{"dyn2":"two"},{"datecol":2543}]
+delete from t1;
+drop table t1;
+# boolean
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf7';
+insert into t1 values (1, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 254324));
+insert into t1 values (2, column_create("dyn1", 1, "dyn2", "two", 'boolcol', 0));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn2":"two"},{"boolcol":1}]
+2	[{"dyn1":"1"},{"dyn2":"two"},{"boolcol":0}]
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn2":"two"},{"boolcol":1}]
+2	[{"dyn1":"1"},{"dyn2":"two"},{"boolcol":0}]
+update t1 set dyn=column_add(dyn, "dyn2", null, "dyn3", "3");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn1":"1"},{"dyn3":"3"},{"boolcol":1}]
+2	[{"dyn1":"1"},{"dyn3":"3"},{"boolcol":0}]
+update t1 set dyn=column_add(dyn, "dyn1", null) where rowkey= 1;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"dyn3":"3"},{"boolcol":1}]
+2	[{"dyn1":"1"},{"dyn3":"3"},{"boolcol":0}]
+update t1 set dyn=column_add(dyn, "dyn3", null, "a", "ddd");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":"ddd"},{"boolcol":1}]
+2	[{"a":"ddd"},{"dyn1":"1"},{"boolcol":0}]
+update t1 set dyn=column_add(dyn, "12345678901234", "ddd");
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":"ddd"},{"boolcol":1},{"12345678901234":"ddd"}]
+2	[{"a":"ddd"},{"dyn1":"1"},{"boolcol":0},{"12345678901234":"ddd"}]
+update t1 set dyn=column_add(dyn, "12345678901234", null);
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":"ddd"},{"boolcol":1}]
+2	[{"a":"ddd"},{"dyn1":"1"},{"boolcol":0}]
+update t1 set dyn=column_add(dyn, 'boolcol', null) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":"ddd"},{"boolcol":1}]
+2	[{"a":"ddd"},{"dyn1":"1"}]
+update t1 set rowkey= 3, dyn=column_add(dyn, "dyn1", null, 'boolcol', 0) where rowkey= 2;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+1	[{"a":"ddd"},{"boolcol":1}]
+3	[{"a":"ddd"},{"boolcol":0}]
+delete from t1;
+drop table t1;
+CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd1';
+select * from t1;
+ERROR HY000: Internal error: 'Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 255: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_ver'
+drop table t1;
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+DELETE FROM t1;
+insert into t1 values (1, column_create("dyn", 1));
+select rowkey, column_list(dyn) from t1;
+rowkey	column_list(dyn)
+1	`dyn`
+delete from t1;
+DROP TABLE t1;
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+insert into t1 values (1,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
+ERROR HY000: Encountered illegal format of dynamic column string
+delete from t1;
+DROP TABLE t1;

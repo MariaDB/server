@@ -40,6 +40,33 @@ class ColumnDataConverter;
 
 struct ha_table_option_struct;
 
+
+struct st_dynamic_column_value;
+
+typedef bool (* CAS2DYN_CONVERTER)(const char *cass_data,
+                                   int cass_data_len,
+                                   struct st_dynamic_column_value *value);
+typedef bool (* DYN2CAS_CONVERTER)(struct st_dynamic_column_value *value,
+                                   char **cass_data,
+                                   int *cass_data_len,
+                                   void *buf, void **freemem);
+struct cassandra_type_def
+{
+  const char *name;
+  CAS2DYN_CONVERTER cassandra_to_dynamic;
+  DYN2CAS_CONVERTER dynamic_to_cassandra;
+};
+
+typedef struct cassandra_type_def CASSANDRA_TYPE_DEF;
+
+enum cassandtra_type_enum {CT_BIGINT, CT_INT, CT_COUNTER, CT_FLOAT, CT_DOUBLE,
+  CT_BLOB, CT_ASCII, CT_TEXT, CT_TIMESTAMP, CT_UUID, CT_BOOLEAN, CT_VARINT,
+  CT_DECIMAL};
+
+typedef enum cassandtra_type_enum CASSANDRA_TYPE;
+
+
+
 /** @brief
   Class definition for the storage engine
 */
@@ -48,23 +75,35 @@ class ha_cassandra: public handler
   friend class Column_name_enumerator_impl;
   THR_LOCK_DATA lock;      ///< MySQL lock
   CASSANDRA_SHARE *share;    ///< Shared lock info
-  
+
   Cassandra_se_interface *se;
 
+  /* description of static part of the table definition */
   ColumnDataConverter **field_converters;
   uint n_field_converters;
+
+  CASSANDRA_TYPE_DEF *default_type_def;
+  /* description of dynamic columns part */
+  CASSANDRA_TYPE_DEF *special_type_field_converters;
+  LEX_STRING *special_type_field_names;
+  uint n_special_type_fields;
+  DYNAMIC_ARRAY dynamic_values, dynamic_names;
+  DYNAMIC_STRING dynamic_rec;
 
   ColumnDataConverter *rowkey_converter;
 
   bool setup_field_converters(Field **field, uint n_fields);
   void free_field_converters();
-  
+
   int read_cassandra_columns(bool unpack_pk);
   int check_table_options(struct ha_table_option_struct* options);
 
   bool doing_insert_batch;
   ha_rows insert_rows_batched;
-  
+
+  uint dyncol_field;
+  bool dyncol_set;
+
   /* Used to produce 'wrong column %s at row %lu' warnings */
   ha_rows insert_lineno;
   void print_conversion_error(const char *field_name, 
@@ -191,6 +230,14 @@ public:
 private:
   bool source_exhausted;
   bool mrr_start_read();
+  int check_field_options(Field **fields);
+  int read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
+                  String *valcol, char **freenames);
+  int write_dynamic_row(DYNAMIC_ARRAY *names, DYNAMIC_ARRAY *vals);
+  void static free_dynamic_row(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
+                               char *free_names);
+  CASSANDRA_TYPE_DEF * get_cassandra_field_def(char *cass_name,
+                                               int cass_name_length);
 public:
 
   /*
