@@ -160,8 +160,8 @@ cassandra_default_thrift_host_update(THD *thd,
 
   if (new_host)
   {
-    strncpy(cassandra_default_host_buf, new_host, max_len);
-    cassandra_default_host_buf[max_len]= 0;
+    strncpy(cassandra_default_host_buf, new_host, max_len-1);
+    cassandra_default_host_buf[max_len-1]= 0;
     cassandra_default_thrift_host= cassandra_default_host_buf;
   }
   else
@@ -539,10 +539,8 @@ int ha_cassandra::check_table_options(ha_table_option_struct *options)
 int ha_cassandra::create(const char *name, TABLE *table_arg,
                          HA_CREATE_INFO *create_info)
 {
-  ha_table_option_struct *options= table_arg->s->option_struct;
   int res;
   DBUG_ENTER("ha_cassandra::create");
-  DBUG_ASSERT(options);
 
   Field **pfield= table_arg->s->field;
   if (!((*pfield)->flags & NOT_NULL_FLAG))
