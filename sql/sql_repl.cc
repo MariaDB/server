@@ -2022,6 +2022,7 @@ bool mysql_show_binlog_events(THD* thd)
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
+  Master_info *mi= 0;
   LOG_INFO linfo;
 
   DBUG_ENTER("mysql_show_binlog_events");
@@ -2051,10 +2052,15 @@ bool mysql_show_binlog_events(THD* thd)
   }
   else  /* showing relay log contents */
   {
-    if (!active_mi)
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!(mi= master_info_index->
+          get_master_info(&thd->variables.default_master_connection,
+                          MYSQL_ERROR::WARN_LEVEL_ERROR)))
+    {
+      mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
-
-    binary_log= &(active_mi->rli.relay_log);
+    }
+    binary_log= &(mi->rli.relay_log);
   }
 
   if (binary_log->is_open())
@@ -2067,6 +2073,13 @@ bool mysql_show_binlog_events(THD* thd)
     const char *log_file_name = lex_mi->log_file_name;
     mysql_mutex_t *log_lock = binary_log->get_log_lock();
     Log_event* ev;
+
+    if (mi)
+    {
+      /* We can unlock the mutex as we have a lock on the file */
+      mysql_mutex_unlock(&LOCK_active_mi);
+      mi= 0;
+    }
 
     unit->set_limit(thd->lex->current_select);
     limit_start= unit->offset_limit_cnt;
@@ -2162,6 +2175,9 @@ bool mysql_show_binlog_events(THD* thd)
 
     mysql_mutex_unlock(log_lock);
   }
+  else if (mi)
+    mysql_mutex_unlock(&LOCK_active_mi);
+
   // Check that linfo is still on the function scope.
   DEBUG_SYNC(thd, "after_show_binlog_events");
 
