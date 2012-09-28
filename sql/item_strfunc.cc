@@ -3760,7 +3760,8 @@ String *Item_func_uuid::val_str(String *str)
 
 Item_func_dyncol_create::Item_func_dyncol_create(List<Item> &args,
                                                  DYNCALL_CREATE_DEF *dfs)
-  : Item_str_func(args), defs(dfs), vals(0), nums(0)
+  : Item_str_func(args), defs(dfs), vals(0), keys(NULL), names(FALSE),
+  force_names(FALSE)
 {
   DBUG_ASSERT((args.elements & 0x1) == 0); // even number of arguments
 }
@@ -3768,13 +3769,26 @@ Item_func_dyncol_create::Item_func_dyncol_create(List<Item> &args,
 
 bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 {
+  uint i;
   bool res= Item_func::fix_fields(thd, ref); // no need Item_str_func here
-  vals= (DYNAMIC_COLUMN_VALUE *) alloc_root(thd->mem_root,
-                                            sizeof(DYNAMIC_COLUMN_VALUE) *
-                                            (arg_count / 2));
-  nums= (uint *) alloc_root(thd->mem_root,
-                            sizeof(uint) * (arg_count / 2));
-  return res || vals == 0 || nums == 0;
+  if (!res)
+  {
+    vals= (DYNAMIC_COLUMN_VALUE *) alloc_root(thd->mem_root,
+                                              sizeof(DYNAMIC_COLUMN_VALUE) *
+                                              (arg_count / 2));
+    for (i= 0; i + 1 < arg_count && args[i]->result_type() == INT_RESULT; i+= 2);
+    if (i + 1 < arg_count)
+    {
+      names= TRUE;
+    }
+
+    keys= (uchar *) alloc_root(thd->mem_root,
+                               (sizeof(LEX_STRING) > sizeof(uint) ?
+                                sizeof(LEX_STRING) :
+                                sizeof(uint)) *
+                               (arg_count / 2));
+  }
+  return res || vals == 0 || keys == 0;
 }
 
 
@@ -3785,13 +3799,14 @@ void Item_func_dyncol_create::fix_length_and_dec()
   decimals= 0;
 }
 
-void Item_func_dyncol_create::prepare_arguments()
+bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
 {
   char buff[STRING_BUFFER_USUAL_SIZE];
   String *res, tmp(buff, sizeof(buff), &my_charset_bin);
   uint column_count= (arg_count / 2);
   uint i;
   my_decimal dtmp, *dres;
+  force_names= force_names_arg;
 
   /* get values */
   for (i= 0; i < column_count; i++)
@@ -3850,7 +3865,54 @@ void Item_func_dyncol_create::prepare_arguments()
         break;
       }
     }
-    nums[i]= (uint) args[i * 2]->val_int();
+    if (names || force_names)
+    {
+      res= args[i * 2]->val_str(&tmp);
+      if (res)
+      {
+        // guaranty UTF-8 string for names
+        if (my_charset_same(res->charset(), &my_charset_utf8_general_ci))
+        {
+          ((LEX_STRING *)keys)[i].length= res->length();
+          if (!(((LEX_STRING *)keys)[i].str=
+                (char *)sql_memdup(res->ptr(), res->length())))
+            ((LEX_STRING *)keys)[i].length= 0;
+        }
+        else
+        {
+          uint strlen;
+          uint dummy_errors;
+          char *str=
+            (char *)sql_alloc((strlen= res->length() *
+                               my_charset_utf8_general_ci.mbmaxlen + 1));
+          if (str)
+          {
+            ((LEX_STRING *)keys)[i].length=
+              copy_and_convert(str, strlen, &my_charset_utf8_general_ci,
+                               res->ptr(), res->length(), res->charset(),
+                               &dummy_errors);
+              ((LEX_STRING *)keys)[i].str= str;
+          }
+          else
+            ((LEX_STRING *)keys)[i].length= 0;
+
+        }
+      }
+      else
+      {
+        ((LEX_STRING *)keys)[i].length= 0;
+        ((LEX_STRING *)keys)[i].str= NULL;
+      }
+    }
+    else
+      ((uint *)keys)[i]= (uint) args[i * 2]->val_int();
+    if (args[i * 2]->null_value)
+    {
+      /* to make cleanup possible */
+      for (; i < column_count; i++)
+        vals[i].type= DYN_COL_NULL;
+      return 1;
+    }
     vals[i].type= type;
     switch (type) {
     case DYN_COL_NULL:
@@ -3918,6 +3980,7 @@ void Item_func_dyncol_create::prepare_arguments()
       vals[i].type= DYN_COL_NULL;
     }
   }
+  return FALSE;
 }
 
 void Item_func_dyncol_create::cleanup_arguments()
@@ -3930,6 +3993,7 @@ void Item_func_dyncol_create::cleanup_arguments()
     if (vals[i].type == DYN_COL_STRING)
       my_free(vals[i].x.string.value.str);
   }
+  force_names= FALSE;
 }
 
 String *Item_func_dyncol_create::val_str(String *str)
@@ -3940,25 +4004,32 @@ String *Item_func_dyncol_create::val_str(String *str)
   enum enum_dyncol_func_result rc;
   DBUG_ASSERT((arg_count & 0x1) == 0); // even number of arguments
 
-  prepare_arguments();
-
-  if ((rc= dynamic_column_create_many(&col, column_count, nums, vals)))
+  if (prepare_arguments(FALSE))
   {
-    dynamic_column_error_message(rc);
-    dynamic_column_column_free(&col);
     res= NULL;
-    null_value= TRUE;
+    null_value= 1;
   }
   else
   {
-    /* Move result from DYNAMIC_COLUMN to str_value */
-    char *ptr;
-    size_t length, alloc_length;
-    dynamic_column_reassociate(&col, &ptr, &length, &alloc_length);
-    str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
-                          &my_charset_bin);
-    res= &str_value;
-    null_value= FALSE;
+    if ((rc= dynamic_column_create_many_fmt(&col, column_count, keys,
+                                            vals, names || force_names)))
+    {
+      dynamic_column_error_message(rc);
+      dynamic_column_column_free(&col);
+      res= NULL;
+      null_value= TRUE;
+    }
+    else
+    {
+      /* Move result from DYNAMIC_COLUMN to str_value */
+      char *ptr;
+      size_t length, alloc_length;
+      dynamic_column_reassociate(&col, &ptr, &length, &alloc_length);
+      str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
+                            &my_charset_bin);
+      res= &str_value;
+      null_value= FALSE;
+    }
   }
 
   /* cleanup */
@@ -4026,6 +4097,40 @@ void Item_func_dyncol_create::print(String *str,
   str->append(')');
 }
 
+String *Item_func_dyncol_json::val_str(String *str)
+{
+  DYNAMIC_STRING json, col;
+  String *res;
+  enum enum_dyncol_func_result rc;
+
+  res= args[0]->val_str(str);
+  if (args[0]->null_value)
+    goto null;
+
+  col.str= (char *)res->ptr();
+  col.length= res->length();
+  if ((rc= dynamic_column_json(&col, &json)))
+  {
+    dynamic_column_error_message(rc);
+    goto null;
+  }
+  bzero(&col, sizeof(col));
+  {
+    /* Move result from DYNAMIC_COLUMN to str */
+    char *ptr;
+    size_t length, alloc_length;
+    dynstr_reassociate(&json, &ptr, &length, &alloc_length);
+    str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
+                     &my_charset_utf8_general_ci);
+    null_value= FALSE;
+  }
+  return str;
+
+null:
+  bzero(&col, sizeof(col));
+  null_value= TRUE;
+  return NULL;
+}
 
 String *Item_func_dyncol_add::val_str(String *str)
 {
@@ -4037,17 +4142,19 @@ String *Item_func_dyncol_add::val_str(String *str)
 
   /* We store the packed data last */
   res= args[arg_count - 1]->val_str(str);
-  if (args[arg_count - 1]->null_value)
+  if (args[arg_count - 1]->null_value ||
+      init_dynamic_string(&col, NULL, res->length() + STRING_BUFFER_USUAL_SIZE,
+                          STRING_BUFFER_USUAL_SIZE))
     goto null;
-  init_dynamic_string(&col, NULL, res->length() + STRING_BUFFER_USUAL_SIZE,
-                      STRING_BUFFER_USUAL_SIZE);
 
   col.length= res->length();
   memcpy(col.str, res->ptr(), col.length);
 
-  prepare_arguments();
+  if (prepare_arguments(dynamic_column_has_names(&col)))
+    goto null;
 
-  if ((rc= dynamic_column_update_many(&col, column_count, nums, vals)))
+  if ((rc= dynamic_column_update_many_fmt(&col, column_count, keys,
+                                          vals, names || force_names)))
   {
     dynamic_column_error_message(rc);
     dynamic_column_column_free(&col);
@@ -4066,7 +4173,6 @@ String *Item_func_dyncol_add::val_str(String *str)
   }
 
   /* cleanup */
-  dynamic_column_column_free(&col);
   cleanup_arguments();
 
   return str;
@@ -4100,10 +4206,48 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
 {
   DYNAMIC_COLUMN dyn_str;
   String *res;
-  longlong num;
+  longlong num= 0;
+  LEX_STRING buf, *name= NULL;
+  char nmstrbuf[11];
+  String nmbuf(nmstrbuf, sizeof(nmstrbuf), system_charset_info);
   enum enum_dyncol_func_result rc;
 
-  num= args[1]->val_int();
+  if (args[1]->result_type() == INT_RESULT)
+    num= args[1]->val_int();
+  else
+  {
+    String *nm= args[1]->val_str(&nmbuf);
+    if (!nm || args[1]->null_value)
+    {
+      null_value= 1;
+      return 1;
+    }
+
+    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    {
+      buf.str= (char *) nm->ptr();
+      buf.length= nm->length();
+    }
+    else
+    {
+      uint strlen;
+      uint dummy_errors;
+      buf.str= (char *)sql_alloc((strlen= nm->length() *
+                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+      if (buf.str)
+      {
+        buf.length=
+          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+                           nm->ptr(), nm->length(), nm->charset(),
+                           &dummy_errors);
+      }
+      else
+        buf.length= 0;
+    }
+    name= &buf;
+  }
+
+
   if (args[1]->null_value || num < 0 || num > INT_MAX)
   {
     null_value= 1;
@@ -4119,7 +4263,9 @@ bool Item_dyncol_get::get_dyn_value(DYNAMIC_COLUMN_VALUE *val, String *tmp)
 
   dyn_str.str=   (char*) res->ptr();
   dyn_str.length= res->length();
-  if ((rc= dynamic_column_get(&dyn_str, (uint) num, val)))
+  if ((rc= ((name == NULL) ?
+            dynamic_column_get(&dyn_str, (uint) num, val) :
+            dynamic_column_get_str(&dyn_str, name, val))))
   {
     dynamic_column_error_message(rc);
     null_value= 1;
@@ -4468,6 +4614,8 @@ null:
   return 1;
 }
 
+void
+append_identifier(THD *thd, String *packet, const char *name, uint length);
 
 void Item_dyncol_get::print(String *str, enum_query_type query_type)
 {
@@ -4492,26 +4640,30 @@ String *Item_func_dyncol_list::val_str(String *str)
   col.length= res->length();
   /* We do not change the string, so could do this trick */
   col.str= (char *)res->ptr();
-  if ((rc= dynamic_column_list(&col, &arr)))
+  if ((rc= dynamic_column_list_str(&col, &arr)))
   {
     dynamic_column_error_message(rc);
+    for (i= 0; i < arr.elements; i++)
+      my_free(dynamic_element(&arr, i, LEX_STRING*)->str);
     delete_dynamic(&arr);
     goto null;
   }
 
   /*
-    We support elements from 0 - 65536, so max size for one element is
-    6 (including ,).
+    We estimate average name length as 10
   */
-  if (str->alloc(arr.elements * 6))
+  if (str->alloc(arr.elements * 13))
     goto null;
 
   str->length(0);
+  str->set_charset(&my_charset_utf8_general_ci);
   for (i= 0; i < arr.elements; i++)
   {
-    str->qs_append(*dynamic_element(&arr, i, uint*));
+    LEX_STRING *name= dynamic_element(&arr, i, LEX_STRING *);
+    append_identifier(current_thd, str, name->str, name->length);
     if (i < arr.elements - 1)
       str->qs_append(',');
+    my_free(name->str);
   }
 
   null_value= FALSE;

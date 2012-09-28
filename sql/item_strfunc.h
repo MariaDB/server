@@ -1001,8 +1001,9 @@ class Item_func_dyncol_create: public Item_str_func
 protected:
   DYNCALL_CREATE_DEF *defs;
   DYNAMIC_COLUMN_VALUE *vals;
-  uint *nums;
-  void prepare_arguments();
+  uchar *keys;
+  bool names, force_names;
+  bool prepare_arguments(bool force_names);
   void cleanup_arguments();
   void print_arguments(String *str, enum_query_type query_type);
 public:
@@ -1026,6 +1027,19 @@ public:
   virtual void print(String *str, enum_query_type query_type);
 };
 
+class Item_func_dyncol_json: public Item_str_func
+{
+public:
+  Item_func_dyncol_json(Item *str) :Item_str_func(str) {}
+  const char *func_name() const{ return "column_json"; }
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    maybe_null= TRUE;
+    collation.set(&my_charset_bin);
+    decimals= 0;
+  }
+};
 
 /*
   The following functions is always called from an Item_cast function

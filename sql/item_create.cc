@@ -5704,7 +5704,7 @@ static List<Item> *create_func_dyncol_prepare(THD *thd,
   for (uint i= 0; (def= li++) ;)
   {
     dfs[0][i++]= *def;
-    args->push_back(def->num);
+    args->push_back(def->key);
     args->push_back(def->value);
   }
   return args;
@@ -5720,6 +5720,10 @@ Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list)
   return new (thd->mem_root) Item_func_dyncol_create(*args, dfs);
 }
 
+Item *create_func_dyncol_json(THD *thd, Item *str)
+{
+  return new (thd->mem_root) Item_func_dyncol_json(str);
+}
 
 Item *create_func_dyncol_add(THD *thd, Item *str,
                              List<DYNCALL_CREATE_DEF> &list)
@@ -5740,7 +5744,7 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
 Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
 {
   DYNCALL_CREATE_DEF *dfs;
-  Item *num;
+  Item *key;
   List_iterator_fast<Item> it(nums);
   List<Item> *args= new (thd->mem_root) List<Item>;
 
@@ -5750,12 +5754,12 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
   if (!args || !dfs)
     return NULL;
 
-  for (uint i= 0; (num= it++); i++)
+  for (uint i= 0; (key= it++); i++)
   {
-    dfs[i].num= num;
+    dfs[i].key= key;
     dfs[i].value= new Item_null();
     dfs[i].type= DYN_COL_INT;
-    args->push_back(dfs[i].num);
+    args->push_back(dfs[i].key);
     args->push_back(dfs[i].value);
   }
 
