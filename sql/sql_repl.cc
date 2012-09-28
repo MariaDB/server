@@ -1682,12 +1682,7 @@ bool change_master(THD* thd, Master_info* mi)
   if (master_info_index->check_duplicate_master_info(&lex_mi->connection_name,
                                                      lex_mi->host,
                                                      lex_mi->port))
-  {
-    my_error(ER_MASTER_INFO, MYF(0),
-             (int) lex_mi->connection_name.length,
-             lex_mi->connection_name.str);
     DBUG_RETURN(TRUE);
-  }
 
   lock_slave_threads(mi);
   init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
@@ -1996,7 +1991,7 @@ int reset_master(THD* thd)
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd))
+  if (mysql_bin_log.reset_logs(thd, 1))
     return 1;
   RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   return 0;

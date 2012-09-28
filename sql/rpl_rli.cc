@@ -1015,28 +1015,37 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->cur_log_fd= -1;
   }
 
-  if (rli->relay_log.reset_logs(thd))
+  if (rli->relay_log.reset_logs(thd, !just_reset))
   {
     *errmsg = "Failed during log reset";
     error=1;
     goto err;
   }
-  /* Save name of used relay log file */
-  strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(rli->group_relay_log_name)-1);
-  strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(rli->event_relay_log_name)-1);
-  rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-  if (count_relay_log_space(rli))
-  {
-    *errmsg= "Error counting relay log space";
-    error=1;
-    goto err;
-  }
   if (!just_reset)
+  {
+    /* Save name of used relay log file */
+    strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
+            sizeof(rli->group_relay_log_name)-1);
+    strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
+            sizeof(rli->event_relay_log_name)-1);
+    rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
+    rli->log_space_total= 0;
+
+    if (count_relay_log_space(rli))
+    {
+      *errmsg= "Error counting relay log space";
+      error=1;
+      goto err;
+    }
     error= init_relay_log_pos(rli, rli->group_relay_log_name,
                               rli->group_relay_log_pos,
                               0 /* do not need data lock */, errmsg, 0);
+  }
+  else
+  {
+    /* Ensure relay log names are not used */
+    rli->group_relay_log_name[0]= rli->event_relay_log_name[0]= 0;
+  }
 
 err:
 #ifndef DBUG_OFF

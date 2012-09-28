@@ -6589,7 +6589,6 @@ ER_NO_SUCH_TABLE_IN_ENGINE 42S02
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
 ER_CONNECTION_ALREADY_EXISTS
-        eng "Connection '%.*s' already exists"
+        eng "Connection '%.*s' conflicts with existing connection '%.*s'"
 ER_MASTER_LOG_PREFIX
         eng "Master '%.*s': "
-

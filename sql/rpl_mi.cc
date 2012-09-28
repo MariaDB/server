@@ -657,7 +657,20 @@ void create_signed_file_name(char *res_file_name, uint length,
 
 Master_info_index::Master_info_index()
 {
-  index_file_name[0] = 0;
+  size_t filename_length, dir_length;
+  /*
+    Create the Master_info index file by prepending 'multi-' before
+    the master_info_file file name.
+  */
+  fn_format(index_file_name, master_info_file, mysql_data_home,
+            "", MY_UNPACK_FILENAME);
+  filename_length= strlen(index_file_name) + 1; /* Count 0 byte */
+  dir_length= dirname_length(index_file_name);
+  bmove_upp((uchar*) index_file_name + filename_length + 6,
+            (uchar*) index_file_name + filename_length,
+            filename_length - dir_length);
+  memcpy(index_file_name + dir_length, "multi-", 6);
+
   bzero((char*) &index_file, sizeof(index_file));
 }
 
@@ -684,21 +697,7 @@ bool Master_info_index::init_all_master_info()
   int err_num= 0, succ_num= 0; // The number of success read Master_info
   char sign[MAX_CONNECTION_NAME];
   File index_file_nr;
-  size_t filename_length, dir_length;
   DBUG_ENTER("init_all_master_info");
-
-  /*
-    Create the Master_info index file by prepending 'multi-' before
-    the master_info_file file name.
-  */
-  fn_format(index_file_name, master_info_file, mysql_data_home,
-            "", MY_UNPACK_FILENAME);
-  filename_length= strlen(index_file_name) + 1; /* Count 0 byte */
-  dir_length= dirname_length(index_file_name);
-  bmove_upp((uchar*) index_file_name + filename_length + 6,
-            (uchar*) index_file_name + filename_length,
-            filename_length - dir_length);
-  memcpy(index_file_name + dir_length, "multi-", 6);
 
   if ((index_file_nr= my_open(index_file_name,
                               O_RDWR | O_CREAT | O_BINARY ,
@@ -891,6 +890,10 @@ Master_info_index::get_master_info(LEX_STRING *connection_name,
   Master_info *mi;
   char buff[MAX_CONNECTION_NAME+1], *res;
   uint buff_length;
+  DBUG_ENTER("get_master_info");
+  DBUG_PRINT("enter",
+             ("connection_name: '%.*s'", (int) connection_name->length,
+              connection_name->str));
 
   /* Make name lower case for comparison */
   res= strmake(buff, connection_name->str, connection_name->length);
@@ -907,7 +910,7 @@ Master_info_index::get_master_info(LEX_STRING *connection_name,
              (int) connection_name->length,
              connection_name->str);
   }
-  return mi;
+  DBUG_RETURN(mi);
 }
 
 
@@ -917,6 +920,7 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
                                                     uint port)
 {
   Master_info *mi;
+  DBUG_ENTER("check_duplicate_master_info");
 
   /* Get full host and port name */
   if ((mi= master_info_index->get_master_info(name_arg,
@@ -928,7 +932,7 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
       port= mi->port;
   }
   if (!host || !port)
-    return FALSE;                               // Not comparable yet
+    DBUG_RETURN(FALSE);                         // Not comparable yet
 
   for (uint i= 0; i < master_info_hash.records; ++i)
   {
@@ -938,13 +942,15 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
       continue;                                 // Current connection
     if (!strcasecmp(host, tmp_mi->host) && port == tmp_mi->port)
     {
-      sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
-                      (int) tmp_mi->connection_name.length,
-                      tmp_mi->connection_name.str);
-      return TRUE;
+      my_error(ER_CONNECTION_ALREADY_EXISTS, MYF(0),
+               (int) name_arg->length,
+               name_arg->str,
+               (int) tmp_mi->connection_name.length,
+               tmp_mi->connection_name.str);
+      DBUG_RETURN(TRUE);
     }
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -994,9 +1000,6 @@ bool Master_info_index::remove_master_info(LEX_STRING *name)
       my_close(index_file.file, MYF(MY_WME));
 
       // Reopen File and truncate it
-      fn_format(index_file_name, master_info_file, mysql_data_home,
-                ".index", MY_UNPACK_FILENAME | MY_APPEND_EXT);
-
       if ((index_file_nr= my_open(index_file_name,
                                   O_RDWR | O_CREAT | O_TRUNC | O_BINARY ,
                                   MYF(MY_WME))) < 0 ||
