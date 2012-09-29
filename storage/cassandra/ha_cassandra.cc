@@ -1978,7 +1978,7 @@ int ha_cassandra::write_row(uchar *buf)
     {
       String valcol;
       DYNAMIC_ARRAY vals, names;
-      char *free_names;
+      char *free_names= NULL;
       int rc;
       DBUG_ASSERT(field_converters[i] == NULL);
       if (!(rc= read_dyncol(&vals, &names, &valcol, &free_names)))

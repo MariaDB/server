@@ -546,3 +546,12 @@ insert into t1 values (1,'9b5658dc-f32f-11e1-94cd-f46d046e9f0a');
 ERROR HY000: Encountered illegal format of dynamic column string
 delete from t1;
 DROP TABLE t1;
+#
+# MDEV-565: Server crashes in ha_cassandra::write_row on
+# inserting NULL into a dynamic column
+#
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+insert into t1 values (1, NULL);
+delete from t1;
+DROP TABLE t1;

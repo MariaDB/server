@@ -12,6 +12,8 @@ SET(cassandra_sources
      gen-cpp/Cassandra.h)
 
 #INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
+
+#INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift)
 INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
 
 # 
