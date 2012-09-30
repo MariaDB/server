@@ -502,11 +502,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
      The max size before rotation (usable only if log_type == LOG_BIN: binary
      logs and relay logs).
      For a binlog, max_size should be max_binlog_size.
-     For a relay log, it should be max_relay_log_size if this is non-zero,
-     max_binlog_size otherwise.
      max_size is set in init(), and dynamically changed (when one does SET
-     GLOBAL MAX_BINLOG_SIZE|MAX_RELAY_LOG_SIZE) by fix_max_binlog_size and
-     fix_max_relay_log_size).
+     GLOBAL MAX_BINLOG_SIZE|MAX_RELAY_LOG_SIZE) from sys_vars.cc
   */
   ulong max_size;
   // current file sequence number for load data infile binary logging

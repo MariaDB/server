@@ -9,6 +9,7 @@ drop table if exists t1;
 create table t1 (i int) engine=MyISAM;
 mysqld-relay-bin-master1.000001
 mysqld-relay-bin-master1.000002
+mysqld-relay-bin-master1.index
 show relaylog events in 'mysqld-relay-bin-master1.000002';
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000002	4	Format_desc	3	246	Server version

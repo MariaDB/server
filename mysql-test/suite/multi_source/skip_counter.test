@@ -1,5 +1,5 @@
 #
-# Test of sql_slave_skip_counter
+# Test of sql_slave_skip_counter and rpl_max_size
 #
 
 --enable_connect_log
@@ -15,7 +15,6 @@ drop database if exists db;
 create database db;
 create table db.t1 (i int) engine=MyISAM;
 --save_master_pos
-
 
 # Create the same schema and another table
 # on the 2nd master
@@ -62,6 +61,8 @@ master_user='root';
 # to modify the test later
 
 --let $skip_counter_saved = `select @@global.sql_slave_skip_counter`
+--let $max_relay_log_size_saved= `select @@global.max_relay_log_size`
+--let $max_binlog_size_saved= `select @@global.max_binlog_size`
 set global sql_slave_skip_counter = 2;
 select @@global.sql_slave_skip_counter;
 select @@session.sql_slave_skip_counter;
@@ -78,6 +79,28 @@ set default_master_connection = 'qqq';
 select @@session.sql_slave_skip_counter;
 set default_master_connection = 'master2';
 select @@session.sql_slave_skip_counter;
+
+# Test of setting max_relay_log_size
+select @@global.max_relay_log_size;
+set global max_relay_log_size = 1*1024*1024;
+select @@global.max_relay_log_size;
+select @@session.max_relay_log_size;
+set session max_relay_log_size = 3*1024*1024;
+select @@global.max_relay_log_size;
+select @@session.max_relay_log_size;
+set global max_relay_log_size= default;
+select @@global.max_relay_log_size;
+select @@session.max_relay_log_size;
+set global max_relay_log_size= 3*1024*1024;
+set default_master_connection = 'master1';
+select @@session.max_relay_log_size;
+set default_master_connection = 'qqq';
+select @@session.max_relay_log_size;
+set default_master_connection = 'master2';
+select @@session.max_relay_log_size;
+set global max_binlog_size= 4*1024*1024;
+select @@global.max_relay_log_size;
+
 
 start slave 'master2';
 --source include/wait_for_slave_to_start.inc
@@ -113,6 +136,8 @@ stop slave;
 
 --source include/wait_for_slave_to_stop.inc
 --eval set global sql_slave_skip_counter = $skip_counter_saved
+--eval set global max_relay_log_size = $max_relay_log_size_saved
+--eval set global max_binlog_size = $max_binlog_size_saved
 
 --enable_connect_log
 --disconnect slave

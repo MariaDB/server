@@ -169,7 +169,7 @@ public:
 bool check_master_connection_name(LEX_STRING *name);
 void create_signed_file_name(char *res_file_name, uint length,
                              const char *info_file, 
-                             char separator,
+                             bool append,
                              LEX_STRING *suffix);
 
 uchar *get_key_master_info(Master_info *mi, size_t *length,

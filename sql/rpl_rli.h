@@ -229,9 +229,10 @@ public:
     skipping one or more events in the master log that have caused
     errors, and have been manually applied by DBA already.
   */
-  volatile uint slave_skip_counter;     /* Must be uint */
+  volatile ulong slave_skip_counter;    /* Must be ulong */
   volatile ulong abort_pos_wait;	/* Incremented on change master */
   volatile ulong slave_run_id;		/* Incremented on slave start */
+  ulong max_relay_log_size;
   mysql_mutex_t log_space_lock;
   mysql_cond_t log_space_cond;
   THD * sql_thd;

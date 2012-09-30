@@ -906,9 +906,9 @@ int Log_event::do_update_pos(Relay_log_info *rli)
 Log_event::enum_skip_reason
 Log_event::do_shall_skip(Relay_log_info *rli)
 {
-  DBUG_PRINT("info", ("ev->server_id=%lu, ::server_id=%lu,"
-                      " rli->replicate_same_server_id=%d,"
-                      " rli->slave_skip_counter=%d",
+  DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
+                      " rli->replicate_same_server_id: %d,"
+                      " rli->slave_skip_counter: %lu",
                       (ulong) server_id, (ulong) ::server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
