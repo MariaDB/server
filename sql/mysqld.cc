@@ -52,6 +52,7 @@
 #include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
+#include "sys_vars_shared.h"
 
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -469,7 +470,7 @@ ulong back_log, connect_timeout, concurrency, server_id;
 ulong table_cache_size, table_def_size;
 ulong what_to_log;
 ulong slow_launch_time, slave_open_temp_tables;
-ulong open_files_limit, max_binlog_size, max_relay_log_size;
+ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
@@ -8017,8 +8018,27 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (!max_long_data_size_used)
     max_long_data_size= global_system_variables.max_allowed_packet;
 
-  /* Rember if max_user_connections was 0 at startup */
+  /* Remember if max_user_connections was 0 at startup */
   max_user_connections_checking= global_system_variables.max_user_connections != 0;
+
+  {
+    sys_var *max_relay_log_size_var, *max_binlog_size_var;
+    /* If max_relay_log_size is 0, then set it to max_binlog_size */
+    if (!global_system_variables.max_relay_log_size)
+      global_system_variables.max_relay_log_size= max_binlog_size;
+
+    /*
+      Fix so that DEFAULT and limit checking works with max_relay_log_size
+      (Yes, this is a hack, but it's required as the definition of
+      max_relay_log_size allows it to be set to 0).
+    */
+    max_relay_log_size_var= intern_find_sys_var("max_relay_log_size", 0);
+    max_binlog_size_var= intern_find_sys_var("max_binlog_size", 0);
+    max_relay_log_size_var->option.min_value=
+      max_binlog_size_var->option.min_value; 
+    max_relay_log_size_var->option.def_value=
+      max_binlog_size_var->option.def_value;
+  }
   return 0;
 }
 

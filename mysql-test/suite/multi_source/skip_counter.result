@@ -55,6 +55,49 @@ set default_master_connection = 'master2';
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
 3
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1073741824
+set global max_relay_log_size = 1*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1048576
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1048576
+set session max_relay_log_size = 3*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+3145728
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+3145728
+set global max_relay_log_size= default;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+1073741824
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1073741824
+set global max_relay_log_size= 3*1024*1024;
+set default_master_connection = 'master1';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+1073741824
+set default_master_connection = 'qqq';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+0
+Warnings:
+Warning	1617	There is no master connection 'qqq'
+set default_master_connection = 'master2';
+select @@session.max_relay_log_size;
+@@session.max_relay_log_size
+3145728
+set global max_binlog_size= 4*1024*1024;
+select @@global.max_relay_log_size;
+@@global.max_relay_log_size
+3145728
 start slave 'master2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
@@ -72,6 +115,8 @@ set default_master_connection = 'master2';
 stop slave;
 include/wait_for_slave_to_stop.inc
 set global sql_slave_skip_counter = 0;
+set global max_relay_log_size = 1073741824;
+set global max_binlog_size = 1073741824;
 disconnect slave;
 connection master1;
 drop database db;

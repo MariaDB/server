@@ -622,27 +622,34 @@ bool check_master_connection_name(LEX_STRING *name)
    res_file_name	Store result here
    length		Length of res_file_name buffer
    info_file		Original file name (prefix)
-   separator		Separator character
+   append		1 if we should add suffix last (not before ext)
    suffix		Suffix
 
    @note
+   The suffix is added before the extension of the file name prefixed with '-'.
+   The suffix is also converted to lower case and we transform
+   all not safe character, as we do with MySQL table names.
+
    If suffix is an empty string, then we don't add any suffix.
    This is to allow one to use this function also to generate old
    file names without a prefix.
 */
 
 void create_signed_file_name(char *res_file_name, uint length,
-                              const char *info_file, 
-                              char separator, LEX_STRING *suffix)
+                             const char *info_file, bool append,
+                             LEX_STRING *suffix)
 {
   char buff[MAX_CONNECTION_NAME+1], res[MAX_CONNECTION_NAME+1], *p;
-  p= strmake(res_file_name, info_file, length);
-  if (suffix->length != 0 && p != info_file + length)
-  {
-    uint errors;
-    size_t res_length;
 
-    *p++= separator;
+  p= strmake(res_file_name, info_file, length);
+  /* If not empty suffix and there is place left for some part of the suffix */
+  if (suffix->length != 0 && p <= res_file_name + length -1)
+  {
+    const char *info_file_end= info_file + (p - res_file_name);
+    const char *ext= append ? info_file_end : fn_ext2(info_file);
+    size_t res_length, ext_pos;
+    uint errors;
+
     /* Create null terminated string */
     strmake(buff, suffix->str, suffix->length);
     /* Convert to lower case */
@@ -650,7 +657,14 @@ void create_signed_file_name(char *res_file_name, uint length,
     /* Convert to characters usable in a file name */
     res_length= strconvert(system_charset_info, buff,
                            &my_charset_filename, res, sizeof(res), &errors);
-    strmake(p, res, min(length - (p - res_file_name), res_length));
+    
+    ext_pos= (size_t) (ext - info_file);
+    length-= (suffix->length - ext_pos); /* Leave place for extension */
+    p= res_file_name + ext_pos;
+    *p++= '-';                           /* Add separator */
+    p= strmake(p, res, min(length - (p - res_file_name), res_length));
+    /* Add back extension. We have checked above that there is space for it */
+    strmov(p, ext);
   }
 }
 
@@ -748,10 +762,10 @@ bool Master_info_index::init_all_master_info()
     init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
 
     create_signed_file_name(buf_master_info_file, sizeof(buf_master_info_file),
-                            master_info_file, '.', &connection_name);
+                            master_info_file, 0, &connection_name);
     create_signed_file_name(buf_relay_log_info_file,
                             sizeof(buf_relay_log_info_file),
-                            relay_log_info_file, '.', &connection_name);
+                            relay_log_info_file, 0, &connection_name);
     if (global_system_variables.log_warnings > 1)
       sql_print_information("Reading Master_info: '%s'  Relay_info:'%s'",
                             buf_master_info_file, buf_relay_log_info_file);

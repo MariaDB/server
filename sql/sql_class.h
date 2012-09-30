@@ -534,10 +534,11 @@ typedef struct system_variables
   */
   my_thread_id pseudo_thread_id;
   /**
-     Place holder to store sql_slave_skip_counter in sys_var.cc during
+     Place holders to store Multi-source variables in sys_var.cc during
      update and show of variables.
   */
-  uint slave_skip_counter;
+  ulong slave_skip_counter;
+  ulong max_relay_log_size;
 
   my_bool low_priority_updates;
   my_bool query_cache_wlock_invalidate;

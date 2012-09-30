@@ -15,35 +15,35 @@ set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
 #
 # List of files matching '*info*' pattern while 'master1' is running
-master.info.master1
+master-master1.info
 multi-master.info
-relay-log.info.master1
+relay.bin-master1.info
 # End of list
 #
 # Contents of multi-master.info
 master1
 # EOF
 #
-change master 'master2' to
+change master 'MASTER 2.2' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
 master_user='root';
-start slave 'master2';
-set default_master_connection = 'master2';
+start slave 'MASTER 2.2';
+set default_master_connection = 'MASTER 2.2';
 include/wait_for_slave_to_start.inc
 #
 # List of files matching '*info*' pattern
-#  while 'master1' and 'master2' are running
-master.info.master1
-master.info.master2
+#  while 'master1' and 'MASTER 2.2' are running
+master-master1.info
+master-master@00202@002e2.info
 multi-master.info
-relay-log.info.master1
-relay-log.info.master2
+relay.bin-master1.info
+relay.bin-master@00202@002e2.info
 # End of list
 #
 # Contents of multi-master.info
 master1
-master2
+MASTER 2.2
 # EOF
 #
 stop slave 'master1';
@@ -52,14 +52,14 @@ include/wait_for_slave_to_stop.inc
 reset slave 'master1' all;
 #
 # List of files matching '*info*' pattern
-#  after 'master1' was completely reset, 'master2' still running
-master.info.master2
+#  after 'master1' was completely reset, 'MASTER 2.2' still running
+master-master@00202@002e2.info
 multi-master.info
-relay-log.info.master2
+relay.bin-master@00202@002e2.info
 # End of list
 #
 # Contents of multi-master.info
-master2
+MASTER 2.2
 # EOF
 #
 set default_master_connection = '';
@@ -71,44 +71,44 @@ start slave;
 include/wait_for_slave_to_start.inc
 #
 # List of files matching '*info*' pattern
-#   while 'master2' and '' are running
+#   while 'MASTER 2.2' and '' are running
+master-master@00202@002e2.info
 master.info
-master.info.master2
 multi-master.info
-relay-log.info
-relay-log.info.master2
+relay.bin-master@00202@002e2.info
+relay.bin.info
 # End of list
 #
 # Contents of multi-master.info
-master2
+MASTER 2.2
 # EOF
 #
 show full slave status;
 Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
-	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	286	mysqld-relay-bin.000002	572	master-bin.000001	Yes	Yes							0		0	286	868	None		0	No						0	No	0		0			1
-master2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-master2.000002	572	master-bin.000001	Yes	Yes							0		0	286	876	None		0	No						0	No	0		0			2
+	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	286	relay.000002	572	master-bin.000001	Yes	Yes							0		0	286	857	None		0	No						0	No	0		0			1
+MASTER 2.2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	relay-master@00202@002e2.000002	572	master-bin.000001	Yes	Yes							0		0	286	876	None		0	No						0	No	0		0			2
 show full slave status;
 Connection_name	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id
-	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	286	mysqld-relay-bin.000004	532	master-bin.000001	Yes	Yes							0		0	286	828	None		0	No						0	No	0		0			1
-master2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	mysqld-relay-bin-master2.000004	532	master-bin.000001	Yes	Yes							0		0	286	836	None		0	No						0	No	0		0			2
+	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	286	relay.000004	532	master-bin.000001	Yes	Yes							0		0	286	817	None		0	No						0	No	0		0			1
+MASTER 2.2	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	286	relay-master@00202@002e2.000004	532	master-bin.000001	Yes	Yes							0		0	286	836	None		0	No						0	No	0		0			2
 #
 # List of files matching '*info*' pattern
 #   after slave server restart
-#   while 'master2' and '' are running
+#   while 'MASTER 2.2' and '' are running
+master-master@00202@002e2.info
 master.info
-master.info.master2
 multi-master.info
-relay-log.info
-relay-log.info.master2
+relay.bin-master@00202@002e2.info
+relay.bin.info
 # End of list
 #
 # Contents of multi-master.info
-master2
+MASTER 2.2
 # EOF
 #
 stop slave;
 include/wait_for_slave_to_stop.inc
-set default_master_connection = 'master2';
+set default_master_connection = 'MASTER 2.2';
 stop slave;
 include/wait_for_slave_to_stop.inc
 reset slave all;

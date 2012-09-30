@@ -1954,24 +1954,34 @@ public:
   like sql_slave_skip_counter are GLOBAL.
 */
 
-class Sys_var_multi_source_uint :public Sys_var_uint
+class Sys_var_multi_source_ulong;
+class Master_info;
+
+typedef bool (*on_multi_source_update_function)(sys_var *self, THD *thd,
+                                                Master_info *mi);
+bool update_multi_source_variable(sys_var *self,
+                                  THD *thd, enum_var_type type);
+
+
+class Sys_var_multi_source_ulong :public Sys_var_ulong
 { 
   ptrdiff_t master_info_offset;
+  on_multi_source_update_function update_multi_source_variable_func;
 public:
-  Sys_var_multi_source_uint(const char *name_arg,
-                            const char *comment, int flag_args,
-                            ptrdiff_t off, size_t size,
-                            ptrdiff_t master_info_offset_arg,
-                            uint min_val, uint max_val, uint def_val,
-                            uint block_size,
-                            on_update_function on_update_func)
-    :Sys_var_uint(name_arg, comment, flag_args, off, size,
-                  NO_CMD_LINE, min_val, max_val, def_val, block_size,
-                  0, VARIABLE_NOT_IN_BINLOG, 0, on_update_func),
-    master_info_offset(master_info_offset_arg)
+  Sys_var_multi_source_ulong(const char *name_arg,
+                             const char *comment, int flag_args,
+                             ptrdiff_t off, size_t size,
+                             CMD_LINE getopt,
+                             ptrdiff_t master_info_offset_arg,
+                             uint min_val, uint max_val, uint def_val,
+                             uint block_size,
+                             on_multi_source_update_function on_update_func)
+    :Sys_var_ulong(name_arg, comment, flag_args, off, size,
+                   getopt, min_val, max_val, def_val, block_size,
+                   0, VARIABLE_NOT_IN_BINLOG, 0, update_multi_source_variable),
+    master_info_offset(master_info_offset_arg),
+    update_multi_source_variable_func(on_update_func)
   {
-    /* No global storage of variables. Cause a crash if we try an update */
-    option.value= (uchar**)1;
   }
   bool session_update(THD *thd, set_var *var)
   {
@@ -2001,6 +2011,10 @@ public:
     return session_value_ptr(thd, base);
   }
   uint get_master_info_uint_value(THD *thd, ptrdiff_t offset);
+  bool update_variable(THD *thd, Master_info *mi)
+  {
+    return update_multi_source_variable_func(this, thd, mi);
+  }
 };
 
 

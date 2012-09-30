@@ -69,6 +69,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   group_relay_log_name[0]= event_relay_log_name[0]=
     group_master_log_name[0]= 0;
   until_log_name[0]= ign_master_log_name_end[0]= 0;
+  max_relay_log_size= global_system_variables.max_relay_log_size;
   bzero((char*) &info_file, sizeof(info_file));
   bzero((char*) &cache_buf, sizeof(cache_buf));
   cached_charset_invalidate();
@@ -149,15 +150,6 @@ int init_relay_log_info(Relay_log_info* rli,
     event, in flush_master_info(mi, 1, ?).
   */
 
-  /*
-    For the maximum log size, we choose max_relay_log_size if it is
-    non-zero, max_binlog_size otherwise. If later the user does SET
-    GLOBAL on one of these variables, fix_max_binlog_size and
-    fix_max_relay_log_size will reconsider the choice (for example
-    if the user changes max_relay_log_size to zero, we have to
-    switch to using max_binlog_size for the relay log) and update
-    rli->relay_log.max_size (and mysql_bin_log.max_size).
-  */
   {
     /* Reports an error and returns, if the --relay-log's path 
        is a directory.*/
@@ -212,7 +204,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     char *buf_relaylog_index_name= opt_relaylog_index_name;
 
     create_signed_file_name(buf_relay_logname, sizeof(buf_relay_logname),
-                            ln, '-', &mi->connection_name);
+                            ln, 1, &mi->connection_name);
     ln= buf_relay_logname;
 
     if (opt_relaylog_index_name)
@@ -220,7 +212,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       buf_relaylog_index_name= buf_relaylog_index_name_buff; 
       create_signed_file_name(buf_relaylog_index_name_buff,
                               sizeof(buf_relaylog_index_name_buff),
-                              opt_relaylog_index_name, '-',
+                              opt_relaylog_index_name, 0,
                               &mi->connection_name);
     }
 
@@ -232,8 +224,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     */
     if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
-                            (max_relay_log_size ? max_relay_log_size :
-                            max_binlog_size), 1, TRUE))
+                            mi->rli.max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(&rli->data_lock);
       sql_print_error("Failed when trying to open logs for '%s' in init_relay_log_info(). Error: %M", ln, my_errno);

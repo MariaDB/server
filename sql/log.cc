@@ -4703,7 +4703,7 @@ bool MYSQL_BIN_LOG::append(Log_event* ev)
   DBUG_PRINT("info",("max_size: %lu",max_size));
   if (flush_and_sync(0))
     goto err;
-  if ((uint) my_b_append_tell(&log_file) > max_size)
+  if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
   mysql_mutex_unlock(&LOCK_log);
@@ -4734,7 +4734,7 @@ bool MYSQL_BIN_LOG::appendv(const char* buf, uint len,...)
   DBUG_PRINT("info",("max_size: %lu",max_size));
   if (flush_and_sync(0))
     goto err;
-  if ((uint) my_b_append_tell(&log_file) > max_size)
+  if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
   if (!error)

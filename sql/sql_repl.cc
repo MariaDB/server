@@ -1308,10 +1308,10 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
   create_signed_file_name(master_info_file_tmp,
                           sizeof(master_info_file_tmp),
-                          master_info_file, '.', &mi->connection_name);
+                          master_info_file, 0, &mi->connection_name);
   create_signed_file_name(relay_log_info_file_tmp,
                           sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, '.', &mi->connection_name);
+                          relay_log_info_file, 0, &mi->connection_name);
 
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
     DBUG_RETURN(1);
@@ -1557,10 +1557,10 @@ int reset_slave(THD *thd, Master_info* mi)
   // and delete these two files
   create_signed_file_name(master_info_file_tmp,
                           sizeof(master_info_file_tmp),
-                          master_info_file, '.', &mi->connection_name);
+                          master_info_file, 0, &mi->connection_name);
   create_signed_file_name(relay_log_info_file_tmp,
                           sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, '.', &mi->connection_name);
+                          relay_log_info_file, 0, &mi->connection_name);
 
   fn_format(fname, master_info_file_tmp, mysql_data_home, "", 4+32);
   if (mysql_file_stat(key_file_master_info, fname, &stat_area, MYF(0)) &&
@@ -1697,10 +1697,10 @@ bool change_master(THD* thd, Master_info* mi)
 
   create_signed_file_name(master_info_file_tmp,
                           sizeof(master_info_file_tmp),
-                          master_info_file, '.', &mi->connection_name);
+                          master_info_file, 0, &mi->connection_name);
   create_signed_file_name(relay_log_info_file_tmp,
                           sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, '.', &mi->connection_name);
+                          relay_log_info_file, 0, &mi->connection_name);
 
   /* if new Master_info doesn't exists, add it */
   if (!master_info_index->get_master_info(&mi->connection_name,
