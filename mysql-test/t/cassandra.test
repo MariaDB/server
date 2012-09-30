@@ -644,6 +644,23 @@ insert into t1 values (1, NULL);
 delete from t1;
 DROP TABLE t1;
 
+--echo #
+--echo # strange side effect of Cassandra - remiving all columns of primary
+--echo # key removes all row.
+--echo #
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+UPDATE t1 set dyn=NULL;
+select rowkey, column_json(dyn) from t1;
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+UPDATE t1 set dyn="";
+select rowkey, column_json(dyn) from t1;
+delete from t1;
+DROP TABLE t1;
+
 
 ############################################################################
 ## Cassandra cleanup
