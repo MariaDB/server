@@ -4399,10 +4399,7 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
   case DYN_COL_DATETIME:
   case DYN_COL_DATE:
   case DYN_COL_TIME:
-    decimal_value= seconds2my_decimal(val.x.time_value.neg,
-                                      TIME_to_ulonglong(&val.x.time_value),
-                                      val.x.time_value.second_part,
-                                      decimal_value);
+    decimal_value= TIME_to_my_decimal(&val.x.time_value, decimal_value);
     break;
   }
   return decimal_value;

@@ -3966,7 +3966,7 @@ end_with_restore_list:
     }
     else
     {
-      /* Reset the isolation level if no chaining transaction. */
+      /* Reset the isolation level and access mode if no chaining transaction.*/
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
       thd->tx_read_only= thd->variables.tx_read_only;
     }
@@ -4000,7 +4000,7 @@ end_with_restore_list:
     }
     else
     {
-      /* Reset the isolation level if no chaining transaction. */
+      /* Reset the isolation level and access mode if no chaining transaction.*/
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
       thd->tx_read_only= thd->variables.tx_read_only;
     }
@@ -4520,7 +4520,7 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     /*
       We've just done a commit, reset transaction
-      isolation level to the session default.
+      isolation level and access mode to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
     thd->tx_read_only= thd->variables.tx_read_only;
@@ -4532,7 +4532,7 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     /*
       We've just done a rollback, reset transaction
-      isolation level to the session default.
+      isolation level and access mode to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
     thd->tx_read_only= thd->variables.tx_read_only;

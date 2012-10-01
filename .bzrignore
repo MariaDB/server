@@ -498,7 +498,6 @@ mysql-test/r/*.err
 mysql-test/r/*.log
 mysql-test/r/*.out
 mysql-test/r/*.reject
-mysql-test/std_data/*.pem
 mysql-test/var
 mysql.kdevprj
 mysql.proj
@@ -1145,3 +1144,4 @@ sql/db.opt
 ./install_manifest_*.txt
 typescript
 storage/perfschema/gen_pfs_lex_token
+storage/perfschema/pfs_lex_token.h

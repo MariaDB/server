@@ -285,6 +285,7 @@ enum enum_server_command
 */
 #define SERVER_STATUS_IN_TRANS_READONLY 8192
 
+
 /**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.

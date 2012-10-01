@@ -1280,7 +1280,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  OFFSET_SYM
 %token  OLD_PASSWORD
 %token  ON                            /* SQL-2003-R */
-%token  ONE_SHOT_SYM
 %token  ONE_SYM
 %token  ONLY_SYM                      /* SQL-2003-R */
 %token  ONLINE_SYM
@@ -13299,7 +13298,6 @@ keyword_sp:
         | NVARCHAR_SYM             {}
         | OFFSET_SYM               {}
         | OLD_PASSWORD             {}
-        | ONE_SHOT_SYM             {}
         | ONE_SYM                  {}
         | ONLINE_SYM               {}
         | ONLY_SYM                 {}
@@ -13423,8 +13421,6 @@ keyword_sp:
         | YEAR_SYM                 {}
         | VIA_SYM               {}
         ;
-
-/* Option functions */
 
 /*
   SQLCOM_SET_OPTION statement.

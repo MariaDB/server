@@ -1069,7 +1069,6 @@ Events::load_events_from_db(THD *thd)
   bool ret= TRUE;
   uint count= 0;
   ulong saved_master_access;
-  bool save_tx_read_only;
 
   DBUG_ENTER("Events::load_events_from_db");
   DBUG_PRINT("enter", ("thd: 0x%lx", (long) thd));
@@ -1078,11 +1077,14 @@ Events::load_events_from_db(THD *thd)
     NOTE: even if we run in read-only mode, we should be able to lock the
     mysql.event table for writing. In order to achieve this, we should call
     mysql_lock_tables() under the super user.
+
+    Same goes for transaction access mode.
+    Temporarily reset it to read-write.
   */
 
   saved_master_access= thd->security_ctx->master_access;
   thd->security_ctx->master_access |= SUPER_ACL;
-  save_tx_read_only= thd->tx_read_only;
+  bool save_tx_read_only= thd->tx_read_only;
   thd->tx_read_only= false;
 
   ret= db_repository->open_event_table(thd, TL_WRITE, &table);

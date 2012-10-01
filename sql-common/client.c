@@ -127,7 +127,7 @@ const char 	*def_shared_memory_base_name= default_shared_memory_base_name;
 static void mysql_close_free_options(MYSQL *mysql);
 static void mysql_close_free(MYSQL *mysql);
 static void mysql_prune_stmt_list(MYSQL *mysql);
-static int cli_report_progress(MYSQL *mysql, uchar *packet, uint length);
+static int cli_report_progress(MYSQL *mysql, char *packet, uint length);
 
 #if !defined(__WIN__)
 static int wait_for_data(my_socket fd, uint timeout);
@@ -783,7 +783,7 @@ restart:
   {
     if (len > 3)
     {
-      uchar *pos= net->read_pos+1;
+      char *pos= (char*) net->read_pos+1;
       uint last_errno=uint2korr(pos);
 
       if (last_errno == 65535 &&
@@ -1064,10 +1064,11 @@ static void cli_flush_use_result(MYSQL *mysql, my_bool flush_all_results)
     1  error
 */
 
-static int cli_report_progress(MYSQL *mysql, uchar *packet, uint length)
+static int cli_report_progress(MYSQL *mysql, char *pkt, uint length)
 {
   uint stage, max_stage, proc_length;
   double progress;
+  uchar *packet= (uchar*)pkt;
   uchar *start= packet;
 
   if (length < 5)
@@ -1411,7 +1412,7 @@ void mysql_read_default_options(struct st_mysql_options *options,
           break;
         case OPT_plugin_dir:
           {
-            char buff[FN_REFLEN], buff2[FN_REFLEN];
+            char buff[FN_REFLEN], buff2[FN_REFLEN], *buff2_ptr= buff2;
             if (strlen(opt_arg) >= FN_REFLEN)
               opt_arg[FN_REFLEN]= '\0';
             if (my_realpath(buff, opt_arg, 0))
@@ -1421,7 +1422,7 @@ void mysql_read_default_options(struct st_mysql_options *options,
               break;
             }
             convert_dirname(buff, buff2, NULL);
-            EXTENSION_SET_STRING(options, plugin_dir, buff2);
+            EXTENSION_SET_STRING(options, plugin_dir, buff2_ptr);
           }
           break;
         case OPT_default_auth:

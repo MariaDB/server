@@ -4366,9 +4366,9 @@ void THD::set_status_no_good_index_used()
 #endif
 }
 
-void THD::set_command(enum enum_server_command command_arg)
+void THD::set_command(enum enum_server_command command)
 {
-  m_command= command_arg;
+  m_command= command;
 #ifdef HAVE_PSI_THREAD_INTERFACE
   PSI_CALL(set_thread_command)(m_command);
 #endif
