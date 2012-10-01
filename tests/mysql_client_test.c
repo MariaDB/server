@@ -7284,7 +7284,7 @@ static void test_date_frac()
 {
   int        rc;
 
-  myheader("test_date");
+  myheader("test_date_frac");
 
   rc= mysql_query(mysql, "DROP TABLE IF EXISTS test_date");
   myquery(rc);
@@ -7404,6 +7404,8 @@ static void test_temporal_param()
   double       real= 123;
   char         dec[40];
 
+  myheader("test_temporal_param");
+
   /* Initialize param/fetch buffers for data, null flags, lengths */
   memset(&my_bind, 0, sizeof(my_bind));
   memset(&my_bind2, 0, sizeof(my_bind2));
@@ -7478,9 +7480,9 @@ static void test_temporal_param()
     printf("\n%lld %f '%s'\n", bigint, real, dec);
 
   /* Check values.  */
-  DIE_UNLESS(bigint ==  20011020101100LL);
+  DIE_UNLESS(bigint ==  20011020101059LL);
   DIE_UNLESS(real == 20011020101059.5);
-  DIE_UNLESS(!strcmp(dec, "20011020101059.5"));
+  DIE_UNLESS(!strcmp(dec, "20011020101059.500000"));
 
   mysql_stmt_close(stmt);
 
@@ -7522,9 +7524,9 @@ static void test_temporal_param()
     printf("\n%lld %f '%s'\n", bigint, real, dec);
 
   /* Check returned values */
-  DIE_UNLESS(bigint ==  101100);
+  DIE_UNLESS(bigint ==  101059);
   DIE_UNLESS(real ==  101059.5);
-  DIE_UNLESS(!strcmp(dec, "101059.5"));
+  DIE_UNLESS(!strcmp(dec, "101059.500000"));
 
   mysql_stmt_close(stmt);
 }
@@ -20276,7 +20278,7 @@ static struct my_tests_st my_tests[]= {
   { "test_subselect", test_subselect },
   { "test_date", test_date },
   { "test_date_frac", test_date_frac },
-  //{ "test_temporal_param", test_temporal_param }, XXX
+  { "test_temporal_param", test_temporal_param },
   { "test_date_date", test_date_date },
   { "test_date_time", test_date_time },
   { "test_date_ts", test_date_ts },
@@ -20470,7 +20472,7 @@ static struct my_tests_st my_tests[]= {
   { "test_progress_reporting", test_progress_reporting },
   { "test_bug11754979", test_bug11754979 },
   { "test_bug13001491", test_bug13001491 },
-  //{ "test_wl5968", test_wl5968 }, XXX
+  { "test_wl5968", test_wl5968 },
   { 0, 0 }
 };
 

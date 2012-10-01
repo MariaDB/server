@@ -135,7 +135,9 @@ bool trans_begin(THD *thd, uint flags)
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
     thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
-    thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+    thd->server_status&=
+      ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+    DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= test(ha_commit_trans(thd, TRUE));
   }
 
@@ -178,6 +180,7 @@ bool trans_begin(THD *thd, uint flags)
   thd->server_status|= SERVER_STATUS_IN_TRANS;
   if (thd->tx_read_only)
     thd->server_status|= SERVER_STATUS_IN_TRANS_READONLY;
+  DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
 
   /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
@@ -204,16 +207,18 @@ bool trans_commit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_commit_trans(thd, TRUE);
-  if (res)
     /*
       if res is non-zero, then ha_commit_trans has rolled back the
       transaction, so the hooks for rollback will be called.
     */
-    RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  if (res)
+    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   else
-    RUN_HOOK(transaction, after_commit, (thd, FALSE));
+    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
@@ -247,7 +252,9 @@ bool trans_commit_implicit(THD *thd)
     /* Safety if one did "drop table" on locked tables */
     if (!thd->locked_tables_mode)
       thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
-    thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+    thd->server_status&=
+      ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+    DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
     res= test(ha_commit_trans(thd, TRUE));
   }
 
@@ -256,7 +263,7 @@ bool trans_commit_implicit(THD *thd)
 
   /*
     Upon implicit commit, reset the current transaction
-    isolation level. We do not care about
+    isolation level and access mode. We do not care about
     @@session.completion_type since it's documented
     to not have any effect on implicit commit.
   */
@@ -284,9 +291,11 @@ bool trans_rollback(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_rollback_trans(thd, TRUE);
-  RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
@@ -332,14 +341,14 @@ bool trans_commit_stmt(THD *thd)
     }
   }
 
-  if (res)
     /*
       if res is non-zero, then ha_commit_trans has rolled back the
       transaction, so the hooks for rollback will be called.
     */
-    RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  if (res)
+    (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   else
-    RUN_HOOK(transaction, after_commit, (thd, FALSE));
+    (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
 
   thd->transaction.stmt.reset();
 
@@ -379,7 +388,7 @@ bool trans_rollback_stmt(THD *thd)
     }
   }
 
-  RUN_HOOK(transaction, after_rollback, (thd, FALSE));
+  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 
   thd->transaction.stmt.reset();
 
@@ -756,7 +765,9 @@ bool trans_xa_commit(THD *thd)
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   xid_cache_delete(&thd->transaction.xid_state);
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
@@ -803,7 +814,9 @@ bool trans_xa_rollback(THD *thd)
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
-  thd->server_status&= ~SERVER_STATUS_IN_TRANS;
+  thd->server_status&=
+    ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
+  DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   xid_cache_delete(&thd->transaction.xid_state);
   thd->transaction.xid_state.xa_state= XA_NOTR;
 

@@ -4845,8 +4845,7 @@ my_decimal *Field_timestamp_hires::val_decimal(my_decimal *d)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, 0);
-  longlong intg= TIME_to_ulonglong(&ltime);
-  return seconds2my_decimal(ltime.neg, intg, ltime.second_part, d);
+  return TIME_to_my_decimal(&ltime, d);
 }
  
 int Field_timestamp_hires::store_decimal(const my_decimal *d)
@@ -5066,8 +5065,7 @@ my_decimal *Field_temporal::val_decimal(my_decimal *d)
     bzero(&ltime, sizeof(ltime));
     ltime.time_type= mysql_type_to_time_type(type());
   }
-  longlong intg= TIME_to_ulonglong(&ltime);
-  return seconds2my_decimal(ltime.neg, intg, ltime.second_part, d);
+  return TIME_to_my_decimal(&ltime, d);
 }
 
 /****************************************************************************

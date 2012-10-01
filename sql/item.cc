@@ -3459,7 +3459,7 @@ double Item_param::val_real()
       This works for example when user says SELECT ?+0.0 and supplies
       time value for the placeholder.
     */
-    return ulonglong2double(TIME_to_ulonglong(&value.time));
+    return TIME_to_double(&value.time);
   case NULL_VALUE:
     return 0.0;
   default:
@@ -3517,9 +3517,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return dec;
   case TIME_VALUE:
   {
-    longlong i= (longlong) TIME_to_ulonglong(&value.time);
-    int2my_decimal(E_DEC_FATAL_ERROR, i, 0, dec);
-    return dec;
+    return TIME_to_my_decimal(&value.time, dec);
   }
   case NULL_VALUE:
     return 0; 

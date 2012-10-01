@@ -2231,7 +2231,6 @@ public:
   Item_param(uint pos_in_query_arg);
 
   enum Item_result result_type () const { return item_result_type; }
-  enum Item_result cast_to_int_type() const { return item_result_type; }
   enum Type type() const { return item_type; }
   enum_field_types field_type() const { return param_type; }
 

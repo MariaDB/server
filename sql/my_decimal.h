@@ -343,6 +343,10 @@ bool my_decimal2seconds(const my_decimal *d, ulonglong *sec, ulong *microsec);
 my_decimal *seconds2my_decimal(bool sign, ulonglong sec, ulong microsec,
                                my_decimal *d);
 
+#define TIME_to_my_decimal(TIME, DECIMAL)                       \
+     seconds2my_decimal((TIME)->neg, TIME_to_ulonglong(TIME),   \
+                        (TIME)->second_part, (DECIMAL))
+
 int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
 		   longlong *l);
 

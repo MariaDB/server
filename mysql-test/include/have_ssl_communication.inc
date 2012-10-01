@@ -1,4 +1,4 @@
--- require r/have_ssl.require
-disable_query_log;
-show variables like 'have_ssl';
-enable_query_log;
+if (`SELECT count(*) = 0 FROM information_schema.GLOBAL_VARIABLES WHERE
+      VARIABLE_NAME = 'have_ssl' AND VARIABLE_VALUE = 'YES'`){
+  skip Needs SSL;
+}
