@@ -496,6 +496,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
+ulong slave_retried_transactions;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -3379,8 +3380,8 @@ SHOW_VAR com_status_vars[]= {
   {"show_user_statistics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_USER_STATS]), SHOW_LONG_STATUS},
   {"show_variables",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_VARIABLES]), SHOW_LONG_STATUS},
   {"show_warnings",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_WARNS]), SHOW_LONG_STATUS},
-  {"slave_start",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
-  {"slave_stop",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_STOP]), SHOW_LONG_STATUS},
+  {"start_all_slaves",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_START]), SHOW_LONG_STATUS},
+  {"start_slave",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
   {"stmt_close",           (char*) offsetof(STATUS_VAR, com_stmt_close), SHOW_LONG_STATUS},
   {"stmt_execute",         (char*) offsetof(STATUS_VAR, com_stmt_execute), SHOW_LONG_STATUS},
   {"stmt_fetch",           (char*) offsetof(STATUS_VAR, com_stmt_fetch), SHOW_LONG_STATUS},
@@ -3388,6 +3389,8 @@ SHOW_VAR com_status_vars[]= {
   {"stmt_reprepare",       (char*) offsetof(STATUS_VAR, com_stmt_reprepare), SHOW_LONG_STATUS},
   {"stmt_reset",           (char*) offsetof(STATUS_VAR, com_stmt_reset), SHOW_LONG_STATUS},
   {"stmt_send_long_data",  (char*) offsetof(STATUS_VAR, com_stmt_send_long_data), SHOW_LONG_STATUS},
+  {"stop_all_slaves",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_STOP]), SHOW_LONG_STATUS},
+  {"stop_slave",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_STOP]), SHOW_LONG_STATUS},
   {"truncate",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_TRUNCATE]), SHOW_LONG_STATUS},
   {"uninstall_plugin",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNINSTALL_PLUGIN]), SHOW_LONG_STATUS},
   {"unlock_tables",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNLOCK_TABLES]), SHOW_LONG_STATUS},
@@ -4911,7 +4914,7 @@ int mysqld_main(int argc, char **argv)
 
   /*
     We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is hold while sql_plugin.c::intern_sys_var_ptr() is called.
+    LOCK_open is held while sql_plugin.c::intern_sys_var_ptr() is called.
   */
   mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
 
@@ -6532,66 +6535,51 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
   var->type= SHOW_MY_BOOL;
-  mysql_mutex_lock(&LOCK_active_mi);
   var->value= buff;
+  mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_WARN);
-  *((my_bool *)buff)= (my_bool) (mi && 
-                                 mi->slave_running ==
-                                 MYSQL_SLAVE_RUN_CONNECT &&
-                                 mi->rli.slave_running);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  return 0;
-}
-
-static int show_slave_retried_trans(THD *thd, SHOW_VAR *var, char *buff)
-{
-  /*
-    TODO: with multimaster, have one such counter per line in
-    SHOW SLAVE STATUS, and have the sum over all lines here.
-  */
-  mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_LONG;
-    var->value= buff;
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    *((long *)buff)= (long)active_mi->rli.retried_trans;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
-  }
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    *((my_bool *)buff)= (my_bool) (mi->slave_running ==
+                                   MYSQL_SLAVE_RUN_CONNECT &&
+                                   mi->rli.slave_running);
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
+
 
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_LONGLONG;
-    var->value= buff;
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    *((longlong *)buff)= active_mi->received_heartbeats;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
-  }
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    *((longlong *)buff)= mi->received_heartbeats;
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
+
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
+  var->type= SHOW_CHAR;
+  var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_CHAR;
-    var->value= buff;
-    sprintf(buff, "%.3f", active_mi->heartbeat_period);
-  }
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    sprintf(buff, "%.3f", mi->heartbeat_period);
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
@@ -6952,7 +6940,7 @@ SHOW_VAR status_vars[]= {
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
-  {"Compression",              (char*) &show_net_compression, SHOW_FUNC},
+  {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &thread_id,              SHOW_LONG_NOFLUSH},
   {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_DOUBLE_STATUS},
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables), SHOW_LONG_STATUS},
@@ -7006,13 +6994,13 @@ SHOW_VAR status_vars[]= {
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
-  {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_FUNC},
-  {"Open_tables",              (char*) &show_open_tables,       SHOW_FUNC},
+  {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_SIMPLE_FUNC},
+  {"Open_tables",              (char*) &show_open_tables,       SHOW_SIMPLE_FUNC},
   {"Opened_files",             (char*) &my_file_total_opened, SHOW_LONG_NOFLUSH},
   {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_table_definitions", (char*) offsetof(STATUS_VAR, opened_shares), SHOW_LONG_STATUS},
   {"Opened_views",            (char*) offsetof(STATUS_VAR, opened_views), SHOW_LONG_STATUS},
-  {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_FUNC},
+  {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_SIMPLE_FUNC},
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
@@ -7026,10 +7014,10 @@ SHOW_VAR status_vars[]= {
   {"Qcache_queries_in_cache",  (char*) &query_cache.queries_in_cache, SHOW_LONG_NOFLUSH},
   {"Qcache_total_blocks",      (char*) &query_cache.total_blocks, SHOW_LONG_NOFLUSH},
 #endif /*HAVE_QUERY_CACHE*/
-  {"Queries",                  (char*) &show_queries,            SHOW_FUNC},
+  {"Queries",                  (char*) &show_queries,            SHOW_SIMPLE_FUNC},
   {"Questions",                (char*) offsetof(STATUS_VAR, questions), SHOW_LONG_STATUS},
 #ifdef HAVE_REPLICATION
-  {"Rpl_status",               (char*) &show_rpl_status,          SHOW_FUNC},
+  {"Rpl_status",               (char*) &show_rpl_status,          SHOW_SIMPLE_FUNC},
 #endif
   {"Select_full_join",         (char*) offsetof(STATUS_VAR, select_full_join_count), SHOW_LONG_STATUS},
   {"Select_full_range_join",   (char*) offsetof(STATUS_VAR, select_full_range_join_count), SHOW_LONG_STATUS},
@@ -7038,10 +7026,10 @@ SHOW_VAR status_vars[]= {
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_LONG},
 #ifdef HAVE_REPLICATION
-  {"Slave_retried_transactions",(char*) &show_slave_retried_trans, SHOW_FUNC},
-  {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_FUNC},
-  {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_FUNC},
-  {"Slave_running",            (char*) &show_slave_running,     SHOW_FUNC},
+  {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},
+  {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
+  {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
+  {"Slave_running",            (char*) &show_slave_running,     SHOW_SIMPLE_FUNC},
 #endif
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},
@@ -7051,29 +7039,29 @@ SHOW_VAR status_vars[]= {
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
-  {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_FUNC},
-  {"Ssl_accepts",              (char*) &show_ssl_ctx_sess_accept, SHOW_FUNC},
-  {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_FUNC},
-  {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_FUNC},
-  {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_FUNC},
-  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_FUNC},
-  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_FUNC},
-  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_FUNC},
-  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_FUNC},
-  {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_FUNC},
-  {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_FUNC},
-  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_FUNC},
-  {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_FUNC},
-  {"Ssl_session_cache_misses", (char*) &show_ssl_ctx_sess_misses, SHOW_FUNC},
-  {"Ssl_session_cache_mode",   (char*) &show_ssl_ctx_get_session_cache_mode, SHOW_FUNC},
-  {"Ssl_session_cache_overflows", (char*) &show_ssl_ctx_sess_cache_full, SHOW_FUNC},
-  {"Ssl_session_cache_size",   (char*) &show_ssl_ctx_sess_get_cache_size, SHOW_FUNC},
-  {"Ssl_session_cache_timeouts", (char*) &show_ssl_ctx_sess_timeouts, SHOW_FUNC},
-  {"Ssl_sessions_reused",      (char*) &show_ssl_session_reused, SHOW_FUNC},
-  {"Ssl_used_session_cache_entries",(char*) &show_ssl_ctx_sess_number, SHOW_FUNC},
-  {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_FUNC},
-  {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_FUNC},
-  {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_FUNC},
+  {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_SIMPLE_FUNC},
+  {"Ssl_accepts",              (char*) &show_ssl_ctx_sess_accept, SHOW_SIMPLE_FUNC},
+  {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_SIMPLE_FUNC},
+  {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_SIMPLE_FUNC},
+  {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_SIMPLE_FUNC},
+  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_SIMPLE_FUNC},
+  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_SIMPLE_FUNC},
+  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_SIMPLE_FUNC},
+  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_SIMPLE_FUNC},
+  {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_SIMPLE_FUNC},
+  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_misses", (char*) &show_ssl_ctx_sess_misses, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_mode",   (char*) &show_ssl_ctx_get_session_cache_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_overflows", (char*) &show_ssl_ctx_sess_cache_full, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_size",   (char*) &show_ssl_ctx_sess_get_cache_size, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_timeouts", (char*) &show_ssl_ctx_sess_timeouts, SHOW_SIMPLE_FUNC},
+  {"Ssl_sessions_reused",      (char*) &show_ssl_session_reused, SHOW_SIMPLE_FUNC},
+  {"Ssl_used_session_cache_entries",(char*) &show_ssl_ctx_sess_number, SHOW_SIMPLE_FUNC},
+  {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
+  {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
@@ -7091,16 +7079,16 @@ SHOW_VAR status_vars[]= {
   {"Tc_log_page_waits",        (char*) &tc_log_page_waits,      SHOW_LONG},
 #endif
 #ifdef HAVE_POOL_OF_THREADS
-  {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_FUNC},
+  {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_SIMPLE_FUNC},
   {"Threadpool_threads",       (char *) &tp_stats.num_worker_threads, SHOW_INT},
 #endif
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
-  {"Uptime",                   (char*) &show_starttime,         SHOW_FUNC},
+  {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
-  {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_FUNC},
+  {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}
 };
@@ -7299,6 +7287,7 @@ static int mysql_init_variables(void)
   protocol_version= PROTOCOL_VERSION;
   what_to_log= ~ (1L << (uint) COM_TIME);
   refresh_version= 1L;	/* Increments on each reload */
+  denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;
   my_atomic_rwlock_init(&global_query_id_lock);
@@ -7326,6 +7315,7 @@ static int mysql_init_variables(void)
     relay_log_info_file= (char*) "relay-log.info";
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
+  slave_retried_transactions= 0;
 
   /* Variables in libraries */
   charsets_dir= 0;

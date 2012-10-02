@@ -1292,6 +1292,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SIGNED_SYM
 %token  SIMPLE_SYM                    /* SQL-2003-N */
 %token  SLAVE
+%token  SLAVES
 %token  SLOW
 %token  SMALLINT                      /* SQL-2003-R */
 %token  SNAPSHOT_SYM
@@ -7107,10 +7108,24 @@ slave:
           }
           slave_until
           {}
+        | START_SYM ALL SLAVES slave_thread_opts
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_SLAVE_ALL_START;
+            lex->type = 0;
+          }
+          {}
         | STOP_SYM SLAVE optional_connection_name slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
+            lex->type = 0;
+            /* If you change this code don't forget to update SLAVE STOP too */
+          }
+        | STOP_SYM ALL SLAVES slave_thread_opts
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_SLAVE_ALL_STOP;
             lex->type = 0;
             /* If you change this code don't forget to update SLAVE STOP too */
           }
@@ -11582,7 +11597,7 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_MASTER_STAT;
           }
-        | FULL SLAVE STATUS_SYM
+        | ALL SLAVES STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
             Lex->verbose= 1;
@@ -11850,7 +11865,7 @@ flush_option:
           { Lex->type|= REFRESH_SLOW_LOG; }
         | BINARY LOGS_SYM
           { Lex->type|= REFRESH_BINARY_LOG; }
-        | RELAY LOGS_SYM
+        | RELAY LOGS_SYM optional_connection_name
           { Lex->type|= REFRESH_RELAY_LOG; }
         | QUERY_SYM CACHE_SYM
           { Lex->type|= REFRESH_QUERY_CACHE_FREE; }
@@ -13008,6 +13023,7 @@ keyword:
         | SIGNED_SYM            {}
         | SOCKET_SYM            {}
         | SLAVE                 {}
+        | SLAVES                {}
         | SONAME_SYM            {}
         | START_SYM             {}
         | STOP_SYM              {}

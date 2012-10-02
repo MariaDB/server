@@ -15,7 +15,8 @@ start slave 'slave1';
 set default_master_connection = 'slave1';
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = 'slave2';
-start slave 'slave2';
+start all slaves;
+
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 
@@ -30,7 +31,10 @@ set default_master_connection = '';
 --sync_with_master 0,'slave2'
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
+
+# Ensure that start all slaves doesn't do anything as all slaves are started
+start all slaves;
 
 stop slave 'slave1';
 
@@ -39,15 +43,18 @@ query_vertical show slave 'slave1' status;
 
 reset slave 'slave1';
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
 
 reset slave 'slave1' all;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
 
-stop slave 'slave2';
+stop all slaves;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
+
+# Ensure that start all slaves doesn't do anything as all slaves are stopped
+stop all slaves;
 
 #
 # clean up

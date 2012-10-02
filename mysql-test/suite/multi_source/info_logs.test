@@ -117,7 +117,7 @@ start slave;
 
 --sleep 5
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
 
 # Restart the slave server
 
@@ -129,7 +129,7 @@ EOF
 --source include/wait_until_connected_again.inc
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
-show full slave status;
+show all slaves status;
 
 # Check the files
 

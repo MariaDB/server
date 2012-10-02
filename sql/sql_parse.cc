@@ -2708,7 +2708,8 @@ end_with_restore_list:
     if ((mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
-      start_slave(thd, mi, 1 /* net report*/);
+      if (!start_slave(thd, mi, 1 /* net report*/))
+        my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
@@ -2743,7 +2744,32 @@ end_with_restore_list:
     if ((mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
-      stop_slave(thd, mi, 1/* net report*/);
+      if (!stop_slave(thd, mi, 1/* net report*/))
+        my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
+  }
+  case SQLCOM_SLAVE_ALL_START:
+  {
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!master_info_index->start_all_slaves(thd))
+      my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
+  }
+  case SQLCOM_SLAVE_ALL_STOP:
+  {
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!master_info_index->stop_all_slaves(thd))
+      my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
