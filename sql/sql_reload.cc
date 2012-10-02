@@ -158,10 +158,26 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
   if (options & REFRESH_RELAY_LOG)
   {
 #ifdef HAVE_REPLICATION
+    LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+    Master_info *mi;
+
+    /*
+      Writing this command to the binlog may cause problems as the
+      slave is not likely to have the same connection names.
+    */
+    tmp_write_to_binlog= 0;
+    mysql_mutex_lock(&LOCK_active_mi);
     mysql_mutex_lock(&active_mi->data_lock);
-    if (rotate_relay_log(active_mi))
+    if (!(mi= (master_info_index->
+               get_master_info(&lex_mi->connection_name,
+                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
+    {
+      result= 1;
+    }
+    else if (rotate_relay_log(mi))
       *write_to_binlog= -1;
     mysql_mutex_unlock(&active_mi->data_lock);
+    mysql_mutex_unlock(&LOCK_active_mi);
 #endif
   }
 #ifdef HAVE_QUERY_CACHE

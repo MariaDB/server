@@ -70,7 +70,7 @@ class Master_info : public Slave_reporting_capability
   }
 
   /* the variables below are needed because we can change masters on the fly */
-  char master_log_name[FN_REFLEN+6]; /* Place for multi-*/
+  char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH+1];
   char user[USERNAME_LENGTH+1];
   char password[MAX_PASSWORD_LENGTH+1];
@@ -164,10 +164,13 @@ public:
   bool remove_master_info(LEX_STRING *connection_name);
   Master_info *get_master_info(LEX_STRING *connection_name,
                                MYSQL_ERROR::enum_warning_level warning);
+  bool give_error_if_slave_running();
+  bool start_all_slaves(THD *thd);
+  bool stop_all_slaves(THD *thd);
 };
 
 bool check_master_connection_name(LEX_STRING *name);
-void create_signed_file_name(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, uint length,
                              const char *info_file, 
                              bool append,
                              LEX_STRING *suffix);

@@ -228,8 +228,9 @@ public:
     Needed for problems when slave stops and we want to restart it
     skipping one or more events in the master log that have caused
     errors, and have been manually applied by DBA already.
+    Must be ulong as it's refered to from set_var.cc
   */
-  volatile ulong slave_skip_counter;    /* Must be ulong */
+  volatile ulong slave_skip_counter;
   volatile ulong abort_pos_wait;	/* Incremented on change master */
   volatile ulong slave_run_id;		/* Incremented on slave start */
   ulong max_relay_log_size;
@@ -286,6 +287,7 @@ public:
     slave started.
   */
   ulong trans_retries, retried_trans;
+  ulong executed_entries;                       /* For SLAVE STATUS */
 
   /*
     If the end of the hot relay log is made of master's events ignored by the

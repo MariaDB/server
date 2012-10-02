@@ -1297,7 +1297,9 @@ err:
 
   @retval 0 success
   @retval 1 error
+  @retval -1 fatal error
 */
+
 int start_slave(THD* thd , Master_info* mi,  bool net_report)
 {
   int slave_errno= 0;
@@ -1306,15 +1308,17 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("start_slave");
 
-  create_signed_file_name(master_info_file_tmp,
-                          sizeof(master_info_file_tmp),
-                          master_info_file, 0, &mi->connection_name);
-  create_signed_file_name(relay_log_info_file_tmp,
-                          sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, 0, &mi->connection_name);
-
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
+
+  create_logfile_name_with_suffix(master_info_file_tmp,
+                                  sizeof(master_info_file_tmp),
+                                  master_info_file, 0, &mi->connection_name);
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
+                                  sizeof(relay_log_info_file_tmp),
+                                  relay_log_info_file, 0,
+                                  &mi->connection_name);
+
   lock_slave_threads(mi);  // this allows us to cleanly read slave_running
   // Get a mask of _stopped_ threads
   init_thread_mask(&thread_mask,mi,1 /* inverse */);
@@ -1426,10 +1430,8 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
       my_error(slave_errno, MYF(0),
                (int) mi->connection_name.length,
                mi->connection_name.str);
-    DBUG_RETURN(1);
+    DBUG_RETURN(slave_errno == ER_BAD_SLAVE ? -1 : 1);
   }
-  else if (net_report)
-    my_ok(thd);
 
   DBUG_RETURN(0);
 }
@@ -1447,7 +1449,9 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
   @retval 0 success
   @retval 1 error
+  @retval -1 error
 */
+
 int stop_slave(THD* thd, Master_info* mi, bool net_report )
 {
   int slave_errno;
@@ -1455,7 +1459,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   DBUG_PRINT("enter",("Connection: %s", mi->connection_name.str));
 
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   thd_proc_info(thd, "Killing slave");
   int thread_mask;
   lock_slave_threads(mi);
@@ -1491,8 +1495,6 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
       my_message(slave_errno, ER(slave_errno), MYF(0));
     DBUG_RETURN(1);
   }
-  else if (net_report)
-    my_ok(thd);
 
   DBUG_RETURN(0);
 }
@@ -1524,9 +1526,10 @@ int reset_slave(THD *thd, Master_info* mi)
   init_thread_mask(&thread_mask,mi,0 /* not inverse */);
   if (thread_mask) // We refuse if any slave thread is running
   {
-    sql_errno= ER_SLAVE_MUST_STOP;
-    error=1;
-    goto err;
+    unlock_slave_threads(mi);
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(ER_SLAVE_MUST_STOP);
   }
 
   ha_reset_slave(thd);
@@ -1555,10 +1558,10 @@ int reset_slave(THD *thd, Master_info* mi)
   end_master_info(mi);
 
   // and delete these two files
-  create_signed_file_name(master_info_file_tmp,
+  create_logfile_name_with_suffix(master_info_file_tmp,
                           sizeof(master_info_file_tmp),
                           master_info_file, 0, &mi->connection_name);
-  create_signed_file_name(relay_log_info_file_tmp,
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
                           sizeof(relay_log_info_file_tmp),
                           relay_log_info_file, 0, &mi->connection_name);
 
@@ -1688,17 +1691,18 @@ bool change_master(THD* thd, Master_info* mi)
   init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
   if (thread_mask) // We refuse if any slave thread is running
   {
-    my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
+             mi->connection_name.str);
     ret= TRUE;
     goto err;
   }
 
   thd_proc_info(thd, "Changing master");
 
-  create_signed_file_name(master_info_file_tmp,
+  create_logfile_name_with_suffix(master_info_file_tmp,
                           sizeof(master_info_file_tmp),
                           master_info_file, 0, &mi->connection_name);
-  create_signed_file_name(relay_log_info_file_tmp,
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
                           sizeof(relay_log_info_file_tmp),
                           relay_log_info_file, 0, &mi->connection_name);
 

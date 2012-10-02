@@ -2201,7 +2201,11 @@ public:
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
 
-  LEX_STRING connection_name;                   /* If slave */
+  /*
+    If this is a slave, the name of the connection stored here.
+    This is used for taging error messages in the log files.
+  */
+  LEX_STRING connection_name;
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */

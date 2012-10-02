@@ -5,7 +5,7 @@ source include/master-slave.inc;
 
 show slave status;
 show slave '' status;
-show full slave status;
+show all slaves status;
 
 --echo #
 --echo # Check error handling

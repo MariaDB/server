@@ -50,7 +50,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    last_master_timestamp(0), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
-   until_log_pos(0), retried_trans(0),
+   until_log_pos(0), retried_trans(0), executed_entries(0),
    tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
@@ -203,14 +203,14 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
 
-    create_signed_file_name(buf_relay_logname, sizeof(buf_relay_logname),
+    create_logfile_name_with_suffix(buf_relay_logname, sizeof(buf_relay_logname),
                             ln, 1, &mi->connection_name);
     ln= buf_relay_logname;
 
     if (opt_relaylog_index_name)
     {
       buf_relaylog_index_name= buf_relaylog_index_name_buff; 
-      create_signed_file_name(buf_relaylog_index_name_buff,
+      create_logfile_name_with_suffix(buf_relaylog_index_name_buff,
                               sizeof(buf_relaylog_index_name_buff),
                               opt_relaylog_index_name, 0,
                               &mi->connection_name);

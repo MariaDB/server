@@ -21,6 +21,7 @@
 #include "rpl_mi.h"
 #include "slave.h"                              // SLAVE_MAX_HEARTBEAT_PERIOD
 #include "strfunc.h"
+#include "sql_repl.h"
 
 #ifdef HAVE_REPLICATION
 
@@ -42,7 +43,10 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
   ssl_cipher[0]= 0; ssl_key[0]= 0;
 
-  /* Store connection name and lower case connection name */
+  /*
+    Store connection name and lower case connection name
+    It's safe to ignore any OMM errors as this is checked by error()
+  */
   connection_name.length= cmp_connection_name.length=
     connection_name_arg->length;
   if ((connection_name.str= (char*) my_malloc(connection_name_arg->length*2+2,
@@ -599,7 +603,7 @@ void free_key_master_info(Master_info *mi)
 /**
    Check if connection name for master_info is valid.
 
-   It's valid if it's a valid system name, is less than
+   It's valid if it's a valid system name of length less than
    MAX_CONNECTION_NAME.
 
    @return
@@ -616,7 +620,7 @@ bool check_master_connection_name(LEX_STRING *name)
  
 
 /**
-   Create a log file with a signed suffix.
+   Create a log file with a given suffix.
 
    @param
    res_file_name	Store result here
@@ -635,7 +639,7 @@ bool check_master_connection_name(LEX_STRING *name)
    file names without a prefix.
 */
 
-void create_signed_file_name(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, uint length,
                              const char *info_file, bool append,
                              LEX_STRING *suffix)
 {
@@ -761,9 +765,9 @@ bool Master_info_index::init_all_master_info()
     lock_slave_threads(mi);
     init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
 
-    create_signed_file_name(buf_master_info_file, sizeof(buf_master_info_file),
+    create_logfile_name_with_suffix(buf_master_info_file, sizeof(buf_master_info_file),
                             master_info_file, 0, &connection_name);
-    create_signed_file_name(buf_relay_log_info_file,
+    create_logfile_name_with_suffix(buf_relay_log_info_file,
                             sizeof(buf_relay_log_info_file),
                             relay_log_info_file, 0, &connection_name);
     if (global_system_variables.log_warnings > 1)
@@ -827,7 +831,7 @@ bool Master_info_index::init_all_master_info()
               buf_relay_log_info_file,
               SLAVE_IO | SLAVE_SQL))
         {
-          sql_print_error("Failed to create slave threads for connection %.*s",
+          sql_print_error("Failed to create slave threads for connection '%.*s'",
                           (int) connection_name.length,
                           connection_name.str);
           continue;
@@ -1033,8 +1037,7 @@ bool Master_info_index::remove_master_info(LEX_STRING *name)
       }
 
       // Rewrite Master_info.index
-      uint i;
-      for (i= 0; i< master_info_hash.records; ++i)
+      for (uint i= 0; i< master_info_hash.records; ++i)
       {
         Master_info *tmp_mi;
         tmp_mi= (Master_info *) my_hash_element(&master_info_hash, i);
@@ -1044,6 +1047,129 @@ bool Master_info_index::remove_master_info(LEX_STRING *name)
     }
   }
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+   Master_info_index::give_error_if_slave_running()
+
+   @return
+   TRUE  	If some slave is running.  An error is printed
+   FALSE	No slave is running
+*/
+
+bool Master_info_index::give_error_if_slave_running()
+{
+  DBUG_ENTER("warn_if_slave_running");
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+
+  for (uint i= 0; i< master_info_hash.records; ++i)
+  {
+    Master_info *mi;
+    mi= (Master_info *) my_hash_element(&master_info_hash, i);
+    if (mi->rli.slave_running != MYSQL_SLAVE_NOT_RUN)
+    {
+      my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
+               mi->connection_name.str);
+      DBUG_RETURN(TRUE);
+    }
+  }
+  DBUG_RETURN(FALSE);
+}
+
+
+/**
+   Master_info_index::start_all_slaves()
+
+   Start all slaves that was not running.
+
+   @return
+   TRUE  	Error
+   FALSE	Everything ok.
+*/
+
+bool Master_info_index::start_all_slaves(THD *thd)
+{
+  bool result= FALSE;
+  DBUG_ENTER("warn_if_slave_running");
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+
+  for (uint i= 0; i< master_info_hash.records; ++i)
+  {
+    int error;
+    Master_info *mi;
+    mi= (Master_info *) my_hash_element(&master_info_hash, i);
+
+    /*
+      Try to start all slaves that are configured (host is defined)
+      and are not already running
+    */
+    if ((mi->slave_running != MYSQL_SLAVE_RUN_CONNECT ||
+         !mi->rli.slave_running) && *mi->host)
+    {
+      if ((error= start_slave(thd, mi, 1)))
+      {
+        my_error(ER_CANT_START_STOP_SLAVE, MYF(0),
+                 "START",
+                 (int) mi->connection_name.length,
+                 mi->connection_name.str);
+        result= 1;
+        if (error < 0)                            // fatal error
+          break;
+      }
+      else
+        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                            ER_SLAVE_STARTED, ER(ER_SLAVE_STARTED),
+                            (int) mi->connection_name.length,
+                            mi->connection_name.str);
+    }
+  }
+  DBUG_RETURN(result);
+}
+
+
+/**
+   Master_info_index::stop_all_slaves()
+
+   Start all slaves that was not running.
+
+   @return
+   TRUE  	Error
+   FALSE	Everything ok.
+*/
+
+bool Master_info_index::stop_all_slaves(THD *thd)
+{
+  bool result= FALSE;
+  DBUG_ENTER("warn_if_slave_running");
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+
+  for (uint i= 0; i< master_info_hash.records; ++i)
+  {
+    int error;
+    Master_info *mi;
+    mi= (Master_info *) my_hash_element(&master_info_hash, i);
+    if ((mi->slave_running != MYSQL_SLAVE_NOT_RUN ||
+         mi->rli.slave_running))
+    {
+      if ((error= stop_slave(thd, mi, 1)))
+      {
+        my_error(ER_CANT_START_STOP_SLAVE, MYF(0),
+                 "STOP",
+                 (int) mi->connection_name.length,
+                 mi->connection_name.str);
+        result= 1;
+        if (error < 0)                            // Fatal error
+          break;
+      }
+      else
+        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                            ER_SLAVE_STOPPED, ER(ER_SLAVE_STOPPED),
+                            (int) mi->connection_name.length,
+                            mi->connection_name.str);
+    }
+  }
+  DBUG_RETURN(result);
 }
 
 #endif /* HAVE_REPLICATION */

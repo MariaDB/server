@@ -566,10 +566,12 @@ public:
     option.var_type= GET_STR;
   }
 
+  bool do_check(THD *thd, set_var *var)
+  {
+    return Sys_var_charptr::do_string_check(thd, var, charset(thd));
+  }
   bool check_update_type(Item_result type)
   { return type != STRING_RESULT; }
-
-  bool do_check(THD *thd, set_var *var);
 
   void session_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
@@ -588,8 +590,6 @@ public:
 protected:
   uchar *global_value_ptr(THD *thd, LEX_STRING *base);
   bool set_filter_value(const char *value);
-  void lock(void);
-  void unlock(void);
 };
 
 /**
@@ -1937,10 +1937,9 @@ public:
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
           const char *values[], uint def_val, PolyLock *lock,
-          enum binlog_status_enum binlog_status_arg,
-          on_check_function on_check_func)
+          enum binlog_status_enum binlog_status_arg)
     :Sys_var_enum(name_arg, comment, flag_args, off, size, getopt,
-                  values, def_val, lock, binlog_status_arg, on_check_func)
+                  values, def_val, lock, binlog_status_arg)
   {}
   bool global_update(THD *thd, set_var *var);
 };
