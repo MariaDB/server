@@ -2335,6 +2335,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
+    bool wild_checked;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
     if (ucase_names)
@@ -2343,11 +2344,25 @@ static bool show_status_array(THD *thd, const char *wild,
     restore_record(table, s->default_values);
     table->field[0]->store(name_buffer, strlen(name_buffer),
                            system_charset_info);
+
     /*
-      if var->type is SHOW_FUNC, call the function.
-      Repeat as necessary, if new var is again SHOW_FUNC
+      Compare name for types that can't return arrays. We do this to not
+      calculate the value for function variables that we will not access
     */
-    for (var=variables; var->type == SHOW_FUNC; var= &tmp)
+    if ((variables->type != SHOW_FUNC && variables->type != SHOW_ARRAY))
+    {
+      if (wild && wild[0] && wild_case_compare(system_charset_info,
+                                               name_buffer, wild))
+        continue;
+      wild_checked= 1;                          // Avoid checking it again
+    }
+
+    /*
+      if var->type is SHOW_FUNC or SHOW_SIMPLE_FUNC, call the function.
+      Repeat as necessary, if new var is again one of the above
+    */
+    for (var=variables; var->type == SHOW_FUNC ||
+           var->type == SHOW_SIMPLE_FUNC; var= &tmp)
       ((mysql_show_var_func)(var->value))(thd, &tmp, buff);
 
     SHOW_TYPE show_type=var->type;
@@ -2358,8 +2373,9 @@ static bool show_status_array(THD *thd, const char *wild,
     }
     else
     {
-      if (!(wild && wild[0] && wild_case_compare(system_charset_info,
-                                                 name_buffer, wild)) &&
+      if ((wild_checked ||
+           (wild && wild[0] && wild_case_compare(system_charset_info,
+                                                 name_buffer, wild))) &&
           (!partial_cond || partial_cond->val_int()))
       {
         char *value=var->value;

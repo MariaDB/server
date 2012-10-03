@@ -906,9 +906,9 @@ int Log_event::do_update_pos(Relay_log_info *rli)
 Log_event::enum_skip_reason
 Log_event::do_shall_skip(Relay_log_info *rli)
 {
-  DBUG_PRINT("info", ("ev->server_id=%lu, ::server_id=%lu,"
-                      " rli->replicate_same_server_id=%d,"
-                      " rli->slave_skip_counter=%d",
+  DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
+                      " rli->replicate_same_server_id: %d,"
+                      " rli->slave_skip_counter: %lu",
                       (ulong) server_id, (ulong) ::server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
@@ -11247,6 +11247,9 @@ Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
   There is a dummy replacement for this in the embedded library that returns
   FALSE; this is used by XtraDB to allow it to access replication stuff while
   still being able to use the same plugin in both stand-alone and embedded.
+
+  In this function it's ok to use active_mi, as this is only called for
+  the main replication server.
 */
 bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
                            const char **group_relay_log_name,

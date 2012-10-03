@@ -34,14 +34,6 @@ my_bool opt_sporadic_binlog_dump_fail = 0;
 static int binlog_dump_count = 0;
 #endif
 
-/**
-  a copy of active_mi->rli->slave_skip_counter, for showing in SHOW VARIABLES,
-  INFORMATION_SCHEMA.GLOBAL_VARIABLES and @@sql_slave_skip_counter without
-  taking all the mutexes needed to access active_mi->rli->slave_skip_counter
-  properly.
-*/
-uint sql_slave_skip_counter;
-
 extern TYPELIB binlog_checksum_typelib;
 
 /*
@@ -1305,15 +1297,28 @@ err:
 
   @retval 0 success
   @retval 1 error
+  @retval -1 fatal error
 */
+
 int start_slave(THD* thd , Master_info* mi,  bool net_report)
 {
   int slave_errno= 0;
   int thread_mask;
+  char master_info_file_tmp[FN_REFLEN];
+  char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("start_slave");
 
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
+
+  create_logfile_name_with_suffix(master_info_file_tmp,
+                                  sizeof(master_info_file_tmp),
+                                  master_info_file, 0, &mi->connection_name);
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
+                                  sizeof(relay_log_info_file_tmp),
+                                  relay_log_info_file, 0,
+                                  &mi->connection_name);
+
   lock_slave_threads(mi);  // this allows us to cleanly read slave_running
   // Get a mask of _stopped_ threads
   init_thread_mask(&thread_mask,mi,1 /* inverse */);
@@ -1327,7 +1332,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
     thread_mask&= thd->lex->slave_thd_opt;
   if (thread_mask) //some threads are stopped, start them
   {
-    if (init_master_info(mi,master_info_file,relay_log_info_file, 0,
+    if (init_master_info(mi,master_info_file_tmp,relay_log_info_file_tmp, 0,
 			 thread_mask))
       slave_errno=ER_MASTER_INFO;
     else if (server_id_supplied && *mi->host)
@@ -1401,10 +1406,11 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
       if (!slave_errno)
         slave_errno = start_slave_threads(0 /*no mutex */,
-					1 /* wait for start */,
-					mi,
-					master_info_file,relay_log_info_file,
-					thread_mask);
+                                          1 /* wait for start */,
+                                          mi,
+                                          master_info_file_tmp,
+                                          relay_log_info_file_tmp,
+                                          thread_mask);
     }
     else
       slave_errno = ER_BAD_SLAVE;
@@ -1421,11 +1427,11 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   if (slave_errno)
   {
     if (net_report)
-      my_message(slave_errno, ER(slave_errno), MYF(0));
-    DBUG_RETURN(1);
+      my_error(slave_errno, MYF(0),
+               (int) mi->connection_name.length,
+               mi->connection_name.str);
+    DBUG_RETURN(slave_errno == ER_BAD_SLAVE ? -1 : 1);
   }
-  else if (net_report)
-    my_ok(thd);
 
   DBUG_RETURN(0);
 }
@@ -1443,17 +1449,17 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
   @retval 0 success
   @retval 1 error
+  @retval -1 error
 */
+
 int stop_slave(THD* thd, Master_info* mi, bool net_report )
 {
-  DBUG_ENTER("stop_slave");
-  
   int slave_errno;
-  if (!thd)
-    thd = current_thd;
+  DBUG_ENTER("stop_slave");
+  DBUG_PRINT("enter",("Connection: %s", mi->connection_name.str));
 
   if (check_access(thd, SUPER_ACL, any_db, NULL, NULL, 0, 0))
-    DBUG_RETURN(1);
+    DBUG_RETURN(-1);
   thd_proc_info(thd, "Killing slave");
   int thread_mask;
   lock_slave_threads(mi);
@@ -1489,8 +1495,6 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
       my_message(slave_errno, ER(slave_errno), MYF(0));
     DBUG_RETURN(1);
   }
-  else if (net_report)
-    my_ok(thd);
 
   DBUG_RETURN(0);
 }
@@ -1514,15 +1518,18 @@ int reset_slave(THD *thd, Master_info* mi)
   int thread_mask= 0, error= 0;
   uint sql_errno=ER_UNKNOWN_ERROR;
   const char* errmsg= "Unknown error occured while reseting slave";
+  char master_info_file_tmp[FN_REFLEN];
+  char relay_log_info_file_tmp[FN_REFLEN];
   DBUG_ENTER("reset_slave");
 
   lock_slave_threads(mi);
   init_thread_mask(&thread_mask,mi,0 /* not inverse */);
   if (thread_mask) // We refuse if any slave thread is running
   {
-    sql_errno= ER_SLAVE_MUST_STOP;
-    error=1;
-    goto err;
+    unlock_slave_threads(mi);
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
+             mi->connection_name.str);
+    DBUG_RETURN(ER_SLAVE_MUST_STOP);
   }
 
   ha_reset_slave(thd);
@@ -1549,22 +1556,35 @@ int reset_slave(THD *thd, Master_info* mi)
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
+
   // and delete these two files
-  fn_format(fname, master_info_file, mysql_data_home, "", 4+32);
+  create_logfile_name_with_suffix(master_info_file_tmp,
+                          sizeof(master_info_file_tmp),
+                          master_info_file, 0, &mi->connection_name);
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
+                          sizeof(relay_log_info_file_tmp),
+                          relay_log_info_file, 0, &mi->connection_name);
+
+  fn_format(fname, master_info_file_tmp, mysql_data_home, "", 4+32);
   if (mysql_file_stat(key_file_master_info, fname, &stat_area, MYF(0)) &&
       mysql_file_delete(key_file_master_info, fname, MYF(MY_WME)))
   {
     error=1;
     goto err;
   }
+  else if (global_system_variables.log_warnings > 1)
+    sql_print_information("Deleted Master_info file '%s'.", fname);
+
   // delete relay_log_info_file
-  fn_format(fname, relay_log_info_file, mysql_data_home, "", 4+32);
+  fn_format(fname, relay_log_info_file_tmp, mysql_data_home, "", 4+32);
   if (mysql_file_stat(key_file_relay_log_info, fname, &stat_area, MYF(0)) &&
       mysql_file_delete(key_file_relay_log_info, fname, MYF(MY_WME)))
   {
     error=1;
     goto err;
   }
+  else if (global_system_variables.log_warnings > 1)
+    sql_print_information("Deleted Master_info file '%s'.", fname);
 
   RUN_HOOK(binlog_relay_io, after_reset_slave, (thd, mi));
 err:
@@ -1644,20 +1664,12 @@ bool change_master(THD* thd, Master_info* mi)
   char saved_host[HOSTNAME_LENGTH + 1];
   uint saved_port;
   char saved_log_name[FN_REFLEN];
+  char master_info_file_tmp[FN_REFLEN];
+  char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
+  LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
 
-  lock_slave_threads(mi);
-  init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
-  LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
-  if (thread_mask) // We refuse if any slave thread is running
-  {
-    my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
-    ret= TRUE;
-    goto err;
-  }
-
-  thd_proc_info(thd, "Changing master");
   /* 
     We need to check if there is an empty master_host. Otherwise
     change master succeeds, a master.info file is created containing 
@@ -1665,17 +1677,61 @@ bool change_master(THD* thd, Master_info* mi)
     is thrown stating that the server is not configured as slave.
     (See BUG#28796).
   */
-  if(lex_mi->host && !*lex_mi->host) 
+  if (lex_mi->host && !*lex_mi->host) 
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), "MASTER_HOST");
-    unlock_slave_threads(mi);
     DBUG_RETURN(TRUE);
   }
-  // TODO: see if needs re-write
-  if (init_master_info(mi, master_info_file, relay_log_info_file, 0,
+  if (master_info_index->check_duplicate_master_info(&lex_mi->connection_name,
+                                                     lex_mi->host,
+                                                     lex_mi->port))
+    DBUG_RETURN(TRUE);
+
+  lock_slave_threads(mi);
+  init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
+  if (thread_mask) // We refuse if any slave thread is running
+  {
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) mi->connection_name.length,
+             mi->connection_name.str);
+    ret= TRUE;
+    goto err;
+  }
+
+  thd_proc_info(thd, "Changing master");
+
+  create_logfile_name_with_suffix(master_info_file_tmp,
+                          sizeof(master_info_file_tmp),
+                          master_info_file, 0, &mi->connection_name);
+  create_logfile_name_with_suffix(relay_log_info_file_tmp,
+                          sizeof(relay_log_info_file_tmp),
+                          relay_log_info_file, 0, &mi->connection_name);
+
+  /* if new Master_info doesn't exists, add it */
+  if (!master_info_index->get_master_info(&mi->connection_name,
+                                          MYSQL_ERROR::WARN_LEVEL_NOTE))
+  {
+    if (master_info_index->add_master_info(mi, TRUE))
+    {
+      my_error(ER_MASTER_INFO, MYF(0),
+               (int) lex_mi->connection_name.length,
+               lex_mi->connection_name.str);
+      ret= TRUE;
+      goto err;
+    }
+  }
+  if (global_system_variables.log_warnings > 1)
+    sql_print_information("Master: '%.*s'  Master_info_file: '%s'  "
+                          "Relay_info_file: '%s'",
+                          (int) mi->connection_name.length,
+                          mi->connection_name.str,
+                          master_info_file_tmp, relay_log_info_file_tmp);
+
+  if (init_master_info(mi, master_info_file_tmp, relay_log_info_file_tmp, 0,
 		       thread_mask))
   {
-    my_message(ER_MASTER_INFO, ER(ER_MASTER_INFO), MYF(0));
+    my_error(ER_MASTER_INFO, MYF(0),
+             (int) lex_mi->connection_name.length,
+             lex_mi->connection_name.str);
     ret= TRUE;
     goto err;
   }
@@ -1939,7 +1995,7 @@ int reset_master(THD* thd)
     return 1;
   }
 
-  if (mysql_bin_log.reset_logs(thd))
+  if (mysql_bin_log.reset_logs(thd, 1))
     return 1;
   RUN_HOOK(binlog_transmit, after_reset_master, (thd, 0 /* flags */));
   return 0;
@@ -1965,6 +2021,7 @@ bool mysql_show_binlog_events(THD* thd)
   File file = -1;
   MYSQL_BIN_LOG *binary_log= NULL;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
+  Master_info *mi= 0;
   LOG_INFO linfo;
 
   DBUG_ENTER("mysql_show_binlog_events");
@@ -1994,10 +2051,15 @@ bool mysql_show_binlog_events(THD* thd)
   }
   else  /* showing relay log contents */
   {
-    if (!active_mi)
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!(mi= master_info_index->
+          get_master_info(&thd->variables.default_master_connection,
+                          MYSQL_ERROR::WARN_LEVEL_ERROR)))
+    {
+      mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);
-
-    binary_log= &(active_mi->rli.relay_log);
+    }
+    binary_log= &(mi->rli.relay_log);
   }
 
   if (binary_log->is_open())
@@ -2010,6 +2072,13 @@ bool mysql_show_binlog_events(THD* thd)
     const char *log_file_name = lex_mi->log_file_name;
     mysql_mutex_t *log_lock = binary_log->get_log_lock();
     Log_event* ev;
+
+    if (mi)
+    {
+      /* We can unlock the mutex as we have a lock on the file */
+      mysql_mutex_unlock(&LOCK_active_mi);
+      mi= 0;
+    }
 
     unit->set_limit(thd->lex->current_select);
     limit_start= unit->offset_limit_cnt;
@@ -2105,6 +2174,9 @@ bool mysql_show_binlog_events(THD* thd)
 
     mysql_mutex_unlock(log_lock);
   }
+  else if (mi)
+    mysql_mutex_unlock(&LOCK_active_mi);
+
   // Check that linfo is still on the function scope.
   DEBUG_SYNC(thd, "after_show_binlog_events");
 

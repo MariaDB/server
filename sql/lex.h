@@ -514,6 +514,7 @@ static SYMBOL symbols[] = {
   { "SIGNED",		SYM(SIGNED_SYM)},
   { "SIMPLE",		SYM(SIMPLE_SYM)},
   { "SLAVE",            SYM(SLAVE)},
+  { "SLAVES",           SYM(SLAVES)},
   { "SLOW",             SYM(SLOW)},
   { "SNAPSHOT",         SYM(SNAPSHOT_SYM)},
   { "SMALLINT",		SYM(SMALLINT)},

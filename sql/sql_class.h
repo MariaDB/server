@@ -533,6 +533,12 @@ typedef struct system_variables
     thread the query is being run to replicate temp tables properly
   */
   my_thread_id pseudo_thread_id;
+  /**
+     Place holders to store Multi-source variables in sys_var.cc during
+     update and show of variables.
+  */
+  ulong slave_skip_counter;
+  ulong max_relay_log_size;
 
   my_bool low_priority_updates;
   my_bool query_cache_wlock_invalidate;
@@ -556,6 +562,9 @@ typedef struct system_variables
   CHARSET_INFO	*collation_server;
   CHARSET_INFO	*collation_database;
   CHARSET_INFO  *collation_connection;
+
+  /* Names. These will be allocated in buffers in thd */
+  LEX_STRING default_master_connection;
 
   /* Error messages */
   MY_LOCALE *lc_messages;
@@ -2192,6 +2201,12 @@ public:
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
 
+  /*
+    If this is a slave, the name of the connection stored here.
+    This is used for taging error messages in the log files.
+  */
+  LEX_STRING connection_name;
+  char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */
 
