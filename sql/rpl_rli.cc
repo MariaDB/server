@@ -50,7 +50,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    last_master_timestamp(0), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_thd(0),
    inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
-   until_log_pos(0), retried_trans(0),
+   until_log_pos(0), retried_trans(0), executed_entries(0),
    tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
@@ -69,6 +69,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   group_relay_log_name[0]= event_relay_log_name[0]=
     group_master_log_name[0]= 0;
   until_log_name[0]= ign_master_log_name_end[0]= 0;
+  max_relay_log_size= global_system_variables.max_relay_log_size;
   bzero((char*) &info_file, sizeof(info_file));
   bzero((char*) &cache_buf, sizeof(cache_buf));
   cached_charset_invalidate();
@@ -149,15 +150,6 @@ int init_relay_log_info(Relay_log_info* rli,
     event, in flush_master_info(mi, 1, ?).
   */
 
-  /*
-    For the maximum log size, we choose max_relay_log_size if it is
-    non-zero, max_binlog_size otherwise. If later the user does SET
-    GLOBAL on one of these variables, fix_max_binlog_size and
-    fix_max_relay_log_size will reconsider the choice (for example
-    if the user changes max_relay_log_size to zero, we have to
-    switch to using max_binlog_size for the relay log) and update
-    rli->relay_log.max_size (and mysql_bin_log.max_size).
-  */
   {
     /* Reports an error and returns, if the --relay-log's path 
        is a directory.*/
@@ -206,19 +198,36 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       name_warning_sent= 1;
     }
 
+    /* For multimaster, add connection name to relay log filenames */
+    Master_info* mi= rli->mi;
+    char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
+    char *buf_relaylog_index_name= opt_relaylog_index_name;
+
+    create_logfile_name_with_suffix(buf_relay_logname, sizeof(buf_relay_logname),
+                            ln, 1, &mi->connection_name);
+    ln= buf_relay_logname;
+
+    if (opt_relaylog_index_name)
+    {
+      buf_relaylog_index_name= buf_relaylog_index_name_buff; 
+      create_logfile_name_with_suffix(buf_relaylog_index_name_buff,
+                              sizeof(buf_relaylog_index_name_buff),
+                              opt_relaylog_index_name, 0,
+                              &mi->connection_name);
+    }
+
     rli->relay_log.is_relay_log= TRUE;
 
     /*
       note, that if open() fails, we'll still have index file open
       but a destructor will take care of that
     */
-    if (rli->relay_log.open_index_file(opt_relaylog_index_name, ln, TRUE) ||
+    if (rli->relay_log.open_index_file(buf_relaylog_index_name, ln, TRUE) ||
         rli->relay_log.open(ln, LOG_BIN, 0, SEQ_READ_APPEND,
-                            (max_relay_log_size ? max_relay_log_size :
-                            max_binlog_size), 1, TRUE))
+                            mi->rli.max_relay_log_size, 1, TRUE))
     {
       mysql_mutex_unlock(&rli->data_lock);
-      sql_print_error("Failed in open_log() called from init_relay_log_info()");
+      sql_print_error("Failed when trying to open logs for '%s' in init_relay_log_info(). Error: %M", ln, my_errno);
       DBUG_RETURN(1);
     }
   }
@@ -997,28 +1006,37 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     rli->cur_log_fd= -1;
   }
 
-  if (rli->relay_log.reset_logs(thd))
+  if (rli->relay_log.reset_logs(thd, !just_reset))
   {
     *errmsg = "Failed during log reset";
     error=1;
     goto err;
   }
-  /* Save name of used relay log file */
-  strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(rli->group_relay_log_name)-1);
-  strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(rli->event_relay_log_name)-1);
-  rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-  if (count_relay_log_space(rli))
-  {
-    *errmsg= "Error counting relay log space";
-    error=1;
-    goto err;
-  }
   if (!just_reset)
+  {
+    /* Save name of used relay log file */
+    strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
+            sizeof(rli->group_relay_log_name)-1);
+    strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
+            sizeof(rli->event_relay_log_name)-1);
+    rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
+    rli->log_space_total= 0;
+
+    if (count_relay_log_space(rli))
+    {
+      *errmsg= "Error counting relay log space";
+      error=1;
+      goto err;
+    }
     error= init_relay_log_pos(rli, rli->group_relay_log_name,
                               rli->group_relay_log_pos,
                               0 /* do not need data lock */, errmsg, 0);
+  }
+  else
+  {
+    /* Ensure relay log names are not used */
+    rli->group_relay_log_name[0]= rli->event_relay_log_name[0]= 0;
+  }
 
 err:
 #ifndef DBUG_OFF

@@ -100,6 +100,7 @@ static const char *get_length_arg(const char *fmt, ARGS_INFO *args_arr,
   (*length)--;    
   DBUG_ASSERT(*fmt == '$' && *length < MAX_ARGS);
   args_arr[*length].arg_type= 'd';
+  args_arr[*length].have_longlong= 0;
   return fmt+1;
 }
 

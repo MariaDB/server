@@ -396,6 +396,7 @@ bool table_def_init(void)
 
 void table_def_start_shutdown(void)
 {
+  DBUG_ENTER("table_def_start_shutdown");
   if (table_def_inited)
   {
     mysql_mutex_lock(&LOCK_open);
@@ -410,6 +411,7 @@ void table_def_start_shutdown(void)
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
     close_cached_tables(NULL, NULL, FALSE, LONG_TIMEOUT);
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -1085,6 +1087,9 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
   }
 
   mysql_mutex_unlock(&LOCK_open);
+
+  DBUG_PRINT("info", ("open table definitions: %d",
+                      (int) table_def_cache.records));
 
   if (!wait_for_refresh)
     DBUG_RETURN(result);

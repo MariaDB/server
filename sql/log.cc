@@ -40,6 +40,7 @@
 #include "rpl_rli.h"
 #include "sql_audit.h"
 #include "log_slow.h"
+#include "mysqld.h"
 
 #include <my_dir.h>
 #include <stdarg.h>
@@ -3597,11 +3598,11 @@ err:
 
 /**
   Delete all logs refered to in the index file.
-  Start writing to a new log file.
 
   The new index file will only contain this file.
 
-  @param thd		Thread
+  @param thd		  Thread
+  @param create_new_log  1 if we should start writing to a new log file
 
   @note
     If not called from slave thread, write start event to new log
@@ -3612,7 +3613,7 @@ err:
     1   error
 */
 
-bool MYSQL_BIN_LOG::reset_logs(THD* thd)
+bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 {
   LOG_INFO linfo;
   bool error=0;
@@ -3779,7 +3780,7 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd)
       goto err;
     }
   }
-  if (!open_index_file(index_file_name, 0, FALSE))
+  if (create_new_log && !open_index_file(index_file_name, 0, FALSE))
     if ((error= open(save_name, log_type, 0, io_cache_type, max_size, 0, FALSE)))
       goto err;
   my_free((void *) save_name);
@@ -3865,7 +3866,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   DBUG_ENTER("purge_first_log");
 
   DBUG_ASSERT(is_open());
-  DBUG_ASSERT(rli->slave_running == 1);
+  DBUG_ASSERT(rli->slave_running == MYSQL_SLAVE_RUN_NOT_CONNECT);
   DBUG_ASSERT(!strcmp(rli->linfo.log_file_name,rli->event_relay_log_name));
 
   mysql_mutex_lock(&LOCK_index);
@@ -4702,7 +4703,7 @@ bool MYSQL_BIN_LOG::append(Log_event* ev)
   DBUG_PRINT("info",("max_size: %lu",max_size));
   if (flush_and_sync(0))
     goto err;
-  if ((uint) my_b_append_tell(&log_file) > max_size)
+  if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
   mysql_mutex_unlock(&LOCK_log);
@@ -4733,7 +4734,7 @@ bool MYSQL_BIN_LOG::appendv(const char* buf, uint len,...)
   DBUG_PRINT("info",("max_size: %lu",max_size));
   if (flush_and_sync(0))
     goto err;
-  if ((uint) my_b_append_tell(&log_file) > max_size)
+  if (my_b_append_tell(&log_file) > max_size)
     error= new_file_without_locking();
 err:
   if (!error)
@@ -6980,8 +6981,25 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   time_t skr;
   struct tm tm_tmp;
   struct tm *start;
+  THD *thd;
+  int tag_length= 0;
+  char tag[NAME_LEN];
   DBUG_ENTER("print_buffer_to_file");
   DBUG_PRINT("enter",("buffer: %s", buffer));
+
+  if (mysqld_server_initialized && (thd= current_thd))
+  {
+    if (thd->connection_name.length)
+    {
+      /*
+        Add tag for slaves so that the user can see from which connection
+        the error originates.
+      */
+      tag_length= my_snprintf(tag, sizeof(tag), ER(ER_MASTER_LOG_PREFIX),
+                              (int) thd->connection_name.length,
+                              thd->connection_name.str);
+    }
+  }
 
   mysql_mutex_lock(&LOCK_error_log);
 
@@ -6989,7 +7007,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(stderr, "%02d%02d%02d %2d:%02d:%02d [%s] %.*s\n",
+  fprintf(stderr, "%02d%02d%02d %2d:%02d:%02d [%s] %.*s%.*s\n",
           start->tm_year % 100,
           start->tm_mon+1,
           start->tm_mday,
@@ -6998,6 +7016,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           start->tm_sec,
           (level == ERROR_LEVEL ? "ERROR" : level == WARNING_LEVEL ?
            "Warning" : "Note"),
+          tag_length, tag,
           (int) length, buffer);
 
   fflush(stderr);

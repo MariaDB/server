@@ -796,6 +796,30 @@ static Sys_var_lexstring Sys_init_connect(
        DEFAULT(""), &PLock_sys_init_connect, NOT_IN_BINLOG,
        ON_CHECK(check_init_string));
 
+#ifdef HAVE_REPLICATION
+static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
+{
+  LEX_STRING tmp;
+  tmp.str= var->save_result.string_value.str;
+  tmp.length= var->save_result.string_value.length;
+  if (!tmp.str || check_master_connection_name(&tmp))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+             var->var->name.str);
+    return true;
+  }
+  return false;
+}
+
+static Sys_var_session_lexstring Sys_default_master_connection(
+       "default_master_connection",
+       "Master connection to use for all slave variables and slave commands",
+       SESSION_ONLY(default_master_connection),
+       NO_CMD_LINE, IN_SYSTEM_CHARSET,
+       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection),
+       ON_UPDATE(0));
+#endif
+
 static Sys_var_charptr Sys_init_file(
        "init_file", "Read SQL commands from this file at startup",
        READ_ONLY GLOBAL_VAR(opt_init_file),
@@ -1081,16 +1105,12 @@ static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
   mysql_bin_log.set_max_size(max_binlog_size);
-#ifdef HAVE_REPLICATION
-  if (!max_relay_log_size)
-    active_mi->rli.relay_log.set_max_size(max_binlog_size);
-#endif
   return false;
 }
 static Sys_var_ulong Sys_max_binlog_size(
        "max_binlog_size",
        "Binary log will be rotated automatically when the size exceeds this "
-       "value. Will also apply to relay logs if max_relay_log_size is 0",
+       "value.",
        GLOBAL_VAR(max_binlog_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, 1024*1024L*1024L), DEFAULT(1024*1024L*1024L),
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
@@ -1234,24 +1254,6 @@ static Sys_var_ulong Sys_max_prepared_stmt_count(
        GLOBAL_VAR(max_prepared_stmt_count), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024*1024), DEFAULT(16382), BLOCK_SIZE(1),
        &PLock_prepared_stmt_count);
-
-static bool fix_max_relay_log_size(sys_var *self, THD *thd, enum_var_type type)
-{
-#ifdef HAVE_REPLICATION
-  active_mi->rli.relay_log.set_max_size(max_relay_log_size ?
-                                        max_relay_log_size: max_binlog_size);
-#endif
-  return false;
-}
-static Sys_var_ulong Sys_max_relay_log_size(
-       "max_relay_log_size",
-       "If non-zero: relay log will be rotated automatically when the "
-       "size exceeds this value; if zero: when the size "
-       "exceeds max_binlog_size",
-       GLOBAL_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_max_relay_log_size));
 
 static Sys_var_ulong Sys_max_sort_length(
        "max_sort_length",
@@ -2023,50 +2025,22 @@ static Sys_var_mybool Sys_master_verify_checksum(
 static const char *replicate_events_marked_for_skip_names[]= {
   "replicate", "filter_on_slave", "filter_on_master", 0
 };
-static bool
-replicate_events_marked_for_skip_check(sys_var *self, THD *thd,
-                                                set_var *var)
-{
-  int thread_mask;
-  DBUG_ENTER("sys_var_replicate_events_marked_for_skip_check");
 
-  /* Slave threads must be stopped to change the variable. */
-  mysql_mutex_lock(&LOCK_active_mi);
-  lock_slave_threads(active_mi);
-  init_thread_mask(&thread_mask, active_mi, 0 /*not inverse*/);
-  unlock_slave_threads(active_mi);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  if (thread_mask) // We refuse if any slave thread is running
-  {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-    DBUG_RETURN(true);
-  }
-  DBUG_RETURN(false);
-}
 bool
 Sys_var_replicate_events_marked_for_skip::global_update(THD *thd, set_var *var)
 {
-  bool result;
-  int thread_mask;
+  bool result= true;                            // Assume error
   DBUG_ENTER("Sys_var_replicate_events_marked_for_skip::global_update");
 
-  /* Slave threads must be stopped to change the variable. */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  lock_slave_threads(active_mi);
-  init_thread_mask(&thread_mask, active_mi, 0 /*not inverse*/);
-  if (thread_mask) // We refuse if any slave thread is running
-  {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-    result= true;
-  }
-  else
+  if (!master_info_index->give_error_if_slave_running())
     result= Sys_var_enum::global_update(thd, var);
-
-  unlock_slave_threads(active_mi);
   mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   DBUG_RETURN(result);
 }
+
 static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    ("replicate_events_marked_for_skip",
    "Whether the slave should replicate events that were created with "
@@ -2077,8 +2051,7 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    "the slave).",
    GLOBAL_VAR(opt_replicate_events_marked_for_skip), CMD_LINE(REQUIRED_ARG),
    replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE),
-   NO_MUTEX_GUARD, NOT_IN_BINLOG,
-   ON_CHECK(replicate_events_marked_for_skip_check));
+    NO_MUTEX_GUARD, NOT_IN_BINLOG);
 #endif
 
 
@@ -3253,71 +3226,18 @@ static Sys_var_mybool Sys_relay_log_recovery(
        "processed",
        GLOBAL_VAR(relay_log_recovery), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-bool Sys_var_rpl_filter::do_check(THD *thd, set_var *var)
-{
-  bool status;
-
-  /*
-    We must not be holding LOCK_global_system_variables here, otherwise we can
-    deadlock with THD::init() which is invoked from within the slave threads
-    with opposite locking order.
-  */
-  mysql_mutex_assert_not_owner(&LOCK_global_system_variables);
-
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-
-  status= active_mi->rli.slave_running;
-
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  if (status)
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-  else
-    status= Sys_var_charptr::do_string_check(thd, var, charset(thd));
-
-  return status;
-}
-
-void Sys_var_rpl_filter::lock(void)
-{
-  /*
-    Starting a slave thread causes the new thread to attempt to
-    acquire LOCK_global_system_variables (in THD::init) while
-    LOCK_active_mi is being held by the thread that initiated
-    the process. In order to not violate the lock order, unlock
-    LOCK_global_system_variables before grabbing LOCK_active_mi.
-  */
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-}
-
-void Sys_var_rpl_filter::unlock(void)
-{
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  mysql_mutex_lock(&LOCK_global_system_variables);
-}
 
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
-  bool slave_running, status= false;
+  bool result= true;                            // Assume error
 
-  lock();
-
-  if (! (slave_running= active_mi->rli.slave_running))
-    status= set_filter_value(var->save_result.string_value.str);
-
-  if (slave_running)
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-
-  unlock();
-
-  return slave_running || status;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!master_info_index->give_error_if_slave_running())
+    result= set_filter_value(var->save_result.string_value.str);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return result;
 }
 
 bool Sys_var_rpl_filter::set_filter_value(const char *value)
@@ -3355,8 +3275,6 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
 
   tmp.length(0);
 
-  lock();
-
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
     rpl_filter->get_do_db(&tmp);
@@ -3377,8 +3295,6 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
     rpl_filter->get_wild_ignore_table(&tmp);
     break;
   }
-
-  unlock();
 
   return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
 }
@@ -3429,72 +3345,105 @@ static Sys_var_charptr Sys_slave_load_tmpdir(
        READ_ONLY GLOBAL_VAR(slave_load_tmpdir), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
-static bool fix_slave_net_timeout(sys_var *self, THD *thd, enum_var_type type)
-{
-  DEBUG_SYNC(thd, "fix_slave_net_timeout");
-
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_active_mi);
-  DBUG_PRINT("info", ("slave_net_timeout=%u mi->heartbeat_period=%.3f",
-                     slave_net_timeout,
-                     (active_mi? active_mi->heartbeat_period : 0.0)));
-  if (active_mi && slave_net_timeout < active_mi->heartbeat_period)
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                        ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
-                        ER(ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
-  mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return false;
-}
 static Sys_var_uint Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
-       "from a master/slave connection before aborting the read",
+       "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_slave_net_timeout));
+       ON_UPDATE(0));
 
-static bool check_slave_skip_counter(sys_var *self, THD *thd, set_var *var)
+
+/*
+  Access a multi_source variable
+  Return 0 + warning if it doesn't exist
+*/
+
+uint Sys_var_multi_source_ulong::
+get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
-  bool result= false;
+  Master_info *mi;
+  uint res= 0;                                  // Default value
   mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  if (active_mi->rli.slave_running)
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_WARN);
+  if (mi)
   {
-    my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
-    result= true;
+    mysql_mutex_lock(&mi->rli.data_lock);
+    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    mysql_mutex_unlock(&mi->rli.data_lock);
   }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
+  mysql_mutex_unlock(&LOCK_active_mi);    
+  return res;
+}
+  
+
+bool update_multi_source_variable(sys_var *self_var, THD *thd,
+                                  enum_var_type type)
+{
+  Sys_var_multi_source_ulong *self= (Sys_var_multi_source_ulong*) self_var;
+  bool result= true;
+  Master_info *mi;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_ERROR);
+  if (mi)
+  {
+    mysql_mutex_lock(&mi->rli.run_lock);
+    mysql_mutex_lock(&mi->rli.data_lock);
+    result= self->update_variable(thd, mi);
+    mysql_mutex_unlock(&mi->rli.data_lock);
+    mysql_mutex_unlock(&mi->rli.run_lock);
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   return result;
 }
-static bool fix_slave_skip_counter(sys_var *self, THD *thd, enum_var_type type)
+
+static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  /*
-    The following test should normally never be true as we test this
-    in the check function;  To be safe against multiple
-    SQL_SLAVE_SKIP_COUNTER request, we do the check anyway
-  */
-  if (!active_mi->rli.slave_running)
+  if (mi->rli.slave_running)
   {
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    active_mi->rli.slave_skip_counter= sql_slave_skip_counter;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
+             mi->connection_name.str);
+    return true;
   }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return 0;
+  /* The value was stored temporarly in thd */
+  mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
+  return false;
 }
-static Sys_var_uint Sys_slave_skip_counter(
-       "sql_slave_skip_counter", "sql_slave_skip_counter",
-       GLOBAL_VAR(sql_slave_skip_counter), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_skip_counter),
-       ON_UPDATE(fix_slave_skip_counter));
+
+
+static Sys_var_multi_source_ulong
+Sys_slave_skip_counter("sql_slave_skip_counter",
+                       "Skip the next N events from the master log",
+                       SESSION_VAR(slave_skip_counter),
+                       NO_CMD_LINE,
+                       offsetof(Master_info, rli.slave_skip_counter),
+                       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+                       ON_UPDATE(update_slave_skip_counter));
+
+
+static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
+{
+  mi->rli.max_relay_log_size= thd->variables.max_relay_log_size;
+  mi->rli.relay_log.set_max_size(mi->rli.max_relay_log_size);
+  return false;
+}
+
+static Sys_var_multi_source_ulong
+Sys_max_relay_log_size( "max_relay_log_size",
+                        "relay log will be rotated automatically when the "
+                        "size exceeds this value.  If 0 are startup, it's "
+                        "set to max_binlog_size",
+                        SESSION_VAR(max_relay_log_size),
+                        CMD_LINE(REQUIRED_ARG),
+                        offsetof(Master_info, rli.max_relay_log_size),
+                        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
+                        BLOCK_SIZE(IO_SIZE),
+                        ON_UPDATE(update_max_relay_log_size));
 
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "

@@ -701,3 +701,11 @@ disconnect con1;
 connection default;
 COMMIT;
 DROP TABLE t1;
+
+--echo #
+--echo # Test flushing slave or relay logs twice
+--echo #
+--error ER_WRONG_USAGE
+flush relay logs,relay logs;
+--error ER_WRONG_USAGE
+flush slave,slave;
