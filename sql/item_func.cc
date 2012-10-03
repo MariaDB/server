@@ -3866,13 +3866,45 @@ longlong Item_master_pos_wait::val_int()
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
   longlong timeout = (arg_count==3) ? args[2]->val_int() : 0 ;
-  if ((event_count = active_mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
+  String connection_name_buff;
+  LEX_STRING connection_name;
+  Master_info *mi;
+  if (arg_count == 4)
+  {
+    String *con;
+    if (!(con= args[3]->val_str(&connection_name_buff)))
+      goto err;
+
+    connection_name.str= (char*) con->ptr();
+    connection_name.length= con->length();
+    if (check_master_connection_name(&connection_name))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+               "MASTER_CONNECTION_NAME");
+      goto err;
+    }
+  }
+  else
+    connection_name= thd->variables.default_master_connection;
+
+  if (!(mi= master_info_index->get_master_info(&connection_name,
+                                               MYSQL_ERROR::WARN_LEVEL_WARN)))
+    goto err;
+  if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;
     event_count=0;
   }
 #endif
   return event_count;
+
+#ifdef HAVE_REPLICATION
+err:
+  {
+    null_value = 1;
+    return 0;
+  }
+#endif
 }
 
 
