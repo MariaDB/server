@@ -357,8 +357,7 @@ The following options may be given as the first argument:
  --max-binlog-cache-size=# 
  Sets the total size of the transactional cache
  --max-binlog-size=# Binary log will be rotated automatically when the size
- exceeds this value. Will also apply to relay logs if
- max_relay_log_size is 0
+ exceeds this value.
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
  --max-connect-errors=# 
@@ -384,9 +383,9 @@ The following options may be given as the first argument:
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
- If non-zero: relay log will be rotated automatically when
- the size exceeds this value; if zero: when the size
- exceeds max_binlog_size
+ relay log will be rotated automatically when the size
+ exceeds this value.  If 0 are startup, it's set to
+ max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
@@ -741,7 +740,7 @@ The following options may be given as the first argument:
  The maximum packet length to sent successfully from the
  master to slave.
  --slave-net-timeout=# 
- Number of seconds to wait for more data from a
+ Number of seconds to wait for more data from any
  master/slave connection before aborting the read
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
@@ -965,7 +964,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 1048576
 max-prepared-stmt-count 16382
-max-relay-log-size 0
+max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
 max-sp-recursion-depth 0

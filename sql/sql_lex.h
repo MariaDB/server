@@ -156,7 +156,8 @@ enum enum_sql_command {
   SQLCOM_FLUSH, SQLCOM_KILL, SQLCOM_ANALYZE,
   SQLCOM_ROLLBACK, SQLCOM_ROLLBACK_TO_SAVEPOINT,
   SQLCOM_COMMIT, SQLCOM_SAVEPOINT, SQLCOM_RELEASE_SAVEPOINT,
-  SQLCOM_SLAVE_START, SQLCOM_SLAVE_STOP,
+  SQLCOM_SLAVE_START, SQLCOM_SLAVE_ALL_START,
+  SQLCOM_SLAVE_STOP, SQLCOM_SLAVE_ALL_STOP,
   SQLCOM_BEGIN, SQLCOM_CHANGE_MASTER,
   SQLCOM_RENAME_TABLE,
   SQLCOM_RESET, SQLCOM_PURGE, SQLCOM_PURGE_BEFORE, SQLCOM_SHOW_BINLOGS,
@@ -286,6 +287,7 @@ struct LEX_MASTER_INFO
   char *host, *user, *password, *log_file_name;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *relay_log_name;
+  LEX_STRING connection_name;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
@@ -2416,6 +2418,7 @@ struct LEX: public Query_tables_list
   KEY_CREATE_INFO key_create_info;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
+  LEX_STRING relay_log_connection_name;
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulong type;

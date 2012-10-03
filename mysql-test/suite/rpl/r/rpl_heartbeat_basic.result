@@ -33,8 +33,6 @@ RESET SLAVE;
 
 *** Warning if updated slave_net_timeout < slave_heartbeat_timeout ***
 SET @@global.slave_net_timeout=FLOOR(SLAVE_HEARTBEAT_TIMEOUT)-1;
-Warnings:
-Warning	1704	The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout.
 SET @@global.slave_net_timeout=@restore_slave_net_timeout;
 RESET SLAVE;
 

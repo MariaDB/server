@@ -1,0 +1,62 @@
+#--enable_connect_log
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master1' to 
+master_port=$SERVER_MYPORT_1, 
+master_host='127.0.0.1', 
+master_user='root';
+
+start slave 'master1';
+
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (i int) engine=MyISAM;
+insert into t1 values (1),(2);
+
+--save_master_pos 
+
+--connection slave
+
+--sync_with_master 0,'master1'
+stop slave 'master1';
+
+--wait_for_slave_to_stop
+
+--let $datadir = `SELECT @@datadir`
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+show slave 'master1' status;
+--list_files $datadir mysqld*
+
+reset slave 'master1';
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+show slave 'master1' status;
+--list_files $datadir mysqld*
+
+reset slave 'master1' all;
+
+--error WARN_NO_MASTER_INFO
+show slave 'master1' status;
+--list_files $datadir mysqld*
+
+# Cleanup
+
+drop table t1;
+--disconnect slave
+
+--connection master1
+drop table t1;
+reset master;
+--disconnect master1
+
+
+

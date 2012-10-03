@@ -2151,6 +2151,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_FLUSH:
   case SQLCOM_SLAVE_START:
   case SQLCOM_SLAVE_STOP:
+  case SQLCOM_SLAVE_ALL_START:
+  case SQLCOM_SLAVE_ALL_STOP:
   case SQLCOM_INSTALL_PLUGIN:
   case SQLCOM_UNINSTALL_PLUGIN:
   case SQLCOM_CREATE_DB:

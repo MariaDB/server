@@ -190,7 +190,6 @@ pre_init_event_thread(THD* thd)
   my_net_init(&thd->net, NULL);
   thd->security_ctx->set_user((char*)"event_scheduler");
   thd->net.read_timeout= slave_net_timeout;
-  thd->slave_thread= 0;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
   mysql_mutex_lock(&LOCK_thread_count);
