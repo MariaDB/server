@@ -5,6 +5,8 @@
 # Create a schema and a table i
 # on the 1st master
 
+--source include/not_embedded.inc
+
 --connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
 
 --disable_warnings

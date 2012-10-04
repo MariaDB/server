@@ -108,13 +108,13 @@ i	f1
 4	four
 show relaylog events;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin.000001	4	Format_desc	3	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin.000001	4	Format_desc	3	246	Server version
 mysqld-relay-bin.000001	246	Rotate	3	296	mysqld-relay-bin.000002;pos=4
 show relaylog events in 'mysqld-relay-bin.000002';
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin.000002	4	Format_desc	3	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin.000002	4	Format_desc	3	246	Server version
 mysqld-relay-bin.000002	246	Rotate	2	0	master-bin.000001;pos=4
-mysqld-relay-bin.000002	290	Format_desc	2	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin.000002	290	Format_desc	2	246	Server version
 mysqld-relay-bin.000002	532	Binlog_checkpoint	2	286	master-bin.000001
 mysqld-relay-bin.000002	572	Query	2	375	drop database if exists db2
 mysqld-relay-bin.000002	661	Query	2	456	create database db2
@@ -122,7 +122,7 @@ mysqld-relay-bin.000002	742	Query	2	591	use `db2`; create table t1 (pk int auto_
 mysqld-relay-bin.000002	877	Query	2	658	BEGIN
 mysqld-relay-bin.000002	944	Intvar	2	686	INSERT_ID=1
 mysqld-relay-bin.000002	972	Query	2	782	use `db2`; insert into t1 (f1) values (1),(2)
-mysqld-relay-bin.000002	1068	Xid	2	809	COMMIT /* xid=25 */
+mysqld-relay-bin.000002	1068	Xid	2	809	COMMIT /* xid=<num> */
 stop slave io_thread;
 show status like 'Slave_running';
 Variable_name	Value
