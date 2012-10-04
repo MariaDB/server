@@ -1,3 +1,9 @@
+#
+# Status variables related to a replication connection
+#
+
+--source include/not_embedded.inc
+
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
 
 call mtr.add_suppression("Connection 'master1' already exists");

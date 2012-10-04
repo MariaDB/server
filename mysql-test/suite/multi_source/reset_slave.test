@@ -1,4 +1,9 @@
-#--enable_connect_log
+#
+# Check RESET SLAVE [name] [ALL] for multi-source replication
+#
+
+--source include/not_embedded.inc
+
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1

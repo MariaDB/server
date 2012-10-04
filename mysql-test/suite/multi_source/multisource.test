@@ -1,3 +1,9 @@
+#
+# Test basic replication functionality 
+# in multi-source setup
+#
+
+--source include/not_embedded.inc
 --source include/have_innodb.inc
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
@@ -57,9 +63,9 @@ select * from db1.t1;
 
 # Check that relay logs are recognizable
 
---replace_regex /Server ver:.*/Server version/
+--replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
 show relaylog events;
---replace_regex /Server ver:.*/Server version/
+--replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
 show relaylog events in 'mysqld-relay-bin-master1.000002';
 
 
@@ -179,7 +185,9 @@ select * from db1.t1;
 
 # This should show relay log events for the default master
 # (the one with the empty name)
+--replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
 show relaylog events;
+--replace_regex /Server ver:.*/Server version/ /xid=[0-9]+/xid=<num>/
 show relaylog events in 'mysqld-relay-bin.000002';
 
 # Make sure we don't lose control over replication connections

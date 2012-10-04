@@ -1,5 +1,7 @@
 # Test multi master syntax
-source include/master-slave.inc;
+
+--source include/not_embedded.inc
+--source include/master-slave.inc
 
 # Check syntax of multi source replication
 
