@@ -96,8 +96,6 @@ void *sf_malloc(size_t size)
   if (!init_done)
   {
     pthread_mutex_init(&sf_mutex, NULL);
-    /* disable deadlock detector, because it calls my_malloc() */
-    safe_mutex_setflags(&sf_mutex, MYF_NO_DEADLOCK_DETECTION);
     atexit(sf_terminate);
     init_done= 1;
   }
