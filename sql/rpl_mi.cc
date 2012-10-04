@@ -666,7 +666,8 @@ void create_logfile_name_with_suffix(char *res_file_name, uint length,
     length-= (suffix->length - ext_pos); /* Leave place for extension */
     p= res_file_name + ext_pos;
     *p++= '-';                           /* Add separator */
-    p= strmake(p, res, min(length - (p - res_file_name), res_length));
+    p= strmake(p, res, min((size_t) (length - (p - res_file_name)),
+                           res_length));
     /* Add back extension. We have checked above that there is space for it */
     strmov(p, ext);
   }
