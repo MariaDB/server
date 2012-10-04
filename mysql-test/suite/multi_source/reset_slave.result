@@ -23,5 +23,6 @@ reset slave 'master1' all;
 show slave 'master1' status;
 ERROR HY000: There is no master connection 'master1'
 drop table t1;
+include/reset_master_slave.inc
 drop table t1;
-reset master;
+include/reset_master_slave.inc

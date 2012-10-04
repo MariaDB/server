@@ -2,8 +2,6 @@
 # Test of sql_slave_skip_counter and rpl_max_size
 #
 
---enable_connect_log
-
 # Create a schema and a table i
 # on the 1st master
 
@@ -28,7 +26,6 @@ create database db;
 create table db.t2 (i int) engine=MyISAM;
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
---disable_connect_log
 
 # Start replication from the first master
 
@@ -106,14 +103,11 @@ start slave 'master2';
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 
---enable_connect_log
-
 --connection master2
 --save_master_pos
 
 --connection slave
 
---disable_connect_log
 --sync_with_master 0,'master2'
 
 # If the skip_counter worked as expected, we should
@@ -127,25 +121,21 @@ show tables in db;
 # Cleanup
 
 drop database db;
-set default_master_connection = 'master1';
-stop slave;
 
---source include/wait_for_slave_to_stop.inc
-set default_master_connection = 'master2';
-stop slave;
-
---source include/wait_for_slave_to_stop.inc
 --eval set global sql_slave_skip_counter = $skip_counter_saved
 --eval set global max_relay_log_size = $max_relay_log_size_saved
 --eval set global max_binlog_size = $max_binlog_size_saved
 
---enable_connect_log
+--source reset_master_slave.inc
 --disconnect slave
 
 --connection master1
 drop database db;
+--source reset_master_slave.inc
 --disconnect master1
 
 --connection master2
 drop database db;
+--source reset_master_slave.inc
 --disconnect master2
+
