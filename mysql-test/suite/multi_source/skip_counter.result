@@ -1,12 +1,9 @@
-connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 drop database if exists db;
 create database db;
 create table db.t1 (i int) engine=MyISAM;
-connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 drop database if exists db;
 create database db;
 create table db.t2 (i int) engine=MyISAM;
-connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
 change master 'master1' to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
@@ -101,26 +98,16 @@ select @@global.max_relay_log_size;
 start slave 'master2';
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
-connection master2;
-connection slave;
 show tables in db;
 Tables_in_db
 t1
 t2
 drop database db;
-set default_master_connection = 'master1';
-stop slave;
-include/wait_for_slave_to_stop.inc
-set default_master_connection = 'master2';
-stop slave;
-include/wait_for_slave_to_stop.inc
 set global sql_slave_skip_counter = 0;
 set global max_relay_log_size = 1073741824;
 set global max_binlog_size = 1073741824;
-disconnect slave;
-connection master1;
+include/reset_master_slave.inc
 drop database db;
-disconnect master1;
-connection master2;
+include/reset_master_slave.inc
 drop database db;
-disconnect master2;
+include/reset_master_slave.inc
