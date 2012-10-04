@@ -9,6 +9,7 @@ SET @orig = @@global.innodb_buffer_pool_filename;
 SELECT @orig;
 
 let $old_val=query_get_value(SHOW STATUS LIKE 'innodb_buffer_pool_dump_status', Value, 1);
+sleep 1; # to ensure that the previous and the next dumps are at least a second apart
 
 # Try with a non-default filename
 
