@@ -29,13 +29,13 @@ mysqld-relay-bin-master1.000002
 mysqld-relay-bin-master1.index
 show relaylog events;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin-master1.000001	4	Format_desc	3	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin-master1.000001	4	Format_desc	3	246	Server version
 mysqld-relay-bin-master1.000001	246	Rotate	3	304	mysqld-relay-bin-master1.000002;pos=4
 show relaylog events in 'mysqld-relay-bin-master1.000002';
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-mysqld-relay-bin-master1.000002	4	Format_desc	3	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin-master1.000002	4	Format_desc	3	246	Server version
 mysqld-relay-bin-master1.000002	246	Rotate	1	0	master-bin.000001;pos=4
-mysqld-relay-bin-master1.000002	290	Format_desc	1	246	Server ver: 10.0.0-MariaDB-debug-log, Binlog ver: 4
+mysqld-relay-bin-master1.000002	290	Format_desc	1	246	Server version
 mysqld-relay-bin-master1.000002	532	Binlog_checkpoint	1	286	master-bin.000001
 mysqld-relay-bin-master1.000002	572	Query	1	375	drop database if exists db1
 mysqld-relay-bin-master1.000002	661	Query	1	456	create database db1
