@@ -26,6 +26,10 @@ set default_master_connection = 'master1';
 --connection slave
 --sync_with_master 0,'master1'
 
+# Here and further: add an extra check on SQL thread status
+# as the normal sync is not always enough
+--source wait_for_sql_thread_read_all.inc
+
 # each of the 3 commands should produce 
 # 'master1' status
 
@@ -114,6 +118,8 @@ master_user='root';
 start slave;
 --source include/wait_for_slave_to_start.inc
 
+--source wait_for_sql_thread_read_all.inc
+
 # See both connections in the same status output
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
@@ -176,6 +182,8 @@ create table db1.t3 (f1 int) engine=InnoDB;
 
 --connection slave
 --sync_with_master 0,'master1'
+
+--source wait_for_sql_thread_read_all.inc
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;
