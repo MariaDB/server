@@ -5,6 +5,10 @@
 --source include/have_perfschema.inc
 --source include/have_innodb.inc
 
+if (`select version() like '10.0.0-%'`) {
+  skip upstream bug#67098;
+}
+
 #
 # Bug#12790483 OBJECTS_SUMMARY_GLOBAL_BY_TYPE AND RENAME TABLE
 #
