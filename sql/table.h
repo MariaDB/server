@@ -1146,7 +1146,12 @@ public:
     See TABLE_LIST::process_index_hints().
   */
   bool force_index_group;
-  bool distinct,const_table,no_rows, used_for_duplicate_elimination;
+  /*
+    TRUE<=> this table was created with create_tmp_table(... distinct=TRUE..)
+    call
+  */
+  bool distinct;
+  bool const_table,no_rows, used_for_duplicate_elimination;
 
   /**
      If set, the optimizer has found that row retrieval should access index 

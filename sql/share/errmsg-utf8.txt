@@ -4345,13 +4345,13 @@ ER_TOO_MANY_USER_CONNECTIONS 42000
 ER_SET_CONSTANTS_ONLY  
         dan "Du må kun bruge konstantudtryk med SET"
         nla "U mag alleen constante expressies gebruiken bij SET"
-        eng "You may only use constant expressions with SET"
+        eng "You may only use constant expressions in this statement"
         est "Ainult konstantsed suurused on lubatud SET klauslis"
         fre "Seules les expressions constantes sont autorisées avec SET"
-        ger "Bei SET dürfen nur konstante Ausdrücke verwendet werden"
+        ger "Bei diesem Befehl dürfen nur konstante Ausdrücke verwendet werden"
         ita "Si possono usare solo espressioni costanti con SET"
         por "Você pode usar apenas expressões constantes com SET"
-        rus "Вы можете использовать в SET только константные выражения"
+        rus "С этой командой вы можете использовать только константные выражения"
         serbian "Možete upotrebiti samo konstantan iskaz sa komandom 'SET'"
         spa "Tu solo debes usar expresiones constantes con SET"
         swe "Man kan endast använda konstantuttryck med SET"
@@ -6588,6 +6588,8 @@ ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
 ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
         eng "Table '%-.192s.%-.192s' doesn't exist in engine"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
+ER_TARGET_NOT_EXPLAINABLE
+        eng "Target is not running an EXPLAINable command"
 ER_CONNECTION_ALREADY_EXISTS
         eng "Connection '%.*s' conflicts with existing connection '%.*s'"
 ER_MASTER_LOG_PREFIX
