@@ -722,6 +722,8 @@ bool st_select_lex_unit::exec()
     }
   }
 
+  DBUG_EXECUTE_IF("show_explain_probe_union_read", 
+                   dbug_serve_apcs(thd, 1););
   /* Send result to 'result' */
   saved_error= TRUE;
   {
