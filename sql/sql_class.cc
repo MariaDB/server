@@ -1196,6 +1196,7 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+  apc_target.init(&LOCK_thd_data);
 }
 
  
@@ -1361,6 +1362,7 @@ void THD::cleanup(void)
     ull= NULL;
   }
 
+  apc_target.destroy();
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -2013,6 +2015,20 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 int THD::send_explain_fields(select_result *result)
 {
   List<Item> field_list;
+  make_explain_field_list(field_list);
+  return (result->send_result_set_metadata(field_list,
+                                           Protocol::SEND_NUM_ROWS | 
+                                           Protocol::SEND_EOF));
+}
+
+
+/*
+  Populate the provided field_list with EXPLAIN output columns.
+  this->lex->describe has the EXPLAIN flags
+*/
+
+void THD::make_explain_field_list(List<Item> &field_list)
+{
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
   field_list.push_back(item= new Item_return_int("id",3, MYSQL_TYPE_LONGLONG));
@@ -2051,9 +2067,8 @@ int THD::send_explain_fields(select_result *result)
   }
   item->maybe_null= 1;
   field_list.push_back(new Item_empty_string("Extra", 255, cs));
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF));
 }
+
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
 void THD::close_active_vio()
@@ -2285,6 +2300,7 @@ int select_send::send_data(List<Item> &items)
 
   DBUG_RETURN(0);
 }
+
 
 bool select_send::send_eof()
 {
@@ -3179,6 +3195,10 @@ void THD::end_statement()
 }
 
 
+/*
+  Start using arena specified by @set. Current arena data will be saved to
+  *backup.
+*/
 void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::set_n_backup_active_arena");
@@ -3192,6 +3212,12 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Stop using the temporary arena, and start again using the arena that is 
+  specified in *backup.
+  The temporary arena is returned back into *set.
+*/
 
 void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 {
@@ -3767,12 +3793,17 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
   @retval 1 the user thread has been killed
 
   This is used to signal a storage engine if it should be killed.
+  See also THD::check_killed().
 */
 
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
   if (!thd)
     thd= current_thd;
+
+  Apc_target *apc_target= (Apc_target*)&thd->apc_target;
+  if (apc_target->have_apc_requests())
+      apc_target->process_apc_requests(); 
 
   if (!(thd->killed & KILL_HARD_BIT))
     return 0;
