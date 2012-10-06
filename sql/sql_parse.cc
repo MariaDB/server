@@ -2159,7 +2159,8 @@ mysql_execute_command(THD *thd)
     }
 
     Item **it= lex->value_list.head_ref();
-    if ((!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
+    if (!(*it)->basic_const_item() ||
+        (!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
         (*it)->check_cols(1))
     {
       my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),

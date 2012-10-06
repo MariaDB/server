@@ -7,7 +7,7 @@ insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
 alter table t1 add b int, add c int, add filler char(32);
 update t1 set b=a, c=a, filler='fooo';
 alter table t1 add key(a), add key(b);
-show explain for 2*1000*1000*1000;
+show explain for 2000000000;
 ERROR HY000: Unknown thread id: 2000000000
 show explain for (select max(a) from t0);
 ERROR HY000: You may only use constant expressions in this statement
@@ -1069,5 +1069,10 @@ a
 2
 set debug_dbug='';
 set names default;
+#
+# MDEV-462: SHOW EXPLAIN: Assertion `table_list->table' fails in find_field_in_table_ref if FOR contains a non-numeric value
+#
+show explain for foo;
+ERROR HY000: You may only use constant expressions in this statement
 # End
 drop table t0;
