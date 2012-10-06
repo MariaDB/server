@@ -19038,14 +19038,6 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   /* Currently ORDER BY ... LIMIT is not supported in subqueries. */
   DBUG_ASSERT(join->group_list || !join->is_in_subquery());
 
-  /* 
-    If we have a select->quick object that is created outside of
-    create_sort_index() and this is part of a subquery that
-    potentially can be executed multiple times then we should not
-    delete the quick object on exit from this function.
-  */
-  //bool keep_quick= select && select->quick && join->join_tab_save;
-
   /*
     When there is SQL_BIG_RESULT do not sort using index for GROUP BY,
     and thus force sorting on disk unless a group min-max optimization
@@ -19097,7 +19089,6 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
 			    get_quick_select_for_ref(thd, table, &tab->ref, 
                                                      tab->found_records))))
 	goto err;
-      //DBUG_ASSERT(!keep_quick);//psergey-post-merge-check
       quick_created= TRUE;
     }
   }
@@ -19145,6 +19136,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
   /*TODO: here, close the index scan, cancel index-only read. */
   tab->records= table->sort.found_records;	// For SQL_CALC_ROWS
 #if 0 
+  /* MariaDB doesn't need the following: */
   if (select)
   {
     /*
