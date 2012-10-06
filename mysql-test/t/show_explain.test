@@ -43,7 +43,7 @@ alter table t1 add key(a), add key(b);
 # Try killing a non-existent thread
 # 
 --error ER_NO_SUCH_THREAD
-show explain for 2*1000*1000*1000;
+show explain for 2000000000;
 
 --error ER_SET_CONSTANTS_ONLY
 show explain for (select max(a) from t0);
@@ -1104,6 +1104,12 @@ reap;
 
 set debug_dbug='';
 set names default;
+
+--echo #
+--echo # MDEV-462: SHOW EXPLAIN: Assertion `table_list->table' fails in find_field_in_table_ref if FOR contains a non-numeric value
+--echo #
+--error ER_SET_CONSTANTS_ONLY 
+show explain for foo;
 
 --echo # End
 drop table t0;
