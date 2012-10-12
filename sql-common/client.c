@@ -2995,9 +2995,10 @@ connect_sync_or_async(MYSQL *mysql, NET *net, my_socket fd,
       mysql->options.extension->async_context->active)
   {
     my_bool old_mode;
+    int vio_timeout= get_vio_connect_timeout(mysql);
     vio_blocking(net->vio, FALSE, &old_mode);
     return my_connect_async(mysql->options.extension->async_context, fd,
-                            name, namelen, mysql->options.connect_timeout);
+                            name, namelen, vio_timeout);
   }
 
   return my_connect(fd, name, namelen, mysql->options.connect_timeout);
