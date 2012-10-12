@@ -897,6 +897,21 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
 
+  /*
+    Note that if zero timeout, then we will not block, so we do not need to
+    yield to calling application in the async case.
+  */
+  if (timeout != 0 && vio->async_context && vio->async_context->active)
+  {
+    MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
+                            PSI_SOCKET_SELECT, 0);
+    ret= my_io_wait_async(vio->async_context, event, timeout);
+    if (ret == 0)
+      errno= SOCKET_ETIMEDOUT;
+    MYSQL_END_SOCKET_WAIT(locker, 0);
+    DBUG_RETURN(ret);
+  }
+
   memset(&pfd, 0, sizeof(pfd));
 
   pfd.fd= sd;
@@ -956,6 +971,21 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   fd_set readfds, writefds, exceptfds;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
+
+  /*
+    Note that if zero timeout, then we will not block, so we do not need to
+    yield to calling application in the async case.
+  */
+  if (timeout != 0 && vio->async_context && vio->async_context->active)
+  {
+    MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
+                            PSI_SOCKET_SELECT, 0);
+    ret= my_io_wait_async(vio->async_context, event, timeout);
+    if (ret == 0)
+      WSASetLastError(SOCKET_ETIMEDOUT);
+    MYSQL_END_SOCKET_WAIT(locker, 0);
+    DBUG_RETURN(ret);
+  }
 
   /* Convert the timeout, in milliseconds, to seconds and microseconds. */
   if (timeout >= 0)
