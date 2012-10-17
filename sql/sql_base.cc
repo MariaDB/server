@@ -8800,13 +8800,13 @@ err_no_arena:
 */
 
 static bool
-fill_record(THD * thd, List<Item> &fields, List<Item> &values,
+fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
             bool ignore_errors)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
-  TABLE *table= 0, *vcol_table= 0;
+  TABLE *vcol_table= 0;
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -8828,12 +8828,13 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name);
       goto err;
     }
-    table= field->field->table;
-    table->auto_increment_field_not_null= FALSE;
+    DBUG_ASSERT(field->field->table == table_arg);
+    table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();
   }
   else if (thd->lex->unit.insert_table_with_stored_vcol)
     vcol_table= thd->lex->unit.insert_table_with_stored_vcol;
+
   while ((fld= f++))
   {
     if (!(field= fld->filed_for_view_update()))
@@ -8843,7 +8844,7 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
     }
     value=v++;
     Field *rfield= field->field;
-    table= rfield->table;
+    TABLE* table= rfield->table;
     if (rfield == table->next_number_field)
       table->auto_increment_field_not_null= TRUE;
     if (rfield->vcol_info && 
@@ -8861,6 +8862,7 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
       my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
       goto err;
     }
+    rfield->set_explicit_default(value);
     DBUG_ASSERT(vcol_table == 0 || vcol_table == table);
     vcol_table= table;
   }
@@ -8875,8 +8877,8 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
 err:
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
-  if (table)
-    table->auto_increment_field_not_null= FALSE;
+  if (fields.elements)
+    table_arg->auto_increment_field_not_null= FALSE;
   DBUG_RETURN(TRUE);
 }
 
@@ -8905,13 +8907,13 @@ err:
 */
 
 bool
-fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
+fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
                                      List<Item> &values, bool ignore_errors,
-                                     Table_triggers_list *triggers,
                                      enum trg_event_type event)
 {
   bool result;
-  result= (fill_record(thd, fields, values, ignore_errors) ||
+  Table_triggers_list *triggers= table->triggers;
+  result= (fill_record(thd, table, fields, values, ignore_errors) ||
            (triggers && triggers->process_triggers(thd, event,
                                                    TRG_ACTION_BEFORE, TRUE)));
   /*
@@ -8920,7 +8922,6 @@ fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
   */
   if (!result && triggers)
   {
-    TABLE *table= 0;
     List_iterator_fast<Item> f(fields);
     Item *fld;
     Item_field *item_field;
@@ -8928,9 +8929,7 @@ fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
     {
       fld= (Item_field*)f++;
       item_field= fld->filed_for_view_update();
-      if (item_field && item_field->field &&
-          (table= item_field->field->table) &&
-        table->vfield)
+      if (item_field && item_field->field && table && table->vfield)
         result= update_virtual_fields(thd, table, TRUE);
     }
   }
@@ -8960,13 +8959,12 @@ fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
 */
 
 bool
-fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
-            bool use_value)
+fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
+            bool ignore_errors, bool use_value)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
   Item *value;
-  TABLE *table= 0;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
   DBUG_ENTER("fill_record");
@@ -8981,7 +8979,7 @@ fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
     On INSERT or UPDATE fields are checked to be from the same table,
     thus we safely can take table from the first field.
   */
-  table= (*ptr)->table;
+  DBUG_ASSERT((*ptr)->table == table);
 
   /*
     Reset the table->auto_increment_field_not_null as it is valid for
@@ -9012,6 +9010,7 @@ fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
+    field->set_explicit_default(value);
   }
   /* Update virtual fields*/
   thd->abort_on_warning= FALSE;
@@ -9051,13 +9050,13 @@ err:
 */
 
 bool
-fill_record_n_invoke_before_triggers(THD *thd, Field **ptr,
+fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
                                      List<Item> &values, bool ignore_errors,
-                                     Table_triggers_list *triggers,
                                      enum trg_event_type event)
 {
   bool result;
-  result= (fill_record(thd, ptr, values, ignore_errors, FALSE) ||
+  Table_triggers_list *triggers= table->triggers;
+  result= (fill_record(thd, table, ptr, values, ignore_errors, FALSE) ||
            (triggers && triggers->process_triggers(thd, event,
                                                    TRG_ACTION_BEFORE, TRUE)));
   /*
@@ -9066,7 +9065,6 @@ fill_record_n_invoke_before_triggers(THD *thd, Field **ptr,
   */
   if (!result && triggers && *ptr)
   {
-    TABLE *table= (*ptr)->table;
     if (table->vfield)
       result= update_virtual_fields(thd, table, TRUE);
   }
@@ -9706,11 +9704,6 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
     /* Make sure all columns get assigned to a default value */
     table->use_all_columns();
     table->no_replicate= 1;
-    /*
-      Don't set automatic timestamps as we may want to use time of logging,
-      not from query start
-    */
-    table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
   }
   else
     thd->restore_backup_open_tables_state(backup);

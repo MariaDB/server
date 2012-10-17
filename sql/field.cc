@@ -4419,50 +4419,18 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
 {
   /* For 4.0 MYD and 4.0 InnoDB compatibility */
   flags|= UNSIGNED_FLAG | BINARY_FLAG;
-  if (unireg_check != NONE && !share->timestamp_field)
+  if (unireg_check != NONE)
   {
-    /* This timestamp has auto-update */
-    share->timestamp_field= this;
+    /*
+      This TIMESTAMP column is hereby quietly assumed to have an insert or
+      update default function.
+    */
     flags|= TIMESTAMP_FLAG;
     if (unireg_check != TIMESTAMP_DN_FIELD)
       flags|= ON_UPDATE_NOW_FLAG;
   }
 }
 
-
-/**
-  Get auto-set type for TIMESTAMP field.
-
-  Returns value indicating during which operations this TIMESTAMP field
-  should be auto-set to current timestamp.
-*/
-timestamp_auto_set_type Field_timestamp::get_auto_set_type() const
-{
-  switch (unireg_check)
-  {
-  case TIMESTAMP_DN_FIELD:
-    return TIMESTAMP_AUTO_SET_ON_INSERT;
-  case TIMESTAMP_UN_FIELD:
-    return TIMESTAMP_AUTO_SET_ON_UPDATE;
-  case TIMESTAMP_OLD_FIELD:
-    /*
-      Although we can have several such columns in legacy tables this
-      function should be called only for first of them (i.e. the one
-      having auto-set property).
-    */
-    DBUG_ASSERT(table->timestamp_field == this);
-    /* Fall-through */
-  case TIMESTAMP_DNUN_FIELD:
-    return TIMESTAMP_AUTO_SET_ON_BOTH;
-  default:
-    /*
-      Normally this function should not be called for TIMESTAMPs without
-      auto-set property.
-    */
-    DBUG_ASSERT(0);
-    return TIMESTAMP_NO_AUTO_SET;
-  }
-}
 
 my_time_t Field_timestamp::get_timestamp(ulong *sec_part) const
 {
@@ -4711,6 +4679,16 @@ int Field_timestamp::set_time()
   set_notnull();
   store_TIME(thd->query_start(), 0);
   return 0;
+}
+
+void Field_timestamp::set_explicit_default(Item *value)
+{
+  if (value &&
+      ((value->type() == Item::DEFAULT_VALUE_ITEM &&
+        !((Item_default_value*)value)->arg) ||
+       (!maybe_null() && value->is_null())))
+    return;
+  flags|= HAS_EXPLICIT_DEFAULT;
 }
 
 void Field_timestamp_hires::sql_type(String &res) const
@@ -5835,6 +5813,20 @@ void Field_datetime::sql_type(String &res) const
 {
   res.set_ascii(STRING_WITH_LEN("datetime"));
 }
+
+
+int Field_datetime::set_time()
+{
+  THD *thd= current_thd;
+  MYSQL_TIME now_time;
+  thd->variables.time_zone->gmt_sec_to_TIME(&now_time, thd->query_start());
+  now_time.second_part= thd->query_start_sec_part();
+  set_notnull();
+  store_TIME(&now_time);
+  thd->time_zone_used= 1;
+  return 0;
+}
+
 
 void Field_datetime_hires::store_TIME(MYSQL_TIME *ltime)
 {
@@ -8857,16 +8849,37 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
 {
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
+  const bool on_update_is_function=
+    (fld_on_update_value != NULL &&
+     fld_on_update_value->type() == Item::FUNC_ITEM);
 
   DBUG_ENTER("Create_field::init()");
 
   field= 0;
   field_name= fld_name;
-  def= fld_default_value;
   flags= fld_type_modifier;
   option_list= create_opt;
-  unireg_check= (fld_type_modifier & AUTO_INCREMENT_FLAG ?
-                 Field::NEXT_NUMBER : Field::NONE);
+
+  if (fld_default_value != NULL && fld_default_value->type() == Item::FUNC_ITEM)
+  {
+    /* We have a function default for insertions. */
+    def= NULL;
+    unireg_check= on_update_is_function ?
+      Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
+      Field::TIMESTAMP_DN_FIELD;    // only for insertions.
+  }
+  else
+  {
+    /* No function default for insertions. Either NULL or a constant. */
+    def= fld_default_value;
+    if (on_update_is_function)
+      unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
+    else
+      unireg_check= (fld_type_modifier & AUTO_INCREMENT_FLAG) != 0 ?
+        Field::NEXT_NUMBER : // Automatic increment.
+        Field::NONE;
+  }
+
   decimals= fld_decimals ? (uint)atoi(fld_decimals) : 0;
   if (decimals >= NOT_FIXED_DEC)
   {
@@ -9089,44 +9102,6 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     }
     length+= MAX_DATETIME_WIDTH + (length ? 1 : 0);
     flags|= UNSIGNED_FLAG;
-
-    if (fld_default_value)
-    {
-      /* Grammar allows only NOW() value for ON UPDATE clause */
-      if (fld_default_value->type() == Item::FUNC_ITEM && 
-          ((Item_func*)fld_default_value)->functype() == Item_func::NOW_FUNC)
-      {
-        unireg_check= (fld_on_update_value ? Field::TIMESTAMP_DNUN_FIELD:
-                                             Field::TIMESTAMP_DN_FIELD);
-        /*
-          We don't need default value any longer moreover it is dangerous.
-          Everything handled by unireg_check further.
-        */
-        def= 0;
-      }
-      else
-        unireg_check= (fld_on_update_value ? Field::TIMESTAMP_UN_FIELD:
-                                             Field::NONE);
-    }
-    else
-    {
-      /*
-        If we have default TIMESTAMP NOT NULL column without explicit DEFAULT
-        or ON UPDATE values then for the sake of compatiblity we should treat
-        this column as having DEFAULT NOW() ON UPDATE NOW() (when we don't
-        have another TIMESTAMP column with auto-set option before this one)
-        or DEFAULT 0 (in other cases).
-        So here we are setting TIMESTAMP_OLD_FIELD only temporary, and will
-        replace this value by TIMESTAMP_DNUN_FIELD or NONE later when
-        information about all TIMESTAMP fields in table will be availiable.
-
-        If we have TIMESTAMP NULL column without explicit DEFAULT value
-        we treat it as having DEFAULT NULL attribute.
-      */
-      unireg_check= (fld_on_update_value ? Field::TIMESTAMP_UN_FIELD :
-                     (flags & NOT_NULL_FLAG ? Field::TIMESTAMP_OLD_FIELD :
-                                              Field::NONE));
-    }
     break;
   case MYSQL_TYPE_DATE:
     /* We don't support creation of MYSQL_TYPE_DATE anymore */
@@ -9592,11 +9567,18 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   def=0;
   char_length= length;
 
-  if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) &&
-      old_field->ptr && orig_field &&
-      (sql_type != MYSQL_TYPE_TIMESTAMP ||                /* set def only if */
-       old_field->table->timestamp_field != old_field ||  /* timestamp field */ 
-       unireg_check == Field::TIMESTAMP_UN_FIELD))        /* has default val */
+  /*
+    Copy the default value from the column object orig_field, if:
+    1) The column has a constant default value.
+    2) The column type is not a BLOB type.
+    3) The original column (old_field) was properly initialized with a record
+       buffer pointer.
+    4) The original column doesn't have a default function to auto-initialize
+       the column on INSERT
+  */
+  if (!(flags & (NO_DEFAULT_VALUE_FLAG | BLOB_FLAG)) && // 1) 2)
+      old_field->ptr && orig_field &&                   // 3)
+      !old_field->has_insert_default_function())        // 4)
   {
     char buff[MAX_FIELD_WIDTH];
     String tmp(buff,sizeof(buff), charset);
@@ -9779,4 +9761,13 @@ key_map Field::get_possible_keys()
   DBUG_ASSERT(table->pos_in_table_list);
   return (table->pos_in_table_list->is_materialized_derived() ?
           part_of_key : key_start);
+}
+
+
+void Field::set_explicit_default(Item *value)
+{
+  if (value && value->type() == Item::DEFAULT_VALUE_ITEM &&
+      !((Item_default_value*)value)->arg)
+    return;
+  flags|= HAS_EXPLICIT_DEFAULT;
 }

@@ -5873,9 +5873,9 @@ attribute:
           NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
         | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
         | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
-        | ON UPDATE_SYM NOW_SYM optional_braces
+	| ON UPDATE_SYM NOW_SYM opt_time_precision
           {
-            Item *item= new (YYTHD->mem_root) Item_func_now_local(6);
+	    Item *item= new (YYTHD->mem_root) Item_func_now_local($4);
             if (item == NULL)
               MYSQL_YYABORT;
             Lex->on_update_value= item;
@@ -5967,9 +5967,9 @@ type_with_opt_collate:
 
 
 now_or_signed_literal:
-          NOW_SYM optional_braces
+          NOW_SYM opt_time_precision
           {
-            $$= new (YYTHD->mem_root) Item_func_now_local(6);
+            $$= new (YYTHD->mem_root) Item_func_now_local($2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

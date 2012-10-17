@@ -2426,7 +2426,6 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
 {
   LEX_STRING cmt = { 0, 0 };
   uint unused1= 0;
-  int unused2= 0;
 
   if (field_def->init(thd, (char*) "", field_type, lex->length, lex->dec,
                       lex->type, (Item*) 0, (Item*) 0, &cmt, 0,
@@ -2443,8 +2442,7 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
 
   sp_prepare_create_field(thd, field_def);
 
-  if (prepare_create_field(field_def, &unused1, &unused2, &unused2,
-                           HA_CAN_GEOMETRY))
+  if (prepare_create_field(field_def, &unused1, HA_CAN_GEOMETRY))
   {
     return TRUE;
   }
