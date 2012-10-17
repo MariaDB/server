@@ -350,25 +350,6 @@ public:
 };
 
 
-/*
-  Values in this enum are used to indicate how a tables TIMESTAMP field
-  should be treated. It can be set to the current timestamp on insert or
-  update or both.
-  WARNING: The values are used for bit operations. If you change the
-  enum, you must keep the bitwise relation of the values. For example:
-  (int) TIMESTAMP_AUTO_SET_ON_BOTH must be equal to
-  (int) TIMESTAMP_AUTO_SET_ON_INSERT | (int) TIMESTAMP_AUTO_SET_ON_UPDATE.
-  We use an enum here so that the debugger can display the value names.
-*/
-enum timestamp_auto_set_type
-{
-  TIMESTAMP_NO_AUTO_SET= 0, TIMESTAMP_AUTO_SET_ON_INSERT= 1,
-  TIMESTAMP_AUTO_SET_ON_UPDATE= 2, TIMESTAMP_AUTO_SET_ON_BOTH= 3
-};
-#define clear_timestamp_auto_bits(_target_, _bits_) \
-  (_target_)= (enum timestamp_auto_set_type)((int)(_target_) & ~(int)(_bits_))
-
-class Field_timestamp;
 class Field_blob;
 class Table_triggers_list;
 
@@ -608,7 +589,6 @@ struct TABLE_SHARE
   /* The following is copied to each TABLE on OPEN */
   Field **field;
   Field **found_next_number_field;
-  Field *timestamp_field;               /* Used only during open */
   KEY  *key_info;			/* data of keys in database */
   uint	*blob_field;			/* Index to blobs in Field arrray*/
 
@@ -680,7 +660,6 @@ struct TABLE_SHARE
   uint uniques;                         /* Number of UNIQUE index */
   uint null_fields;			/* number of null fields */
   uint blob_fields;			/* number of blob fields */
-  uint timestamp_field_offset;		/* Field number for timestamp field */
   uint varchar_fields;                  /* number of varchar fields */
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
@@ -695,6 +674,7 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
   uint vfields;                         /* Number of computed (virtual) fields */
+  uint default_fields;                  /* Number of default fields in */
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
@@ -1007,8 +987,9 @@ public:
 
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
-  Field_timestamp *timestamp_field;
   Field **vfield;                       /* Pointer to virtual fields*/
+  /* Fields that are updated automatically on INSERT or UPDATE. */
+  Field **default_field;
 
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
@@ -1064,19 +1045,6 @@ public:
   */
   ha_rows       quick_condition_rows;
 
-  /*
-    If this table has TIMESTAMP field with auto-set property (pointed by
-    timestamp_field member) then this variable indicates during which
-    operations (insert only/on update/in both cases) we should set this
-    field to current timestamp. If there are no such field in this table
-    or we should not automatically set its value during execution of current
-    statement then the variable contains TIMESTAMP_NO_AUTO_SET (i.e. 0).
-
-    Value of this variable is set for each statement in open_table() and
-    if needed cleared later in statement processing code (see mysql_update()
-    as example).
-  */
-  timestamp_auto_set_type timestamp_field_type;
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 
   uint          lock_position;          /* Position in MYSQL_LOCK.table */
@@ -1207,6 +1175,8 @@ public:
   void mark_columns_needed_for_insert(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
+  void mark_default_fields_for_write();
+  bool has_default_function(bool is_update);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1293,6 +1263,7 @@ public:
   bool update_const_key_parts(COND *conds);
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
+  int update_default_fields();
 };
 
 

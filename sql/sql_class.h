@@ -4120,6 +4120,16 @@ public:
 */
 #define CF_FORCE_ORIGINAL_BINLOG_FORMAT (1U << 10)
 
+/**
+  Statement that inserts new rows (INSERT, REPLACE, LOAD)
+*/
+#define CF_INSERTS_DATA (1U << 11)
+
+/**
+  Statement that updates existing rows (UPDATE, multi-update)
+*/
+#define CF_UPDATES_DATA (1U << 12)
+
 /* Bits in server_command_flags */
 
 /**

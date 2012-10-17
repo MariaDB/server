@@ -1849,8 +1849,6 @@ int ha_federated::write_row(uchar *buf)
   values_string.length(0);
   insert_field_value_string.length(0);
   ha_statistic_increment(&SSV::ha_write_count);
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
 
   /*
     start both our field and field values strings
