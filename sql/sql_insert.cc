@@ -191,11 +191,6 @@ error:
                                 different table maps, like on select ... insert
     map                         Store here table map for used fields
 
-  NOTE
-    Clears TIMESTAMP_AUTO_SET_ON_INSERT from table->timestamp_field_type
-    or leaves it as is, depending on if timestamp should be updated or
-    not.
-
   RETURN
     0           OK
     -1          Error
@@ -234,8 +229,6 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     if (check_grant_all_columns(thd, INSERT_ACL, &field_it))
       return -1;
 #endif
-    clear_timestamp_auto_bits(table->timestamp_field_type,
-                              TIMESTAMP_AUTO_SET_ON_INSERT);
     /*
       No fields are provided so all fields must be provided in the values.
       Thus we set all bits in the write set.
@@ -295,18 +288,8 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
       my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), thd->dup_field->field_name);
       return -1;
     }
-    if (table->timestamp_field)	// Don't automaticly set timestamp if used
-    {
-      if (bitmap_is_set(table->write_set,
-                        table->timestamp_field->field_index))
-        clear_timestamp_auto_bits(table->timestamp_field_type,
-                                  TIMESTAMP_AUTO_SET_ON_INSERT);
-      else
-      {
-        bitmap_set_bit(table->write_set,
-                       table->timestamp_field->field_index);
-      }
-    }
+    if (table->default_field)
+      table->mark_default_fields_for_write();
   }
   /* Mark virtual columns used in the insert statement */
   if (table->vfield)
@@ -339,9 +322,6 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     update_fields               The update fields.
 
   NOTE
-    If the update fields include the timestamp field,
-    remove TIMESTAMP_AUTO_SET_ON_UPDATE from table->timestamp_field_type.
-
    If the update fields include an autoinc field, set the
    table->next_number_field_updated flag.
 
@@ -355,20 +335,8 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                List<Item> &update_values, table_map *map)
 {
   TABLE *table= insert_table_list->table;
-  my_bool timestamp_mark;
   my_bool autoinc_mark;
-  LINT_INIT(timestamp_mark);
   LINT_INIT(autoinc_mark);
-
-  if (table->timestamp_field)
-  {
-    /*
-      Unmark the timestamp field so that we can check if this is modified
-      by update_fields
-    */
-    timestamp_mark= bitmap_test_and_clear(table->write_set,
-                                          table->timestamp_field->field_index);
-  }
 
   table->next_number_field_updated= FALSE;
 
@@ -393,17 +361,8 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
                                insert_table_list, map, false))
     return -1;
 
-  if (table->timestamp_field)
-  {
-    /* Don't set timestamp column if this is modified. */
-    if (bitmap_is_set(table->write_set,
-                      table->timestamp_field->field_index))
-      clear_timestamp_auto_bits(table->timestamp_field_type,
-                                TIMESTAMP_AUTO_SET_ON_UPDATE);
-    if (timestamp_mark)
-      bitmap_set_bit(table->write_set,
-                     table->timestamp_field->field_index);
-  }
+  if (table->default_field)
+    table->mark_default_fields_for_write();
 
   if (table->found_next_number_field)
   {
@@ -709,7 +668,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
   int error, res;
   bool transactional_table, joins_freed= FALSE;
   bool changed;
-  bool was_insert_delayed= (table_list->lock_type ==  TL_WRITE_DELAYED);
+  const bool was_insert_delayed= (table_list->lock_type ==  TL_WRITE_DELAYED);
   bool using_bulk_insert= 0;
   uint value_count;
   ulong counter = 1;
@@ -913,8 +872,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     if (fields.elements || !value_count)
     {
       restore_record(table,s->default_values);	// Get empty record
-      if (fill_record_n_invoke_before_triggers(thd, fields, *values, 0,
-                                               table->triggers,
+      if (fill_record_n_invoke_before_triggers(thd, table, fields, *values, 0,
                                                TRG_EVENT_INSERT))
       {
 	if (values_list.elements != 1 && ! thd->is_error())
@@ -958,8 +916,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
             share->default_values[share->null_bytes - 1];
         }
       }
-      if (fill_record_n_invoke_before_triggers(thd, table->field, *values, 0,
-                                               table->triggers,
+      if (fill_record_n_invoke_before_triggers(thd, table, table->field, *values, 0,
                                                TRG_EVENT_INSERT))
       {
 	if (values_list.elements != 1 && ! thd->is_error())
@@ -970,6 +927,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 	error=1;
 	break;
       }
+    }
+    if (table->default_field && table->update_default_fields())
+    {
+      error= 1;
+      break;
     }
 
     if ((res= table_list->view_check_option(thd,
@@ -987,7 +949,9 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
     if (lock_type == TL_WRITE_DELAYED)
     {
       LEX_STRING const st_query = { query, thd->query_length() };
+      DEBUG_SYNC(thd, "before_write_delayed");
       error=write_delayed(thd, table, duplic, st_query, ignore, log_on);
+      DEBUG_SYNC(thd, "after_write_delayed");
       query=0;
     }
     else
@@ -1696,12 +1660,31 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
         restore_record(table,record[1]);
         DBUG_ASSERT(info->update_fields->elements ==
                     info->update_values->elements);
-        if (fill_record_n_invoke_before_triggers(thd, *info->update_fields,
+        if (fill_record_n_invoke_before_triggers(thd, table, *info->update_fields,
                                                  *info->update_values,
                                                  info->ignore,
-                                                 table->triggers,
                                                  TRG_EVENT_UPDATE))
           goto before_trg_err;
+
+        bool different_records= (!records_are_comparable(table) ||
+                                 compare_record(table));
+        /*
+          Default fields must be updated before checking view updateability.
+          This branch of INSERT is executed only when a UNIQUE key was violated
+          with the ON DUPLICATE KEY UPDATE option. In this case the INSERT
+          operation is transformed to an UPDATE, and the default fields must
+          be updated as if this is an UPDATE.
+        */
+        if (different_records && table->default_field)
+        {
+          bool res;
+          enum_sql_command cmd= thd->lex->sql_command;
+          thd->lex->sql_command= SQLCOM_UPDATE;
+          res= table->update_default_fields();
+          thd->lex->sql_command= cmd;
+          if (res)
+            goto err;
+        }
 
         /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
         if (info->view &&
@@ -1713,7 +1696,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
         table->file->restore_auto_increment(prev_insert_id);
         info->touched++;
-        if (!records_are_comparable(table) || compare_record(table))
+        if (different_records)
         {
           if ((error=table->file->ha_update_row(table->record[1],
                                                 table->record[0])) &&
@@ -1784,8 +1767,6 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	*/
 	if (last_uniq_key(table,key_nr) &&
 	    !table->file->referenced_by_foreign_key() &&
-            (table->timestamp_field_type == TIMESTAMP_NO_AUTO_SET ||
-             table->timestamp_field_type == TIMESTAMP_AUTO_SET_ON_BOTH) &&
             (!table->triggers || !table->triggers->has_delete_triggers()))
         {
           if ((error=table->file->ha_update_row(table->record[1],
@@ -1948,7 +1929,6 @@ public:
   ulonglong forced_insert_id;
   ulong auto_increment_increment;
   ulong auto_increment_offset;
-  timestamp_auto_set_type timestamp_field_type;
   LEX_STRING query;
   Time_zone *time_zone;
 
@@ -2321,7 +2301,7 @@ end_create:
 TABLE *Delayed_insert::get_local_table(THD* client_thd)
 {
   my_ptrdiff_t adjust_ptrs;
-  Field **field,**org_field, *found_next_number_field;
+  Field **field,**org_field, *found_next_number_field, **dfield_ptr;
   TABLE *copy;
   TABLE_SHARE *share;
   uchar *bitmap;
@@ -2390,6 +2370,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   bitmap= (uchar*) (field + share->fields + 1);
   copy->record[0]= (bitmap + share->column_bitmap_size*3);
   memcpy((char*) copy->record[0], (char*) table->record[0], share->reclength);
+  if (share->default_fields)
+  {
+    copy->default_field= (Field**) client_thd->alloc((share->default_fields+1)*
+                                                     sizeof(Field**));
+    dfield_ptr= copy->default_field;
+  }
   /*
     Make a copy of all fields.
     The copied fields need to point into the copied record. This is done
@@ -2407,18 +2393,19 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
+    if (share->default_fields &&
+        ((*org_field)->has_insert_default_function() ||
+         (*org_field)->has_update_default_function()))
+    {
+      /* Put the newly copied field into the set of default fields. */
+      *dfield_ptr= *field;
+      (*dfield_ptr)->unireg_check= (*org_field)->unireg_check;
+      dfield_ptr++;
+    }
   }
   *field=0;
-
-  /* Adjust timestamp */
-  if (table->timestamp_field)
-  {
-    /* Restore offset as this may have been reset in handle_inserts */
-    copy->timestamp_field=
-      (Field_timestamp*) copy->field[share->timestamp_field_offset];
-    copy->timestamp_field->unireg_check= table->timestamp_field->unireg_check;
-    copy->timestamp_field_type= copy->timestamp_field->get_auto_set_type();
-  }
+  if (share->default_fields)
+    *dfield_ptr= NULL;
 
   /* Adjust in_use for pointing to client thread */
   copy->in_use= client_thd;
@@ -2508,7 +2495,6 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt;
   row->first_successful_insert_id_in_prev_stmt=
     thd->first_successful_insert_id_in_prev_stmt;
-  row->timestamp_field_type=    table->timestamp_field_type;
 
   /* Add session variable timezone
      Time_zone object will not be freed even the thread is ended.
@@ -3051,7 +3037,6 @@ bool Delayed_insert::handle_inserts(void)
       row->first_successful_insert_id_in_prev_stmt;
     thd.stmt_depends_on_first_successful_insert_id_in_prev_stmt= 
       row->stmt_depends_on_first_successful_insert_id_in_prev_stmt;
-    table->timestamp_field_type= row->timestamp_field_type;
     table->auto_increment_field_not_null= row->auto_increment_field_not_null;
 
     /* Copy the session variables. */
@@ -3527,6 +3512,8 @@ int select_insert::send_data(List<Item> &values)
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;	// Calculate cuted fields
   store_values(values);
+  if (table->default_field && table->update_default_fields())
+    DBUG_RETURN(1);
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
   if (thd->is_error())
   {
@@ -3586,11 +3573,11 @@ int select_insert::send_data(List<Item> &values)
 void select_insert::store_values(List<Item> &values)
 {
   if (fields->elements)
-    fill_record_n_invoke_before_triggers(thd, *fields, values, 1,
-                                         table->triggers, TRG_EVENT_INSERT);
+    fill_record_n_invoke_before_triggers(thd, table, *fields, values, 1,
+                                         TRG_EVENT_INSERT);
   else
-    fill_record_n_invoke_before_triggers(thd, table->field, values, 1,
-                                         table->triggers, TRG_EVENT_INSERT);
+    fill_record_n_invoke_before_triggers(thd, table, table->field, values, 1,
+                                         TRG_EVENT_INSERT);
 }
 
 void select_insert::send_error(uint errcode,const char *err)
@@ -3808,7 +3795,6 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   DBUG_ENTER("create_table_from_items");
 
   tmp_table.alias= 0;
-  tmp_table.timestamp_field= 0;
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
 
@@ -3816,6 +3802,8 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   tmp_table.s->blob_ptr_size= portable_sizeof_char_ptr;
   tmp_table.null_row= 0;
   tmp_table.maybe_null= 0;
+
+  promote_first_timestamp_column(&alter_info->create_list);
 
   while ((item=it++))
   {
@@ -4056,8 +4044,6 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   for (Field **f= field ; *f ; f++)
     bitmap_set_bit(table->write_set, (*f)->field_index);
 
-  /* Don't set timestamp if used */
-  table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
   table->next_number_field=table->found_next_number_field;
 
   restore_record(table,s->default_values);      // Get empty record
@@ -4133,8 +4119,8 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 
 void select_create::store_values(List<Item> &values)
 {
-  fill_record_n_invoke_before_triggers(thd, field, values, 1,
-                                       table->triggers, TRG_EVENT_INSERT);
+  fill_record_n_invoke_before_triggers(thd, table, field, values, 1,
+                                       TRG_EVENT_INSERT);
 }
 
 
