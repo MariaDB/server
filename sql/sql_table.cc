@@ -2607,7 +2607,6 @@ void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
     prepare_create_field()
     sql_field     field to prepare for packing
     blob_columns  count for BLOBs
-    timestamps    count for timestamps
     table_flags   table flags
 
   DESCRIPTION
@@ -2621,7 +2620,6 @@ void calculate_interval_lengths(CHARSET_INFO *cs, TYPELIB *interval,
 
 int prepare_create_field(Create_field *sql_field, 
 			 uint *blob_columns, 
-			 int *timestamps, int *timestamps_with_niladic,
 			 longlong table_flags)
 {
   unsigned int dup_val_count;
@@ -2743,21 +2741,6 @@ int prepare_create_field(Create_field *sql_field,
                           (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
     break;
   case MYSQL_TYPE_TIMESTAMP:
-    /* We should replace old TIMESTAMP fields with their newer analogs */
-    if (sql_field->unireg_check == Field::TIMESTAMP_OLD_FIELD)
-    {
-      if (!*timestamps)
-      {
-        sql_field->unireg_check= Field::TIMESTAMP_DNUN_FIELD;
-        (*timestamps_with_niladic)++;
-      }
-      else
-        sql_field->unireg_check= Field::NONE;
-    }
-    else if (sql_field->unireg_check != Field::NONE)
-      (*timestamps_with_niladic)++;
-
-    (*timestamps)++;
     /* fall-through */
   default:
     sql_field->pack_flag=(FIELDFLAG_NUMBER |
@@ -2829,6 +2812,40 @@ bool check_duplicate_warning(THD *thd, char *msg, ulong length)
 }
 
 
+/**
+   Modifies the first column definition whose SQL type is TIMESTAMP
+   by adding the features DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP.
+
+   @param column_definitions The list of column definitions, in the physical
+                             order in which they appear in the table.
+ */
+void promote_first_timestamp_column(List<Create_field> *column_definitions)
+{
+  List_iterator<Create_field> it(*column_definitions);
+  Create_field *column_definition;
+
+  while ((column_definition= it++) != NULL)
+  {
+    if (column_definition->sql_type == MYSQL_TYPE_TIMESTAMP ||      // TIMESTAMP
+        column_definition->unireg_check == Field::TIMESTAMP_OLD_FIELD) // Legacy
+    {
+      if ((column_definition->flags & NOT_NULL_FLAG) != 0 && // NOT NULL,
+          column_definition->def == NULL &&            // no constant default,
+          column_definition->unireg_check == Field::NONE) // no function default
+      {
+        DBUG_PRINT("info", ("First TIMESTAMP column '%s' was promoted to "
+                            "DEFAULT CURRENT_TIMESTAMP ON UPDATE "
+                            "CURRENT_TIMESTAMP",
+                            column_definition->field_name
+                            ));
+        column_definition->unireg_check= Field::TIMESTAMP_DNUN_FIELD;
+      }
+      return;
+    }
+  }
+}
+
+
 /*
   Preparation for table creation
 
@@ -2869,7 +2886,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   ulong		record_offset= 0;
   KEY		*key_info;
   KEY_PART_INFO *key_part_info;
-  int		timestamps= 0, timestamps_with_niladic= 0;
   int		field_no,dup_no;
   int		select_field_pos,auto_increment=0;
   List_iterator<Create_field> it(alter_info->create_list);
@@ -3153,7 +3169,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_ASSERT(sql_field->charset != 0);
 
     if (prepare_create_field(sql_field, &blob_columns, 
-			     &timestamps, &timestamps_with_niladic,
 			     file->ha_table_flags()))
       DBUG_RETURN(TRUE);
     if (sql_field->sql_type == MYSQL_TYPE_VARCHAR)
@@ -3183,12 +3198,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       sql_field->offset= record_offset;
       record_offset+= sql_field->pack_length;
     }
-  }
-  if (timestamps_with_niladic > 1)
-  {
-    my_message(ER_TOO_MUCH_AUTO_TIMESTAMP_COLS,
-               ER(ER_TOO_MUCH_AUTO_TIMESTAMP_COLS), MYF(0));
-    DBUG_RETURN(TRUE);
   }
   if (auto_increment > 1)
   {
@@ -4558,6 +4567,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
 
+  promote_first_timestamp_column(&alter_info->create_list);
   result= mysql_create_table_no_lock(thd, create_table->db,
                                      create_table->table_name, create_info,
                                      alter_info, FALSE, 0, &is_trans);
@@ -6371,6 +6381,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     need_copy_table= alter_info->change_level;
 
   set_table_default_charset(thd, create_info, db);
+  promote_first_timestamp_column(&alter_info->create_list);
 
   if (thd->variables.old_alter_table
       || (table->s->db_type() != create_info->db_type)
@@ -6738,8 +6749,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   */
   if (new_table && !(new_table->file->ha_table_flags() & HA_NO_COPY_ON_ALTER))
   {
-    /* We don't want update TIMESTAMP fields during ALTER TABLE. */
-    new_table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
     new_table->next_number_field=new_table->found_next_number_field;
     DBUG_EXECUTE_IF("abort_copy_table", {
         my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
@@ -7316,6 +7325,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   ulonglong prev_insert_id, time_to_report_progress;
   List_iterator<Create_field> it(create);
   Create_field *def;
+  Field **dfield_ptr= to->default_field;
   DBUG_ENTER("copy_data_between_tables");
 
   /* Two or 3 stages; Sorting, copying data and update indexes */
@@ -7345,6 +7355,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   errpos= 3;
 
   copy_end=copy;
+  to->s->default_fields= 0;
   for (Field **ptr=to->field ; *ptr ; ptr++)
   {
     def=it++;
@@ -7364,8 +7375,23 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
       }
       (copy_end++)->set(*ptr,def->field,0);
     }
-
+    else
+    {
+      /*
+        Update the set of auto-update fields to contain only the new fields
+        added to the table. Only these fields should be updated automatically.
+        Old fields keep their current values, and therefore should not be
+        present in the set of autoupdate fields.
+      */
+      if ((*ptr)->has_insert_default_function())
+      {
+        *(dfield_ptr++)= *ptr;
+        ++to->s->default_fields;
+      }
+    }
   }
+  if (dfield_ptr)
+    *dfield_ptr= NULL;
 
   if (order)
   {
@@ -7456,6 +7482,11 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
     prev_insert_id= to->file->next_insert_id;
     if (to->vfield)
       update_virtual_fields(thd, to, TRUE);
+    if (to->default_field && to->update_default_fields())
+    {
+      error= 1;
+      break;
+    }
     if (thd->is_error())
     {
       error= 1;

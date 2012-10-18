@@ -55,10 +55,10 @@ create table a (`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 #
 # Some wrong defaults, so these creates should fail too (Bug #5902)
 #
---error 1067
 create table t1 (a datetime default now());
---error 1294
+drop table t1;
 create table t1 (a datetime on update now());
+drop table t1;
 --error 1067
 create table t1 (a int default 100 auto_increment);
 --error 1067

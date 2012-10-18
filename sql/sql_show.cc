@@ -1108,8 +1108,35 @@ static void append_directory(THD *thd, String *packet, const char *dir_type,
 
 #define LIST_PROCESS_HOST_LEN 64
 
-static bool get_field_default_value(THD *thd, Field *timestamp_field,
-                                    Field *field, String *def_value,
+
+/**
+  Print "ON UPDATE" clause of a field into a string.
+
+  @param timestamp_field   Pointer to timestamp field of a table.
+  @param field             The field to generate ON UPDATE clause for.
+  @bool  lcase             Whether to print in lower case.
+  @return                  false on success, true on error.
+*/
+static bool print_on_update_clause(Field *field, String *val, bool lcase)
+{
+  DBUG_ASSERT(val->charset()->mbminlen == 1);
+  val->length(0);
+  if (field->has_update_default_function())
+  {
+    if (lcase)
+      val->append(STRING_WITH_LEN("on update "));
+    else
+      val->append(STRING_WITH_LEN("ON UPDATE "));
+    val->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
+    if (field->decimals() > 0)
+      val->append_parenthesized(field->decimals());
+    return true;
+  }
+  return false;
+}
+
+
+static bool get_field_default_value(THD *thd, Field *field, String *def_value,
                                     bool quoted)
 {
   bool has_default;
@@ -1120,8 +1147,7 @@ static bool get_field_default_value(THD *thd, Field *timestamp_field,
      We are using CURRENT_TIMESTAMP instead of NOW because it is
      more standard
   */
-  has_now_default= (timestamp_field == field &&
-                    field->unireg_check != Field::TIMESTAMP_UN_FIELD);
+  has_now_default= field->has_insert_default_function();
 
   has_default= (field_type != FIELD_TYPE_BLOB &&
                 !(field->flags & NO_DEFAULT_VALUE_FLAG) &&
@@ -1133,7 +1159,11 @@ static bool get_field_default_value(THD *thd, Field *timestamp_field,
   if (has_default)
   {
     if (has_now_default)
+    {
       def_value->append(STRING_WITH_LEN("CURRENT_TIMESTAMP"));
+      if (field->decimals() > 0)
+        def_value->append_parenthesized(field->decimals());
+    }
     else if (!field->is_null())
     {                                             // Not null by default
       char tmp[MAX_FIELD_WIDTH];
@@ -1365,16 +1395,18 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     }
 
     if (!field->vcol_info &&
-        get_field_default_value(thd, table->timestamp_field,
-                                field, &def_value, 1))
+        get_field_default_value(thd, field, &def_value, 1))
     {
       packet->append(STRING_WITH_LEN(" DEFAULT "));
       packet->append(def_value.ptr(), def_value.length(), system_charset_info);
     }
 
-    if (!limited_mysql_mode && table->timestamp_field == field &&
-        field->unireg_check != Field::TIMESTAMP_DN_FIELD)
-      packet->append(STRING_WITH_LEN(" ON UPDATE CURRENT_TIMESTAMP"));
+    if (!limited_mysql_mode && print_on_update_clause(field, &def_value, false))
+    {
+      packet->append(STRING_WITH_LEN(" "));
+      packet->append(def_value);
+    }
+
 
     if (field->unireg_check == Field::NEXT_NUMBER &&
         !(thd->variables.sql_mode & MODE_NO_FIELD_OPTIONS))
@@ -2042,7 +2074,7 @@ void Show_explain_request::call_in_target_thread()
 
 int select_result_explain_buffer::send_data(List<Item> &items)
 {
-  fill_record(thd, dst_table->field, items, TRUE, FALSE);
+  fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
   if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
     return 1;
   return 0;
@@ -4934,7 +4966,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   const char *wild= lex->wild ? lex->wild->ptr() : NullS;
   CHARSET_INFO *cs= system_charset_info;
   TABLE *show_table;
-  Field **ptr, *field, *timestamp_field;
+  Field **ptr, *field;
   int count;
   DBUG_ENTER("get_schema_column_record");
 
@@ -4958,7 +4990,6 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
   show_table= tables->table;
   count= 0;
   ptr= show_table->field;
-  timestamp_field= show_table->timestamp_field;
   show_table->use_all_columns();               // Required for default
   restore_record(show_table, s->default_values);
 
@@ -5006,7 +5037,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
                            cs);
     table->field[4]->store((longlong) count, TRUE);
 
-    if (get_field_default_value(thd, timestamp_field, field, &type, 0))
+    if (get_field_default_value(thd, field, &type, 0))
     {
       table->field[5]->store(type.ptr(), type.length(), cs);
       table->field[5]->set_notnull();
@@ -5023,10 +5054,8 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 
     if (field->unireg_check == Field::NEXT_NUMBER)
       table->field[17]->store(STRING_WITH_LEN("auto_increment"), cs);
-    if (timestamp_field == field &&
-        field->unireg_check != Field::TIMESTAMP_DN_FIELD)
-      table->field[17]->store(STRING_WITH_LEN("on update CURRENT_TIMESTAMP"),
-                              cs);
+    if (print_on_update_clause(field, &type, true))
+      table->field[17]->store(type.ptr(), type.length(), cs);
     if (field->vcol_info)
     {
       if (field->stored_in_db)

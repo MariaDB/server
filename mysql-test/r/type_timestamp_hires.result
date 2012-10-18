@@ -63,15 +63,15 @@ a
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-a	timestamp(4)	NO		CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+a	timestamp(4)	NO		CURRENT_TIMESTAMP(4)	on update CURRENT_TIMESTAMP
 select table_name, column_name, column_default, is_nullable, data_type, character_maximum_length, character_octet_length, numeric_precision, numeric_scale, datetime_precision, character_set_name, collation_name, column_type, column_key, extra from information_schema.columns where table_name='t1';
 table_name	t1
 column_name	a
-column_default	CURRENT_TIMESTAMP
+column_default	CURRENT_TIMESTAMP(4)
 is_nullable	NO
 data_type	timestamp
 character_maximum_length	NULL
@@ -113,7 +113,7 @@ t2	CREATE TABLE `t2` (
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
-  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  `a` timestamp(4) NOT NULL DEFAULT CURRENT_TIMESTAMP(4) ON UPDATE CURRENT_TIMESTAMP(4)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');

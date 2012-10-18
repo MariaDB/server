@@ -170,15 +170,15 @@ TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 TABLE *find_temporary_table(THD *thd, const char *table_key,
                             uint table_key_length);
 void close_thread_tables(THD *thd);
-bool fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
+bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
+                                          List<Item> &fields,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          Table_triggers_list *triggers,
                                           enum trg_event_type event);
-bool fill_record_n_invoke_before_triggers(THD *thd, Field **field,
+bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
+                                          Field **field,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          Table_triggers_list *triggers,
                                           enum trg_event_type event);
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
@@ -191,7 +191,7 @@ bool setup_fields(THD *thd, Item** ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, bool allow_sum_func);
 void unfix_fields(List<Item> &items);
-bool fill_record(THD *thd, Field **field, List<Item> &values,
+bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
                  bool ignore_errors, bool use_value);
 
 Field *
@@ -304,6 +304,7 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
 void mark_tmp_table_for_reuse(TABLE *table);
 bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists);
 int update_virtual_fields(THD *thd, TABLE *table, bool ignore_stored= FALSE);
+int update_default_fields(TABLE *table);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
 extern TABLE *unused_tables;
