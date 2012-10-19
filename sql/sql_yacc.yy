@@ -65,6 +65,7 @@
 #include <myisammrg.h>
 #include "keycaches.h"
 #include "set_var.h"
+#include "rpl_mi.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -1174,6 +1175,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  KILL_SYM
 %token  LANGUAGE_SYM                  /* SQL-2003-R */
 %token  LAST_SYM                      /* SQL-2003-N */
+%token  LAST_VALUE
 %token  LE                            /* OPERATOR */
 %token  LEADING                       /* SQL-2003-R */
 %token  LEAVES
@@ -1402,6 +1404,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SIGNED_SYM
 %token  SIMPLE_SYM                    /* SQL-2003-N */
 %token  SLAVE
+%token  SLAVES
 %token  SLOW
 %token  SMALLINT                      /* SQL-2003-R */
 %token  SNAPSHOT_SYM
@@ -2022,7 +2025,7 @@ help:
 /* change master */
 
 change:
-          CHANGE MASTER_SYM TO_SYM
+          CHANGE MASTER_SYM optional_connection_name TO_SYM
           {
             Lex->sql_command = SQLCOM_CHANGE_MASTER;
           }
@@ -2178,6 +2181,29 @@ master_file_def:
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
         ;
+
+optional_connection_name:
+          /* empty */
+          {
+            THD *thd= YYTHD;
+            LEX *lex= thd->lex;
+            lex->mi.connection_name= thd->variables.default_master_connection;
+          }
+        | connection_name;
+        ;
+
+connection_name:
+        TEXT_STRING_sys
+        {
+           Lex->mi.connection_name= $1;
+#ifdef HAVE_REPLICATION
+           if (check_master_connection_name(&$1))
+           {
+              my_error(ER_WRONG_ARGUMENTS, MYF(0), "MASTER_CONNECTION_NAME");
+              MYSQL_YYABORT;
+           }
+#endif
+         }
 
 /* create a table */
 
@@ -5771,7 +5797,23 @@ type:
             $$= MYSQL_TYPE_VARCHAR;
           }
         | YEAR_SYM opt_field_length field_options
-          { $$=MYSQL_TYPE_YEAR; }
+          {
+            if (Lex->length)
+            {
+              errno= 0;
+              ulong length= strtoul(Lex->length, NULL, 10);
+              if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH && length != 4)
+              {
+                char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
+                my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
+                push_warning_printf(YYTHD, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                                    ER_WARN_DEPRECATED_SYNTAX,
+                                    ER(ER_WARN_DEPRECATED_SYNTAX),
+                                    buff, "YEAR(4)");
+              }
+            }
+            $$=MYSQL_TYPE_YEAR;
+          }
         | DATE_SYM
           { $$=MYSQL_TYPE_DATE; }
         | TIME_SYM opt_field_length
@@ -5983,9 +6025,9 @@ attribute:
           NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
         | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
         | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
-        | ON UPDATE_SYM NOW_SYM opt_time_precision
+        | ON UPDATE_SYM NOW_SYM optional_braces
           {
-            Item *item= new (YYTHD->mem_root) Item_func_now_local($4);
+            Item *item= new (YYTHD->mem_root) Item_func_now_local(6);
             if (item == NULL)
               MYSQL_YYABORT;
             Lex->on_update_value= item;
@@ -6077,9 +6119,9 @@ type_with_opt_collate:
 
 
 now_or_signed_literal:
-          NOW_SYM opt_time_precision
+          NOW_SYM optional_braces
           {
-            $$= new (YYTHD->mem_root) Item_func_now_local($2);
+            $$= new (YYTHD->mem_root) Item_func_now_local(6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -7184,7 +7226,7 @@ opt_to:
 */
 
 slave:
-          START_SYM SLAVE slave_thread_opts
+          START_SYM SLAVE optional_connection_name slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -7193,14 +7235,28 @@ slave:
           }
           slave_until
           {}
-        | STOP_SYM SLAVE slave_thread_opts
+        | START_SYM ALL SLAVES slave_thread_opts
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_SLAVE_ALL_START;
+            lex->type = 0;
+          }
+          {}
+        | STOP_SYM SLAVE optional_connection_name slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
             lex->type = 0;
             /* If you change this code don't forget to update SLAVE STOP too */
           }
-        | SLAVE START_SYM slave_thread_opts
+        | STOP_SYM ALL SLAVES slave_thread_opts
+          {
+            LEX *lex=Lex;
+            lex->sql_command = SQLCOM_SLAVE_ALL_STOP;
+            lex->type = 0;
+            /* If you change this code don't forget to update SLAVE STOP too */
+          }
+        | SLAVE optional_connection_name START_SYM slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -7208,7 +7264,7 @@ slave:
           }
           slave_until
           {}
-        | SLAVE STOP_SYM slave_thread_opts
+        | SLAVE optional_connection_name STOP_SYM slave_thread_opts
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
@@ -9034,6 +9090,12 @@ function_call_conflict:
         | IF '(' expr ',' expr ',' expr ')'
           {
             $$= new (YYTHD->mem_root) Item_func_if($3,$5,$7);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | LAST_VALUE '(' expr_list ')'
+          {
+            $$= new (YYTHD->mem_root) Item_func_last_value(* $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11569,7 +11631,7 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_BINLOG_EVENTS;
           } opt_limit_clause_init
-        | RELAYLOG_SYM EVENTS_SYM binlog_in binlog_from
+        | RELAYLOG_SYM optional_connection_name EVENTS_SYM binlog_in binlog_from
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_RELAYLOG_EVENTS;
@@ -11698,9 +11760,23 @@ show_param:
           {
             Lex->sql_command = SQLCOM_SHOW_MASTER_STAT;
           }
-        | SLAVE STATUS_SYM
+        | ALL SLAVES STATUS_SYM
           {
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            Lex->verbose= 1;
+          }
+        | SLAVE STATUS_SYM
+          {
+            THD *thd= YYTHD;
+            LEX *lex= thd->lex;
+            lex->mi.connection_name= thd->variables.default_master_connection;
+            lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            lex->verbose= 0;
+          }
+        | SLAVE connection_name STATUS_SYM
+          {
+            Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
+            Lex->verbose= 0;
           }
         | CLIENT_STATS_SYM
           {
@@ -11778,6 +11854,14 @@ show_param:
           {
             Lex->spname= $3;
             Lex->sql_command = SQLCOM_SHOW_CREATE_EVENT;
+          }
+        | describe_command FOR_SYM expr
+          {
+            THD *thd= YYTHD;
+            Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
+            if (prepare_schema_table(thd, Lex, 0, SCH_EXPLAIN))
+              MYSQL_YYABORT;
+            add_value_to_list(thd, $3);
           }
         ;
 
@@ -11952,8 +12036,17 @@ flush_option:
           { Lex->type|= REFRESH_SLOW_LOG; }
         | BINARY LOGS_SYM
           { Lex->type|= REFRESH_BINARY_LOG; }
-        | RELAY LOGS_SYM
-          { Lex->type|= REFRESH_RELAY_LOG; }
+        | RELAY LOGS_SYM optional_connection_name
+          {
+            LEX *lex= Lex;
+            if (lex->type & REFRESH_RELAY_LOG)
+            {
+              my_error(ER_WRONG_USAGE, MYF(0), "FLUSH", "RELAY LOGS");
+              MYSQL_YYABORT;
+	    }
+            lex->type|= REFRESH_RELAY_LOG;
+            lex->relay_log_connection_name= lex->mi.connection_name;
+           }
         | QUERY_SYM CACHE_SYM
           { Lex->type|= REFRESH_QUERY_CACHE_FREE; }
         | HOSTS_SYM
@@ -11961,13 +12054,23 @@ flush_option:
         | PRIVILEGES
           { Lex->type|= REFRESH_GRANT; }
         | LOGS_SYM
-          { Lex->type|= REFRESH_LOG; }
+          {
+            Lex->type|= REFRESH_LOG;
+            Lex->relay_log_connection_name.str= (char*) "";
+            Lex->relay_log_connection_name.length= 0;
+          }
         | STATUS_SYM
           { Lex->type|= REFRESH_STATUS; }
-        | SLAVE
+        | SLAVE optional_connection_name 
           { 
-            Lex->type|= REFRESH_SLAVE;
-            Lex->reset_slave_info.all= false;
+            LEX *lex= Lex;
+            if (lex->type & REFRESH_SLAVE)
+            {
+              my_error(ER_WRONG_USAGE, MYF(0), "FLUSH","SLAVE");
+              MYSQL_YYABORT;
+	    }
+            lex->type|= REFRESH_SLAVE;
+            lex->reset_slave_info.all= false;
           }
   	| CLIENT_STATS_SYM
           { Lex->type|= REFRESH_CLIENT_STATS; }
@@ -12011,6 +12114,7 @@ reset_options:
 
 reset_option:
           SLAVE               { Lex->type|= REFRESH_SLAVE; }
+          optional_connection_name
           slave_reset_options { }
         | MASTER_SYM          { Lex->type|= REFRESH_MASTER; }
         | QUERY_SYM CACHE_SYM { Lex->type|= REFRESH_QUERY_CACHE;}
@@ -12291,7 +12395,7 @@ load_data_set_elem:
             if (lex->update_list.push_back($1) || 
                 lex->value_list.push_back($4))
                 MYSQL_YYABORT;
-            $4->set_name($3, (uint) ($5 - $3), YYTHD->charset());
+            $4->set_name_no_truncate($3, (uint) ($5 - $3), YYTHD->charset());
           }
         ;
 
@@ -13109,6 +13213,7 @@ keyword:
         | SIGNED_SYM            {}
         | SOCKET_SYM            {}
         | SLAVE                 {}
+        | SLAVES                {}
         | SONAME_SYM            {}
         | START_SYM             {}
         | STOP_SYM              {}
@@ -13235,6 +13340,7 @@ keyword_sp:
         | ISSUER_SYM               {}
         | INSERT_METHOD            {}
         | KEY_BLOCK_SIZE           {}
+        | LAST_VALUE               {}
         | LAST_SYM                 {}
         | LEAVES                   {}
         | LESS_SYM                 {}

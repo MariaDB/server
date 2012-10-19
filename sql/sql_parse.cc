@@ -82,6 +82,7 @@
 #include <myisam.h>
 #include <my_dir.h>
 #include "rpl_handler.h"
+#include "rpl_mi.h"
 
 #include "sp_head.h"
 #include "sp.h"
@@ -364,6 +365,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_ENGINE_STATUS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_MUTEX]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_LOGS]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
@@ -379,12 +381,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_CREATE_EVENT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILES]=    CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILE]=     CF_STATUS_COMMAND;
-  /*
-    @todo SQLCOM_BINLOG_BASE64_EVENT should have
-    CF_CAN_GENERATE_ROW_EVENTS set, because this surely generates row
-    events. /Sven
-  */
-  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND | CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_SHOW_CLIENT_STATS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_USER_STATS]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_TABLE_STATS]=  CF_STATUS_COMMAND;
@@ -429,6 +426,19 @@ void init_update_queries(void)
                                        CF_CAN_GENERATE_ROW_EVENTS |
                                        CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+
+  /*
+    We don't want to change to statement based replication for these commands
+  */
+  sql_command_flags[SQLCOM_ROLLBACK]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate ALTER TABLE for temp tables in row format */
+  sql_command_flags[SQLCOM_ALTER_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate TRUNCATE for temp tables in row format */
+  sql_command_flags[SQLCOM_TRUNCATE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate DROP for temp tables in row format */
+  sql_command_flags[SQLCOM_DROP_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* One can change replication mode with SET */
+  sql_command_flags[SQLCOM_SET_OPTION]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
 
   /*
     The following admin table operations are allowed
@@ -1449,8 +1459,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     else
 #endif
-    if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
-      break;
+    {
+      thd->lex->relay_log_connection_name.str= (char*) "";
+      thd->lex->relay_log_connection_name.length= 0;
+      if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
+        break;
+    }
     if (trans_commit_implicit(thd))
       break;
     close_thread_tables(thd);
@@ -1491,7 +1505,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   {
     STATUS_VAR *current_global_status_var;      // Big; Don't allocate on stack
     ulong uptime;
-    uint __attribute__((unused)) length;
+    uint length __attribute__((unused));
     ulonglong queries_per_second1000;
     char buff[250];
     uint buff_len= sizeof(buff);
@@ -1591,6 +1605,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
               (thd->open_tables == NULL ||
                (thd->locked_tables_mode == LTM_LOCK_TABLES)));
 
+  thd_proc_info(thd, "updating status");
   /* Finalize server status flags after executing a command. */
   thd->update_server_status();
   thd->protocol->end_statement();
@@ -1652,37 +1667,29 @@ void log_slow_statement(THD *thd)
     DBUG_VOID_RETURN;                           // Don't set time for sub stmt
 
   /* Follow the slow log filter configuration. */ 
-  if (!(thd->variables.log_slow_filter & thd->query_plan_flags))
+  if (!thd->enable_slow_log ||
+      !(thd->variables.log_slow_filter & thd->query_plan_flags))
     DBUG_VOID_RETURN; 
  
-  /* 
-     If rate limiting of slow log writes is enabled, decide whether to log
-     this query to the log or not.
-  */ 
-  if (thd->variables.log_slow_rate_limit > 1 &&
-      (global_query_id % thd->variables.log_slow_rate_limit) != 0)
-    DBUG_VOID_RETURN;
-
-  /*
-    Do not log administrative statements unless the appropriate option is
-    set.
-  */
-  if (thd->enable_slow_log)
+  if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
+       ((thd->server_status &
+         (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
+        opt_log_queries_not_using_indexes &&
+        !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
+      thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
   {
-    ulonglong end_utime_of_query= thd->current_utime();
+    thd->status_var.long_query_count++;
+    /*
+      If rate limiting of slow log writes is enabled, decide whether to log
+      this query to the log or not.
+    */ 
+    if (thd->variables.log_slow_rate_limit > 1 &&
+        (global_query_id % thd->variables.log_slow_rate_limit) != 0)
+      DBUG_VOID_RETURN;
 
-    if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
-         ((thd->server_status &
-           (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
-          opt_log_queries_not_using_indexes &&
-           !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
-        thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
-    {
-      THD_STAGE_INFO(thd, stage_logging_slow_query);
-      thd->status_var.long_query_count++;
-      slow_log_print(thd, thd->query(), thd->query_length(), 
-                     end_utime_of_query);
-    }
+    THD_STAGE_INFO(thd, stage_logging_slow_query);
+    slow_log_print(thd, thd->query(), thd->query_length(), 
+                   thd->utime_after_query);
   }
   DBUG_VOID_RETURN;
 }
@@ -2271,6 +2278,22 @@ mysql_execute_command(THD *thd)
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
 
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
+
+  /*
+    Force statement logging for DDL commands to allow us to update
+    privilege, system or statistic tables directly without the updates
+    getting logged.
+  */
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format_stmt();
+
   /*
     End a active transaction so that this command will have it's
     own transaction and will also sync the binary log. If a DDL is
@@ -2329,6 +2352,33 @@ mysql_execute_command(THD *thd)
   {
     execute_show_status(thd, all_tables);
     break;
+  }
+  case SQLCOM_SHOW_EXPLAIN:
+  {
+    if (!thd->security_ctx->priv_user[0] &&
+        check_global_access(thd,PROCESS_ACL))
+      break;
+
+    /*
+      The select should use only one table, it's the SHOW EXPLAIN pseudo-table
+    */
+    if (lex->sroutines.records || lex->query_tables->next_global)
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+
+    Item **it= lex->value_list.head_ref();
+    if (!(*it)->basic_const_item() ||
+        (!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
+        (*it)->check_cols(1))
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+    /* no break; fall through */
   }
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
@@ -2503,10 +2553,42 @@ case SQLCOM_PREPARE:
 #ifdef HAVE_REPLICATION
   case SQLCOM_CHANGE_MASTER:
   {
+    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+    Master_info *mi;
+    bool new_master= 0;
+
     if (check_global_access(thd, SUPER_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    res = change_master(thd,active_mi);
+
+    mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                           MYSQL_ERROR::WARN_LEVEL_NOTE);
+
+    if (mi == NULL)
+    {
+      /* New replication created */
+      mi= new Master_info(&lex_mi->connection_name, relay_log_recovery); 
+      if (!mi || mi->error())
+      {
+        delete mi;
+        res= 1;
+        mysql_mutex_unlock(&LOCK_active_mi);
+        break;
+      }
+      new_master= 1;
+    }
+
+    res= change_master(thd, mi);
+    if (res && new_master)
+    {
+      /*
+        The new master was added by change_master(). Remove it as it didn't
+        work.
+      */
+      master_info_index->remove_master_info(&lex_mi->connection_name);
+      delete mi;
+    }
+
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
@@ -2516,15 +2598,19 @@ case SQLCOM_PREPARE:
     if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    if (active_mi != NULL)
-    {
-      res = show_master_info(thd, active_mi);
-    }
+
+    if (lex->verbose)
+      res= show_all_master_info(thd);
     else
     {
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                   WARN_NO_MASTER_INFO, ER(WARN_NO_MASTER_INFO));
-      my_ok(thd);
+      LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+      Master_info *mi;
+      mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                             MYSQL_ERROR::WARN_LEVEL_ERROR);
+      if (mi != NULL)
+      {
+        res= show_master_info(thd, mi, 0);
+      }
     }
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -2824,40 +2910,79 @@ end_with_restore_list:
 #ifdef HAVE_REPLICATION
   case SQLCOM_SLAVE_START:
   {
+    LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+    Master_info *mi;
     mysql_mutex_lock(&LOCK_active_mi);
-    start_slave(thd,active_mi,1 /* net report*/);
+
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      if (!start_slave(thd, mi, 1 /* net report*/))
+        my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
   case SQLCOM_SLAVE_STOP:
-  /*
-    If the client thread has locked tables, a deadlock is possible.
-    Assume that
-    - the client thread does LOCK TABLE t READ.
-    - then the master updates t.
-    - then the SQL slave thread wants to update t,
-      so it waits for the client thread because t is locked by it.
+  {
+    LEX_MASTER_INFO *lex_mi;
+    Master_info *mi;
+    /*
+      If the client thread has locked tables, a deadlock is possible.
+      Assume that
+      - the client thread does LOCK TABLE t READ.
+      - then the master updates t.
+      - then the SQL slave thread wants to update t,
+        so it waits for the client thread because t is locked by it.
     - then the client thread does SLAVE STOP.
       SLAVE STOP waits for the SQL slave thread to terminate its
       update t, which waits for the client thread because t is locked by it.
-    To prevent that, refuse SLAVE STOP if the
-    client thread has locked tables
-  */
-  if (thd->locked_tables_mode ||
-      thd->in_active_multi_stmt_transaction() || thd->global_read_lock.is_acquired())
-  {
-    my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-               ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
-    goto error;
+      To prevent that, refuse SLAVE STOP if the
+      client thread has locked tables
+    */
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+
+    lex_mi= &thd->lex->mi;
+    mysql_mutex_lock(&LOCK_active_mi);
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      if (!stop_slave(thd, mi, 1/* net report*/))
+        my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
   }
+  case SQLCOM_SLAVE_ALL_START:
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    stop_slave(thd,active_mi,1/* net report*/);
+    if (!master_info_index->start_all_slaves(thd))
+      my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
+  }
+  case SQLCOM_SLAVE_ALL_STOP:
+  {
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!master_info_index->stop_all_slaves(thd))
+      my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
 #endif /* HAVE_REPLICATION */
-
   case SQLCOM_RENAME_TABLE:
   {
     if (execute_rename_table(thd, first_table, all_tables))
@@ -3127,6 +3252,7 @@ end_with_restore_list:
                       DBUG_ASSERT(!debug_sync_set_action(thd,
                                                          STRING_WITH_LEN(act2)));
                     };);
+    DEBUG_SYNC(thd, "after_mysql_insert");
     break;
   }
   case SQLCOM_REPLACE_SELECT:
@@ -4714,6 +4840,11 @@ finish:
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
     DEBUG_SYNC(thd, "execute_command_after_close_tables");
 #endif
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format(orig_binlog_format,
+                           orig_current_stmt_binlog_format);
 
   if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
   {
@@ -6755,6 +6886,35 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
+  Find a thread by id and return it, locking it LOCK_thd_data
+
+  @param id  Identifier of the thread we're looking for
+
+  @return NULL    - not found
+          pointer - thread found, and its LOCK_thd_data is locked.
+*/
+
+THD *find_thread_by_id(ulong id)
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (tmp->get_command() == COM_DAEMON)
+      continue;
+    if (tmp->thread_id == id)
+    {
+      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return tmp;
+}
+
+
+/**
   kill on thread.
 
   @param thd			Thread class
@@ -6772,20 +6932,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lu  signal: %u", id, (uint) kill_signal));
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->get_command() == COM_DAEMON)
-      continue;
-    if (tmp->thread_id == id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if ((tmp= find_thread_by_id(id)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.

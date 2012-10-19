@@ -259,7 +259,7 @@ uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
 bool sys_var::set_default(THD *thd, enum_var_type type)
 {
   LEX_STRING empty={0,0};
-  set_var var(type, 0, &empty, 0);
+  set_var var(type, this, &empty, 0);
 
   if (type == OPT_GLOBAL || scope() == GLOBAL)
     global_save_default(thd, &var);

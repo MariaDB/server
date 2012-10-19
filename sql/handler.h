@@ -616,6 +616,7 @@ enum enum_schema_tables
   SCH_COLUMN_PRIVILEGES,
   SCH_ENGINES,
   SCH_EVENTS,
+  SCH_EXPLAIN,
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
@@ -992,6 +993,46 @@ struct handlerton
    int  (*recover)(handlerton *hton, XID *xid_list, uint len);
    int  (*commit_by_xid)(handlerton *hton, XID *xid);
    int  (*rollback_by_xid)(handlerton *hton, XID *xid);
+   /*
+     The commit_checkpoint_request() handlerton method is used to checkpoint
+     the XA recovery process for storage engines that support two-phase
+     commit.
+
+     The method is optional - an engine that does not implemented is expected
+     to work the traditional way, where every commit() durably flushes the
+     transaction to disk in the engine before completion, so XA recovery will
+     no longer be needed for that transaction.
+
+     An engine that does implement commit_checkpoint_request() is also
+     expected to implement commit_ordered(), so that ordering of commits is
+     consistent between 2pc participants. Such engine is no longer required to
+     durably flush to disk transactions in commit(), provided that the
+     transaction has been successfully prepare()d and commit_ordered(); thus
+     potentionally saving one fsync() call. (Engine must still durably flush
+     to disk in commit() when no prepare()/commit_ordered() steps took place,
+     at least if durable commits are wanted; this happens eg. if binlog is
+     disabled).
+
+     The TC will periodically (eg. once per binlog rotation) call
+     commit_checkpoint_request(). When this happens, the engine must arrange
+     for all transaction that have completed commit_ordered() to be durably
+     flushed to disk (this does not include transactions that might be in the
+     middle of executing commit_ordered()). When such flush has completed, the
+     engine must call commit_checkpoint_notify_ha(), passing back the opaque
+     "cookie".
+
+     The flush and call of commit_checkpoint_notify_ha() need not happen
+     immediately - it can be scheduled and performed asynchroneously (ie. as
+     part of next prepare(), or sync every second, or whatever), but should
+     not be postponed indefinitely. It is however also permissible to do it
+     immediately, before returning from commit_checkpoint_request().
+
+     When commit_checkpoint_notify_ha() is called, the TC will know that the
+     transactions are durably committed, and thus no longer require XA
+     recovery. It uses that to reduce the work needed for any subsequent XA
+     recovery process.
+   */
+   void (*commit_checkpoint_request)(handlerton *hton, void *cookie);
   /*
     "Disable or enable checkpointing internal to the storage engine. This is
     used for FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT to ensure that
@@ -1742,6 +1783,8 @@ public:
   virtual ~handler_add_index() {}
 };
 
+class Query_cache;
+struct Query_cache_block_table;
 /**
   The handler class is the interface for dynamically loadable
   storage engines. Do not add ifdefs and take care when adding or
@@ -2011,7 +2054,7 @@ public:
 
   void adjust_next_insert_id_after_explicit_value(ulonglong nr);
   int update_auto_increment();
-  void print_keydup_error(uint key_nr, const char *msg);
+  void print_keydup_error(uint key_nr, const char *msg, myf errflag);
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
@@ -2083,7 +2126,8 @@ public:
     if (!error ||
         ((flags & HA_CHECK_DUP_KEY) &&
          (error == HA_ERR_FOUND_DUPP_KEY ||
-          error == HA_ERR_FOUND_DUPP_UNIQUE)))
+          error == HA_ERR_FOUND_DUPP_UNIQUE)) ||
+        error == HA_ERR_AUTOINC_ERANGE)
       return FALSE;
     return TRUE;
   }
@@ -2601,6 +2645,46 @@ public:
     return TRUE;
   }
 
+  /*
+    Count tables invisible from all tables list on which current one built
+    (like myisammrg and partitioned tables)
+
+    tables_type          mask for the tables should be added herdde
+
+    returns number of such tables
+  */
+
+  virtual uint count_query_cache_dependant_tables(uint8 *tables_type
+                                                  __attribute__((unused)))
+  {
+    return 0;
+  }
+
+  /*
+    register tables invisible from all tables list on which current one built
+    (like myisammrg and partitioned tables).
+
+    @note they should be counted by method above
+
+    cache                Query cache pointer
+    block                Query cache block to write the table
+    n                    Number of the table
+
+    @retval FALSE - OK
+    @retval TRUE  - Error
+  */
+
+  virtual my_bool
+    register_query_cache_dependant_tables(THD *thd
+                                          __attribute__((unused)),
+                                          Query_cache *cache
+                                          __attribute__((unused)),
+                                          Query_cache_block_table **block
+                                          __attribute__((unused)),
+                                          uint *n __attribute__((unused)))
+  {
+    return FALSE;
+  }
 
  /*
    Check if the primary key (if there is one) is a clustered and a
@@ -3014,6 +3098,7 @@ void ha_close_connection(THD* thd);
 bool ha_flush_logs(handlerton *db_type);
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);
+void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
                     HA_CREATE_INFO *create_info,
@@ -3094,6 +3179,7 @@ int ha_binlog_end(THD *thd);
 const char *get_canonical_filename(handler *file, const char *path,
                                    char *tmp_path);
 bool mysql_xa_recover(THD *thd);
+void commit_checkpoint_notify_ha(handlerton *hton, void *cookie);
 
 inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 {

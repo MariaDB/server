@@ -496,6 +496,8 @@ public:
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(Item *a,Item *b,Item *c) :Item_func(a,b,c)
   { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(Item *a,Item *b,Item *c, Item *d) :Item_func(a,b,c,d)
+  { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(List<Item> &list) :Item_func(list)
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(THD *thd, Item_int_func *item) :Item_func(thd, item)
@@ -1522,6 +1524,7 @@ class Item_master_pos_wait :public Item_int_func
 public:
   Item_master_pos_wait(Item *a,Item *b) :Item_int_func(a,b) {}
   Item_master_pos_wait(Item *a,Item *b,Item *c) :Item_int_func(a,b,c) {}
+  Item_master_pos_wait(Item *a,Item *b, Item *c, Item *d) :Item_int_func(a,b,c,d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
   void fix_length_and_dec() { max_length=21; maybe_null=1;}
@@ -1670,7 +1673,7 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_buffer);
   /* fix_fields() binds variable name with its entry structure */
   bool fix_fields(THD *thd, Item **ref);
-  virtual void print(String *str, enum_query_type query_type);
+  void print_for_load(THD *thd, String *str);
   void set_null_value(CHARSET_INFO* cs);
   void set_value(const char *str, uint length, CHARSET_INFO* cs);
 };
@@ -2002,6 +2005,27 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(func_name());
   }
 };
+
+
+class Item_func_last_value :public Item_func
+{
+protected:
+  Item *last_value;
+public:
+  Item_func_last_value(List<Item> &list) :Item_func(list) {}
+  double val_real();
+  longlong val_int();
+  String *val_str(String *);
+  my_decimal *val_decimal(my_decimal *);
+  void fix_length_and_dec();
+  enum Item_result result_type () const { return last_value->result_type(); }
+  const char *func_name() const { return "last_value"; }
+  table_map not_null_tables() const { return 0; }
+  enum_field_types field_type() const { return last_value->field_type(); }
+  bool const_item() const { return 0; }
+  void evaluate_sideeffects();
+};
+
 
 Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);

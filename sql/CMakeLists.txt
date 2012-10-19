@@ -39,6 +39,7 @@ ENDIF()
 SET (SQL_SOURCE
               ../sql-common/client.c derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
+               filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
                signal_handler.cc
                handler.cc hash_filo.h sql_plugin_services.h
@@ -86,6 +87,7 @@ SET (SQL_SOURCE
                gcalc_slicescan.cc gcalc_tools.cc
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
+               my_apc.cc my_apc.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )

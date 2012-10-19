@@ -35,6 +35,7 @@ class Protocol
 protected:
   THD	 *thd;
   String *packet;
+  /* Used by net_store_data() for charset conversions */
   String *convert;
   uint field_pos;
 #ifndef DBUG_OFF
@@ -49,6 +50,10 @@ protected:
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
 #endif
+  /* 
+    The following two are low-level functions that are invoked from
+    higher-level store_xxx() funcs.  The data is stored into this->packet.
+  */
   bool net_store_data(const uchar *from, size_t length,
                       CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool store_string_aux(const char *from, size_t length,

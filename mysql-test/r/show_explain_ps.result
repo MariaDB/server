@@ -1,0 +1,29 @@
+drop table if exists t0, t1;
+select * from performance_schema.setup_instruments where name like '%show_explain%';
+NAME	ENABLED	TIMED
+wait/synch/cond/sql/show_explain	YES	YES
+stage/sql/show explain	YES	YES
+statement/sql/show_explain	YES	YES
+# We've got no instances
+select * from performance_schema.cond_instances where name like '%show_explain%';
+NAME	OBJECT_INSTANCE_BEGIN
+# Check out if our cond is hit.
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+select count(*) from t0 where a < 100000;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	select count(*) from t0 where a < 100000
+count(*)
+10
+set debug_dbug='';
+select event_name
+from performance_schema.events_waits_history_long 
+where event_name='wait/synch/cond/sql/show_explain';
+event_name
+wait/synch/cond/sql/show_explain
+drop table t0;

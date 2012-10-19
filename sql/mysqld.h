@@ -96,6 +96,7 @@ extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
 extern ulong slave_exec_mode_options;
+extern ulong slave_retried_transactions;
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
 extern my_bool lower_case_file_system;
@@ -170,11 +171,13 @@ extern ulong max_prepared_stmt_count, prepared_stmt_count;
 extern ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
-extern ulong max_binlog_size, max_relay_log_size;
+extern ulong max_binlog_size;
+extern ulong slave_max_allowed_packet;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong rpl_recovery_rank, thread_cache_size;
 extern ulong stored_program_cache_size;
 extern ulong back_log;
+extern ulong executed_events;
 extern char language[FN_REFLEN];
 extern "C" MYSQL_PLUGIN_IMPORT ulong server_id;
 extern ulong concurrency;
@@ -197,7 +200,7 @@ extern handlerton *myisam_hton;
 extern handlerton *heap_hton;
 extern const char *load_default_groups[];
 extern struct my_option my_long_options[];
-extern int mysqld_server_started;
+extern int mysqld_server_started, mysqld_server_initialized;
 extern "C" MYSQL_PLUGIN_IMPORT int orig_argc;
 extern "C" MYSQL_PLUGIN_IMPORT char **orig_argv;
 extern pthread_attr_t connection_attrib;
@@ -219,14 +222,14 @@ extern pthread_key(MEM_ROOT**,THR_MALLOC);
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
-       key_LOCK_pool;
+       key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
 extern PSI_mutex_key key_LOCK_des_key_file;
 #endif
 
-extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_prep_xids,
+extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -257,7 +260,7 @@ extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
 extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-extern PSI_cond_key key_BINLOG_COND_prep_xids, key_BINLOG_update_cond,
+extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_COND_cache_status_changed, key_COND_manager,
   key_COND_rpl_status, key_COND_server_started,
   key_delayed_insert_cond, key_delayed_insert_cond_client,
@@ -359,6 +362,7 @@ extern PSI_stage_info stage_sending_cached_result_to_client;
 extern PSI_stage_info stage_sending_data;
 extern PSI_stage_info stage_setup;
 extern PSI_stage_info stage_slave_has_read_all_relay_log;
+extern PSI_stage_info stage_show_explain;
 extern PSI_stage_info stage_sorting;
 extern PSI_stage_info stage_sorting_for_group;
 extern PSI_stage_info stage_sorting_for_order;

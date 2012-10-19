@@ -49,6 +49,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <sql_acl.h>	// PROCESS_ACL
 #include <m_ctype.h>
+#include <debug_sync.h> // DEBUG_SYNC
 #include <mysys_err.h>
 #include <mysql/plugin.h>
 #include <innodb_priv.h>
@@ -383,6 +384,7 @@ static int innobase_rollback_to_savepoint(handlerton *hton, THD* thd,
 static int innobase_savepoint(handlerton *hton, THD* thd, void *savepoint);
 static int innobase_release_savepoint(handlerton *hton, THD* thd,
            void *savepoint);
+static void innobase_checkpoint_request(handlerton *hton, void *cookie);
 static handler *innobase_create_handler(handlerton *hton,
                                         TABLE_SHARE *table,
                                         MEM_ROOT *mem_root);
@@ -483,10 +485,17 @@ static MYSQL_THDVAR_ULONG(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   NULL, NULL, 50, 1, 1024 * 1024 * 1024, 0);
 
 static MYSQL_THDVAR_ULONG(flush_log_at_trx_commit, PLUGIN_VAR_OPCMDARG,
-  "Set to 0 (write and flush once per second),"
-  " 1 (write and flush at each commit)"
-  " or 2 (write at commit, flush once per second).",
-  NULL, NULL, 1, 0, 2, 0);
+  "Controls the durability/speed trade-off for commits."
+  " Set to 0 (write and flush redo log to disk only once per second),"
+  " 1 (flush to disk at each commit),"
+  " 2 (write to log at commit but flush to disk only once per second)"
+  " or 3 (flush to disk at prepare and at commit, slower and usually redundant)."
+  " 1 and 3 guarantees that after a crash, committed transactions will"
+  " not be lost and will be consistent with the binlog and other transactional"
+  " engines. 2 can get inconsistent and lose transactions if there is a"
+  " power failure or kernel crash but not if mysqld crashes. 0 has no"
+  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
+  NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
   "In the transaction after enabled, UPDATE, INSERT and DELETE only move the cursor to the records "
@@ -494,6 +503,9 @@ static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
   "This is to cause replication prefetch IO. ATTENTION: the transaction started after enabled is affected.",
   NULL, NULL, FALSE);
 
+static MYSQL_THDVAR_ULONG(merge_sort_block_size, PLUGIN_VAR_RQCMDARG,
+  "The block size used doing external merge-sort for secondary index creation.",
+  NULL, NULL, 1UL << 20, 1UL << 20, 1UL << 30, 0);
 
 static handler *innobase_create_handler(handlerton *hton,
                                         TABLE_SHARE *table,
@@ -1008,6 +1020,20 @@ thd_flush_log_at_trx_commit(
 	void*	thd)
 {
 	return(THDVAR((THD*) thd, flush_log_at_trx_commit));
+}
+
+/******************************************************************//**
+Returns the merge-sort block size used for the secondary index creation
+for the current connection.
+@return	the merge-sort block size, in bytes */
+extern "C" UNIV_INTERN
+ulong
+thd_merge_sort_block_size(
+/*================================*/
+	void*	thd)	/*!< in: thread handle (THD*), or NULL to query
++			the global merge_sort_block_size */
+{
+	return(THDVAR((THD*) thd, merge_sort_block_size));
 }
 
 /********************************************************************//**
@@ -1645,6 +1671,15 @@ innobase_next_autoinc(
 	ut_a(need > 0);
 	ut_a(block > 0);
 	ut_a(max_value > 0);
+
+        /*
+          Allow auto_increment to go over max_value up to max ulonglong.
+          This allows us to detect that all values are exhausted.
+          If we don't do this, we will return max_value several times
+          and get duplicate key errors instead of auto increment value
+          out of range.
+        */
+        max_value= (~(ulonglong) 0);
 
 	/* Current value should never be greater than the maximum. */
 	ut_a(current <= max_value);
@@ -2469,6 +2504,7 @@ innobase_init(
         innobase_hton->recover=innobase_xa_recover;
         innobase_hton->commit_by_xid=innobase_commit_by_xid;
         innobase_hton->rollback_by_xid=innobase_rollback_by_xid;
+        innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
         innobase_hton->checkpoint_state= innobase_checkpoint_state;
         innobase_hton->create_cursor_read_view=innobase_create_cursor_view;
         innobase_hton->set_cursor_read_view=innobase_set_cursor_view;
@@ -2870,6 +2906,7 @@ innobase_change_buffering_inited_ok:
 
 	srv_read_ahead &= 3;
 	srv_adaptive_flushing_method %= 3;
+	srv_flush_neighbor_pages %= 3;
 
 	srv_force_recovery = (ulint) innobase_force_recovery;
 
@@ -3153,7 +3190,9 @@ innobase_commit_low(
 #ifdef MYSQL_SERVER
 		THD *thd=current_thd;
 
-		if (thd && thd_is_replication_slave_thread(thd)) {
+		if (innobase_overwrite_relay_log_info &&
+                    thd && thd_is_replication_slave_thread(thd) &&
+                    thd->connection_name.length) {
 		/* Update the replication position info inside InnoDB.
 		   In embedded server, does nothing. */
 			const char *log_file_name, *group_relay_log_name;
@@ -3489,6 +3528,19 @@ innobase_rollback_trx(
 	error = trx_rollback_for_mysql(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
+}
+
+/*****************************************************************//**
+Handle a commit checkpoint request from server layer.
+We simply flush the redo log immediately and do the notify call.*/
+static
+void
+innobase_checkpoint_request(
+	handlerton *hton,
+	void *cookie)
+{
+	log_buffer_flush_to_disk();
+	commit_checkpoint_notify_ha(hton, cookie);
 }
 
 /*****************************************************************//**
@@ -4698,6 +4750,27 @@ table_opened:
 	info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 
 	DBUG_RETURN(0);
+}
+
+UNIV_INTERN
+handler*
+ha_innobase::clone(
+/*===============*/
+	const char*	name,		/*!< in: table name */
+	MEM_ROOT*	mem_root)	/*!< in: memory context */
+{
+	ha_innobase* new_handler;
+
+	DBUG_ENTER("ha_innobase::clone");
+
+	new_handler = static_cast<ha_innobase*>(handler::clone(name,
+							       mem_root));
+	if (new_handler) {
+		new_handler->prebuilt->select_lock_type
+			= prebuilt->select_lock_type;
+	}
+
+	DBUG_RETURN(new_handler);
 }
 
 UNIV_INTERN
@@ -5957,7 +6030,10 @@ no_commit:
 				goto report_error;
 			}
 
-			/* MySQL errors are passed straight back. */
+			/* MySQL errors are passed straight back. except for
+                           HA_ERR_AUTO_INC_READ_FAILED. This can only happen
+                           for values out of range.
+                         */
 			error_result = (int) error;
 			goto func_exit;
 		}
@@ -6661,6 +6737,7 @@ ha_innobase::index_read(
 	ulint		ret;
 
 	DBUG_ENTER("index_read");
+	DEBUG_SYNC_C("ha_innobase_index_read_begin");
 
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
@@ -8538,6 +8615,8 @@ ha_innobase::rename_table(
 
 	error = innobase_rename_table(trx, from, to, TRUE);
 
+	DEBUG_SYNC(thd, "after_innobase_rename_table");
+
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */
 
@@ -8865,10 +8944,15 @@ innobase_get_mysql_key_number_for_index(
 			}
 		}
 
-		/* Print an error message if we cannot find the index
-		** in the "index translation table". */
-		sql_print_error("Cannot find index %s in InnoDB index "
-				"translation table.", index->name);
+		/* If index_count in translation table is set to 0, it
+		is possible we are in the process of rebuilding table,
+		do not spit error in this case */
+		if (share->idx_trans_tbl.index_count) {
+			/* Print an error message if we cannot find the index
+			** in the "index translation table". */
+			sql_print_error("Cannot find index %s in InnoDB index "
+					"translation table.", index->name);
+		}
 	}
 
 	/* If we do not have an "index translation table", or not able
@@ -9262,9 +9346,10 @@ ha_innobase::info_low(
 				                }
                                                 else if (rec_per_key > 1) {
                                                         rec_per_key =
-                                                          (ha_rows) (k_rec_per_key *
-                                                                     (double)rec_per_key /
-                                                                     n_rows);
+                                                          (ha_rows)
+                                                          (k_rec_per_key *
+						          (double)rec_per_key /
+							   n_rows);
 						}
                                                 
 				                key_info->rec_per_key[k++]=
@@ -9432,7 +9517,7 @@ ha_innobase::check(
 
 	/* Enlarge the fatal lock wait timeout during CHECK TABLE. */
 	mutex_enter(&kernel_mutex);
-	srv_fatal_semaphore_wait_threshold += 7200; /* 2 hours */
+	srv_fatal_semaphore_wait_threshold += SRV_SEMAPHORE_WAIT_EXTENSION;
 	mutex_exit(&kernel_mutex);
 
 	for (index = dict_table_get_first_index(prebuilt->table);
@@ -9573,7 +9658,7 @@ ha_innobase::check(
 
 	/* Restore the fatal lock wait timeout after CHECK TABLE. */
 	mutex_enter(&kernel_mutex);
-	srv_fatal_semaphore_wait_threshold -= 7200; /* 2 hours */
+	srv_fatal_semaphore_wait_threshold -= SRV_SEMAPHORE_WAIT_EXTENSION;
 	mutex_exit(&kernel_mutex);
 
 	prebuilt->trx->op_info = "";
@@ -10455,6 +10540,7 @@ innodb_show_status(
 	const long		MAX_STATUS_SIZE = 1048576;
 	ulint			trx_list_start = ULINT_UNDEFINED;
 	ulint			trx_list_end = ULINT_UNDEFINED;
+        bool res;
 
 	DBUG_ENTER("innodb_show_status");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -10518,12 +10604,13 @@ innodb_show_status(
 
 	mutex_exit(&srv_monitor_file_mutex);
 
-	stat_print(thd, innobase_hton_name, (uint) strlen(innobase_hton_name),
-		   STRING_WITH_LEN(""), str, flen);
+	res= stat_print(thd, innobase_hton_name,
+                        (uint) strlen(innobase_hton_name),
+                        STRING_WITH_LEN(""), str, flen);
 
 	my_free(str);
 
-	DBUG_RETURN(FALSE);
+	DBUG_RETURN(res);
 }
 
 /************************************************************************//**
@@ -11135,13 +11222,17 @@ ha_innobase::get_auto_increment(
 	/* Not in the middle of a mult-row INSERT. */
 	} else if (prebuilt->autoinc_last_value == 0) {
 		set_if_bigger(*first_value, autoinc);
-	/* Check for -ve values. */
-	} else if (*first_value > col_max_value && trx->n_autoinc_rows > 0) {
-		/* Set to next logical value. */
-		ut_a(autoinc > trx->n_autoinc_rows);
-		*first_value = (autoinc - trx->n_autoinc_rows) - 1;
 	}
 
+        if (*first_value > col_max_value)
+        {
+          	/* Out of range number. Let handler::update_auto_increment()
+                   take care of this */
+                prebuilt->autoinc_last_value = 0;
+                dict_table_autoinc_unlock(prebuilt->table);
+                *nb_reserved_values = 0;
+                return;
+        }
 	*nb_reserved_values = trx->n_autoinc_rows;
 
 	/* With old style AUTOINC locking we only update the table's
@@ -11150,7 +11241,7 @@ ha_innobase::get_auto_increment(
 		ulonglong	current;
 		ulonglong	next_value;
 
-		current = *first_value > col_max_value ? autoinc : *first_value;
+		current = *first_value;
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
@@ -12368,7 +12459,7 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
-  NULL, NULL, 200, 100, ~0L, 0);
+  NULL, NULL, 200, 100, ~0UL, 0);
 
 static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
@@ -12501,7 +12592,7 @@ static MYSQL_SYSVAR_BOOL(adaptive_flushing, srv_adaptive_flushing,
 static MYSQL_SYSVAR_ULONG(max_purge_lag, srv_max_purge_lag,
   PLUGIN_VAR_RQCMDARG,
   "Desired maximum length of the purge queue (0 = no limit)",
-  NULL, NULL, 0, 0, ~0L, 0);
+  NULL, NULL, 0, 0, ~0UL, 0);
 
 static MYSQL_SYSVAR_BOOL(rollback_on_timeout, innobase_rollback_on_timeout,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -12605,7 +12696,7 @@ static MYSQL_SYSVAR_ULONG(commit_concurrency, innobase_commit_concurrency,
 static MYSQL_SYSVAR_ULONG(concurrency_tickets, srv_n_free_tickets_to_enter,
   PLUGIN_VAR_RQCMDARG,
   "Number of times a thread is allowed to enter InnoDB within the same SQL query after it has once got the ticket",
-  NULL, NULL, 500L, 1L, ~0L, 0);
+  NULL, NULL, 500L, 1L, ~0UL, 0);
 
 #ifdef EXTENDED_FOR_KILLIDLE
 #define kill_idle_help_text "If non-zero value, the idle session with transaction which is idle over the value in seconds is killed by InnoDB."
@@ -12675,12 +12766,12 @@ static MYSQL_SYSVAR_LONG(open_files, innobase_open_files,
 static MYSQL_SYSVAR_ULONG(sync_spin_loops, srv_n_spin_wait_rounds,
   PLUGIN_VAR_RQCMDARG,
   "Count of spin-loop rounds in InnoDB mutexes (30 by default)",
-  NULL, NULL, 30L, 0L, ~0L, 0);
+  NULL, NULL, 30L, 0L, ~0UL, 0);
 
 static MYSQL_SYSVAR_ULONG(spin_wait_delay, srv_spin_wait_delay,
   PLUGIN_VAR_OPCMDARG,
   "Maximum delay between polling for a spin lock (6 by default)",
-  NULL, NULL, 6L, 0L, ~0L, 0);
+  NULL, NULL, 6L, 0L, ~0UL, 0);
 
 static MYSQL_SYSVAR_BOOL(thread_concurrency_timer_based,
   innobase_thread_concurrency_timer_based,
@@ -12696,7 +12787,7 @@ static MYSQL_SYSVAR_ULONG(thread_concurrency, srv_thread_concurrency,
 static MYSQL_SYSVAR_ULONG(thread_sleep_delay, srv_thread_sleep_delay,
   PLUGIN_VAR_RQCMDARG,
   "Time of innodb thread sleeping before joining InnoDB queue (usec). Value 0 disable a sleep",
-  NULL, NULL, 10000L, 0L, ~0L, 0);
+  NULL, NULL, 10000L, 0L, ~0UL, 0);
 
 static MYSQL_SYSVAR_STR(data_file_path, innobase_data_file_path,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -12871,7 +12962,7 @@ innodb_adaptive_flushing_method_update(
   void*        var_ptr,
   const void*  save)
 {
-  *(long *)var_ptr= (*(long *)save) % 4;
+  *(long *)var_ptr= (*(long *)save) % 3;
 }
 const char *adaptive_flushing_method_names[]=
 {
@@ -12934,7 +13025,7 @@ static	MYSQL_SYSVAR_ENUM(corrupt_table_action, srv_pass_corrupt_table,
   "Warn corruptions of user tables as 'corrupt table' instead of not crashing itself, "
   "when used with file_per_table. "
   "All file io for the datafile after detected as corrupt are disabled, "
-  "except for the deletion.",
+  "except for the deletion. Possible options are 'assert', 'warn' & 'salvage'",
   NULL, NULL, 0, &corrupt_table_action_typelib);
 
 static MYSQL_SYSVAR_ULINT(lazy_drop_table, srv_lazy_drop_table,
@@ -13049,6 +13140,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(corrupt_table_action),
   MYSQL_SYSVAR(lazy_drop_table),
   MYSQL_SYSVAR(fake_changes),
+  MYSQL_SYSVAR(merge_sort_block_size),
   NULL
 };
 
@@ -13069,6 +13161,7 @@ maria_declare_plugin(xtradb)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 i_s_innodb_rseg_maria,
+i_s_innodb_undo_logs_maria,
 i_s_innodb_trx_maria,
 i_s_innodb_locks_maria,
 i_s_innodb_lock_waits_maria,

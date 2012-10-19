@@ -503,8 +503,8 @@ Item::Item(THD *thd, Item *item):
   orig_name(item->orig_name),
   max_length(item->max_length),
   name_length(item->name_length),
-  marker(item->marker),
   decimals(item->decimals),
+  marker(item->marker),
   maybe_null(item->maybe_null),
   in_rollup(item->in_rollup),
   null_value(item->null_value),
@@ -992,12 +992,28 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
   if (!my_charset_same(cs, system_charset_info))
   {
     size_t res_length;
-    name= sql_strmake_with_convert(str, name_length= length, cs,
+    name= sql_strmake_with_convert(str, length, cs,
 				   MAX_ALIAS_NAME, system_charset_info,
 				   &res_length);
+    name_length= res_length;
   }
   else
     name= sql_strmake(str, (name_length= min(length,MAX_ALIAS_NAME)));
+}
+
+
+void Item::set_name_no_truncate(const char *str, uint length, CHARSET_INFO *cs)
+{
+  if (!my_charset_same(cs, system_charset_info))
+  {
+    size_t res_length;
+    name= sql_strmake_with_convert(str, length, cs,
+				   UINT_MAX, system_charset_info,
+				   &res_length);
+    name_length= res_length;
+  }
+  else
+    name= sql_strmake(str, (name_length= length));
 }
 
 
@@ -6821,7 +6837,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       if (from_field != not_found_field)
       {
         Item_field* fld;
-        if (!(fld= new Item_field(from_field)))
+        if (!(fld= new Item_field(thd, last_checked_context, from_field)))
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
@@ -7741,6 +7757,13 @@ Item* Item_cache_wrapper::get_tmp_table_item(THD *thd_arg)
 }
 
 
+bool Item_direct_view_ref::send(Protocol *protocol, String *buffer)
+{
+  if (check_null_ref())
+    return protocol->store_null();
+  return Item_direct_ref::send(protocol, buffer);
+}
+
 /**
   Prepare referenced field then call usual Item_direct_ref::fix_fields .
 
@@ -7755,6 +7778,7 @@ Item* Item_cache_wrapper::get_tmp_table_item(THD *thd_arg)
 
 bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
 {
+  DBUG_ASSERT(1);
   /* view fild reference must be defined */
   DBUG_ASSERT(*ref);
   /* (*ref)->check_cols() will be made in Item_direct_ref::fix_fields */
@@ -9267,7 +9291,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
                        item->max_length, item->decimals));
   fld_type= Field::field_type_merge(fld_type, get_real_type(item));
   {
-    int item_decimals= item->decimals;
+    uint item_decimals= item->decimals;
     /* fix variable decimals which always is NOT_FIXED_DEC */
     if (Field::result_merge_type(fld_type) == INT_RESULT)
       item_decimals= 0;

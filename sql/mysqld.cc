@@ -52,6 +52,7 @@
 #include "des_key_file.h" // load_des_key_file
 #include "sql_manager.h"  // stop_handle_manager, start_handle_manager
 #include "sql_expression_cache.h" // subquery_cache_miss, subquery_cache_hit
+#include "sys_vars_shared.h"
 
 #include <m_ctype.h>
 #include <my_dir.h>
@@ -110,7 +111,7 @@
 
 /* We have HAVE_valgrind below as this speeds up the shutdown of MySQL */
 
-#if defined(HAVE_DEC_3_2_THREADS) || defined(SIGNALS_DONT_BREAK_READ) || defined(HAVE_valgrind) && defined(__linux__)
+#if defined(SIGNALS_DONT_BREAK_READ) || defined(HAVE_valgrind) && defined(__linux__)
 #define HAVE_CLOSE_SERVER_SOCK 1
 #endif
 
@@ -364,7 +365,7 @@ static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
 
-bool opt_bin_log, opt_ignore_builtin_innodb= 0;
+bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -473,7 +474,7 @@ ulong back_log, connect_timeout, concurrency, server_id;
 ulong table_cache_size, table_def_size;
 ulong what_to_log;
 ulong slow_launch_time, slave_open_temp_tables;
-ulong open_files_limit, max_binlog_size, max_relay_log_size;
+ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
@@ -481,10 +482,12 @@ ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
 ulonglong max_binlog_cache_size=0;
+ulong slave_max_allowed_packet= 0;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong query_cache_size=0;
 ulong refresh_version;  /* Increments on each reload */
+ulong executed_events=0;
 query_id_t global_query_id;
 my_atomic_rwlock_t global_query_id_lock;
 my_atomic_rwlock_t thread_running_lock;
@@ -497,6 +500,7 @@ ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
+ulong slave_retried_transactions;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -582,7 +586,7 @@ char mysql_real_data_home[FN_REFLEN],
      lc_messages_dir[FN_REFLEN], reg_ext[FN_EXTLEN],
      mysql_charsets_dir[FN_REFLEN],
      *opt_init_file, *opt_tc_log_file;
-char *lc_messages_dir_ptr, *log_error_file_ptr;
+char *lc_messages_dir_ptr= lc_messages_dir, *log_error_file_ptr;
 char mysql_unpacked_real_data_home[FN_REFLEN];
 int mysql_unpacked_real_data_home_len;
 uint mysql_real_data_home_len, mysql_data_home_len= 1;
@@ -675,8 +679,7 @@ pthread_attr_t connection_attrib;
 mysql_mutex_t LOCK_server_started;
 mysql_cond_t COND_server_started;
 
-int mysqld_server_started= 0;
-
+int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
 /* replication parameters, if master_host is not NULL, we are a slave */
@@ -718,14 +721,15 @@ char **orig_argv;
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
-PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool;
+PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
+  key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
 PSI_mutex_key key_LOCK_des_key_file;
 #endif /* HAVE_OPENSSL */
 
-PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_prep_xids,
+PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -759,6 +763,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_sync, "TC_LOG_MMAP::LOCK_sync", 0},
   { &key_LOCK_active, "TC_LOG_MMAP::LOCK_active", 0},
   { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pool", 0},
+  { &key_LOCK_pool, "TC_LOG_MMAP::LOCK_pending_checkpoint", 0},
 #endif /* HAVE_MMAP */
 
 #ifdef HAVE_OPENSSL
@@ -766,7 +771,7 @@ static PSI_mutex_info all_server_mutexes[]=
 #endif /* HAVE_OPENSSL */
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
-  { &key_BINLOG_LOCK_prep_xids, "MYSQL_BIN_LOG::LOCK_prep_xids", 0},
+  { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
   { &key_RELAYLOG_LOCK_index, "MYSQL_RELAY_LOG::LOCK_index", 0},
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
@@ -834,7 +839,7 @@ static PSI_rwlock_info all_server_rwlocks[]=
 PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
-PSI_cond_key key_BINLOG_COND_prep_xids, key_BINLOG_update_cond,
+PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_COND_cache_status_changed, key_COND_manager,
   key_COND_rpl_status, key_COND_server_started,
   key_delayed_insert_cond, key_delayed_insert_cond_client,
@@ -862,7 +867,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_pool, "TC_LOG_MMAP::COND_pool", 0},
   { &key_TC_LOG_MMAP_COND_queue_busy, "TC_LOG_MMAP::COND_queue_busy", 0},
 #endif /* HAVE_MMAP */
-  { &key_BINLOG_COND_prep_xids, "MYSQL_BIN_LOG::COND_prep_xids", 0},
+  { &key_BINLOG_COND_xid_list, "MYSQL_BIN_LOG::COND_xid_list", 0},
   { &key_BINLOG_update_cond, "MYSQL_BIN_LOG::update_cond", 0},
   { &key_BINLOG_COND_queue_busy, "MYSQL_BIN_LOG::COND_queue_busy", 0},
   { &key_RELAYLOG_update_cond, "MYSQL_RELAY_LOG::update_cond", 0},
@@ -1782,7 +1787,12 @@ void clean_up(bool print_message)
   if (cleanup_done++)
     return; /* purecov: inspected */
 
-  close_active_mi();
+#ifdef HAVE_REPLICATION
+  // We must call end_slave() as clean_up may have been called during startup
+  end_slave();
+  if (use_slave_mask)
+    bitmap_free(&slave_error_mask);
+#endif
   stop_handle_manager();
   release_ddl_log();
 
@@ -1797,10 +1807,6 @@ void clean_up(bool print_message)
   injector::free_instance();
   mysql_bin_log.cleanup();
 
-#ifdef HAVE_REPLICATION
-  if (use_slave_mask)
-    bitmap_free(&slave_error_mask);
-#endif
   my_tz_free();
   my_dboptions_cache_free();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -2049,13 +2055,19 @@ static struct passwd *check_user(const char *user)
     if (!(tmp_user_info= getpwuid(atoi(user))))
       goto err;
   }
+
   return tmp_user_info;
   /* purecov: end */
 
 err:
   sql_print_error("Fatal error: Can't change to run as user '%s' ;  Please check that the user exists!\n",user);
   unireg_abort(1);
+#endif
+  return NULL;
+}
 
+static inline void allow_coredumps()
+{
 #ifdef PR_SET_DUMPABLE
   if (test_flags & TEST_CORE_ON_SIGNAL)
   {
@@ -2063,10 +2075,8 @@ err:
     (void) prctl(PR_SET_DUMPABLE, 1);
   }
 #endif
-
-#endif
-  return NULL;
 }
+
 
 static void set_user(const char *user, struct passwd *user_info_arg)
 {
@@ -2094,6 +2104,7 @@ static void set_user(const char *user, struct passwd *user_info_arg)
     sql_perror("setuid");
     unireg_abort(1);
   }
+  allow_coredumps();
 #endif
   /* purecov: end */
 }
@@ -2113,6 +2124,7 @@ static void set_effective_user(struct passwd *user_info_arg)
     sql_perror("setreuid");
     unireg_abort(1);
   }
+  allow_coredumps();
 #endif
 }
 
@@ -2955,11 +2967,9 @@ static void start_signal_handler(void)
   DBUG_ENTER("start_signal_handler");
 
   (void) pthread_attr_init(&thr_attr);
-#if !defined(HAVE_DEC_3_2_THREADS)
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_SYSTEM);
   (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
   (void) my_setstacksize(&thr_attr,my_thread_stack_size);
-#endif
 
   mysql_mutex_lock(&LOCK_thread_count);
   if ((error= mysql_thread_create(key_thread_signal_hand,
@@ -3366,6 +3376,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_engine_status",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ENGINE_STATUS]), SHOW_LONG_STATUS},
   {"show_events",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_EVENTS]), SHOW_LONG_STATUS},
   {"show_errors",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_ERRORS]), SHOW_LONG_STATUS},
+  {"show_explain",         (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_EXPLAIN]), SHOW_LONG_STATUS},
   {"show_fields",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_FIELDS]), SHOW_LONG_STATUS},
 #ifndef DBUG_OFF
   {"show_function_code",   (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_FUNC_CODE]), SHOW_LONG_STATUS},
@@ -3397,8 +3408,8 @@ SHOW_VAR com_status_vars[]= {
   {"show_user_statistics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_USER_STATS]), SHOW_LONG_STATUS},
   {"show_variables",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_VARIABLES]), SHOW_LONG_STATUS},
   {"show_warnings",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_WARNS]), SHOW_LONG_STATUS},
-  {"slave_start",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
-  {"slave_stop",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_STOP]), SHOW_LONG_STATUS},
+  {"start_all_slaves",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_START]), SHOW_LONG_STATUS},
+  {"start_slave",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
   {"stmt_close",           (char*) offsetof(STATUS_VAR, com_stmt_close), SHOW_LONG_STATUS},
   {"stmt_execute",         (char*) offsetof(STATUS_VAR, com_stmt_execute), SHOW_LONG_STATUS},
   {"stmt_fetch",           (char*) offsetof(STATUS_VAR, com_stmt_fetch), SHOW_LONG_STATUS},
@@ -3406,6 +3417,8 @@ SHOW_VAR com_status_vars[]= {
   {"stmt_reprepare",       (char*) offsetof(STATUS_VAR, com_stmt_reprepare), SHOW_LONG_STATUS},
   {"stmt_reset",           (char*) offsetof(STATUS_VAR, com_stmt_reset), SHOW_LONG_STATUS},
   {"stmt_send_long_data",  (char*) offsetof(STATUS_VAR, com_stmt_send_long_data), SHOW_LONG_STATUS},
+  {"stop_all_slaves",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_STOP]), SHOW_LONG_STATUS},
+  {"stop_slave",           (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_STOP]), SHOW_LONG_STATUS},
   {"truncate",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_TRUNCATE]), SHOW_LONG_STATUS},
   {"uninstall_plugin",     (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNINSTALL_PLUGIN]), SHOW_LONG_STATUS},
   {"unlock_tables",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_UNLOCK_TABLES]), SHOW_LONG_STATUS},
@@ -4011,6 +4024,7 @@ static int init_thread_environment()
 #ifdef HAVE_EVENT_SCHEDULER
   Events::init_mutexes();
 #endif
+  init_show_explain_psi_keys();
   /* Parameter for threads created for connections */
   (void) pthread_attr_init(&connection_attrib);
   (void) pthread_attr_setdetachstate(&connection_attrib,
@@ -4261,14 +4275,15 @@ static int init_server_components()
     unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
-  if (opt_log_slave_updates && !opt_bin_log)
+  if (!opt_bin_log_used)
   {
-    sql_print_warning("You need to use --log-bin to make "
-                    "--log-slave-updates work.");
+    if (opt_log_slave_updates)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--log-slave-updates work.");
+    if (binlog_format_used)
+      sql_print_warning("You need to use --log-bin to make "
+                        "--binlog-format work.");
   }
-  if (!opt_bin_log && binlog_format_used)
-    sql_print_warning("You need to use --log-bin to make "
-                      "--binlog-format work.");
 
   /* Check that we have not let the format to unspecified at this point */
   DBUG_ASSERT((uint)global_system_variables.binlog_format <=
@@ -4513,7 +4528,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
 
   if (opt_bin_log && mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
-                                        WRITE_CACHE, 0, max_binlog_size, 0, TRUE))
+                                        WRITE_CACHE, max_binlog_size, 0, TRUE))
     unireg_abort(1);
 
 #ifdef HAVE_REPLICATION
@@ -4711,6 +4726,7 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
+  mysqld_server_started= mysqld_server_initialized= 0;
   orig_argc= argc;
   orig_argv= argv;
   my_getopt_use_args_separator= TRUE;
@@ -4984,16 +5000,6 @@ int mysqld_main(int argc, char **argv)
     opt_skip_slave_start= 1;
 
   binlog_unsafe_map_init();
-  /*
-    init_slave() must be called after the thread keys are created.
-    Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
-    places) assume that active_mi != 0, so let's fail if it's 0 (out of
-    memory); a message has already been printed.
-  */
-  if (init_slave() && !active_mi)
-  {
-    unireg_abort(1);
-  }
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   initialize_performance_schema_acl(opt_bootstrap);
@@ -5011,8 +5017,16 @@ int mysqld_main(int argc, char **argv)
 
   execute_ddl_log_recovery();
 
+  /*
+    We must have LOCK_open before LOCK_global_system_variables because
+    LOCK_open is held while sql_plugin.c::intern_sys_var_ptr() is called.
+  */
+  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
+
   if (Events::init(opt_noacl || opt_bootstrap))
     unireg_abort(1);
+
+  mysqld_server_initialized= 1;
 
   if (opt_bootstrap)
   {
@@ -5026,20 +5040,26 @@ int mysqld_main(int argc, char **argv)
       exit(0);
     }
   }
+
+  create_shutdown_thread();
+  start_handle_manager();
+
+  /*
+    init_slave() must be called after the thread keys are created.
+    Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
+    places) assume that active_mi != 0, so let's fail if it's 0 (out of
+    memory); a message has already been printed.
+  */
+  if (init_slave() && !active_mi)
+  {
+    unireg_abort(1);
+  }
+
   if (opt_init_file && *opt_init_file)
   {
     if (read_init_file(opt_init_file))
       unireg_abort(1);
   }
-
-  /*
-    We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is hold while sql_plugin.c::intern_sys_var_ptr() is called.
-  */
-  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
-
-  create_shutdown_thread();
-  start_handle_manager();
 
   sql_print_information(ER_DEFAULT(ER_STARTUP),my_progname,server_version,
                         ((mysql_socket_getfd(unix_sock) == INVALID_SOCKET) ?
@@ -6337,7 +6357,7 @@ struct my_option my_long_options[]=
   {"language", 'L',
    "Client error messages in given language. May be given as a full path. "
    "Deprecated. Use --lc-messages-dir instead.",
-   &lc_messages_dir_ptr, &lc_messages_dir_ptr, 0,
+   0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"lc-messages", 0,
    "Set the language used for the error messages.",
@@ -6486,7 +6506,7 @@ struct my_option my_long_options[]=
    "will not do updates to tables in databases that start with foo and whose "
    "table names start with bar.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"safe-mode", OPT_SAFE, "Skip some optimize stages (for testing).",
+  {"safe-mode", OPT_SAFE, "Skip some optimize stages (for testing). Deprecated.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"safe-user-create", 0,
    "Don't allow new user creation by the user who has no write privileges to the mysql.user table.",
@@ -6634,63 +6654,53 @@ static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
 
 static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
   var->type= SHOW_MY_BOOL;
-  mysql_mutex_lock(&LOCK_active_mi);
   var->value= buff;
-  *((my_bool *)buff)= (my_bool) (active_mi && 
-                                 active_mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
-                                 active_mi->rli.slave_running);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  return 0;
-}
-
-static int show_slave_retried_trans(THD *thd, SHOW_VAR *var, char *buff)
-{
-  /*
-    TODO: with multimaster, have one such counter per line in
-    SHOW SLAVE STATUS, and have the sum over all lines here.
-  */
   mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_LONG;
-    var->value= buff;
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    *((long *)buff)= (long)active_mi->rli.retried_trans;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
-  }
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    *((my_bool *)buff)= (my_bool) (mi->slave_running ==
+                                   MYSQL_SLAVE_RUN_CONNECT &&
+                                   mi->rli.slave_running);
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
+
 
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_LONGLONG;
-    var->value= buff;
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    *((longlong *)buff)= active_mi->received_heartbeats;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
-  }
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    *((longlong *)buff)= mi->received_heartbeats;
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
+
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
+  Master_info *mi;
+  var->type= SHOW_CHAR;
+  var->value= buff;
   mysql_mutex_lock(&LOCK_active_mi);
-  if (active_mi)
-  {
-    var->type= SHOW_CHAR;
-    var->value= buff;
-    sprintf(buff, "%.3f", active_mi->heartbeat_period);
-  }
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+  if (mi)
+    sprintf(buff, "%.3f", mi->heartbeat_period);
   else
     var->type= SHOW_UNDEF;
   mysql_mutex_unlock(&LOCK_active_mi);
@@ -7155,7 +7165,7 @@ SHOW_VAR status_vars[]= {
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
   {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
-  {"Compression",              (char*) &show_net_compression, SHOW_FUNC},
+  {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &thread_id,              SHOW_LONG_NOFLUSH},
   {"Cpu_time",                 (char*) offsetof(STATUS_VAR, cpu_time), SHOW_DOUBLE_STATUS},
   {"Created_tmp_disk_tables",  (char*) offsetof(STATUS_VAR, created_tmp_disk_tables_), SHOW_LONG_STATUS},
@@ -7165,6 +7175,16 @@ SHOW_VAR status_vars[]= {
   {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
   {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
+  {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
+  {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
+  {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
+  {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
+  {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
+  {"Feature_locale",           (char*) offsetof(STATUS_VAR, feature_locale), SHOW_LONG_STATUS},
+  {"Feature_subquery",         (char*) offsetof(STATUS_VAR, feature_subquery), SHOW_LONG_STATUS},
+  {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
+  {"Feature_trigger",         (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
+  {"Feature_xml",             (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
   {"Flush_commands",           (char*) &refresh_version,        SHOW_LONG_NOFLUSH},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
@@ -7199,12 +7219,13 @@ SHOW_VAR status_vars[]= {
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
-  {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_FUNC},
-  {"Open_tables",              (char*) &show_open_tables,       SHOW_FUNC},
+  {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_SIMPLE_FUNC},
+  {"Open_tables",              (char*) &show_open_tables,       SHOW_SIMPLE_FUNC},
   {"Opened_files",             (char*) &my_file_total_opened, SHOW_LONG_NOFLUSH},
-  {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_table_definitions", (char*) offsetof(STATUS_VAR, opened_shares), SHOW_LONG_STATUS},
-  {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_FUNC},
+  {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
+  {"Opened_views",            (char*) offsetof(STATUS_VAR, opened_views), SHOW_LONG_STATUS},
+  {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_SIMPLE_FUNC},
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
   {"Rows_read",                (char*) offsetof(STATUS_VAR, rows_read), SHOW_LONGLONG_STATUS},
   {"Rows_tmp_read",            (char*) offsetof(STATUS_VAR, rows_tmp_read), SHOW_LONGLONG_STATUS},
@@ -7218,10 +7239,10 @@ SHOW_VAR status_vars[]= {
   {"Qcache_queries_in_cache",  (char*) &query_cache.queries_in_cache, SHOW_LONG_NOFLUSH},
   {"Qcache_total_blocks",      (char*) &query_cache.total_blocks, SHOW_LONG_NOFLUSH},
 #endif /*HAVE_QUERY_CACHE*/
-  {"Queries",                  (char*) &show_queries,            SHOW_FUNC},
+  {"Queries",                  (char*) &show_queries,            SHOW_SIMPLE_FUNC},
   {"Questions",                (char*) offsetof(STATUS_VAR, questions), SHOW_LONG_STATUS},
 #ifdef HAVE_REPLICATION
-  {"Rpl_status",               (char*) &show_rpl_status,          SHOW_FUNC},
+  {"Rpl_status",               (char*) &show_rpl_status,          SHOW_SIMPLE_FUNC},
 #endif
   {"Select_full_join",         (char*) offsetof(STATUS_VAR, select_full_join_count_), SHOW_LONG_STATUS},
   {"Select_full_range_join",   (char*) offsetof(STATUS_VAR, select_full_range_join_count_), SHOW_LONG_STATUS},
@@ -7230,10 +7251,10 @@ SHOW_VAR status_vars[]= {
   {"Select_scan",	       (char*) offsetof(STATUS_VAR, select_scan_count_), SHOW_LONG_STATUS},
   {"Slave_open_temp_tables",   (char*) &slave_open_temp_tables, SHOW_LONG},
 #ifdef HAVE_REPLICATION
-  {"Slave_retried_transactions",(char*) &show_slave_retried_trans, SHOW_FUNC},
-  {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_FUNC},
-  {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_FUNC},
-  {"Slave_running",            (char*) &show_slave_running,     SHOW_FUNC},
+  {"Slave_retried_transactions",(char*)&slave_retried_transactions, SHOW_LONG},
+  {"Slave_heartbeat_period",   (char*) &show_heartbeat_period, SHOW_SIMPLE_FUNC},
+  {"Slave_received_heartbeats",(char*) &show_slave_received_heartbeats, SHOW_SIMPLE_FUNC},
+  {"Slave_running",            (char*) &show_slave_running,     SHOW_SIMPLE_FUNC},
 #endif
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},
@@ -7243,33 +7264,31 @@ SHOW_VAR status_vars[]= {
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
-  {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_FUNC},
-  {"Ssl_accepts",              (char*) &show_ssl_ctx_sess_accept, SHOW_FUNC},
-  {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_FUNC},
-  {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_FUNC},
-  {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_FUNC},
-  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_FUNC},
-  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_FUNC},
-  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_FUNC},
-  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_FUNC},
-  {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_FUNC},
-  {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_FUNC},
-  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_FUNC},
-  {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_FUNC},
-  {"Ssl_session_cache_misses", (char*) &show_ssl_ctx_sess_misses, SHOW_FUNC},
-  {"Ssl_session_cache_mode",   (char*) &show_ssl_ctx_get_session_cache_mode, SHOW_FUNC},
-  {"Ssl_session_cache_overflows", (char*) &show_ssl_ctx_sess_cache_full, SHOW_FUNC},
-  {"Ssl_session_cache_size",   (char*) &show_ssl_ctx_sess_get_cache_size, SHOW_FUNC},
-  {"Ssl_session_cache_timeouts", (char*) &show_ssl_ctx_sess_timeouts, SHOW_FUNC},
-  {"Ssl_sessions_reused",      (char*) &show_ssl_session_reused, SHOW_FUNC},
-  {"Ssl_used_session_cache_entries",(char*) &show_ssl_ctx_sess_number, SHOW_FUNC},
-  {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_FUNC},
-  {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_FUNC},
-  {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_FUNC},
-  {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before,
-    SHOW_FUNC},
-  {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after,
-    SHOW_FUNC},
+  {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_SIMPLE_FUNC},
+  {"Ssl_accepts",              (char*) &show_ssl_ctx_sess_accept, SHOW_SIMPLE_FUNC},
+  {"Ssl_callback_cache_hits",  (char*) &show_ssl_ctx_sess_cb_hits, SHOW_SIMPLE_FUNC},
+  {"Ssl_cipher",               (char*) &show_ssl_get_cipher, SHOW_SIMPLE_FUNC},
+  {"Ssl_cipher_list",          (char*) &show_ssl_get_cipher_list, SHOW_SIMPLE_FUNC},
+  {"Ssl_client_connects",      (char*) &show_ssl_ctx_sess_connect, SHOW_SIMPLE_FUNC},
+  {"Ssl_connect_renegotiates", (char*) &show_ssl_ctx_sess_connect_renegotiate, SHOW_SIMPLE_FUNC},
+  {"Ssl_ctx_verify_depth",     (char*) &show_ssl_ctx_get_verify_depth, SHOW_SIMPLE_FUNC},
+  {"Ssl_ctx_verify_mode",      (char*) &show_ssl_ctx_get_verify_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_default_timeout",      (char*) &show_ssl_get_default_timeout, SHOW_SIMPLE_FUNC},
+  {"Ssl_finished_accepts",     (char*) &show_ssl_ctx_sess_accept_good, SHOW_SIMPLE_FUNC},
+  {"Ssl_finished_connects",    (char*) &show_ssl_ctx_sess_connect_good, SHOW_SIMPLE_FUNC},
+  {"Ssl_server_not_after",     (char*) &show_ssl_get_server_not_after, SHOW_SIMPLE_FUNC},
+  {"Ssl_server_not_before",    (char*) &show_ssl_get_server_not_before, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_hits",   (char*) &show_ssl_ctx_sess_hits, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_misses", (char*) &show_ssl_ctx_sess_misses, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_mode",   (char*) &show_ssl_ctx_get_session_cache_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_overflows", (char*) &show_ssl_ctx_sess_cache_full, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_size",   (char*) &show_ssl_ctx_sess_get_cache_size, SHOW_SIMPLE_FUNC},
+  {"Ssl_session_cache_timeouts", (char*) &show_ssl_ctx_sess_timeouts, SHOW_SIMPLE_FUNC},
+  {"Ssl_sessions_reused",      (char*) &show_ssl_session_reused, SHOW_SIMPLE_FUNC},
+  {"Ssl_used_session_cache_entries",(char*) &show_ssl_ctx_sess_number, SHOW_SIMPLE_FUNC},
+  {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
+  {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},
+  {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
@@ -7287,16 +7306,16 @@ SHOW_VAR status_vars[]= {
   {"Tc_log_page_waits",        (char*) &tc_log_page_waits,      SHOW_LONG},
 #endif
 #ifdef HAVE_POOL_OF_THREADS
-  {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_FUNC},
+  {"Threadpool_idle_threads",  (char *) &show_threadpool_idle_threads, SHOW_SIMPLE_FUNC},
   {"Threadpool_threads",       (char *) &tp_stats.num_worker_threads, SHOW_INT},
 #endif
   {"Threads_cached",           (char*) &cached_thread_count,    SHOW_LONG_NOFLUSH},
   {"Threads_connected",        (char*) &connection_count,       SHOW_INT},
   {"Threads_created",	       (char*) &thread_created,		SHOW_LONG_NOFLUSH},
   {"Threads_running",          (char*) &thread_running,         SHOW_INT},
-  {"Uptime",                   (char*) &show_starttime,         SHOW_FUNC},
+  {"Uptime",                   (char*) &show_starttime,         SHOW_SIMPLE_FUNC},
 #ifdef ENABLED_PROFILING
-  {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_FUNC},
+  {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}
 };
@@ -7440,7 +7459,7 @@ static int mysql_init_variables(void)
   myisam_test_invalid_symlink= test_if_data_home_dir;
 #endif
   opt_log= opt_slow_log= 0;
-  opt_bin_log= 0;
+  opt_bin_log= opt_bin_log_used= 0;
   opt_disable_networking= opt_skip_show_db=0;
   opt_skip_name_resolve= 0;
   opt_ignore_builtin_innodb= 0;
@@ -7492,10 +7511,11 @@ static int mysql_init_variables(void)
   mysql_home_ptr= mysql_home;
   pidfile_name_ptr= pidfile_name;
   log_error_file_ptr= log_error_file;
-  lc_messages_dir_ptr= lc_messages_dir;
   protocol_version= PROTOCOL_VERSION;
   what_to_log= ~ (1L << (uint) COM_TIME);
   refresh_version= 1L;	/* Increments on each reload */
+  denied_connections= 0;
+  executed_events= 0;
   global_query_id= thread_id= 1L;
   my_atomic_rwlock_init(&global_query_id_lock);
   my_atomic_rwlock_init(&thread_running_lock);
@@ -7522,6 +7542,7 @@ static int mysql_init_variables(void)
     relay_log_info_file= (char*) "relay-log.info";
   report_user= report_password = report_host= 0;	/* TO BE DELETED */
   opt_relay_logname= opt_relaylog_index_name= 0;
+  slave_retried_transactions= 0;
 
   /* Variables in libraries */
   charsets_dir= 0;
@@ -7681,7 +7702,6 @@ mysqld_get_one_option(int optid,
     break;
   case 'L':
     strmake(lc_messages_dir, argument, sizeof(lc_messages_dir)-1);
-    lc_messages_dir_ptr= lc_messages_dir;
     break;
   case OPT_BINLOG_FORMAT:
     binlog_format_used= true;
@@ -7710,6 +7730,7 @@ mysqld_get_one_option(int optid,
     break;
   case (int) OPT_BIN_LOG:
     opt_bin_log= test(argument != disabled_my_option);
+    opt_bin_log_used= 1;
     break;
   case (int) OPT_LOG_BASENAME:
   {
@@ -7841,6 +7862,8 @@ mysqld_get_one_option(int optid,
 #ifdef HAVE_QUERY_CACHE
     query_cache_size=0;
 #endif
+    sql_print_warning("The syntax '--safe-mode' is deprecated and will be "
+                      "removed in a future release.");
     break;
   case (int) OPT_SKIP_PRIOR:
     opt_specialflag|= SPECIAL_NO_PRIOR;
@@ -8280,8 +8303,30 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (!max_long_data_size_used)
     max_long_data_size= global_system_variables.max_allowed_packet;
 
-  /* Rember if max_user_connections was 0 at startup */
+  /* Remember if max_user_connections was 0 at startup */
   max_user_connections_checking= global_system_variables.max_user_connections != 0;
+
+  {
+    sys_var *max_relay_log_size_var, *max_binlog_size_var;
+    /* If max_relay_log_size is 0, then set it to max_binlog_size */
+    if (!global_system_variables.max_relay_log_size)
+      global_system_variables.max_relay_log_size= max_binlog_size;
+
+    /*
+      Fix so that DEFAULT and limit checking works with max_relay_log_size
+      (Yes, this is a hack, but it's required as the definition of
+      max_relay_log_size allows it to be set to 0).
+    */
+    max_relay_log_size_var= intern_find_sys_var("max_relay_log_size", 0);
+    max_binlog_size_var= intern_find_sys_var("max_binlog_size", 0);
+    if (max_binlog_size_var && max_relay_log_size_var)
+    {
+      max_relay_log_size_var->option.min_value=
+        max_binlog_size_var->option.min_value; 
+      max_relay_log_size_var->option.def_value=
+        max_binlog_size_var->option.def_value;
+    }
+  }
   return 0;
 }
 
@@ -8687,6 +8732,7 @@ PSI_stage_info stage_sending_binlog_event_to_slave= { 0, "Sending binlog event t
 PSI_stage_info stage_sending_cached_result_to_client= { 0, "sending cached result to client", 0};
 PSI_stage_info stage_sending_data= { 0, "Sending data", 0};
 PSI_stage_info stage_setup= { 0, "setup", 0};
+PSI_stage_info stage_show_explain= { 0, "show explain", 0};
 PSI_stage_info stage_slave_has_read_all_relay_log= { 0, "Slave has read all relay log; waiting for the slave I/O thread to update it", 0};
 PSI_stage_info stage_sorting= { 0, "Sorting", 0};
 PSI_stage_info stage_sorting_for_group= { 0, "Sorting for group", 0};
@@ -8795,6 +8841,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_sending_data,
   & stage_setup,
   & stage_slave_has_read_all_relay_log,
+  & stage_show_explain,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,

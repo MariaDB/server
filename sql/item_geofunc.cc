@@ -135,6 +135,7 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
     return 0;
 
   str->length(0);
+  str->set_charset(&my_charset_latin1);
   if ((null_value= geom->as_wkt(str, &dummy)))
     return 0;
 
@@ -182,7 +183,7 @@ String *Item_func_geometry_type::val_str_ascii(String *str)
   /* String will not move */
   str->copy(geom->get_class_info()->m_name.str,
 	    geom->get_class_info()->m_name.length,
-	    default_charset());
+            &my_charset_latin1);
   return str;
 }
 
@@ -1694,7 +1695,8 @@ count_distance:
     for (dist_point= collector.get_first(); dist_point; dist_point= dist_point->get_next())
     {
       /* We only check vertices of object 2 */
-      if (dist_point->shape < obj2_si)
+      if (dist_point->type != Gcalc_heap::nt_shape_node ||
+          dist_point->shape < obj2_si)
         continue;
 
       /* if we have an edge to check */

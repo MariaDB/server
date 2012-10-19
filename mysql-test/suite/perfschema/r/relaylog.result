@@ -56,10 +56,10 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::update_cond"
   order by event_name;
 EVENT_NAME	COUNT_STAR
-wait/synch/cond/sql/MYSQL_BIN_LOG::COND_prep_xids	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_xid_list	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_prep_xids	NONE
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect no slave relay log"
 select * from performance_schema.file_summary_by_instance
 where event_name like "%relaylog%" order by file_name;
@@ -131,10 +131,10 @@ where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::update_cond"
   order by event_name;
 EVENT_NAME	COUNT_STAR
-wait/synch/cond/sql/MYSQL_BIN_LOG::COND_prep_xids	NONE
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy	NONE
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_xid_list	NONE
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index	MANY
-wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_prep_xids	NONE
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list	MANY
 "Expect a slave relay log"
 select
 substring(file_name, locate("slave-", file_name)) as FILE_NAME,

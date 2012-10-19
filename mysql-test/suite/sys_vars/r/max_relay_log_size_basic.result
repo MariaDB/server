@@ -1,7 +1,7 @@
 SET @start_value = @@global.max_relay_log_size;
 SELECT @start_value;
 @start_value
-0
+1073741824
 '#--------------------FN_DYNVARS_082_01------------------------#'
 SET @@global.max_relay_log_size = 5000;
 Warnings:
@@ -9,7 +9,7 @@ Warning	1292	Truncated incorrect max_relay_log_size value: '5000'
 SET @@global.max_relay_log_size = DEFAULT;
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+1073741824
 '#---------------------FN_DYNVARS_082_02-------------------------#'
 SET @@global.max_relay_log_size = @start_value;
 SELECT @@global.max_relay_log_size = 1024;
@@ -17,15 +17,17 @@ SELECT @@global.max_relay_log_size = 1024;
 0
 '#--------------------FN_DYNVARS_082_03------------------------#'
 SET @@global.max_relay_log_size = 0;
+Warnings:
+Warning	1292	Truncated incorrect max_relay_log_size value: '0'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 SET @@global.max_relay_log_size = 1;
 Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '1'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 SET @@global.max_relay_log_size = 1073741824;
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
@@ -48,7 +50,7 @@ Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '-1'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 SET @@global.max_relay_log_size = 100000000000;
 Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '100000000000'
@@ -65,7 +67,7 @@ Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '-1024'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 SET @@global.max_relay_log_size = 1073741825;
 Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '1073741825'
@@ -90,9 +92,9 @@ SELECT @@global.max_relay_log_size;
 1073741824
 '#-------------------FN_DYNVARS_082_05----------------------------#'
 SET @@session.max_relay_log_size = 4096;
-ERROR HY000: Variable 'max_relay_log_size' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT @@session.max_relay_log_size;
-ERROR HY000: Variable 'max_relay_log_size' is a GLOBAL variable
+@@session.max_relay_log_size
+4096
 '#----------------------FN_DYNVARS_082_06------------------------#'
 SELECT @@global.max_relay_log_size = VARIABLE_VALUE 
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
@@ -110,11 +112,13 @@ Warnings:
 Warning	1292	Truncated incorrect max_relay_log_size value: '1'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 SET @@global.max_relay_log_size = FALSE;
+Warnings:
+Warning	1292	Truncated incorrect max_relay_log_size value: '0'
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+4096
 '#---------------------FN_DYNVARS_082_08----------------------#'
 SET @@global.max_relay_log_size = 5000;
 Warnings:
@@ -124,7 +128,8 @@ SELECT @@max_relay_log_size = @@global.max_relay_log_size;
 1
 '#---------------------FN_DYNVARS_082_09----------------------#'
 SET max_relay_log_size = 6000;
-ERROR HY000: Variable 'max_relay_log_size' is a GLOBAL variable and should be set with SET GLOBAL
+Warnings:
+Warning	1292	Truncated incorrect max_relay_log_size value: '6000'
 SELECT @@max_relay_log_size;
 @@max_relay_log_size
 4096
@@ -141,4 +146,4 @@ ERROR 42S22: Unknown column 'max_relay_log_size' in 'field list'
 SET @@global.max_relay_log_size = @start_value;
 SELECT @@global.max_relay_log_size;
 @@global.max_relay_log_size
-0
+1073741824

@@ -18,7 +18,7 @@ a
 1
 2
 3
-SHOW BINLOG EVENTS LIMIT 1,9;
+SHOW BINLOG EVENTS LIMIT 2,9;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Query	1	#	BEGIN
 master-bin.000001	#	Query	1	#	use `test`; INSERT INTO t1 VALUES (1)

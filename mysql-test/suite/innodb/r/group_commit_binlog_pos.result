@@ -1,3 +1,4 @@
+SET GLOBAL innodb_flush_log_at_trx_commit=3;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t1 VALUES (0);
 SET DEBUG_SYNC= "commit_after_get_LOCK_log SIGNAL con1_waiting WAIT_FOR con3_queued";
@@ -30,6 +31,6 @@ a
 1
 2
 3
-InnoDB: Last MySQL binlog file position 0 906, file name ./master-bin.000001
+InnoDB: Last MySQL binlog file position 0 947, file name ./master-bin.000001
 SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;

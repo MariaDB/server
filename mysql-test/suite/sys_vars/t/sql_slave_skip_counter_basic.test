@@ -22,6 +22,11 @@
 #  server-system-variables.html                                               #
 #                                                                             #
 ###############################################################################
+#                                                                             #
+# Modification date: 2012-09-30                                               #
+# With implementation of MDEV-253, the variable scope can be session          #
+#                                                                             #
+###############################################################################
 
 --source include/not_embedded.inc
 --source include/load_sysvars.inc
@@ -88,11 +93,8 @@ WHERE VARIABLE_NAME='sql_slave_skip_counter';
 #         Checking if variable is accessible with session scope   #
 ###################################################################
 
---Error ER_GLOBAL_VARIABLE
 SET @@sql_slave_skip_counter = 10;
---Error ER_GLOBAL_VARIABLE
 SET @@session.sql_slave_skip_counter = 12;
---Error ER_GLOBAL_VARIABLE
 SET @@local.sql_slave_skip_counter = 13;
 
 SET @@global.sql_slave_skip_counter = 0;

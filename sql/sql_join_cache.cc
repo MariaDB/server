@@ -2236,7 +2236,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   
   while (!(error= join_tab_scan->next()))   
   {
-    if (join->thd->killed)
+    if (join->thd->check_killed())
     {
       /* The user has aborted the execution of the query */
       join->thd->send_kill_message();
@@ -2506,7 +2506,7 @@ enum_nested_loop_state JOIN_CACHE::join_null_complements(bool skip_last)
 
   for ( ; cnt; cnt--)
   {
-    if (join->thd->killed)
+    if (join->thd->check_killed())
     {
       /* The user has aborted the execution of the query */
       join->thd->send_kill_message();
@@ -3356,7 +3356,7 @@ int JOIN_TAB_SCAN::next()
     update_virtual_fields(thd, table);
   while (!err && select && (skip_rc= select->skip_record(thd)) <= 0)
   {
-    if (thd->killed || skip_rc < 0) 
+    if (thd->check_killed() || skip_rc < 0) 
       return 1;
     /* 
       Move to the next record if the last retrieved record does not
@@ -3876,8 +3876,9 @@ int JOIN_TAB_SCAN_MRR::next()
       If a record in in an incremental cache contains no fields then the
       association for the last record in cache will be equal to cache->end_pos
     */ 
-    DBUG_ASSERT(cache->buff <= (uchar *) (*ptr) &&
-                (uchar *) (*ptr) <= cache->end_pos);
+    DBUG_ASSERT((!(mrr_mode & HA_MRR_NO_ASSOCIATION))? 
+                (cache->buff <= (uchar *) (*ptr) &&
+                  (uchar *) (*ptr) <= cache->end_pos): TRUE);
     if (join_tab->table->vfield)
       update_virtual_fields(join->thd, join_tab->table);
   }
@@ -4543,7 +4544,7 @@ bool JOIN_CACHE_BKAH::prepare_look_for_matches(bool skip_last)
 {
   last_matching_rec_ref_ptr= next_matching_rec_ref_ptr= 0;
   if (no_association &&
-      (curr_matching_chain= get_matching_chain_by_join_key()))
+      !(curr_matching_chain= get_matching_chain_by_join_key()))
     return 1;
   last_matching_rec_ref_ptr= get_next_rec_ref(curr_matching_chain);
   return 0;

@@ -1096,7 +1096,6 @@ CPackSourceConfig.cmake
 Docs/INFO_BIN
 Docs/INFO_SRC
 tags
-sql/.empty
 Testing
 info_macros.cmake
 VERSION.dep
@@ -1136,6 +1135,7 @@ plugin/handler_socket/perl-Net-HandlerSocket/Makefile.PL
 libmysqld/libmysqld_exports_file.cc
 libmysqld/gcalc_slicescan.cc
 libmysqld/gcalc_tools.cc
+libmysqld/my_apc.cc
 sql/share/errmsg.sys
 sql/share/mysql
 install_manifest.txt

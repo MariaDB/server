@@ -17,6 +17,19 @@
 # Test that we get the correct position when we group commit several
 # transactions together.
 
+# What we really want to test here is what happens when a group of
+# transactions get written only partially to disk inside InnoDB before
+# the crash. But that is hard to test in mysql-test-run automated
+# tests. Instead, we use debug_sync to tightly control when each
+# transaction is written to the redo log. And we set
+# innodb_flush_log_at_trx_commit=3 so that we can write out
+# transactions individually - as with
+# innodb_flush_log_at_trx_commit=1, all commits are written together,
+# as part of a commit_checkpoint.
+# (Note that we do not have to restore innodb_flush_log_at_trx_commit, as
+# we crash the server).
+SET GLOBAL innodb_flush_log_at_trx_commit=3;
+
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=innodb;
 INSERT INTO t1 VALUES (0);
 

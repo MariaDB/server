@@ -23,7 +23,7 @@
 #include <mysql.h>
 #include <sql_common.h>
 
-#define ADMIN_VERSION "9.0"
+#define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
 #define MAX_TRUNC_LENGTH 3
@@ -97,6 +97,7 @@ enum commands {
   ADMIN_FLUSH_HOSTS,      ADMIN_FLUSH_TABLES,    ADMIN_PASSWORD,
   ADMIN_PING,             ADMIN_EXTENDED_STATUS, ADMIN_FLUSH_STATUS,
   ADMIN_FLUSH_PRIVILEGES, ADMIN_START_SLAVE,     ADMIN_STOP_SLAVE,
+  ADMIN_START_ALL_SLAVES, ADMIN_STOP_ALL_SLAVES,
   ADMIN_FLUSH_THREADS,    ADMIN_OLD_PASSWORD,    ADMIN_FLUSH_SLOW_LOG,
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
@@ -110,6 +111,7 @@ static const char *command_names[]= {
   "flush-hosts",          "flush-tables",        "password",
   "ping",                 "extended-status",     "flush-status",
   "flush-privileges",     "start-slave",         "stop-slave",
+  "start-all-slaves", "stop-all-slaves",
   "flush-threads", "old-password", "flush-slow-log",
   "flush-table-statistics", "flush-index-statistics",
   "flush-user-statistics", "flush-client-statistics",
@@ -1117,26 +1119,67 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     }
 
     case ADMIN_START_SLAVE:
-      if (mysql_query(mysql, "START SLAVE"))
+    case ADMIN_START_ALL_SLAVES:
+    {
+      my_bool many_slaves= 0;
+      const char *query= "START SLAVE";
+      if (command == ADMIN_START_ALL_SLAVES && mariadb_connection(mysql) &&
+          mysql_get_server_version(mysql) >= 100000)
+      {
+        query="START ALL SLAVES";
+        many_slaves= 1;
+      }
+
+      if (mysql_query(mysql, query))
       {
 	my_printf_error(0, "Error starting slave: %s", error_flags,
 			mysql_error(mysql));
 	return -1;
       }
+      else if (!many_slaves || mysql_warning_count(mysql) > 0)
+      {
+        if (!option_silent)
+          puts("Slave('s) started");
+      }
       else
-	puts("Slave started");
+      {
+        if (!option_silent)
+          puts("No slaves to start");
+      }
       break;
+    }
     case ADMIN_STOP_SLAVE:
-      if (mysql_query(mysql, "STOP SLAVE"))
+    case ADMIN_STOP_ALL_SLAVES:
+    {
+      const char *query= "STOP SLAVE";
+      my_bool many_slaves= 0;
+
+      if (command == ADMIN_STOP_ALL_SLAVES && mariadb_connection(mysql) &&
+          mysql_get_server_version(mysql) >= 100000)
+      {
+        query="STOP ALL SLAVES";
+        many_slaves= 1;
+      }
+
+      if (mysql_query(mysql, query))
       {
 	  my_printf_error(0, "Error stopping slave: %s", error_flags,
 			  mysql_error(mysql));
 	  return -1;
       }
+      else if (!many_slaves || mysql_warning_count(mysql) > 0)
+      {
+        /* We can't detect if there was any slaves to stop with STOP SLAVE */
+        if (many_slaves && !option_silent)
+          puts("Slave('s) stopped");
+      }
       else
-	puts("Slave stopped");
+      {
+        if (!option_silent)
+          puts("All slaves was already stopped");
+      }
       break;
-
+    }
     case ADMIN_PING:
       mysql->reconnect=0;	/* We want to know of reconnects */
       if (!mysql_ping(mysql))

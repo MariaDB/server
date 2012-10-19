@@ -797,6 +797,7 @@ void
 dict_table_x_unlock_indexes(
 /*========================*/
 	dict_table_t*	table);	/*!< in: table */
+#endif /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Checks if a column is in the ordering columns of the clustered index of a
 table. Column prefixes are treated like whole columns.
@@ -908,7 +909,7 @@ dict_index_remove_from_cache(
 /*=========================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	dict_index_t*	index);	/*!< in, own: index */
-#endif /* !UNIV_HOTBACKUP */
+
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
@@ -1427,7 +1428,7 @@ UNIV_INTERN
 void
 dict_close(void);
 /*============*/
-
+#ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Check whether the table is corrupted.
 @return	nonzero for corrupted table, zero for valid tables */
@@ -1448,6 +1449,7 @@ dict_index_is_corrupted(
 	const dict_index_t*	index)	/*!< in: index */
 	__attribute__((nonnull, pure, warn_unused_result));
 
+#endif /* !UNIV_HOTBACKUP */
 /**********************************************************************//**
 Flags an index and table corrupted both in the data dictionary cache
 and in the system table SYS_INDEXES. */

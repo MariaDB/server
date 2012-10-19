@@ -44,6 +44,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
            ../sql/field.cc ../sql/field_conv.cc
+           ../sql/filesort_utils.cc
            ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
@@ -96,6 +97,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/create_options.cc ../sql/rpl_utility.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
+           ../sql/my_apc.cc ../sql/my_apc.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

@@ -1113,17 +1113,15 @@ update_timing_fields_for_event(THD *thd,
   TABLE *table= NULL;
   Field **fields;
   int ret= 1;
-  bool save_binlog_row_based;
+  enum_binlog_format save_binlog_format;
   MYSQL_TIME time;
-
   DBUG_ENTER("Event_db_repository::update_timing_fields_for_event");
 
   /*
     Turn off row binlogging of event timing updates. These are not used
     for RBR of events replicated to the slave.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   DBUG_ASSERT(thd->security_ctx->master_access & SUPER_ACL);
 
@@ -1158,10 +1156,7 @@ end:
   if (table)
     close_mysql_tables(thd);
 
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
+  thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(test(ret));
 }

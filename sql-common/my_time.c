@@ -104,6 +104,103 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
   return FALSE;
 }
 
+static int get_number(uint *val, uint *number_of_fields, const char **str,
+                      const char *end)
+{
+  const char *s = *str;
+
+  if (s >= end)
+    return 0;
+
+  if (!my_isdigit(&my_charset_latin1, *s))
+    return 1;
+  *val= *s++ - '0';
+
+  for (; s < end && my_isdigit(&my_charset_latin1, *s); s++)
+    *val= *val * 10 + *s - '0';
+  *str = s;
+  (*number_of_fields)++;
+  return 0;
+}
+
+static int get_digits(uint *val, uint *number_of_fields, const char **str,
+                      const char *end, uint length)
+{
+  return get_number(val, number_of_fields, str, min(end, *str + length));
+}
+
+static int get_punct(const char **str, const char *end)
+{
+  if (*str >= end)
+    return 0;
+  if (my_ispunct(&my_charset_latin1, **str))
+  {
+    (*str)++;
+    return 0;
+  }
+  return 1;
+}
+
+static int get_date_time_separator(uint *number_of_fields, ulonglong flags,
+                                   const char **str, const char *end)
+{
+  const char *s= *str;
+  if (s >= end)
+    return 0;
+
+  if (*s == 'T')
+  {
+    (*str)++;
+    return 0;
+  }
+
+  /*
+    now, this is tricky, for backward compatibility reasons.
+    cast("11:11:11.12.12.12" as datetime) should give 2011-11-11 12:12:12
+    but
+    cast("11:11:11.12.12.12" as time) should give 11:11:11.12
+    that is, a punctuation character can be accepted as a date/time separator
+    only if TIME_DATETIME_ONLY (see str_to_time) is not set.
+  */
+  if (my_ispunct(&my_charset_latin1, *s))
+  {
+    if (flags & TIME_DATETIME_ONLY)
+    {
+      /* see above, returning 1 is not enough, we need hard abort here */
+      *number_of_fields= 0;
+      return 1;
+    }
+
+    (*str)++;
+    return 0;
+  }
+
+  if (!my_isspace(&my_charset_latin1, *s))
+    return 1;
+
+  do
+  {
+    s++;
+  } while (my_isspace(&my_charset_latin1, *s));
+  *str= s;
+  return 0;
+}
+
+static int get_maybe_T(const char **str, const char *end)
+{
+  if (*str < end && **str == 'T')
+    (*str)++;
+  return 0;
+}
+
+static uint skip_digits(const char **str, const char *end)
+{
+  const char *start= *str, *s= *str;
+  while (s < end && my_isdigit(&my_charset_latin1, *s))
+    s++;
+  *str= s;
+  return s - start;
+}
 
 /*
   Convert a timestamp string to a MYSQL_TIME value.
@@ -132,24 +229,9 @@ my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
 
     The second part may have an optional .###### fraction part.
 
-  NOTES
-   This function should work with a format position vector as long as the
-   following things holds:
-   - All date are kept together and all time parts are kept together
-   - Date and time parts must be separated by blank
-   - Second fractions must come after second part and be separated
-     by a '.'.  (The second fractions are optional)
-   - AM/PM must come after second fractions (or after seconds if no fractions)
-   - Year must always been specified.
-   - If time is before date, then we will use datetime format only if
-     the argument consist of two parts, separated by space.
-     Otherwise we will assume the argument is a date.
-   - The hour part must be specified in hour-minute-second order.
-
   RETURN VALUES
     MYSQL_TIMESTAMP_NONE        String wasn't a timestamp, like
                                 [DD [HH:[MM:[SS]]]].fraction.
-                                l_time is not changed.
     MYSQL_TIMESTAMP_DATE        DATE string (YY MM and DD parts ok)
     MYSQL_TIMESTAMP_DATETIME    Full timestamp
     MYSQL_TIMESTAMP_ERROR       Timestamp with wrong values.
@@ -162,18 +244,10 @@ enum enum_mysql_timestamp_type
 str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
                 ulonglong flags, int *was_cut)
 {
-  uint UNINIT_VAR(field_length), UNINIT_VAR(year_length), digits, i, number_of_fields;
-  uint date[MAX_DATE_PARTS], date_len[MAX_DATE_PARTS];
-  uint add_hours= 0, start_loop;
-  ulong not_zero_date, allow_space;
-  my_bool is_internal_format;
-  const char *pos, *UNINIT_VAR(last_field_pos);
-  const char *end=str+length;
-  const uchar *format_position;
-  my_bool found_delimitier= 0, found_space= 0;
-  uint frac_pos, frac_len;
+  const char *end=str+length, *pos;
+  uint number_of_fields= 0, digits, year_length, not_zero_date;
   DBUG_ENTER("str_to_datetime");
-  DBUG_PRINT("enter",("str: %.*s",length,str));
+  bzero(l_time, sizeof(*l_time));
 
   if (flags & TIME_TIME_ONLY)
   {
@@ -181,7 +255,6 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     ret= str_to_time(str, length, l_time, flags, was_cut);
     DBUG_RETURN(ret);
   }
-
   *was_cut= 0;
 
   /* Skip space at start */
@@ -193,254 +266,93 @@ str_to_datetime(const char *str, uint length, MYSQL_TIME *l_time,
     DBUG_RETURN(MYSQL_TIMESTAMP_NONE);
   }
 
-  is_internal_format= 0;
-  /* This has to be changed if want to activate different timestamp formats */
-  format_position= internal_format_positions;
-
   /*
     Calculate number of digits in first part.
     If length= 8 or >= 14 then year is of format YYYY.
     (YYYY-MM-DD,  YYYYMMDD, YYYYYMMDDHHMMSS)
   */
-  for (pos=str;
-       pos != end && (my_isdigit(&my_charset_latin1,*pos) || *pos == 'T');
-       pos++)
-    ;
+  pos= str;
+  digits= skip_digits(&pos, end);
 
-  digits= (uint) (pos-str);
-  start_loop= 0;                                /* Start of scan loop */
-  date_len[format_position[0]]= 0;              /* Length of year field */
-  if (pos == end || *pos == '.')
+  if (pos < end && *pos == 'T') /* YYYYYMMDDHHMMSSThhmmss is supported too */
   {
-    /* Found date in internal format (only numbers like YYYYMMDD) */
+    pos++;
+    digits+= skip_digits(&pos, end);
+  }
+  if (pos < end && *pos == '.' && digits >= 12) /* YYYYYMMDDHHMMSShhmmss.uuuuuu is supported too */
+  {
+    pos++;
+    skip_digits(&pos, end); // ignore the return value
+  }
+
+  if (pos == end)
+  {
+    /*
+      Found date in internal format
+      (only numbers like [YY]YYMMDD[T][hhmmss[.uuuuuu]])
+    */
     year_length= (digits == 4 || digits == 8 || digits >= 14) ? 4 : 2;
-    field_length= year_length;
-    is_internal_format= 1;
-    format_position= internal_format_positions;
+    *was_cut= get_digits(&l_time->year, &number_of_fields, &str, end, year_length) 
+           || get_digits(&l_time->month, &number_of_fields, &str, end, 2)
+           || get_digits(&l_time->day, &number_of_fields, &str, end, 2)
+           || get_maybe_T(&str, end)
+           || get_digits(&l_time->hour, &number_of_fields, &str, end, 2)
+           || get_digits(&l_time->minute, &number_of_fields, &str, end, 2)
+           || get_digits(&l_time->second, &number_of_fields, &str, end, 2);
   }
   else
-  {
-    if (format_position[0] >= 3)                /* If year is after HHMMDD */
-    {
-      /*
-        If year is not in first part then we have to determinate if we got
-        a date field or a datetime field.
-        We do this by checking if there is two numbers separated by
-        space in the input.
-      */
-      while (pos < end && !my_isspace(&my_charset_latin1, *pos))
-        pos++;
-      while (pos < end && !my_isdigit(&my_charset_latin1, *pos))
-        pos++;
-      if (pos == end)
-      {
-        if (flags & TIME_DATETIME_ONLY)
-        {
-          *was_cut= 1;
-          DBUG_RETURN(MYSQL_TIMESTAMP_NONE);   /* Can't be a full datetime */
-        }
-        /* Date field.  Set hour, minutes and seconds to 0 */
-        date[0]= date[1]= date[2]= date[3]= date[4]= 0;
-        start_loop= 5;                         /* Start with first date part */
-      }
-    }
-
-    field_length= format_position[0] == 0 ? 4 : 2;
-  }
-
-  /*
-    Only allow space in the first "part" of the datetime field and:
-    - after days, part seconds
-    - before and after AM/PM (handled by code later)
-
-    2003-03-03 20:00:20 AM
-    20:00:20.000000 AM 03-03-2000
-  */
-  i= max((uint) format_position[0], (uint) format_position[1]);
-  set_if_bigger(i, (uint) format_position[2]);
-  allow_space= ((1 << i) | (1 << format_position[6]));
-  allow_space&= (1 | 2 | 4 | 8);
-
-  not_zero_date= 0;
-  for (i = start_loop;
-       i < MAX_DATE_PARTS-1 && str != end &&
-         my_isdigit(&my_charset_latin1,*str);
-       i++)
   {
     const char *start= str;
-    ulong tmp_value= (uint) (uchar) (*str++ - '0');
+    *was_cut = get_number(&l_time->year, &number_of_fields, &str, end);
+    year_length= str - start;
 
-    /*
-      Internal format means no delimiters; every field has a fixed
-      width. Otherwise, we scan until we find a delimiter and discard
-      leading zeroes -- except for the microsecond part, where leading
-      zeroes are significant, and where we never process more than six
-      digits.
-    */
-    my_bool     scan_until_delim= !is_internal_format &&
-                                  ((i != format_position[6]));
-
-    while (str != end && my_isdigit(&my_charset_latin1,str[0]) &&
-           (scan_until_delim || --field_length))
-    {
-      tmp_value=tmp_value*10 + (ulong) (uchar) (*str - '0');
-      str++;
-    }
-    date_len[i]= (uint) (str - start);
-    if (tmp_value > 999999)                     /* Impossible date part */
-    {
-      *was_cut= 1;
-      DBUG_RETURN(MYSQL_TIMESTAMP_NONE);
-    }
-    date[i]=tmp_value;
-    not_zero_date|= tmp_value;
-
-    /* Length of next field */
-    field_length= format_position[i+1] == 0 ? 4 : 2;
-
-    if ((last_field_pos= str) == end)
-    {
-      i++;                                      /* Register last found part */
-      break;
-    }
-    /* Allow a 'T' after day to allow CCYYMMDDT type of fields */
-    if (i == format_position[2] && *str == 'T')
-    {
-      str++;                                    /* ISO8601:  CCYYMMDDThhmmss */
-      continue;
-    }
-    if (i == format_position[5])                /* Seconds */
-    {
-      if (*str == '.')                          /* Followed by part seconds */
-      {
-        str++;
-        field_length= 6;                        /* 6 digits */
-      }
-      continue;
-    }
-    while (str != end &&
-           (my_ispunct(&my_charset_latin1,*str) ||
-            my_isspace(&my_charset_latin1,*str)))
-    {
-      if (my_isspace(&my_charset_latin1,*str))
-      {
-        if (!(allow_space & (1 << i)))
-        {
-          *was_cut= 1;
-          DBUG_RETURN(MYSQL_TIMESTAMP_NONE);
-        }
-        found_space= 1;
-      }
-      str++;
-      found_delimitier= 1;                      /* Should be a 'normal' date */
-    }
-    /* Check if next position is AM/PM */
-    if (i == format_position[6])                /* Seconds, time for AM/PM */
-    {
-      i++;                                      /* Skip AM/PM part */
-      if (format_position[7] != 255)            /* If using AM/PM */
-      {
-        if (str+2 <= end && (str[1] == 'M' || str[1] == 'm'))
-        {
-          if (str[0] == 'p' || str[0] == 'P')
-            add_hours= 12;
-          else if (str[0] != 'a' && str[0] != 'A')
-            continue;                           /* Not AM/PM */
-          str+= 2;                              /* Skip AM/PM */
-          /* Skip space after AM/PM */
-          while (str != end && my_isspace(&my_charset_latin1,*str))
-            str++;
-        }
-      }
-    }
-    last_field_pos= str;
+    if (!*was_cut)
+      *was_cut= get_punct(&str, end)
+             || get_number(&l_time->month, &number_of_fields, &str, end)
+             || get_punct(&str, end)
+             || get_number(&l_time->day, &number_of_fields, &str, end)
+             || get_date_time_separator(&number_of_fields, flags, &str, end)
+             || get_number(&l_time->hour, &number_of_fields, &str, end)
+             || get_punct(&str, end)
+             || get_number(&l_time->minute, &number_of_fields, &str, end)
+             || get_punct(&str, end)
+             || get_number(&l_time->second, &number_of_fields, &str, end);
   }
-  if (found_delimitier && !found_space && (flags & TIME_DATETIME_ONLY))
-  {
+
+  if (number_of_fields < 3)
     *was_cut= 1;
-    DBUG_RETURN(MYSQL_TIMESTAMP_NONE);          /* Can't be a datetime */
-  }
 
-  str= last_field_pos;
+  /* we're ok if date part is correct. even if the rest is truncated */
+  if (*was_cut && number_of_fields < 3)
+    DBUG_RETURN(MYSQL_TIMESTAMP_NONE);
 
-  number_of_fields= i - start_loop;
-  while (i < MAX_DATE_PARTS)
+  if (!*was_cut && str < end && *str == '.')
   {
-    date_len[i]= 0;
-    date[i++]= 0;
-  }
-
-  if (!is_internal_format)
-  {
-    year_length= date_len[(uint) format_position[0]];
-    if (!year_length)                           /* Year must be specified */
-    {
+    uint second_part;
+    const char *start= ++str;
+    *was_cut= get_digits(&second_part, &number_of_fields, &str, end, 6);
+    if (str - start < 6)
+      second_part*= log_10_int[6 - (str - start)];
+    l_time->second_part= second_part;
+    if (skip_digits(&str, end))
       *was_cut= 1;
-      DBUG_RETURN(MYSQL_TIMESTAMP_NONE);
-    }
-
-    l_time->year=               date[(uint) format_position[0]];
-    l_time->month=              date[(uint) format_position[1]];
-    l_time->day=                date[(uint) format_position[2]];
-    l_time->hour=               date[(uint) format_position[3]];
-    l_time->minute=             date[(uint) format_position[4]];
-    l_time->second=             date[(uint) format_position[5]];
-
-    frac_pos= (uint) format_position[6];
-    frac_len= date_len[frac_pos];
-    if (frac_len < 6)
-      date[frac_pos]*= (uint) log_10_int[6 - frac_len];
-    l_time->second_part= date[frac_pos];
-
-    if (format_position[7] != (uchar) 255)
-    {
-      if (l_time->hour > 12)
-      {
-        *was_cut= 1;
-        goto err;
-      }
-      l_time->hour= l_time->hour%12 + add_hours;
-    }
   }
-  else
-  {
-    l_time->year=       date[0];
-    l_time->month=      date[1];
-    l_time->day=        date[2];
-    l_time->hour=       date[3];
-    l_time->minute=     date[4];
-    l_time->second=     date[5];
-    if (date_len[6] < 6)
-      date[6]*= (uint) log_10_int[6 - date_len[6]];
-    l_time->second_part=date[6];
-  }
-  l_time->neg= 0;
+
+  not_zero_date = l_time->year || l_time->month || l_time->day ||
+                  l_time->hour || l_time->minute || l_time->second ||
+                  l_time->second_part;
 
   if (year_length == 2 && not_zero_date)
     l_time->year+= (l_time->year < YY_PART_YEAR ? 2000 : 1900);
 
-  if (number_of_fields < 3 ||
-      l_time->year > 9999 || l_time->month > 12 ||
-      l_time->day > 31 || l_time->hour > 23 ||
-      l_time->minute > 59 || l_time->second > 59)
+  if (l_time->year > 9999 || l_time->month > 12 || l_time->day > 31 ||
+      l_time->hour > 23 || l_time->minute > 59 || l_time->second > 59)
   {
-    /* Only give warning for a zero date if there is some garbage after */
-    if (!not_zero_date)                         /* If zero date */
-    {
-      for (; str != end ; str++)
-      {
-        if (!my_isspace(&my_charset_latin1, *str))
-        {
-          not_zero_date= 1;                     /* Give warning */
-          break;
-        }
-      }
-    }
-    *was_cut= test(not_zero_date);
+    *was_cut= 1;
     goto err;
   }
 
-  if (check_date(l_time, not_zero_date != 0, flags, was_cut))
+  if (check_date(l_time, not_zero_date, flags, was_cut))
     goto err;
 
   l_time->time_type= (number_of_fields <= 3 ?
@@ -495,16 +407,15 @@ str_to_time(const char *str, uint length, MYSQL_TIME *l_time,
   ulong date[5];
   ulonglong value;
   const char *end=str+length, *end_of_days;
-  my_bool found_days,found_hours;
-  uint state;
+  my_bool found_days,found_hours, neg= 0;
+  uint UNINIT_VAR(state);
 
-  l_time->neg=0;
   *warning= 0;
   for (; str != end && my_isspace(&my_charset_latin1,*str) ; str++)
     length--;
   if (str != end && *str == '-')
   {
-    l_time->neg=1;
+    neg=1;
     str++;
     length--;
   }
@@ -527,6 +438,7 @@ str_to_time(const char *str, uint length, MYSQL_TIME *l_time,
     }
   }
 
+  l_time->neg= neg;
   /* Not a timestamp. Try to get this as a DAYS_TO_SECOND string */
   for (value=0; str != end && my_isdigit(&my_charset_latin1,*str) ; str++)
     value=value*10L + (long) (*str - '0');
@@ -536,7 +448,6 @@ str_to_time(const char *str, uint length, MYSQL_TIME *l_time,
   for (; str != end && my_isspace(&my_charset_latin1, str[0]) ; str++)
     ;
 
-  LINT_INIT(state);
   found_days=found_hours=0;
   if ((uint) (end-str) > 1 && str != end_of_days &&
       my_isdigit(&my_charset_latin1, *str))

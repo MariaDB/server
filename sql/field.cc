@@ -5675,7 +5675,7 @@ bool Field_newdate::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   if (!tmp)
     return fuzzydate & TIME_NO_ZERO_DATE;
   if (!ltime->month || !ltime->day)
-    return !(fuzzydate & TIME_FUZZY_DATE);
+    return fuzzydate & TIME_NO_ZERO_IN_DATE;
   return 0;
 }
 
@@ -9393,9 +9393,12 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 
 #ifdef HAVE_SPATIAL
     if (f_is_geom(pack_flag))
+    {
+      status_var_increment(current_thd->status_var.feature_gis);
       return new Field_geom(ptr,null_pos,null_bit,
 			    unireg_check, field_name, share,
 			    pack_length, geom_type);
+    }
 #endif
     if (f_is_blob(pack_flag))
       return new Field_blob(ptr,null_pos,null_bit,
@@ -9565,6 +9568,17 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
     geom_type= ((Field_geom*)old_field)->geom_type;
     break;
 #endif
+  case MYSQL_TYPE_YEAR:
+    if (length != 4)
+    {
+      char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
+      my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
+      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                          ER_WARN_DEPRECATED_SYNTAX,
+                          ER(ER_WARN_DEPRECATED_SYNTAX),
+                          buff, "YEAR(4)");
+    }
+    break;
   default:
     break;
   }

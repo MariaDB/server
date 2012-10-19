@@ -35,9 +35,6 @@ VARIABLE_VALUE
 1024
 '#--------------------FN_DYNVARS_165_03-------------------------#'
 SET @@sql_slave_skip_counter = 10;
-ERROR HY000: Variable 'sql_slave_skip_counter' is a GLOBAL variable and should be set with SET GLOBAL
 SET @@session.sql_slave_skip_counter = 12;
-ERROR HY000: Variable 'sql_slave_skip_counter' is a GLOBAL variable and should be set with SET GLOBAL
 SET @@local.sql_slave_skip_counter = 13;
-ERROR HY000: Variable 'sql_slave_skip_counter' is a GLOBAL variable and should be set with SET GLOBAL
 SET @@global.sql_slave_skip_counter = 0;

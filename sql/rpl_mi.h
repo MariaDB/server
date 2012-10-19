@@ -59,16 +59,23 @@ typedef struct st_mysql MYSQL;
 class Master_info : public Slave_reporting_capability
 {
  public:
-  Master_info(bool is_slave_recovery);
+  Master_info(LEX_STRING *connection_name, bool is_slave_recovery);
   ~Master_info();
   bool shall_ignore_server_id(ulong s_id);
   void clear_in_memory_info(bool all);
+  bool error()
+  {
+    /* If malloc() in initialization failed */
+    return connection_name.str == 0;
+  }
 
   /* the variables below are needed because we can change masters on the fly */
-  char master_log_name[FN_REFLEN];
+  char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH+1];
   char user[USERNAME_LENGTH+1];
   char password[MAX_PASSWORD_LENGTH+1];
+  LEX_STRING connection_name;  		/* User supplied connection name */
+  LEX_STRING cmp_connection_name;	/* Connection name in lower case */
   bool ssl; // enables use of SSL connection if true
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
@@ -130,6 +137,49 @@ int flush_master_info(Master_info* mi,
                       bool flush_relay_log_cache, 
                       bool need_lock_relay_log);
 int change_master_server_id_cmp(ulong *id1, ulong *id2);
+
+/*
+  Multi master are handled trough this struct.
+  Changes to this needs to be protected by LOCK_active_mi;
+*/
+
+class Master_info_index
+{
+private:
+  IO_CACHE index_file;
+  char index_file_name[FN_REFLEN];
+
+public:
+  Master_info_index();
+  ~Master_info_index();
+
+  HASH master_info_hash;
+
+  bool init_all_master_info();
+  bool write_master_name_to_index_file(LEX_STRING *connection_name,
+                                       bool do_sync);
+
+  bool check_duplicate_master_info(LEX_STRING *connection_name,
+                                   const char *host, uint port);
+  bool add_master_info(Master_info *mi, bool write_to_file);
+  bool remove_master_info(LEX_STRING *connection_name);
+  Master_info *get_master_info(LEX_STRING *connection_name,
+                               MYSQL_ERROR::enum_warning_level warning);
+  bool give_error_if_slave_running();
+  bool start_all_slaves(THD *thd);
+  bool stop_all_slaves(THD *thd);
+};
+
+bool check_master_connection_name(LEX_STRING *name);
+void create_logfile_name_with_suffix(char *res_file_name, uint length,
+                             const char *info_file, 
+                             bool append,
+                             LEX_STRING *suffix);
+
+uchar *get_key_master_info(Master_info *mi, size_t *length,
+                           my_bool not_used __attribute__((unused)));
+void free_key_master_info(Master_info *mi);
+
 
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */
