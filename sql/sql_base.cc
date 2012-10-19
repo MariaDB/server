@@ -70,7 +70,7 @@ No_such_table_error_handler::handle_condition(THD *,
                                               MYSQL_ERROR ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (sql_errno == ER_NO_SUCH_TABLE)
+  if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE)
   {
     m_handled_errors++;
     return TRUE;
@@ -144,7 +144,9 @@ Repair_mrg_table_error_handler::handle_condition(THD *,
                                                  MYSQL_ERROR ** cond_hdl)
 {
   *cond_hdl= NULL;
-  if (sql_errno == ER_NO_SUCH_TABLE || sql_errno == ER_WRONG_MRG_TABLE)
+  if (sql_errno == ER_NO_SUCH_TABLE ||
+      sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
+      sql_errno == ER_WRONG_MRG_TABLE)
   {
     m_handled_errors= true;
     return TRUE;
@@ -394,6 +396,7 @@ bool table_def_init(void)
 
 void table_def_start_shutdown(void)
 {
+  DBUG_ENTER("table_def_start_shutdown");
   if (table_def_inited)
   {
     mysql_mutex_lock(&LOCK_open);
@@ -408,6 +411,7 @@ void table_def_start_shutdown(void)
     /* Free all cached but unused TABLEs and TABLE_SHAREs. */
     close_cached_tables(NULL, NULL, FALSE, LONG_TIMEOUT);
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -725,7 +729,9 @@ get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
 
     @todo Rework alternative ways to deal with ER_NO_SUCH TABLE.
   */
-  if (share || (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE))
+  if (share ||
+      (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE &&
+       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE))
     DBUG_RETURN(share);
 
   *error= 0;
@@ -1089,6 +1095,9 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
   }
 
   mysql_mutex_unlock(&LOCK_open);
+
+  DBUG_PRINT("info", ("open table definitions: %d",
+                      (int) table_def_cache.records));
 
   if (!wait_for_refresh)
     DBUG_RETURN(result);
@@ -3928,36 +3937,24 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
     entry->file->implicit_emptied= 0;
     if (mysql_bin_log.is_open())
     {
-      char *query, *end;
-      uint query_buf_size= 20 + share->db.length + share->table_name.length +1;
-      if ((query= (char*) my_malloc(query_buf_size,MYF(MY_WME))))
-      {
-        /* this DELETE FROM is needed even with row-based binlogging */
-        end = strxmov(strmov(query, "DELETE FROM `"),
-                      share->db.str,"`.`",share->table_name.str,"`", NullS);
-        int errcode= query_error_code(thd, TRUE);
-        if (thd->binlog_query(THD::STMT_QUERY_TYPE,
-                              query, (ulong)(end-query),
-                              FALSE, FALSE, FALSE, errcode))
-        {
-          my_free(query);
-          return TRUE;
-        }
-        my_free(query);
-      }
-      else
-      {
-        /*
-          As replication is maybe going to be corrupted, we need to warn the
-          DBA on top of warning the client (which will automatically be done
-          because of MYF(MY_WME) in my_malloc() above).
-        */
-        sql_print_error("When opening HEAP table, could not allocate memory "
-                        "to write 'DELETE FROM `%s`.`%s`' to the binary log",
-                        share->db.str, share->table_name.str);
-        delete entry->triggers;
+      char query_buf[2*FN_REFLEN + 21];
+      String query(query_buf, sizeof(query_buf), system_charset_info);
+
+      query.length(0);
+      query.append("DELETE FROM ");
+      append_identifier(thd, &query, share->db.str, share->db.length);
+      query.append(".");
+      append_identifier(thd, &query, share->table_name.str,
+                          share->table_name.length);
+
+      /*
+        we bypass thd->binlog_query() here,
+        as it does a lot of extra work, that is simply wrong in this case
+      */
+      Query_log_event qinfo(thd, query.ptr(), query.length(),
+                            FALSE, TRUE, TRUE, 0);
+      if (mysql_bin_log.write(&qinfo))
         return TRUE;
-      }
     }
   }
   return FALSE;
@@ -9490,6 +9487,7 @@ open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
       if (mysql_make_view(thd, parser, table_desc,
                           (prgflag & OPEN_VIEW_NO_PARSE)))
         goto err;
+      status_var_increment(thd->status_var.opened_views);
     }
     else
     {

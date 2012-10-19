@@ -2134,6 +2134,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       Note that we don't need to have cases in this list if they are
       marked with CF_STATUS_COMMAND in sql_command_flags
     */
+  case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_DROP_TABLE:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_ALTER_TABLE:
@@ -2151,6 +2152,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_FLUSH:
   case SQLCOM_SLAVE_START:
   case SQLCOM_SLAVE_STOP:
+  case SQLCOM_SLAVE_ALL_START:
+  case SQLCOM_SLAVE_ALL_STOP:
   case SQLCOM_INSTALL_PLUGIN:
   case SQLCOM_UNINSTALL_PLUGIN:
   case SQLCOM_CREATE_DB:

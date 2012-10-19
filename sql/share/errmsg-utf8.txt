@@ -4271,18 +4271,18 @@ ER_TRANS_CACHE_FULL
         swe "Transaktionen krävde mera än 'max_binlog_cache_size' minne. Öka denna mysqld-variabel och försök på nytt"
         ukr "Транзакція з багатьма виразами вимагає більше ніж 'max_binlog_cache_size' байтів для зберігання. Збільште цю змінну mysqld та спробуйте знову"
 ER_SLAVE_MUST_STOP  
-        dan "Denne handling kunne ikke udføres med kørende slave, brug først kommandoen STOP SLAVE"
-        nla "Deze operatie kan niet worden uitgevoerd met een actieve slave, doe eerst STOP SLAVE"
-        eng "This operation cannot be performed with a running slave; run STOP SLAVE first"
-        fre "Cette opération ne peut être réalisée avec un esclave actif, faites STOP SLAVE d'abord"
-        ger "Diese Operation kann bei einem aktiven Slave nicht durchgeführt werden. Bitte zuerst STOP SLAVE ausführen"
-        ita "Questa operazione non puo' essere eseguita con un database 'slave' che gira, lanciare prima STOP SLAVE"
-        por "Esta operação não pode ser realizada com um 'slave' em execução. Execute STOP SLAVE primeiro"
-        rus "Эту операцию невозможно выполнить при работающем потоке подчиненного сервера. Сначала выполните STOP SLAVE"
-        serbian "Ova operacija ne može biti izvršena dok je aktivan podređeni server. Zadajte prvo komandu 'STOP SLAVE' da zaustavite podređeni server."
-        spa "Esta operación no puede ser hecha con el esclavo funcionando, primero use STOP SLAVE"
-        swe "Denna operation kan inte göras under replikering; Gör STOP SLAVE först"
-        ukr "Операція не може бути виконана з запущеним підлеглим, спочатку виконайте STOP SLAVE"
+        dan "Denne handling kunne ikke udføres med kørende slave '%2$*1$s', brug først kommandoen STOP SLAVE '%2$*1$s'"
+        nla "Deze operatie kan niet worden uitgevoerd met een actieve slave '%2$*1$s', doe eerst STOP SLAVE '%2$*1$s'"
+        eng "This operation cannot be performed as you have a running slave '%2$*1$s'; run STOP SLAVE '%2$*1$s' first"
+        fre "Cette opération ne peut être réalisée avec un esclave '%2$*1$s' actif, faites STOP SLAVE '%2$*1$s' d'abord"
+        ger "Diese Operation kann bei einem aktiven Slave '%2$*1$s' nicht durchgeführt werden. Bitte zuerst STOP SLAVE '%2$*1$s' ausführen"
+        ita "Questa operazione non puo' essere eseguita con un database 'slave' '%2$*1$s' che gira, lanciare prima STOP SLAVE '%2$*1$s'"
+        por "Esta operação não pode ser realizada com um 'slave' '%2$*1$s' em execução. Execute STOP SLAVE '%2$*1$s' primeiro"
+        rus "Эту операцию невозможно выполнить при работающем потоке подчиненного сервера %2$*1$s. Сначала выполните STOP SLAVE '%2$*1$s'"
+        serbian "Ova operacija ne može biti izvršena dok je aktivan podređeni '%2$*1$s' server. Zadajte prvo komandu 'STOP SLAVE '%2$*1$s'' da zaustavite podređeni server."
+        spa "Esta operación no puede ser hecha con el esclavo '%2$*1$s' funcionando, primero use STOP SLAVE '%2$*1$s'"
+        swe "Denna operation kan inte göras under replikering; Du har en aktiv förbindelse till '%2$*1$s'. Gör STOP SLAVE '%2$*1$s' först"
+        ukr "Операція не може бути виконана з запущеним підлеглим '%2$*1$s', спочатку виконайте STOP SLAVE '%2$*1$s'"
 ER_SLAVE_NOT_RUNNING  
         dan "Denne handling kræver en kørende slave. Konfigurer en slave og brug kommandoen START SLAVE"
         nla "Deze operatie vereist een actieve slave, configureer slave en doe dan START SLAVE"
@@ -4310,11 +4310,11 @@ ER_BAD_SLAVE
         swe "Servern är inte konfigurerade som en replikationsslav. Ändra konfigurationsfilen eller gör CHANGE MASTER TO"
         ukr "Сервер не зконфігуровано як підлеглий, виправте це у файлі конфігурації або з CHANGE MASTER TO"
 ER_MASTER_INFO  
-        eng "Could not initialize master info structure; more error messages can be found in the MariaDB error log"
-        fre "Impossible d'initialiser les structures d'information de maître, vous trouverez des messages d'erreur supplémentaires dans le journal des erreurs de MariaDB"
-        ger "Konnte Master-Info-Struktur nicht initialisieren. Weitere Fehlermeldungen können im MariaDB-Error-Log eingesehen werden"
-        serbian "Nisam mogao da inicijalizujem informacionu strukturu glavnog servera, proverite da li imam privilegije potrebne za pristup file-u 'master.info'"
-        swe "Kunde inte initialisera replikationsstrukturerna. See MariaDB fel fil för mera information"
+        eng "Could not initialize master info structure for '%.*s'; more error messages can be found in the MariaDB error log"
+        fre "Impossible d'initialiser les structures d'information de maître '%.*s', vous trouverez des messages d'erreur supplémentaires dans le journal des erreurs de MariaDB"
+        ger "Konnte Master-Info-Struktur '%.*s' nicht initialisieren. Weitere Fehlermeldungen können im MariaDB-Error-Log eingesehen werden"
+        serbian "Nisam mogao da inicijalizujem informacionu strukturu glavnog servera, proverite da li imam privilegije potrebne za pristup file-u 'master.info' '%.*s'"
+        swe "Kunde inte initialisera replikationsstrukturerna för '%.*s'. See MariaDB fel fil för mera information"
 ER_SLAVE_THREAD  
         dan "Kunne ikke danne en slave-tråd; check systemressourcerne"
         nla "Kon slave thread niet aanmaken, controleer systeem resources"
@@ -4345,13 +4345,13 @@ ER_TOO_MANY_USER_CONNECTIONS 42000
 ER_SET_CONSTANTS_ONLY  
         dan "Du må kun bruge konstantudtryk med SET"
         nla "U mag alleen constante expressies gebruiken bij SET"
-        eng "You may only use constant expressions with SET"
+        eng "You may only use constant expressions in this statement"
         est "Ainult konstantsed suurused on lubatud SET klauslis"
         fre "Seules les expressions constantes sont autorisées avec SET"
-        ger "Bei SET dürfen nur konstante Ausdrücke verwendet werden"
+        ger "Bei diesem Befehl dürfen nur konstante Ausdrücke verwendet werden"
         ita "Si possono usare solo espressioni costanti con SET"
         por "Você pode usar apenas expressões constantes com SET"
-        rus "Вы можете использовать в SET только константные выражения"
+        rus "С этой командой вы можете использовать только константные выражения"
         serbian "Možete upotrebiti samo konstantan iskaz sa komandom 'SET'"
         spa "Tu solo debes usar expresiones constantes con SET"
         swe "Man kan endast använda konstantuttryck med SET"
@@ -6157,8 +6157,8 @@ ER_DELAYED_NOT_SUPPORTED
   eng "DELAYED option not supported for table '%-.192s'"
   ger "Die DELAYED-Option wird für Tabelle '%-.192s' nicht unterstützt"
 WARN_NO_MASTER_INFO  
-  eng "The master info structure does not exist"
-  ger "Die Master-Info-Struktur existiert nicht"
+  eng "There is no master connection '%.*s'"
+  ger "Die Master-Info-Struktur existiert nicht '%.*s'"
 WARN_OPTION_IGNORED
   eng "<%-.64s> option ignored"
   ger "Option <%-.64s> ignoriert"
@@ -6807,3 +6807,18 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
         eng "Cannot modify @@session.skip_replication inside a stored function or trigger"
 ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
         eng "Query execution was interrupted. The query examined at least %llu rows, which exceeds LIMIT ROWS EXAMINED (%llu). The query result may be incomplete."
+ER_NO_SUCH_TABLE_IN_ENGINE 42S02 
+        eng "Table '%-.192s.%-.192s' doesn't exist in engine"
+        swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
+ER_TARGET_NOT_EXPLAINABLE
+        eng "Target is not running an EXPLAINable command"
+ER_CONNECTION_ALREADY_EXISTS
+        eng "Connection '%.*s' conflicts with existing connection '%.*s'"
+ER_MASTER_LOG_PREFIX
+        eng "Master '%.*s': "
+ER_CANT_START_STOP_SLAVE
+        eng "Can't %s SLAVE '%.*s'"
+ER_SLAVE_STARTED
+        eng "SLAVE '%.*s' started"
+ER_SLAVE_STOPPED
+        eng "SLAVE '%.*s' stopped"

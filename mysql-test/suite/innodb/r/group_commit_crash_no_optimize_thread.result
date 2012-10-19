@@ -36,7 +36,7 @@ COMMIT;
 Got one of the listed errors
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
-SHOW BINLOG EVENTS LIMIT 2,1;
+SHOW BINLOG EVENTS LIMIT 3,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 delete from t1;
 SET binlog_format= mixed;
@@ -58,7 +58,7 @@ a	b	c	d	7
 a	b	c	d	8
 a	b	c	d	9
 a	b	c	d	10
-SHOW BINLOG EVENTS LIMIT 2,1;
+SHOW BINLOG EVENTS LIMIT 3,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Query	1	#	use `test`; insert into t1 select * from t2
 delete from t1;
@@ -81,7 +81,7 @@ a	b	c	d	7
 a	b	c	d	8
 a	b	c	d	9
 a	b	c	d	10
-SHOW BINLOG EVENTS LIMIT 2,1;
+SHOW BINLOG EVENTS LIMIT 3,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Query	1	#	use `test`; insert into t1 select * from t2
 delete from t1;
@@ -104,7 +104,7 @@ a	b	c	d	7
 a	b	c	d	8
 a	b	c	d	9
 a	b	c	d	10
-SHOW BINLOG EVENTS LIMIT 2,1;
+SHOW BINLOG EVENTS LIMIT 3,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Query	1	#	use `test`; insert into t1 select * from t2
 delete from t1;
@@ -117,7 +117,7 @@ COMMIT;
 Got one of the listed errors
 SELECT * FROM t1 ORDER BY id;
 a	b	c	d	id
-SHOW BINLOG EVENTS LIMIT 2,1;
+SHOW BINLOG EVENTS LIMIT 3,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 delete from t1;
 DROP TABLE t1;

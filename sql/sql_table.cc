@@ -163,6 +163,13 @@ static char* add_identifier(THD* thd, char *to_p, const char * end_p,
   diagnostic, error etc. when it would be useful to know what a particular
   file [and directory] means. Such as SHOW ENGINE STATUS, error messages etc.
 
+  Examples:
+
+    t1#P#p1                 table t1 partition p1
+    t1#P#p1#SP#sp1          table t1 partition p1 subpartition sp1
+    t1#P#p1#SP#sp1#TMP#     table t1 partition p1 subpartition sp1 temporary
+    t1#P#p1#SP#sp1#REN#     table t1 partition p1 subpartition sp1 renamed
+
    @param      thd          Thread handle
    @param      from         Path name in my_charset_filename
                             Null terminated in my_charset_filename, normalized
@@ -201,7 +208,7 @@ uint explain_filename(THD* thd,
   int  part_name_len= 0;
   const char *subpart_name= NULL;
   int  subpart_name_len= 0;
-  enum enum_file_name_type {NORMAL, TEMP, RENAMED} name_type= NORMAL;
+  uint name_variant= NORMAL_PART_NAME;
   const char *tmp_p;
   DBUG_ENTER("explain_filename");
   DBUG_PRINT("enter", ("from '%s'", from));
@@ -244,7 +251,6 @@ uint explain_filename(THD* thd,
                (tmp_p[2] == 'L' || tmp_p[2] == 'l') &&
                 tmp_p[3] == '-')
       {
-        name_type= TEMP;
         tmp_p+= 4; /* sql- prefix found */
       }
       else
@@ -255,7 +261,7 @@ uint explain_filename(THD* thd,
       if ((tmp_p[1] == 'M' || tmp_p[1] == 'm') &&
           (tmp_p[2] == 'P' || tmp_p[2] == 'p') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_type= TEMP;
+        name_variant= TEMP_PART_NAME;
       else
         res= 3;
       tmp_p+= 4;
@@ -265,7 +271,7 @@ uint explain_filename(THD* thd,
       if ((tmp_p[1] == 'E' || tmp_p[1] == 'e') &&
           (tmp_p[2] == 'N' || tmp_p[2] == 'n') &&
           tmp_p[3] == '#' && !tmp_p[4])
-        name_type= RENAMED;
+        name_variant= RENAMED_PART_NAME;
       else
         res= 4;
       tmp_p+= 4;
@@ -290,7 +296,7 @@ uint explain_filename(THD* thd,
       subpart_name_len= strlen(subpart_name);
     else
       part_name_len= strlen(part_name);
-    if (name_type != NORMAL)
+    if (name_variant != NORMAL_PART_NAME)
     {
       if (subpart_name)
         subpart_name_len-= 5;
@@ -332,9 +338,9 @@ uint explain_filename(THD* thd,
       to_p= strnmov(to_p, " ", end_p - to_p);
     else
       to_p= strnmov(to_p, ", ", end_p - to_p);
-    if (name_type != NORMAL)
+    if (name_variant != NORMAL_PART_NAME)
     {
-      if (name_type == TEMP)
+      if (name_variant == TEMP_PART_NAME)
         to_p= strnmov(to_p, ER_THD_OR_DEFAULT(thd, ER_TEMPORARY_NAME),
                       end_p - to_p);
       else
@@ -1826,6 +1832,7 @@ int write_bin_log(THD *thd, bool clear_error,
   if (mysql_bin_log.is_open())
   {
     int errcode= 0;
+    thd_proc_info(thd, "Writing to binlog");
     if (clear_error)
       thd->clear_error();
     else
@@ -1833,6 +1840,7 @@ int write_bin_log(THD *thd, bool clear_error,
     error= thd->binlog_query(THD::STMT_QUERY_TYPE,
                              query, query_length, is_trans, FALSE, FALSE,
                              errcode);
+    thd_proc_info(thd, 0);
   }
   return error;
 }
@@ -1948,6 +1956,50 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
 
 
 /**
+  Find the comment in the query.
+  That's auxiliary function to be used handling DROP TABLE [comment].
+
+  @param  thd             Thread handler
+  @param  comment_pos     How many characters to skip before the comment.
+                          Can be either 9 for DROP TABLE or
+                          17 for DROP TABLE IF EXISTS
+  @param  comment_start   returns the beginning of the comment if found.
+
+  @retval  0  no comment found
+  @retval  >0 the lenght of the comment found
+
+*/
+static uint32 comment_length(THD *thd, uint32 comment_pos,
+                             const char **comment_start)
+{
+  /* We use uchar * here to make array indexing portable */
+  const uchar *query= (uchar*) thd->query();
+  const uchar *query_end= (uchar*) query + thd->query_length();
+  const uchar *const state_map= thd->charset()->state_map;
+
+  for (; query < query_end; query++)
+  {
+    if (state_map[static_cast<uchar>(*query)] == MY_LEX_SKIP)
+      continue;
+    if (comment_pos-- == 0)
+      break;
+  }
+  if (query > query_end - 3 /* comment can't be shorter than 4 */ ||
+      state_map[static_cast<uchar>(*query)] != MY_LEX_LONG_COMMENT || query[1] != '*')
+    return 0;
+  
+  *comment_start= (char*) query;
+  
+  for (query+= 3; query < query_end; query++)
+  {
+    if (query[-1] == '*' && query[0] == '/')
+      return (char*) query - *comment_start + 1;
+  }
+  return 0;
+}
+
+
+/**
   Execute the drop of a normal or temporary table.
 
   @param  thd             Thread handler
@@ -2022,11 +2074,20 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   {
     if (!drop_temporary)
     {
+      const char *comment_start;
+      uint32 comment_len;
+
       built_query.set_charset(system_charset_info);
       if (if_exists)
         built_query.append("DROP TABLE IF EXISTS ");
       else
         built_query.append("DROP TABLE ");
+
+      if ((comment_len= comment_length(thd, if_exists ? 17:9, &comment_start)))
+      {
+        built_query.append(comment_start, comment_len);
+        built_query.append(" ");
+      }
     }
 
     if (thd->is_current_stmt_binlog_format_row() || if_exists)
@@ -2049,6 +2110,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
   {
     bool is_trans;
     char *db=table->db;
+    size_t db_length= table->db_length;
     handlerton *table_type;
     enum legacy_db_type frm_db_type= DB_TYPE_UNKNOWN;
 
@@ -2110,14 +2172,14 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           Don't write the database name if it is the current one (or if
           thd->db is NULL).
         */
-        built_ptr_query->append("`");
         if (thd->db == NULL || strcmp(db,thd->db) != 0)
         {
-          built_ptr_query->append(db);
-          built_ptr_query->append("`.`");
+          append_identifier(thd, built_ptr_query, db, db_length);
+          built_ptr_query->append(".");
         }
-        built_ptr_query->append(table->table_name);
-        built_ptr_query->append("`,");
+        append_identifier(thd, built_ptr_query, table->table_name,
+                          table->table_name_length);
+        built_ptr_query->append(",");
       }
       /*
         This means that a temporary table was droped and as such there
@@ -2132,7 +2194,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 
       if (thd->locked_tables_mode)
       {
-        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_FORCE_REOPEN))
+        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED))
         {
           error= -1;
           goto err;
@@ -2173,15 +2235,15 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           Don't write the database name if it is the current one (or if
           thd->db is NULL).
         */
-        built_query.append("`");
         if (thd->db == NULL || strcmp(db,thd->db) != 0)
         {
-          built_query.append(db);
-          built_query.append("`.`");
+          append_identifier(thd, &built_query, db, db_length);
+          built_query.append(".");
         }
 
-        built_query.append(table->table_name);
-        built_query.append("`,");
+        append_identifier(thd, &built_query, table->table_name,
+                          table->table_name_length);
+        built_query.append(",");
       }
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
@@ -6062,8 +6124,26 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       }
       else
       {
+        MDL_request_list mdl_requests;
+        MDL_request target_db_mdl_request;
+
         target_mdl_request.init(MDL_key::TABLE, new_db, new_name,
                                 MDL_EXCLUSIVE, MDL_TRANSACTION);
+        mdl_requests.push_front(&target_mdl_request);
+
+        /*
+          If we are moving the table to a different database, we also
+          need IX lock on the database name so that the target database
+          is protected by MDL while the table is moved.
+        */
+        if (new_db != db)
+        {
+          target_db_mdl_request.init(MDL_key::SCHEMA, new_db, "",
+                                     MDL_INTENTION_EXCLUSIVE,
+                                     MDL_TRANSACTION);
+          mdl_requests.push_front(&target_db_mdl_request);
+        }
+
         /*
           Global intention exclusive lock must have been already acquired when
           table to be altered was open, so there is no need to do it here.
@@ -6072,14 +6152,10 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                                    "", "",
                                                    MDL_INTENTION_EXCLUSIVE));
 
-        if (thd->mdl_context.try_acquire_lock(&target_mdl_request))
+        if (thd->mdl_context.acquire_locks(&mdl_requests,
+                                           thd->variables.lock_wait_timeout))
           DBUG_RETURN(TRUE);
-        if (target_mdl_request.ticket == NULL)
-        {
-          /* Table exists and is locked by some thread. */
-	  my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias);
-	  DBUG_RETURN(TRUE);
-        }
+
         DEBUG_SYNC(thd, "locked_table_name");
         /*
           Table maybe does not exist, but we got an exclusive lock
@@ -6505,11 +6581,23 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       the primary key is not added and dropped in the same statement.
       Otherwise we have to recreate the table.
       need_copy_table is no-zero at this place.
+
+      Also, in-place is not possible if we add a primary key
+      and drop another key in the same statement. If the drop fails,
+      we will not be able to revert adding of primary key.
     */
     if ( pk_changed < 2 )
     {
-      if ((alter_flags & needed_inplace_with_read_flags) ==
-          needed_inplace_with_read_flags)
+      if ((needed_inplace_with_read_flags & HA_INPLACE_ADD_PK_INDEX_NO_WRITE) &&
+          index_drop_count > 0)
+      {
+        /*
+          Do copy, not in-place ALTER.
+          Avoid setting ALTER_TABLE_METADATA_ONLY.
+        */
+      }
+      else if ((alter_flags & needed_inplace_with_read_flags) ==
+               needed_inplace_with_read_flags)
       {
         /* All required in-place flags to allow concurrent reads are present. */
         need_copy_table= ALTER_TABLE_METADATA_ONLY;
@@ -6787,17 +6875,38 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         Tell the handler to prepare for drop indexes.
         This re-numbers the indexes to get rid of gaps.
       */
-      if ((error= table->file->prepare_drop_index(table, key_numbers,
-                                                  index_drop_count)))
+      error= table->file->prepare_drop_index(table, key_numbers,
+                                             index_drop_count);
+      if (!error)
       {
-        table->file->print_error(error, MYF(0));
-        goto err_new_table_cleanup;
+        /* Tell the handler to finally drop the indexes. */
+        error= table->file->final_drop_index(table);
       }
 
-      /* Tell the handler to finally drop the indexes. */
-      if ((error= table->file->final_drop_index(table)))
+      if (error)
       {
         table->file->print_error(error, MYF(0));
+        if (index_add_count) // Drop any new indexes added.
+        {
+          /*
+            Temporarily set table-key_info to include information about the
+            indexes added above that we now need to drop.
+          */
+          KEY *save_key_info= table->key_info;
+          table->key_info= key_info_buffer;
+          if ((error= table->file->prepare_drop_index(table, index_add_buffer,
+                                                      index_add_count)))
+            table->file->print_error(error, MYF(0));
+          else if ((error= table->file->final_drop_index(table)))
+            table->file->print_error(error, MYF(0));
+          table->key_info= save_key_info;
+        }
+
+        /*
+          Mark this TABLE instance as stale to avoid
+          out-of-sync index information.
+        */
+        table->m_needs_reopen= true;
         goto err_new_table_cleanup;
       }
     }
@@ -7159,7 +7268,7 @@ err_with_mdl:
 
 bool mysql_trans_prepare_alter_copy_data(THD *thd)
 {
-  DBUG_ENTER("mysql_prepare_alter_copy_data");
+  DBUG_ENTER("mysql_trans_prepare_alter_copy_data");
   /*
     Turn off recovery logging since rollback of an alter table is to
     delete the new table so there is no need to log the changes to it.
@@ -7179,7 +7288,7 @@ bool mysql_trans_prepare_alter_copy_data(THD *thd)
 bool mysql_trans_commit_alter_copy_data(THD *thd)
 {
   bool error= FALSE;
-  DBUG_ENTER("mysql_commit_alter_copy_data");
+  DBUG_ENTER("mysql_trans_commit_alter_copy_data");
 
   if (ha_enable_transaction(thd, TRUE))
     DBUG_RETURN(TRUE);
@@ -7219,6 +7328,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   List<Item>   fields;
   List<Item>   all_fields;
   ha_rows examined_rows;
+  ha_rows found_rows;
   bool auto_increment_field_copied= 0;
   ulonglong save_sql_mode= thd->variables.sql_mode;
   ulonglong prev_insert_id, time_to_report_progress;
@@ -7302,8 +7412,9 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                       &tables, fields, all_fields, order) ||
           !(sortorder= make_unireg_sortorder(order, &length, NULL)) ||
           (from->sort.found_records= filesort(thd, from, sortorder, length,
-                                              (SQL_SELECT *) 0, HA_POS_ERROR,
-                                              1, &examined_rows)) ==
+                                              NULL, HA_POS_ERROR,
+                                              true,
+                                              &examined_rows, &found_rows)) ==
           HA_POS_ERROR)
         goto err;
     }
@@ -7385,7 +7496,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                  (to->key_info[0].key_part[0].field->flags &
                   AUTO_INCREMENT_FLAG))
                err_msg= ER(ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-             to->file->print_keydup_error(key_nr, err_msg);
+             to->file->print_keydup_error(key_nr, err_msg, MYF(0));
              break;
            }
          }

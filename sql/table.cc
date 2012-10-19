@@ -4394,7 +4394,7 @@ bool TABLE_LIST::prep_check_option(THD *thd, uint8 check_opt_type)
   There are currently two mechanisms at work that handle errors for views,
   this one and a more general mechanism based on an Internal_error_handler,
   see Show_create_error_handler. The latter handles errors encountered during
-  execution of SHOW CREATE VIEW, while the machanism using this method is
+  execution of SHOW CREATE VIEW, while the mechanism using this method is
   handles SELECT from views. The two methods should not clash.
 
   @param[in,out]  thd     thread handler
@@ -4545,7 +4545,14 @@ bool TABLE_LIST::check_single_table(TABLE_LIST **table_arg,
        tbl;
        tbl= tbl->next_local)
   {
-    if (tbl->table)
+    /*
+      Merged view has also temporary table attached (in 5.2 if it has table
+      then it was real table), so we have filter such temporary tables out
+      by checking that it is not merged view
+    */
+    if (tbl->table &&
+        !(tbl->is_view() &&
+          tbl->is_merged_derived()))
     {
       if (tbl->table->map & map)
       {
@@ -4941,6 +4948,28 @@ void TABLE_LIST::set_check_materialized()
                 derived->first_select()->first_inner_unit()->first_select()->
                 exclude_from_table_unique_test);
   }
+}
+
+TABLE *TABLE_LIST::get_real_join_table()
+{
+  TABLE_LIST *tbl= this;
+  while (tbl->table == NULL || tbl->table->reginfo.join_tab == NULL)
+  {
+    if (tbl->view == NULL && tbl->derived == NULL)
+      break;
+    /* we do not support merging of union yet */
+    DBUG_ASSERT(tbl->view == NULL ||
+               tbl->view->select_lex.next_select() == NULL);
+    DBUG_ASSERT(tbl->derived == NULL ||
+               tbl->derived->first_select()->next_select() == NULL);
+
+    if (tbl->table)
+      table= tbl->table;
+    tbl= (tbl->view != NULL ?
+          tbl->view->select_lex.get_table_list() :
+          tbl->derived->first_select()->get_table_list());
+  }
+  return tbl->table;
 }
 
 

@@ -139,7 +139,7 @@ else
 # C warnings
   c_warnings="$warnings"
 # C++ warnings
-  cxx_warnings="$warnings -Wno-unused-parameter"
+  cxx_warnings="$warnings -Wno-unused-parameter -Wno-invalid-offsetof"
 # cxx_warnings="$cxx_warnings -Woverloaded-virtual -Wsign-promo"
   cxx_warnings="$cxx_warnings -Wnon-virtual-dtor"
   debug_extra_cflags="-O0 -g3 -gdwarf-2"

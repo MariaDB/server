@@ -660,6 +660,7 @@ public:
       break;
 
     case ER_NO_SUCH_TABLE:
+    case ER_NO_SUCH_TABLE_IN_ENGINE:
       /* Established behavior: warn if underlying tables are missing. */
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
@@ -992,9 +993,13 @@ static const char *require_quotes(const char *name, uint name_length)
   packet                target string
   name                  the identifier to be appended
   name_length           length of the appending identifier
+
+  RETURN VALUES
+    true                Error
+    false               Ok
 */
 
-void
+bool
 append_identifier(THD *thd, String *packet, const char *name, uint length)
 {
   const char *name_end;
@@ -1002,10 +1007,7 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
   int q= get_quote_char_for_identifier(thd, name, length);
 
   if (q == EOF)
-  {
-    packet->append(name, length, packet->charset());
-    return;
-  }
+    return packet->append(name, length, packet->charset());
 
   /*
     The identifier must be quoted as it includes a quote character or
@@ -1014,7 +1016,8 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
 
   (void) packet->reserve(length*2 + 2);
   quote_char= (char) q;
-  packet->append(&quote_char, 1, system_charset_info);
+  if (packet->append(&quote_char, 1, system_charset_info))
+    return true;
 
   for (name_end= name+length ; name < name_end ; name+= length)
   {
@@ -1029,11 +1032,13 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
     */
     if (!length)
       length= 1;
-    if (length == 1 && chr == (uchar) quote_char)
-      packet->append(&quote_char, 1, system_charset_info);
-    packet->append(name, length, system_charset_info);
+    if (length == 1 && chr == (uchar) quote_char &&
+        packet->append(&quote_char, 1, system_charset_info))
+      return true;
+    if (packet->append(name, length, system_charset_info))
+      return true;
   }
-  packet->append(&quote_char, 1, system_charset_info);
+  return packet->append(&quote_char, 1, system_charset_info);
 }
 
 
@@ -1998,6 +2003,166 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Produce EXPLAIN data.
+
+  This function is APC-scheduled to be run in the context of the thread that
+  we're producing EXPLAIN for.
+*/
+
+void Show_explain_request::call_in_target_thread()
+{
+  Query_arena backup_arena;
+  bool printed_anything= FALSE;
+
+  /* 
+    Change the arena because JOIN::print_explain and co. are going to allocate
+    items. Let them allocate them on our arena.
+  */
+  target_thd->set_n_backup_active_arena((Query_arena*)request_thd,
+                                        &backup_arena);
+
+  query_str.copy(target_thd->query(), 
+                 target_thd->query_length(),
+                 target_thd->query_charset());
+
+  if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
+                                          &printed_anything))
+  {
+    failed_to_produce= TRUE;
+  }
+
+  if (!printed_anything)
+    failed_to_produce= TRUE;
+
+  target_thd->restore_active_arena((Query_arena*)request_thd, &backup_arena);
+}
+
+
+int select_result_explain_buffer::send_data(List<Item> &items)
+{
+  fill_record(thd, dst_table->field, items, TRUE, FALSE);
+  if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
+    return 1;
+  return 0;
+}
+
+
+/*
+  Store the SHOW EXPLAIN output in the temporary table.
+*/
+
+int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
+{
+  const char *calling_user;
+  THD *tmp;
+  my_thread_id  thread_id;
+  DBUG_ENTER("fill_show_explain");
+
+  DBUG_ASSERT(cond==NULL);
+  thread_id= thd->lex->value_list.head()->val_int();
+  calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
+                 thd->security_ctx->priv_user;
+
+  if ((tmp= find_thread_by_id(thread_id)))
+  {
+    Security_context *tmp_sctx= tmp->security_ctx;
+    /*
+      If calling_user==NULL, calling thread has SUPER or PROCESS
+      privilege, and so can do SHOW EXPLAIN on any user.
+      
+      if calling_user!=NULL, he's only allowed to view SHOW EXPLAIN on
+      his own threads.
+    */
+    if (calling_user && (!tmp_sctx->user || strcmp(calling_user, 
+                                                   tmp_sctx->user)))
+    {
+      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "PROCESS");
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      DBUG_RETURN(1);
+    }
+
+    if (tmp == thd)
+    {
+      mysql_mutex_unlock(&tmp->LOCK_thd_data);
+      my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
+      DBUG_RETURN(1);
+    }
+
+    bool bres;
+    /* 
+      Ok we've found the thread of interest and it won't go away because 
+      we're holding its LOCK_thd data. Post it a SHOW EXPLAIN request.
+    */
+    bool timed_out;
+    int timeout_sec= 30;
+    Show_explain_request explain_req;
+    select_result_explain_buffer *explain_buf;
+    
+    explain_buf= new select_result_explain_buffer(thd, table->table);
+
+    explain_req.explain_buf= explain_buf;
+    explain_req.target_thd= tmp;
+    explain_req.request_thd= thd;
+    explain_req.failed_to_produce= FALSE;
+    
+    /* Ok, we have a lock on target->LOCK_thd_data, can call: */
+    bres= tmp->apc_target.make_apc_call(thd, &explain_req, timeout_sec, &timed_out);
+
+    if (bres || explain_req.failed_to_produce)
+    {
+      if (thd->killed)
+        thd->send_kill_message();
+      else if (timed_out)
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
+      else
+        my_error(ER_TARGET_NOT_EXPLAINABLE, MYF(0));
+
+      bres= TRUE;
+    }
+    else
+    {
+      /*
+        Push the query string as a warning. The query may be in a different
+        charset than the charset that's used for error messages, so, convert it
+        if needed.
+      */
+      CHARSET_INFO *fromcs= explain_req.query_str.charset();
+      CHARSET_INFO *tocs= error_message_charset_info;
+      char *warning_text;
+      if (!my_charset_same(fromcs, tocs))
+      {
+        uint conv_length= 1 + tocs->mbmaxlen * explain_req.query_str.length() / 
+                              fromcs->mbminlen;
+        uint dummy_errors;
+        char *to, *p;
+        if (!(to= (char*)thd->alloc(conv_length + 1)))
+          DBUG_RETURN(1);
+        p= to;
+        p+= copy_and_convert(to, conv_length, tocs,
+                             explain_req.query_str.c_ptr(), 
+                             explain_req.query_str.length(), fromcs,
+                             &dummy_errors);
+        *p= 0;
+        warning_text= to;
+      }
+      else
+        warning_text= explain_req.query_str.c_ptr_safe();
+
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                   ER_YES, warning_text);
+    }
+    DBUG_RETURN(bres);
+  }
+  else
+  {
+    my_error(ER_NO_SUCH_THREAD, MYF(0), thread_id);
+    DBUG_RETURN(1);
+  }
+}
+
+
 int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
 {
   TABLE *table= tables->table;
@@ -2330,6 +2495,7 @@ static bool show_status_array(THD *thd, const char *wild,
 
   for (; variables->name; variables++)
   {
+    bool wild_checked;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
     if (ucase_names)
@@ -2338,11 +2504,25 @@ static bool show_status_array(THD *thd, const char *wild,
     restore_record(table, s->default_values);
     table->field[0]->store(name_buffer, strlen(name_buffer),
                            system_charset_info);
+
     /*
-      if var->type is SHOW_FUNC, call the function.
-      Repeat as necessary, if new var is again SHOW_FUNC
+      Compare name for types that can't return arrays. We do this to not
+      calculate the value for function variables that we will not access
     */
-    for (var=variables; var->type == SHOW_FUNC; var= &tmp)
+    if ((variables->type != SHOW_FUNC && variables->type != SHOW_ARRAY))
+    {
+      if (wild && wild[0] && wild_case_compare(system_charset_info,
+                                               name_buffer, wild))
+        continue;
+      wild_checked= 1;                          // Avoid checking it again
+    }
+
+    /*
+      if var->type is SHOW_FUNC or SHOW_SIMPLE_FUNC, call the function.
+      Repeat as necessary, if new var is again one of the above
+    */
+    for (var=variables; var->type == SHOW_FUNC ||
+           var->type == SHOW_SIMPLE_FUNC; var= &tmp)
       ((mysql_show_var_func)(var->value))(thd, &tmp, buff);
 
     SHOW_TYPE show_type=var->type;
@@ -2353,8 +2533,9 @@ static bool show_status_array(THD *thd, const char *wild,
     }
     else
     {
-      if (!(wild && wild[0] && wild_case_compare(system_charset_info,
-                                                 name_buffer, wild)) &&
+      if ((wild_checked ||
+           (wild && wild[0] && wild_case_compare(system_charset_info,
+                                                 name_buffer, wild))) &&
           (!partial_cond || partial_cond->val_int()))
       {
         char *value=var->value;
@@ -3225,9 +3406,12 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
 
   /*
     If we have db lookup vaule we just add it to list and
-    exit from the function
+    exit from the function.
+    We don't do this for database names longer than the maximum
+    path length.
   */
-  if (lookup_field_vals->db_value.str)
+  if (lookup_field_vals->db_value.str && 
+      lookup_field_vals->db_value.length < FN_REFLEN)
   {
     if (is_infoschema_db(lookup_field_vals->db_value.str,
                          lookup_field_vals->db_value.length))
@@ -8309,6 +8493,32 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
+ST_FIELD_INFO show_explain_fields_info[]=
+{
+  /* field_name, length, type, value, field_flags, old_name*/
+  {"id", 3, MYSQL_TYPE_LONGLONG, 0 /*value*/, MY_I_S_MAYBE_NULL, "id", 
+    SKIP_OPEN_TABLE},
+  {"select_type", 19, MYSQL_TYPE_STRING, 0 /*value*/, 0, "select_type", 
+    SKIP_OPEN_TABLE},
+  {"table", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0 /*value*/, MY_I_S_MAYBE_NULL,
+   "table", SKIP_OPEN_TABLE},
+  {"type", 15, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "type", SKIP_OPEN_TABLE},
+  {"possible_keys", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/,
+    MY_I_S_MAYBE_NULL, "possible_keys", SKIP_OPEN_TABLE},
+  {"key", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
+    MY_I_S_MAYBE_NULL, "key", SKIP_OPEN_TABLE},
+  {"key_len", NAME_CHAR_LEN*MAX_KEY, MYSQL_TYPE_STRING, 0/*value*/, 
+    MY_I_S_MAYBE_NULL, "key_len", SKIP_OPEN_TABLE},
+  {"ref", NAME_CHAR_LEN*MAX_REF_PARTS, MYSQL_TYPE_STRING, 0/*value*/,
+    MY_I_S_MAYBE_NULL, "ref", SKIP_OPEN_TABLE},
+  {"rows", 10, MYSQL_TYPE_LONGLONG, 0/*value*/, MY_I_S_MAYBE_NULL, "rows", 
+    SKIP_OPEN_TABLE},
+  {"Extra", 255, MYSQL_TYPE_STRING, 0/*value*/, 0 /*flags*/, "Extra", 
+    SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -8340,6 +8550,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EVENTS", events_fields_info, create_schema_table,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
+  {"EXPLAIN", show_explain_fields_info, create_schema_table, fill_show_explain,
+  make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
   {"FILES", files_fields_info, create_schema_table,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"GLOBAL_STATUS", variables_fields_info, create_schema_table,

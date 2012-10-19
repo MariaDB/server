@@ -526,7 +526,7 @@ SELECT MAKETIME(0, 0, 4294967296);
 SELECT MAKETIME(CAST(-1 AS UNSIGNED), 0, 0);
 
 # check if EXTRACT() handles out-of-range values correctly
-SELECT EXTRACT(HOUR FROM '100000:02:03');
+SELECT EXTRACT(HOUR FROM '10000:02:03');
 
 # check if we get proper warnings if both input string truncation
 # and out-of-range value occur
@@ -1172,3 +1172,5 @@ select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetim
 
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
 
+--error ER_TOO_BIG_PRECISION
+select now(258);

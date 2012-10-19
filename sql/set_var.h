@@ -69,13 +69,14 @@ public:
   enum binlog_status_enum { VARIABLE_NOT_IN_BINLOG,
                             SESSION_VARIABLE_IN_BINLOG } binlog_status;
 
+  my_option option;     ///< min, max, default values are stored here
+
 protected:
   typedef bool (*on_check_function)(sys_var *self, THD *thd, set_var *var);
   typedef bool (*on_update_function)(sys_var *self, THD *thd, enum_var_type type);
 
   int flags;            ///< or'ed flag_enum values
   const SHOW_TYPE show_val_type; ///< what value_ptr() returns for sql_show.cc
-  my_option option;     ///< min, max, default values are stored here
   PolyLock *guard;      ///< *second* lock that protects the variable
   ptrdiff_t offset;     ///< offset to the value from global_system_variables
   on_check_function on_check;

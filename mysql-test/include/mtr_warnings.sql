@@ -225,6 +225,8 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: The slave I/O thread stops because a fatal error is encountered when it tried to SET @master_binlog_checksum on master.*"),
  ("Slave I/O: Get master BINLOG_CHECKSUM failed with error.*"),
  ("Slave I/O: Notifying master by SET @master_binlog_checksum= @@global.binlog_checksum failed with error.*"),
+ ("Slave I/O: Setting master-side filtering of @@skip_replication failed with error:.*"),
+ ("Slave I/O: Setting @mariadb_slave_capability failed with error:.*"),
  ("THE_LAST_SUPPRESSION")||
 
 

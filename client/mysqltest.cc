@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2012 Monty Program Ab.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -83,6 +83,8 @@ static my_bool non_blocking_api_enabled= 0;
 /* Flags controlling send and reap */
 #define QUERY_SEND_FLAG  1
 #define QUERY_REAP_FLAG  2
+
+#define QUERY_PRINT_ORIGINAL_FLAG 4
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -253,6 +255,8 @@ static void init_re(void);
 static int match_re(my_regex_t *, char *);
 static void free_re(void);
 
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command);
 static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, ulong search_len,
                    const char *replace_str, ulong replace_len);
@@ -342,7 +346,8 @@ enum enum_commands {
   Q_ERROR,
   Q_SEND,		    Q_REAP,
   Q_DIRTY_CLOSE,	    Q_REPLACE, Q_REPLACE_COLUMN,
-  Q_PING,		    Q_EVAL,
+  Q_PING,		    Q_EVAL, 
+  Q_EVALP,
   Q_EVAL_RESULT,
   Q_ENABLE_QUERY_LOG, Q_DISABLE_QUERY_LOG,
   Q_ENABLE_RESULT_LOG, Q_DISABLE_RESULT_LOG,
@@ -408,6 +413,7 @@ const char *command_names[]=
   "replace_column",
   "ping",
   "eval",
+  "evalp",
   "eval_result",
   /* Enable/disable that the _query_ is logged to result file */
   "enable_query_log",
@@ -620,6 +626,8 @@ void free_all_replace(){
   free_replace_regex();
   free_replace_column();
 }
+
+void var_set_int(const char* name, int value);
 
 
 class LogFile {
@@ -1275,6 +1283,8 @@ void handle_command_error(struct st_command *command, uint error,
 {
   DBUG_ENTER("handle_command_error");
   DBUG_PRINT("enter", ("error: %d", error));
+  var_set_int("$sys_errno",sys_errno);
+  var_set_int("$errno",error);
   if (error != 0)
   {
     int i;
@@ -1285,7 +1295,7 @@ void handle_command_error(struct st_command *command, uint error,
                     "errno: %d",
           command->first_word_len, command->query, error, my_errno,
           sys_errno);
-      return;
+      DBUG_VOID_RETURN;
     }
 
     i= match_expected_error(command, error, NULL);
@@ -4576,7 +4586,8 @@ void do_wait_for_slave_to_stop(struct st_command *c __attribute__((unused)))
 }
 
 
-void do_sync_with_master2(struct st_command *command, long offset)
+void do_sync_with_master2(struct st_command *command, long offset,
+                          const char *connection_name)
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
@@ -4587,8 +4598,9 @@ void do_sync_with_master2(struct st_command *command, long offset)
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d)",
-          master_pos.file, master_pos.pos + offset, timeout);
+  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+          master_pos.file, master_pos.pos + offset, timeout,
+          connection_name);
 
   if (mysql_query(mysql, query_buf))
     die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
@@ -4648,16 +4660,32 @@ void do_sync_with_master(struct st_command *command)
   long offset= 0;
   char *p= command->first_argument;
   const char *offset_start= p;
+  char *start, *buff= 0;
+  start= (char*) "";
+
   if (*offset_start)
   {
     for (; my_isdigit(charset_info, *p); p++)
       offset = offset * 10 + *p - '0';
 
-    if(*p && !my_isspace(charset_info, *p))
+    if (*p && !my_isspace(charset_info, *p) && *p != ',')
       die("Invalid integer argument \"%s\"", offset_start);
+
+    while (*p && my_isspace(charset_info, *p))
+      p++;
+    if (*p == ',')
+    {
+      p++;
+      while (*p && my_isspace(charset_info, *p))
+        p++;
+      start= buff= (char*)my_malloc(strlen(p)+1,MYF(MY_WME | MY_FAE));
+      get_string(&buff, &p, command);
+    }
     command->last_argument= p;
   }
-  do_sync_with_master2(command, offset);
+  do_sync_with_master2(command, offset, start);
+  if (buff)
+    my_free(start);
   return;
 }
 
@@ -5144,7 +5172,7 @@ typedef struct
 
 static st_error global_error_names[] =
 {
-  { "<No error>", (uint) -1, "" },
+  { "<No error>", -1U, "" },
 #include <mysqld_ername.h>
   { 0, 0, 0 }
 };
@@ -5201,14 +5229,31 @@ const char *get_errname_from_code (uint error_code)
 void do_get_errcodes(struct st_command *command)
 {
   struct st_match_err *to= saved_expected_errors.err;
-  char *p= command->first_argument;
-  uint count= 0;
-  char *next;
-
   DBUG_ENTER("do_get_errcodes");
 
-  if (!*p)
+  if (!*command->first_argument)
     die("Missing argument(s) to 'error'");
+
+  /* TODO: Potentially, there is a possibility of variables 
+     being expanded twice, e.g.
+
+     let $errcodes = 1,\$a;
+     let $a = 1051;
+     error $errcodes;
+     DROP TABLE unknown_table;
+     ...
+     Got one of the listed errors
+
+     But since it requires manual escaping, it does not seem 
+     particularly dangerous or error-prone. 
+  */
+  DYNAMIC_STRING ds;
+  init_dynamic_string(&ds, 0, command->query_len + 64, 256);
+  do_eval(&ds, command->first_argument, command->end, !is_windows);
+  char *p= ds.str;
+
+  uint count= 0;
+  char *next;
 
   do
   {
@@ -5265,7 +5310,7 @@ void do_get_errcodes(struct st_command *command)
     {
       die("The sqlstate definition must start with an uppercase S");
     }
-    else if (*p == 'E')
+    else if (*p == 'E' || *p == 'W')
     {
       /* Error name string */
 
@@ -5274,9 +5319,9 @@ void do_get_errcodes(struct st_command *command)
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
-    else if (*p == 'e')
+    else if (*p == 'e' || *p == 'w')
     {
-      die("The error name definition must start with an uppercase E");
+      die("The error name definition must start with an uppercase E or W");
     }
     else
     {
@@ -5319,11 +5364,15 @@ void do_get_errcodes(struct st_command *command)
 
   } while (*p);
 
-  command->last_argument= p;
+  command->last_argument= command->first_argument;
+  while (*command->last_argument)
+    command->last_argument++;
+  
   to->type= ERR_EMPTY;                        /* End of data */
 
   DBUG_PRINT("info", ("Expected errors: %d", count));
   saved_expected_errors.count= count;
+  dynstr_free(&ds);
   DBUG_VOID_RETURN;
 }
 
@@ -5335,8 +5384,8 @@ void do_get_errcodes(struct st_command *command)
   If string is a '$variable', return the value of the variable.
 */
 
-char *get_string(char **to_ptr, char **from_ptr,
-                 struct st_command *command)
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command)
 {
   char c, sep;
   char *to= *to_ptr, *from= *from_ptr, *start=to;
@@ -7687,6 +7736,8 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
     */
     if ((counter==0) && do_read_query_result(cn))
     {
+      /* we've failed to collect the result set */
+      cn->pending= TRUE;
       handle_error(command, mysql_errno(mysql), mysql_error(mysql),
 		   mysql_sqlstate(mysql), ds);
       goto end;
@@ -8271,7 +8322,8 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   /*
     Evaluate query if this is an eval command
   */
-  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL)
+  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL || 
+      command->type == Q_EVALP)
   {
     init_dynamic_string(&eval_query, "", command->query_len+256, 1024);
     do_eval(&eval_query, command->query, command->end, FALSE);
@@ -8303,10 +8355,20 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (!disable_query_log && (flags & QUERY_SEND_FLAG))
   {
-    replace_dynstr_append_mem(ds, query, query_len);
+    char *print_query= query;
+    int print_len= query_len;
+    if (flags & QUERY_PRINT_ORIGINAL_FLAG)
+    {
+      print_query= command->query;
+      print_len= command->end - command->query;
+    }
+    replace_dynstr_append_mem(ds, print_query, print_len);
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
   }
+  
+  /* We're done with this flag */
+  flags &= ~QUERY_PRINT_ORIGINAL_FLAG;
 
   /*
     Write the command to the result file before we execute the query
@@ -9169,6 +9231,7 @@ int main(int argc, char **argv)
       case Q_EVAL_RESULT:
         die("'eval_result' command  is deprecated");
       case Q_EVAL:
+      case Q_EVALP:
       case Q_QUERY_VERTICAL:
       case Q_QUERY_HORIZONTAL:
 	if (command->query == command->query_buf)
@@ -9195,6 +9258,9 @@ int main(int argc, char **argv)
         {
           flags= QUERY_REAP_FLAG;
         }
+
+        if (command->type == Q_EVALP)
+          flags |= QUERY_PRINT_ORIGINAL_FLAG;
 
         /* Check for special property for this query */
         display_result_vertically|= (command->type == Q_QUERY_VERTICAL);
@@ -9265,7 +9331,7 @@ int main(int argc, char **argv)
 	  select_connection(command);
 	else
 	  select_connection_name("slave");
-	do_sync_with_master2(command, 0);
+	do_sync_with_master2(command, 0, "");
 	break;
       }
       case Q_COMMENT:

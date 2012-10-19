@@ -180,7 +180,7 @@ static MYSQL_SYSVAR_ULONG(timeout, rpl_semi_sync_master_timeout,
  "The timeout value (in ms) for semi-synchronous replication in the master",
   NULL, 			// check
   fix_rpl_semi_sync_master_timeout,	// update
-  10000, 0, ~0L, 1);
+  10000, 0, ~0UL, 1);
 
 static MYSQL_SYSVAR_BOOL(wait_no_slave, rpl_semi_sync_master_wait_no_slave,
   PLUGIN_VAR_OPCMDARG,
@@ -194,7 +194,7 @@ static MYSQL_SYSVAR_ULONG(trace_level, rpl_semi_sync_master_trace_level,
  "The tracing level for semi-sync replication.",
   NULL,				  // check
   &fix_rpl_semi_sync_master_trace_level, // update
-  32, 0, ~0L, 1);
+  32, 0, ~0UL, 1);
 
 static SYS_VAR* semi_sync_master_system_vars[]= {
   MYSQL_SYSVAR(enabled),
@@ -297,10 +297,10 @@ DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 static SHOW_VAR semi_sync_master_status_vars[]= {
   {"Rpl_semi_sync_master_status",
    (char*) &SHOW_FNAME(status),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_clients",
    (char*) &SHOW_FNAME(clients),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_yes_tx",
    (char*) &rpl_semi_sync_master_yes_transactions,
    SHOW_LONG},
@@ -309,7 +309,7 @@ static SHOW_VAR semi_sync_master_status_vars[]= {
    SHOW_LONG},
   {"Rpl_semi_sync_master_wait_sessions",
    (char*) &SHOW_FNAME(wait_sessions),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_no_times",
    (char*) &rpl_semi_sync_master_off_times,
    SHOW_LONG},
@@ -321,22 +321,22 @@ static SHOW_VAR semi_sync_master_status_vars[]= {
    SHOW_LONG},
   {"Rpl_semi_sync_master_tx_wait_time",
    (char*) &SHOW_FNAME(trx_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_tx_waits",
    (char*) &SHOW_FNAME(trx_wait_num),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_tx_avg_wait_time",
    (char*) &SHOW_FNAME(avg_trx_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_wait_time",
    (char*) &SHOW_FNAME(net_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_waits",
    (char*) &SHOW_FNAME(net_wait_num),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_avg_wait_time",
    (char*) &SHOW_FNAME(avg_net_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {NULL, NULL, SHOW_LONG},
 };
 

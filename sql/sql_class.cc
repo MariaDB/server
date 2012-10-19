@@ -857,6 +857,9 @@ THD::THD()
   progress.max_counter= 0;
   current_linfo =  0;
   slave_thread = 0;
+  connection_name.str= 0;
+  connection_name.length= 0;
+
   bzero(&variables, sizeof(variables));
   thread_id= 0;
   one_shot_set= 0;
@@ -1224,7 +1227,14 @@ void THD::init(void)
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
+
+  variables.default_master_connection.str= default_master_connection_buff;
+  ::strmake(variables.default_master_connection.str,
+            global_system_variables.default_master_connection.str,
+            variables.default_master_connection.length);
+
   mysql_mutex_unlock(&LOCK_global_system_variables);
+
   server_status= SERVER_STATUS_AUTOCOMMIT;
   if (variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES)
     server_status|= SERVER_STATUS_NO_BACKSLASH_ESCAPES;
@@ -1255,6 +1265,7 @@ void THD::init(void)
   /* Initialize the Debug Sync Facility. See debug_sync.cc. */
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
+  apc_target.init(&LOCK_thd_data);
 }
 
  
@@ -1420,6 +1431,7 @@ void THD::cleanup(void)
     ull= NULL;
   }
 
+  apc_target.destroy();
   cleanup_done=1;
   DBUG_VOID_RETURN;
 }
@@ -2072,6 +2084,20 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 int THD::send_explain_fields(select_result *result)
 {
   List<Item> field_list;
+  make_explain_field_list(field_list);
+  return (result->send_result_set_metadata(field_list,
+                                           Protocol::SEND_NUM_ROWS | 
+                                           Protocol::SEND_EOF));
+}
+
+
+/*
+  Populate the provided field_list with EXPLAIN output columns.
+  this->lex->describe has the EXPLAIN flags
+*/
+
+void THD::make_explain_field_list(List<Item> &field_list)
+{
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
   field_list.push_back(item= new Item_return_int("id",3, MYSQL_TYPE_LONGLONG));
@@ -2110,9 +2136,8 @@ int THD::send_explain_fields(select_result *result)
   }
   item->maybe_null= 1;
   field_list.push_back(new Item_empty_string("Extra", 255, cs));
-  return (result->send_result_set_metadata(field_list,
-                                           Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF));
 }
+
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
 void THD::close_active_vio()
@@ -2344,6 +2369,7 @@ int select_send::send_data(List<Item> &items)
 
   DBUG_RETURN(0);
 }
+
 
 bool select_send::send_eof()
 {
@@ -3238,6 +3264,10 @@ void THD::end_statement()
 }
 
 
+/*
+  Start using arena specified by @set. Current arena data will be saved to
+  *backup.
+*/
 void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
 {
   DBUG_ENTER("THD::set_n_backup_active_arena");
@@ -3251,6 +3281,12 @@ void THD::set_n_backup_active_arena(Query_arena *set, Query_arena *backup)
   DBUG_VOID_RETURN;
 }
 
+
+/*
+  Stop using the temporary arena, and start again using the arena that is 
+  specified in *backup.
+  The temporary arena is returned back into *set.
+*/
 
 void THD::restore_active_arena(Query_arena *set, Query_arena *backup)
 {
@@ -3826,12 +3862,21 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
   @retval 1 the user thread has been killed
 
   This is used to signal a storage engine if it should be killed.
+  See also THD::check_killed().
 */
 
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
+  THD* current= current_thd;
   if (!thd)
-    thd= current_thd;
+    thd= current;
+
+  if (thd == current)
+  {
+    Apc_target *apc_target= (Apc_target*)&thd->apc_target;
+    if (apc_target->have_apc_requests())
+        apc_target->process_apc_requests(); 
+  }
 
   if (!(thd->killed & KILL_HARD_BIT))
     return 0;
@@ -5384,6 +5429,134 @@ show_query_type(THD::enum_binlog_query_type qtype)
 }
 #endif
 
+/*
+  Constants required for the limit unsafe warnings suppression
+*/
+//seconds after which the limit unsafe warnings suppression will be activated
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT 50
+//number of limit unsafe warnings after which the suppression will be activated
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT 50
+
+static ulonglong limit_unsafe_suppression_start_time= 0;
+static bool unsafe_warning_suppression_is_activated= false;
+static int limit_unsafe_warning_count= 0;
+
+/**
+  Auxiliary function to reset the limit unsafety warning suppression.
+*/
+static void reset_binlog_unsafe_suppression()
+{
+  DBUG_ENTER("reset_binlog_unsafe_suppression");
+  unsafe_warning_suppression_is_activated= false;
+  limit_unsafe_warning_count= 0;
+  limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
+  DBUG_VOID_RETURN;
+}
+
+/**
+  Auxiliary function to print warning in the error log.
+*/
+static void print_unsafe_warning_to_log(int unsafe_type, char* buf,
+                                 char* query)
+{
+  DBUG_ENTER("print_unsafe_warning_in_log");
+  sprintf(buf, ER(ER_BINLOG_UNSAFE_STATEMENT),
+          ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
+  sql_print_warning(ER(ER_MESSAGE_AND_STATEMENT), buf, query);
+  DBUG_VOID_RETURN;
+}
+
+/**
+  Auxiliary function to check if the warning for limit unsafety should be
+  thrown or suppressed. Details of the implementation can be found in the
+  comments inline.
+  SYNOPSIS:
+  @params
+   buf         - buffer to hold the warning message text
+   unsafe_type - The type of unsafety.
+   query       - The actual query statement.
+
+  TODO: Remove this function and implement a general service for all warnings
+  that would prevent flooding the error log.
+*/
+static void do_unsafe_limit_checkout(char* buf, int unsafe_type, char* query)
+{
+  ulonglong now= 0;
+  DBUG_ENTER("do_unsafe_limit_checkout");
+  DBUG_ASSERT(unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT);
+  limit_unsafe_warning_count++;
+  /*
+    INITIALIZING:
+    If this is the first time this function is called with log warning
+    enabled, the monitoring the unsafe warnings should start.
+  */
+  if (limit_unsafe_suppression_start_time == 0)
+  {
+    limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
+    print_unsafe_warning_to_log(unsafe_type, buf, query);
+  }
+  else
+  {
+    if (!unsafe_warning_suppression_is_activated)
+      print_unsafe_warning_to_log(unsafe_type, buf, query);
+
+    if (limit_unsafe_warning_count >=
+        LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT)
+    {
+      now= my_interval_timer()/10000000;
+      if (!unsafe_warning_suppression_is_activated)
+      {
+        /*
+          ACTIVATION:
+          We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT warnings in
+          less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT we activate the
+          suppression.
+        */
+        if ((now-limit_unsafe_suppression_start_time) <=
+                       LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
+        {
+          unsafe_warning_suppression_is_activated= true;
+          DBUG_PRINT("info",("A warning flood has been detected and the limit \
+unsafety warning suppression has been activated."));
+        }
+        else
+        {
+          /*
+           there is no flooding till now, therefore we restart the monitoring
+          */
+          limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
+          limit_unsafe_warning_count= 0;
+        }
+      }
+      else
+      {
+        /*
+          Print the suppression note and the unsafe warning.
+        */
+        sql_print_information("The following warning was suppressed %d times \
+during the last %d seconds in the error log",
+                              limit_unsafe_warning_count,
+                              (int)
+                              (now-limit_unsafe_suppression_start_time));
+        print_unsafe_warning_to_log(unsafe_type, buf, query);
+        /*
+          DEACTIVATION: We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT
+          warnings in more than  LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT, the
+          suppression should be deactivated.
+        */
+        if ((now - limit_unsafe_suppression_start_time) >
+            LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
+        {
+          reset_binlog_unsafe_suppression();
+          DBUG_PRINT("info",("The limit unsafety warning supression has been \
+deactivated"));
+        }
+      }
+      limit_unsafe_warning_count= 0;
+    }
+  }
+  DBUG_VOID_RETURN;
+}
 
 /**
   Auxiliary method used by @c binlog_query() to raise warnings.
@@ -5393,6 +5566,7 @@ show_query_type(THD::enum_binlog_query_type qtype)
 */
 void THD::issue_unsafe_warnings()
 {
+  char buf[MYSQL_ERRMSG_SIZE * 2];
   DBUG_ENTER("issue_unsafe_warnings");
   /*
     Ensure that binlog_unsafe_warning_flags is big enough to hold all
@@ -5418,16 +5592,15 @@ void THD::issue_unsafe_warnings()
                           ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
       if (global_system_variables.log_warnings)
       {
-        char buf[MYSQL_ERRMSG_SIZE * 2];
-        sprintf(buf, ER(ER_BINLOG_UNSAFE_STATEMENT),
-                ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
-        sql_print_warning(ER(ER_MESSAGE_AND_STATEMENT), buf, query());
+        if (unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT)
+          do_unsafe_limit_checkout( buf, unsafe_type, query());
+        else //cases other than LIMIT unsafety
+          print_unsafe_warning_to_log(unsafe_type, buf, query());
       }
     }
   }
   DBUG_VOID_RETURN;
 }
-
 
 /**
   Log the current query.
@@ -5604,3 +5777,4 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
 }
 
 #endif /* !defined(MYSQL_CLIENT) */
+

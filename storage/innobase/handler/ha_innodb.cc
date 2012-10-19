@@ -678,6 +678,15 @@ innobase_release_savepoint(
 					savepoint should be released */
 	void*		savepoint);	/*!< in: savepoint data */
 
+/*****************************************************************//**
+Handle a commit checkpoint request from server layer.
+We simply flush the redo log immediately and do the notify call.*/
+static
+void
+innobase_checkpoint_request(
+	handlerton *hton,
+	void *cookie);
+
 /************************************************************************//**
 Function for constructing an InnoDB table handler instance. */
 static
@@ -1829,28 +1838,85 @@ ulonglong
 innobase_next_autoinc(
 /*==================*/
 	ulonglong	current,	/*!< in: Current value */
-	ulonglong	increment,	/*!< in: increment current by */
+	ulonglong	need,		/*!< in: count of values needed */
+	ulonglong	step,		/*!< in: AUTOINC increment step */
 	ulonglong	offset,		/*!< in: AUTOINC offset */
-	ulonglong	max_value,	/*!< in: max value for type */
-	ulonglong	reserve)	/*!< in: how many values to reserve */
+	ulonglong	max_value)	/*!< in: max value for type */
 {
 	ulonglong	next_value;
+	ulonglong	block = need * step;
 
 	/* Should never be 0. */
-	ut_a(increment > 0);
+	ut_a(need > 0);
+	ut_a(block > 0);
+	ut_a(max_value > 0);
+
+        /*
+          Allow auto_increment to go over max_value up to max ulonglong.
+          This allows us to detect that all values are exhausted.
+          If we don't do this, we will return max_value several times
+          and get duplicate key errors instead of auto increment value
+          out of range.
+        */
+        max_value= (~(ulonglong) 0);
 
 	/* According to MySQL documentation, if the offset is greater than
-	the increment then the offset is ignored. */
-	if (offset >= increment)
+	the step then the offset is ignored. */
+	if (offset > block) {
 		offset = 0;
+	}
 
-	if (max_value <= current)
-                return max_value;
-	next_value = (current / increment) + reserve;
-	next_value = next_value * increment + offset;
-        /* Check for overflow. */
-        if (next_value < current || next_value > max_value)
-                next_value = max_value;
+	/* Check for overflow. */
+	if (block >= max_value
+	    || offset > max_value
+	    || current >= max_value
+	    || max_value - offset <= offset) {
+
+		next_value = max_value;
+	} else {
+		ut_a(max_value > current);
+
+		ulonglong	free = max_value - current;
+
+		if (free < offset || free - offset <= block) {
+			next_value = max_value;
+		} else {
+			next_value = 0;
+		}
+	}
+
+	if (next_value == 0) {
+		ulonglong	next;
+
+		if (current > offset) {
+			next = (current - offset) / step;
+		} else {
+			next = (offset - current) / step;
+		}
+
+		ut_a(max_value > next);
+		next_value = next * step;
+		/* Check for multiplication overflow. */
+		ut_a(next_value >= next);
+		ut_a(max_value > next_value);
+
+		/* Check for overflow */
+		if (max_value - next_value >= block) {
+
+			next_value += block;
+
+			if (max_value - next_value >= offset) {
+				next_value += offset;
+			} else {
+				next_value = max_value;
+			}
+		} else {
+			next_value = max_value;
+		}
+	}
+
+	ut_a(next_value != 0);
+	ut_a(next_value <= max_value);
 
 	return(next_value);
 }
@@ -2585,6 +2651,7 @@ innobase_init(
 	innobase_hton->recover = innobase_xa_recover;
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
+        innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
 	innobase_hton->create_cursor_read_view = innobase_create_cursor_view;
 	innobase_hton->set_cursor_read_view = innobase_set_cursor_view;
 	innobase_hton->close_cursor_read_view = innobase_close_cursor_view;
@@ -3447,6 +3514,19 @@ innobase_rollback_trx(
 }
 
 /*****************************************************************//**
+Handle a commit checkpoint request from server layer.
+We simply flush the redo log immediately and do the notify call.*/
+static
+void
+innobase_checkpoint_request(
+	handlerton *hton,
+	void *cookie)
+{
+	log_buffer_flush_to_disk();
+	commit_checkpoint_notify_ha(hton, cookie);
+}
+
+/*****************************************************************//**
 Rolls back a transaction to a savepoint.
 @return 0 if success, HA_ERR_NO_SAVEPOINT if no savepoint with the
 given name */
@@ -4290,7 +4370,7 @@ ha_innobase::innobase_initialize_autoinc()
 			nor the offset, so use a default increment of 1. */
 
 			auto_inc = innobase_next_autoinc(
-				read_auto_inc, 1, 1, col_max_value, 1);
+				read_auto_inc, 1, 1, 0, col_max_value);
 			break;
 		}
 		case DB_RECORD_NOT_FOUND:
@@ -6201,7 +6281,10 @@ no_commit:
 				goto report_error;
 			}
 
-			/* MySQL errors are passed straight back. */
+			/* MySQL errors are passed straight back. except for
+                           HA_ERR_AUTO_INC_READ_FAILED. This can only happen
+                           for values out of range.
+                         */
 			error_result = (int) error;
 			goto func_exit;
 		}
@@ -6284,15 +6367,16 @@ set_max_autoinc:
 				if (auto_inc <= col_max_value) {
 					ut_a(prebuilt->autoinc_increment > 0);
 
-					ulonglong	need;
 					ulonglong	offset;
+					ulonglong	increment;
 
 					offset = prebuilt->autoinc_offset;
-					need = prebuilt->autoinc_increment;
+					increment = prebuilt->autoinc_increment;
 
 					auto_inc = innobase_next_autoinc(
 						auto_inc,
-						need, offset, col_max_value, 1);
+						1, increment, offset,
+						col_max_value);
 
 					err = innobase_set_max_autoinc(
 						auto_inc);
@@ -6697,14 +6781,14 @@ ha_innobase::update_row(
 
 		if (auto_inc <= col_max_value && auto_inc != 0) {
 
-			ulonglong	need;
 			ulonglong	offset;
+			ulonglong	increment;
 
 			offset = prebuilt->autoinc_offset;
-			need = prebuilt->autoinc_increment;
+			increment = prebuilt->autoinc_increment;
 
 			auto_inc = innobase_next_autoinc(
-				auto_inc, need, offset, col_max_value, 1);
+				auto_inc, 1, increment, offset, col_max_value);
 
 			error = innobase_set_max_autoinc(auto_inc);
 		}
@@ -7014,6 +7098,7 @@ ha_innobase::index_read(
 	ulint		ret;
 
 	DBUG_ENTER("index_read");
+	DEBUG_SYNC_C("ha_innobase_index_read_begin");
 
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 
@@ -9814,10 +9899,15 @@ innobase_get_mysql_key_number_for_index(
 			}
 		}
 
-		/* Print an error message if we cannot find the index
-		** in the "index translation table". */
-		sql_print_error("Cannot find index %s in InnoDB index "
-				"translation table.", index->name);
+		/* If index_count in translation table is set to 0, it
+		is possible we are in the process of rebuilding table,
+		do not spit error in this case */
+		if (share->idx_trans_tbl.index_count) {
+			/* Print an error message if we cannot find the index
+			** in the "index translation table". */
+			sql_print_error("Cannot find index %s in InnoDB index "
+					"translation table.", index->name);
+		}
 	}
 
 	/* If we do not have an "index translation table", or not able
@@ -10220,9 +10310,10 @@ ha_innobase::info_low(
 				                }
                                                 else if (rec_per_key > 1) {
                                                         rec_per_key =
-                                                        k_rec_per_key *
-						        (double)rec_per_key /
-							n_rows;
+                                                        (ha_rows)
+                                                          (k_rec_per_key *
+						          (double)rec_per_key /
+                                                           n_rows);
 						}
                                                 
 				                key_info->rec_per_key[k++]=
@@ -11454,6 +11545,7 @@ innodb_show_status(
 	const long		MAX_STATUS_SIZE = 1048576;
 	ulint			trx_list_start = ULINT_UNDEFINED;
 	ulint			trx_list_end = ULINT_UNDEFINED;
+        bool res;
 
 	DBUG_ENTER("innodb_show_status");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
@@ -11523,12 +11615,13 @@ innodb_show_status(
 
 	mutex_exit(&srv_monitor_file_mutex);
 
-	stat_print(thd, innobase_hton_name, (uint) strlen(innobase_hton_name),
-		   STRING_WITH_LEN(""), str, flen);
+	res= stat_print(thd, innobase_hton_name,
+                        (uint) strlen(innobase_hton_name),
+                        STRING_WITH_LEN(""), str, flen);
 
 	my_free(str);
 
-	DBUG_RETURN(0);
+	DBUG_RETURN(res);
 }
 
 /************************************************************************//**
@@ -12188,13 +12281,17 @@ ha_innobase::get_auto_increment(
 	/* Not in the middle of a mult-row INSERT. */
 	} else if (prebuilt->autoinc_last_value == 0) {
 		set_if_bigger(*first_value, autoinc);
-	/* Check for -ve values. */
-	} else if (*first_value > col_max_value && trx->n_autoinc_rows > 0) {
-		/* Set to next logical value. */
-		ut_a(autoinc > trx->n_autoinc_rows);
-		*first_value = (autoinc - trx->n_autoinc_rows) - 1;
 	}
 
+        if (*first_value > col_max_value)
+        {
+          	/* Out of range number. Let handler::update_auto_increment()
+                   take care of this */
+                prebuilt->autoinc_last_value = 0;
+                dict_table_autoinc_unlock(prebuilt->table);
+                *nb_reserved_values= 0;
+                return;
+        }
 	*nb_reserved_values = trx->n_autoinc_rows;
 
 	/* With old style AUTOINC locking we only update the table's
@@ -12203,11 +12300,12 @@ ha_innobase::get_auto_increment(
 		ulonglong	current;
 		ulonglong	next_value;
 
-		current = *first_value > col_max_value ? autoinc : *first_value;
-	
+		current = *first_value;
+
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
-			current, increment, offset, col_max_value, *nb_reserved_values);
+			current, *nb_reserved_values, increment, offset,
+			col_max_value);
 
 		prebuilt->autoinc_last_value = next_value;
 
@@ -14422,10 +14520,17 @@ static MYSQL_SYSVAR_STR(ft_server_stopword_table, innobase_server_stopword_table
 
 static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   PLUGIN_VAR_OPCMDARG,
-  "Set to 0 (write and flush once per second),"
-  " 1 (write and flush at each commit)"
-  " or 2 (write at commit, flush once per second).",
-  NULL, NULL, 1, 0, 2, 0);
+  "Controls the durability/speed trade-off for commits."
+  " Set to 0 (write and flush redo log to disk only once per second),"
+  " 1 (flush to disk at each commit),"
+  " 2 (write to log at commit but flush to disk only once per second)"
+  " or 3 (flush to disk at prepare and at commit, slower and usually redundant)."
+  " 1 and 3 guarantees that after a crash, committed transactions will"
+  " not be lost and will be consistent with the binlog and other transactional"
+  " engines. 2 can get inconsistent and lose transactions if there is a"
+  " power failure or kernel crash but not if mysqld crashes. 0 has no"
+  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
+  NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_SYSVAR_STR(flush_method, innobase_file_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

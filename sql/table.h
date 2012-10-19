@@ -29,6 +29,7 @@
 #include "handler.h"                /* row_type, ha_choice, handler */
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
+#include "filesort_utils.h"
 
 /* Structs that defines the TABLE */
 
@@ -299,11 +300,14 @@ enum tmp_table_type
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 
-typedef struct st_filesort_info
+
+class Filesort_info
 {
+  /// Buffer for sorting keys.
+  Filesort_buffer filesort_buffer;
+
+public:
   IO_CACHE *io_cache;           /* If sorted through filesort */
-  uchar     **sort_keys;        /* Buffer for sorting keys */
-  uint      keys;               /* Number of key pointers in buffer */
   uchar     *buffpek;           /* Buffer for buffpek structures */
   uint      buffpek_len;        /* Max number of buffpeks in the buffer */
   uchar     *addon_buf;         /* Pointer to a buffer if sorted with fields */
@@ -312,7 +316,38 @@ typedef struct st_filesort_info
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *); /* To unpack back */
   uchar     *record_pointers;    /* If sorted in memory */
   ha_rows   found_records;      /* How many records in sort */
-} FILESORT_INFO;
+
+  /** Sort filesort_buffer */
+  void sort_buffer(Sort_param *param, uint count)
+  { filesort_buffer.sort_buffer(param, count); }
+
+  /**
+     Accessors for Filesort_buffer (which @c).
+  */
+  uchar *get_record_buffer(uint idx)
+  { return filesort_buffer.get_record_buffer(idx); }
+
+  uchar **get_sort_keys()
+  { return filesort_buffer.get_sort_keys(); }
+
+  uchar **alloc_sort_buffer(uint num_records, uint record_length)
+  { return filesort_buffer.alloc_sort_buffer(num_records, record_length); }
+
+  bool check_sort_buffer_properties(uint num_records, uint record_length)
+  {
+    return filesort_buffer.check_sort_buffer_properties(num_records,
+                                                        record_length);
+  }
+
+  void free_sort_buffer()
+  { filesort_buffer.free_sort_buffer(); }
+
+  void init_record_pointers()
+  { filesort_buffer.init_record_pointers(); }
+
+  size_t sort_buffer_size() const
+  { return filesort_buffer.sort_buffer_size(); }
+};
 
 
 /*
@@ -1053,15 +1088,20 @@ public:
   uint		db_stat;		/* mode of file as in handler.h */
   /* number of select if it is derived table */
   uint          derived_select_number;
-  int		current_lock;           /* Type of lock on table */
-  bool copy_blobs;			/* copy_blobs when storing */
-
   /*
     0 or JOIN_TYPE_{LEFT|RIGHT}. Currently this is only compared to 0.
     If maybe_null !=0, this table is inner w.r.t. some outer join operation,
     and null_row may be true.
   */
   uint maybe_null;
+  int		current_lock;           /* Type of lock on table */
+  bool copy_blobs;			/* copy_blobs when storing */
+  /*
+    Set if next_number_field is in the UPDATE fields of INSERT ... ON DUPLICATE
+    KEY UPDATE.
+  */
+  bool next_number_field_updated;
+
   /*
     If true, the current table row is considered to have all columns set to 
     NULL, including columns declared as "not null" (see maybe_null).
@@ -1106,7 +1146,12 @@ public:
     See TABLE_LIST::process_index_hints().
   */
   bool force_index_group;
-  bool distinct,const_table,no_rows, used_for_duplicate_elimination;
+  /*
+    TRUE<=> this table was created with create_tmp_table(... distinct=TRUE..)
+    call
+  */
+  bool distinct;
+  bool const_table,no_rows, used_for_duplicate_elimination;
 
   /**
      If set, the optimizer has found that row retrieval should access index 
@@ -1136,7 +1181,7 @@ public:
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   GRANT_INFO grant;
-  FILESORT_INFO sort;
+  Filesort_info sort;
   /*
     The arena which the items for expressions from the table definition
     are associated with.  
@@ -1929,6 +1974,7 @@ struct TABLE_LIST
   TABLE_LIST *find_underlying_table(TABLE *table);
   TABLE_LIST *first_leaf_for_name_resolution();
   TABLE_LIST *last_leaf_for_name_resolution();
+  TABLE *get_real_join_table();
   bool is_leaf_for_name_resolution();
   inline TABLE_LIST *top_table()
     { return belong_to_view ? belong_to_view : this; }

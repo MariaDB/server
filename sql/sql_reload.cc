@@ -26,6 +26,7 @@
 #include "sql_repl.h"    // reset_master, reset_slave
 #include "rpl_mi.h"      // Master_info::data_lock
 #include "debug_sync.h"
+#include "rpl_mi.h"
 
 static void disable_checkpoints(THD *thd);
 
@@ -157,10 +158,36 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
   if (options & REFRESH_RELAY_LOG)
   {
 #ifdef HAVE_REPLICATION
-    mysql_mutex_lock(&active_mi->data_lock);
-    if (rotate_relay_log(active_mi))
-      *write_to_binlog= -1;
-    mysql_mutex_unlock(&active_mi->data_lock);
+    LEX_STRING connection_name;
+    Master_info *mi;
+    if (thd)
+      connection_name= thd->lex->relay_log_connection_name;
+    else
+    {
+      connection_name.str= (char*) "";
+      connection_name.length= 0;
+    }
+
+    /*
+      Writing this command to the binlog may cause problems as the
+      slave is not likely to have the same connection names.
+    */
+    tmp_write_to_binlog= 0;
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!(mi= (master_info_index->
+               get_master_info(&connection_name,
+                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
+    {
+      result= 1;
+    }
+    else
+    {
+      mysql_mutex_lock(&mi->data_lock);
+      if (rotate_relay_log(mi))
+        *write_to_binlog= -1;
+      mysql_mutex_unlock(&mi->data_lock);
+    }
+    mysql_mutex_unlock(&LOCK_active_mi);
 #endif
   }
 #ifdef HAVE_QUERY_CACHE
@@ -314,12 +341,26 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
 #ifdef HAVE_REPLICATION
  if (options & REFRESH_SLAVE)
  {
+   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+   Master_info *mi;
    tmp_write_to_binlog= 0;
    mysql_mutex_lock(&LOCK_active_mi);
-   if (reset_slave(thd, active_mi))
+
+   if (!(mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+   {
+     result= 1;
+   }
+   else if (reset_slave(thd, mi))
    {
      /* NOTE: my_error() has been already called by reset_slave(). */
      result= 1;
+   }
+   else if (mi->connection_name.length && thd->lex->reset_slave_info.all)
+   {
+     /* If not default connection and 'all' is used */
+     master_info_index->remove_master_info(&mi->connection_name);
    }
    mysql_mutex_unlock(&LOCK_active_mi);
  }

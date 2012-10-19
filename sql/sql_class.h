@@ -55,6 +55,8 @@ void set_thd_stage_info(void *thd,
 #define THD_STAGE_INFO(thd, stage) \
   (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
+#include "my_apc.h"
+
 class Reprepare_observer;
 class Relay_log_info;
 
@@ -158,9 +160,6 @@ public:
   friend char **thd_query(MYSQL_THD thd);
 };
 
-
-#define TC_LOG_PAGE_SIZE   8192
-#define TC_LOG_MIN_SIZE    (3*TC_LOG_PAGE_SIZE)
 
 #define TC_HEURISTIC_RECOVER_COMMIT   1
 #define TC_HEURISTIC_RECOVER_ROLLBACK 2
@@ -546,6 +545,12 @@ typedef struct system_variables
     thread the query is being run to replicate temp tables properly
   */
   my_thread_id pseudo_thread_id;
+  /**
+     Place holders to store Multi-source variables in sys_var.cc during
+     update and show of variables.
+  */
+  ulong slave_skip_counter;
+  ulong max_relay_log_size;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).
@@ -573,6 +578,9 @@ typedef struct system_variables
   CHARSET_INFO	*collation_server;
   CHARSET_INFO	*collation_database;
   CHARSET_INFO  *collation_connection;
+
+  /* Names. These will be allocated in buffers in thd */
+  LEX_STRING default_master_connection;
 
   /* Error messages */
   MY_LOCALE *lc_messages;
@@ -635,25 +643,17 @@ typedef struct system_status_var
   ulong ha_savepoint_rollback_count;
   ulong ha_external_lock_count;
 
-#if 0
-  /* KEY_CACHE parts. These are copies of the original */
-  ulong key_blocks_changed;
-  ulong key_blocks_used;
-  ulong key_cache_r_requests;
-  ulong key_cache_read;
-  ulong key_cache_w_requests;
-  ulong key_cache_write;
-  /* END OF KEY_CACHE parts */
-#endif
-
   ulong net_big_packet_count;
   ulong opened_tables;
   ulong opened_shares;
+  ulong opened_views;               /* +1 opening a view */
+
   ulong select_full_join_count_;
   ulong select_full_range_join_count_;
   ulong select_range_count_;
   ulong select_range_check_count_;
   ulong select_scan_count_;
+  ulong executed_triggers;
   ulong long_query_count;
   ulong filesort_merge_passes_;
   ulong filesort_range_count_;
@@ -667,6 +667,16 @@ typedef struct system_status_var
   ulong com_stmt_fetch;
   ulong com_stmt_reset;
   ulong com_stmt_close;
+
+  /* Features used */
+  ulong feature_dynamic_columns;    /* +1 when creating a dynamic column */
+  ulong feature_fulltext;	    /* +1 when MATCH is used */
+  ulong feature_gis;                /* +1 opening a table with GIS features */
+  ulong feature_locale;		    /* +1 when LOCALE is set */
+  ulong feature_subquery;	    /* +1 when subqueries are used */
+  ulong feature_timezone;	    /* +1 when XPATH is used */
+  ulong feature_trigger;	    /* +1 opening a table with triggers */
+  ulong feature_xml;		    /* +1 when XPATH is used */
 
   ulong empty_queries;
   ulong access_denied_errors;
@@ -1536,6 +1546,11 @@ private:
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
+class THD;
+#ifndef DBUG_OFF
+void dbug_serve_apcs(THD *thd, int n_calls);
+#endif 
+
 /**
   @class THD
   For each client connection we create a separate thread with THD serving as
@@ -1716,7 +1731,7 @@ public:
   my_hrtime_t user_time;
   // track down slow pthread_create
   ulonglong  prior_thr_create_utime, thr_create_utime;
-  ulonglong  start_utime, utime_after_lock;
+  ulonglong  start_utime, utime_after_lock, utime_after_query;
 
   // Process indicator
   struct {
@@ -1877,6 +1892,7 @@ public:
     MEM_ROOT mem_root; // Transaction-life memory allocation pool
     void cleanup()
     {
+      DBUG_ENTER("thd::cleanup");
       changed_tables= 0;
       savepoints= 0;
       /*
@@ -1888,6 +1904,7 @@ public:
       if (!xid_state.rm_error)
         xid_state.xid.null();
       free_root(&mem_root,MYF(MY_KEEP_PREALLOC));
+      DBUG_VOID_RETURN;
     }
     my_bool is_active()
     {
@@ -2272,9 +2289,25 @@ public:
   */
   killed_state volatile killed;
 
+  /* See also thd_killed() */
+  inline bool check_killed()
+  {
+    if (killed)
+      return TRUE;
+    if (apc_target.have_apc_requests())
+      apc_target.process_apc_requests(); 
+    return FALSE;
+  }
+
   /* scramble - random string sent to client on handshake */
   char	     scramble[SCRAMBLE_LENGTH+1];
 
+  /*
+    If this is a slave, the name of the connection stored here.
+    This is used for taging error messages in the log files.
+  */
+  LEX_STRING connection_name;
+  char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   bool       slave_thread, one_shot_set;
   bool       extra_port;                        /* If extra connection */
 
@@ -2470,9 +2503,20 @@ public:
   void close_active_vio();
 #endif
   void awake(killed_state state_to_set);
-
+ 
   /** Disconnect the associated communication endpoint. */
   void disconnect();
+
+
+  /*
+    Allows this thread to serve as a target for others to schedule Async 
+    Procedure Calls on.
+
+    It's possible to schedule any code to be executed this way, by
+    inheriting from the Apc_call object. Currently, only
+    Show_explain_request uses this.
+  */
+  Apc_target apc_target;
 
 #ifndef MYSQL_CLIENT
   enum enum_binlog_query_type {
@@ -2577,8 +2621,8 @@ public:
   */
   void update_server_status()
   {
-    ulonglong end_utime_of_query= current_utime();
-    if (end_utime_of_query > utime_after_lock + variables.long_query_time)
+    utime_after_query= current_utime();
+    if (utime_after_query > utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
   }
   inline ulonglong found_rows(void)
@@ -2676,7 +2720,7 @@ public:
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
   int send_explain_fields(select_result *result);
-
+  void make_explain_field_list(List<Item> &field_list);
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
@@ -2818,6 +2862,27 @@ public:
   void set_n_backup_active_arena(Query_arena *set, Query_arena *backup);
   void restore_active_arena(Query_arena *set, Query_arena *backup);
 
+  inline void get_binlog_format(enum_binlog_format *format,
+                                enum_binlog_format *current_format)
+  {
+    *format= (enum_binlog_format) variables.binlog_format;
+    *current_format= current_stmt_binlog_format;
+  }
+  inline void set_binlog_format(enum_binlog_format format,
+                                enum_binlog_format current_format)
+  {
+    DBUG_ENTER("set_binlog_format");
+    variables.binlog_format= format;
+    current_stmt_binlog_format= current_format;
+    DBUG_VOID_RETURN;
+  }
+  inline void set_binlog_format_stmt()
+  {
+    DBUG_ENTER("set_binlog_format_stmt");
+    variables.binlog_format=    BINLOG_FORMAT_STMT;
+    current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    DBUG_VOID_RETURN;
+  }
   /*
     @todo Make these methods private or remove them completely.  Only
     decide_logging_format should call them. /Sven
@@ -2848,16 +2913,26 @@ public:
 
     DBUG_VOID_RETURN;
   }
+
   inline void set_current_stmt_binlog_format_row()
   {
     DBUG_ENTER("set_current_stmt_binlog_format_row");
     current_stmt_binlog_format= BINLOG_FORMAT_ROW;
     DBUG_VOID_RETURN;
   }
-  inline void clear_current_stmt_binlog_format_row()
+  /* Set binlog format temporarily to statement. Returns old format */
+  inline enum_binlog_format set_current_stmt_binlog_format_stmt()
   {
-    DBUG_ENTER("clear_current_stmt_binlog_format_row");
+    enum_binlog_format orig_format= current_stmt_binlog_format;
+    DBUG_ENTER("set_current_stmt_binlog_format_stmt");
     current_stmt_binlog_format= BINLOG_FORMAT_STMT;
+    DBUG_RETURN(orig_format);
+  }
+  inline void restore_stmt_binlog_format(enum_binlog_format format)
+  {
+    DBUG_ENTER("restore_stmt_binlog_format");
+    DBUG_ASSERT(!is_current_stmt_binlog_format_row());
+    current_stmt_binlog_format= format;
     DBUG_VOID_RETURN;
   }
   inline void reset_current_stmt_binlog_format_row()
@@ -2887,7 +2962,7 @@ public:
       if (variables.binlog_format == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
-        clear_current_stmt_binlog_format_row();
+        set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
   }
@@ -3138,7 +3213,7 @@ public:
     if (global_system_variables.log_warnings > threshold)
     {
       Security_context *sctx= &main_security_ctx;
-      sql_print_warning(ER(ER_NEW_ABORTING_CONNECTION),
+      sql_print_warning(ER_THD(this, ER_NEW_ABORTING_CONNECTION),
                         thread_id, (db ? db : "unconnected"),
                         sctx->user ? sctx->user : "unauthenticated",
                         sctx->host_or_ip, reason);
@@ -3303,10 +3378,42 @@ public:
 
 class JOIN;
 
-class select_result :public Sql_alloc {
+/* Pure interface for sending tabular data */
+class select_result_sink: public Sql_alloc
+{
+public:
+  /*
+    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
+    example for a duplicate row entry written to a temp table.
+  */
+  virtual int send_data(List<Item> &items)=0;
+  virtual ~select_result_sink() {};
+};
+
+
+/*
+  Interface for sending tabular data, together with some other stuff:
+
+  - Primary purpose seems to be seding typed tabular data:
+     = the DDL is sent with send_fields()
+     = the rows are sent with send_data()
+  Besides that,
+  - there seems to be an assumption that the sent data is a result of 
+    SELECT_LEX_UNIT *unit,
+  - nest_level is used by SQL parser
+*/
+
+class select_result :public select_result_sink 
+{
 protected:
   THD *thd;
+  /* 
+    All descendant classes have their send_data() skip the first 
+    unit->offset_limit_cnt rows sent.  Select_materialize
+    also uses unit->get_unit_column_types().
+  */
   SELECT_LEX_UNIT *unit;
+  /* Something used only by the parser: */
 public:
   select_result();
   virtual ~select_result() {};
@@ -3324,11 +3431,6 @@ public:
   virtual uint field_count(List<Item> &fields) const
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
-  /*
-    send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
-    example for a duplicate row entry written to a temp table.
-  */
-  virtual int send_data(List<Item> &items)=0;
   virtual bool initialize_tables (JOIN *join=0) { return 0; }
   virtual void send_error(uint errcode,const char *err);
   virtual bool send_eof()=0;
@@ -3353,6 +3455,32 @@ public:
   void begin_dataset() {}
 #endif
 };
+
+
+/*
+  This is a select_result_sink which simply writes all data into a (temporary)
+  table. Creation/deletion of the table is outside of the scope of the class
+  
+  It is aimed at capturing SHOW EXPLAIN output, so:
+  - Unlike select_result class, we don't assume that the sent data is an 
+    output of a SELECT_LEX_UNIT (and so we dont apply "LIMIT x,y" from the
+    unit)
+  - We don't try to convert the target table to MyISAM 
+*/
+
+class select_result_explain_buffer : public select_result_sink
+{
+public:
+  select_result_explain_buffer(THD *thd_arg, TABLE *table_arg) : 
+    thd(thd_arg), dst_table(table_arg) {};
+
+  THD *thd;
+  TABLE *dst_table; /* table to write into */
+
+  /* The following is called in the child thread: */
+  int send_data(List<Item> &items);
+};
+
 
 
 /*
@@ -3932,6 +4060,8 @@ class user_var_entry
   DTCollation collation;
 };
 
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+				    bool create_if_not_exists);
 
 /*
    Unique -- class for unique (removing of duplicates).
@@ -4224,6 +4354,11 @@ public:
    read only transactions.
 */
 #define CF_DISALLOW_IN_RO_TRANS   (1U << 15)
+
+/**
+  Statement that need the binlog format to be unchanged.
+*/
+#define CF_FORCE_ORIGINAL_BINLOG_FORMAT (1U << 16)
 
 /* Bits in server_command_flags */
 

@@ -621,6 +621,8 @@ bool st_select_lex_unit::exec()
   if (executed && !uncacheable && !describe)
     DBUG_RETURN(FALSE);
   executed= 1;
+  if (!(uncacheable & ~UNCACHEABLE_EXPLAIN) && item)
+    item->make_const();
   
   saved_error= optimize();
 
@@ -720,6 +722,8 @@ bool st_select_lex_unit::exec()
     }
   }
 
+  DBUG_EXECUTE_IF("show_explain_probe_union_read", 
+                   dbug_serve_apcs(thd, 1););
   /* Send result to 'result' */
   saved_error= TRUE;
   {

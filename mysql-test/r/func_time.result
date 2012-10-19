@@ -1023,11 +1023,11 @@ MAKETIME(CAST(-1 AS UNSIGNED), 0, 0)
 Warnings:
 Note	1105	Cast to unsigned converted negative integer to it's positive complement
 Warning	1292	Truncated incorrect time value: '18446744073709551615:00:00'
-SELECT EXTRACT(HOUR FROM '100000:02:03');
-EXTRACT(HOUR FROM '100000:02:03')
+SELECT EXTRACT(HOUR FROM '10000:02:03');
+EXTRACT(HOUR FROM '10000:02:03')
 838
 Warnings:
-Warning	1292	Truncated incorrect time value: '100000:02:03'
+Warning	1292	Truncated incorrect time value: '10000:02:03'
 CREATE TABLE t1(f1 TIME);
 INSERT INTO t1 VALUES('916:00:00 a');
 Warnings:
@@ -1922,3 +1922,5 @@ cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6))
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
 123456	10
+select now(258);
+ERROR 42000: Too big precision 258 specified for 'now'. Maximum is 6.

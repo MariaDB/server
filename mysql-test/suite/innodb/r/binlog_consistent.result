@@ -3,11 +3,11 @@ RESET MASTER;
 CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb;
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	380		
+master-bin.000001	421		
 SHOW STATUS LIKE 'binlog_snapshot_%';
 Variable_name	Value
 binlog_snapshot_file	master-bin.000001
-binlog_snapshot_position	380
+binlog_snapshot_position	421
 BEGIN;
 INSERT INTO t1 VALUES (0, "");
 # Connection con1
@@ -38,10 +38,10 @@ a	b
 SHOW STATUS LIKE 'binlog_snapshot_%';
 Variable_name	Value
 binlog_snapshot_file	master-bin.000001
-binlog_snapshot_position	904
+binlog_snapshot_position	945
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	1316		
+master-bin.000001	1357		
 SELECT * FROM t2 ORDER BY a;
 a
 2
@@ -60,44 +60,45 @@ a	b
 SHOW STATUS LIKE 'binlog_snapshot_%';
 Variable_name	Value
 binlog_snapshot_file	master-bin.000001
-binlog_snapshot_position	904
+binlog_snapshot_position	945
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000002	245		
+master-bin.000002	326		
 COMMIT;
 SHOW STATUS LIKE 'binlog_snapshot_%';
 Variable_name	Value
 binlog_snapshot_file	master-bin.000002
-binlog_snapshot_position	245
+binlog_snapshot_position	326
 SHOW MASTER STATUS;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000002	245		
+master-bin.000002	326		
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	4	Format_desc	1	245	Server ver: #, Binlog ver: #
-master-bin.000001	245	Query	1	380	use `test`; CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb
-master-bin.000001	380	Query	1	492	use `test`; CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=myisam
-master-bin.000001	492	Query	1	560	BEGIN
-master-bin.000001	560	Query	1	648	use `test`; INSERT INTO t2 VALUES (2)
-master-bin.000001	648	Query	1	717	COMMIT
-master-bin.000001	717	Query	1	785	BEGIN
-master-bin.000001	785	Query	1	877	use `test`; INSERT INTO t1 VALUES (0, "")
-master-bin.000001	877	Xid	1	904	COMMIT /* XID */
-master-bin.000001	904	Query	1	972	BEGIN
-master-bin.000001	972	Query	1	1060	use `test`; INSERT INTO t2 VALUES (3)
-master-bin.000001	1060	Query	1	1129	COMMIT
-master-bin.000001	1129	Query	1	1197	BEGIN
-master-bin.000001	1197	Query	1	1289	use `test`; INSERT INTO t1 VALUES (4, "")
-master-bin.000001	1289	Xid	1	1316	COMMIT /* XID */
-master-bin.000001	1316	Query	1	1384	BEGIN
-master-bin.000001	1384	Query	1	1476	use `test`; INSERT INTO t1 VALUES (1, "")
-master-bin.000001	1476	Xid	1	1503	COMMIT /* XID */
-master-bin.000001	1503	Query	1	1571	BEGIN
-master-bin.000001	1571	Query	1	1668	use `test`; INSERT INTO t1 VALUES (2, "first")
-master-bin.000001	1668	Query	1	1766	use `test`; INSERT INTO t1 VALUES (2, "second")
-master-bin.000001	1766	Xid	1	1793	COMMIT /* XID */
-master-bin.000001	1793	Query	1	1861	BEGIN
-master-bin.000001	1861	Query	1	1953	use `test`; INSERT INTO t1 VALUES (3, "")
-master-bin.000001	1953	Xid	1	1980	COMMIT /* XID */
-master-bin.000001	1980	Rotate	1	2024	master-bin.000002;pos=4
+master-bin.000001	4	Format_desc	1	246	Server ver: #, Binlog ver: #
+master-bin.000001	246	Binlog_checkpoint	1	286	master-bin.000001
+master-bin.000001	286	Query	1	421	use `test`; CREATE TABLE t1 (a INT, b VARCHAR(100), PRIMARY KEY (a,b)) ENGINE=innodb
+master-bin.000001	421	Query	1	533	use `test`; CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=myisam
+master-bin.000001	533	Query	1	601	BEGIN
+master-bin.000001	601	Query	1	689	use `test`; INSERT INTO t2 VALUES (2)
+master-bin.000001	689	Query	1	758	COMMIT
+master-bin.000001	758	Query	1	826	BEGIN
+master-bin.000001	826	Query	1	918	use `test`; INSERT INTO t1 VALUES (0, "")
+master-bin.000001	918	Xid	1	945	COMMIT /* XID */
+master-bin.000001	945	Query	1	1013	BEGIN
+master-bin.000001	1013	Query	1	1101	use `test`; INSERT INTO t2 VALUES (3)
+master-bin.000001	1101	Query	1	1170	COMMIT
+master-bin.000001	1170	Query	1	1238	BEGIN
+master-bin.000001	1238	Query	1	1330	use `test`; INSERT INTO t1 VALUES (4, "")
+master-bin.000001	1330	Xid	1	1357	COMMIT /* XID */
+master-bin.000001	1357	Query	1	1425	BEGIN
+master-bin.000001	1425	Query	1	1517	use `test`; INSERT INTO t1 VALUES (1, "")
+master-bin.000001	1517	Xid	1	1544	COMMIT /* XID */
+master-bin.000001	1544	Query	1	1612	BEGIN
+master-bin.000001	1612	Query	1	1709	use `test`; INSERT INTO t1 VALUES (2, "first")
+master-bin.000001	1709	Query	1	1807	use `test`; INSERT INTO t1 VALUES (2, "second")
+master-bin.000001	1807	Xid	1	1834	COMMIT /* XID */
+master-bin.000001	1834	Query	1	1902	BEGIN
+master-bin.000001	1902	Query	1	1994	use `test`; INSERT INTO t1 VALUES (3, "")
+master-bin.000001	1994	Xid	1	2021	COMMIT /* XID */
+master-bin.000001	2021	Rotate	1	2065	master-bin.000002;pos=4
 DROP TABLE t1,t2;

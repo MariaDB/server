@@ -3866,13 +3866,45 @@ longlong Item_master_pos_wait::val_int()
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
   longlong timeout = (arg_count==3) ? args[2]->val_int() : 0 ;
-  if ((event_count = active_mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
+  String connection_name_buff;
+  LEX_STRING connection_name;
+  Master_info *mi;
+  if (arg_count == 4)
+  {
+    String *con;
+    if (!(con= args[3]->val_str(&connection_name_buff)))
+      goto err;
+
+    connection_name.str= (char*) con->ptr();
+    connection_name.length= con->length();
+    if (check_master_connection_name(&connection_name))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+               "MASTER_CONNECTION_NAME");
+      goto err;
+    }
+  }
+  else
+    connection_name= thd->variables.default_master_connection;
+
+  if (!(mi= master_info_index->get_master_info(&connection_name,
+                                               MYSQL_ERROR::WARN_LEVEL_WARN)))
+    goto err;
+  if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;
     event_count=0;
   }
 #endif
   return event_count;
+
+#ifdef HAVE_REPLICATION
+err:
+  {
+    null_value = 1;
+    return 0;
+  }
+#endif
 }
 
 
@@ -4297,7 +4329,7 @@ longlong Item_func_sleep::val_int()
 
 #define extra_size sizeof(double)
 
-static user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
 				    bool create_if_not_exists)
 {
   user_var_entry *entry;
@@ -5441,10 +5473,10 @@ my_decimal* Item_user_var_as_out_param::val_decimal(my_decimal *decimal_buffer)
 }
 
 
-void Item_user_var_as_out_param::print(String *str, enum_query_type query_type)
+void Item_user_var_as_out_param::print_for_load(THD *thd, String *str)
 {
   str->append('@');
-  str->append(name.str,name.length);
+  append_identifier(thd, str, name.str, name.length);
 }
 
 
@@ -6043,6 +6075,8 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
   Item *UNINIT_VAR(item);                        // Safe as arg_count is > 1
+
+  status_var_increment(thd->status_var.feature_fulltext);
 
   maybe_null=1;
   join_key=0;
@@ -6813,4 +6847,63 @@ longlong Item_func_uuid_short::val_int()
   val= uuid_value++;
   mysql_mutex_unlock(&LOCK_short_uuid_generator);
   return (longlong) val;
+}
+
+
+/**
+  Last_value - return last argument.
+*/
+
+void Item_func_last_value::evaluate_sideeffects()
+{
+  DBUG_ASSERT(fixed == 1 && arg_count > 0);
+  for (uint i= 0; i < arg_count-1 ; i++)
+    args[i]->val_int();
+}
+
+String *Item_func_last_value::val_str(String *str)
+{
+  String *tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_str(str);
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+longlong Item_func_last_value::val_int()
+{
+  longlong tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_int();
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+double Item_func_last_value::val_real()
+{
+  double tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_real();
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+my_decimal *Item_func_last_value::val_decimal(my_decimal *decimal_value)
+{
+  my_decimal *tmp;
+  evaluate_sideeffects();
+  tmp= last_value->val_decimal(decimal_value);
+  null_value= last_value->null_value;
+  return tmp;
+}
+
+
+void Item_func_last_value::fix_length_and_dec()
+{
+  last_value=          args[arg_count -1];
+  decimals=            last_value->decimals;
+  max_length=          last_value->max_length;
+  collation.set(last_value->collation.collation);
+  maybe_null=          last_value->maybe_null;
+  unsigned_flag=       last_value->unsigned_flag;
 }
