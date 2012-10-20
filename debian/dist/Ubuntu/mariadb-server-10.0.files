@@ -1,5 +1,7 @@
 usr/lib/mysql/plugin/
 usr/lib/libhsclient.so.*
+etc/apparmor.d/usr.sbin.mysqld
+usr/share/apport/package-hooks/source_mariadb-10.0.py
 etc/mysql/debian-start
 etc/mysql/conf.d/mysqld_safe_syslog.cnf
 usr/bin/msql2mysql
@@ -29,10 +31,10 @@ usr/bin/perror
 usr/bin/replace
 usr/bin/resolve_stack_dump
 usr/bin/resolveip
-usr/share/doc/mariadb-server-5.5/mysqld.sym.gz
-usr/share/doc/mariadb-server-5.5/INFO_SRC
-usr/share/doc/mariadb-server-5.5/INFO_BIN
-usr/share/lintian/overrides/mariadb-server-5.5
+usr/share/doc/mariadb-server-10.0/mysqld.sym.gz
+usr/share/doc/mariadb-server-10.0/INFO_SRC
+usr/share/doc/mariadb-server-10.0/INFO_BIN
+usr/share/lintian/overrides/mariadb-server-10.0
 usr/share/man/man1/msql2mysql.1
 usr/share/man/man1/myisamchk.1
 usr/share/man/man1/myisam_ftdump.1
