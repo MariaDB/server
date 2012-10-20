@@ -148,12 +148,12 @@ master-bin.000001	#	Query	1	#	use `db1``; select 'oops!'`; CREATE TABLE `t``1` (
 `c``3` VARCHAR(7))
 master-bin.000001	#	Query	1	#	BEGIN
 master-bin.000001	#	Begin_load_query	1	#	;file_id=#;block_len=14
-master-bin.000001	#	Execute_load_query	1	#	use `db1``; select 'oops!'`; LOAD DATA INFILE '/usr/home/serg/Abk/mysql/10.0-monty/mysql-test/var/tmp/f\'le.txt' INTO TABLE `t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, @`b```) SET `b``2`= @`b```, `c``3`= concat('|', "b""a'z", "!") ;file_id=#
+master-bin.000001	#	Execute_load_query	1	#	use `db1``; select 'oops!'`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f\'le.txt' INTO TABLE `t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, @`b```) SET `b``2`= @`b```, `c``3`= concat('|', "b""a'z", "!") ;file_id=#
 master-bin.000001	#	Query	1	#	COMMIT
 master-bin.000001	#	Query	1	#	use `db1``; select 'oops!'`; truncate `t``1`
 master-bin.000001	#	Query	1	#	BEGIN
 master-bin.000001	#	Begin_load_query	1	#	;file_id=#;block_len=14
-master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE '/usr/home/serg/Abk/mysql/10.0-monty/mysql-test/var/tmp/f\'le.txt' INTO TABLE `db1``; select 'oops!'`.`t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, `b``2`) SET `c``3`= concat('|', "b""a'z", "!") ;file_id=#
+master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f\'le.txt' INTO TABLE `db1``; select 'oops!'`.`t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, `b``2`) SET `c``3`= concat('|', "b""a'z", "!") ;file_id=#
 master-bin.000001	#	Query	1	#	COMMIT
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
@@ -216,7 +216,7 @@ show binlog events  from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Query	1	#	BEGIN
 master-bin.000001	#	Begin_load_query	1	#	;file_id=#;block_len=8
-master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE '/usr/home/serg/Abk/mysql/10.0-monty/mysql-test/var/tmp/file.txt' INTO TABLE `t1` FIELDS TERMINATED BY ',' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`, @`b`) SET `b`= CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b) ;file_id=#
+master-bin.000001	#	Execute_load_query	1	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/file.txt' INTO TABLE `t1` FIELDS TERMINATED BY ',' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`, @`b`) SET `b`= CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b) ;file_id=#
 master-bin.000001	#	Query	1	#	COMMIT
 SELECT * FROM t1 ORDER BY a;
 a	b
