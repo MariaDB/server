@@ -135,7 +135,7 @@ EOF
     db_set mysql-server/postrm_remove_database false || true
 
     # To avoid downgrades.
-    touch $mysql_statedir/debian-5.5.flag
+    touch $mysql_statedir/debian-10.0.flag
 
     # initiate databases. Output is not allowed by debconf :-(
     # This will fail if we are upgrading an existing database; in this case

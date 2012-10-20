@@ -46,7 +46,7 @@ stop_server() {
 
 ################################ main() ##########################
 
-this_version=5.5
+this_version=10.0
 
 # Abort if an NDB cluster is in use.
 if egrep -qi -r '^[^#]*ndb.connectstring|^[[:space:]]*\[[[:space:]]*ndb_mgmd' /etc/mysql/; then

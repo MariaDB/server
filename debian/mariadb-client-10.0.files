@@ -13,7 +13,7 @@ usr/bin/mysqlshow
 usr/bin/mysqlslap
 usr/bin/mytop
 usr/bin/mysql_waitpid
-usr/share/lintian/overrides/mariadb-client-5.5
+usr/share/lintian/overrides/mariadb-client-10.0
 usr/share/man/man1/innotop.1
 usr/share/man/man1/mysqlaccess.1
 usr/share/man/man1/mysqladmin.1

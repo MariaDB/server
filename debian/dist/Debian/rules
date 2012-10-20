@@ -3,7 +3,7 @@
 export DH_VERBOSE=1
 export DEB_BUILD_HARDENING=1
 
-PACKAGE=mariadb-5.5
+PACKAGE=mariadb-10.0
 
 include /usr/share/dpatch/dpatch.make
 
@@ -168,22 +168,22 @@ install: build
 
 	# mariadb-server
 	install -m 0755 $(BUILDDIR)/scripts/mysqld_safe $(TMP)/usr/bin/mysqld_safe
-	mkdir -p $(TMP)/usr/share/doc/mariadb-server-5.5/examples
+	mkdir -p $(TMP)/usr/share/doc/mariadb-server-10.0/examples
 	# We have a sane my.cnf, cruft not needed (remove my-*.cnf and config-*.cnf)
-	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-server-5.5/examples/
+	#  $(TMP)/usr/share/mysql/*cnf      $(TMP)/usr/share/doc/mariadb-server-10.0/examples/
 	rm -vf $(TMP)/usr/share/mysql/my-*.cnf \
 	       $(TMP)/usr/share/mysql/config-*.cnf \
 	       $(TMP)/usr/share/mysql/mi_test_all* \
 	       $(TMP)/usr/share/mysql/mysql-log-rotate \
 	       $(TMP)/usr/share/mysql/mysql.server \
 	       $(TMP)/usr/share/mysql/binary-configure
-	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-5.5/mysqld.sym.gz
+	nm -n $(BUILDDIR)/sql/mysqld |gzip -9 > $(TMP)/usr/share/doc/mariadb-server-10.0/mysqld.sym.gz
 	install -m 0755 debian/additions/echo_stderr $(TMP)/usr/share/mysql/
 	install -m 0755 debian/additions/debian-start $(TMP)/etc/mysql/
 	install -m 0755 debian/additions/debian-start.inc.sh $(TMP)/usr/share/mysql/
 
-	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-5.5/INFO_SRC
-	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-5.5/INFO_BIN
+	install -m 0644 $(builddir)/Docs/INFO_SRC $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_SRC
+	install -m 0644 $(builddir)/Docs/INFO_BIN $(TMP)/usr/share/doc/mariadb-server-10.0/INFO_BIN
 
 	# mariadb-test
 	mv $(TMP)/usr/mysql-test	$(TMP)/usr/share/mysql
@@ -191,14 +191,14 @@ install: build
 	# lintian overrides
 	mkdir -p $(TMP)/usr/share/lintian/overrides/
 	cp debian/mysql-common.lintian-overrides      $(TMP)/usr/share/lintian/overrides/mysql-common
-	cp debian/mariadb-server-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-5.5
-	cp debian/mariadb-client-5.5.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-5.5
+	cp debian/mariadb-server-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-server-10.0
+	cp debian/mariadb-client-10.0.lintian-overrides $(TMP)/usr/share/lintian/overrides/mariadb-client-10.0
 
-	# For 5.0 -> 5.5 transition
+	# For 5.0 -> 10.0 transition
 	d=$(TMP)/usr/share/mysql-common/internal-use-only/; \
 	mkdir -p $$d; \
-	cp debian/mariadb-server-5.5.mysql.init $$d/_etc_init.d_mysql; \
-	cp debian/mariadb-server-5.5.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
+	cp debian/mariadb-server-10.0.mysql.init $$d/_etc_init.d_mysql; \
+	cp debian/mariadb-server-10.0.mysql-server.logrotate $$d/_etc_logrotate.d_mysql-server; \
 	cp debian/additions/debian-start $$d/_etc_mysql_debian-start;
 
 	dh_movefiles

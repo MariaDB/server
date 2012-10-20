@@ -1,3 +1,9 @@
+mariadb-10.0 (10.0.0) unstable; urgency=low
+
+  * Initial release.
+
+ -- Sergei Golubchik <serg@askmonty.org>  Sat, 20 Oct 2012 17:18:44 -0100
+
 mariadb-5.5 (5.5.1) unstable; urgency=low
 
   * Initial release.
