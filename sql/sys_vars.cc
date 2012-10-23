@@ -1989,17 +1989,27 @@ static Sys_var_charptr Sys_secure_file_priv(
 
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
-  server_id_supplied = 1;
-  thd->server_id= server_id;
+  if (type == OPT_GLOBAL)
+  {
+    server_id_supplied = 1;
+    thd->variables.server_id= global_system_variables.server_id;
+    /*
+      Historically, server_id was a global variable that is exported to
+      plugins. Now it is a session variable, and lives in the
+      global_system_variables struct, but we still need to export the
+      value for reading to plugins for backwards compatibility reasons.
+    */
+    ::server_id= global_system_variables.server_id;
+  }
   return false;
 }
 static Sys_var_ulong Sys_server_id(
        "server_id",
        "Uniquely identifies the server instance in the community of "
        "replication partners",
-       GLOBAL_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
+       SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
 
 static Sys_var_mybool Sys_slave_compressed_protocol(
        "slave_compressed_protocol",

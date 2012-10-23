@@ -4937,9 +4937,9 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
-  if (opt_bin_log && !server_id)
+  if (opt_bin_log && !global_system_variables.server_id)
   {
-    server_id= 1;
+    global_system_variables.server_id= ::server_id= 1;
 #ifdef EXTRA_DEBUG
     sql_print_warning("You have enabled the binary log, but you haven't set "
                       "server-id to a non-zero value: we force server id to 1; "
@@ -7819,6 +7819,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_SERVER_ID:
     server_id_supplied = 1;
+    ::server_id= global_system_variables.server_id;
     break;
   case OPT_ONE_THREAD:
     thread_handling= SCHEDULER_NO_THREADS;

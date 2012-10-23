@@ -335,7 +335,7 @@ uint create_table_def_key(THD *thd, char *key,
   uint key_length= (uint) (table_end-key);
   if (tmp_table)
   {
-    int4store(key + key_length, thd->server_id);
+    int4store(key + key_length, thd->variables.server_id);
     int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
     key_length+= TMP_TABLE_KEY_EXTRA;
   }
@@ -2782,7 +2782,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 	{
           DBUG_PRINT("error",
                      ("query_id: %lu  server_id: %u  pseudo_thread_id: %lu",
-                      (ulong) table->query_id, (uint) thd->server_id,
+                      (ulong) table->query_id, (uint) thd->variables.server_id,
                       (ulong) thd->variables.pseudo_thread_id));
 	  my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
 	  DBUG_RETURN(TRUE);
@@ -6100,7 +6100,8 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
              ("table: '%s'.'%s'  path: '%s'  server_id: %u  "
               "pseudo_thread_id: %lu",
               db, table_name, path,
-              (uint) thd->server_id, (ulong) thd->variables.pseudo_thread_id));
+              (uint) thd->variables.server_id,
+              (ulong) thd->variables.pseudo_thread_id));
 
   table_list.db=         (char*) db;
   table_list.table_name= (char*) table_name;

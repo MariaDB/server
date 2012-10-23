@@ -686,7 +686,8 @@ bool Log_to_csv_event_handler::
   /* do a write */
   if (table->field[1]->store(user_host, user_host_len, client_cs) ||
       table->field[2]->store((longlong) thread_id, TRUE) ||
-      table->field[3]->store((longlong) server_id, TRUE) ||
+      table->field[3]->store((longlong) global_system_variables.server_id,
+                             TRUE) ||
       table->field[4]->store(command_type, command_type_len, client_cs))
     goto err;
 
@@ -883,7 +884,7 @@ bool Log_to_csv_event_handler::
     table->field[8]->set_notnull();
   }
 
-  if (table->field[9]->store((longlong) server_id, TRUE))
+  if (table->field[9]->store((longlong)global_system_variables.server_id, TRUE))
     goto err;
   table->field[9]->set_notnull();
 

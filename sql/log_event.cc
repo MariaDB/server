@@ -537,7 +537,7 @@ static char *slave_load_file_stem(char *buf, uint file_id,
   to_unix_path(buf);
 
   buf = strend(buf);
-  buf = int10_to_str(::server_id, buf, 10);
+  buf = int10_to_str(global_system_variables.server_id, buf, 10);
   *buf++ = '-';
   buf = int10_to_str(event_server_id, buf, 10);
   *buf++ = '-';
@@ -573,7 +573,7 @@ static void cleanup_load_tmpdir()
      LOAD DATA.
   */
   p= strmake(prefbuf, STRING_WITH_LEN(PREFIX_SQL_LOAD));
-  p= int10_to_str(::server_id, p, 10);
+  p= int10_to_str(global_system_variables.server_id, p, 10);
   *(p++)= '-';
   *p= 0;
 
@@ -771,7 +771,7 @@ Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
    crc(0), thd(thd_arg),
    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
-  server_id=	thd->server_id;
+  server_id=	thd->variables.server_id;
   when=         thd->start_time;
   when_sec_part=thd->start_time_sec_part;
 
@@ -796,7 +796,7 @@ Log_event::Log_event()
    cache_type(Log_event::EVENT_INVALID_CACHE), crc(0),
    thd(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
-  server_id=	::server_id;
+  server_id=	global_system_variables.server_id;
   /*
     We can't call my_time() here as this would cause a call before
     my_init() is called
@@ -928,10 +928,11 @@ Log_event::do_shall_skip(Relay_log_info *rli)
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
                       " rli->slave_skip_counter: %lu",
-                      (ulong) server_id, (ulong) ::server_id,
+                      (ulong) server_id, (ulong) global_system_variables.server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
-  if ((server_id == ::server_id && !rli->replicate_same_server_id) ||
+  if ((server_id == global_system_variables.server_id &&
+       !rli->replicate_same_server_id) ||
       (rli->slave_skip_counter == 1 && rli->is_in_group()) ||
       (flags & LOG_EVENT_SKIP_REPLICATION_F &&
        opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE))
@@ -4818,7 +4819,7 @@ int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
     perform, we don't call Start_log_event_v3::do_apply_event()
     (this was just to update the log's description event).
   */
-  if (server_id != (uint32) ::server_id)
+  if (server_id != (uint32) global_system_variables.server_id)
   {
     /*
       If the event was not requested by the slave i.e. the master sent
@@ -4844,7 +4845,7 @@ int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
 
 int Format_description_log_event::do_update_pos(Relay_log_info *rli)
 {
-  if (server_id == (uint32) ::server_id)
+  if (server_id == (uint32) global_system_variables.server_id)
   {
     /*
       We only increase the relay log position if we are skipping
@@ -5889,7 +5890,7 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
 #endif
 
   DBUG_PRINT("info", ("server_id=%lu; ::server_id=%lu",
-                      (ulong) this->server_id, (ulong) ::server_id));
+                      (ulong) this->server_id, (ulong) global_system_variables.server_id));
   DBUG_PRINT("info", ("new_log_ident: %s", this->new_log_ident));
   DBUG_PRINT("info", ("pos: %s", llstr(this->pos, buf)));
 
@@ -5909,7 +5910,8 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
     5.0.0, there also are some rotates from the slave itself, in the
     relay log, which shall not change the group positions.
   */
-  if ((server_id != ::server_id || rli->replicate_same_server_id) &&
+  if ((server_id != global_system_variables.server_id ||
+       rli->replicate_same_server_id) &&
       !is_relay_log_event() &&
       !rli->is_in_group())
   {

@@ -914,7 +914,7 @@ THD::THD()
   /* Variables with default values */
   proc_info="login";
   where= THD::DEFAULT_WHERE;
-  server_id = ::server_id;
+  variables.server_id = global_system_variables.server_id;
   slave_net = 0;
   command=COM_CONNECT;
   *scramble= '\0';
@@ -5157,7 +5157,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
   size_t const len= pack_row(table, cols, row_data, record);
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
                                       len, is_trans,
                                       static_cast<Write_rows_log_event*>(0));
 
@@ -5201,7 +5201,7 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 #endif
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      before_size + after_size, is_trans,
 				      static_cast<Update_rows_log_event*>(0));
 
@@ -5232,7 +5232,7 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   size_t const len= pack_row(table, cols, row_data, record);
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      len, is_trans,
 				      static_cast<Delete_rows_log_event*>(0));
 
