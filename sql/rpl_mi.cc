@@ -639,7 +639,7 @@ bool check_master_connection_name(LEX_STRING *name)
    file names without a prefix.
 */
 
-void create_logfile_name_with_suffix(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, bool append,
                              LEX_STRING *suffix)
 {

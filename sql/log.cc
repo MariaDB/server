@@ -5278,6 +5278,67 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
   DBUG_RETURN(error);
 }
 
+
+/* Generate a new global transaction ID, and write it to the binlog */
+bool
+MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
+                                bool is_transactional)
+{
+  rpl_gtid gtid;
+  uint64 seq_no;
+
+  seq_no= thd->variables.gtid_seq_no;
+  /*
+    Reset the session variable gtid_seq_no, to reduce the risk of accidentally
+    producing a duplicate GTID.
+  */
+  thd->variables.gtid_seq_no= 0;
+  if (seq_no != 0)
+  {
+    /*
+      If we see a higher sequence number, use that one as the basis of any
+      later generated sequence numbers.
+
+      This way, in simple tree replication topologies with just one master
+      generating events at any point in time, sequence number will always be
+      monotonic irrespectively of server_id. Only if events are produced in
+      parallel on multiple master servers will sequence id be non-monotonic
+      and server id needed to distinguish.
+
+      We will not rely on this in the server code, but it makes things
+      conceptually easier to understand for the DBA.
+    */
+    mysql_mutex_lock(&LOCK_gtid_counter);
+    if (global_gtid_counter < seq_no)
+      global_gtid_counter= seq_no;
+    mysql_mutex_unlock(&LOCK_gtid_counter);
+  }
+  else
+  {
+    mysql_mutex_lock(&LOCK_gtid_counter);
+    seq_no= ++global_gtid_counter;
+    mysql_mutex_unlock(&LOCK_gtid_counter);
+  }
+  gtid.seq_no= seq_no;
+  gtid.domain_id= thd->variables.gtid_domain_id;
+
+  Gtid_log_event gtid_event(thd, gtid.seq_no, gtid.domain_id, standalone,
+                            LOG_EVENT_SUPPRESS_USE_F, is_transactional);
+  gtid.server_id= gtid_event.server_id;
+
+  /* Write the event to the binary log. */
+  if (gtid_event.write(&mysql_bin_log.log_file))
+    return true;
+  status_var_add(thd->status_var.binlog_bytes_written, gtid_event.data_written);
+
+  /* Update the replication state (last GTID in each replication domain). */
+  mysql_mutex_lock(&LOCK_rpl_gtid_state);
+  global_rpl_gtid_state.update(&gtid);
+  mysql_mutex_unlock(&LOCK_rpl_gtid_state);
+  return false;
+}
+
+
 /**
   Write an event to the binary log. If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the event
@@ -5347,6 +5408,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
       prev_binlog_id= current_binlog_id;
+      write_gtid_event(thd, true, using_trans);
     }
     else
     {
@@ -6219,19 +6281,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
     break;
   }
 
-  /*
-    Log "BEGIN" at the beginning of every transaction.  Here, a transaction is
-    either a BEGIN..COMMIT block or a single statement in autocommit mode.
-
-    Create the necessary events here, where we have the correct THD (and
-    thread context).
-
-    Due to group commit the actual writing to binlog may happen in a different
-    thread.
-  */
-  Query_log_event qinfo(thd, STRING_WITH_LEN("BEGIN"), using_trx_cache, TRUE,
-                        TRUE, 0);
-  entry.begin_event= &qinfo;
   entry.end_event= end_ev;
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
@@ -6607,10 +6656,8 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
 
-  if (entry->begin_event->write(&log_file))
+  if (write_gtid_event(entry->thd, false, entry->using_trx_cache))
     return ER_ERROR_ON_WRITE;
-  status_var_add(entry->thd->status_var.binlog_bytes_written,
-                 entry->begin_event->data_written);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
       write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
