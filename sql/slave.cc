@@ -706,7 +706,7 @@ int start_slave_thread(
 
   if (start_lock)
     mysql_mutex_lock(start_lock);
-  if (!server_id)
+  if (!global_system_variables.server_id)
   {
     if (start_cond)
       mysql_cond_broadcast(start_cond);
@@ -1403,7 +1403,8 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
       (master_res= mysql_store_result(mysql)) &&
       (master_row= mysql_fetch_row(master_res)))
   {
-    if ((::server_id == (mi->master_id= strtoul(master_row[1], 0, 10))) &&
+    if ((global_system_variables.server_id ==
+             (mi->master_id= strtoul(master_row[1], 0, 10))) &&
         !mi->rli.replicate_same_server_id)
     {
       errmsg= "The slave I/O thread stops because master and slave have equal \
@@ -1976,7 +1977,7 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
     DBUG_RETURN(0);
   }
 
-  int4store(pos, server_id); pos+= 4;
+  int4store(pos, global_system_variables.server_id); pos+= 4;
   pos= net_store_data(pos, (uchar*) report_host, report_host_len);
   pos= net_store_data(pos, (uchar*) report_user, report_user_len);
   pos= net_store_data(pos, (uchar*) report_password, report_password_len);
@@ -2529,7 +2530,7 @@ static int request_dump(THD *thd, MYSQL* mysql, Master_info* mi,
   // TODO if big log files: Change next to int8store()
   int4store(buf, (ulong) mi->master_log_pos);
   int2store(buf + 4, binlog_flags);
-  int4store(buf + 6, server_id);
+  int4store(buf + 6, global_system_variables.server_id);
   len = (uint) strlen(logname);
   memcpy(buf + 10, logname,len);
   if (simple_command(mysql, COM_BINLOG_DUMP, buf, len + 10, 1))
@@ -2738,7 +2739,8 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
     has a Rotate etc).
   */
 
-  thd->server_id = ev->server_id; // use the original server id for logging
+  /* Use the original server id for logging. */
+  thd->variables.server_id = ev->server_id;
   thd->set_time();                            // time the query
   thd->lex->current_select= 0;
   if (!ev->when)
@@ -3947,7 +3949,7 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev)
   }
   DBUG_ASSERT(cev->inited_from_old);
   thd->file_id = cev->file_id = mi->file_id++;
-  thd->server_id = cev->server_id;
+  thd->variables.server_id = cev->server_id;
   cev_not_written = 1;
 
   if (unlikely(net_request_file(net,cev->fname)))
@@ -4620,7 +4622,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
 
   mysql_mutex_lock(log_lock);
   s_id= uint4korr(buf + SERVER_ID_OFFSET);
-  if ((s_id == ::server_id && !mi->rli.replicate_same_server_id) ||
+  if ((s_id == global_system_variables.server_id &&
+       !mi->rli.replicate_same_server_id) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
         If the master is on the ignore list, execution of
@@ -4651,7 +4654,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       IGNORE_SERVER_IDS it increments mi->master_log_pos
       as well as rli->group_relay_log_pos.
     */
-    if (!(s_id == ::server_id && !mi->rli.replicate_same_server_id) ||
+    if (!(s_id == global_system_variables.server_id &&
+          !mi->rli.replicate_same_server_id) ||
         (buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT &&
          buf[EVENT_TYPE_OFFSET] != ROTATE_EVENT &&
          buf[EVENT_TYPE_OFFSET] != STOP_EVENT))

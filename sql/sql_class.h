@@ -529,6 +529,7 @@ typedef struct system_variables
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   int max_user_connections;
+  ulong server_id;
   /**
     In slave thread we need to know in behalf of which
     thread the query is being run to replicate temp tables properly
@@ -1699,7 +1700,6 @@ public:
     first byte of the packet in do_command()
   */
   enum enum_server_command command;
-  uint32     server_id;
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
@@ -1776,7 +1776,7 @@ public:
                         MY_BITMAP const* cols, size_t colcnt,
                         const uchar *old_data, const uchar *new_data);
 
-  void set_server_id(uint32 sid) { server_id = sid; }
+  void set_server_id(uint32 sid) { variables.server_id = sid; }
 
   /*
     Member functions to handle pending event for row-level logging.

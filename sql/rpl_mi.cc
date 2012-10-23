@@ -61,7 +61,9 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
     my_casedn_str(system_charset_info, cmp_connection_name.str);
   }
 
-  my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16, MYF(0));
+  my_init_dynamic_array(&ignore_server_ids,
+                        sizeof(global_system_variables.server_id), 16, 16,
+                        MYF(0));
   bzero((char*) &file, sizeof(file));
   mysql_mutex_init(key_master_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
@@ -510,7 +512,7 @@ int flush_master_info(Master_info* mi,
   char* ignore_server_ids_buf;
   {
     ignore_server_ids_buf=
-      (char *) my_malloc((sizeof(::server_id) * 3 + 1) *
+      (char *) my_malloc((sizeof(global_system_variables.server_id) * 3 + 1) *
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);

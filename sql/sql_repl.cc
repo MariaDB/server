@@ -81,7 +81,7 @@ static int fake_rotate_event(NET* net, String* packet, char* log_file_name,
   uint ident_len = (uint) strlen(p);
   ulong event_len = ident_len + LOG_EVENT_HEADER_LEN + ROTATE_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
-  int4store(header + SERVER_ID_OFFSET, server_id);
+  int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, LOG_EVENT_ARTIFICIAL_F);
 
@@ -539,7 +539,7 @@ static int send_heartbeat_event(NET* net, String* packet,
   uint ident_len = strlen(p);
   ulong event_len = ident_len + LOG_EVENT_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
-  int4store(header + SERVER_ID_OFFSET, server_id);
+  int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
@@ -748,7 +748,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   mariadb_slave_capability= get_mariadb_slave_capability(thd);
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
-                        thd->server_id, log_ident, (ulong)pos);
+                        thd->variables.server_id, log_ident, (ulong)pos);
   if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
   {
     errmsg= "Failed to run hook 'transmit_start'";
@@ -1127,7 +1127,8 @@ impossible position";
           int ret;
           ulong signal_cnt;
 	  DBUG_PRINT("wait",("waiting for data in binary log"));
-	  if (thd->server_id==0) // for mysqlbinlog (mysqlbinlog.server_id==0)
+          /* For mysqlbinlog (mysqlbinlog.server_id==0). */
+	  if (thd->variables.server_id==0)
 	  {
             mysql_mutex_unlock(log_lock);
 	    goto end;
@@ -1647,7 +1648,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
   while ((tmp=it++))
   {
     if (tmp->command == COM_BINLOG_DUMP &&
-       tmp->server_id == slave_server_id)
+       tmp->variables.server_id == slave_server_id)
     {
       mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
       break;
@@ -1856,7 +1857,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   {
     ulong s_id;
     get_dynamic(&lex_mi->repl_ignore_server_ids, (uchar*) &s_id, i);
-    if (s_id == ::server_id && replicate_same_server_id)
+    if (s_id == global_system_variables.server_id && replicate_same_server_id)
     {
       my_error(ER_SLAVE_IGNORE_SERVER_IDS, MYF(0), static_cast<int>(s_id));
       ret= TRUE;

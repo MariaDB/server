@@ -2426,7 +2426,7 @@ protected:
       Events from ourself should be skipped, but they should not
       decrease the slave skip counter.
      */
-    if (this->server_id == ::server_id)
+    if (this->server_id == global_system_variables.server_id)
       return Log_event::EVENT_SKIP_IGNORE;
     else
       return Log_event::EVENT_SKIP_NOT;
@@ -2817,7 +2817,7 @@ private:
       Events from ourself should be skipped, but they should not
       decrease the slave skip counter.
      */
-    if (this->server_id == ::server_id)
+    if (this->server_id == global_system_variables.server_id)
       return Log_event::EVENT_SKIP_IGNORE;
     else
       return Log_event::EVENT_SKIP_NOT;

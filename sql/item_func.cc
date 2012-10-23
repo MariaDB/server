@@ -6857,7 +6857,7 @@ ulonglong uuid_value;
 
 void uuid_short_init()
 {
-  uuid_value= ((((ulonglong) server_id) << 56) + 
+  uuid_value= ((((ulonglong) global_system_variables.server_id) << 56) +
                (((ulonglong) server_start_time) << 24));
 }
 
