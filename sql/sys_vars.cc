@@ -1201,6 +1201,29 @@ static Sys_var_ulong Sys_pseudo_thread_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
+static Sys_var_uint Sys_gtid_domain_id(
+       "gtid_domain_id",
+       "Used with global transaction ID to identify logically independent "
+       "replication streams. When events can propagate through multiple "
+       "parallel paths (for example multiple masters), each independent "
+       "source server must use a distinct domain_id. For simple tree-shaped "
+       "replication topologies, it can be left at its default, 0.",
+       SESSION_VAR(gtid_domain_id),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
+static Sys_var_ulonglong Sys_gtid_seq_no(
+       "gtid_seq_no",
+       "Internal server usage, for replication with global transaction id. "
+       "When set, next event group logged to the binary log will use this "
+       "sequence number, not generate a new one, thus allowing to preserve "
+       "master's GTID in slave's binlog.",
+       SESSION_ONLY(gtid_seq_no),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
 {
   SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;

@@ -749,6 +749,8 @@ const char* Log_event::get_type_str(Log_event_type type)
   case INCIDENT_EVENT: return "Incident";
   case ANNOTATE_ROWS_EVENT: return "Annotate_rows";
   case BINLOG_CHECKPOINT_EVENT: return "Binlog_checkpoint";
+  case GTID_EVENT: return "Gtid";
+  case GTID_LIST_EVENT: return "Gtid_list";
   default: return "Unknown";				/* impossible */
   }
 }
@@ -1559,6 +1561,12 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
     case BINLOG_CHECKPOINT_EVENT:
       ev = new Binlog_checkpoint_log_event(buf, event_len, description_event);
+      break;
+    case GTID_EVENT:
+      ev = new Gtid_log_event(buf, event_len, description_event);
+      break;
+    case GTID_LIST_EVENT:
+      ev = new Gtid_list_log_event(buf, event_len, description_event);
       break;
 #ifdef HAVE_REPLICATION
     case SLAVE_EVENT: /* can never happen (unused event) */
@@ -3432,6 +3440,53 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
   return 0;
 }
 
+/*
+  Replace an event (GTID event) with a BEGIN query event, to be compatible
+  with an old slave.
+*/
+int
+Query_log_event::begin_event(String *packet, ulong ev_offset,
+                             uint8 checksum_alg)
+{
+  uchar *p= (uchar *)packet->ptr() + ev_offset;
+  uchar *q= p + LOG_EVENT_HEADER_LEN;
+  size_t data_len= packet->length() - ev_offset;
+  uint16 flags;
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+    data_len-= BINLOG_CHECKSUM_LEN;
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  /* Currently we only need to replace GTID event. */
+  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+
+  flags= uint2korr(p + FLAGS_OFFSET);
+  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+  flags|= LOG_EVENT_SUPPRESS_USE_F;
+  int2store(p + FLAGS_OFFSET, flags);
+
+  p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
+  int4store(q + Q_THREAD_ID_OFFSET, 0);
+  int4store(q + Q_EXEC_TIME_OFFSET, 0);
+  q[Q_DB_LEN_OFFSET]= 0;
+  int2store(q + Q_ERR_CODE_OFFSET, 0);
+  int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+  q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + 1;
+  memcpy(q, "BEGIN", 5);
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    ha_checksum crc= my_checksum(0L, p, data_len);
+    int4store(p + data_len, crc);
+  }
+  return 0;
+}
+
 
 #ifdef MYSQL_CLIENT
 /**
@@ -4454,6 +4509,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[ANNOTATE_ROWS_EVENT-1]= ANNOTATE_ROWS_HEADER_LEN;
       post_header_len[BINLOG_CHECKPOINT_EVENT-1]=
         BINLOG_CHECKPOINT_HEADER_LEN;
+      post_header_len[GTID_EVENT-1]= GTID_HEADER_LEN;
+      post_header_len[GTID_LIST_EVENT-1]= GTID_LIST_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -5990,6 +6047,406 @@ bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
     write_footer(file);
 }
 #endif  /* MYSQL_CLIENT */
+
+
+/**************************************************************************
+        Global transaction ID stuff
+**************************************************************************/
+
+/**
+   Current replication state (hash of last GTID executed, per replication
+   domain).
+*/
+rpl_state global_rpl_gtid_state;
+
+
+rpl_state::rpl_state()
+{
+  my_hash_init(&hash, &my_charset_bin, 32,
+                offsetof(rpl_gtid, domain_id), sizeof(uint32),
+                NULL, my_free, HASH_UNIQUE);
+}
+
+
+rpl_state::~rpl_state()
+{
+  my_hash_free(&hash);
+}
+
+
+#ifdef MYSQL_SERVER
+/*
+  Update replication state with a new GTID.
+
+  If the replication domain id already exists, then the new GTID replaces the
+  old one for that domain id. Else a new entry is inserted.
+
+  Returns 0 for ok, 1 for error.
+*/
+int
+rpl_state::update(const struct rpl_gtid *gtid)
+{
+  uchar *rec;
+
+  rec= my_hash_search(&hash, (const uchar *)gtid, 0);
+  if (rec)
+  {
+    const rpl_gtid *old_gtid= (const rpl_gtid *)rec;
+    if (old_gtid->server_id == gtid->server_id &&
+        old_gtid->seq_no > gtid->seq_no)
+      sql_print_warning("Out-of-order GTIDs detected for server_id=%u. "
+                        "Please ensure that independent replication streams "
+                        "use different replication domain_id to avoid "
+                        "inconsistencies.", gtid->server_id);
+    else
+      memcpy(rec, gtid, sizeof(*gtid));
+    return 0;
+  }
+
+  if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
+    return 1;
+  memcpy(rec, gtid, sizeof(*gtid));
+  return my_hash_insert(&hash, rec);
+}
+#endif  /* MYSQL_SERVER */
+
+
+Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
+               const Format_description_log_event *description_event)
+  : Log_event(buf, description_event), seq_no(0)
+{
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < GTID_HEADER_LEN)
+    return;
+
+  buf+= header_size;
+  seq_no= uint8korr(buf);
+  buf+= 8;
+  domain_id= uint4korr(buf);
+  buf+= 4;
+  flags2= *buf;
+}
+
+
+#ifdef MYSQL_SERVER
+
+Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
+                               uint32 domain_id_arg, bool standalone,
+                               uint16 flags_arg, bool is_transactional)
+  : Log_event(thd_arg, flags_arg, is_transactional),
+    seq_no(seq_no_arg), domain_id(domain_id_arg),
+    flags2(standalone ? FL_STANDALONE : 0)
+{
+}
+
+bool
+Gtid_log_event::write(IO_CACHE *file)
+{
+  uchar buf[GTID_HEADER_LEN];
+  int8store(buf, seq_no);
+  int4store(buf+8, domain_id);
+  buf[12]= flags2;
+  bzero(buf+13, GTID_HEADER_LEN-13);
+  return write_header(file, GTID_HEADER_LEN) ||
+    wrapper_my_b_safe_write(file, buf, GTID_HEADER_LEN) ||
+    write_footer(file);
+}
+
+
+/*
+  Replace a GTID event with either a BEGIN event, dummy event, or nothing, as
+  appropriate to work with old slave that does not know global transaction id.
+
+  The need_dummy_event argument is an IN/OUT argument. It is passed as TRUE
+  if slave has capability lower than MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES.
+  It is returned TRUE if we return a BEGIN (or dummy) event to be sent to the
+  slave, FALSE if event should be skipped completely.
+*/
+int
+Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
+                                      ulong ev_offset, uint8 checksum_alg)
+{
+  uchar flags2;
+  if (packet->length() - ev_offset < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+  flags2= (*packet)[ev_offset + LOG_EVENT_HEADER_LEN + 12];
+  if (flags2 & FL_STANDALONE)
+  {
+    if (need_dummy_event)
+      return Query_log_event::dummy_event(packet, ev_offset, checksum_alg);
+    else
+      return 0;
+  }
+
+  *need_dummy_event= true;
+  return Query_log_event::begin_event(packet, ev_offset, checksum_alg);
+}
+
+
+#ifdef HAVE_REPLICATION
+void
+Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
+{
+  char buf[6+5+10+1+10+1+20+1];
+  char *p;
+  p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
+  if (domain_id)
+  {
+    p= longlong10_to_str(domain_id, p, 10);
+    *p++= '-';
+  }
+  p= longlong10_to_str(server_id, p, 10);
+  *p++= '-';
+  p= longlong10_to_str(seq_no, p, 10);
+
+  protocol->store(buf, p-buf, &my_charset_bin);
+}
+
+static char gtid_begin_string[5] = {'B','E','G','I','N'};
+
+int
+Gtid_log_event::do_apply_event(Relay_log_info const *rli)
+{
+  const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
+
+  /* ToDo: record the new GTID. */
+
+  if (flags2 & FL_STANDALONE)
+    return 0;
+
+  /* Execute this like a BEGIN query event. */
+  thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string),
+                        &my_charset_bin, next_query_id());
+  Parser_state parser_state;
+  if (!parser_state.init(thd, thd->query(), thd->query_length()))
+  {
+    mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
+    /* Finalize server status flags after executing a statement. */
+    thd->update_server_status();
+    log_slow_statement(thd);
+    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+  }
+
+  thd->reset_query();
+  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  return 0;
+}
+
+
+int
+Gtid_log_event::do_update_pos(Relay_log_info *rli)
+{
+  rli->inc_event_relay_log_pos();
+  return 0;
+}
+
+
+Log_event::enum_skip_reason
+Gtid_log_event::do_shall_skip(Relay_log_info *rli)
+{
+  /*
+    An event skipped due to @@skip_replication must not be counted towards the
+    number of events to be skipped due to @@sql_slave_skip_counter.
+  */
+  if (flags & LOG_EVENT_SKIP_REPLICATION_F &&
+      opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE)
+    return Log_event::EVENT_SKIP_IGNORE;
+
+  if (rli->slave_skip_counter > 0)
+  {
+    if (!(flags2 & FL_STANDALONE))
+      thd->variables.option_bits|= OPTION_BEGIN;
+    return Log_event::continue_group(rli);
+  }
+  return Log_event::do_shall_skip(rli);
+}
+
+
+#endif  /* HAVE_REPLICATION */
+
+#else  /* !MYSQL_SERVER */
+
+void
+Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+{
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F);
+  char buf[21];
+
+  print_header(&cache, print_event_info, FALSE);
+  longlong10_to_str(seq_no, buf, 10);
+  if (!print_event_info->short_form)
+  {
+    my_b_printf(&cache, "\tGTID ");
+    if (domain_id)
+      my_b_printf(&cache, "%u-", domain_id);
+    my_b_printf(&cache, "%u-%s", server_id, buf);
+  }
+  my_b_printf(&cache, "\n");
+
+  if (!print_event_info->domain_id_printed ||
+      print_event_info->domain_id != domain_id)
+  {
+    my_b_printf(&cache, "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                domain_id, print_event_info->delimiter);
+    print_event_info->domain_id= domain_id;
+    print_event_info->domain_id_printed= true;
+  }
+
+  if (!print_event_info->server_id_printed ||
+      print_event_info->server_id != server_id)
+  {
+    my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+                server_id, print_event_info->delimiter);
+    print_event_info->server_id= server_id;
+    print_event_info->server_id_printed= true;
+  }
+
+  my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+              buf, print_event_info->delimiter);
+  if (!(flags2 & FL_STANDALONE))
+    my_b_printf(&cache, "BEGIN%s\n", print_event_info->delimiter);
+}
+
+#endif  /* MYSQL_SERVER */
+
+
+/* GTID list. */
+
+Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
+               const Format_description_log_event *description_event)
+  : Log_event(buf, description_event), count(0), list(0)
+{
+  uint32 i;
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < GTID_LIST_HEADER_LEN)
+    return;
+
+  buf+= header_size;
+  count= uint4korr(buf) & ((1<<28)-1);
+  buf+= 4;
+  if (count == 0 ||
+      event_len - (header_size + post_header_len) < count*element_size ||
+      (!(list= (rpl_gtid *)my_malloc(count*sizeof(*list), MYF(MY_WME)))))
+    return;
+
+  for (i= 0; i < count; ++i)
+  {
+    list[i].domain_id= uint4korr(buf);
+    buf+= 4;
+    list[i].server_id= uint4korr(buf);
+    buf+= 4;
+    list[i].seq_no= uint8korr(buf);
+    buf+= 8;
+  }
+}
+
+
+#ifdef MYSQL_SERVER
+
+Gtid_list_log_event::Gtid_list_log_event(rpl_state *gtid_set)
+  : count(gtid_set->count()), list(0)
+{
+  DBUG_ASSERT(count != 0);
+
+  /* Failure to allocate memory will be caught by is_valid() returning false. */
+  if (count != 0 && count < (1<<28) &&
+      (list = (rpl_gtid *)my_malloc(count * sizeof(*list), MYF(MY_WME))))
+  {
+    uint32 i;
+
+    for (i= 0; i < count; ++i)
+      list[i]= *(rpl_gtid *)my_hash_element(&gtid_set->hash, i);
+  }
+}
+
+bool
+Gtid_list_log_event::write(IO_CACHE *file)
+{
+  uint32 i;
+  uchar buf[element_size];
+
+  DBUG_ASSERT(count < 1<<28);
+
+  if (write_header(file, get_data_size()))
+    return 1;
+  int4store(buf, count & ((1<<28)-1));
+  if (wrapper_my_b_safe_write(file, buf, GTID_LIST_HEADER_LEN))
+    return 1;
+  for (i= 0; i < count; ++i)
+  {
+    int4store(buf, list[i].domain_id);
+    int4store(buf+4, list[i].server_id);
+    int8store(buf+8, list[i].seq_no);
+    if (wrapper_my_b_safe_write(file, buf, element_size))
+      return 1;
+  }
+  return write_footer(file);
+}
+
+
+#ifdef HAVE_REPLICATION
+void
+Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
+{
+  char buf_mem[1024];
+  String buf(buf_mem, sizeof(buf_mem), system_charset_info);
+  uint32 i;
+
+  buf.length(0);
+  for (i= 0; i < count; ++i)
+  {
+    if (i)
+      buf.append(STRING_WITH_LEN(", "));
+    else
+      buf.append(STRING_WITH_LEN("["));
+    if (list[i].domain_id)
+    {
+      buf.append_ulonglong((ulonglong)list[i].domain_id);
+      buf.append(STRING_WITH_LEN("-"));
+    }
+    buf.append_ulonglong((ulonglong)list[i].server_id);
+    buf.append(STRING_WITH_LEN("-"));
+    buf.append_ulonglong(list[i].seq_no);
+  }
+  buf.append(STRING_WITH_LEN("]"));
+
+  protocol->store(&buf);
+}
+#endif  /* HAVE_REPLICATION */
+
+#else  /* !MYSQL_SERVER */
+
+void
+Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+{
+  if (!print_event_info->short_form)
+  {
+    Write_on_release_cache cache(&print_event_info->head_cache, file,
+                                 Write_on_release_cache::FLUSH_F);
+    char buf[21];
+    uint32 i;
+
+    print_header(&cache, print_event_info, FALSE);
+    for (i= 0; i < count; ++i)
+    {
+      if (list[i].domain_id)
+        my_b_printf(&cache, "%u-", list[i].domain_id);
+      longlong10_to_str(list[i].seq_no, buf, 10);
+      my_b_printf(&cache, "%u-%s", list[i].server_id, buf);
+      if (i < count-1)
+        my_b_printf(&cache, "\n# ");
+      else
+        my_b_printf(&cache, "\n");
+    }
+  }
+}
+
+#endif  /* MYSQL_SERVER */
 
 
 /**************************************************************************
@@ -11236,7 +11693,9 @@ st_print_event_info::st_print_event_info()
    auto_increment_increment(0),auto_increment_offset(0), charset_inited(0),
    lc_time_names_number(~0),
    charset_database_number(ILLEGAL_CHARSET_INFO_NUMBER),
-   thread_id(0), thread_id_printed(false), skip_replication(0),
+   thread_id(0), thread_id_printed(false), server_id(0),
+   server_id_printed(false), domain_id(0), domain_id_printed(false),
+   skip_replication(0),
    base64_output_mode(BASE64_OUTPUT_UNSPEC), printed_fd_event(FALSE)
 {
   /*

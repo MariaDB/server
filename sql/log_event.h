@@ -260,6 +260,8 @@ struct sql_ex_info
 #define HEARTBEAT_HEADER_LEN   0
 #define ANNOTATE_ROWS_HEADER_LEN  0
 #define BINLOG_CHECKPOINT_HEADER_LEN 4
+#define GTID_HEADER_LEN       19
+#define GTID_LIST_HEADER_LEN   4
 
 /* 
   Max number of possible extra bytes in a replication event compared to a
@@ -599,16 +601,13 @@ enum enum_binlog_checksum_alg {
   because they mis-compute the offsets into the master's binlog).
 */
 #define MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES 2
-/* MariaDB > 5.5, which knows about binlog_checkpoint_log_event. */
+/* MariaDB >= 10.0, which knows about binlog_checkpoint_log_event. */
 #define MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT 3
-/*
-  MariaDB server which understands MySQL 5.6 ignorable events. This server
-  can tolerate receiving any event with the LOG_EVENT_IGNORABLE_F flag set.
-*/
-#define MARIA_SLAVE_CAPABILITY_IGNORABLE 4
+/* MariaDB >= 10.0.1, which knows about global transaction id events. */
+#define MARIA_SLAVE_CAPABILITY_GTID 4
 
 /* Our capability. */
-#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT
+#define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
 /**
@@ -694,6 +693,18 @@ enum Log_event_type
     that are prepared in storage engines but not yet committed.
   */
   BINLOG_CHECKPOINT_EVENT= 161,
+  /*
+    Gtid event. For global transaction ID, used to start a new event group,
+    instead of the old BEGIN query event, and also to mark stand-alone
+    events.
+  */
+  GTID_EVENT= 162,
+  /*
+    Gtid list event. Logged at the start of every binlog, to record the
+    current replication state. This consists of the last GTID seen for
+    each replication domain.
+  */
+  GTID_LIST_EVENT= 163,
 
   /* Add new MariaDB events here - right above this comment!  */
 
@@ -766,6 +777,11 @@ typedef struct st_print_event_info
   uint charset_database_number;
   uint thread_id;
   bool thread_id_printed;
+  uint32 server_id;
+  bool server_id_printed;
+  uint32 domain_id;
+  bool domain_id_printed;
+
   /*
     Track when @@skip_replication changes so we need to output a SET
     statement for it.
@@ -1874,6 +1890,7 @@ public:
   }
   Log_event_type get_type_code() { return QUERY_EVENT; }
   static int dummy_event(String *packet, ulong ev_offset, uint8 checksum_alg);
+  static int begin_event(String *packet, ulong ev_offset, uint8 checksum_alg);
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE* file);
   virtual bool write_post_header_for_derived(IO_CACHE* file) { return FALSE; }
@@ -2926,6 +2943,210 @@ public:
   bool write(IO_CACHE* file);
 #endif
 };
+
+
+struct rpl_gtid
+{
+  uint32 domain_id;
+  uint32 server_id;
+  uint64 seq_no;
+};
+
+
+struct rpl_state
+{
+  HASH hash;
+
+  rpl_state();
+  ~rpl_state();
+
+  ulong count() const { return hash.records; }
+  int update(const struct rpl_gtid *gtid);
+};
+
+extern rpl_state global_rpl_gtid_state;
+
+/**
+  @class Gtid_log_event
+
+  This event is logged as part of every event group to give the global
+  transaction id (GTID) of that group.
+
+  It replaces the BEGIN query event used in earlier versions to begin most
+  event groups, but is also used for events that used to be stand-alone.
+
+  @section Gtid_log_event_binary_format Binary Format
+
+  The binary format for Gtid_log_event has 6 extra reserved bytes to make the
+  length a total of 19 byte (+ 19 bytes of header in common with all events).
+  This is just the minimal size for a BEGIN query event, which makes it easy
+  to replace this event with such BEGIN event to remain compatible with old
+  slave servers.
+
+  <table>
+  <caption>Post-Header</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>seq_no</td>
+    <td>8 byte unsigned integer</td>
+    <td>increasing id within one server_id. Starts at 1, holes in the sequence
+        may occur</td>
+  </tr>
+
+  <tr>
+    <td>domain_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Replication domain id, identifying independent replication streams></td>
+  </tr>
+
+  <tr>
+    <td>flags</td>
+    <td>1 byte bitfield</td>
+    <td>Bit 0 set indicates stand-alone event (no terminating COMMIT)</td>
+  </tr>
+
+  <tr>
+    <td>Reserved</td>
+    <td>6 bytes</td>
+    <td>Reserved bytes, set to 0. Maybe be used for future expansion.</td>
+  </tr>
+  </table>
+
+  The Body of Gtid_log_event is empty. The total event size is 19 bytes +
+  the normal 19 bytes common-header.
+*/
+
+class Gtid_log_event: public Log_event
+{
+public:
+  uint64 seq_no;
+  uint32 domain_id;
+  uchar flags2;
+
+  /* Flags2. */
+
+  /* FL_STANDALONE is set when there is no terminating COMMIT event. */
+  static const uchar FL_STANDALONE= 1;
+
+#ifdef MYSQL_SERVER
+  Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
+                 uint16 flags, bool is_transactional);
+#ifdef HAVE_REPLICATION
+  void pack_info(THD *thd, Protocol *protocol);
+  virtual int do_apply_event(Relay_log_info const *rli);
+  virtual int do_update_pos(Relay_log_info *rli);
+  virtual enum_skip_reason do_shall_skip(Relay_log_info *rli);
+#endif
+#else
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+  Gtid_log_event(const char *buf, uint event_len,
+                 const Format_description_log_event *description_event);
+  ~Gtid_log_event() { }
+  Log_event_type get_type_code() { return GTID_EVENT; }
+  int get_data_size() { return GTID_HEADER_LEN; }
+  bool is_valid() const { return seq_no != 0; }
+#ifdef MYSQL_SERVER
+  bool write(IO_CACHE *file);
+  static int make_compatible_event(String *packet, bool *need_dummy_event,
+                                    ulong ev_offset, uint8 checksum_alg);
+#endif
+};
+
+
+/**
+  @class Gtid_list_log_event
+
+  This event is logged at the start of every binlog file to record the
+  current replication state: the last global transaction id (GTID) applied
+  on the server within each replication domain.
+
+  It consists of a list of GTIDs, one for each replication domain ever seen
+  on the server.
+
+  @section Gtid_list_log_event_binary_format Binary Format
+
+  <table>
+  <caption>Post-Header</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>count</td>
+    <td>4 byte unsigned integer</td>
+    <td>The lower 28 bits are the number of GTIDs. The upper 4 bits are
+        reserved for flags bits for future expansion</td>
+  </tr>
+  </table>
+
+  <table>
+  <caption>Body</caption>
+
+  <tr>
+    <th>Name</th>
+    <th>Format</th>
+    <th>Description</th>
+  </tr>
+
+  <tr>
+    <td>domain_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Replication domain id of one GTID</td>
+  </tr>
+
+  <tr>
+    <td>server_id</td>
+    <td>4 byte unsigned integer</td>
+    <td>Server id of one GTID</td>
+  </tr>
+
+  <tr>
+    <td>seq_no</td>
+    <td>8 byte unsigned integer</td>
+    <td>sequence number of one GTID</td>
+  </tr>
+  </table>
+
+  The three elements in the body repeat COUNT times to form the GTID list.
+*/
+
+class Gtid_list_log_event: public Log_event
+{
+public:
+  uint32 count;
+  struct rpl_gtid *list;
+
+  static const uint element_size= 4+4+8;
+
+#ifdef MYSQL_SERVER
+  Gtid_list_log_event(rpl_state *gtid_set);
+#ifdef HAVE_REPLICATION
+  void pack_info(THD *thd, Protocol *protocol);
+#endif
+#else
+  void print(FILE *file, PRINT_EVENT_INFO *print_event_info);
+#endif
+  Gtid_list_log_event(const char *buf, uint event_len,
+                      const Format_description_log_event *description_event);
+  ~Gtid_list_log_event() { my_free(list); }
+  Log_event_type get_type_code() { return GTID_LIST_EVENT; }
+  int get_data_size() { return GTID_LIST_HEADER_LEN + count*element_size; }
+  bool is_valid() const { return list != NULL; }
+#ifdef MYSQL_SERVER
+  bool write(IO_CACHE *file);
+#endif
+};
+
 
 /* the classes below are for the new LOAD DATA INFILE logging */
 

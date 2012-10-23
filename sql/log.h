@@ -420,11 +420,10 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     bool using_stmt_cache;
     bool using_trx_cache;
     /*
-      Extra events (BEGIN, COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
+      Extra events (COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
       written during group commit. The incident_event is only valid if
       trx_data->has_incident() is true.
     */
-    Log_event *begin_event;
     Log_event *end_event;
     Log_event *incident_event;
     /* Set during group commit to record any per-thread error. */
@@ -771,6 +770,7 @@ public:
   inline IO_CACHE *get_index_file() { return &index_file;}
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
+  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
 };
 
 class Log_event_handler

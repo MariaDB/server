@@ -535,6 +535,12 @@ typedef struct system_variables
   */
   my_thread_id pseudo_thread_id;
   /**
+     When replicating an event group with GTID, keep these values around so
+     slave binlog can receive the same GTID as the original.
+  */
+  uint32     gtid_domain_id;
+  uint64     gtid_seq_no;
+  /**
      Place holders to store Multi-source variables in sys_var.cc during
      update and show of variables.
   */

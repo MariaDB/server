@@ -675,6 +675,8 @@ mysql_mutex_t
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
 
+mysql_mutex_t LOCK_gtid_counter, LOCK_rpl_gtid_state;
+
 /**
   The below lock protects access to two global server variables:
   max_prepared_stmt_count and prepared_stmt_count. These variables
@@ -770,6 +772,8 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_index_stats,
   key_LOCK_wakeup_ready;
 
+PSI_mutex_key key_LOCK_gtid_counter, key_LOCK_rpl_gtid_state;
+
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -813,6 +817,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_table_stats, "LOCK_global_table_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
+  { &key_LOCK_gtid_counter, "LOCK_gtid_counter", PSI_FLAG_GLOBAL},
+  { &key_LOCK_rpl_gtid_state, "LOCK_rpl_gtid_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
@@ -1278,6 +1284,12 @@ struct st_VioSSLFd *ssl_acceptor_fd;
   LOCK_connection_count.
 */
 uint connection_count= 0, extra_connection_count= 0;
+
+/**
+   Running counter for generating new GTIDs locally.
+*/
+uint64 global_gtid_counter= 0;
+
 
 /* Function declarations */
 
@@ -1940,6 +1952,8 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
+  mysql_mutex_destroy(&LOCK_gtid_counter);
+  mysql_mutex_destroy(&LOCK_rpl_gtid_state);
 #ifdef HAVE_OPENSSL
   mysql_mutex_destroy(&LOCK_des_key_file);
 #ifndef HAVE_YASSL
@@ -4002,6 +4016,10 @@ static int init_thread_environment()
                    &LOCK_global_table_stats, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_index_stats,
                    &LOCK_global_index_stats, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_gtid_counter,
+                   &LOCK_gtid_counter, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_rpl_gtid_state,
+                   &LOCK_rpl_gtid_state, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,

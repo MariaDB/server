@@ -616,10 +616,34 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   }
 
   /*
-    Do not send binlog checkpoint events to a slave that does not understand it.
+    Replace GTID events with old-style BEGIN events for slaves that do not
+    understand global transaction IDs. For stand-alone events, where there is
+    no terminating COMMIT query event, omit the GTID event or replace it with
+    a dummy event, as appropriate.
   */
-  if (unlikely(event_type == BINLOG_CHECKPOINT_EVENT) &&
-      mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT)
+  if (event_type == GTID_EVENT &&
+      mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_GTID)
+  {
+    bool need_dummy=
+      mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES;
+    bool err= Gtid_log_event::make_compatible_event(packet, &need_dummy,
+                                                    ev_offset,
+                                                    current_checksum_alg);
+    if (err)
+      return "Failed to replace GTID event with backwards-compatible event: "
+             "currupt event.";
+    if (!need_dummy)
+      return NULL;
+  }
+
+  /*
+    Do not send binlog checkpoint or gtid list events to a slave that does not
+    understand it.
+  */
+  if ((unlikely(event_type == BINLOG_CHECKPOINT_EVENT) &&
+       mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_BINLOG_CHECKPOINT) ||
+      (unlikely(event_type == GTID_LIST_EVENT) &&
+       mariadb_slave_capability < MARIA_SLAVE_CAPABILITY_GTID))
   {
     if (mariadb_slave_capability >= MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES)
     {
