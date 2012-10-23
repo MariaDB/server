@@ -927,6 +927,8 @@ innobase_release_temporary_latches(
 static int 
 wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd, 
 			my_bool signal);
+static void
+wsrep_fake_trx_id(handlerton* hton, THD *thd);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif
@@ -2317,6 +2319,7 @@ innobase_init(
         innobase_hton->wsrep_abort_transaction=wsrep_abort_transaction;
         innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
         innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
+        innobase_hton->wsrep_fake_trx_id=wsrep_fake_trx_id;
 #endif /* WITH_WSREP */
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
@@ -7004,7 +7007,12 @@ wsrep_append_foreign_key(
 		&key[1], &len, rec, index, 
 		wsrep_protocol_version > 1);
 	if (rcode != DB_SUCCESS) {
-		WSREP_ERROR("FK key set failed: %lu", rcode);
+		WSREP_ERROR(
+			"FK key set failed: %lu (%lu %lu), index: %s %s, %s", 
+			rcode, referenced, shared, 
+			(index->name) ? index->name : "void index", 
+			(index->table_name) ? index->table_name : "void table", 
+			wsrep_thd_query(thd));
 		return rcode;
 	}
 	strncpy(cache_key,
@@ -12168,18 +12176,27 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 	abort();
 }
 int
-wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
+wsrep_innobase_kill_one_trx(void *bf_thd_ptr, trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 {
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
+	THD *bf_thd 	  = (THD *)bf_thd_ptr;
 	THD *thd          = (THD *) victim_trx->mysql_thd;
-	THD *bf_thd       = (bf_trx) ? (THD *)bf_trx->mysql_thd : NULL;
 	int64_t bf_seqno  = (bf_thd) ? wsrep_thd_trx_seqno(bf_thd) : 0;
+
+	if (!bf_thd) bf_thd = (bf_trx) ? (THD *)bf_trx->mysql_thd : NULL;
 
 	if (!thd) {
 		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
 		WSREP_WARN("no THD for trx: %llu", victim_trx->id);
 		DBUG_RETURN(1);
 	}
+	if (!bf_thd) {
+		DBUG_PRINT("wsrep", ("no BF thd for conflicting lock"));
+		WSREP_WARN("no BF THD for trx: %llu", (bf_trx) ? bf_trx->id : 0);
+		DBUG_RETURN(1);
+	}
+
+	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
 	WSREP_DEBUG("BF kill (%lu, seqno: %lld), victim: (%lu) trx: %llu", 
  		    signal, (long long)bf_seqno,
@@ -12368,8 +12385,8 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 	if (victim_trx)
 	{
 		mutex_enter(&kernel_mutex);
-		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
-							signal);
+		int rcode = wsrep_innobase_kill_one_trx(
+			bf_thd, bf_trx, victim_trx, signal);
 		mutex_exit(&kernel_mutex);
 		DBUG_RETURN(rcode);
 	} else {
@@ -12401,6 +12418,19 @@ static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid)
 	DBUG_ASSERT(hton == innodb_hton_ptr);
         trx_sys_read_wsrep_checkpoint(xid);
         return 0;
+}
+
+static void
+wsrep_fake_trx_id(
+/*==================*/
+	handlerton	*hton,
+	THD		*thd)	/*!< in: user thread handle */
+{
+	mutex_enter(&kernel_mutex);
+	trx_id_t trx_id = trx_sys_get_new_trx_id();
+	mutex_exit(&kernel_mutex);
+
+	(void *)wsrep_trx_handle_for_id(wsrep_thd_trx_handle(thd), trx_id);
 }
 
 #endif /* WITH_WSREP */

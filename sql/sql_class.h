@@ -20,37 +20,6 @@
 #define SQL_CLASS_INCLUDED
 
 /* Classes in mysql */
-#ifdef WITH_WSREP
-#include "../wsrep/wsrep_api.h"
-//#include "wsrep_mysqld.h"
-  enum wsrep_exec_mode {
-    LOCAL_STATE,
-    REPL_RECV,
-    TOTAL_ORDER,
-    LOCAL_COMMIT,
-  };
-  enum wsrep_query_state {
-    QUERY_IDLE,
-    QUERY_EXEC,
-    QUERY_COMMITTING,
-    QUERY_EXITING,
-    QUERY_ROLLINGBACK,
-  };
-  enum wsrep_conflict_state {
-    NO_CONFLICT,
-    MUST_ABORT,
-    ABORTING,
-    ABORTED,
-    MUST_REPLAY,
-    REPLAYING,
-    RETRY_AUTOCOMMIT,
-  };
-  enum wsrep_consistency_check_mode {
-    NO_CONSISTENCY_CHECK,
-    CONSISTENCY_CHECK_DECLARED,
-    CONSISTENCY_CHECK_RUNNING,
-  };
-#endif
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -2405,6 +2374,7 @@ public:
   enum wsrep_consistency_check_mode 
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
+  int                       wsrep_mysql_replicated;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

@@ -733,13 +733,48 @@ extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
 {
   return thd->wsrep_exec_mode;
 }
+
+extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
+{
+  return 
+    (!thd) ? "void" :
+    (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
+    (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
+    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   :
+    (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
+}
+
 extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd)
 {
   return thd->wsrep_query_state;
 }
+
+extern "C" const char *wsrep_thd_query_state_str(THD *thd)
+{
+  return 
+    (!thd) ? "void" : 
+    (thd->wsrep_query_state == QUERY_IDLE)        ? "idle"          :
+    (thd->wsrep_query_state == QUERY_EXEC)        ? "executing"     :
+    (thd->wsrep_query_state == QUERY_COMMITTING)  ? "committing"    :
+    (thd->wsrep_query_state == QUERY_EXITING)     ? "exiting"       : 
+    (thd->wsrep_query_state == QUERY_ROLLINGBACK) ? "rolling back"  : "void";
+}
+
 extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd)
 {
   return thd->wsrep_conflict_state;
+}
+extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
+{
+  return 
+    (!thd) ? "void" :
+    (thd->wsrep_conflict_state == NO_CONFLICT)      ? "no conflict"  :
+    (thd->wsrep_conflict_state == MUST_ABORT)       ? "must abort"   :
+    (thd->wsrep_conflict_state == ABORTING)         ? "aborting"     :
+    (thd->wsrep_conflict_state == MUST_REPLAY)      ? "must replay"  : 
+    (thd->wsrep_conflict_state == REPLAYING)        ? "replaying"    : 
+    (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT) ? "retrying"     : 
+    (thd->wsrep_conflict_state == CERT_FAILURE)     ? "cert failure" : "void";
 }
 
 extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd)
@@ -769,7 +804,7 @@ extern "C" my_thread_id wsrep_thd_thread_id(THD *thd)
 }
 extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
 {
-  return thd->wsrep_trx_seqno;
+  return (thd) ? thd->wsrep_trx_seqno : -1;
 }
 extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
 {
@@ -777,7 +812,7 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 extern "C" char *wsrep_thd_query(THD *thd) 
 {
-  return thd->query();
+  return (thd) ? thd->query() : NULL;
 }
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd) 
 {
@@ -995,17 +1030,19 @@ THD::THD()
 #ifdef WITH_WSREP
   mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
-  wsrep_trx_handle.trx_id= -1;
-  wsrep_trx_handle.opaque= NULL;
+  wsrep_trx_handle.trx_id = -1;
+  wsrep_trx_handle.opaque = NULL;
   //wsrep_retry_autocommit= ::wsrep_retry_autocommit;
-  wsrep_retry_counter= 0;
-  wsrep_PA_safe = true;
-  wsrep_seqno_changed= false;
-  wsrep_retry_query     = NULL;
-  wsrep_retry_query_len = 0;
-  wsrep_retry_command   = COM_CONNECT;
+  wsrep_retry_counter     = 0;
+  wsrep_PA_safe           = true;
+  wsrep_seqno_changed     = false;
+  wsrep_retry_query       = NULL;
+  wsrep_retry_query_len   = 0;
+  wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
-  wsrep_status_vars     = 0;
+  wsrep_status_vars       = 0;
+  wsrep_mysql_replicated  = 0;
+
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1359,6 +1396,7 @@ void THD::init(void)
   wsrep_PA_safe= true;
   wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_mysql_replicated  = 0;
 #endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;

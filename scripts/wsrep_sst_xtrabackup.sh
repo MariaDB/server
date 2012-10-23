@@ -67,9 +67,9 @@ INNOBACKUPEX_BIN=innobackupex
 INNOBACKUPEX_ARGS=""
 NC_BIN=nc
 
-for TOOL_BIN in INNOBACKUPEX_BIN NC_BIN ; do 
-  which ${!TOOL_BIN} > /dev/null 2>&1
-  if [ $? -ne 0 ]; then 
+for TOOL_BIN in INNOBACKUPEX_BIN NC_BIN ; do
+  if ! which ${!TOOL_BIN} > /dev/null 2>&1
+  then 
      echo "Can't find ${!TOOL_BIN} in the path"
      exit 22 # EINVAL
   fi

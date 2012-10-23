@@ -378,6 +378,15 @@ wsrep_run_wsrep_commit(
 
     if (thd->wsrep_conflict_state == MUST_ABORT) {
       thd->wsrep_conflict_state= ABORTED;
+    } 
+    else
+    {
+      WSREP_DEBUG("conflict state: %d", thd->wsrep_conflict_state);
+      if (thd->wsrep_conflict_state == NO_CONFLICT)
+      {
+        thd->wsrep_conflict_state = CERT_FAILURE;
+        WSREP_LOG_CONFLICT(NULL, thd, FALSE);
+      }
     }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 

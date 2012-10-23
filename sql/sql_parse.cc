@@ -108,7 +108,6 @@
 static void wsrep_client_rollback(THD *thd);
 
 extern Format_description_log_event *wsrep_format_desc;
-#define WSREP_MYSQL_DB (char *)"mysql"
 
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 			      Parser_state *parser_state);
@@ -6050,85 +6049,88 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       /* wsrep BF abort in query exec phase */
       mysql_mutex_lock(&thd->LOCK_wsrep_thd);
       if (thd->wsrep_conflict_state == MUST_ABORT) {
-	wsrep_client_rollback(thd);
+        wsrep_client_rollback(thd);
 
-	WSREP_DEBUG("abort in exec query state, avoiding autocommit");
+        WSREP_DEBUG("abort in exec query state, avoiding autocommit");
       }
 
       /* checking if BF trx must be replayed */
       if (thd->wsrep_conflict_state== MUST_REPLAY) {
-	if (thd->wsrep_exec_mode!= REPL_RECV) {
-	  if (thd->stmt_da->is_sent) {
-	    WSREP_ERROR("replay issue, thd has reported status already");
-	  }
-	  thd->stmt_da->reset_diagnostics_area();
+        if (thd->wsrep_exec_mode!= REPL_RECV) {
+          if (thd->stmt_da->is_sent) {
+            WSREP_ERROR("replay issue, thd has reported status already");
+          }
+          thd->stmt_da->reset_diagnostics_area();
 
-	  thd->wsrep_conflict_state= REPLAYING;
-	  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+          thd->wsrep_conflict_state= REPLAYING;
+          mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 
-	  mysql_reset_thd_for_next_command(thd, opt_userstat_running);
-	  thd->killed= NOT_KILLED;
-	  close_thread_tables(thd);
-	  if (thd->locked_tables_mode && thd->lock)
-	  {
-	    WSREP_DEBUG("releasing table lock for replaying (%ld)", thd->thread_id);
-	    thd->locked_tables_list.unlock_locked_tables(thd);
-	    thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
-	  }
-	  thd->mdl_context.release_transactional_locks();
+          mysql_reset_thd_for_next_command(thd, opt_userstat_running);
+          thd->killed= NOT_KILLED;
+          close_thread_tables(thd);
+          if (thd->locked_tables_mode && thd->lock)
+          {
+            WSREP_DEBUG("releasing table lock for replaying (%ld)", 
+       	                thd->thread_id);
+            thd->locked_tables_list.unlock_locked_tables(thd);
+            thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
+          }
+          thd->mdl_context.release_transactional_locks();
 
-	  thd_proc_info(thd, "wsrep replaying trx");
-	  WSREP_DEBUG("replay trx: %s %lld", 
-		      thd->query() ? thd->query() : "void", 
-		      (long long)thd->wsrep_trx_seqno);
-	  struct wsrep_thd_shadow shadow;
-	  wsrep_prepare_bf_thd(thd, &shadow);
-	  int rcode = wsrep->replay_trx(wsrep,
-					&thd->wsrep_trx_handle,
-					(void *)thd);
+          thd_proc_info(thd, "wsrep replaying trx");
+          WSREP_DEBUG("replay trx: %s %lld", 
+                      thd->query() ? thd->query() : "void", 
+                      (long long)thd->wsrep_trx_seqno);
+          struct wsrep_thd_shadow shadow;
+          wsrep_prepare_bf_thd(thd, &shadow);
+          int rcode = wsrep->replay_trx(wsrep,
+                                        &thd->wsrep_trx_handle,
+                                        (void *)thd);
 
-	  wsrep_return_from_bf_mode(thd, &shadow);
-	  if (thd->wsrep_conflict_state!= REPLAYING)
-	    WSREP_WARN("lost replaying mode: %d", thd->wsrep_conflict_state );
+          wsrep_return_from_bf_mode(thd, &shadow);
+          if (thd->wsrep_conflict_state!= REPLAYING)
+            WSREP_WARN("lost replaying mode: %d", thd->wsrep_conflict_state );
 
-	  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-	  
-	  switch (rcode) {
-	  case WSREP_OK:
-	    thd->wsrep_conflict_state= NO_CONFLICT;
-	    wsrep->post_commit(wsrep, &thd->wsrep_trx_handle);
-	    WSREP_DEBUG("trx_replay successful for: %ld %llu", 
-			thd->thread_id, (long long)thd->real_id);
-	    break;
-	  case WSREP_TRX_FAIL:
-	    if (thd->stmt_da->is_sent) {
-	      WSREP_ERROR("replay failed, thd has reported status");
-	    }
-	    else
-	    {
-	      WSREP_DEBUG("replay failed, rolling back");
-	      my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
-	    }
-	    thd->wsrep_conflict_state= ABORTED;
-	    wsrep->post_rollback(wsrep, &thd->wsrep_trx_handle);
-	    break;
-	  default:
-	    WSREP_ERROR("trx_replay failed for: %d, query: %s", 
-			rcode, thd->query() ? thd->query() : "void");
-	    /* we're now in inconsistent state, must abort */
-	    unireg_abort(1);
-	    break;
-	  }
-	  mysql_mutex_lock(&LOCK_wsrep_replaying);
-	  wsrep_replaying--;
-	  WSREP_DEBUG("replaying decreased: %d, thd: %lu", 
-		      wsrep_replaying, thd->thread_id);
-	  mysql_cond_broadcast(&COND_wsrep_replaying);
-	  mysql_mutex_unlock(&LOCK_wsrep_replaying);
+          mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+          switch (rcode) {
+          case WSREP_OK:
+            thd->wsrep_conflict_state= NO_CONFLICT;
+            wsrep->post_commit(wsrep, &thd->wsrep_trx_handle);
+            WSREP_DEBUG("trx_replay successful for: %ld %llu", 
+                        thd->thread_id, (long long)thd->real_id);
+            break;
+          case WSREP_TRX_FAIL:
+            if (thd->stmt_da->is_sent) {
+              WSREP_ERROR("replay failed, thd has reported status");
+            }
+            else
+            {
+              WSREP_DEBUG("replay failed, rolling back");
+              my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
+            }
+            thd->wsrep_conflict_state= ABORTED;
+            wsrep->post_rollback(wsrep, &thd->wsrep_trx_handle);
+            break;
+          default:
+            WSREP_ERROR("trx_replay failed for: %d, query: %s", 
+                        rcode, thd->query() ? thd->query() : "void");
+            /* we're now in inconsistent state, must abort */
+            unireg_abort(1);
+            break;
+          }
+          mysql_mutex_lock(&LOCK_wsrep_replaying);
+          wsrep_replaying--;
+          WSREP_DEBUG("replaying decreased: %d, thd: %lu", 
+                      wsrep_replaying, thd->thread_id);
+          mysql_cond_broadcast(&COND_wsrep_replaying);
+          mysql_mutex_unlock(&LOCK_wsrep_replaying);
         }
       }
+
       /* setting error code for BF aborted trxs */
-      if (thd->wsrep_conflict_state == ABORTED)
+      if (thd->wsrep_conflict_state == ABORTED ||
+          thd->wsrep_conflict_state == CERT_FAILURE)
       {
         mysql_reset_thd_for_next_command(thd, opt_userstat_running);
         thd->killed= NOT_KILLED;
@@ -6143,25 +6145,27 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 
           thd->wsrep_conflict_state= RETRY_AUTOCOMMIT;
           thd->wsrep_retry_counter++;            // grow
-	  wsrep_copy_query(thd);
+          wsrep_copy_query(thd);
           thd->set_time();
           parser_state->reset(rawbuf, length);
-	}
-	else
-	{
-	  WSREP_DEBUG("BF aborted, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s", 
-		      thd->thread_id, is_autocommit, thd->wsrep_retry_counter, 
-		      thd->variables.wsrep_retry_autocommit, thd->query());
-	  my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
-	  thd->killed= NOT_KILLED;
-	  thd->wsrep_conflict_state= NO_CONFLICT;
+        }
+        else
+        {
+          WSREP_DEBUG("%s, thd: %lu is_AC: %d, retry: %lu - %lu SQL: %s", 
+                      (thd->wsrep_conflict_state == ABORTED) ? 
+                      "BF Aborted" : "cert failure",
+                      thd->thread_id, is_autocommit, thd->wsrep_retry_counter, 
+                      thd->variables.wsrep_retry_autocommit, thd->query());
+          my_error(ER_LOCK_DEADLOCK, MYF(0), "wsrep aborted transaction");
+          thd->killed= NOT_KILLED;
+          thd->wsrep_conflict_state= NO_CONFLICT;
           if (thd->wsrep_conflict_state != REPLAYING)
-	    thd->wsrep_retry_counter= 0;             //  reset
-	}
+            thd->wsrep_retry_counter= 0;             //  reset
+        }
       }
       else
       {
-	set_if_smaller(thd->wsrep_retry_counter, 0); // reset; eventually ok
+        set_if_smaller(thd->wsrep_retry_counter, 0); // reset; eventually ok
       }
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     }

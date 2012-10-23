@@ -204,6 +204,7 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 }
 #ifdef WITH_WSREP
 
+#define WSREP_MYSQL_DB (char *)"mysql"
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
   if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
 

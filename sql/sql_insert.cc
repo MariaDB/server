@@ -3573,8 +3573,14 @@ bool select_insert::send_eof()
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
+#ifdef WITH_WSREP
+  error= (thd->wsrep_conflict_state == MUST_ABORT) ? -1 :
+    (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
+          table->file->ha_end_bulk_insert() : 0);
+#else
   error= (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
           table->file->ha_end_bulk_insert() : 0);
+#endif /* WITH_WSREP */
   if (!error && thd->is_error())
     error= thd->stmt_da->sql_errno();
 
@@ -4101,22 +4107,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               errcode);
   }
 #ifdef WITH_WSREP
-  const CSET_STRING query_save = thd->query_string;
-  thd->set_query_inner((char*)query.ptr(), query.length(), system_charset_info);
-
-  WSREP_TO_ISOLATION_BEGIN((*tables)->s->db.str, (*tables)->s->table_name.str, NULL);
-  WSREP_TO_ISOLATION_END;
-
-  thd_binlog_trx_reset(thd);
-  thd->query_string     = query_save;
-  thd->wsrep_exec_mode  = LOCAL_STATE;
-#endif /* WITH_WSREP */
-  return result;
-#ifdef WITH_WSREP
- error:
-  WSREP_WARN("TO isolation failed: %s", thd->query());
-  return 0;
+  ha_wsrep_fake_trx_id(thd);
 #endif
+  return result;
 }
 
 void select_create::store_values(List<Item> &values)

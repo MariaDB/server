@@ -1575,6 +1575,14 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
           else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket))
           {
             wsrep_can_grant= FALSE;
+	    if (wsrep_log_conflicts) 
+	    {
+	      MDL_lock * lock = ticket->get_lock();
+	      WSREP_INFO(
+                "MDL conflict db=%s table=%s ticket=%d solved by %s",
+                lock->key.db_name(), lock->key.name(), ticket->get_type(), "abort"
+       	      );
+            }
           }
           else
           {	  

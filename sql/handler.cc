@@ -5268,6 +5268,27 @@ int ha_wsrep_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 
   DBUG_RETURN(0);
 }
+
+void ha_wsrep_fake_trx_id(THD *thd)
+{
+  DBUG_ENTER("ha_wsrep_fake_trx_id");
+  if (!WSREP(thd)) 
+  {
+    DBUG_VOID_RETURN;
+  }
+
+  handlerton *hton= installed_htons[DB_TYPE_INNODB];
+  if (hton && hton->wsrep_fake_trx_id)
+  {
+    hton->wsrep_fake_trx_id(hton, thd);
+  } 
+  else 
+  {
+    WSREP_WARN("cannot get get fake InnoDB transaction ID");
+  }
+
+  DBUG_VOID_RETURN;
+}
 #endif /* WITH_WSREP */
 #ifdef TRANS_LOG_MGM_EXAMPLE_CODE
 /*

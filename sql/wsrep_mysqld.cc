@@ -49,6 +49,8 @@ long    wsrep_max_protocol_version     = 2; // maximum protocol version to use
 ulong   wsrep_forced_binlog_format     = BINLOG_FORMAT_UNSPEC;
 my_bool wsrep_recovery                 = 0; // recovery
 my_bool wsrep_replicate_myisam         = 0; // enable myisam replication
+my_bool wsrep_log_conflicts            = 0; // 
+ulong  wsrep_mysql_replication_bundle  = 0;
 
 /*
  * End configuration options
@@ -725,7 +727,8 @@ wsrep_causal_wait (THD* thd)
         break;
       default:
         msg= "Causal wait failed.";
-        err= ER_ERROR_ON_READ;
+        err= ER_LOCK_WAIT_TIMEOUT; // NOTE: the above msg won't be displayed
+                                   //       with ER_LOCK_WAIT_TIMEOUT
       }
 
       my_error(err, MYF(0), msg);
@@ -1225,6 +1228,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 
   THD *request_thd  = requestor_ctx->get_thd();
   THD *granted_thd  = ticket->get_ctx()->get_thd();
+  bool ret          = FALSE;
 
   mysql_mutex_lock(&request_thd->LOCK_wsrep_thd);
   if (request_thd->wsrep_exec_mode == TOTAL_ORDER ||
@@ -1239,39 +1243,39 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     {
       WSREP_MDL_LOG(INFO, "MDL BF-BF conflict", request_thd, granted_thd);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      return TRUE;
+      ret = TRUE;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH)
     {
       WSREP_DEBUG("mdl granted over FLUSH BF");
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
-      return TRUE;
-    } 
+      ret = TRUE;
+    }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE) 
     {
       WSREP_DEBUG("DROP caused BF abort");
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      return FALSE;
-    } 
+      ret = FALSE;
+    }
     else if (granted_thd->wsrep_query_state == QUERY_COMMITTING) 
     {
       WSREP_DEBUG("mdl granted, but commiting thd abort scheduled");
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      return  FALSE;
+      ret = FALSE;
     }
     else 
     {
       WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", request_thd, granted_thd);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
-      return FALSE;
+      ret = FALSE;
     }
   }
   else
   {
     mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
   }
-  return FALSE;
+  return ret;
 }

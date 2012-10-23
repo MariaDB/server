@@ -24,6 +24,39 @@ typedef struct st_mysql_show_var SHOW_VAR;
 class set_var;
 class THD;
 
+#ifdef WITH_WSREP
+#include "../wsrep/wsrep_api.h"
+//#include "wsrep_mysqld.h"
+  enum wsrep_exec_mode {
+    LOCAL_STATE,
+    REPL_RECV,
+    TOTAL_ORDER,
+    LOCAL_COMMIT,
+  };
+  enum wsrep_query_state {
+    QUERY_IDLE,
+    QUERY_EXEC,
+    QUERY_COMMITTING,
+    QUERY_EXITING,
+    QUERY_ROLLINGBACK,
+  };
+  enum wsrep_conflict_state {
+    NO_CONFLICT,
+    MUST_ABORT,
+    ABORTING,
+    ABORTED,
+    MUST_REPLAY,
+    REPLAYING,
+    RETRY_AUTOCOMMIT,
+    CERT_FAILURE,
+  };
+  enum wsrep_consistency_check_mode {
+    NO_CONSISTENCY_CHECK,
+    CONSISTENCY_CHECK_DECLARED,
+    CONSISTENCY_CHECK_RUNNING,
+  };
+#endif
+
 // Global wsrep parameters
 extern wsrep_t*    wsrep;
 
@@ -60,6 +93,8 @@ extern ulong       wsrep_forced_binlog_format;
 extern ulong       wsrep_OSU_method_options;
 extern my_bool     wsrep_recovery;
 extern my_bool     wsrep_replicate_myisam;
+extern my_bool     wsrep_log_conflicts;
+extern ulong       wsrep_mysql_replication_bundle;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 
@@ -138,6 +173,38 @@ extern int   wsrep_init();
 extern void  wsrep_deinit();
 extern void  wsrep_recover();
 
+
+
+extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd);
+extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd);
+extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd);
+extern "C" const char * wsrep_thd_exec_mode_str(THD *thd);
+extern "C" const char * wsrep_thd_conflict_state_str(THD *thd);
+extern "C" const char * wsrep_thd_query_state_str(THD *thd);
+extern "C" wsrep_trx_handle_t* wsrep_thd_trx_handle(THD *thd);
+
+extern "C" void wsrep_thd_set_exec_mode(THD *thd, enum wsrep_exec_mode mode);
+extern "C" void wsrep_thd_set_query_state(
+	THD *thd, enum wsrep_query_state state);
+extern "C" void wsrep_thd_set_conflict_state(
+	THD *thd, enum wsrep_conflict_state state);
+
+extern "C" void wsrep_thd_set_trx_to_replay(THD *thd, uint64 trx_id);
+
+extern "C"void wsrep_thd_LOCK(THD *thd);
+extern "C"void wsrep_thd_UNLOCK(THD *thd);
+extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
+extern "C" time_t wsrep_thd_query_start(THD *thd);
+extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
+extern "C" int64_t wsrep_thd_trx_seqno(THD *thd);
+extern "C" query_id_t wsrep_thd_query_id(THD *thd);
+extern "C" char * wsrep_thd_query(THD *thd);
+extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
+extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
+extern "C" void wsrep_thd_awake(THD *thd, my_bool signal);
+
+
+
 /* wsrep initialization sequence at startup
  * @param first wsrep_init_first() value */
 extern void wsrep_init_startup(bool first);
@@ -187,6 +254,27 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
 #define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
 #define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
+
+#define WSREP_LOG_CONFLICT_THD(thd, role)                                      \
+    WSREP_LOG(sql_print_information, 	                                       \
+      "%s: \n "       	                                                       \
+      "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %ld\n "	       \
+      "  SQL: %s",							       \
+      role, wsrep_thd_thread_id(thd), wsrep_thd_exec_mode_str(thd),            \
+      wsrep_thd_query_state_str(thd),                                          \
+      wsrep_thd_conflict_state_str(thd), wsrep_thd_trx_seqno(thd),             \
+      wsrep_thd_query(thd)                                                     \
+    );
+
+#define WSREP_LOG_CONFLICT(bf_thd, victim_thd, bf_abort)		       \
+  if (wsrep_debug || wsrep_log_conflicts)				       \
+  {                                                                            \
+    WSREP_LOG(sql_print_information, "cluster conflict due to %s for threads:",\
+      (bf_abort) ? "high priority abort" : "certification failure"             \
+    );                                                                         \
+    if (bf_thd)     WSREP_LOG_CONFLICT_THD(bf_thd, "Winning thread");          \
+    if (victim_thd) WSREP_LOG_CONFLICT_THD(victim_thd, "Victim thread");       \
+  }
 
 /*! Synchronizes applier thread start with init thread */
 extern void wsrep_sst_grab();

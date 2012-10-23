@@ -1830,6 +1830,9 @@ int check_change_password(THD *thd, const char *host, const char *user,
     return(1);
   }
   if (!thd->slave_thread &&
+#ifdef WITH_WSREP
+      (!WSREP(thd) || !thd->wsrep_applier) &&
+#endif /* WITH_WSREP */
       (strcmp(thd->security_ctx->user, user) ||
        my_strcasecmp(system_charset_info, host,
                      thd->security_ctx->priv_host)))
@@ -1837,7 +1840,12 @@ int check_change_password(THD *thd, const char *host, const char *user,
     if (check_access(thd, UPDATE_ACL, "mysql", NULL, NULL, 1, 0))
       return(1);
   }
+#ifdef WITH_WSREP
+  if ((!WSREP(thd) || !thd->wsrep_applier) &&
+      !thd->slave_thread && !thd->security_ctx->user[0])
+#else
   if (!thd->slave_thread && !thd->security_ctx->user[0])
+#endif /* WITH_WSREP */
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
@@ -1876,10 +1884,13 @@ bool change_password(THD *thd, const char *host, const char *user,
   TABLE *table;
   /* Buffer should be extended when password length is extended. */
   char buff[512];
-  ulong query_length;
+  ulong query_length=0;
   bool save_binlog_row_based;
   uint new_password_len= (uint) strlen(new_password);
   bool result= 1;
+#ifdef WITH_WSREP
+  const CSET_STRING query_save = thd->query_string;
+#endif /* WITH_WSREP */
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
 		      host,user,new_password));
@@ -1887,6 +1898,18 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   if (check_change_password(thd, host, user, new_password, new_password_len))
     DBUG_RETURN(1);
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+      query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+			    user ? user : "",
+			    host ? host : "",
+			    new_password);
+    thd->set_query_inner(buff, query_length, system_charset_info);
+
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
+  }
+#endif /* WITH_WSREP */
 
   tables.init_one_table("mysql", 5, "user", 4, "user", TL_WRITE);
 
@@ -1965,13 +1988,26 @@ bool change_password(THD *thd, const char *host, const char *user,
   }
 end:
   close_mysql_tables(thd);
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+    WSREP_TO_ISOLATION_END;
 
+    thd->query_string     = query_save;
+    thd->wsrep_exec_mode  = LOCAL_STATE;
+  }
+#endif /* WITH_WSREP */
   /* Restore the state of binlog format */
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   if (save_binlog_row_based)
     thd->set_current_stmt_binlog_format_row();
 
   DBUG_RETURN(result);
+#ifdef WITH_WSREP
+  error:
+  WSREP_ERROR("Replication of SET PASSWORD failed: %s", buff);
+  DBUG_RETURN(result);
+#endif /* WITH_WSREP */
 }
 
 

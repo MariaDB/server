@@ -288,7 +288,7 @@ thd_set_lock_wait_time(
 #ifdef WITH_WSREP
 UNIV_INTERN
 int
-wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal);
+wsrep_innobase_kill_one_trx(void *bf_thd, trx_t *bf_trx, trx_t *victim_trx, ibool signal);
 int wsrep_thd_is_brute_force(void *thd_ptr);
 int wsrep_trx_order_before(void *thd1, void *thd2);
 void wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,

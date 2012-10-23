@@ -42,6 +42,7 @@ Created 5/7/1996 Heikki Tuuri
 
 #ifdef WITH_WSREP
 extern my_bool wsrep_debug;
+extern my_bool wsrep_log_conflicts;
 #endif
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
@@ -1528,7 +1529,34 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 			/* cannot release lock, until our lock
 			is in the queue*/
 		} else if (lock->trx != trx) {
-			wsrep_innobase_kill_one_trx(trx, lock->trx, TRUE);
+			if (wsrep_log_conflicts) {
+				if (bf_this)
+					fputs("\n*** Priority TRANSACTION:\n", 
+					      stderr);
+				else
+					fputs("\n*** Victim TRANSACTION:\n", 
+					      stderr);
+				trx_print(stderr, trx, 3000);
+
+				if (bf_other)
+					fputs("\n*** Priority TRANSACTION:\n", 
+					      stderr);
+				else
+					fputs("\n*** Victim TRANSACTION:\n", 
+					      stderr);
+				trx_print(stderr, lock->trx, 3000);
+
+				fputs("*** WAITING FOR THIS LOCK TO BE GRANTED:\n",
+				      stderr);
+
+				if (lock_get_type(lock) == LOCK_REC) {
+					lock_rec_print(stderr, lock);
+				} else {
+					lock_table_print(stderr, lock);
+				}
+			}
+			wsrep_innobase_kill_one_trx(
+				trx->mysql_thd, trx, lock->trx, TRUE);
 		}
 	}
 }
@@ -4091,33 +4119,12 @@ lock_table_other_has_incompatible(
 		if ((lock->trx != trx)
 		    && (!lock_mode_compatible(lock_get_mode(lock), mode))
 		    && (wait || !(lock_get_wait(lock)))) {
-
 #ifdef WITH_WSREP
-			int bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
-			int bf_other = wsrep_thd_is_brute_force(
-			    lock->trx->mysql_thd);
-			if ((bf_this && !bf_other) ||
-			    (bf_this && bf_other &&
-			     wsrep_trx_order_before(
-				trx->mysql_thd,	lock->trx->mysql_thd)
-			    )
-			) {
-				if (lock->trx->que_state == TRX_QUE_LOCK_WAIT) {
-					if (wsrep_debug) fprintf(stderr, 
-						"WSREP: BF victim  waiting");
-					return(lock);
-				} else {
-                                  if (bf_this && bf_other)
-					wsrep_innobase_kill_one_trx(
-						(trx_t *)trx, lock->trx, TRUE);
-					return(lock);
-				}
-			} else {
-				return(lock);
-			}
-#else
-			return(lock);
+			if (wsrep_debug) 
+				fprintf(stderr, "WSREP: table lock abort");
+			wsrep_kill_victim((trx_t *)trx, (lock_t *)lock);
 #endif
+			return(lock);
 		}
 
 		lock = UT_LIST_GET_PREV(un_member.tab_lock.locks, lock);
