@@ -153,7 +153,7 @@ static const char *check_longlong(const char *fmt, uint *have_longlong)
     position in buffer which points on the end of escaped string
 */
 
-static char *backtick_string(CHARSET_INFO *cs, char *to, char *end,
+static char *backtick_string(CHARSET_INFO *cs, char *to, const char *end,
                              char *par, size_t par_len, char quote_char)
 {
   uint char_len;
@@ -196,7 +196,7 @@ err:
   Prints string argument
 */
 
-static char *process_str_arg(CHARSET_INFO *cs, char *to, char *end,
+static char *process_str_arg(CHARSET_INFO *cs, char *to, const char *end,
                              size_t width, char *par, uint print_type)
 {
   int well_formed_error;
@@ -257,7 +257,7 @@ static char *process_dbl_arg(char *to, char *end, size_t width,
   Prints integer argument
 */
 
-static char *process_int_arg(char *to, char *end, size_t length,
+static char *process_int_arg(char *to, const char *end, size_t length,
                              longlong par, char arg_type, uint print_type)
 {
   size_t res_length, to_length;
@@ -482,24 +482,26 @@ start:
       case 'M':
       {
         longlong larg;
-        char *org_to= to;
-        char errmsg_buff[MYSYS_STRERROR_SIZE];
+        const char *real_end;
 
-        length= (print_arr[i].flags & WIDTH_ARG)
+        width= (print_arr[i].flags & WIDTH_ARG)
           ? (size_t)args_arr[print_arr[i].width].longlong_arg
           : print_arr[i].width;
 
+        real_end= MY_MIN(to + width, end);
+
         larg = args_arr[print_arr[i].arg_idx].longlong_arg;
-        to= process_int_arg(to, end, 0, larg, 'd', print_arr[i].flags);
-        width-= (to - org_to);
-        if (width <= 4)
-          break;
-        *to++= ' ';
-        *to++= '"';
-        my_strerror(errmsg_buff, sizeof(errmsg_buff), (int) larg);
-        to= process_str_arg(cs, to, end, width-3, errmsg_buff,
-                            print_arr[i].flags);
-        *to++= '"';
+        to= process_int_arg(to, real_end, 0, larg, 'd', print_arr[i].flags);
+        if (real_end - to >= 3)
+        {
+          char errmsg_buff[MYSYS_STRERROR_SIZE];
+          *to++= ' ';
+          *to++= '"';
+          my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
+          to= process_str_arg(cs, to, real_end, width, errmsg_buff,
+                              print_arr[i].flags);
+          if (real_end > to) *to++= '"';
+        }
         break;
       }
       default:
@@ -666,18 +668,18 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
     else if (*fmt == 'M')
     {
-      const char *org_to= to;
       int larg= va_arg(ap, int);
-      to= process_int_arg(to, end, 0, larg, 'd', print_type);
-      width-= (to - org_to);
-      if ((end - to) >= 4 && (int) width >= 4)
+      const char *real_end= MY_MIN(to + width, end);
+
+      to= process_int_arg(to, real_end, 0, larg, 'd', print_type);
+      if (real_end - to >= 3)
       {
         char errmsg_buff[MYSYS_STRERROR_SIZE];
         *to++= ' ';
         *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
-        to= process_str_arg(cs, to, end, width-3, errmsg_buff, print_type);
-        *to++= '"';
+        to= process_str_arg(cs, to, real_end, width, errmsg_buff, print_type);
+        if (real_end > to) *to++= '"';
       }
       continue;
     }
