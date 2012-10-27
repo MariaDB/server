@@ -192,10 +192,10 @@ EOF
 
     # update privilege tables
     password_column_fix_query=`/bin/echo -e \
-        "USE mysql\n" \
-        "ALTER TABLE user CHANGE Password Password char(41) character set latin1 collate latin1_bin DEFAULT '' NOT NULL"`;
+        "USE mysql;\n" \
+        "ALTER TABLE user CHANGE Password Password char(41) character set latin1 collate latin1_bin DEFAULT '' NOT NULL;"`
     replace_query=`/bin/echo -e \
-        "USE mysql\n" \
+        "USE mysql;\n" \
         "SET sql_mode='';\n" \
         "REPLACE INTO user SET " \
         "  host='localhost', user='debian-sys-maint', password=password('$pass'), " \

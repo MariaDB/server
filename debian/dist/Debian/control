@@ -98,7 +98,7 @@ Architecture: any
 Depends: mariadb-common, libmariadbclient18 (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Provides: mysql-client-core, mysql-client-core-5.1, mysql-client-core-10.0
 Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0,
-    mysql-client-5.1, mysql-client-5.5,
+    mysql-client-5.1 (<< ${source:Version}), mysql-client-5.5 (<< ${source:Version}),
     mysql-client-core-5.1, mysql-client-core-5.5,
     mariadb-client-5.1, mariadb-client-core-5.1,
     mariadb-client-5.2, mariadb-client-core-5.2,
