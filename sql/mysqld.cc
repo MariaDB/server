@@ -5730,7 +5730,8 @@ void handle_connections_sockets()
 
 #ifdef HAVE_LIBWRAP
     {
-      if (sock == base_ip_sock || sock == extra_ip_sock)
+      if (mysql_socket_getfd(sock) == mysql_socket_getfd(base_ip_sock) ||
+          mysql_socket_getfd(sock) == mysql_socket_getfd(extra_ip_sock))
       {
 	struct request_info req;
 	signal(SIGCHLD, SIG_DFL);
