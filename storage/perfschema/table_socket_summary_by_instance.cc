@@ -286,7 +286,7 @@ int table_socket_summary_by_instance::read_row_values(TABLE *table,
         m_row.m_event_name.set_field(f);
         break;
       case  1: /* OBJECT_INSTANCE */
-        set_field_ulonglong(f, (ulonglong)m_row.m_identity);
+        set_field_ulonglong(f, (intptr)m_row.m_identity);
         break;
 
       case  2:/* COUNT_STAR */
