@@ -487,9 +487,9 @@ my_context_spawn(struct my_context *c, void (*f)(void *), void *d)
      : [stack] "a" (c->stack_top),
        /* Need this in callee-save register to preserve across function call. */
        [save] "D" (&c->save[0]),
-       [f] "m" (f),
-       [d] "m" (d)
-     : "ecx", "edx", "memory", "cc"
+       [f] "c" (f),
+       [d] "d" (d)
+     : "memory", "cc"
   );
 
   DBUG_SWAP_CODE_STATE(&c->dbug_state);
