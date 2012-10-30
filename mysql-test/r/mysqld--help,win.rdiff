@@ -1,6 +1,6 @@
---- r/mysqld--help.result	2012-01-13 16:50:49.000000000 +0100
-+++ r/mysqld--help-win.result	2012-01-19 14:12:00.000000000 +0100
-@@ -240,7 +240,6 @@
+--- r/mysqld--help.result	2012-10-25 14:02:57.000000000 +0200
++++ mysqld--help,win.result~	2012-10-30 11:37:08.000000000 +0100
+@@ -244,7 +244,6 @@
   The number of segments in a key cache
   -L, --language=name Client error messages in given language. May be given as
   a full path. Deprecated. Use --lc-messages-dir instead.
@@ -8,7 +8,7 @@
   --lc-messages=name  Set the language used for the error messages.
   -L, --lc-messages-dir=name 
   Directory where error messages are
-@@ -436,6 +435,7 @@
+@@ -437,6 +436,7 @@
   NULLS_UNEQUAL (default behavior for 4.1 and later),
   NULLS_EQUAL (emulate 4.0 behavior), and NULLS_IGNORED
   --myisam-use-mmap   Use memory mapping for reading and writing MyISAM tables
@@ -16,7 +16,7 @@
   --net-buffer-length=# 
   Buffer length for TCP/IP and socket communication
   --net-read-timeout=# 
-@@ -695,6 +695,9 @@
+@@ -774,6 +774,9 @@
   files within specified directory
   --server-id=#       Uniquely identifies the server instance in the community
   of replication partners
@@ -26,7 +26,7 @@
   --show-slave-auth-info 
   Show user and password in SHOW SLAVE HOSTS on this
   master.
-@@ -759,6 +762,10 @@
+@@ -841,6 +844,10 @@
   Log slow queries to given log file. Defaults logging to
   'hostname'-slow.log. Must be enabled to activate other
   slow log options
@@ -37,7 +37,7 @@
   --socket=name       Socket file to use for connection
   --sort-buffer-size=# 
   Each thread that needs to do a sort allocates a buffer of
-@@ -767,6 +774,7 @@
+@@ -849,6 +856,7 @@
   for the complete list of valid sql modes
   --stack-trace       Print a symbolic stack trace on failure
   (Defaults to on; use --skip-stack-trace to disable.)
@@ -45,7 +45,7 @@
   --stored-program-cache=# 
   The soft upper limit for number of cached stored routines
   for one connection.
-@@ -807,8 +815,8 @@
+@@ -889,8 +897,8 @@
   size, MySQL will automatically convert it to an on-disk
   MyISAM or Aria table
   -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
@@ -56,15 +56,15 @@
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
-@@ -908,7 +916,6 @@
+@@ -993,7 +1001,6 @@
+ key-cache-block-size 1024
  key-cache-division-limit 100
  key-cache-segments 0
- language MYSQL_SHAREDIR/
 -large-pages FALSE
  lc-messages en_US
  lc-messages-dir MYSQL_SHAREDIR/
  lc-time-names en_US
-@@ -971,6 +978,7 @@
+@@ -1056,6 +1063,7 @@
  myisam-sort-buffer-size 8388608
  myisam-stats-method nulls_unequal
  myisam-use-mmap FALSE
@@ -72,7 +72,7 @@
  net-buffer-length 16384
  net-read-timeout 30
  net-retry-count 10
-@@ -1035,6 +1043,8 @@
+@@ -1148,6 +1156,8 @@
  secure-auth FALSE
  secure-file-priv (No default value)
  server-id 0
@@ -81,7 +81,7 @@
  show-slave-auth-info FALSE
  skip-grant-tables TRUE
  skip-name-resolve FALSE
-@@ -1050,6 +1060,7 @@
+@@ -1164,6 +1174,7 @@
  slave-type-conversions 
  slow-launch-time 2
  slow-query-log FALSE
