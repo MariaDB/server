@@ -764,8 +764,6 @@ JOIN::prepare(Item ***rref_pointer_array,
   
   if (having)
   {
-    Query_arena backup, *arena;
-    arena= thd->activate_stmt_arena_if_needed(&backup);
     nesting_map save_allow_sum_func= thd->lex->allow_sum_func;
     thd->where="having clause";
     thd->lex->allow_sum_func|= 1 << select_lex_arg->nest_level;
@@ -781,9 +779,6 @@ JOIN::prepare(Item ***rref_pointer_array,
 			 (having->fix_fields(thd, &having) ||
 			  having->check_cols(1)));
     select_lex->having_fix_field= 0;
-    select_lex->having= having;
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
 
     if (having_fix_rc || thd->is_error())
       DBUG_RETURN(-1);				/* purecov: inspected */
@@ -1738,12 +1733,19 @@ JOIN::optimize_inner()
         DBUG_RETURN(1);
       }
     }
-    
+    /*
+      Calculate a possible 'limit' of table rows for 'GROUP BY': 'need_tmp'
+      implies that there will be more postprocessing so the specified
+      'limit' should not be enforced yet in the call to
+      'test_if_skip_sort_order'.
+    */
+    const ha_rows limit = need_tmp ? HA_POS_ERROR : unit->select_limit_cnt;
+
     if (!(select_options & SELECT_BIG_RESULT) &&
         ((group_list &&
           (!simple_group ||
            !test_if_skip_sort_order(&join_tab[const_tables], group_list,
-                                    unit->select_limit_cnt, 0, 
+                                    limit, 0,
                                     &join_tab[const_tables].table->
                                     keys_in_use_for_group_by))) ||
          select_distinct) &&
@@ -4016,8 +4018,10 @@ merge_key_fields(KEY_FIELD *start,KEY_FIELD *new_fields,KEY_FIELD *end,
                                 new_fields->null_rejecting);
 	}
 	else if (old->eq_func && new_fields->eq_func &&
-		 ((old->val->const_item() && old->val->is_null()) || 
-                  new_fields->val->is_null()))
+		 ((old->val->const_item() && !old->val->is_expensive() &&
+                   old->val->is_null()) ||
+                  (!new_fields->val->is_expensive() &&
+                   new_fields->val->is_null())))
 	{
 	  /* field = expression OR field IS NULL */
 	  old->level= and_level;
@@ -4031,7 +4035,8 @@ merge_key_fields(KEY_FIELD *start,KEY_FIELD *new_fields,KEY_FIELD *end,
             Remember the NOT NULL value unless the value does not depend
             on other tables.
           */
-	  if (!old->val->used_tables() && old->val->is_null())
+	  if (!old->val->used_tables() && !old->val->is_expensive() &&
+              old->val->is_null())
 	    old->val= new_fields->val;
 	}
 	else
@@ -8163,6 +8168,7 @@ get_store_key(THD *thd, KEYUSE *keyuse, table_map used_tables,
 			       key_part->length,
 			       ((Item_field*) keyuse->val->real_item())->field,
 			       keyuse->val->real_item()->full_name());
+
   return new store_key_item(thd,
 			    key_part->field,
 			    key_buff + maybe_null,

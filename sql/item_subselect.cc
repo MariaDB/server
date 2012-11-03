@@ -49,7 +49,7 @@ Item_subselect::Item_subselect():
   used_tables_cache(0), have_to_be_excluded(0), const_item_cache(1),
   inside_first_fix_fields(0), done_first_fix_fields(FALSE), 
   expr_cache(0), forced_const(FALSE), substitution(0), engine(0), eliminated(FALSE),
-  engine_changed(0), changed(0), is_correlated(FALSE)
+  changed(0), is_correlated(FALSE)
 {
   DBUG_ENTER("Item_subselect::Item_subselect");
   DBUG_PRINT("enter", ("this: 0x%lx", (ulong) this));
@@ -623,6 +623,8 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
 
 bool Item_subselect::exec()
 {
+  subselect_engine *org_engine= engine;
+
   DBUG_ENTER("Item_subselect::exec");
 
   /*
@@ -644,11 +646,14 @@ bool Item_subselect::exec()
 #ifndef DBUG_OFF
   ++exec_counter;
 #endif
-  if (engine_changed)
+  if (engine != org_engine)
   {
-    engine_changed= 0;
-    res= exec();
-    DBUG_RETURN(res);
+    /*
+      If the subquery engine changed during execution due to lazy subquery
+      optimization, or because the original engine found a more efficient other
+      engine, re-execute the subquery with the new engine.
+    */
+    DBUG_RETURN(exec());
   }
   DBUG_RETURN(res);
 }
@@ -1063,11 +1068,9 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     }
     substitution= select_lex->item_list.head();
     /*
-      as far as we moved content to upper level, field which depend of
-      'upper' select is not really dependent => we remove this dependence
+      as far as we moved content to upper level we have to fix dependences & Co
     */
-    substitution->walk(&Item::remove_dependence_processor, 0,
-		       (uchar *) select_lex->outer_select());
+    substitution->fix_after_pullout(select_lex->outer_select(), &substitution);
   }
   DBUG_RETURN(false);
 }
@@ -2003,7 +2006,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN * join,
   }
   else
   {
-    Item *item= (Item*) select_lex->item_list.head();
+    Item *item= (Item*) select_lex->item_list.head()->real_item();
 
     if (select_lex->table_list.elements)
     {
@@ -3143,10 +3146,8 @@ int subselect_single_select_engine::exec()
           DBUG_RETURN(1);                        /* purecov: inspected */
       }
     }
-    if (item->engine_changed)
-    {
+    if (item->engine_changed(this))
       DBUG_RETURN(1);
-    }
   }
   if (select_lex->uncacheable &&
       select_lex->uncacheable != UNCACHEABLE_EXPLAIN
