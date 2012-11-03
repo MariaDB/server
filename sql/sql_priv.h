@@ -327,6 +327,7 @@ enum enum_yes_no_unknown
 };
 
 #ifdef MYSQL_SERVER
+
 /*
   External variables
 */

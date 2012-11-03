@@ -75,6 +75,9 @@ table_schema, table_name, column_name
 FROM information_schema.key_column_usage
 WHERE constraint_catalog IS NOT NULL OR table_catalog IS NOT NULL;
 constraint_catalog	constraint_schema	constraint_name	table_catalog	table_schema	table_name	column_name
+def	mysql	PRIMARY	def	mysql	column_stat	db_name
+def	mysql	PRIMARY	def	mysql	column_stat	table_name
+def	mysql	PRIMARY	def	mysql	column_stat	column_name
 def	mysql	PRIMARY	def	mysql	columns_priv	Host
 def	mysql	PRIMARY	def	mysql	columns_priv	Db
 def	mysql	PRIMARY	def	mysql	columns_priv	User
@@ -96,6 +99,10 @@ def	mysql	PRIMARY	def	mysql	help_topic	help_topic_id
 def	mysql	name	def	mysql	help_topic	name
 def	mysql	PRIMARY	def	mysql	host	Host
 def	mysql	PRIMARY	def	mysql	host	Db
+def	mysql	PRIMARY	def	mysql	index_stat	db_name
+def	mysql	PRIMARY	def	mysql	index_stat	table_name
+def	mysql	PRIMARY	def	mysql	index_stat	index_name
+def	mysql	PRIMARY	def	mysql	index_stat	prefix_arity
 def	mysql	PRIMARY	def	mysql	ndb_binlog_index	epoch
 def	mysql	PRIMARY	def	mysql	plugin	name
 def	mysql	PRIMARY	def	mysql	proc	db
@@ -111,6 +118,8 @@ def	mysql	PRIMARY	def	mysql	proxies_priv	User
 def	mysql	PRIMARY	def	mysql	proxies_priv	Proxied_host
 def	mysql	PRIMARY	def	mysql	proxies_priv	Proxied_user
 def	mysql	PRIMARY	def	mysql	servers	Server_name
+def	mysql	PRIMARY	def	mysql	table_stat	db_name
+def	mysql	PRIMARY	def	mysql	table_stat	table_name
 def	mysql	PRIMARY	def	mysql	tables_priv	Host
 def	mysql	PRIMARY	def	mysql	tables_priv	Db
 def	mysql	PRIMARY	def	mysql	tables_priv	User
