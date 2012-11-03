@@ -305,7 +305,7 @@ public:
       before_stmt_pos= MY_OFF_T_UNDEF;
   }
 
-  void set_binlog_cache_info(ulong param_max_binlog_cache_size,
+  void set_binlog_cache_info(my_off_t param_max_binlog_cache_size,
                              ulong *param_ptr_binlog_cache_use,
                              ulong *param_ptr_binlog_cache_disk_use)
   {
@@ -382,7 +382,7 @@ private:
     is configured. This corresponds to either
       . max_binlog_cache_size or max_binlog_stmt_cache_size.
   */
-  ulong saved_max_binlog_cache_size;
+  my_off_t saved_max_binlog_cache_size;
 
   /*
     Stores a pointer to the status variable that keeps track of the in-memory 
@@ -420,8 +420,8 @@ private:
 
 class binlog_cache_mngr {
 public:
-  binlog_cache_mngr(ulong param_max_binlog_stmt_cache_size,
-                    ulong param_max_binlog_cache_size,
+  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+                    my_off_t param_max_binlog_cache_size,
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,

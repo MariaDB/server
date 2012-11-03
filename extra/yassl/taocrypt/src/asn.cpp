@@ -162,6 +162,8 @@ word32 GetLength(Source& source)
     else
         length = b;
 
+    if (source.IsLeft(length) == false) return 0;
+
     return length;
 }
 
@@ -840,7 +842,7 @@ void CertDecoder::GetName(NameType nt)
             if (email) {
                 if (!(ptr = AddTag(ptr, buf_end, "/emailAddress=", 14, length))) {
                     source_.SetError(CONTENT_E);
-                    return; 
+                    return;
                 }
             }
 
