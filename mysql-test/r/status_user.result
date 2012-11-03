@@ -107,7 +107,7 @@ Handler_mrr_key_refills	0
 Handler_mrr_rowid_refills	0
 Handler_prepare	18
 Handler_read_first	0
-Handler_read_key	3
+Handler_read_key	9
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
@@ -123,7 +123,7 @@ Handler_update	5
 Handler_write	7
 select variable_value - @global_read_key as "handler_read_key" from information_schema.global_status where variable_name="handler_read_key";
 handler_read_key
-3
+9
 set @@global.userstat=0;
 select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ

@@ -36,6 +36,8 @@ class Protocol;
 class Create_field;
 class Relay_log_info;
 class Field;
+class Column_statistics;
+class Column_statistics_collected;
 
 enum enum_check_fields
 {
@@ -65,6 +67,8 @@ enum Derivation
 
 /* The length of the header part for each virtual column in the .frm file */
 #define FRM_VCOL_HEADER_SIZE(b) (3 + test(b))
+
+class Count_distinct_field;
 
 struct ha_field_option_struct;
 
@@ -216,6 +220,19 @@ public:
    */
   bool is_created_from_null_item;
 
+  bool is_stat_field; /* TRUE in Field objects created for column min/max values */
+
+  /*
+    This structure is used for statistical data on the column
+    that has been read from the statistical table column_stat
+  */ 
+  Column_statistics *read_stats;
+  /*
+    This structure is used for statistical data on the column that
+    is collected by the function collect_statistics_for_table
+  */
+  Column_statistics_collected *collected_stats;
+
   /* 
     This is additional data provided for any computed(virtual) field.
     In particular it includes a pointer to the item by  which this field
@@ -308,6 +325,26 @@ public:
   virtual uint32 data_length() { return pack_length(); }
   virtual uint32 sort_length() const { return pack_length(); }
 
+  /* 
+    Get the number bytes occupied by the value in the field.
+    CHAR values are stripped of trailing spaces.
+    Flexible values are stripped of their length.
+  */
+  virtual uint32 value_length()
+  {
+    uint len;
+    if (!zero_pack() &&
+	(type() == MYSQL_TYPE_STRING &&
+        (len= pack_length()) >= 4 && len < 256))
+    {
+      uchar *str, *end;
+      for (str= ptr, end= str+len; end > str && end[-1] == ' '; end--) {}
+      len=(uint) (end-str); 
+      return len;
+    } 
+    return data_length();
+  }
+
   /**
      Get the maximum size of the data in packed format.
 
@@ -349,6 +386,36 @@ public:
   { return cmp(a, b); }
   virtual int key_cmp(const uchar *str, uint length)
   { return cmp(ptr,str); }
+  /*
+    Update the value m of the 'min_val' field with the current value v
+    of this field if force_update is set to TRUE or if v < m.
+    Return TRUE if the value has been updated.
+  */  
+  virtual bool update_min(Field *min_val, bool force_update)
+  { 
+    bool update_fl= force_update || cmp(ptr, min_val->ptr) < 0;
+    if (update_fl)
+    {
+      min_val->set_notnull();
+      memcpy(min_val->ptr, ptr, pack_length());
+    }
+    return update_fl;
+  }
+  /*
+    Update the value m of the 'max_val' field with the current value v
+    of this field if force_update is set to TRUE or if v > m.
+    Return TRUE if the value has been updated.
+  */  
+  virtual bool update_max(Field *max_val, bool force_update)
+  { 
+    bool update_fl= force_update || cmp(ptr, max_val->ptr) > 0;
+    if (update_fl)
+    {
+      max_val->set_notnull();
+      memcpy(max_val->ptr, ptr, pack_length());
+    }
+    return update_fl;
+  }
   virtual uint decimals() const { return 0; }
   /*
     Caller beware: sql_type can change str.Ptr, so check
@@ -383,6 +450,8 @@ public:
      Signals that this field is NULL-able.
   */
   inline bool real_maybe_null(void) { return null_ptr != 0; }
+
+  inline THD *get_thd() { return table ? table->in_use : current_thd; }
 
   enum {
     LAST_NULL_BYTE_UNDEF= 0
@@ -420,6 +489,9 @@ public:
                                uchar *new_ptr, uchar *new_null_ptr,
                                uint new_null_bit);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
+  Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
+               bool stat_flag= FALSE);
+  Field *clone(MEM_ROOT *mem_root, my_ptrdiff_t diff);
   inline void move_field(uchar *ptr_arg,uchar *null_ptr_arg,uchar null_bit_arg)
   {
     ptr=ptr_arg; null_ptr=null_ptr_arg; null_bit=null_bit_arg;
@@ -1811,6 +1883,10 @@ public:
   int cmp_binary(const uchar *a,const uchar *b, uint32 max_length=~0L);
   int key_cmp(const uchar *,const uchar*);
   int key_cmp(const uchar *str, uint length);
+  /* Never update the value of min_val for a blob field */
+  bool update_min(Field *min_val, bool force_update) { return FALSE; }
+  /* Never update the value of max_val for a blob field */
+  bool update_max(Field *max_val, bool force_update) { return FALSE; }
   uint32 key_length() const { return 0; }
   void sort_string(uchar *buff,uint length);
   uint32 pack_length() const
@@ -1828,6 +1904,7 @@ public:
   { return (uint32) (packlength); }
   uint row_pack_length() { return pack_length_no_ptr(); }
   uint32 sort_length() const;
+  uint32 value_length() { return get_length(); }
   virtual uint32 max_data_length() const
   {
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
@@ -2099,6 +2176,28 @@ public:
   { return cmp_binary((uchar *) a, (uchar *) b); }
   int key_cmp(const uchar *str, uint length);
   int cmp_offset(uint row_offset);
+  bool update_min(Field *min_val, bool force_update)
+  { 
+    longlong val= val_int();
+    bool update_fl= force_update || val < min_val->val_int();
+    if (update_fl)
+    {
+      min_val->set_notnull();
+      min_val->store(val, FALSE);
+    }
+    return update_fl;
+  }
+  bool update_max(Field *max_val, bool force_update)
+  { 
+    longlong val= val_int();
+    bool update_fl= force_update || val > max_val->val_int();
+    if (update_fl)
+    {
+      max_val->set_notnull();
+      max_val->store(val, FALSE);
+    }
+    return update_fl;
+  }
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs)
   { get_key_image(buff, length, itRAW); }   
   void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)
