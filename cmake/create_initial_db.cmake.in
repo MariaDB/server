@@ -42,8 +42,9 @@ ENDFOREACH()
 FILE(READ ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql CONTENTS)
 FILE(APPEND bootstrap.sql "${CONTENTS}")
 
+FILE(REMOVE_RECURSE mysql performance_schema)
+FILE(REMOVE ibdata1 ib_logfile0 ib_logfile1)
 
-FILE(REMOVE_RECURSE mysql)
 MAKE_DIRECTORY(mysql)
 IF(WIN32)
   SET(CONSOLE --console)
