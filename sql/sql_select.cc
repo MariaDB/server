@@ -19065,6 +19065,20 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     save_pre_sort_join_tab= join->pre_sort_join_tab;
     join->pre_sort_join_tab= NULL;
   }
+  else
+  {
+    /* 
+      Save index #, save index condition. Do it right now, because MRR may 
+    */
+    if (table->file->inited == handler::INDEX)
+    {
+      join->pre_sort_index= table->file->active_index;
+      join->pre_sort_idx_pushed_cond= table->file->pushed_idx_cond;
+      // no need to save key_read
+    }
+    else
+      join->pre_sort_index= MAX_KEY;
+  }
 
   /* Currently ORDER BY ... LIMIT is not supported in subqueries. */
   DBUG_ASSERT(join->group_list || !join->is_in_subquery());
@@ -19155,17 +19169,6 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
 
   *(join->pre_sort_join_tab)= *tab;
   
-  if (table->file->inited == handler::INDEX)
-  {
-    // Save index #, save index condition
-    join->pre_sort_index= table->file->active_index;
-    join->pre_sort_idx_pushed_cond= table->file->pushed_idx_cond;
-    // no need to save key_read? 
-    err= table->file->ha_index_end();
-  }
-  else
-    join->pre_sort_index= MAX_KEY;
-
   /*TODO: here, close the index scan, cancel index-only read. */
 #if 0 
   /* MariaDB doesn't need the following: */
@@ -19211,8 +19214,6 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
 #endif
   tab->select=NULL;
   tab->set_select_cond(NULL, __LINE__);
-//  tab->last_inner= 0;
-//  tab->first_unmatched= 0;
   tab->type=JT_ALL;				// Read with normal read_record
   tab->read_first_record= join_init_read_record;
   tab->table->file->ha_index_or_rnd_end();

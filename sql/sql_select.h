@@ -895,6 +895,7 @@ protected:
 
 public:
   JOIN_TAB *join_tab, **best_ref;
+  
   /*
     For "Using temporary+Using filesort" queries, JOIN::join_tab can point to
     either: 
