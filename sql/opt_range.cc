@@ -10959,6 +10959,13 @@ int QUICK_RANGE_SELECT::reset()
   last_range= NULL;
   cur_range= (QUICK_RANGE**) ranges.buffer;
   RANGE_SEQ_IF seq_funcs= {NULL, quick_range_seq_init, quick_range_seq_next, 0, 0};
+  
+  if (file->inited == handler::RND)
+  {
+    /* Handler could be left in this state by MRR */
+    if ((error= file->ha_rnd_end()))
+      DBUG_RETURN(error);
+  }
 
   if (in_ror_merged_scan)
     head->column_bitmaps_set_no_signal(&column_bitmap, &column_bitmap);
