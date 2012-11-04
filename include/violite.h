@@ -287,7 +287,6 @@ struct st_vio
   HANDLE hPipe;
   OVERLAPPED overlapped;
   DWORD thread_id; /* Used on XP only by vio_shutdown() */
-  OVERLAPPED pipe_overlapped;
   DWORD read_timeout_ms;
   DWORD write_timeout_ms;
 #endif
