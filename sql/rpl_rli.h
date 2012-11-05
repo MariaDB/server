@@ -307,6 +307,14 @@ public:
   char slave_patternload_file[FN_REFLEN]; 
   size_t slave_patternload_file_size;  
 
+  /*
+    Current GTID being processed.
+    The sub_id gives the binlog order within one domain_id. A zero sub_id
+    means that there is no active GTID.
+  */
+  uint64 gtid_sub_id;
+  rpl_gtid current_gtid;
+
   Relay_log_info(bool is_slave_recovery);
   ~Relay_log_info();
 
@@ -582,6 +590,10 @@ private:
 
 // Defined in rpl_rli.cc
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
+
+
+extern const LEX_STRING rpl_gtid_slave_state_table_name;
+extern struct rpl_slave_state rpl_global_gtid_slave_state;
 
 
 #endif /* RPL_RLI_H */

@@ -120,6 +120,8 @@ static MYSQL_BIN_LOG::xid_count_per_binlog *
 static bool start_binlog_background_thread();
 
 
+rpl_binlog_state rpl_global_gtid_binlog_state;
+
 /**
    purge logs, master and slave sides both, related error code
    convertor.
@@ -5334,7 +5336,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   /* Update the replication state (last GTID in each replication domain). */
   mysql_mutex_lock(&LOCK_rpl_gtid_state);
-  global_rpl_gtid_state.update(&gtid);
+  rpl_global_gtid_binlog_state.update(&gtid);
   mysql_mutex_unlock(&LOCK_rpl_gtid_state);
   return false;
 }

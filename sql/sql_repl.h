@@ -65,6 +65,11 @@ int log_loaded_block(IO_CACHE* file);
 int init_replication_sys_vars();
 void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos, ushort flags);
 
+extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+void rpl_init_gtid_slave_state();
+void rpl_deinit_gtid_slave_state();
+int rpl_load_gtid_slave_state(THD *thd);
+
 #endif /* HAVE_REPLICATION */
 
 #endif /* SQL_REPL_INCLUDED */

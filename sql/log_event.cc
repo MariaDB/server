@@ -6055,28 +6055,247 @@ bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
         Global transaction ID stuff
 **************************************************************************/
 
-/**
-   Current replication state (hash of last GTID executed, per replication
-   domain).
-*/
-rpl_state global_rpl_gtid_state;
-
-
-rpl_state::rpl_state()
+rpl_slave_state::rpl_slave_state()
+  : inited(false), loaded(false)
 {
-  my_hash_init(&hash, &my_charset_bin, 32,
-                offsetof(rpl_gtid, domain_id), sizeof(uint32),
-                NULL, my_free, HASH_UNIQUE);
+  my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
 }
 
 
-rpl_state::~rpl_state()
+rpl_slave_state::~rpl_slave_state()
 {
+}
+
+#ifdef MYSQL_SERVER
+void
+rpl_slave_state::init()
+{
+  DBUG_ASSERT(!inited);
+  mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state, MY_MUTEX_INIT_SLOW);
+  inited= true;
+}
+
+void
+rpl_slave_state::deinit()
+{
+  uint32 i;
+
+  if (!inited)
+    return;
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    list_element *l= e->list;
+    list_element *next;
+    while (l)
+    {
+      next= l->next;
+      my_free(l);
+      l= next;
+    }
+    /* The element itself is freed by my_hash_free(). */
+  }
   my_hash_free(&hash);
+  mysql_mutex_destroy(&LOCK_slave_state);
+}
+#endif
+
+
+int
+rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
+                        uint64 seq_no)
+{
+  element *elem= NULL;
+  list_element *list_elem= NULL;
+
+  if (!(elem= get_element(domain_id)))
+    return 1;
+
+  if (!(list_elem= (list_element *)my_malloc(sizeof(*list_elem), MYF(MY_WME))))
+    return 1;
+  list_elem->server_id= server_id;
+  list_elem->sub_id= sub_id;
+  list_elem->seq_no= seq_no;
+
+  elem->add(list_elem);
+  return 0;
+}
+
+
+struct rpl_slave_state::element *
+rpl_slave_state::get_element(uint32 domain_id)
+{
+  struct element *elem;
+
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  if (elem)
+    return elem;
+
+  if (!(elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME))))
+    return NULL;
+  elem->list= NULL;
+  elem->last_sub_id= 0;
+  elem->domain_id= domain_id;
+  if (my_hash_insert(&hash, (uchar *)elem))
+  {
+    my_free(elem);
+    return NULL;
+  }
+  return elem;
 }
 
 
 #ifdef MYSQL_SERVER
+#ifdef HAVE_REPLICATION
+/*
+  Write a gtid to the replication slave state table.
+
+  Do it as part of the transaction, to get slave crash safety, or as a separate
+  transaction if !in_transaction (eg. MyISAM or DDL).
+
+    gtid    The global transaction id for this event group.
+    sub_id  Value allocated within the sub_id when the event group was
+            read (sub_id must be consistent with commit order in master binlog).
+
+  Note that caller must later ensure that the new gtid and sub_id is inserted
+  into the appropriate HASH element with rpl_slave_state.add(), so that it can
+  be deleted later. But this must only be done after COMMIT if in transaction.
+*/
+int
+rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
+                             bool in_transaction)
+{
+  TABLE_LIST tlist;
+  int err= 0;
+  bool table_opened= false;
+  TABLE *table;
+  list_element *elist= 0, *next;
+  element *elem;
+
+  DBUG_ASSERT(in_transaction /* ToDo: new transaction for DDL etc. */);
+
+  mysql_reset_thd_for_next_command(thd, 0);
+
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_WRITE);
+  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    goto end;
+  table_opened= true;
+  table= tlist.table;
+
+  /*
+    ToDo: Check the table definition, error if not as expected.
+    We need the correct first 4 columns with correct type, and the primary key.
+  */
+  bitmap_set_bit(table->write_set, table->field[0]->field_index);
+  bitmap_set_bit(table->write_set, table->field[1]->field_index);
+  bitmap_set_bit(table->write_set, table->field[2]->field_index);
+  bitmap_set_bit(table->write_set, table->field[3]->field_index);
+
+  table->field[0]->store((ulonglong)gtid->domain_id, true);
+  table->field[1]->store(sub_id, true);
+  table->field[2]->store((ulonglong)gtid->server_id, true);
+  table->field[3]->store(gtid->seq_no, true);
+  if ((err= table->file->ha_write_row(table->record[0])))
+      goto end;
+
+  lock();
+  if ((elem= get_element(gtid->domain_id)) == NULL)
+  {
+    unlock();
+    err= 1;
+    goto end;
+  }
+  elist= elem->grab_list();
+  unlock();
+
+  if (!elist)
+    goto end;
+
+  /* Now delete any already committed rows. */
+  DBUG_ASSERT
+    ((table->file->ha_table_flags() & HA_PRIMARY_KEY_REQUIRED_FOR_POSITION) &&
+     table->s->primary_key < MAX_KEY /* ToDo support all storage engines */);
+
+  bitmap_set_bit(table->read_set, table->field[0]->field_index);
+  bitmap_set_bit(table->read_set, table->field[1]->field_index);
+  while (elist)
+  {
+    next= elist->next;
+
+    table->field[1]->store(elist->sub_id, true);
+    /* domain_id is already set in table->record[0] from write_row() above. */
+    if ((err= table->file->ha_rnd_pos_by_record(table->record[0])) ||
+        (err= table->file->ha_delete_row(table->record[0])))
+      goto end;
+    my_free(elist);
+    elist= next;
+  }
+
+end:
+
+  if (table_opened)
+  {
+    if (err)
+    {
+      /*
+        ToDo: If error, we need to put any remaining elist back into the HASH so
+        we can do another delete attempt later.
+      */
+      ha_rollback_trans(thd, FALSE);
+      close_thread_tables(thd);
+      if (in_transaction)
+        ha_rollback_trans(thd, TRUE);
+    }
+    else
+    {
+      ha_commit_trans(thd, FALSE);
+      close_thread_tables(thd);
+      if (in_transaction)
+        ha_commit_trans(thd, TRUE);
+    }
+  }
+  return err;
+}
+
+
+uint64
+rpl_slave_state::next_subid(uint32 domain_id)
+{
+  uint32 sub_id= 0;
+  element *elem;
+
+  lock();
+  elem= get_element(domain_id);
+  if (elem)
+    sub_id= ++elem->last_sub_id;
+  unlock();
+
+  return sub_id;
+}
+#endif
+
+
+rpl_binlog_state::rpl_binlog_state()
+{
+  my_hash_init(&hash, &my_charset_bin, 32,
+               offsetof(rpl_gtid, domain_id), 2*sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
+  mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
+                   MY_MUTEX_INIT_SLOW);
+}
+
+
+rpl_binlog_state::~rpl_binlog_state()
+{
+  mysql_mutex_destroy(&LOCK_binlog_state);
+  my_hash_free(&hash);
+}
+
+
 /*
   Update replication state with a new GTID.
 
@@ -6086,7 +6305,7 @@ rpl_state::~rpl_state()
   Returns 0 for ok, 1 for error.
 */
 int
-rpl_state::update(const struct rpl_gtid *gtid)
+rpl_binlog_state::update(const struct rpl_gtid *gtid)
 {
   uchar *rec;
 
@@ -6206,20 +6425,20 @@ Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
   protocol->store(buf, p-buf, &my_charset_bin);
 }
 
-static char gtid_begin_string[5] = {'B','E','G','I','N'};
+static char gtid_begin_string[] = "BEGIN";
 
 int
 Gtid_log_event::do_apply_event(Relay_log_info const *rli)
 {
-  const_cast<Relay_log_info*>(rli)->slave_close_thread_tables(thd);
-
-  /* ToDo: record the new GTID. */
+  thd->variables.server_id= this->server_id;
+  thd->variables.gtid_domain_id= this->domain_id;
+  thd->variables.gtid_seq_no= this->seq_no;
 
   if (flags2 & FL_STANDALONE)
     return 0;
 
   /* Execute this like a BEGIN query event. */
-  thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string),
+  thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
                         &my_charset_bin, next_query_id());
   Parser_state parser_state;
   if (!parser_state.init(thd, thd->query(), thd->query_length()))
@@ -6350,7 +6569,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
 
 #ifdef MYSQL_SERVER
 
-Gtid_list_log_event::Gtid_list_log_event(rpl_state *gtid_set)
+Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
   : count(gtid_set->count()), list(0)
 {
   DBUG_ASSERT(count != 0);
@@ -6804,11 +7023,72 @@ void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 int Xid_log_event::do_apply_event(Relay_log_info const *rli)
 {
   bool res;
+  int err;
+  rpl_gtid gtid;
+  uint64 sub_id;
+
+  /*
+    Record any GTID in the same transaction, so slave state is transactionally
+    consistent.
+  */
+  if ((sub_id= rli->gtid_sub_id))
+  {
+    /* Clear the GTID from the RLI so we don't accidentally reuse it. */
+    const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+
+    gtid= rli->current_gtid;
+    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
+    if (err)
+    {
+      trans_rollback(thd);
+      return err;
+    }
+  }
+
   /* For a slave Xid_log_event is COMMIT */
   general_log_print(thd, COM_QUERY,
                     "COMMIT /* implicit, from Xid_log_event */");
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
+
+  if (sub_id)
+  {
+    /*
+      Add the gtid to the HASH in the replication slave state.
+
+      We must do this only here _after_ commit, so that for parallel
+      replication, there will not be an attempt to delete the corresponding
+      table row before it is even committed.
+
+      Even if commit fails, we still add the entry - in case the table
+      mysql.rpl_slave_state is non-transactional and the row is not removed
+      by rollback.
+    */
+    rpl_slave_state::element *elem=
+      rpl_global_gtid_slave_state.get_element(gtid.domain_id);
+    rpl_slave_state::list_element *lelem=
+      (rpl_slave_state::list_element *)my_malloc(sizeof(*lelem), MYF(MY_WME));
+    if (elem && lelem)
+    {
+      lelem->sub_id= sub_id;
+      lelem->server_id= gtid.server_id;
+      lelem->seq_no= gtid.seq_no;
+      elem->add(lelem);
+    }
+    else
+    {
+      if (lelem)
+        my_free(lelem);
+      sql_print_warning("Slave: Out of memory during slave state maintenance. "
+                        "Some no longer necessary rows in table "
+                        "mysql.rpl_slave_state may be left undeleted.");
+    }
+    /*
+      Such failure is not fatal. We will fail to delete the row for this GTID,
+      but it will do no harm and will be removed automatically on next server
+      restart.
+    */
+  }
 
   /*
     Increment the global status commit count variable
