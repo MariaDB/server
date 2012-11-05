@@ -16,10 +16,12 @@
 
 #include "sql_priv.h"
 #include "unireg.h"
+#include "sql_base.h"
 #include "sql_parse.h"                          // check_access
 #ifdef HAVE_REPLICATION
 
 #include "rpl_mi.h"
+#include "rpl_rli.h"
 #include "sql_repl.h"
 #include "sql_acl.h"                            // SUPER_ACL
 #include "log_event.h"
@@ -748,7 +750,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   mariadb_slave_capability= get_mariadb_slave_capability(thd);
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
-                        thd->variables.server_id, log_ident, (ulong)pos);
+                          (int)thd->variables.server_id, log_ident, (ulong)pos);
   if (RUN_HOOK(binlog_transmit, transmit_start, (thd, flags, log_ident, pos)))
   {
     errmsg= "Failed to run hook 'transmit_start'";
@@ -2440,6 +2442,120 @@ int log_loaded_block(IO_CACHE* file)
     }
   }
   DBUG_RETURN(0);
+}
+
+
+/**
+   Initialise the slave replication state from the mysql.rpl_slave_state table.
+
+   This is called each time an SQL thread starts, but the data is only actually
+   loaded on the first call.
+
+   The slave state is the last GTID applied on the slave within each
+   replication domain.
+
+   To avoid row lock contention, there are multiple rows for each domain_id.
+   The one containing the current slave state is the one with the maximal
+   sub_id value, within each domain_id.
+
+    CREATE TABLE mysql.rpl_slave_state (
+      domain_id INT UNSIGNED NOT NULL,
+      sub_id BIGINT UNSIGNED NOT NULL,
+      server_id INT UNSIGNED NOT NULL,
+      seq_no BIGINT UNSIGNED NOT NULL,
+      PRIMARY KEY (domain_id, sub_id))
+*/
+
+void
+rpl_init_gtid_slave_state()
+{
+  rpl_global_gtid_slave_state.init();
+}
+
+
+void
+rpl_deinit_gtid_slave_state()
+{
+  rpl_global_gtid_slave_state.deinit();
+}
+
+
+int
+rpl_load_gtid_slave_state(THD *thd)
+{
+  TABLE_LIST tlist;
+  TABLE *table;
+  bool table_opened= false;
+  bool table_scanned= false;
+  DBUG_ENTER("rpl_load_gtid_slave_state");
+
+  int err= 0;
+  rpl_global_gtid_slave_state.lock();
+  if (rpl_global_gtid_slave_state.loaded)
+    goto end;
+
+  mysql_reset_thd_for_next_command(thd, 0);
+
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_READ);
+  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    goto end;
+  table_opened= true;
+  table= tlist.table;
+
+  /*
+    ToDo: Check the table definition, error if not as expected.
+    We need the correct first 4 columns with correct type, and the primary key.
+  */
+
+  bitmap_set_bit(table->read_set, table->field[0]->field_index);
+  bitmap_set_bit(table->read_set, table->field[1]->field_index);
+  bitmap_set_bit(table->read_set, table->field[2]->field_index);
+  bitmap_set_bit(table->read_set, table->field[3]->field_index);
+  if ((err= table->file->ha_rnd_init_with_error(1)))
+    goto end;
+  table_scanned= true;
+  for (;;)
+  {
+    uint32 domain_id, server_id;
+    uint64 sub_id, seq_no;
+    if ((err= table->file->ha_rnd_next(table->record[0])))
+    {
+      if (err == HA_ERR_RECORD_DELETED)
+        continue;
+      else if (err == HA_ERR_END_OF_FILE)
+        break;
+      else
+        goto end;
+    }
+    domain_id= (ulonglong)table->field[0]->val_int();
+    sub_id= (ulonglong)table->field[1]->val_int();
+    server_id= (ulonglong)table->field[2]->val_int();
+    seq_no= (ulonglong)table->field[3]->val_int();
+    DBUG_PRINT("info", ("Read slave state row: %u:%u-%lu sub_id=%lu\n",
+                        (unsigned)domain_id, (unsigned)server_id,
+                        (ulong)seq_no, (ulong)sub_id));
+    if ((err= rpl_global_gtid_slave_state.update(domain_id, server_id,
+                                                 sub_id, seq_no)))
+      goto end;
+  }
+  err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
+
+  rpl_global_gtid_slave_state.loaded= true;
+
+end:
+  if (table_scanned)
+  {
+    table->file->ha_index_or_rnd_end();
+    ha_commit_trans(thd, FALSE);
+    ha_commit_trans(thd, TRUE);
+  }
+  if (table_opened)
+    close_thread_tables(thd);
+  rpl_global_gtid_slave_state.unlock();
+  DBUG_RETURN(err);
 }
 
 #endif /* HAVE_REPLICATION */

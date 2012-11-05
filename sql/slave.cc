@@ -3724,6 +3724,15 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
     goto err;
   }
 
+  /* Load the set of seen GTIDs, if we did not already. */
+  if (rpl_load_gtid_slave_state(thd))
+  {
+    rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), 
+                "Unable to load replication GTID slave state from mysql.%s: %s",
+                rpl_gtid_slave_state_table_name.str, thd->stmt_da->message());
+    goto err;
+  }
+
   /* execute init_slave variable */
   if (opt_init_slave.length)
   {
@@ -5189,6 +5198,27 @@ static Log_event* next_event(Relay_log_info* rli)
         inc_event_relay_log_pos()
       */
       rli->future_event_relay_log_pos= my_b_tell(cur_log);
+      /*
+        For GTID, allocate a new sub_id for the given domain_id.
+        The sub_id must be allocated in increasing order of binlog order.
+      */
+      if (ev->get_type_code() == GTID_EVENT)
+      {
+        Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+        uint64 sub_id= rpl_global_gtid_slave_state.next_subid(gev->domain_id);
+        if (!sub_id)
+        {
+          errmsg = "slave SQL thread aborted because of out-of-memory error";
+          if (hot_log)
+            mysql_mutex_unlock(log_lock);
+          goto err;
+        }
+        rli->gtid_sub_id= sub_id;
+        rli->current_gtid.server_id= gev->server_id;
+        rli->current_gtid.domain_id= gev->domain_id;
+        rli->current_gtid.seq_no= gev->seq_no;
+      }
+
       if (hot_log)
         mysql_mutex_unlock(log_lock);
       DBUG_RETURN(ev);
