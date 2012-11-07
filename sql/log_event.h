@@ -3038,6 +3038,10 @@ struct rpl_binlog_state
 
   ulong count() const { return hash.records; }
   int update(const struct rpl_gtid *gtid);
+  void reset();
+  uint32 seq_no_for_server_id(uint32 server_id);
+  int write_to_iocache(IO_CACHE *dest);
+  int read_from_iocache(IO_CACHE *src);
 };
 
 /**

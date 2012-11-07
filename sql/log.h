@@ -771,6 +771,8 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
+  int read_state_from_file();
+  int write_state_to_file();
 };
 
 class Log_event_handler
