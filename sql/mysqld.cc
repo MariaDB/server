@@ -965,6 +965,7 @@ PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_trg, key_file_trn, key_file_init;
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index;
+PSI_file_key key_file_binlog_state;
 
 static PSI_file_info all_server_files[]=
 {
@@ -995,7 +996,8 @@ static PSI_file_info all_server_files[]=
   { &key_file_tclog, "tclog", 0},
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},
-  { &key_file_init, "init", 0}
+  { &key_file_init, "init", 0},
+  { &key_file_binlog_state, "binlog_state", 0}
 };
 
 /**

@@ -6299,8 +6299,8 @@ rpl_binlog_state::~rpl_binlog_state()
 /*
   Update replication state with a new GTID.
 
-  If the replication domain id already exists, then the new GTID replaces the
-  old one for that domain id. Else a new entry is inserted.
+  If the (domain_id, server_id) pair already exists, then the new GTID replaces
+  the old one for that domain id. Else a new entry is inserted.
 
   Returns 0 for ok, 1 for error.
 */
@@ -6309,16 +6309,16 @@ rpl_binlog_state::update(const struct rpl_gtid *gtid)
 {
   uchar *rec;
 
-  rec= my_hash_search(&hash, (const uchar *)gtid, 0);
+  rec= my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0);
   if (rec)
   {
     const rpl_gtid *old_gtid= (const rpl_gtid *)rec;
-    if (old_gtid->server_id == gtid->server_id &&
-        old_gtid->seq_no > gtid->seq_no)
-      sql_print_warning("Out-of-order GTIDs detected for server_id=%u. "
+    if (old_gtid->seq_no > gtid->seq_no)
+      sql_print_warning("Out-of-order GTIDs detected for "
+                        "domain_id=%u, server_id=%u. "
                         "Please ensure that independent replication streams "
                         "use different replication domain_id to avoid "
-                        "inconsistencies.", gtid->server_id);
+                        "inconsistencies.", gtid->domain_id, gtid->server_id);
     else
       memcpy(rec, gtid, sizeof(*gtid));
     return 0;
@@ -6328,6 +6328,87 @@ rpl_binlog_state::update(const struct rpl_gtid *gtid)
     return 1;
   memcpy(rec, gtid, sizeof(*gtid));
   return my_hash_insert(&hash, rec);
+}
+
+
+void
+rpl_binlog_state::reset()
+{
+  my_hash_reset(&hash);
+}
+
+
+uint32
+rpl_binlog_state::seq_no_for_server_id(uint32 server_id)
+{
+  ulong i;
+  uint64 seq_no= 0;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
+    if (gtid->server_id == server_id && gtid->seq_no > seq_no)
+      seq_no= gtid->seq_no;
+  }
+  return seq_no;
+}
+
+
+int
+rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
+{
+  ulong i;
+  char buf[21];
+
+  for (i= 0; i < count(); ++i)
+  {
+    size_t res;
+    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
+    longlong10_to_str(gtid->seq_no, buf, 10);
+    res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
+    if (res == (size_t) -1)
+      return 1;
+  }
+
+  return 0;
+}
+
+
+int
+rpl_binlog_state::read_from_iocache(IO_CACHE *src)
+{
+  /* 10-digit - 10-digit - 20-digit \n \0 */
+  char buf[10+1+10+1+20+1+1];
+  char *p, *q, *end;
+  int err;
+  rpl_gtid gtid;
+  uint64 v;
+
+  reset();
+  for (;;)
+  {
+    size_t res= my_b_gets(src, buf, sizeof(buf));
+    if (!res)
+      break;
+    end= buf + res;
+    p= end;
+    v= (uint64)my_strtoll10(buf, &p, &err);
+    if (err != 0 || v > (uint32)0xffffffff || *p++ != '-')
+      return 1;
+    gtid.domain_id= (uint32)v;
+    q= end;
+    v= (uint64)my_strtoll10(p, &q, &err);
+    if (err != 0 || v > (uint32)0xffffffff || *q++ != '-')
+      return 1;
+    gtid.server_id= (uint32)v;
+    gtid.seq_no= (uint64)my_strtoll10(q, &end, &err);
+    if (err != 0)
+      return 1;
+
+    if (update(&gtid))
+      return 1;
+  }
+  return 0;
 }
 #endif  /* MYSQL_SERVER */
 

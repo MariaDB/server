@@ -294,6 +294,7 @@ extern PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_trg, key_file_trn, key_file_init;
 extern PSI_file_key key_file_query_log, key_file_slow_log;
 extern PSI_file_key key_file_relaylog, key_file_relaylog_index;
+extern PSI_file_key key_file_binlog_state;
 
 void init_server_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
