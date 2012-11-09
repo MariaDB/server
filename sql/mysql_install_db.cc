@@ -569,7 +569,7 @@ static int create_db_instance()
   for (i=0; mysql_bootstrap_sql[i]; i++)
   {
     /* Write the bootstrap script to stdin. */
-    if (fwrite(mysql_bootstrap_sql, strlen(mysql_bootstrap_sql[i]), 1, in) != 1)
+    if (fwrite(mysql_bootstrap_sql[i], strlen(mysql_bootstrap_sql[i]), 1, in) != 1)
     {
       verbose("ERROR: Cannot write to mysqld's stdin");
       ret= 1;
@@ -624,6 +624,14 @@ static int create_db_instance()
     verbose("mysqld returned error %d in pclose",ret);
     goto end;
   }
+
+  /* 
+    Remove innodb log files if they exist (this works around "different size logs" 
+    error in MSI installation). TODO : remove this with the next Innodb, where
+    different size is handled gracefully.
+  */
+  DeleteFile("ib_logfile0");
+  DeleteFile("ib_logfile1");
 
   /* Create my.ini file in data directory.*/
   ret= create_myini();
