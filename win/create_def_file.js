@@ -173,7 +173,8 @@ function IsCompilerDefinedSymbol(symbol)
     (symbol.indexOf("??_C@_") != -1) ||
     (symbol.indexOf("??_R") != -1) ||
     (symbol.indexOf("??_7") != -1)  ||
-    (symbol.indexOf("?_G") != -1) ||           // scalar deleting destructor
+	(symbol.indexOf("_xmm@7F") != -1) ||       // VS2012 Win64 special symbol
+	(symbol.indexOf("?_G") != -1) ||           // scalar deleting destructor
     (symbol.indexOf("_VInfreq_?") != -1) ||    // special label (exception handler?) for Intel compiler
     (symbol.indexOf("?_E") != -1));            // vector deleting destructor
 }
