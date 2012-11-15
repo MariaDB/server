@@ -280,8 +280,8 @@ typedef struct st_join_table {
   */
   double        read_time;
   
-  /* psergey-todo: make the below have type double, like POSITION::records_read? */
-  ha_rows       records_read;
+  /* Copy of POSITION::records_read, set by get_best_combination() */
+  double       records_read;
   
   /* Startup cost for execution */
   double        startup_cost;

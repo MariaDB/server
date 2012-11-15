@@ -4553,7 +4553,7 @@ double get_fanout_with_deps(JOIN *join, table_map tset)
         !tab->emb_sj_nest && 
         tab->records_read != 0)
     {
-      fanout *= rows2double(tab->records_read);
+      fanout *= tab->records_read;
     }
   } 
   return fanout;

@@ -6789,7 +6789,7 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
 
 double JOIN::get_examined_rows()
 {
-  ha_rows examined_rows;
+  double examined_rows;
   double prev_fanout= 1;
   JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
   JOIN_TAB *prev_tab= tab;
@@ -6799,7 +6799,7 @@ double JOIN::get_examined_rows()
   while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
   {
     prev_fanout *= prev_tab->records_read;
-    examined_rows+= (ha_rows) (tab->get_examined_rows() * prev_fanout);
+    examined_rows+= tab->get_examined_rows() * prev_fanout;
     prev_tab= tab;
   }
   return examined_rows;
@@ -7704,7 +7704,8 @@ get_best_combination(JOIN *join)
            sub-order
       */
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
-      j->records= j->records_read= (ha_rows)(sjm->is_sj_scan? sjm->rows : 1);
+      j->records_read= sjm->is_sj_scan? sjm->rows : 1;
+      j->records= (ha_rows) j->records_read;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
       if (!(jt= (JOIN_TAB*)join->thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
@@ -7766,7 +7767,7 @@ get_best_combination(JOIN *join)
       Save records_read in JOIN_TAB so that select_describe()/etc don't have
       to access join->best_positions[]. 
     */
-    j->records_read= (ha_rows)join->best_positions[tablenr].records_read;
+    j->records_read= join->best_positions[tablenr].records_read;
     join->map2table[j->table->tablenr]= j;
 
     /* If we've reached the end of sjm nest, switch back to main sequence */
@@ -10460,7 +10461,7 @@ double JOIN_TAB::scan_time()
 
 ha_rows JOIN_TAB::get_examined_rows()
 {
-  ha_rows examined_rows;
+  double examined_rows;
 
   if (select && select->quick && use_quick != 2)
     examined_rows= select->quick->records;
@@ -10490,7 +10491,7 @@ ha_rows JOIN_TAB::get_examined_rows()
     }
   }
   else
-    examined_rows= (ha_rows) records_read; 
+    examined_rows= records_read;
 
   return examined_rows;
 }
@@ -21972,7 +21973,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
       }
       else
       {
-        ha_rows examined_rows= tab->get_examined_rows();
+        double examined_rows= tab->get_examined_rows();
 
         item_list.push_back(new Item_int((longlong) (ulonglong) examined_rows, 
                                          MY_INT64_NUM_DECIMAL_DIGITS));
@@ -21982,7 +21983,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         {
           float f= 0.0; 
           if (examined_rows)
-            f= (float) (100.0 * tab->records_read / examined_rows);
+            f= (100.0 * (float)tab->records_read) / examined_rows;
  	  set_if_smaller(f, 100.0);
           item_list.push_back(new Item_float(f, 2));
         }
