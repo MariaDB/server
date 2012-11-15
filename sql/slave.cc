@@ -1784,6 +1784,42 @@ past_checksum:
 after_set_capability:
 #endif
 
+  /* Request dump start from slave replication GTID state. */
+
+  /* ToDo: This needs to be configurable somehow in a useful way ... */
+  if (rpl_global_gtid_slave_state.count())
+  {
+    int rc;
+    char str_buf[256];
+    String connect_state(str_buf, sizeof(str_buf), system_charset_info);
+    connect_state.length(0);
+
+    connect_state.append(STRING_WITH_LEN("SET @slave_connect_state='"),
+                         system_charset_info);
+    rpl_global_gtid_slave_state.tostring(&connect_state);
+    connect_state.append(STRING_WITH_LEN("'"), system_charset_info);
+    rc= mysql_real_query(mysql, connect_state.ptr(), connect_state.length());
+    if (rc)
+    {
+      err_code= mysql_errno(mysql);
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code,
+                   "Setting @slave_connect_state failed with error: %s",
+                   mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is "
+          "encountered when it tries to set @slave_connect_state.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
+    }
+  }
+
 err:
   if (errmsg)
   {
