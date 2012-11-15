@@ -3008,6 +3008,7 @@ struct rpl_slave_state
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                       bool in_transaction);
   uint64 next_subid(uint32 domain_id);
+  int tostring(String *dest);
 
   void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
   void unlock() { DBUG_ASSERT(inited); mysql_mutex_unlock(&LOCK_slave_state); }
@@ -3043,6 +3044,26 @@ struct rpl_binlog_state
   int write_to_iocache(IO_CACHE *dest);
   int read_from_iocache(IO_CACHE *src);
 };
+
+
+/*
+  Represent the GTID state that a slave connection to a master requests
+  the master to start sending binlog events from.
+*/
+struct slave_connection_state
+{
+  /* Mapping from domain_id to the GTID requested for that domain. */
+  HASH hash;
+
+  slave_connection_state();
+  ~slave_connection_state();
+
+  int load(char *slave_request, size_t len);
+  rpl_gtid *find(uint32 domain_id);
+  void remove(const rpl_gtid *gtid);
+  ulong count() const { return hash.records; }
+};
+
 
 /**
   @class Gtid_log_event
@@ -3134,6 +3155,9 @@ public:
   bool write(IO_CACHE *file);
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, uint8 checksum_alg);
+  static bool peek(const char *event_start, size_t event_len,
+                   uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
+                   uchar *flags2);
 #endif
 };
 

@@ -507,6 +507,26 @@ get_mariadb_slave_capability(THD *thd)
 
 
 /*
+  Get the value of the @slave_connect_state user variable into the supplied
+  String (this is the GTID connect state requested by the connecting slave).
+
+  Returns false if error (ie. slave did not set the variable and does not
+  want to use GTID to set start position), true if success.
+*/
+static bool
+get_slave_connect_state(THD *thd, String *out_str)
+{
+  bool null_value;
+
+  const LEX_STRING name= { C_STRING_WITH_LEN("slave_connect_state") };
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                  name.length);
+  return entry && entry->val_str(&null_value, out_str, 0) && !null_value;
+}
+
+
+/*
   Function prepares and sends repliation heartbeat event.
 
   @param net                net object of THD
@@ -569,6 +589,216 @@ static int send_heartbeat_event(NET* net, String* packet,
 }
 
 
+struct binlog_file_entry
+{
+  binlog_file_entry *next;
+  char *name;
+};
+
+static binlog_file_entry *
+get_binlog_list(MEM_ROOT *memroot)
+{
+  IO_CACHE *index_file;
+  char fname[FN_REFLEN];
+  size_t length;
+  binlog_file_entry *current_list= NULL, *e;
+  DBUG_ENTER("get_binlog_list");
+
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    DBUG_RETURN(NULL);
+  }
+
+  mysql_bin_log.lock_index();
+  index_file=mysql_bin_log.get_index_file();
+  reinit_io_cache(index_file, READ_CACHE, (my_off_t) 0, 0, 0);
+
+  /* The file ends with EOF or empty line */
+  while ((length=my_b_gets(index_file, fname, sizeof(fname))) > 1)
+  {
+    --length;                                   /* Remove the newline */
+    if (!(e= (binlog_file_entry *)alloc_root(memroot, sizeof(*e))) ||
+        !(e->name= strmake_root(memroot, fname, length)))
+    {
+      mysql_bin_log.unlock_index();
+      my_error(ER_OUTOFMEMORY, MYF(0), length + 1 + sizeof(*e));
+      DBUG_RETURN(NULL);
+    }
+    e->next= current_list;
+    current_list= e;
+  }
+  mysql_bin_log.unlock_index();
+
+  DBUG_RETURN(current_list);
+}
+
+/*
+  Find the Gtid_list_log_event at the start of a binlog.
+
+  NULL for ok, non-NULL error message for error.
+
+  If ok, then the event is returned in *out_gtid_list. This can be NULL if we
+  get back to binlogs written by old server version without GTID support. If
+  so, it means we have reached the point to start from, as no GTID events can
+  exist in earlier binlogs.
+*/
+static const char *
+get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
+{
+  Format_description_log_event init_fdle(BINLOG_VERSION);
+  Format_description_log_event *fdle;
+  Log_event *ev;
+  const char *errormsg = NULL;
+
+  *out_gtid_list= NULL;
+
+  if (!(ev= Log_event::read_log_event(cache, 0, &init_fdle,
+                                      opt_master_verify_checksum)) ||
+      ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+    return "Could not read format description log event while looking for "
+      "GTID position in binlog";
+
+  fdle= static_cast<Format_description_log_event *>(ev);
+
+  for (;;)
+  {
+    Log_event_type typ;
+
+    ev= Log_event::read_log_event(cache, 0, fdle, opt_master_verify_checksum);
+    if (!ev)
+    {
+      errormsg= "Could not read GTID list event while looking for GTID "
+        "position in binlog";
+      break;
+    }
+    typ= ev->get_type_code();
+    if (typ == GTID_LIST_EVENT)
+      break;                                    /* Done, found it */
+    if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
+        typ == FORMAT_DESCRIPTION_EVENT)
+      continue;                                 /* Continue looking */
+
+    /* We did not find any Gtid_list_log_event, must be old binlog. */
+    ev= NULL;
+    break;
+  }
+
+  delete fdle;
+  *out_gtid_list= static_cast<Gtid_list_log_event *>(ev);
+  return errormsg;
+}
+
+
+/*
+  Check if every GTID requested by the slave is contained in this (or a later)
+  binlog file. Return true if so, false if not.
+*/
+static bool
+contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
+{
+  uint32 i;
+
+  for (i= 0; i < glev->count; ++i)
+  {
+    const rpl_gtid *gtid= st->find(glev->list[i].domain_id);
+    if (gtid != NULL &&
+        gtid->server_id == glev->list[i].server_id &&
+        gtid->seq_no <= glev->list[i].seq_no)
+    {
+      /*
+        The slave needs to receive gtid, but it is contained in an earlier
+        binlog file. So we need to serch back further.
+      */
+      return false;
+    }
+  }
+  return true;
+}
+
+
+/*
+  Find the name of the binlog file to start reading for a slave that connects
+  using GTID state.
+
+  Returns the file name in out_name, which must be of size at least FN_REFLEN.
+
+  Returns NULL on ok, error message on error.
+*/
+static const char *
+gtid_find_binlog_file(slave_connection_state *state, char *out_name)
+{
+  MEM_ROOT memroot;
+  binlog_file_entry *list;
+  Gtid_list_log_event *glev;
+  const char *errormsg= NULL;
+  IO_CACHE cache;
+  File file = (File)-1;
+  char buf[FN_REFLEN];
+
+  bzero((char*) &cache, sizeof(cache));
+  init_alloc_root(&memroot, 10*(FN_REFLEN+sizeof(binlog_file_entry)), 0);
+  if (!(list= get_binlog_list(&memroot)))
+  {
+    errormsg= "Out of memory while looking for GTID position in binlog";
+    goto end;
+  }
+
+  while (list)
+  {
+    if (!list->next)
+    {
+      /*
+        It should be safe to read the currently used binlog, as we will only
+        read the header part that is already written.
+
+        But if that does not work on windows, then we will need to cache the
+        event somewhere in memory I suppose - that could work too.
+      */
+    }
+    /*
+      Read the Gtid_list_log_event at the start of the binlog file to
+      get the binlog state.
+    */
+    if (normalize_binlog_name(buf, list->name, false))
+    {
+      errormsg= "Failed to determine binlog file name while looking for "
+        "GTID position in binlog";
+      goto end;
+    }
+    if ((file= open_binlog(&cache, buf, &errormsg)) == (File)-1 ||
+        (errormsg= get_gtid_list_event(&cache, &glev)))
+      goto end;
+
+    if (!glev || contains_all_slave_gtid(state, glev))
+    {
+      strmake(out_name, buf, FN_REFLEN);
+      goto end;
+    }
+    list= list->next;
+  }
+
+  /* We reached the end without finding anything. */
+  errormsg= "Could not find GTID state requested by slave in any binlog "
+    "files. Probably the slave state is too old and required binlog files "
+    "have been purged.";
+
+end:
+  if (file != (File)-1)
+  {
+    end_io_cache(&cache);
+    mysql_file_close(file, MYF(MY_WME));
+  }
+
+  free_root(&memroot, MYF(0));
+  return errormsg;
+}
+
+
+enum enum_gtid_skip_type {
+  GTID_SKIP_NOT, GTID_SKIP_STANDALONE, GTID_SKIP_TRANSACTION
+};
+
 /*
   Helper function for mysql_binlog_send() to write an event down the slave
   connection.
@@ -579,9 +809,64 @@ static const char *
 send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     Log_event_type event_type, char *log_file_name,
                     IO_CACHE *log, int mariadb_slave_capability,
-                    ulong ev_offset, uint8 current_checksum_alg)
+                    ulong ev_offset, uint8 current_checksum_alg,
+                    bool using_gtid_state, slave_connection_state *gtid_state,
+                    enum_gtid_skip_type *gtid_skip_group)
 {
   my_off_t pos;
+
+  /* Skip GTID event groups until we reach slave position within a domain_id. */
+  if (event_type == GTID_EVENT && using_gtid_state && gtid_state->count() > 0)
+  {
+    uint32 server_id, domain_id;
+    uint64 seq_no;
+    uchar flags2;
+    rpl_gtid *gtid;
+    size_t len= packet->length();
+
+    if (ev_offset > len ||
+        Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
+                             &domain_id, &server_id, &seq_no, &flags2))
+      return "Failed to read Gtid_log_event: corrupt binlog";
+    gtid= gtid_state->find(domain_id);
+    if (gtid != NULL)
+    {
+      /* Skip this event group if we have not yet reached slave start pos. */
+      if (server_id != gtid->server_id || seq_no <= gtid->seq_no)
+        *gtid_skip_group = (flags2 & Gtid_log_event::FL_STANDALONE ?
+                            GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
+      /*
+        Delete this entry if we have reached slave start position (so we will
+        not skip subsequent events and won't have to look them up and check).
+      */
+      if (server_id == gtid->server_id && seq_no >= gtid->seq_no)
+        gtid_state->remove(gtid);
+    }
+  }
+
+  /*
+    Skip event group if we have not yet reached the correct slave GTID position.
+
+    Note that slave that understands GTID can also tolerate holes, so there is
+    no need to supply dummy event.
+  */
+  switch (*gtid_skip_group)
+  {
+  case GTID_SKIP_STANDALONE:
+    if (event_type != INTVAR_EVENT &&
+        event_type != RAND_EVENT &&
+        event_type != USER_VAR_EVENT &&
+        event_type != TABLE_MAP_EVENT &&
+        event_type != ANNOTATE_ROWS_EVENT)
+      *gtid_skip_group= GTID_SKIP_NOT;
+    return NULL;
+  case GTID_SKIP_TRANSACTION:
+    if (event_type == XID_EVENT /* ToDo || is_COMMIT_query_event() */)
+      *gtid_skip_group= GTID_SKIP_NOT;
+    return NULL;
+  case GTID_SKIP_NOT:
+    break;
+  }
 
   /* Do not send annotate_rows events unless slave requested it. */
   if (event_type == ANNOTATE_ROWS_EVENT && !(flags & BINLOG_SEND_ANNOTATE_ROWS_EVENT))
@@ -722,6 +1007,11 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   mysql_mutex_t *log_lock;
   mysql_cond_t *log_cond;
   int mariadb_slave_capability;
+  char str_buf[256];
+  String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
+  bool using_gtid_state;
+  slave_connection_state gtid_state;
+  enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -748,6 +1038,10 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     set_timespec_nsec(*heartbeat_ts, 0);
   }
   mariadb_slave_capability= get_mariadb_slave_capability(thd);
+
+  connect_gtid_state.length(0);
+  using_gtid_state= get_slave_connect_state(thd, &connect_gtid_state);
+
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
                           (int)thd->variables.server_id, log_ident, (ulong)pos);
@@ -781,10 +1075,30 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   }
 
   name=search_file_name;
-  if (log_ident[0])
-    mysql_bin_log.make_log_name(search_file_name, log_ident);
+  if (using_gtid_state)
+  {
+    if (gtid_state.load(connect_gtid_state.c_ptr_quick(),
+                        connect_gtid_state.length()))
+    {
+      errmsg= "Out of memory or malformed slave request when obtaining start "
+        "position from GTID state";
+      my_errno= ER_UNKNOWN_ERROR;
+      goto err;
+    }
+    if ((errmsg= gtid_find_binlog_file(&gtid_state, search_file_name)))
+    {
+      my_errno= ER_UNKNOWN_ERROR;
+      goto err;
+    }
+    pos= 4;
+  }
   else
-    name=0;					// Find first log
+  {
+    if (log_ident[0])
+      mysql_bin_log.make_log_name(search_file_name, log_ident);
+    else
+      name=0;					// Find first log
+  }
 
   linfo.index_file_offset = 0;
 
@@ -1036,7 +1350,8 @@ impossible position";
       if ((tmp_msg= send_event_to_slave(thd, net, packet, flags, event_type,
                                         log_file_name, &log,
                                         mariadb_slave_capability, ev_offset,
-                                        current_checksum_alg)))
+                                        current_checksum_alg, using_gtid_state,
+                                        &gtid_state, &gtid_skip_group)))
       {
         errmsg= tmp_msg;
         my_errno= ER_UNKNOWN_ERROR;
@@ -1197,7 +1512,9 @@ impossible position";
             (tmp_msg= send_event_to_slave(thd, net, packet, flags, event_type,
                                           log_file_name, &log,
                                           mariadb_slave_capability, ev_offset,
-                                          current_checksum_alg)))
+                                          current_checksum_alg,
+                                          using_gtid_state, &gtid_state,
+                                          &gtid_skip_group)))
         {
           errmsg= tmp_msg;
           my_errno= ER_UNKNOWN_ERROR;
