@@ -8371,7 +8371,9 @@ int Field_bit::cmp_max(const uchar *a, const uchar *b, uint max_len)
     if ((flag= (int) (bits_a - bits_b)))
       return flag;
   }
-  return memcmp(a, b, field_length);
+  if (!bytes_in_rec)
+    return 0;
+  return memcmp(a, b, bytes_in_rec);
 }
 
 
