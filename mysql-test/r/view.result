@@ -4825,4 +4825,110 @@ drop tables t1,t2;
 # -----------------------------------------------------------------
 # -- End of 5.3 tests.
 # -----------------------------------------------------------------
+# some subqueries in SELECT list test
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,2), (3,4), (3,3), (5,6), (7,8), (9,10);
+insert into t2 values (1,2), (3,4), (3,3), (5,6), (7,8), (9,10);
+create algorithm=merge view v1 as select t1.a as a, (select max(b) from t2 where t1.a=t2.a) as c from t1;
+explain extended
+select * from v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1003	select `test`.`t1`.`a` AS `a`,(select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)) AS `c` from `test`.`t1`
+select * from v1;
+a	c
+1	2
+3	4
+3	4
+5	6
+7	8
+9	10
+explain extended
+select * from t2, v1 where t2.a=v1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t1`.`a` AS `a`,(select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)) AS `c` from `test`.`t2` join `test`.`t1` where (`test`.`t1`.`a` = `test`.`t2`.`a`)
+select * from t2, v1 where t2.a=v1.a;
+a	b	a	c
+1	2	1	2
+3	4	3	4
+3	3	3	4
+3	4	3	4
+3	3	3	4
+5	6	5	6
+7	8	7	8
+9	10	9	10
+explain extended
+select * from t1, v1 where t1.a=v1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`a` AS `a`,(select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)) AS `c` from `test`.`t1` join `test`.`t1` where (`test`.`t1`.`a` = `test`.`t1`.`a`)
+select * from t1, v1 where t1.a=v1.a;
+a	b	a	c
+1	2	1	2
+3	4	3	4
+3	3	3	4
+3	4	3	4
+3	3	3	4
+5	6	5	6
+7	8	7	8
+9	10	9	10
+explain extended
+select * from t1, v1 where t1.b=v1.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`a` AS `a`,(select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)) AS `c` from `test`.`t1` join `test`.`t1` where (`test`.`t1`.`b` = (select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)))
+select * from t1, v1 where t1.b=v1.c;
+a	b	a	c
+1	2	1	2
+3	4	3	4
+3	4	3	4
+5	6	5	6
+7	8	7	8
+9	10	9	10
+explain extended
+select * from t2, t1, v1 where t1.a=t2.a and t1.a=v1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using join buffer (incremental, BNL join)
+3	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+Warnings:
+Note	1276	Field or reference 'test.t1.a' of SELECT #3 was resolved in SELECT #2
+Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`a` AS `a`,(select max(`test`.`t2`.`b`) from `test`.`t2` where (`test`.`t1`.`a` = `test`.`t2`.`a`)) AS `c` from `test`.`t2` join `test`.`t1` join `test`.`t1` where ((`test`.`t1`.`a` = `test`.`t2`.`a`) and (`test`.`t1`.`a` = `test`.`t2`.`a`))
+select * from t2, t1, v1 where t1.a=t2.a and t1.a=v1.a;
+a	b	a	b	a	c
+1	2	1	2	1	2
+3	4	3	4	3	4
+3	3	3	4	3	4
+3	4	3	3	3	4
+3	3	3	3	3	4
+3	4	3	4	3	4
+3	3	3	4	3	4
+3	4	3	3	3	4
+3	3	3	3	3	4
+5	6	5	6	5	6
+7	8	7	8	7	8
+9	10	9	10	9	10
+drop view v1;
+drop table t1,t2;
+# -----------------------------------------------------------------
+# -- End of 10.0 tests.
+# -----------------------------------------------------------------
 SET optimizer_switch=@save_optimizer_switch;
