@@ -118,7 +118,7 @@ class TC_LOG_MMAP: public TC_LOG
   struct pending_cookies {
     uint count;
     uint pending_count;
-    ulong cookies[TC_LOG_PAGE_SIZE];
+    ulong cookies[TC_LOG_PAGE_SIZE/sizeof(my_xid)];
   };
 
   private:
