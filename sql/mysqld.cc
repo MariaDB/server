@@ -3701,7 +3701,7 @@ static int init_common_variables()
 #ifdef WITH_WSREP
   /* This is a protection against mutually incompatible option values. */
   if (WSREP_ON && wsrep_check_opts (remaining_argc, remaining_argv))
-    return 1;
+    global_system_variables.wsrep_on= 0;
 #endif /* WITH_WSREP */
   if (get_options(&remaining_argc, &remaining_argv))
     return 1;
