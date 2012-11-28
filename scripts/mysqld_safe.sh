@@ -63,7 +63,6 @@ Usage: $0 [OPTIONS]
   --syslog                   Log messages to syslog with 'logger'
   --skip-syslog              Log messages to error log (default)
   --syslog-tag=TAG           Pass -t "mysqld-TAG" to 'logger'
-  --wsrep-urls=WSREP_URLS    Comma-separated list of wsrep URLs
 
 All other options are passed to the mysqld program.
 
@@ -126,7 +125,7 @@ log_notice () {
 }
 
 eval_log_error () {
-  cmd="$1"
+  local cmd="$1"
   case $logging in
     file) cmd="$cmd >> "`shell_quote_string "$err_log"`" 2>&1" ;;
     syslog)
@@ -165,6 +164,8 @@ shell_quote_string() {
 wsrep_pick_url() {
   [ $# -eq 0 ] && return 0
 
+  log_error "WSREP: 'wsrep_urls' is DEPRECATED! Use wsrep_cluster_address to specify multiple addresses instead."
+
   if ! which nc >/dev/null; then
     log_error "ERROR: nc tool not found in PATH! Make sure you have it installed."
     return 1
@@ -193,10 +194,12 @@ wsrep_pick_url() {
 # Run mysqld with --wsrep-recover and parse recovered position from log.
 # Position will be stored in wsrep_start_position_opt global.
 wsrep_recovery() {
-  cmd="$@"
+  local mysqld_cmd="$@"
   wr_logfile=$(mktemp)
-  log_notice "WSREP: Running position recovery"
-  $cmd --log_error=$wr_logfile --wsrep-recover
+  [ "$EUID" = "0" ] && chown $user $wr_logfile
+  chmod 600 $wr_logfile
+  log_notice "WSREP: Running position recovery with --log_error=$wr_logfile"
+  $mysqld_cmd --log_error=$wr_logfile --wsrep-recover
   rp=$(grep "WSREP: Recovered position:" $wr_logfile)
   if [ -z "$rp" ]; then
     skipped=$(grep WSREP $wr_logfile | grep "skipping position recovery")
@@ -276,7 +279,12 @@ parse_arguments() {
       --syslog-tag=*) syslog_tag="$val" ;;
       --timezone=*) TZ="$val"; export TZ; ;;
       --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
-
+      --wsrep[-_]provider=*)
+        if test -n "$val" && test "$val" != "none"
+        then
+    	  wsrep_restart=1
+    	fi
+	;;
       --help) usage ;;
 
       *)
@@ -824,6 +832,9 @@ max_fast_restarts=5
 # flag whether a usable sleep command exists
 have_sleep=1
 
+# maximum number of wsrep restarts
+max_wsrep_restarts=0
+
 while true
 do
   rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
@@ -903,6 +914,20 @@ do
       I=`expr $I + 1`
     done
   fi
+
+  if [ -n "$wsrep_restart" ]
+  then
+    if [ $wsrep_restart -le $max_wsrep_restarts ]
+    then
+      wsrep_restart=`expr $wsrep_restart + 1`
+      log_notice "WSREP: sleeping 15 seconds before restart"
+      sleep 15
+    else
+      log_notice "WSREP: not restarting wsrep node automatically"
+      break
+    fi
+  fi
+
   log_notice "mysqld restarted"
 done
 

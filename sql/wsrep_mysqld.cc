@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include "log_event.h"
 
+extern Format_description_log_event *wsrep_format_desc;
 wsrep_t *wsrep                  = NULL;
 my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
 
@@ -93,6 +94,11 @@ wsrep_uuid_t     local_uuid   = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t    local_seqno  = WSREP_SEQNO_UNDEFINED;
 wsp::node_status local_status;
 long             wsrep_protocol_version = 2;
+
+// Boolean denoting if server is in initial startup phase. This is needed
+// to make sure that main thread waiting in wsrep_sst_wait() is signaled
+// if there was no state gap on receiving first view event.
+static my_bool   wsrep_startup = TRUE;
 
 // action execute callback
 extern wsrep_status_t wsrep_apply_cb(void *ctx,
@@ -283,13 +289,12 @@ static void wsrep_view_handler_cb (void* app_ctx,
      *  NOTE: Initialize wsrep_group_uuid here only if it wasn't initialized
      *  before - OR - it was reinitilized on startup (lp:992840)
      */
-    if (!memcmp (&local_uuid, &WSREP_UUID_UNDEFINED, sizeof(wsrep_uuid_t)) ||
-	0 == wsrep_cluster_conf_id)
+    if (wsrep_startup)
     {
-      if (wsrep_init_first())
+      if (wsrep_before_SE())
       {
         wsrep_SE_init_grab();
-        // Signal init thread to continue
+        // Signal mysqld init thread to continue
         wsrep_sst_complete (&cluster_uuid, view->seqno, false);
         // and wait for SE initialization
         wsrep_SE_init_wait();
@@ -305,15 +310,14 @@ static void wsrep_view_handler_cb (void* app_ctx,
       wsrep_set_SE_checkpoint(&xid);
       new_status= WSREP_MEMBER_JOINED;
     }
-    else // just some sanity check
+
+    // just some sanity check
+    if (memcmp (&local_uuid, &cluster_uuid, sizeof (wsrep_uuid_t)))
     {
-      if (memcmp (&local_uuid, &cluster_uuid, sizeof (wsrep_uuid_t)))
-      {
-        WSREP_ERROR("Undetected state gap. Can't continue.");
-        wsrep_log_states (WSREP_LOG_FATAL, &cluster_uuid, view->seqno,
-                          &local_uuid, -1);
-        abort();
-      }
+      WSREP_ERROR("Undetected state gap. Can't continue.");
+      wsrep_log_states(WSREP_LOG_FATAL, &cluster_uuid, view->seqno,
+                       &local_uuid, -1);
+      unireg_abort(1);
     }
   }
 
@@ -324,7 +328,7 @@ static void wsrep_view_handler_cb (void* app_ctx,
   }
 
 out:
-
+  wsrep_startup= FALSE;
   local_status.set(new_status, view);
 }
 
@@ -415,7 +419,7 @@ int wsrep_init()
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
-
+  wsrep_format_desc= new Format_description_log_event(4);
   wsrep_init_position();
 
   if ((rcode= wsrep_load(wsrep_provider, &wsrep, wsrep_log_cb)) != WSREP_OK)
@@ -476,8 +480,10 @@ int wsrep_init()
   }
 
   static char inc_addr[512]= { 0, };
+
   if ((!wsrep_node_incoming_address ||
-       !strcmp (wsrep_node_incoming_address, WSREP_NODE_INCOMING_AUTO))) {
+       !strcmp (wsrep_node_incoming_address, WSREP_NODE_INCOMING_AUTO)))
+  {
     size_t const node_addr_len= strlen(node_addr);
     if (node_addr_len > 0)
     {
@@ -579,6 +585,9 @@ void wsrep_deinit()
   provider_name[0]=    '\0';
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
+
+  delete wsrep_format_desc;
+  wsrep_format_desc= NULL;
 }
 
 void wsrep_recover()
@@ -1181,6 +1190,21 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list)
 {
   int ret= 0;
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  if (thd->wsrep_conflict_state == MUST_ABORT) 
+  {
+    WSREP_INFO("thread: %lu, %s has been aborted due to multi-master conflict", 
+               thd->thread_id, thd->query());
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    return WSREP_TRX_FAIL;
+  }
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+  if (wsrep_debug && thd->mdl_context.has_locks())
+  {
+    WSREP_DEBUG("thread holds MDL locks at TI begin: %s %lu", 
+                thd->query(), thd->thread_id);
+  }
   if (thd->variables.wsrep_on && thd->wsrep_exec_mode==LOCAL_STATE)
   {
     switch (wsrep_OSU_method_options) {
@@ -1236,24 +1260,28 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
   {
     mysql_mutex_unlock(&request_thd->LOCK_wsrep_thd);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", request_thd, granted_thd);
+    ticket->wsrep_report(wsrep_debug);
 
     mysql_mutex_lock(&granted_thd->LOCK_wsrep_thd);
     if (granted_thd->wsrep_exec_mode == TOTAL_ORDER ||
         granted_thd->wsrep_exec_mode == REPL_RECV)
     {
       WSREP_MDL_LOG(INFO, "MDL BF-BF conflict", request_thd, granted_thd);
+      ticket->wsrep_report(true);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       ret = TRUE;
     }
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH)
     {
       WSREP_DEBUG("mdl granted over FLUSH BF");
+      ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       ret = TRUE;
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE) 
     {
       WSREP_DEBUG("DROP caused BF abort");
+      ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
       ret = FALSE;
@@ -1261,6 +1289,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     else if (granted_thd->wsrep_query_state == QUERY_COMMITTING) 
     {
       WSREP_DEBUG("mdl granted, but commiting thd abort scheduled");
+      ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
       ret = FALSE;
@@ -1268,6 +1297,7 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     else 
     {
       WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", request_thd, granted_thd);
+      ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_wsrep_thd);
       wsrep_abort_thd((void*)request_thd, (void*)granted_thd, 1);
       ret = FALSE;

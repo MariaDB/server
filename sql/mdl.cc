@@ -3015,3 +3015,33 @@ void MDL_context::set_transaction_duration_for_all_locks()
     ticket->m_duration= MDL_TRANSACTION;
 #endif
 }
+#ifdef WITH_WSREP
+void MDL_ticket::wsrep_report(bool debug)
+{
+  if (debug) 
+    {
+      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
+       	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
+       	 ((get_type() == MDL_SHARED)               ? "shared"               :
+       	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
+       	 ((get_type() == MDL_SHARED_READ)          ? "shared read"          :
+       	 ((get_type() == MDL_SHARED_WRITE)         ? "shared write"         :
+       	 ((get_type() == MDL_SHARED_NO_WRITE)      ? "shared no write"      :
+         ((get_type() == MDL_SHARED_NO_READ_WRITE) ? "shared no read write" :
+       	 ((get_type() == MDL_EXCLUSIVE)            ? "exclusive"            :
+          "UNKNOWN")))))))),
+         (m_lock->key.mdl_namespace()  == MDL_key::GLOBAL) ? "GLOBAL"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::SCHEMA) ? "SCHEMA"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TABLE"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "FUNCTION"     :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "PROCEDURE"    :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TRIGGER"      :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "EVENT"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::COMMIT) ? "COMMIT"       :
+         (char *)"UNKNOWN"))))))),
+         m_lock->key.db_name(),
+       	 m_lock->key.name(),
+         m_lock->key.get_wait_state_name());
+    }
+}
+#endif /* WITH_WSREP */

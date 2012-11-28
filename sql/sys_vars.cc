@@ -3620,7 +3620,7 @@ static Sys_var_tz Sys_time_zone(
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
-       GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER),
+       PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER),
        IN_FS_CHARSET, DEFAULT(wsrep_provider), 
        //       IN_FS_CHARSET, DEFAULT(wsrep_provider_default), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -3628,7 +3628,7 @@ static Sys_var_charptr Sys_wsrep_provider(
 
 static Sys_var_charptr Sys_wsrep_provider_options(
        "wsrep_provider_options", "provider specific options",
-       GLOBAL_VAR(wsrep_provider_options), 
+       PREALLOCATED GLOBAL_VAR(wsrep_provider_options), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER_OPTIONS),
        IN_FS_CHARSET, DEFAULT(wsrep_provider_options), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
@@ -3652,7 +3652,7 @@ static Sys_var_charptr Sys_wsrep_cluster_name(
 static PolyLock_mutex PLock_wsrep_slave_threads(&LOCK_wsrep_slave_threads);
 static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
-       GLOBAL_VAR(wsrep_cluster_address), 
+       PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_CLUSTER_ADDRESS),
        IN_FS_CHARSET, DEFAULT(wsrep_cluster_address),
        &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
@@ -3741,7 +3741,7 @@ static Sys_var_charptr Sys_wsrep_sst_receive_address(
 
 static Sys_var_charptr Sys_wsrep_sst_auth(
        "wsrep_sst_auth", "Authentication for SST connection",
-       GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG, OPT_WSREP_SST_AUTH),
+       PREALLOCATED GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG, OPT_WSREP_SST_AUTH),
        IN_FS_CHARSET, DEFAULT(wsrep_sst_auth), NO_MUTEX_GUARD, 
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_auth_check),

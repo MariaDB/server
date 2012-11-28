@@ -1059,7 +1059,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->mysys_var->abort     = 0;
       thd->wsrep_conflict_state = NO_CONFLICT;
       thd->wsrep_retry_counter  = 0;
-
+      /*
+        Increment threads running to compensate dec_thread_running() called
+        after dispatch_end label.
+      */
+      inc_thread_running();
       goto dispatch_end;
     }
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
@@ -4883,7 +4887,6 @@ finish:
   thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);
 #ifdef WITH_WSREP
-  WSREP_TO_ISOLATION_END
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 #endif /* WITH_WSREP */
   thd_proc_info(thd, 0);
@@ -4922,6 +4925,7 @@ finish:
   {
     thd->mdl_context.release_statement_locks();
   }
+  WSREP_TO_ISOLATION_END
 
   DBUG_RETURN(res || thd->is_error());
 }
@@ -6127,14 +6131,14 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
       {
         mysql_reset_thd_for_next_command(thd, opt_userstat_running);
         thd->killed= NOT_KILLED;
-        if (is_autocommit &&
-           (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
+        if (is_autocommit                           &&
+            thd->lex->sql_command != SQLCOM_SELECT  &&
+            (thd->wsrep_retry_counter < thd->variables.wsrep_retry_autocommit))
         {
           WSREP_DEBUG("wsrep retrying AC query: %s", 
                       (thd->query()) ? thd->query() : "void");
 
-
-	  close_thread_tables(thd);
+          close_thread_tables(thd);
 
           thd->wsrep_conflict_state= RETRY_AUTOCOMMIT;
           thd->wsrep_retry_counter++;            // grow
@@ -6166,7 +6170,12 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
 
   if (thd->wsrep_retry_query)
   {
-    WSREP_DEBUG("releasing retry_query: %s", thd->wsrep_retry_query);
+    WSREP_DEBUG("releasing retry_query: conf %d sent %d kill %d  errno %d SQL %s",
+                thd->wsrep_conflict_state,
+                thd->stmt_da->is_sent,
+                thd->killed,
+                thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                thd->wsrep_retry_query);
     my_free(thd->wsrep_retry_query);
     thd->wsrep_retry_query      = NULL;
     thd->wsrep_retry_query_len  = 0;
@@ -8316,8 +8325,6 @@ void wsrep_replication_process(THD *thd)
   struct wsrep_thd_shadow shadow;
   wsrep_prepare_bf_thd(thd, &shadow);
 
-  wsrep_format_desc= new Format_description_log_event(4);
-
   rcode = wsrep->recv(wsrep, (void *)thd);
   DBUG_PRINT("wsrep",("wsrep_repl returned: %d", rcode));
 
@@ -8428,8 +8435,8 @@ void wsrep_rollback_process(THD *thd)
 
       mysql_mutex_lock(&aborting->LOCK_wsrep_thd);
       wsrep_client_rollback(aborting);
-      WSREP_DEBUG("WSREP rollbacker aborted thd: %llu",
-                  (long long)aborting->real_id);
+      WSREP_DEBUG("WSREP rollbacker aborted thd: (%lu %llu)",
+                  aborting->thread_id, (long long)aborting->real_id);
       mysql_mutex_unlock(&aborting->LOCK_wsrep_thd);
 
       mysql_mutex_lock(&LOCK_wsrep_rollback);
