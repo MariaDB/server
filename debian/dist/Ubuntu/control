@@ -10,7 +10,7 @@ Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/5.5/files
 Vcs-Bzr: bzr://lp:maria
 
-Package: mariadb-server-5.5
+Package: mariadb-galera-server-5.5
 Architecture: any
 Suggests: tinyca, mailx, mariadb-test
 Recommends: libhtml-template-perl
