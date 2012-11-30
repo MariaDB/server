@@ -1,0 +1,30 @@
+
+--source include/not_embedded.inc
+
+if (!$ADT_NULL_SO) {
+  skip No NULL_AUDIT plugin;
+}
+
+set @old_global_general_log=@@global.general_log;
+set global general_log=OFF;
+
+--disable_ps_protocol
+install plugin audit_null soname 'adt_null';
+
+select 1;
+--error 1054
+select foobar;
+
+show status like 'audit_null%';
+
+create procedure au1(x char(16)) select concat("test1", x);
+call au1("-12");
+
+show status like 'audit_null%';
+
+uninstall plugin audit_null;
+--enable_ps_protocol
+
+drop procedure au1;
+set global general_log=@old_global_general_log;
+
