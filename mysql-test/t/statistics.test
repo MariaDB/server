@@ -6,9 +6,9 @@ drop table if exists t1,t2;
 
 set @save_use_stat_tables=@@use_stat_tables;
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;  
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;  
    
 set use_stat_tables='preferably';
 
@@ -69,13 +69,13 @@ INSERT INTO t1 VALUES
 
 ANALYZE TABLE t1;
 
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 SELECT COUNT(*) FROM t1;
 
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
   WHERE db_name='test' AND table_name='t1' AND column_name='a';
 SELECT MIN(t1.a), MAX(t1.a), 
        (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
@@ -84,7 +84,7 @@ SELECT MIN(t1.a), MAX(t1.a),
        (SELECT COUNT(DISTINCT t1.a) FROM t1) AS "AVG_FREQUENCY(t1.a)"
 FROM t1;
 
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
   WHERE db_name='test' AND table_name='t1' AND column_name='b';
 SELECT MIN(t1.b), MAX(t1.b), 
        (SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
@@ -93,7 +93,7 @@ SELECT MIN(t1.b), MAX(t1.b),
        (SELECT COUNT(DISTINCT t1.b) FROM t1) AS "AVG_FREQUENCY(t1.b)"
 FROM t1;
 
-SELECT * FROM mysql.column_stat 
+SELECT * FROM mysql.column_stats 
   WHERE db_name='test' AND table_name='t1' AND column_name='c';
 SELECT MIN(t1.c), MAX(t1.c), 
        (SELECT COUNT(*) FROM t1 WHERE t1.c IS NULL) /
@@ -102,7 +102,7 @@ SELECT MIN(t1.c), MAX(t1.c),
        (SELECT COUNT(DISTINCT t1.c) FROM t1) AS "AVG_FREQUENCY(t1.c)"
 FROM t1;
 
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
   WHERE db_name='test' AND table_name='t1' AND column_name='d';
 SELECT MIN(t1.d), MAX(t1.d), 
        (SELECT COUNT(*) FROM t1 WHERE t1.d IS NULL) /
@@ -111,7 +111,7 @@ SELECT MIN(t1.d), MAX(t1.d),
        (SELECT COUNT(DISTINCT t1.d) FROM t1) AS "AVG_FREQUENCY(t1.d)"
 FROM t1;
 
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
   WHERE db_name='test' AND table_name='t1' AND column_name='e';
 SELECT MIN(t1.e), MAX(t1.e), 
        (SELECT COUNT(*) FROM t1 WHERE t1.e IS NULL) /
@@ -120,7 +120,7 @@ SELECT MIN(t1.e), MAX(t1.e),
        (SELECT COUNT(DISTINCT t1.e) FROM t1) AS "AVG_FREQUENCY(t1.e)"
 FROM t1;
 
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
   WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL) /
@@ -131,7 +131,7 @@ SELECT
      WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) 
   AS 'ARITY 2';
 
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
   WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL) /
@@ -142,14 +142,14 @@ SELECT
      WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 2';
 
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
   WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.d IS NOT NULL) /
   (SELECT COUNT(DISTINCT t1.d) FROM t1 WHERE t1.d IS NOT NULL)
   AS 'ARITY 1';
 
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
   WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
 SELECT 
   (SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL) /
@@ -193,24 +193,24 @@ INSERT INTO t3 VALUES
 
 ANALYZE TABLE t3;
 
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 RENAME TO s1;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 RENAME TABLE s1 TO t1;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 DROP TABLE t3;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 
 CREATE TEMPORARY TABLE t0 (
@@ -222,84 +222,84 @@ INSERT INTO t0 SELECT a,b FROM t1;
 ALTER TABLE t1 CHANGE COLUMN b x varchar(32), 
                CHANGE COLUMN e y double;
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32), 
                CHANGE COLUMN y e double;
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 
 ALTER TABLE t1 RENAME TO s1, CHANGE COLUMN b x varchar(32);
 SHOW CREATE TABLE s1;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
  
 ALTER TABLE s1 RENAME TO t1, CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval
-SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stat'
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
-  FROM mysql.column_stat WHERE column_name='b';
+  FROM mysql.column_stats WHERE column_name='b';
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval
-SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stat'
+SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
-  FROM mysql.index_stat WHERE index_name IN ('idx1', 'idx4');
+  FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
 
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval
-LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stat'
-  INTO TABLE mysql.column_stat
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_column_stats'
+  INTO TABLE mysql.column_stats
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval
-LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_index_stat'
-  INTO TABLE mysql.index_stat
+LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/save_index_stats'
+  INTO TABLE mysql.index_stats
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
-remove_file $MYSQLTEST_VARDIR/tmp/save_column_stat;
-remove_file $MYSQLTEST_VARDIR/tmp/save_index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+remove_file $MYSQLTEST_VARDIR/tmp/save_column_stats;
+remove_file $MYSQLTEST_VARDIR/tmp/save_index_stats;
 
 
 ALTER TABLE t1 DROP COLUMN b;
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 DROP INDEX idx2 ON t1;
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 
 DROP INDEX idx1 ON t1;
 DROP INDEX idx4 ON t1;
@@ -310,63 +310,63 @@ CREATE INDEX idx1 ON t1(b, e);
 CREATE INDEX idx2 ON t1(c, d);
 CREATE INDEX idx4 ON t1(e, b, d);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 DROP COLUMN b,
                DROP INDEX idx1, DROP INDEX idx2, DROP INDEX idx4;
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ALTER TABLE t1 ADD COLUMN b varchar(32);
 ALTER TABLE t1 
   ADD INDEX idx1 (b, e), ADD INDEX idx2 (c, d), ADD INDEX idx4 (e, b, d);
 UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
 SHOW CREATE TABLE t1;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
-DELETE FROM mysql.index_stat WHERE table_name='t1' AND index_name='primary';
-SELECT * FROM mysql.index_stat;
+DELETE FROM mysql.index_stats WHERE table_name='t1' AND index_name='primary';
+SELECT * FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 
 CREATE TABLE t2 LIKE t1;
@@ -375,14 +375,14 @@ INSERT INTO t2 SELECT * FROM t1;
 
 ANALYZE TABLE t2;
 
-SELECT * FROM mysql.table_stat;
-SELECT * FROM mysql.column_stat ORDER BY column_name;
-SELECT * FROM mysql.index_stat ORDER BY index_name, prefix_arity, table_name;
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats ORDER BY column_name;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 
 ALTER TABLE t1
   DROP INDEX idx1,
@@ -394,14 +394,14 @@ ALTER TABLE t1
   
 ANALYZE TABLE t1;
 
-SELECT * FROM mysql.column_stat;
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
 
 DROP TABLE t1,t2;
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 
 set use_stat_tables='never';  
 
@@ -428,13 +428,13 @@ ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM mysql.table_stat;
+  FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM mysql.column_stat;
+  FROM mysql.column_stats;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM mysql.index_stat;
+  FROM mysql.index_stats;
 
 use test;
 
@@ -465,39 +465,39 @@ ANALYZE TABLE Country, City, CountryLanguage;
 --enable_result_log
 
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM mysql.table_stat;
+  FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM mysql.column_stat;
+  FROM mysql.column_stats;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM mysql.index_stat;
+  FROM mysql.index_stats;
 
 use test;
 
 DROP DATABASE world;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM mysql.table_stat;
+  FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM mysql.column_stat;
+  FROM mysql.column_stats;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM mysql.index_stat;
+  FROM mysql.index_stats;
 
 DROP DATABASE world_innodb;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-  FROM mysql.table_stat;
+  FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 
        column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  FROM mysql.column_stat;
+  FROM mysql.column_stats;
 SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
-  FROM mysql.index_stat;
+  FROM mysql.index_stats;
 
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
   
 set use_stat_tables=@save_use_stat_tables;
 

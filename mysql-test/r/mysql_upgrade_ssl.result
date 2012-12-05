@@ -9,7 +9,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
-mysql.column_stat                                  OK
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -19,14 +19,14 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
-mysql.index_stat                                   OK
+mysql.index_stats                                  OK
 mysql.ndb_binlog_index                             OK
 mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
 mysql.servers                                      OK
-mysql.table_stat                                   OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK

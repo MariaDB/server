@@ -14,7 +14,7 @@ CREATE DATABASE dbt3_s001;
 use dbt3_s001;
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
-select * from mysql.table_stat;
+select * from mysql.table_stats;
 db_name	table_name	cardinality
 dbt3_s001	customer	150
 dbt3_s001	lineitem	6005
@@ -24,7 +24,7 @@ dbt3_s001	part	200
 dbt3_s001	partsupp	700
 dbt3_s001	region	5
 dbt3_s001	supplier	10
-select * from mysql.index_stat;
+select * from mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	customer	PRIMARY	1	1.0000
 dbt3_s001	customer	i_c_nationkey	1	6.0000
@@ -86,8 +86,8 @@ n_name	revenue
 PERU	321915.8715
 ARGENTINA	69817.1451
 set optimizer_switch=@save_optimizer_switch;
-delete from mysql.index_stat;
-select * from mysql.table_stat;
+delete from mysql.index_stats;
+select * from mysql.table_stats;
 db_name	table_name	cardinality
 dbt3_s001	customer	150
 dbt3_s001	lineitem	6005
@@ -97,7 +97,7 @@ dbt3_s001	part	200
 dbt3_s001	partsupp	700
 dbt3_s001	region	5
 dbt3_s001	supplier	10
-select * from mysql.index_stat;
+select * from mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	customer	PRIMARY	1	1.0000
 dbt3_s001	customer	i_c_nationkey	1	6.0000
@@ -149,26 +149,26 @@ dbt3_s001	region	PRIMARY	1	1.0000
 dbt3_s001	supplier	PRIMARY	1	1.0000
 dbt3_s001	supplier	i_s_nationkey	1	1.1111
 dbt3_s001	supplier	i_s_nationkey	2	1.0000
-select * from mysql.table_stat where table_name='orders';
+select * from mysql.table_stats where table_name='orders';
 db_name	table_name	cardinality
 dbt3_s001	orders	1500
-select * from mysql.index_stat where table_name='orders';
+select * from mysql.index_stats where table_name='orders';
 db_name	table_name	index_name	prefix_arity	avg_frequency
 dbt3_s001	orders	PRIMARY	1	1.0000
 dbt3_s001	orders	i_o_orderdate	1	1.3321
 dbt3_s001	orders	i_o_orderdate	2	1.0000
 dbt3_s001	orders	i_o_custkey	1	15.0000
 dbt3_s001	orders	i_o_custkey	2	1.0000
-select (select cardinality from mysql.table_stat where table_name='orders') /
-(select avg_frequency from mysql.index_stat 
+select (select cardinality from mysql.table_stats where table_name='orders') /
+(select avg_frequency from mysql.index_stats 
 where index_name='i_o_orderdate' and prefix_arity=1) as n_distinct;
 n_distinct
 1126.0416
 select count(distinct o_orderdate) from orders;
 count(distinct o_orderdate)
 1126
-select (select cardinality from mysql.table_stat where table_name='orders') /
-(select avg_frequency from mysql.index_stat 
+select (select cardinality from mysql.table_stats where table_name='orders') /
+(select avg_frequency from mysql.index_stats 
 where index_name='i_o_custkey' and prefix_arity=1) as n_distinct;
 n_distinct
 100.0000
