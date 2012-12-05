@@ -7,7 +7,7 @@ performance_schema
 test
 show tables in mysql;
 Tables_in_mysql
-column_stat
+column_stats
 columns_priv
 db
 event
@@ -18,7 +18,7 @@ help_keyword
 help_relation
 help_topic
 host
-index_stat
+index_stats
 ndb_binlog_index
 plugin
 proc
@@ -26,7 +26,7 @@ procs_priv
 proxies_priv
 servers
 slow_log
-table_stat
+table_stats
 tables_priv
 time_zone
 time_zone_leap_second

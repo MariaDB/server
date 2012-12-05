@@ -1,6 +1,6 @@
 show tables;
 Tables_in_db
-column_stat
+column_stats
 columns_priv
 db
 event
@@ -11,7 +11,7 @@ help_keyword
 help_relation
 help_topic
 host
-index_stat
+index_stats
 ndb_binlog_index
 plugin
 proc
@@ -19,7 +19,7 @@ procs_priv
 proxies_priv
 servers
 slow_log
-table_stat
+table_stats
 tables_priv
 time_zone
 time_zone_leap_second
@@ -267,17 +267,17 @@ slow_log	CREATE TABLE `slow_log` (
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
-show create table table_stat;
+show create table table_stats;
 Table	Create Table
-table_stat	CREATE TABLE `table_stat` (
+table_stats	CREATE TABLE `table_stats` (
   `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `cardinality` bigint(21) unsigned DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Tables'
-show create table column_stat;
+show create table column_stats;
 Table	Create Table
-column_stat	CREATE TABLE `column_stat` (
+column_stats	CREATE TABLE `column_stats` (
   `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `column_name` varchar(64) COLLATE utf8_bin NOT NULL,
@@ -288,9 +288,9 @@ column_stat	CREATE TABLE `column_stat` (
   `avg_frequency` double DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'
-show create table index_stat;
+show create table index_stats;
 Table	Create Table
-index_stat	CREATE TABLE `index_stat` (
+index_stats	CREATE TABLE `index_stats` (
   `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
   `index_name` varchar(64) COLLATE utf8_bin NOT NULL,

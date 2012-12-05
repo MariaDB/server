@@ -23,18 +23,18 @@ set optimizer_switch='extended_keys=off';
 --disable_warnings
 --source include/dbt3_s001.inc
 create index i_p_retailprice on part(p_retailprice);
-delete from mysql.table_stat;
-delete from mysql.column_stat;
-delete from mysql.index_stat;
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
 ANALYZE TABLE
 customer, lineitem, nation, orders, part, partsupp, region, supplier;
-FLUSH TABLE mysql.table_stat, mysql.index_stat;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
 --enable_warnings
 --enable_result_log
 --enable_query_log
 
-select * from mysql.table_stat;
-select * from mysql.index_stat;
+select * from mysql.table_stats;
+select * from mysql.index_stats;
 
 set optimizer_switch=@save_optimizer_switch; 
 
@@ -57,29 +57,29 @@ eval $Q5;
 
 set optimizer_switch=@save_optimizer_switch;
 
-delete from mysql.index_stat;
+delete from mysql.index_stats;
 
 --disable_query_log
 --disable_result_log
 --disable_warnings
 ANALYZE TABLE
 customer, lineitem, nation, orders, part, partsupp, region, supplier;
-FLUSH TABLE mysql.table_stat, mysql.index_stat;
+FLUSH TABLE mysql.table_stats, mysql.index_stats;
 --enable_warnings
 --enable_result_log
 --enable_query_log
 
-select * from mysql.table_stat;
-select * from mysql.index_stat;
+select * from mysql.table_stats;
+select * from mysql.index_stats;
 
-select * from mysql.table_stat where table_name='orders';
-select * from mysql.index_stat where table_name='orders';
-select (select cardinality from mysql.table_stat where table_name='orders') /
-       (select avg_frequency from mysql.index_stat 
+select * from mysql.table_stats where table_name='orders';
+select * from mysql.index_stats where table_name='orders';
+select (select cardinality from mysql.table_stats where table_name='orders') /
+       (select avg_frequency from mysql.index_stats 
           where index_name='i_o_orderdate' and prefix_arity=1) as n_distinct; 
 select count(distinct o_orderdate) from orders;
-select (select cardinality from mysql.table_stat where table_name='orders') /
-       (select avg_frequency from mysql.index_stat 
+select (select cardinality from mysql.table_stats where table_name='orders') /
+       (select avg_frequency from mysql.index_stats 
           where index_name='i_o_custkey' and prefix_arity=1) as n_distinct;
 select count(distinct o_custkey) from orders; 
 show index from orders;
@@ -191,7 +191,7 @@ FLUSH TABLE t1;
 SET use_stat_tables='never';
 EXPLAIN SELECT * FROM t1;
 
---move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD.save
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save
 
 FLUSH TABLES;
 SET use_stat_tables='preferably';
@@ -200,7 +200,7 @@ EXPLAIN SELECT * FROM t1;
 --enable_warnings
 
 # Cleanup
---move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stat.MYD
+--move_file $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD.save $MYSQLTEST_VARDIR/mysqld.1/data/mysql/table_stats.MYD
 DROP TABLE t1;
 
 set use_stat_tables=@save_use_stat_tables;

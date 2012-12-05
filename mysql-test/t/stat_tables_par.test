@@ -21,17 +21,17 @@ set optimizer_switch='extended_keys=off';
 --disable_result_log
 --disable_warnings
 --source include/dbt3_s001.inc
-delete from mysql.table_stat;
-delete from mysql.column_stat;
-delete from mysql.index_stat;
+delete from mysql.table_stats;
+delete from mysql.column_stats;
+delete from mysql.index_stats;
 ANALYZE TABLE
 customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_warnings
 --enable_result_log
 --enable_query_log
 
-select * from mysql.table_stat;
-select * from mysql.index_stat;
+select * from mysql.table_stats;
+select * from mysql.index_stats;
 
 
 #
@@ -93,20 +93,20 @@ set debug_sync='RESET';
 #       DEBUG_SYNC(thd, "statistics_collection_start2");
 #
 
-select * from mysql.index_stat where table_name='lineitem' order by index_name;
-delete from mysql.index_stat 
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+delete from mysql.index_stats 
   where table_name='lineitem' and
         index_name in ('i_l_shipdate', 'i_l_receiptdate');
-select * from mysql.index_stat where table_name='lineitem' order by index_name;
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
 --disable_result_log
 --disable_warnings
 analyze table lineitem persistent for columns() indexes (i_l_shipdate);
 --enable_warnings
 --enable_result_log
-select * from mysql.index_stat where table_name='lineitem' order by index_name;
-delete from mysql.index_stat 
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
+delete from mysql.index_stats 
   where table_name='lineitem' and index_name= 'i_l_shipdate';
-select * from mysql.index_stat where table_name='lineitem' order by index_name;
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
 
 connect (con1, localhost, root,,);
 connect (con2, localhost, root,,);
@@ -144,7 +144,7 @@ disconnect con1;
 disconnect con2;
 set debug_sync='RESET';
 
-select * from mysql.index_stat where table_name='lineitem' order by index_name;
+select * from mysql.index_stats where table_name='lineitem' order by index_name;
 
 DROP DATABASE dbt3_s001;
 

@@ -1,8 +1,8 @@
 drop table if exists t1,t2;
 set @save_use_stat_tables=@@use_stat_tables;
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 set use_stat_tables='preferably';
 CREATE TABLE t1 (
 a int NOT NULL PRIMARY KEY,
@@ -60,10 +60,10 @@ INSERT INTO t1 VALUES
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -71,7 +71,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -85,7 +85,7 @@ test	t1	idx4	3	1.1304
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 40
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='a';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
@@ -97,7 +97,7 @@ SELECT MIN(t1.a), MAX(t1.a),
 FROM t1;
 MIN(t1.a)	MAX(t1.a)	NULLS_RATIO(t1.a)	AVG_FREQUENCY(t1.a)
 0	49	0.2000	1.0000
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='b';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -109,7 +109,7 @@ SELECT MIN(t1.b), MAX(t1.b),
 FROM t1;
 MIN(t1.b)	MAX(t1.b)	NULLS_RATIO(t1.b)	AVG_FREQUENCY(t1.b)
 vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000
-SELECT * FROM mysql.column_stat 
+SELECT * FROM mysql.column_stats 
 WHERE db_name='test' AND table_name='t1' AND column_name='c';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
@@ -121,7 +121,7 @@ SELECT MIN(t1.c), MAX(t1.c),
 FROM t1;
 MIN(t1.c)	MAX(t1.c)	NULLS_RATIO(t1.c)	AVG_FREQUENCY(t1.c)
 aaaa	dddddddd	0.1250	7.0000
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='d';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
@@ -133,7 +133,7 @@ SELECT MIN(t1.d), MAX(t1.d),
 FROM t1;
 MIN(t1.d)	MAX(t1.d)	NULLS_RATIO(t1.d)	AVG_FREQUENCY(t1.d)
 1989-03-12	1999-07-23	0.1500	8.5000
-SELECT * FROM mysql.column_stat
+SELECT * FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='e';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
@@ -145,7 +145,7 @@ SELECT MIN(t1.e), MAX(t1.e),
 FROM t1;
 MIN(t1.e)	MAX(t1.e)	NULLS_RATIO(t1.e)	AVG_FREQUENCY(t1.e)
 0.01	0.112	0.2250	6.2000
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
 WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx1	1	6.4000
@@ -160,7 +160,7 @@ WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL)
 AS 'ARITY 2';
 ARITY 1	ARITY 2
 6.4000	1.6875
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
 WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx2	1	7.0000
@@ -175,7 +175,7 @@ WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
 AS 'ARITY 2';
 ARITY 1	ARITY 2
 7.0000	2.3846
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
 WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx3	1	8.5000
@@ -185,7 +185,7 @@ SELECT
 AS 'ARITY 1';
 ARITY 1
 8.5000
-SELECT * FROM mysql.index_stat
+SELECT * FROM mysql.index_stats
 WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx4	1	6.2000
@@ -233,11 +233,11 @@ INSERT INTO t3 VALUES
 ANALYZE TABLE t3;
 Table	Op	Msg_type	Msg_text
 test.t3	analyze	status	OK
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
 test	t3	17
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -248,7 +248,7 @@ test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t3	a	0	38	0.0000	4.0000	1.0000
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -262,11 +262,11 @@ test	t1	idx4	3	1.1304
 test	t3	PRIMARY	1	1.0000
 test	t3	idx	1	3.7500
 ALTER TABLE t1 RENAME TO s1;
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	s1	40
 test	t3	17
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	s1	a	0	49	0.0000	4.0000	1.0000
 test	s1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -277,7 +277,7 @@ test	s1	f	1	5	0.2000	1.0000	6.4000
 test	t3	a	0	38	0.0000	4.0000	1.0000
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	s1	PRIMARY	1	1.0000
 test	s1	idx1	1	6.4000
@@ -291,11 +291,11 @@ test	s1	idx4	3	1.1304
 test	t3	PRIMARY	1	1.0000
 test	t3	idx	1	3.7500
 RENAME TABLE s1 TO t1;
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
 test	t3	17
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -306,7 +306,7 @@ test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t3	a	0	38	0.0000	4.0000	1.0000
 test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000
 test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -320,10 +320,10 @@ test	t1	idx4	3	1.1304
 test	t3	PRIMARY	1	1.0000
 test	t3	idx	1	3.7500
 DROP TABLE t3;
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -331,7 +331,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -364,7 +364,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`y`,`x`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -389,7 +389,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -413,10 +413,10 @@ s1	CREATE TABLE `s1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	s1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	s1	a	0	49	0.0000	4.0000	1.0000
 test	s1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -424,7 +424,7 @@ test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	s1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	s1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	s1	PRIMARY	1	1.0000
 test	s1	idx1	1	6.4000
@@ -451,10 +451,10 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -462,7 +462,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -489,14 +489,14 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx1	1	6.4000
@@ -523,14 +523,14 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
@@ -539,7 +539,7 @@ test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -547,7 +547,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx4	3	1.1304
@@ -558,12 +558,12 @@ test	t1	idx3	1	8.5000
 test	t1	idx4	1	6.2000
 test	t1	idx1	2	1.6875
 test	t1	idx1	1	6.4000
-SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_column_stat'
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
-  FROM mysql.column_stat WHERE column_name='b';
-SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_index_stat'
+  FROM mysql.column_stats WHERE column_name='b';
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
   FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
-  FROM mysql.index_stat WHERE index_name IN ('idx1', 'idx4');
+  FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
 ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -580,14 +580,14 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`x`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx4	3	1.1304
@@ -614,26 +614,26 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
-LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stat'
-  INTO TABLE mysql.column_stat
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
+  INTO TABLE mysql.column_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
-LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_index_stat'
-  INTO TABLE mysql.index_stat
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
+  INTO TABLE mysql.index_stats
 FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -641,7 +641,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx4	3	1.1304
@@ -667,14 +667,14 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
@@ -694,7 +694,7 @@ t1	CREATE TABLE `t1` (
   KEY `idx3` (`d`),
   KEY `idx4` (`e`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
@@ -730,21 +730,21 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	NULL	NULL	1.0000	NULL	NULL
@@ -752,7 +752,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
@@ -767,7 +767,7 @@ UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -775,7 +775,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx2	1	7.0000
@@ -799,14 +799,14 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`a`),
   KEY `idx3` (`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
@@ -829,21 +829,21 @@ t1	CREATE TABLE `t1` (
   KEY `idx2` (`c`,`d`),
   KEY `idx4` (`e`,`b`,`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
@@ -851,7 +851,7 @@ test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx4	1	6.2000
@@ -862,39 +862,39 @@ test	t1	idx2	1	7.0000
 test	t1	idx1	2	1.6875
 test	t1	idx1	1	6.4000
 test	t1	idx4	3	1.1304
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
 test	t1	idx4	1	6.2000
 test	t1	idx4	2	1.6875
 test	t1	idx4	3	1.1304
-DELETE FROM mysql.index_stat WHERE table_name='t1' AND index_name='primary';
-SELECT * FROM mysql.index_stat;
+DELETE FROM mysql.index_stats WHERE table_name='t1' AND index_name='primary';
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
@@ -904,7 +904,7 @@ test	t1	idx4	3	1.1304
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	idx2	1	7.0000
 test	t1	idx2	2	2.3846
@@ -912,16 +912,16 @@ test	t1	idx4	1	6.2000
 test	t1	idx4	2	1.6875
 test	t1	idx4	3	1.1304
 test	t1	PRIMARY	1	1.0000
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Table is already up to date
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
@@ -929,7 +929,7 @@ test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
@@ -946,11 +946,11 @@ INSERT INTO t2 SELECT * FROM t1;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	OK
-SELECT * FROM mysql.table_stat;
+SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
 test	t1	40
 test	t2	40
-SELECT * FROM mysql.column_stat ORDER BY column_name;
+SELECT * FROM mysql.column_stats ORDER BY column_name;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t2	a	0	49	0.0000	4.0000	1.0000
@@ -964,7 +964,7 @@ test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t2	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t2	f	1	5	0.2000	1.0000	6.4000
-SELECT * FROM mysql.index_stat ORDER BY index_name, prefix_arity, table_name;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t2	PRIMARY	1	1.0000
@@ -984,9 +984,9 @@ test	t1	idx4	2	1.6875
 test	t2	idx4	2	1.6875
 test	t1	idx4	3	1.1304
 test	t2	idx4	3	1.1304
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 ALTER TABLE t1
 DROP INDEX idx1,
 DROP INDEX idx4;
@@ -997,7 +997,7 @@ ADD INDEX idx4 (e, b(4), d);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-SELECT * FROM mysql.column_stat;
+SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 test	t1	a	0	49	0.0000	4.0000	1.0000
 test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000
@@ -1005,7 +1005,7 @@ test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000
 test	t1	e	0.01	0.112	0.2250	8.0000	6.2000
 test	t1	f	1	5	0.2000	1.0000	6.4000
 test	t1	b	NULL	NULL	0.2000	17.1250	NULL
-SELECT * FROM mysql.index_stat;
+SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
@@ -1017,9 +1017,9 @@ test	t1	idx4	1	6.2000
 test	t1	idx4	2	NULL
 test	t1	idx4	3	NULL
 DROP TABLE t1,t2;
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 set use_stat_tables='never';
 set names utf8;
 CREATE DATABASE world;
@@ -1052,14 +1052,14 @@ INDEX (Percentage)
 set use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-FROM mysql.table_stat;
+FROM mysql.table_stats;
 UPPER(db_name)	UPPER(table_name)	cardinality
 WORLD	COUNTRY	239
 WORLD	CITY	4079
 WORLD	COUNTRYLANGUAGE	984
 SELECT UPPER(db_name), UPPER(table_name), 
 column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-FROM mysql.column_stat;
+FROM mysql.column_stats;
 UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
 WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
@@ -1075,7 +1075,7 @@ WORLD	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
 WORLD	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
 SELECT UPPER(db_name), UPPER(table_name),
 index_name, prefix_arity, avg_frequency
-FROM mysql.index_stat;
+FROM mysql.index_stats;
 UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
 WORLD	COUNTRY	PRIMARY	1	1.0000
 WORLD	COUNTRY	Name	1	1.0000
@@ -1120,7 +1120,7 @@ ALTER TABLE CountryLanguage ENGINE=InnoDB;
 set use_stat_tables='preferably';
 ANALYZE TABLE Country, City, CountryLanguage;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-FROM mysql.table_stat;
+FROM mysql.table_stats;
 UPPER(db_name)	UPPER(table_name)	cardinality
 WORLD	COUNTRY	239
 WORLD	CITY	4079
@@ -1130,7 +1130,7 @@ WORLD_INNODB	CITY	4079
 WORLD_INNODB	COUNTRYLANGUAGE	984
 SELECT UPPER(db_name), UPPER(table_name), 
 column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-FROM mysql.column_stat;
+FROM mysql.column_stats;
 UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
 WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
@@ -1158,7 +1158,7 @@ WORLD_INNODB	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
 WORLD_INNODB	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
 SELECT UPPER(db_name), UPPER(table_name),
 index_name, prefix_arity, avg_frequency
-FROM mysql.index_stat;
+FROM mysql.index_stats;
 UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
 WORLD	COUNTRY	PRIMARY	1	1.0000
 WORLD	COUNTRY	Name	1	1.0000
@@ -1179,14 +1179,14 @@ WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
 use test;
 DROP DATABASE world;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-FROM mysql.table_stat;
+FROM mysql.table_stats;
 UPPER(db_name)	UPPER(table_name)	cardinality
 WORLD_INNODB	COUNTRY	239
 WORLD_INNODB	CITY	4079
 WORLD_INNODB	COUNTRYLANGUAGE	984
 SELECT UPPER(db_name), UPPER(table_name), 
 column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-FROM mysql.column_stat;
+FROM mysql.column_stats;
 UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
 WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
@@ -1202,7 +1202,7 @@ WORLD_INNODB	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
 WORLD_INNODB	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
 SELECT UPPER(db_name), UPPER(table_name),
 index_name, prefix_arity, avg_frequency
-FROM mysql.index_stat;
+FROM mysql.index_stats;
 UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
 WORLD_INNODB	COUNTRY	PRIMARY	1	1.0000
 WORLD_INNODB	COUNTRY	Name	1	1.0000
@@ -1214,17 +1214,17 @@ WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	2	1.0000
 WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
 DROP DATABASE world_innodb;
 SELECT UPPER(db_name), UPPER(table_name), cardinality
-FROM mysql.table_stat;
+FROM mysql.table_stats;
 UPPER(db_name)	UPPER(table_name)	cardinality
 SELECT UPPER(db_name), UPPER(table_name), 
 column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
-FROM mysql.column_stat;
+FROM mysql.column_stats;
 UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
 SELECT UPPER(db_name), UPPER(table_name),
 index_name, prefix_arity, avg_frequency
-FROM mysql.index_stat;
+FROM mysql.index_stats;
 UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
-DELETE FROM mysql.table_stat;
-DELETE FROM mysql.column_stat;
-DELETE FROM mysql.index_stat;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
 set use_stat_tables=@save_use_stat_tables;

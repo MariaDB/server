@@ -37,7 +37,7 @@ user_comment	Column privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	column_stat
+TABLE_NAME	column_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
@@ -267,7 +267,7 @@ user_comment	Host privileges;  Merged with database privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	index_stat
+TABLE_NAME	index_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
@@ -474,7 +474,7 @@ user_comment	Table privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	table_stat
+TABLE_NAME	table_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
@@ -674,7 +674,7 @@ user_comment	Column privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	column_stat
+TABLE_NAME	column_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
@@ -904,7 +904,7 @@ user_comment	Host privileges;  Merged with database privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	index_stat
+TABLE_NAME	index_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
@@ -1111,7 +1111,7 @@ user_comment	Table privileges
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
-TABLE_NAME	table_stat
+TABLE_NAME	table_stats
 TABLE_TYPE	BASE TABLE
 ENGINE	MYISAM_OR_MARIA
 VERSION	10
