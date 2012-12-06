@@ -7258,7 +7258,10 @@ opt_persistent_stat_clause:
           /* empty */
           {}        
         | PERSISTENT_SYM FOR_SYM persistent_stat_spec  
-          {}
+          { 
+            THD *thd= YYTHD;
+            thd->lex->with_persistent_for_clause= TRUE;
+          }
         ;
 
 persistent_stat_spec:

@@ -2452,6 +2452,7 @@ struct LEX: public Query_tables_list
     this command.
   */
   bool parse_vcol_expr;
+  bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
 
   enum SSL_type ssl_type;			/* defined in violite.h */
   enum enum_duplicates duplicates;
