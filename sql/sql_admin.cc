@@ -650,6 +650,12 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       TABLE *tab= table->table;
       Field **field_ptr= tab->field;
 
+      if (lex->with_persistent_for_clause &&
+          tab->s->table_category != TABLE_CATEGORY_USER)
+      {
+        compl_result_code= result_code= HA_ADMIN_INVALID;
+      }
+
       if (!lex->column_list)
       { 
         uint fields= 0;
@@ -711,7 +717,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     if (compl_result_code == HA_ADMIN_OK &&
         operator_func == &handler::ha_analyze && 
-	thd->variables.use_stat_tables > 0)
+        table->table->s->table_category == TABLE_CATEGORY_USER &&
+        (thd->variables.use_stat_tables > 0 ||
+         lex->with_persistent_for_clause)) 
     {
       if (!(compl_result_code=
             alloc_statistics_for_table(thd, table->table)) &&

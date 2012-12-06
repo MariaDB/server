@@ -397,13 +397,38 @@ ANALYZE TABLE t1;
 SELECT * FROM mysql.column_stats;
 SELECT * FROM mysql.index_stats;
 
-DROP TABLE t1,t2;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+
+ANALYZE TABLE mysql.column_stats PERSISTENT FOR ALL;
+
+ANALYZE TABLE mysql.column_stats;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
+set use_stat_tables='never';  
+
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
 
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
 
-set use_stat_tables='never';  
+DROP TABLE t1,t2;
 
 set names utf8;
 
