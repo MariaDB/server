@@ -368,10 +368,11 @@ SELECT * FROM mysql.table_stats;
 SELECT * FROM mysql.column_stats;
 SELECT * FROM mysql.index_stats;
 
-
 CREATE TABLE t2 LIKE t1;
 ALTER TABLE t2 ENGINE=InnoDB;
 INSERT INTO t2 SELECT * FROM t1;
+
+set optimizer_switch='extended_keys=off';
 
 ANALYZE TABLE t2;
 
@@ -379,10 +380,47 @@ SELECT * FROM mysql.table_stats;
 SELECT * FROM mysql.column_stats ORDER BY column_name;
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 
-
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
+
+set optimizer_switch='extended_keys=on';
+
+ANALYZE TABLE t2;
+
+SELECT * FROM mysql.table_stats;
+SELECT * FROM mysql.column_stats ORDER BY column_name;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 DROP PRIMARY KEY, DROP INDEX idx1;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+UPDATE t2 SET b=0 WHERE b IS NULL;
+ALTER TABLE t2 ADD PRIMARY KEY (a,b);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 CHANGE COLUMN b b varchar(32);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ALTER TABLE t2 DROP COLUMN b;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+
+set optimizer_switch='extended_keys=off';
 
 ALTER TABLE t1
   DROP INDEX idx1,
@@ -392,6 +430,9 @@ ALTER TABLE t1
   ADD INDEX idx1 (b(4), e), 
   ADD INDEX idx4 (e, b(4), d);
   
+SELECT * FROM mysql.column_stats;
+SELECT * FROM mysql.index_stats;
+
 ANALYZE TABLE t1;
 
 SELECT * FROM mysql.column_stats;
@@ -411,13 +452,7 @@ SELECT * FROM mysql.index_stats;
 
 set use_stat_tables='never';  
 
-
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
-
-SELECT * FROM mysql.table_stats;
-SELECT * FROM mysql.column_stats;
-SELECT * FROM mysql.index_stats;
-
 
 SELECT * FROM mysql.table_stats;
 SELECT * FROM mysql.column_stats;

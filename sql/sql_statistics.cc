@@ -2660,6 +2660,9 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
   tab         The table the index belongs to
   @param
   key_info    The descriptor of the index whose statistics is to be deleted
+  @param
+  ext_prefixes_only  Delete statistics only on the index prefixes extended by
+                     the components of the primary key 
 
   @details
   The function delete statistics on the index  specified by 'key_info'
@@ -2675,7 +2678,8 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
    definition of a column used in the definition of the index. 
 */
 
-int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
+int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
+                                bool ext_prefixes_only)
 {
   int err;
   bool save_binlog_row_based;
@@ -2702,14 +2706,29 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info)
 
   stat_table= tables.table;
   Index_stat index_stat(stat_table, tab);
-  index_stat.set_index_prefix_key_fields(key_info);
-  while (index_stat.find_next_stat_for_prefix(3))
+  if (!ext_prefixes_only)
   {
-    err= index_stat.delete_stat();
-    if (err && !rc)
-      rc= 1;
+    index_stat.set_index_prefix_key_fields(key_info);
+    while (index_stat.find_next_stat_for_prefix(3))
+    {
+      err= index_stat.delete_stat();
+      if (err && !rc)
+        rc= 1;
+    }
   }
-
+  else
+  {
+    for (uint i= key_info->key_parts; i < key_info->ext_key_parts; i++)
+    {
+      index_stat.set_key_fields(key_info, i+1);
+      if (index_stat.find_next_stat_for_prefix(4))
+      {
+        err= index_stat.delete_stat();
+        if (err && !rc)
+          rc= 1;
+      }
+    }
+  }
   if (save_binlog_row_based)
     thd->set_current_stmt_binlog_format_row();
 

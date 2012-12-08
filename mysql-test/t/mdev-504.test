@@ -1,3 +1,5 @@
+--disable_ps_protocol
+
 CREATE TABLE A (
   pk INTEGER AUTO_INCREMENT PRIMARY KEY,
   fdate DATE
