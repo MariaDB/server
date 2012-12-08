@@ -5243,6 +5243,26 @@ mysql_compare_tables(TABLE *table,
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
     if (!(tmp= field->is_equal(tmp_new_field)))
     {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+      {
+        KEY *key_info= table->key_info; 
+	for (uint i=0; i < table->s->keys; i++, key_info++)
+	{
+          if (field->part_of_key.is_set(i))
+	  {
+            uint key_parts= table->actual_n_key_parts(key_info);
+            for (uint j= 0; j < key_parts; j++)
+	    {
+              if (key_info->key_part[j].fieldnr-1 == field->field_index)
+	      {
+                (void) delete_statistics_for_index(thd, table, key_info,
+                                                   j >= key_info->key_parts);
+                break;
+	      }
+            }           
+          }
+        }      
+      }
       DBUG_PRINT("info", ("!field_is_equal('%s') -> ALTER_TABLE_DATA_CHANGED",
                           new_field->field_name));
       DBUG_RETURN(0);
@@ -5342,7 +5362,20 @@ mysql_compare_tables(TABLE *table,
       field->flags|= FIELD_IN_ADD_INDEX;
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
-      (void) delete_statistics_for_index(thd, table, table_key);
+    {
+      (void) delete_statistics_for_index(thd, table, table_key, FALSE);
+      if (table_key - table->key_info == table->s->primary_key)
+      {
+        KEY *tab_key_info= table->key_info;
+	for (uint j=0; j < table->s->keys; j++, tab_key_info++)
+	{
+          if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+	    (void) delete_statistics_for_index(thd, table, tab_key_info,
+                                               TRUE);
+	}
+      }
+    }
+
     DBUG_PRINT("info", ("index changed: '%s'", table_key->name));
   }
   /*end of for (; table_key < table_key_end;) */
@@ -5544,6 +5577,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   uint used_fields= create_info->used_fields;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
+  bool modified_primary_key= FALSE;
   Create_field *def;
   Field **f_ptr,*field;
   DBUG_ENTER("mysql_prepare_alter_table");
@@ -5740,7 +5774,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     Collect all keys which isn't in drop list. Add only those
     for which some fields exists.
   */
-
+ 
   for (uint i=0 ; i < table->s->keys ; i++,key_info++)
   {
     char *key_name= key_info->name;
@@ -5755,7 +5789,19 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     if (drop)
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
-        (void) delete_statistics_for_index(thd, table, key_info);
+      {
+        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+        if (i == table->s->primary_key)
+	{
+          KEY *tab_key_info= table->key_info;
+	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
+	  {
+            if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+	      (void) delete_statistics_for_index(thd, table, tab_key_info,
+                                                 TRUE);
+	  }
+	}
+      }  
       drop_it.remove();
       continue;
     }
@@ -5786,6 +5832,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (!cfield)
       {
+        if (table->s->primary_key == i)
+          modified_primary_key= TRUE;
         delete_index_stat= TRUE;
 	continue;				// Field is removed
       }
@@ -5830,8 +5878,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                             strlen(cfield->field_name),
 					    key_part_length));
     }
-    if (delete_index_stat && table->s->tmp_table == NO_TMP_TABLE)
-      (void) delete_statistics_for_index(thd, table, key_info);
+    if (table->s->tmp_table == NO_TMP_TABLE)
+    {
+      if (delete_index_stat) 
+        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+      else if (modified_primary_key &&
+               key_info->key_parts != key_info->ext_key_parts)
+        (void) delete_statistics_for_index(thd, table, key_info, TRUE);
+    }
+
     if (key_parts.elements)
     {
       KEY_CREATE_INFO key_create_info;
