@@ -2058,6 +2058,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
   {  
+    DEBUG_SYNC(table->in_use, "statistics_collection_start");
+
     while ((rc= file->ha_rnd_next(table->record[0])) != HA_ERR_END_OF_FILE)
     {
       if (thd->killed)
