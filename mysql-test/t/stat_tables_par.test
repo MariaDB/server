@@ -146,6 +146,56 @@ set debug_sync='RESET';
 
 select * from mysql.index_stats where table_name='lineitem' order by index_name;
 
+#
+# Test for parallel statistics collection and update (innodb)
+# 
+
+select * from mysql.index_stats where table_name='lineitem'
+ order by index_name, prefix_arity;
+set debug_sync='RESET';
+
+let $innodb_storage_engine= 0;
+if (`SELECT UPPER(@@storage_engine) = 'INNODB'`)
+{
+  let $innodb_storage_engine= 1;
+}
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+connection con1;
+set debug_sync='statistics_collection_start SIGNAL parked WAIT_FOR finish';
+use dbt3_s001;
+set use_stat_tables='preferably';
+--send analyze table lineitem persistent for all
+
+connection con2;
+set debug_sync='now WAIT_FOR parked';
+use dbt3_s001;
+set use_stat_tables='never';
+if ($innodb_storage_engine)
+{
+  select * from lineitem where l_orderkey=1 and l_partkey=156;
+  delete from lineitem where l_orderkey=1 and l_partkey=156;
+  select * from lineitem where l_orderkey=1 and l_partkey=156;
+}
+set debug_sync='now SIGNAL finish';
+
+connection con1;
+--disable_result_log
+--disable_warnings
+--reap
+--enable_warnings
+--enable_result_log
+
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+
+select * from mysql.index_stats where table_name='lineitem'
+  order by index_name, prefix_arity;
+
 DROP DATABASE dbt3_s001;
 
 use test;
