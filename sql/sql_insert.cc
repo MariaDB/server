@@ -2301,7 +2301,7 @@ end_create:
 TABLE *Delayed_insert::get_local_table(THD* client_thd)
 {
   my_ptrdiff_t adjust_ptrs;
-  Field **field,**org_field, *found_next_number_field, **dfield_ptr;
+  Field **field,**org_field, *found_next_number_field, **dfield_ptr= 0;
   TABLE *copy;
   TABLE_SHARE *share;
   uchar *bitmap;
@@ -2374,6 +2374,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
   {
     copy->default_field= (Field**) client_thd->alloc((share->default_fields+1)*
                                                      sizeof(Field**));
+    if (!copy->default_field)
+      goto error;
     dfield_ptr= copy->default_field;
   }
   /*

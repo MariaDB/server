@@ -1817,6 +1817,10 @@ Field *Field::new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->key_start.init(0);
   tmp->part_of_key.init(0);
   tmp->part_of_sortkey.init(0);
+  /*
+    TODO: it is not clear why this method needs to reset unireg_check.
+    Try not to reset it, or explain why it needs to be reset.
+  */
   tmp->unireg_check= Field::NONE;
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG);
@@ -4369,16 +4373,10 @@ void Field_double::sql_type(String &res) const
   2038-01-01 00:00:00 UTC stored as number of seconds since Unix 
   Epoch in UTC.
   
-  Up to one of timestamps columns in the table can be automatically 
-  set on row update and/or have NOW() as default value.
-  TABLE::timestamp_field points to Field object for such timestamp with 
-  auto-set-on-update. TABLE::time_stamp holds offset in record + 1 for this
-  field, and is used by handler code which performs updates required.
-  
   Actually SQL-99 says that we should allow niladic functions (like NOW())
-  as defaults for any field. Current limitations (only NOW() and only 
-  for one TIMESTAMP field) are because of restricted binary .frm format 
-  and should go away in the future.
+  as defaults for any field. The current limitation (only NOW() and only 
+  for TIMESTAMP and DATETIME fields) are because of restricted binary .frm
+  format and should go away in the future.
   
   Also because of this limitation of binary .frm format we use 5 different
   unireg_check values with TIMESTAMP field to distinguish various cases of
@@ -4422,8 +4420,8 @@ Field_timestamp::Field_timestamp(uchar *ptr_arg, uint32 len_arg,
   if (unireg_check != NONE)
   {
     /*
-      This TIMESTAMP column is hereby quietly assumed to have an insert or
-      update default function.
+      We mark the flag with TIMESTAMP_FLAG to indicate to the client that
+      this field will be automaticly updated on insert.
     */
     flags|= TIMESTAMP_FLAG;
     if (unireg_check != TIMESTAMP_DN_FIELD)
@@ -4693,19 +4691,20 @@ int Field_timestamp::set_time()
     determine if there is an explicit value for each field before performing
     the data change, and call this method to mark the field.
 
-    If the 'value' parameter is NULL, then the field is marked unconditionally
-    as having an explicit value. If 'value' is not NULL, then it can be further
-    analyzed to check if it really should count as a value.
+    For timestamp columns, the only case where a column is not marked
+    as been given a value are:
+    - It's explicitly assigned with DEFAULT
+    - We assign NULL to a timestamp field that is defined as NOT NULL.
+      This is how MySQL has worked since it's start.
 */
 
 void Field_timestamp::set_explicit_default(Item *value)
 {
-  if (value &&
-      ((value->type() == Item::DEFAULT_VALUE_ITEM &&
+  if (((value->type() == Item::DEFAULT_VALUE_ITEM &&
         !((Item_default_value*)value)->arg) ||
        (!maybe_null() && value->is_null())))
     return;
-  flags|= HAS_EXPLICIT_DEFAULT;
+  set_has_explicit_value();
 }
 
 void Field_timestamp_hires::sql_type(String &res) const
@@ -5834,7 +5833,7 @@ void Field_datetime::sql_type(String &res) const
 
 int Field_datetime::set_time()
 {
-  THD *thd= current_thd;
+  THD *thd= table->in_use;
   MYSQL_TIME now_time;
   thd->variables.time_zone->gmt_sec_to_TIME(&now_time, thd->query_start());
   now_time.second_part= thd->query_start_sec_part();
@@ -8881,9 +8880,9 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
   {
     /* There is a function default for insertions. */
     def= NULL;
-    unireg_check= on_update_is_function ?
-      Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
-      Field::TIMESTAMP_DN_FIELD;    // only for insertions.
+    unireg_check= (on_update_is_function ?
+                   Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
+                   Field::TIMESTAMP_DN_FIELD);   // only for insertions.
   }
   else
   {
@@ -8892,9 +8891,9 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     if (on_update_is_function)
       unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
     else
-      unireg_check= (fld_type_modifier & AUTO_INCREMENT_FLAG) != 0 ?
-        Field::NEXT_NUMBER : // Automatic increment.
-        Field::NONE;
+      unireg_check= ((fld_type_modifier & AUTO_INCREMENT_FLAG) != 0 ?
+                     Field::NEXT_NUMBER : // Automatic increment.
+                     Field::NONE);
   }
 
   decimals= fld_decimals ? (uint)atoi(fld_decimals) : 0;
@@ -9800,8 +9799,8 @@ key_map Field::get_possible_keys()
 
 void Field::set_explicit_default(Item *value)
 {
-  if (value && value->type() == Item::DEFAULT_VALUE_ITEM &&
+  if (value->type() == Item::DEFAULT_VALUE_ITEM &&
       !((Item_default_value*)value)->arg)
     return;
-  flags|= HAS_EXPLICIT_DEFAULT;
+  set_has_explicit_value();
 }

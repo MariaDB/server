@@ -128,7 +128,7 @@ enum enum_server_command
                                            reserved by MySQL Cluster */
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25,
                                            reserved by MySQL Cluster */
-#define HAS_EXPLICIT_DEFAULT (1 << 26) /* An INSERT/UPDATE operation supplied
+#define HAS_EXPLICIT_VALUE (1 << 26)    /* An INSERT/UPDATE operation supplied
                                           an explicit default value */
 
 #define REFRESH_GRANT		1	/* Refresh grant tables */

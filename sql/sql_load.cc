@@ -836,6 +836,10 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                             ER_WARN_TOO_FEW_RECORDS,
                             ER(ER_WARN_TOO_FEW_RECORDS),
                             thd->warning_info->current_row_for_warning());
+        /*
+          Timestamp fields that are NOT NULL are autoupdated if there is no
+          corresponding value in the data file.
+        */
         if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
           field->set_time();
       }
@@ -851,8 +855,9 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 	pos[length]=save_chr;
 	if ((pos+=length) > read_info.row_end)
 	  pos= read_info.row_end;	/* Fills rest with space */
-        field->set_explicit_default(NULL);
       }
+      /* Do not auto-update this field. */
+      field->set_has_explicit_value();
     }
     if (pos != read_info.row_end)
     {
@@ -982,15 +987,20 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
             DBUG_RETURN(1);
           }
           field->set_null();
-          field->set_explicit_default(NULL);
           if (!field->maybe_null())
           {
+            /*
+              Timestamp fields that are NOT NULL are autoupdated if there is no
+              corresponding value in the data file.
+            */
             if (field->type() == MYSQL_TYPE_TIMESTAMP)
               field->set_time();
             else if (field != table->next_number_field)
               field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
                                  ER_WARN_NULL_TO_NOTNULL, 1);
           }
+          /* Do not auto-update this field. */
+          field->set_has_explicit_value();
 	}
         else if (item->type() == Item::STRING_ITEM)
         {
@@ -1014,7 +1024,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         if (field == table->next_number_field)
           table->auto_increment_field_not_null= TRUE;
         field->store((char*) pos, length, read_info.read_charset);
-        field->set_explicit_default(NULL);
+        field->set_has_explicit_value();
       }
       else if (item->type() == Item::STRING_ITEM)
       {
@@ -1057,6 +1067,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           }
           if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
             field->set_time();
+          field->set_has_explicit_value();
           /*
             TODO: We probably should not throw warning for each field.
             But how about intention to always have the same number
@@ -1201,6 +1212,8 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
               field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
                                  ER_WARN_NULL_TO_NOTNULL, 1);
           }
+          /* Do not auto-update this field. */
+          field->set_has_explicit_value();
         }
         else
           ((Item_user_var_as_out_param *) item)->set_null_value(cs);
@@ -1215,7 +1228,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         if (field == table->next_number_field)
           table->auto_increment_field_not_null= TRUE;
         field->store((char *) tag->value.ptr(), tag->value.length(), cs);
-        field->set_explicit_default(NULL);
+        field->set_has_explicit_value();
       }
       else
         ((Item_user_var_as_out_param *) item)->set_value(
