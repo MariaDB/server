@@ -9604,6 +9604,12 @@ has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
     must call close_system_tables() to close systems tables opened
     with this call.
 
+  NOTES
+   In some situations we  use this function to open system tables for
+   writing. It happens, for examples, with statistical tables when
+   they are updated by an ANALYZE command. In these cases we should
+   guarantee that system tables will not be deadlocked.
+
   RETURN
     FALSE   Success
     TRUE    Error
@@ -9645,70 +9651,6 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
   lex->restore_backup_query_tables_list(&query_tables_list_backup);
 
   DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Unlock opened tables and open and lock system tables for write.
-
-  SYNOPSIS
-    unlock_tables_n_open_system_tables_for_write()
-      thd         Thread context.
-      table_list  List of tables to open.
-      backup      Pointer to Open_tables_state instance where
-                  information about currently open tables will be
-                  saved, and from which will be restored when we will
-                  end work with system tables.
-
-  DESCRIPTION
-    The function first unlocks the opened tables, but do not close them.
-    Then it opens and locks for write the specified system tables.
-  
-  NOTE
-    The system tables cannot be locked for write without unlocking
-    the current opened tables. Yet in some cases we still need valid TABLE
-    structures for these tables to be able to extract data that is to be
-    written into the system tables.
-    This function is used when updating the statistical tables. 
-
-  RETURN
-    FALSE   Success
-    TRUE    Error
-*/
-
-bool
-unlock_tables_n_open_system_tables_for_write(THD *thd,
-                                             TABLE_LIST *table_list,
-                                             Open_tables_backup *backup)
-{
-  Query_tables_list query_tables_list_backup;
-  LEX *lex= thd->lex;
-
-  DBUG_ENTER("unlock_tables_n_open_system_tables_for_write");
-
-  lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
-  thd->reset_n_backup_open_tables_state(backup);
-
- if (open_and_lock_tables(thd, table_list, FALSE,
-                          MYSQL_OPEN_IGNORE_FLUSH | MYSQL_LOCK_IGNORE_TIMEOUT))
- {
-    lex->restore_backup_query_tables_list(&query_tables_list_backup);
-    goto error;
-  }
-
-  for (TABLE_LIST *tables= table_list; tables; tables= tables->next_global)
-  {
-    DBUG_ASSERT(tables->table->s->table_category == TABLE_CATEGORY_SYSTEM);
-    tables->table->use_all_columns();
-  }
-  lex->restore_backup_query_tables_list(&query_tables_list_backup);
-
-  DBUG_RETURN(FALSE);
-
-error:
-  close_system_tables(thd, backup);
-
-  DBUG_RETURN(TRUE);
 }
 
 
