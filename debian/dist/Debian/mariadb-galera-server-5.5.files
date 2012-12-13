@@ -1,3 +1,4 @@
+usr/README-wsrep
 usr/sbin/mysqld
 usr/lib/mysql/plugin/
 usr/lib/libhsclient.so.*
@@ -30,6 +31,10 @@ usr/bin/perror
 usr/bin/replace
 usr/bin/resolve_stack_dump
 usr/bin/resolveip
+usr/bin/wsrep_sst_common
+usr/bin/wsrep_sst_mysqldump
+usr/bin/wsrep_sst_rsync
+usr/bin/wsrep_sst_xtrabackup
 usr/share/doc/mariadb-server-5.5/mysqld.sym.gz
 usr/share/doc/mariadb-server-5.5/INFO_SRC
 usr/share/doc/mariadb-server-5.5/INFO_BIN
@@ -88,3 +93,5 @@ usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_test_data_timezone.sql
+usr/support-files/wsrep.cnf
+usr/support-files/wsrep_notify
