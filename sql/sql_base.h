@@ -275,9 +275,6 @@ bool is_equal(const LEX_STRING *a, const LEX_STRING *b);
 /* Functions to work with system tables. */
 bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
                                  Open_tables_backup *backup);
-bool unlock_tables_n_open_system_tables_for_write(THD *thd,
-                                                  TABLE_LIST *table_list,
-                                                  Open_tables_backup *backup);
 void close_system_tables(THD *thd, Open_tables_backup *backup);
 void close_mysql_tables(THD *thd);
 TABLE *open_system_table_for_update(THD *thd, TABLE_LIST *one_table);

@@ -196,6 +196,48 @@ set debug_sync='RESET';
 select * from mysql.index_stats where table_name='lineitem'
   order by index_name, prefix_arity;
 
+#
+# Bug mdev-3891: deadlock for ANALYZE and SELECT over mysql.index_stats
+# 
+
+set @save_global_use_stat_tables=@@global.use_stat_tables;
+set global use_stat_tables='preferably';
+set debug_sync='RESET';
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+connection con1;
+set debug_sync='statistics_update_start SIGNAL parker WAIT_FOR go1 EXECUTE 1';
+set debug_sync='thr_multi_lock_after_thr_lock SIGNAL go2 EXECUTE 2';
+use dbt3_s001;
+--send analyze table lineitem persistent for all
+
+connection con2;
+set debug_sync='open_and_process_table WAIT_FOR parker';
+set debug_sync='statistics_read_start SIGNAL go1 WAIT_FOR go2';
+use dbt3_s001;
+--send select * from mysql.index_stats, lineitem where index_name= 'i_l_shipdate' and l_orderkey=1 and l_partkey=68
+
+connection con1;
+--disable_result_log
+--disable_warnings
+--reap
+--enable_warnings
+--enable_result_log
+
+connection con2;
+--disable_warnings
+--reap
+--enable_warnings
+
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';
+
+set global use_stat_tables=@save_global_use_stat_tables;
+
 DROP DATABASE dbt3_s001;
 
 use test;

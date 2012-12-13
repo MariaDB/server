@@ -127,6 +127,38 @@ inline void init_table_list_for_single_stat_table(TABLE_LIST *tbl,
 
 
 /**
+  @brief
+  Open all statistical tables and lock them
+*/
+
+static
+inline int open_stat_tables(THD *thd, TABLE_LIST *tables,
+                            Open_tables_backup *backup,
+                            bool for_write)
+{
+  init_table_list_for_stat_tables(tables, for_write);
+  init_mdl_requests(tables);
+  return open_system_tables_for_read(thd, tables, backup);
+}
+
+
+/**
+  @brief
+  Open a statistical table and lock it
+*/
+static
+inline int open_single_stat_table(THD *thd, TABLE_LIST *table,
+                                  const LEX_STRING *stat_tab_name,
+                                  Open_tables_backup *backup,
+                                  bool for_write)
+{
+  init_table_list_for_single_stat_table(table, stat_tab_name, for_write);
+  init_mdl_requests(table);
+  return open_system_tables_for_read(thd, table, backup);
+}
+
+
+/**
   @details
   If the value of the parameter is_safe is TRUE then the function
   just copies the address pointed by the parameter src into the memory
@@ -1199,7 +1231,7 @@ public:
   the number of distinct values for a column. The class employs the
   Unique class for this purpose.
   The class Count_distinct_field is used only by the function
-  collect_statistics_from_table to calculate the values for 
+  collect_statistics_for_table to calculate the values for 
   column avg_frequency of the statistical table column_stats.
 */
     
@@ -2179,12 +2211,9 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   DBUG_ENTER("update_statistics_for_table");
 
-  init_table_list_for_stat_tables(tables, TRUE);
-  init_mdl_requests(tables);
+  DEBUG_SYNC(thd, "statistics_update_start");
 
-  if (unlock_tables_n_open_system_tables_for_write(thd,
-                                                   tables,
-                                                   &open_tables_backup))
+  if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
@@ -2266,7 +2295,7 @@ int update_statistics_for_table(THD *thd, TABLE *table)
   The parameter stat_tables should point to an array of TABLE_LIST
   objects for all statistical tables linked into a list. All statistical
   tables are supposed to be opened.  
-  The function is called by read_statistics_for_table_if_needed().
+  The function is called by read_statistics_for_tables_if_needed().
 
   @retval
   0         If data has been successfully read for the table  
@@ -2415,6 +2444,21 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
     return FALSE;
   }
 
+  /* 
+    Do not read statistics for any query over non-user tables.
+    If the query references some statistical tables, but not all 
+    of them, reading the statistics may lead to a deadlock
+  */ 
+  for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
+  {
+    if (!tl->is_view_or_derived() && tl->table)
+    {
+      TABLE_SHARE *table_share= tl->table->s;
+      if (table_share && table_share->table_category != TABLE_CATEGORY_USER)
+        return FALSE;
+    }
+  }
+
   for (TABLE_LIST *tl= tables; tl; tl= tl->next_global)
   {
     if (!tl->is_view_or_derived() && tl->table)
@@ -2460,12 +2504,12 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
 
   DBUG_ENTER("read_statistics_for_table_if_needed");
 
+  DEBUG_SYNC(thd, "statistics_read_start");
+
   if (!statistics_for_tables_is_needed(thd, tables))
     DBUG_RETURN(0);
 
-  init_table_list_for_stat_tables(stat_tables, FALSE);  
-  init_mdl_requests(stat_tables);
-  if (open_system_tables_for_read(thd, stat_tables, &open_tables_backup))
+  if (open_stat_tables(thd, stat_tables, &open_tables_backup, FALSE))
   {
     thd->clear_error();
     DBUG_RETURN(1);
@@ -2527,12 +2571,7 @@ int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab)
 
   DBUG_ENTER("delete_statistics_for_table");
    
-  init_table_list_for_stat_tables(tables, TRUE);
-  init_mdl_requests(tables);
-
-  if (open_system_tables_for_read(thd,
-                                  tables,
-                                  &open_tables_backup))
+  if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
@@ -2619,12 +2658,8 @@ int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col)
 
   DBUG_ENTER("delete_statistics_for_column");
    
-  init_table_list_for_single_stat_table(&tables, &stat_table_name[1], TRUE);
-  init_mdl_requests(&tables);
-
-  if (open_system_tables_for_read(thd,
-                                  &tables,
-                                  &open_tables_backup))
+  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
@@ -2692,12 +2727,8 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
 
   DBUG_ENTER("delete_statistics_for_index");
    
-  init_table_list_for_single_stat_table(&tables, &stat_table_name[2], TRUE);
-  init_mdl_requests(&tables);
-
-  if (open_system_tables_for_read(thd,
-                                  &tables,
-                                  &open_tables_backup))
+  if (open_single_stat_table(thd, &tables, &stat_table_name[2],
+			     &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
@@ -2779,12 +2810,7 @@ int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
 
   DBUG_ENTER("rename_table_in_stat_tables");
    
-  init_table_list_for_stat_tables(tables, TRUE);
-  init_mdl_requests(tables);
-
-  if (open_system_tables_for_read(thd,
-                                  tables,
-                                  &open_tables_backup))
+  if (open_stat_tables(thd, tables, &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
@@ -2876,12 +2902,8 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
   DBUG_ENTER("rename_column_in_stat_tables");
    
-  init_table_list_for_single_stat_table(&tables, &stat_table_name[1], TRUE);
-  init_mdl_requests(&tables);
-
-  if (open_system_tables_for_read(thd,
-                                  &tables,
-                                  &open_tables_backup))
+  if (open_single_stat_table(thd, &tables, &stat_table_name[1],
+                             &open_tables_backup, TRUE))
   {
     thd->clear_error();
     DBUG_RETURN(rc);
