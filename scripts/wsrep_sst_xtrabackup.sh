@@ -34,8 +34,8 @@ cleanup_joiner()
 
 check_pid()
 {
-    local pid_file=$1
-    [ -r $pid_file ] && ps -p $(cat $pid_file) >/dev/null 2>&1
+    local pid_file="$1"
+    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
 }
 
 kill_xtrabackup()
@@ -133,14 +133,14 @@ then
           exit 22
         fi
 
-        if check_pid ${XTRABACKUP_PID}
+        if check_pid "${XTRABACKUP_PID}"
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
             kill_xtrabackup
             exit 22
         fi
 
-        rm -f ${XTRABACKUP_PID}
+        rm -f "${XTRABACKUP_PID}"
 
     else # BYPASS
         STATE="${WSREP_SST_OPT_GTID}"

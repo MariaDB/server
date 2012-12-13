@@ -810,7 +810,9 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
     return 1;					/* Ignore wrong files */
 
 #ifdef WITH_WSREP
-  strncpy(wsrep_defaults_file, name, sizeof(wsrep_defaults_file) - 1);
+  /* make sure we do this only once - for top-level file */
+  if ('\0' == wsrep_defaults_file[0])
+    strncpy(wsrep_defaults_file, name, sizeof(wsrep_defaults_file) - 1);
 #endif /* WITH_WSREP */
 
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))

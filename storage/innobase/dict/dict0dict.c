@@ -2489,7 +2489,26 @@ next_rec:
 
 	return(NULL);
 }
-
+#ifdef WITH_WSREP
+dict_index_t*
+wsrep_dict_foreign_find_index(
+/*====================*/
+	dict_table_t*	table,	/*!< in: table */
+	const char**	columns,/*!< in: array of column names */
+	ulint		n_cols,	/*!< in: number of columns */
+	dict_index_t*	types_idx, /*!< in: NULL or an index to whose types the
+				   column types must match */
+	ibool		check_charsets,
+				/*!< in: whether to check charsets.
+				only has an effect if types_idx != NULL */
+	ulint		check_null)
+				/*!< in: nonzero if none of the columns must
+				be declared NOT NULL */
+{
+	return dict_foreign_find_index(
+		table, columns, n_cols, types_idx, check_charsets, check_null);
+}
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Find an index that is equivalent to the one passed in and is not marked
 for deletion.
