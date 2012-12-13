@@ -2158,7 +2158,7 @@ int multi_update::do_updates()
 	   copy_field_ptr++)
       {
 	(*copy_field_ptr->do_copy)(copy_field_ptr);
-        copy_field_ptr->to_field->set_explicit_default(NULL);
+        copy_field_ptr->to_field->set_has_explicit_value();
       }
 
       if (table->triggers &&

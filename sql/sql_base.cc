@@ -8922,7 +8922,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers)
+  if (!result && triggers && table)
   {
     List_iterator_fast<Item> f(fields);
     Item *fld;
@@ -8932,7 +8932,10 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
       fld= (Item_field*)f++;
       item_field= fld->filed_for_view_update();
       if (item_field && item_field->field && table && table->vfield)
+      {
+        DBUG_ASSERT(table == item_field->field->table);
         result= update_virtual_fields(thd, table, TRUE);
+      }
     }
   }
   return result;
@@ -9064,6 +9067,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   */
   if (!result && triggers && *ptr)
   {
+    DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
       result= update_virtual_fields(thd, table, TRUE);
   }

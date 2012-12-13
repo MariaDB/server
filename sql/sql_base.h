@@ -304,7 +304,6 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
 void mark_tmp_table_for_reuse(TABLE *table);
 bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists);
 int update_virtual_fields(THD *thd, TABLE *table, bool ignore_stored= FALSE);
-int update_default_fields(TABLE *table);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
 
 extern TABLE *unused_tables;

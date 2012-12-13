@@ -342,6 +342,15 @@ public:
       unireg_check == TIMESTAMP_DNUN_FIELD;
   }
 
+  /*
+    Mark the field as having a value supplied by the client, thus it should
+    not be auto-updated.
+  */
+  void set_has_explicit_value()
+  {
+    flags|= HAS_EXPLICIT_VALUE;
+  }
+
   virtual void set_explicit_default(Item *value);
 
   /**

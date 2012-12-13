@@ -2473,9 +2473,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   /*
     Process virtual and default columns, if any.
   */
-  if (!share->vfields)
-    outparam->vfield= NULL;
-  else
+  if (share->vfields)
   {
     if (!(vfield_ptr = (Field **) alloc_root(&outparam->mem_root,
                                              (uint) ((share->vfields+1)*
@@ -2485,9 +2483,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
     outparam->vfield= vfield_ptr;
   }
 
-  if (!share->default_fields)
-    outparam->default_field= NULL;
-  else
+  if (share->default_fields)
   {
     if (!(dfield_ptr = (Field **) alloc_root(&outparam->mem_root,
                                              (uint) ((share->default_fields+1)*
@@ -6546,7 +6542,7 @@ int TABLE::update_default_fields()
       If an explicit default value for a filed overrides the default,
       do not update the field with its automatic default value.
     */
-    if (!(dfield->flags & HAS_EXPLICIT_DEFAULT))
+    if (!(dfield->flags & HAS_EXPLICIT_VALUE))
     {
       if (sql_command_flags[cmd] & CF_INSERTS_DATA)
         res= dfield->evaluate_insert_default_function();
@@ -6556,7 +6552,7 @@ int TABLE::update_default_fields()
         DBUG_RETURN(res);
     }
     /* Unset the explicit default flag for the next record. */
-    dfield->flags&= ~HAS_EXPLICIT_DEFAULT;
+    dfield->flags&= ~HAS_EXPLICIT_VALUE;
   }
   DBUG_RETURN(res);
 }
