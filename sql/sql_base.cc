@@ -8784,34 +8784,33 @@ err_no_arena:
 ******************************************************************************/
 
 
-/*
-  Fill fields with given items.
+/**
+  Fill the fields of a table with the values of an Item list
 
-  SYNOPSIS
-    fill_record()
-    thd           thread handler
-    fields        Item_fields list to be filled
-    values        values to fill with
-    ignore_errors TRUE if we should ignore errors
+  @param thd           thread handler
+  @param table_arg     the table that is being modified
+  @param fields        Item_fields list to be filled
+  @param values        values to fill with
+  @param ignore_errors TRUE if we should ignore errors
 
-  NOTE
+  @details
     fill_record() may set table->auto_increment_field_not_null and a
     caller should make sure that it is reset after their last call to this
     function.
 
-  RETURN
-    FALSE   OK
-    TRUE    error occured
+  @return Status
+  @retval true An error occured.
+  @retval false OK.
 */
 
 static bool
-fill_record(THD * thd, List<Item> &fields, List<Item> &values,
+fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
             bool ignore_errors)
 {
   List_iterator_fast<Item> f(fields),v(values);
   Item *value, *fld;
   Item_field *field;
-  TABLE *table= 0, *vcol_table= 0;
+  TABLE *vcol_table= 0;
   bool save_abort_on_warning= thd->abort_on_warning;
   bool save_no_errors= thd->no_errors;
   DBUG_ENTER("fill_record");
@@ -8833,12 +8832,13 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
       my_error(ER_NONUPDATEABLE_COLUMN, MYF(0), fld->name);
       goto err;
     }
-    table= field->field->table;
-    table->auto_increment_field_not_null= FALSE;
+    DBUG_ASSERT(field->field->table == table_arg);
+    table_arg->auto_increment_field_not_null= FALSE;
     f.rewind();
   }
   else if (thd->lex->unit.insert_table_with_stored_vcol)
     vcol_table= thd->lex->unit.insert_table_with_stored_vcol;
+
   while ((fld= f++))
   {
     if (!(field= fld->filed_for_view_update()))
@@ -8848,7 +8848,7 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
     }
     value=v++;
     Field *rfield= field->field;
-    table= rfield->table;
+    TABLE* table= rfield->table;
     if (rfield == table->next_number_field)
       table->auto_increment_field_not_null= TRUE;
     if (rfield->vcol_info && 
@@ -8866,6 +8866,7 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
       my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
       goto err;
     }
+    rfield->set_explicit_default(value);
     DBUG_ASSERT(vcol_table == 0 || vcol_table == table);
     vcol_table= table;
   }
@@ -8880,8 +8881,8 @@ fill_record(THD * thd, List<Item> &fields, List<Item> &values,
 err:
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
-  if (table)
-    table->auto_increment_field_not_null= FALSE;
+  if (fields.elements)
+    table_arg->auto_increment_field_not_null= FALSE;
   DBUG_RETURN(TRUE);
 }
 
@@ -8890,42 +8891,39 @@ err:
   Fill fields in list with values from the list of items and invoke
   before triggers.
 
-  SYNOPSIS
-    fill_record_n_invoke_before_triggers()
-      thd           thread context
-      fields        Item_fields list to be filled
-      values        values to fill with
-      ignore_errors TRUE if we should ignore errors
-      triggers      object holding list of triggers to be invoked
-      event         event type for triggers to be invoked
+  @param thd           thread context
+  @param table         the table that is being modified
+  @param fields        Item_fields list to be filled
+  @param values        values to fill with
+  @param ignore_errors TRUE if we should ignore errors
+  @param event         event type for triggers to be invoked
 
-  NOTE
+  @detail
     This function assumes that fields which values will be set and triggers
     to be invoked belong to the same table, and that TABLE::record[0] and
     record[1] buffers correspond to new and old versions of row respectively.
 
-  RETURN
-    FALSE   OK
-    TRUE    error occured
+  @return Status
+  @retval true An error occured.
+  @retval false OK.
 */
 
 bool
-fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
+fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
                                      List<Item> &values, bool ignore_errors,
-                                     Table_triggers_list *triggers,
                                      enum trg_event_type event)
 {
   bool result;
-  result= (fill_record(thd, fields, values, ignore_errors) ||
+  Table_triggers_list *triggers= table->triggers;
+  result= (fill_record(thd, table, fields, values, ignore_errors) ||
            (triggers && triggers->process_triggers(thd, event,
                                                    TRG_ACTION_BEFORE, TRUE)));
   /*
     Re-calculate virtual fields to cater for cases when base columns are
     updated by the triggers.
   */
-  if (!result && triggers)
+  if (!result && triggers && table)
   {
-    TABLE *table= 0;
     List_iterator_fast<Item> f(fields);
     Item *fld;
     Item_field *item_field;
@@ -8933,45 +8931,44 @@ fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
     {
       fld= (Item_field*)f++;
       item_field= fld->filed_for_view_update();
-      if (item_field && item_field->field &&
-          (table= item_field->field->table) &&
-        table->vfield)
+      if (item_field && item_field->field && table && table->vfield)
+      {
+        DBUG_ASSERT(table == item_field->field->table);
         result= update_virtual_fields(thd, table, TRUE);
+      }
     }
   }
   return result;
 }
 
 
-/*
-  Fill field buffer with values from Field list
+/**
+  Fill the field buffer of a table with the values of an Item list
 
-  SYNOPSIS
-    fill_record()
-    thd           thread handler
-    ptr           pointer on pointer to record
-    values        list of fields
-    ignore_errors TRUE if we should ignore errors
-    use_value     forces usage of value of the items instead of result
+  @param thd           thread handler
+  @param table_arg     the table that is being modified
+  @param ptr           pointer on pointer to record of fields
+  @param values        values to fill with
+  @param ignore_errors TRUE if we should ignore errors
+  @param use_value     forces usage of value of the items instead of result
 
-  NOTE
+  @details
     fill_record() may set table->auto_increment_field_not_null and a
     caller should make sure that it is reset after their last call to this
     function.
 
-  RETURN
-    FALSE   OK
-    TRUE    error occured
+  @return Status
+  @retval true An error occured.
+  @retval false OK.
 */
 
 bool
-fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
-            bool use_value)
+fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
+            bool ignore_errors, bool use_value)
 {
   List_iterator_fast<Item> v(values);
   List<TABLE> tbl_list;
   Item *value;
-  TABLE *table= 0;
   Field *field;
   bool abort_on_warning_saved= thd->abort_on_warning;
   DBUG_ENTER("fill_record");
@@ -8986,7 +8983,7 @@ fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
     On INSERT or UPDATE fields are checked to be from the same table,
     thus we safely can take table from the first field.
   */
-  table= (*ptr)->table;
+  DBUG_ASSERT((*ptr)->table == table);
 
   /*
     Reset the table->auto_increment_field_not_null as it is valid for
@@ -9017,6 +9014,7 @@ fill_record(THD *thd, Field **ptr, List<Item> &values, bool ignore_errors,
     else
       if (value->save_in_field(field, 0) < 0)
         goto err;
+    field->set_explicit_default(value);
   }
   /* Update virtual fields*/
   thd->abort_on_warning= FALSE;
@@ -9033,36 +9031,34 @@ err:
 
 
 /*
-  Fill fields in array with values from the list of items and invoke
+  Fill fields in an array with values from the list of items and invoke
   before triggers.
 
-  SYNOPSIS
-    fill_record_n_invoke_before_triggers()
-      thd           thread context
-      ptr           NULL-ended array of fields to be filled
-      values        values to fill with
-      ignore_errors TRUE if we should ignore errors
-      triggers      object holding list of triggers to be invoked
-      event         event type for triggers to be invoked
+  @param thd           thread context
+  @param table         the table that is being modified
+  @param ptr        the fields to be filled
+  @param values        values to fill with
+  @param ignore_errors TRUE if we should ignore errors
+  @param event         event type for triggers to be invoked
 
-  NOTE
+  @detail
     This function assumes that fields which values will be set and triggers
     to be invoked belong to the same table, and that TABLE::record[0] and
     record[1] buffers correspond to new and old versions of row respectively.
 
-  RETURN
-    FALSE   OK
-    TRUE    error occured
+  @return Status
+  @retval true An error occured.
+  @retval false OK.
 */
 
 bool
-fill_record_n_invoke_before_triggers(THD *thd, Field **ptr,
+fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
                                      List<Item> &values, bool ignore_errors,
-                                     Table_triggers_list *triggers,
                                      enum trg_event_type event)
 {
   bool result;
-  result= (fill_record(thd, ptr, values, ignore_errors, FALSE) ||
+  Table_triggers_list *triggers= table->triggers;
+  result= (fill_record(thd, table, ptr, values, ignore_errors, FALSE) ||
            (triggers && triggers->process_triggers(thd, event,
                                                    TRG_ACTION_BEFORE, TRUE)));
   /*
@@ -9071,7 +9067,7 @@ fill_record_n_invoke_before_triggers(THD *thd, Field **ptr,
   */
   if (!result && triggers && *ptr)
   {
-    TABLE *table= (*ptr)->table;
+    DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
       result= update_virtual_fields(thd, table, TRUE);
   }
@@ -9711,11 +9707,6 @@ open_log_table(THD *thd, TABLE_LIST *one_table, Open_tables_backup *backup)
     /* Make sure all columns get assigned to a default value */
     table->use_all_columns();
     table->no_replicate= 1;
-    /*
-      Don't set automatic timestamps as we may want to use time of logging,
-      not from query start
-    */
-    table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
   }
   else
     thd->restore_backup_open_tables_state(backup);
