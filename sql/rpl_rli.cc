@@ -58,6 +58,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 
+  relay_log.is_relay_log= TRUE;
 #ifdef HAVE_PSI_INTERFACE
   relay_log.set_psi_keys(key_RELAYLOG_LOCK_index,
                          key_RELAYLOG_update_cond,
@@ -215,8 +216,6 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
                               opt_relaylog_index_name, 0,
                               &mi->connection_name);
     }
-
-    rli->relay_log.is_relay_log= TRUE;
 
     /*
       note, that if open() fails, we'll still have index file open
