@@ -5416,7 +5416,7 @@ best_access_path(JOIN      *join,
             else
             {
               uint key_parts= table->actual_n_key_parts(keyinfo);
-              if (!(records= keyinfo->real_rec_per_key(key_parts-1)))
+              if (!(records= keyinfo->actual_rec_per_key(key_parts-1)))
               {                                   /* Prefer longer keys */
                 records=
                   ((double) s->records / (double) rec *
@@ -5516,7 +5516,7 @@ best_access_path(JOIN      *join,
             else
             {
               /* Check if we have statistic about the distribution */
-              if ((records= keyinfo->real_rec_per_key(max_key_part-1)))
+              if ((records= keyinfo->actual_rec_per_key(max_key_part-1)))
               {
                 /* 
                   Fix for the case where the index statistics is too
@@ -22974,7 +22974,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           if (used_key_parts > used_index_parts)
             used_pk_parts= used_key_parts-used_index_parts;
           rec_per_key= used_key_parts ?
-	               keyinfo->real_rec_per_key(used_key_parts-1) : 1;
+	               keyinfo->actual_rec_per_key(used_key_parts-1) : 1;
           /* Take into account the selectivity of the used pk prefix */
           if (used_pk_parts)
 	  {
@@ -22989,8 +22989,8 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               rec_per_key= 1;                 
             if (rec_per_key > 1)
 	    {
-              rec_per_key*= pkinfo->real_rec_per_key(used_pk_parts-1);
-              rec_per_key/= pkinfo->real_rec_per_key(0);
+              rec_per_key*= pkinfo->actual_rec_per_key(used_pk_parts-1);
+              rec_per_key/= pkinfo->actual_rec_per_key(0);
               /* 
                 The value of rec_per_key for the extended key has
                 to be adjusted accordingly if some components of
@@ -23004,9 +23004,9 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                     We presume here that for any index rec_per_key[i] != 0
                     if rec_per_key[0] != 0.
 	          */
-                  DBUG_ASSERT(pkinfo->real_rec_per_key(i));
-                  rec_per_key*= pkinfo->real_rec_per_key(i-1);
-                  rec_per_key/= pkinfo->real_rec_per_key(i);
+                  DBUG_ASSERT(pkinfo->actual_rec_per_key(i));
+                  rec_per_key*= pkinfo->actual_rec_per_key(i-1);
+                  rec_per_key/= pkinfo->actual_rec_per_key(i);
                 }
 	      }
             }    
@@ -23051,7 +23051,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           select_limit= (ha_rows) (select_limit *
                                    (double) table_records /
                                     table->quick_condition_rows);
-        rec_per_key= keyinfo->real_rec_per_key(keyinfo->key_parts-1);
+        rec_per_key= keyinfo->actual_rec_per_key(keyinfo->key_parts-1);
         set_if_bigger(rec_per_key, 1);
         /*
           Here we take into account the fact that rows are

@@ -25,6 +25,14 @@
   generated automatically by the table definitions.   
 */
 
+typedef
+enum enum_use_stat_tables_mode
+{
+  NEVER,
+  COMPLEMENTARY,
+  PEFERABLY,
+} Use_stat_tables_mode;
+
 enum enum_stat_tables
 {
   TABLE_STAT,
@@ -60,6 +68,27 @@ enum enum_index_stat_col
   INDEX_STAT_AVG_FREQUENCY
 };
 
+inline
+Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
+{ 
+  return (Use_stat_tables_mode) (thd->variables.use_stat_tables);
+}
+
+int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
+int collect_statistics_for_table(THD *thd, TABLE *table);
+int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
+                                     bool is_safe);
+int alloc_statistics_for_table(THD *thd, TABLE *table);
+int update_statistics_for_table(THD *thd, TABLE *table);
+int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab);
+int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
+int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
+                                bool ext_prefixes_only);
+int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
+                                LEX_STRING *new_db, LEX_STRING *new_tab);
+int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
+                                  const char *new_name);
+void set_statistics_for_table(THD *thd, TABLE *table);
 
 class Columns_statistics;
 class Index_statistics;

@@ -3812,7 +3812,8 @@ uint JOIN_TAB_SCAN_MRR::aux_buffer_incr(ulong recno)
   uint incr= 0;
   TABLE_REF *ref= &join_tab->ref;
   TABLE *tab= join_tab->table;
-  uint rec_per_key= tab->key_info[ref->key].real_rec_per_key(ref->key_parts-1);
+  uint rec_per_key=
+    tab->key_info[ref->key].actual_rec_per_key(ref->key_parts-1);
   set_if_bigger(rec_per_key, 1);
   if (recno == 1)
     incr=  ref->key_length + tab->file->ref_length;

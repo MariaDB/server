@@ -1201,7 +1201,7 @@ bool DsMrr_impl::setup_buffer_sharing(uint key_size_in_keybuf,
   uint parts= my_count_bits(key_tuple_map);
   ulong rpc;
   ulonglong rowids_size= rowid_buf_elem_size;
-  if ((rpc= key_info->real_rec_per_key(parts - 1)))
+  if ((rpc= key_info->actual_rec_per_key(parts - 1)))
     rowids_size= rowid_buf_elem_size * rpc;
 
   double fraction_for_rowids=

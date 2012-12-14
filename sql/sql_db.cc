@@ -36,6 +36,7 @@
 #include "sp.h"
 #include "events.h"
 #include "sql_handler.h"
+#include "sql_statistics.h"
 #include <my_dir.h>
 #include <m_ctype.h>
 #include "log.h"

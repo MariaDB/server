@@ -5502,8 +5502,8 @@ ha_rows records_in_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     ha_rows ext_records= ext_index_scan->records;
     if (i < used_key_parts)
     {
-      ulong f1= key_info->real_rec_per_key(i-1);
-      ulong f2= key_info->real_rec_per_key(i);
+      ulong f1= key_info->actual_rec_per_key(i-1);
+      ulong f2= key_info->actual_rec_per_key(i);
       ext_records= (ha_rows) ((double) ext_records / f2 * f1);
     }
     if (ext_records < table_cardinality)
@@ -12642,7 +12642,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   num_blocks= (uint)(table_records / keys_per_block) + 1;
 
   /* Compute the number of keys in a group. */
-  keys_per_group= index_info->real_rec_per_key(group_key_parts - 1);
+  keys_per_group= index_info->actual_rec_per_key(group_key_parts - 1);
   if (keys_per_group == 0) /* If there is no statistics try to guess */
     /* each group contains 10% of all records */
     keys_per_group= (uint)(table_records / 10) + 1;
@@ -12662,7 +12662,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
       Compute the probability that two ends of a subgroup are inside
       different blocks.
     */
-    keys_per_subgroup= index_info->real_rec_per_key(used_key_parts - 1);
+    keys_per_subgroup= index_info->actual_rec_per_key(used_key_parts - 1);
     if (keys_per_subgroup >= keys_per_block) /* If a subgroup is bigger than */
       p_overlap= 1.0;       /* a block, it will overlap at least two blocks. */
     else

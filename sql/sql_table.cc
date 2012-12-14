@@ -43,6 +43,7 @@
 #include "discover.h"                  // readfrm
 #include "my_pthread.h"                // pthread_mutex_t
 #include "log_event.h"                 // Query_log_event
+#include "sql_statistics.h"
 #include <hash.h>
 #include <myisam.h>
 #include <my_dir.h>

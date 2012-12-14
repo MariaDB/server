@@ -49,6 +49,7 @@
 #include "sql_trigger.h"
 #include "transaction.h"
 #include "sql_prepare.h"
+#include "sql_statistics.h"
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -3142,7 +3143,7 @@ retry_share:
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
 
-    if (thd->variables.use_stat_tables > 0)
+    if (get_use_stat_tables_mode(thd) > NEVER)
     {
       if (share->table_category != TABLE_CATEGORY_SYSTEM)
       {
@@ -4634,7 +4635,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     goto end;
   }
 
-  if (thd->variables.use_stat_tables > 0 && tables->table)
+  if (get_use_stat_tables_mode(thd) > NEVER && tables->table)
   {
     TABLE_SHARE *table_share= tables->table->s;
     if (table_share && table_share->table_category != TABLE_CATEGORY_SYSTEM)
