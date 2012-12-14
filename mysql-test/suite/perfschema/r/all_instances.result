@@ -76,6 +76,7 @@ wait/synch/mutex/sql/Master_info::run_lock
 wait/synch/mutex/sql/Master_info::sleep_lock
 wait/synch/mutex/sql/MDL_map::mutex
 wait/synch/mutex/sql/MDL_wait::LOCK_wait_status
+wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_binlog_background_thread
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_index
 wait/synch/mutex/sql/MYSQL_BIN_LOG::LOCK_xid_list
 wait/synch/mutex/sql/MYSQL_RELAY_LOG::LOCK_index
@@ -129,6 +130,8 @@ wait/synch/cond/sql/Master_info::sleep_cond
 wait/synch/cond/sql/Master_info::start_cond
 wait/synch/cond/sql/Master_info::stop_cond
 wait/synch/cond/sql/MDL_context::COND_wait_status
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_binlog_background_thread
+wait/synch/cond/sql/MYSQL_BIN_LOG::COND_binlog_background_thread_end
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_queue_busy
 wait/synch/cond/sql/MYSQL_BIN_LOG::COND_xid_list
 wait/synch/cond/sql/MYSQL_BIN_LOG::update_cond

@@ -726,6 +726,7 @@ PSI_mutex_key key_LOCK_des_key_file;
 #endif /* HAVE_OPENSSL */
 
 PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+  key_BINLOG_LOCK_binlog_background_thread,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -768,6 +769,7 @@ static PSI_mutex_info all_server_mutexes[]=
 
   { &key_BINLOG_LOCK_index, "MYSQL_BIN_LOG::LOCK_index", 0},
   { &key_BINLOG_LOCK_xid_list, "MYSQL_BIN_LOG::LOCK_xid_list", 0},
+  { &key_BINLOG_LOCK_binlog_background_thread, "MYSQL_BIN_LOG::LOCK_binlog_background_thread", 0},
   { &key_RELAYLOG_LOCK_index, "MYSQL_RELAY_LOG::LOCK_index", 0},
   { &key_delayed_insert_mutex, "Delayed_insert::mutex", 0},
   { &key_hash_filo_lock, "hash_filo::lock", 0},
@@ -836,6 +838,8 @@ PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
 PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
+  key_BINLOG_COND_binlog_background_thread,
+  key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager,
   key_COND_rpl_status, key_COND_server_started,
   key_delayed_insert_cond, key_delayed_insert_cond_client,
@@ -865,6 +869,8 @@ static PSI_cond_info all_server_conds[]=
 #endif /* HAVE_MMAP */
   { &key_BINLOG_COND_xid_list, "MYSQL_BIN_LOG::COND_xid_list", 0},
   { &key_BINLOG_update_cond, "MYSQL_BIN_LOG::update_cond", 0},
+  { &key_BINLOG_COND_binlog_background_thread, "MYSQL_BIN_LOG::COND_binlog_background_thread", 0},
+  { &key_BINLOG_COND_binlog_background_thread_end, "MYSQL_BIN_LOG::COND_binlog_background_thread_end", 0},
   { &key_BINLOG_COND_queue_busy, "MYSQL_BIN_LOG::COND_queue_busy", 0},
   { &key_RELAYLOG_update_cond, "MYSQL_RELAY_LOG::update_cond", 0},
   { &key_RELAYLOG_COND_queue_busy, "MYSQL_RELAY_LOG::COND_queue_busy", 0},

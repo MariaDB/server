@@ -984,6 +984,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str)
   DBUG_ENTER("debug_sync_eval_action");
   DBUG_ASSERT(thd);
   DBUG_ASSERT(action_str);
+  DBUG_PRINT("debug_sync", ("action_str='%s'", action_str));
 
   /*
     Get debug sync point name. Or a special command.

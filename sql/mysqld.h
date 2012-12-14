@@ -228,6 +228,7 @@ extern PSI_mutex_key key_LOCK_des_key_file;
 #endif
 
 extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
+  key_BINLOG_LOCK_binlog_background_thread,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_connection_count, key_LOCK_crypt, key_LOCK_delayed_create,
   key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
@@ -259,6 +260,8 @@ extern PSI_cond_key key_PAGE_cond, key_COND_active, key_COND_pool;
 #endif /* HAVE_MMAP */
 
 extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
+  key_BINLOG_COND_binlog_background_thread,
+  key_BINLOG_COND_binlog_background_thread_end,
   key_COND_cache_status_changed, key_COND_manager,
   key_COND_rpl_status, key_COND_server_started,
   key_delayed_insert_cond, key_delayed_insert_cond_client,

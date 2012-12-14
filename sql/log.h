@@ -395,8 +395,6 @@ private:
 #define BINLOG_COOKIE_IS_DUMMY(c) \
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
 
-void binlog_checkpoint_callback(void *cookie);
-
 class binlog_cache_mngr;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
@@ -451,27 +449,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   };
 
   /*
-    A list of struct xid_count_per_binlog is used to keep track of how many
-    XIDs are in prepared, but not committed, state in each binlog. And how
-    many commit_checkpoint_request()'s are pending.
-
-    When count drops to zero in a binlog after rotation, it means that there
-    are no more XIDs in prepared state, so that binlog is no longer needed
-    for XA crash recovery, and we can log a new binlog checkpoint event.
-
-    The list is protected against simultaneous access from multiple
-    threads by LOCK_xid_list.
-  */
-  struct xid_count_per_binlog : public ilink {
-    char *binlog_name;
-    uint binlog_name_len;
-    ulong binlog_id;
-    /* Total prepared XIDs and pending checkpoint requests in this binlog. */
-    long xid_count;
-    xid_count_per_binlog();   /* Give link error if constructor used. */
-  };
-  I_List<xid_count_per_binlog> binlog_xid_count_list;
-  /*
     When this is set, a RESET MASTER is in progress.
 
     Then we should not write any binlog checkpoints into the binlog (that
@@ -480,7 +457,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     checkpoint arrives - when all have arrived, RESET MASTER will complete.
   */
   bool reset_master_pending;
-  friend void binlog_checkpoint_callback(void *cookie);
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
   mysql_mutex_t LOCK_index;
@@ -550,10 +526,35 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int write_transaction_or_stmt(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
-  void mark_xid_done(ulong cookie, bool write_checkpoint);
-  void mark_xids_active(ulong cookie, uint xid_count);
 
 public:
+  /*
+    A list of struct xid_count_per_binlog is used to keep track of how many
+    XIDs are in prepared, but not committed, state in each binlog. And how
+    many commit_checkpoint_request()'s are pending.
+
+    When count drops to zero in a binlog after rotation, it means that there
+    are no more XIDs in prepared state, so that binlog is no longer needed
+    for XA crash recovery, and we can log a new binlog checkpoint event.
+
+    The list is protected against simultaneous access from multiple
+    threads by LOCK_xid_list.
+  */
+  struct xid_count_per_binlog : public ilink {
+    char *binlog_name;
+    uint binlog_name_len;
+    ulong binlog_id;
+    /* Total prepared XIDs and pending checkpoint requests in this binlog. */
+    long xid_count;
+    /* For linking in requests to the binlog background thread. */
+    xid_count_per_binlog *next_in_queue;
+    xid_count_per_binlog();   /* Give link error if constructor used. */
+  };
+  I_List<xid_count_per_binlog> binlog_xid_count_list;
+  mysql_mutex_t LOCK_binlog_background_thread;
+  mysql_cond_t COND_binlog_background_thread;
+  mysql_cond_t COND_binlog_background_thread_end;
+
   using MYSQL_LOG::generate_name;
   using MYSQL_LOG::is_open;
 
@@ -709,6 +710,8 @@ public:
   bool appendv(const char* buf,uint len,...);
   bool append(Log_event* ev);
 
+  void mark_xids_active(ulong cookie, uint xid_count);
+  void mark_xid_done(ulong cookie, bool write_checkpoint);
   void make_log_name(char* buf, const char* log_ident);
   bool is_active(const char* log_file_name);
   bool can_purge_log(const char *log_file_name);

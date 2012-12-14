@@ -54,6 +54,7 @@
 #include "rpl_handler.h"
 #include "debug_sync.h"
 #include "sql_show.h"
+#include "my_pthread.h"
 
 /* max size of the log message */
 #define MAX_LOG_BUFFER_SIZE 1024
@@ -106,6 +107,17 @@ static SHOW_VAR binlog_status_vars_detail[]=
    (char *)&binlog_snapshot_position, SHOW_LONGLONG},
   {NullS, NullS, SHOW_LONG}
 };
+
+/*
+  Variables for the binlog background thread.
+  Protected by the MYSQL_BIN_LOG::LOCK_binlog_background_thread mutex.
+ */
+static bool binlog_background_thread_started= false;
+static bool binlog_background_thread_stop= false;
+static MYSQL_BIN_LOG::xid_count_per_binlog *
+    binlog_background_thread_queue= NULL;
+
+static bool start_binlog_background_thread();
 
 
 /**
@@ -2958,12 +2970,28 @@ void MYSQL_BIN_LOG::cleanup()
       my_free(b);
     }
 
+    /* Wait for the binlog background thread to stop. */
+    if (!is_relay_log && binlog_background_thread_started)
+    {
+      mysql_mutex_lock(&LOCK_binlog_background_thread);
+      binlog_background_thread_stop= true;
+      mysql_cond_signal(&COND_binlog_background_thread);
+      while (binlog_background_thread_stop)
+        mysql_cond_wait(&COND_binlog_background_thread_end,
+                        &LOCK_binlog_background_thread);
+      mysql_mutex_unlock(&LOCK_binlog_background_thread);
+      binlog_background_thread_started= false;
+    }
+
     mysql_mutex_destroy(&LOCK_log);
     mysql_mutex_destroy(&LOCK_index);
     mysql_mutex_destroy(&LOCK_xid_list);
+    mysql_mutex_destroy(&LOCK_binlog_background_thread);
     mysql_cond_destroy(&update_cond);
     mysql_cond_destroy(&COND_queue_busy);
     mysql_cond_destroy(&COND_xid_list);
+    mysql_cond_destroy(&COND_binlog_background_thread);
+    mysql_cond_destroy(&COND_binlog_background_thread_end);
   }
   DBUG_VOID_RETURN;
 }
@@ -2989,6 +3017,13 @@ void MYSQL_BIN_LOG::init_pthread_objects()
   mysql_cond_init(m_key_update_cond, &update_cond, 0);
   mysql_cond_init(m_key_COND_queue_busy, &COND_queue_busy, 0);
   mysql_cond_init(key_BINLOG_COND_xid_list, &COND_xid_list, 0);
+
+  mysql_mutex_init(key_BINLOG_LOCK_binlog_background_thread,
+                   &LOCK_binlog_background_thread, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_BINLOG_COND_binlog_background_thread,
+                  &COND_binlog_background_thread, 0);
+  mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
+                  &COND_binlog_background_thread_end, 0);
 }
 
 
@@ -3085,6 +3120,10 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
   DBUG_ENTER("MYSQL_BIN_LOG::open");
   DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
+
+  if (!is_relay_log && !binlog_background_thread_started &&
+      start_binlog_background_thread())
+    DBUG_RETURN(1);
 
   if (init_and_set_log_file_name(log_name, new_name, log_type_arg,
                                  io_cache_type_arg))
@@ -5541,11 +5580,7 @@ bool general_log_write(THD *thd, enum enum_server_command command,
 }
 
 
-/*
-  I would like to make this function static, but this causes compiler warnings
-  when it is declared as friend function in log.h.
-*/
-void
+static void
 binlog_checkpoint_callback(void *cookie)
 {
   MYSQL_BIN_LOG::xid_count_per_binlog *entry=
@@ -8135,8 +8170,128 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
 void
 TC_LOG_BINLOG::commit_checkpoint_notify(void *cookie)
 {
-  mark_xid_done(((xid_count_per_binlog *)cookie)->binlog_id, true);
+  xid_count_per_binlog *entry= static_cast<xid_count_per_binlog *>(cookie);
+  mysql_mutex_lock(&LOCK_binlog_background_thread);
+  entry->next_in_queue= binlog_background_thread_queue;
+  binlog_background_thread_queue= entry;
+  mysql_cond_signal(&COND_binlog_background_thread);
+  mysql_mutex_unlock(&LOCK_binlog_background_thread);
 }
+
+/*
+  Binlog background thread.
+
+  This thread is used to log binlog checkpoints in the background, rather than
+  in the context of random storage engine threads that happen to call
+  commit_checkpoint_notify_ha() and may not like the delays while syncing
+  binlog to disk or may not be setup with all my_thread_init() and other
+  necessary stuff.
+
+  In the future, this thread could also be used to do log rotation in the
+  background, which could elimiate all stalls around binlog rotations.
+*/
+pthread_handler_t
+binlog_background_thread(void *arg __attribute__((unused)))
+{
+  bool stop;
+  MYSQL_BIN_LOG::xid_count_per_binlog *queue, *next;
+  THD *thd;
+
+  my_thread_init();
+  thd= new THD;
+  thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
+  thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
+  mysql_mutex_lock(&LOCK_thread_count);
+  thd->thread_id= thread_id++;
+  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->store_globals();
+
+  for (;;)
+  {
+    /*
+      Wait until there is something in the queue to process, or we are asked
+      to shut down.
+    */
+    thd_proc_info(thd, "Waiting for background binlog tasks");
+    mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+    for (;;)
+    {
+      stop= binlog_background_thread_stop;
+      queue= binlog_background_thread_queue;
+      if (stop || queue)
+        break;
+      mysql_cond_wait(&mysql_bin_log.COND_binlog_background_thread,
+                      &mysql_bin_log.LOCK_binlog_background_thread);
+    }
+    /* Grab the queue, if any. */
+    binlog_background_thread_queue= NULL;
+    mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+    /* Process any incoming commit_checkpoint_notify() calls. */
+    while (queue)
+    {
+      thd_proc_info(thd, "Processing binlog checkpoint notification");
+      /* Grab next pointer first, as mark_xid_done() may free the element. */
+      next= queue->next_in_queue;
+      mysql_bin_log.mark_xid_done(queue->binlog_id, true);
+      queue= next;
+
+      DBUG_EXECUTE_IF("binlog_background_checkpoint_processed",
+        DBUG_ASSERT(!debug_sync_set_action(
+          thd,
+          STRING_WITH_LEN("now SIGNAL binlog_background_checkpoint_processed")));
+        );
+    }
+
+    if (stop)
+      break;
+  }
+
+  thd_proc_info(thd, "Stopping binlog background thread");
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  my_thread_end();
+
+  /* Signal that we are (almost) stopped. */
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  binlog_background_thread_stop= false;
+  mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  return 0;
+}
+
+#ifdef HAVE_PSI_INTERFACE
+static PSI_thread_key key_thread_binlog;
+
+static PSI_thread_info all_binlog_threads[]=
+{
+  { &key_thread_binlog, "binlog_background", PSI_FLAG_GLOBAL},
+};
+#endif /* HAVE_PSI_INTERFACE */
+
+static bool
+start_binlog_background_thread()
+{
+  pthread_t th;
+
+#ifdef HAVE_PSI_INTERFACE
+  if (PSI_server)
+    PSI_server->register_thread("sql", all_binlog_threads,
+                                array_elements(all_binlog_threads));
+#endif
+
+  if (mysql_thread_create(key_thread_binlog, &th, NULL,
+                          binlog_background_thread, NULL))
+    return 1;
+
+  binlog_background_thread_started= true;
+  return 0;
+}
+
 
 int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            IO_CACHE *first_log,
