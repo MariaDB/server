@@ -29,6 +29,7 @@
 #include "sql_parse.h"                       // check_table_access
 #include "strfunc.h"
 #include "sql_admin.h"
+#include "sql_statistics.h"
 
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
@@ -718,7 +719,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (compl_result_code == HA_ADMIN_OK &&
         operator_func == &handler::ha_analyze && 
         table->table->s->table_category == TABLE_CATEGORY_USER &&
-        (thd->variables.use_stat_tables > 0 ||
+        (get_use_stat_tables_mode(thd) > NEVER ||
          lex->with_persistent_for_clause)) 
     {
       if (!(compl_result_code=

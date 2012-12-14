@@ -310,22 +310,6 @@ int dynamic_column_error_message(enum_dyncol_func_result rc);
 /* open_and_lock_tables with optional derived handling */
 int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 
-int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
-int collect_statistics_for_table(THD *thd, TABLE *table);
-int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
-                                     bool is_safe);
-int alloc_statistics_for_table(THD *thd, TABLE *table);
-int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, LEX_STRING *db, LEX_STRING *tab);
-int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
-int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
-                                bool ext_prefixes_only);
-int rename_table_in_stat_tables(THD *thd, LEX_STRING *db, LEX_STRING *tab,
-                                LEX_STRING *new_db, LEX_STRING *new_tab);
-int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
-                                  const char *new_name);
-void set_statistics_for_table(THD *thd, TABLE *table);
-
 extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
                                   const void* key2);
 extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);

@@ -45,6 +45,7 @@
 #include "set_var.h"
 #include "sql_trigger.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "sql_connect.h"
 #include "authors.h"
 #include "contributors.h"
@@ -5765,7 +5766,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           if (key->rec_per_key[j])
           {
             ha_rows records=((double) show_table->stat_records() /
-                             key->real_rec_per_key(j));
+                             key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }

@@ -206,6 +206,8 @@ private:
   Count_distinct_field *count_distinct; /* The container for distinct 
                                            column values */
 
+  bool is_single_pk_col; /* TRUE <-> the only column of the primary key */ 
+
 public:
 
   inline void init(THD *thd, Field * table_field);
@@ -1399,6 +1401,8 @@ private:
     
 public:
 
+  bool is_single_comp_pk;
+
   Index_prefix_calc(TABLE *table, KEY *key_info)
     : index_table(table), index_info(key_info)
   {
@@ -1407,6 +1411,16 @@ public:
     uint key_parts= table->actual_n_key_parts(key_info);
     empty= TRUE;
     prefixes= 0;
+
+    is_single_comp_pk= FALSE;
+    uint pk= table->s->primary_key;
+    if (table->key_info - key_info == pk && table->key_info[pk].key_parts == 1)
+    {
+      prefixes= 1;
+      is_single_comp_pk= TRUE;
+      return;
+    }
+        
     if ((calc_state=
          (Prefix_calc_state *) sql_alloc(sizeof(Prefix_calc_state)*key_parts)))
     {
@@ -1429,6 +1443,7 @@ public:
       }
     }
   }
+
 
   /** 
     @breif
@@ -1487,6 +1502,13 @@ public:
   {
     uint i;
     Prefix_calc_state *state;
+
+    if (is_single_comp_pk)
+    {
+      index_info->collected_stats->set_avg_frequency(0, 1.0);
+      return;
+    }
+
     for (i= 0, state= calc_state; i < prefixes; i++, state++)
     {
       if (i < prefixes)
@@ -1658,7 +1680,7 @@ void create_min_max_stistical_fields_for_table_share(THD *thd,
 int alloc_statistics_for_table(THD* thd, TABLE *table)
 { 
   Field **field_ptr;
-  uint cnt= 0;
+  uint fields;
 
   DBUG_ENTER("alloc_statistics_for_table");
 
@@ -1666,10 +1688,11 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     (Table_statistics *) alloc_root(&table->mem_root,
                                     sizeof(Table_statistics));
 
-  for (field_ptr= table->field; *field_ptr; field_ptr++, cnt++) ; 
+  fields= table->s->fields ; 
   Column_statistics_collected *column_stats=
     (Column_statistics_collected *) alloc_root(&table->mem_root,
-                                    sizeof(Column_statistics_collected) * cnt);
+                                    sizeof(Column_statistics_collected) *
+                                    fields);
 
   uint keys= table->s->keys;
   Index_statistics *index_stats=
@@ -1688,7 +1711,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
   
-  memset(column_stats, 0, sizeof(Column_statistics) * cnt);
+  memset(column_stats, 0, sizeof(Column_statistics) * fields);
 
   for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
     (*field_ptr)->collected_stats= column_stats;
@@ -1838,13 +1861,23 @@ inline
 void Column_statistics_collected::init(THD *thd, Field *table_field)
 {
   uint max_heap_table_size= thd->variables.max_heap_table_size;
+  TABLE *table= table_field->table;
+  uint pk= table->s->primary_key;
+  
+  is_single_pk_col= FALSE;
 
+  if (pk != MAX_KEY && table->key_info[pk].key_parts == 1 &&
+      table->key_info[pk].key_part[0].fieldnr == table_field->field_index + 1)
+    is_single_pk_col= TRUE;  
+  
   column= table_field;
 
   set_all_nulls();
 
   nulls= 0;
   column_total_length= 0;
+  if (is_single_pk_col)
+    count_distinct= NULL;
   if (table_field->flags & BLOB_FLAG)
     count_distinct= NULL;
   else
@@ -1923,6 +1956,12 @@ void Column_statistics_collected::finish(ha_rows rows)
     delete count_distinct;
     count_distinct= NULL;
   }
+  else if (is_single_pk_col)
+  {
+    val= 1.0;
+    set_avg_frequency(val); 
+    set_not_null(COLUMN_STAT_AVG_FREQUENCY);
+  } 
 }
 
 
@@ -1985,6 +2024,12 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
 
   DEBUG_SYNC(table->in_use, "statistics_collection_start1");
   DEBUG_SYNC(table->in_use, "statistics_collection_start2");
+
+  if (index_prefix_calc.is_single_comp_pk)
+  {
+    index_prefix_calc.get_avg_frequency();
+    DBUG_RETURN(rc);
+  }
 
   table->key_read= 1;
   table->file->extra(HA_EXTRA_KEYREAD);
@@ -2078,7 +2123,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
 
   table->collected_stats->cardinality_is_null= TRUE;
   table->collected_stats->cardinality= 0;
- 
+
   for (field_ptr= table->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;   
@@ -2949,9 +2994,9 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
-  uint use_stat_table_mode= thd->variables.use_stat_tables;
+  Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
-    (use_stat_table_mode <= 1 ||
+    (use_stat_table_mode <= COMPLEMENTARY ||
      !table->s->stats_is_read || !table->s->read_stats ||
      table->s->read_stats->cardinality_is_null) ?
     table->file->stats.records : table->s->read_stats->cardinality;
@@ -2960,7 +3005,8 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
-      (use_stat_table_mode > 1  && table->s->stats_is_read &&
+      (use_stat_table_mode > COMPLEMENTARY &&
+       table->s->stats_is_read &&
        key_info->read_stats &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);

@@ -28,6 +28,7 @@
 #include "lock.h"       // MYSQL_OPEN_SKIP_TEMPORARY
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
+#include "sql_statistics.h" 
 #include "datadict.h"
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
