@@ -329,6 +329,46 @@ public:
       *null_ptr= ((*null_ptr & (uchar) ~null_bit) |
 		  (null_ptr[l_offset] & null_bit));
   }
+
+  bool has_insert_default_function() const
+  {
+    return unireg_check == TIMESTAMP_DN_FIELD ||
+      unireg_check == TIMESTAMP_DNUN_FIELD;
+  }
+
+  bool has_update_default_function() const
+  {
+    return unireg_check == TIMESTAMP_UN_FIELD ||
+      unireg_check == TIMESTAMP_DNUN_FIELD;
+  }
+
+  /*
+    Mark the field as having a value supplied by the client, thus it should
+    not be auto-updated.
+  */
+  void set_has_explicit_value()
+  {
+    flags|= HAS_EXPLICIT_VALUE;
+  }
+
+  virtual void set_explicit_default(Item *value);
+
+  /**
+     Evaluates the @c INSERT default function and stores the result in the
+     field. If no such function exists for the column, or the function is not
+     valid for the column's data type, invoking this function has no effect.
+  */
+  virtual int evaluate_insert_default_function() { return 0; }
+
+
+  /**
+     Evaluates the @c UPDATE default function, if one exists, and stores the
+     result in the record buffer. If no such function exists for the column,
+     or the function is not valid for the column's data type, invoking this
+     function has no effect.
+  */
+  virtual int evaluate_update_default_function() { return 0; }
+
   virtual bool binary() const { return 1; }
   virtual bool zero_pack() const { return 1; }
   virtual enum ha_base_keytype key_type() const { return HA_KEYTYPE_BINARY; }
@@ -1239,11 +1279,25 @@ public:
   virtual int set_time();
   virtual void set_default()
   {
-    if (table->timestamp_field == this &&
-        unireg_check != TIMESTAMP_UN_FIELD)
+    if (has_insert_default_function())
       set_time();
     else
       Field::set_default();
+  }
+  virtual void set_explicit_default(Item *value);
+  virtual int evaluate_insert_default_function()
+  {
+    int res= 0;
+    if (has_insert_default_function())
+      res= set_time();
+    return res;
+  }
+  virtual int evaluate_update_default_function()
+  {
+    int res= 0;
+    if (has_update_default_function())
+      res= set_time();
+    return res;
   }
   /* Get TIMESTAMP field value as seconds since begging of Unix Epoch */
   virtual my_time_t get_timestamp(ulong *sec_part) const;
@@ -1252,7 +1306,6 @@ public:
     int4store(ptr,timestamp);
   }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  timestamp_auto_set_type get_auto_set_type() const;
   uchar *pack(uchar *to, const uchar *from,
               uint max_length __attribute__((unused)))
   {
@@ -1503,6 +1556,28 @@ public:
   void sql_type(String &str) const;
   bool zero_pack() const { return 1; }
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
+  virtual int set_time();
+  virtual void set_default()
+  {
+    if (has_insert_default_function())
+      set_time();
+    else
+      Field::set_default();
+  }
+  virtual int evaluate_insert_default_function()
+  {
+    int res= 0;
+    if (has_insert_default_function())
+      res= set_time();
+    return res;
+  }
+  virtual int evaluate_update_default_function()
+  {
+    int res= 0;
+    if (has_update_default_function())
+      res= set_time();
+    return res;
+  }
   uchar *pack(uchar* to, const uchar *from,
               uint max_length __attribute__((unused)))
   {

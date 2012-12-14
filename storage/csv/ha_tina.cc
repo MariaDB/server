@@ -999,9 +999,6 @@ int ha_tina::write_row(uchar * buf)
 
   ha_statistic_increment(&SSV::ha_write_count);
 
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
-
   size= encode_quote(buf);
 
   if (!share->tina_write_opened)
@@ -1063,9 +1060,6 @@ int ha_tina::update_row(const uchar * old_data, uchar * new_data)
   DBUG_ENTER("ha_tina::update_row");
 
   ha_statistic_increment(&SSV::ha_update_count);
-
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
 
   size= encode_quote(new_data);
 

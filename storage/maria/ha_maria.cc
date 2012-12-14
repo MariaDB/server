@@ -1248,10 +1248,6 @@ int ha_maria::close(void)
 
 int ha_maria::write_row(uchar * buf)
 {
-  /* If we have a timestamp column, update it to the current time */
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
-
   /*
      If we have an auto_increment column and we are writing a changed row
      or a new row, then update the auto_increment value in the record.
@@ -2245,8 +2241,6 @@ bool ha_maria::is_crashed() const
 int ha_maria::update_row(const uchar * old_data, uchar * new_data)
 {
   CHECK_UNTIL_WE_FULLY_IMPLEMENTED_VERSIONING("UPDATE in WRITE CONCURRENT");
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
   return maria_update(file, old_data, new_data);
 }
 
