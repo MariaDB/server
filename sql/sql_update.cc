@@ -480,10 +480,8 @@ int mysql_update(THD *thd,
       We can't update table directly;  We must first search after all
       matching rows before updating the table!
     */
-
-    // Verify that table->restore_column_maps_after_mark_index() will work
-    DBUG_ASSERT(table->read_set == &table->def_read_set);
-    DBUG_ASSERT(table->write_set == &table->def_write_set);
+    MY_BITMAP *save_read_set= table->read_set;
+    MY_BITMAP *save_write_set= table->write_set;
 
     if (used_index < MAX_KEY && old_covering_keys.is_set(used_index))
       table->add_read_columns_used_by_index(used_index);
@@ -622,11 +620,8 @@ int mysql_update(THD *thd,
       if (error >= 0)
 	goto err;
     }
-    /*
-      This restore bitmaps, works for add_read_columns_used_by_index() and
-      use_all_columns():
-    */
-    table->restore_column_maps_after_mark_index();
+    table->disable_keyread();
+    table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
   if (ignore)

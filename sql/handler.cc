@@ -5446,7 +5446,7 @@ int handler::ha_delete_row(const uchar *buf)
 void handler::use_hidden_primary_key()
 {
   /* fallback to use all columns in the table to identify row */
-  table->use_all_columns();
+  table->column_bitmaps_set(&table->s->all_set, table->write_set);
 }
 
 
