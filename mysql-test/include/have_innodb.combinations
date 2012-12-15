@@ -1,13 +1,13 @@
 [innodb_plugin]
 ignore-builtin-innodb
-plugin-load=$HA_INNODB_SO
+plugin-load-add=$HA_INNODB_SO
 innodb
 innodb-cmpmem
 innodb-trx
 
 [xtradb_plugin]
 ignore-builtin-innodb
-plugin-load=$HA_XTRADB_SO
+plugin-load-add=$HA_XTRADB_SO
 innodb
 innodb-cmpmem
 innodb-trx

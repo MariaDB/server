@@ -1,2 +1,2 @@
 --loose-archive
---plugin-load=$HA_ARCHIVE_SO
+--plugin-load-add=$HA_ARCHIVE_SO

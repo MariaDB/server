@@ -1,2 +1,2 @@
 --loose-feedback
---plugin-load=$FEEDBACK_SO
+--plugin-load-add=$FEEDBACK_SO

@@ -5264,9 +5264,6 @@ sub mysqld_arguments ($$$) {
   }
 
   my $found_skip_core= 0;
-  my @plugins;
-  my %seen;
-  my $plugin;
   foreach my $arg ( @$extra_opts )
   {
     # Skip --defaults-file option since it's handled above.
@@ -5286,12 +5283,6 @@ sub mysqld_arguments ($$$) {
     {
       ; # Dont add --skip-log-bin when mysqld have --log-slave-updates in config
     }
-    elsif ($plugin = mtr_match_prefix($arg,  "--plugin-load="))
-    {
-      next if $plugin =~ /=$/;
-      push @plugins, $plugin unless $seen{$plugin};
-      $seen{$plugin} = 1;
-    }
     else
     {
       mtr_add_arg($args, "%s", $arg);
@@ -5307,11 +5298,6 @@ sub mysqld_arguments ($$$) {
   # Facility stays disabled if timeout value is zero.
   mtr_add_arg($args, "--loose-debug-sync-timeout=%s",
               $opt_debug_sync_timeout) unless $opt_user_args;
-
-  if (@plugins) {
-    my $sep = (IS_WINDOWS) ? ';' : ':';
-    mtr_add_arg($args, "--plugin-load=%s" .  join($sep, @plugins));
-  }
 
   return $args;
 }

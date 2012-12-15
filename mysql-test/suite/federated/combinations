@@ -1,6 +1,6 @@
 [old]
-plugin-load=$HA_FEDERATED_SO
+plugin-load-add=$HA_FEDERATED_SO
 
 [X]
-plugin-load=$HA_FEDERATEDX_SO
+plugin-load-add=$HA_FEDERATEDX_SO
 

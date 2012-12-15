@@ -606,6 +606,11 @@ The following options may be given as the first argument:
  plugin is specified as ether a plugin_name=library_file
  pair or only a library_file. If the latter case, all
  plugins from a given library_file will be loaded.
+ --plugin-load-add=name 
+ Optional semicolon-separated list of plugins to load.
+ This option adds to the list speficied by --plugin-load
+ in an incremental way. It can be specified many times,
+ adding more plugins every time.
  --plugin-maturity=name 
  The lowest desirable plugin maturity (unknown,
  experimental, alpha, beta, gamma, or stable). Plugins
@@ -1115,7 +1120,6 @@ performance-schema-max-thread-instances 1000
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
 performance-schema-users-size 100
-plugin-load (No default value)
 plugin-maturity unknown
 port 3306
 port-open-timeout 0
