@@ -1,2 +1,2 @@
 --loose-blackhole
---plugin-load=$HA_BLACKHOLE_SO
+--plugin-load-add=$HA_BLACKHOLE_SO

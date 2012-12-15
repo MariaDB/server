@@ -1908,6 +1908,7 @@ void clean_up(bool print_message)
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
+  free_list(opt_plugin_load_list_ptr);
   /*
     The following lines may never be executed as the main thread may have
     killed us
@@ -6626,12 +6627,18 @@ struct my_option my_long_options[]=
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"plugin-load", 0,
+  {"plugin-load", OPT_PLUGIN_LOAD,
    "Semicolon-separated list of plugins to load, where each plugin is "
    "specified as ether a plugin_name=library_file pair or only a library_file. "
    "If the latter case, all plugins from a given library_file will be loaded.",
-   &opt_plugin_load, &opt_plugin_load, 0,
+   0, 0, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"plugin-load-add", OPT_PLUGIN_LOAD_ADD,
+   "Optional semicolon-separated list of plugins to load. This option adds "
+   "to the list speficied by --plugin-load in an incremental way. "
+   "It can be specified many times, adding more plugins every time.",
+   0, 0, 0,
+    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &table_cache_size, &table_cache_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
@@ -7988,6 +7995,13 @@ mysqld_get_one_option(int optid,
         return 1;
       }
     }
+    break;
+
+  case OPT_PLUGIN_LOAD:
+    free_list(opt_plugin_load_list_ptr);
+    /* fall through */
+  case OPT_PLUGIN_LOAD_ADD:
+    opt_plugin_load_list_ptr->push_back(new i_string(argument));
     break;
   case OPT_MAX_LONG_DATA_SIZE:
     max_long_data_size_used= true;
