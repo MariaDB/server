@@ -750,55 +750,58 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   acl_cache->clear(1);				// Clear locked hostname cache
 
   init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0);
-  if (init_read_record(&read_record_info, thd, table= tables[0].table,
-                       NULL, 1, 1, FALSE))
-    goto end;
-  table->use_all_columns();
   (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST),20,50);
-  while (!(read_record_info.read_record(&read_record_info)))
+  if (tables[0].table) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
-    ACL_HOST host;
-    update_hostname(&host.host,get_field(&mem, table->field[0]));
-    host.db=	 get_field(&mem, table->field[1]);
-    if (lower_case_table_names && host.db)
+    if (init_read_record(&read_record_info, thd, table= tables[0].table,
+                         NULL, 1, 1, FALSE))
+      goto end;
+    table->use_all_columns();
+    while (!(read_record_info.read_record(&read_record_info)))
     {
-      /*
-        convert db to lower case and give a warning if the db wasn't
-        already in lower case
-      */
-      (void) strmov(tmp_name, host.db);
-      my_casedn_str(files_charset_info, host.db);
-      if (strcmp(host.db, tmp_name) != 0)
-        sql_print_warning("'host' entry '%s|%s' had database in mixed "
-                          "case that has been forced to lowercase because "
-                          "lower_case_table_names is set. It will not be "
-                          "possible to remove this privilege using REVOKE.",
+      ACL_HOST host;
+      update_hostname(&host.host,get_field(&mem, table->field[0]));
+      host.db=	 get_field(&mem, table->field[1]);
+      if (lower_case_table_names && host.db)
+      {
+        /*
+          convert db to lower case and give a warning if the db wasn't
+          already in lower case
+        */
+        (void) strmov(tmp_name, host.db);
+        my_casedn_str(files_charset_info, host.db);
+        if (strcmp(host.db, tmp_name) != 0)
+          sql_print_warning("'host' entry '%s|%s' had database in mixed "
+                            "case that has been forced to lowercase because "
+                            "lower_case_table_names is set. It will not be "
+                            "possible to remove this privilege using REVOKE.",
+                            host.host.hostname ? host.host.hostname : "",
+                            host.db ? host.db : "");
+      }
+      host.access= get_access(table,2);
+      host.access= fix_rights_for_db(host.access);
+      host.sort=	 get_sort(2,host.host.hostname,host.db);
+      if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
+      {
+        sql_print_warning("'host' entry '%s|%s' "
+                        "ignored in --skip-name-resolve mode.",
                           host.host.hostname ? host.host.hostname : "",
                           host.db ? host.db : "");
-    }
-    host.access= get_access(table,2);
-    host.access= fix_rights_for_db(host.access);
-    host.sort=	 get_sort(2,host.host.hostname,host.db);
-    if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
-    {
-      sql_print_warning("'host' entry '%s|%s' "
-		      "ignored in --skip-name-resolve mode.",
-			host.host.hostname ? host.host.hostname : "",
-			host.db ? host.db : "");
-      continue;
-    }
+        continue;
+      }
 #ifndef TO_BE_REMOVED
-    if (table->s->fields == 8)
-    {						// Without grant
-      if (host.access & CREATE_ACL)
-	host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
-    }
+      if (table->s->fields == 8)
+      {						// Without grant
+        if (host.access & CREATE_ACL)
+          host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
+      }
 #endif
-    (void) push_dynamic(&acl_hosts,(uchar*) &host);
+      (void) push_dynamic(&acl_hosts,(uchar*) &host);
+    }
+    my_qsort((uchar*) dynamic_element(&acl_hosts,0,ACL_HOST*),acl_hosts.elements,
+             sizeof(ACL_HOST),(qsort_cmp) acl_compare);
+    end_read_record(&read_record_info);
   }
-  my_qsort((uchar*) dynamic_element(&acl_hosts,0,ACL_HOST*),acl_hosts.elements,
-	   sizeof(ACL_HOST),(qsort_cmp) acl_compare);
-  end_read_record(&read_record_info);
   freeze_size(&acl_hosts);
 
   if (init_read_record(&read_record_info, thd, table=tables[1].table,
@@ -1173,7 +1176,7 @@ my_bool acl_reload(THD *thd)
   tables[2].next_local= tables[2].next_global= tables + 3;
   tables[0].open_type= tables[1].open_type= tables[2].open_type= 
   tables[3].open_type= OT_BASE_ONLY;
-  tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  tables[0].open_strategy= tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
