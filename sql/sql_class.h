@@ -2564,6 +2564,11 @@ public:
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
+  inline bool is_strict_mode() const
+  {
+    return variables.sql_mode & (MODE_STRICT_TRANS_TABLES |
+                                 MODE_STRICT_ALL_TABLES);
+  }
   inline my_time_t query_start() { query_start_used=1; return start_time; }
   inline ulong query_start_sec_part()
   { query_start_sec_part_used=1; return start_time_sec_part; }
@@ -3337,7 +3342,7 @@ my_eof(THD *thd)
 
 const my_bool strict_date_checking= 0;
 
-inline ulong sql_mode_for_dates(THD *thd)
+inline ulonglong sql_mode_for_dates(THD *thd)
 {
   if (strict_date_checking)
     return (thd->variables.sql_mode &
@@ -3346,7 +3351,7 @@ inline ulong sql_mode_for_dates(THD *thd)
   return (thd->variables.sql_mode & MODE_INVALID_DATES);
 }
 
-inline ulong sql_mode_for_dates()
+inline ulonglong sql_mode_for_dates()
 {
   return sql_mode_for_dates(current_thd);
 }

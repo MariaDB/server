@@ -385,9 +385,7 @@ sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr)
   */
 
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-  thd->abort_on_warning=
-    thd->variables.sql_mode &
-    (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES);
+  thd->abort_on_warning= thd->is_strict_mode();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
 
   /* Save the value in the field. Convert the value if needed. */

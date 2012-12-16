@@ -9004,9 +9004,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
         A default other than '' is always an error, and any non-NULL
         specified default is an error in strict mode.
       */
-      if (res->length() || (thd->variables.sql_mode &
-                            (MODE_STRICT_TRANS_TABLES |
-                             MODE_STRICT_ALL_TABLES)))
+      if (res->length() || thd->is_strict_mode())
       {
         my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0),
                  fld_name); /* purecov: inspected */

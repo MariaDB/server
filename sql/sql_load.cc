@@ -487,10 +487,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       table->file->ha_start_bulk_insert((ha_rows) 0);
     table->copy_blobs=1;
 
-    thd->abort_on_warning= (!ignore &&
-                            (thd->variables.sql_mode &
-                             (MODE_STRICT_TRANS_TABLES |
-                              MODE_STRICT_ALL_TABLES)));
+    thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
     thd_progress_init(thd, 2);
     if (ex->filetype == FILETYPE_XML) /* load xml */
