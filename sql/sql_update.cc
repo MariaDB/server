@@ -643,10 +643,7 @@ int mysql_update(THD *thd,
   THD_STAGE_INFO(thd, stage_updating);
 
   transactional_table= table->file->has_transactions();
-  thd->abort_on_warning= test(!ignore &&
-                              (thd->variables.sql_mode &
-                               (MODE_STRICT_TRANS_TABLES |
-                                MODE_STRICT_ALL_TABLES)));
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   if (table->triggers &&
       table->triggers->has_triggers(TRG_EVENT_UPDATE,
                                     TRG_ACTION_AFTER))
@@ -1391,9 +1388,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= test(thd->variables.sql_mode &
-                              (MODE_STRICT_TRANS_TABLES |
-                               MODE_STRICT_ALL_TABLES));
+  thd->abort_on_warning= thd->is_strict_mode();
 
   List<Item> total_list;
 

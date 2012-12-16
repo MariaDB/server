@@ -311,7 +311,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
     else
       llstr(v, buf);
 
-    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+    if (thd->is_strict_mode())
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
@@ -331,7 +331,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
 
     my_gcvt(v, MY_GCVT_ARG_DOUBLE, sizeof(buf) - 1, buf, NULL);
 
-    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+    if (thd->is_strict_mode())
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;

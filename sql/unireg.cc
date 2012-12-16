@@ -241,8 +241,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
          (real_table_name= field->field->table->s->table_name.str))
         break;
     }
-    if ((thd->variables.sql_mode &
-         (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
+    if (thd->is_strict_mode())
     {
       my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
                real_table_name, static_cast<ulong>(TABLE_COMMENT_MAXLEN));
@@ -707,8 +706,7 @@ static bool pack_header(uchar *forminfo, enum legacy_db_type table_type,
                                                      COLUMN_COMMENT_MAXLEN);
     if (tmp_len < field->comment.length)
     {
-      if ((current_thd->variables.sql_mode &
-	   (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
+      if (current_thd->is_strict_mode())
       {
         my_error(ER_TOO_LONG_FIELD_COMMENT, MYF(0), field->field_name,
                  static_cast<ulong>(COLUMN_COMMENT_MAXLEN));
