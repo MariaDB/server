@@ -6880,12 +6880,3 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
-
-/*****************************************************************************
-** Instansiate templates
-*****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<String>;
-template class List_iterator<String>;
-#endif

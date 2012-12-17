@@ -159,7 +159,3 @@ bool process_key_caches(process_key_cache_t func, void *param)
   return res != 0;
 }
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class I_List_iterator<NAMED_ILINK>;
-#endif
-
