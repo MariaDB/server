@@ -5009,8 +5009,6 @@ restart:
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
     {
-      bool need_prelocking= FALSE;
-      TABLE_LIST **save_query_tables_last= thd->lex->query_tables_last;
       /*
         Process elements of the prelocking set which are present there
         since parsing stage or were added to it by invocations of
@@ -5023,9 +5021,18 @@ restart:
       for (Sroutine_hash_entry *rt= *sroutine_to_open; rt;
            sroutine_to_open= &rt->next, rt= rt->next)
       {
+        bool need_prelocking= false;
+        TABLE_LIST **save_query_tables_last= thd->lex->query_tables_last;
+
         error= open_and_process_routine(thd, thd->lex, rt, prelocking_strategy,
                                         has_prelocking_list, &ot_ctx,
                                         &need_prelocking);
+
+        if (need_prelocking && ! thd->lex->requires_prelocking())
+          thd->lex->mark_as_requiring_prelocking(save_query_tables_last);
+
+        if (need_prelocking && ! *start)
+          *start= thd->lex->query_tables;
 
         if (error)
         {
@@ -5047,12 +5054,6 @@ restart:
           goto err;
         }
       }
-
-      if (need_prelocking && ! thd->lex->requires_prelocking())
-        thd->lex->mark_as_requiring_prelocking(save_query_tables_last);
-
-      if (need_prelocking && ! *start)
-        *start= thd->lex->query_tables;
     }
   }
 
@@ -5324,6 +5325,12 @@ static bool check_lock_and_start_stmt(THD *thd,
   int error;
   thr_lock_type lock_type;
   DBUG_ENTER("check_lock_and_start_stmt");
+
+  /*
+    Prelocking placeholder is not set for TABLE_LIST that
+    are directly used by TOP level statement.
+  */
+  DBUG_ASSERT(table_list->prelocking_placeholder == false);
 
   /*
     TL_WRITE_DEFAULT and TL_READ_DEFAULT are supposed to be parser only
@@ -8873,7 +8880,9 @@ fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
   /* Update virtual fields*/
   thd->abort_on_warning= FALSE;
   if (vcol_table && vcol_table->vfield &&
-      update_virtual_fields(thd, vcol_table, TRUE))
+      update_virtual_fields(thd, vcol_table,
+                            vcol_table->triggers ? VCOL_UPDATE_ALL :
+                                                   VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= save_abort_on_warning;
   thd->no_errors=        save_no_errors;
@@ -8934,7 +8943,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, List<Item> &fields,
       if (item_field && item_field->field && table && table->vfield)
       {
         DBUG_ASSERT(table == item_field->field->table);
-        result= update_virtual_fields(thd, table, TRUE);
+        result= update_virtual_fields(thd, table,
+                                      table->triggers ? VCOL_UPDATE_ALL :
+                                                        VCOL_UPDATE_FOR_WRITE);
       }
     }
   }
@@ -9018,7 +9029,10 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   }
   /* Update virtual fields*/
   thd->abort_on_warning= FALSE;
-  if (table->vfield && update_virtual_fields(thd, table, TRUE))
+  if (table->vfield &&
+      update_virtual_fields(thd, table, 
+                            table->triggers ? VCOL_UPDATE_ALL :
+                                              VCOL_UPDATE_FOR_WRITE))
     goto err;
   thd->abort_on_warning= abort_on_warning_saved;
   DBUG_RETURN(thd->is_error());
@@ -9069,7 +9083,9 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
   {
     DBUG_ASSERT(table == (*ptr)->table);
     if (table->vfield)
-      result= update_virtual_fields(thd, table, TRUE);
+      result= update_virtual_fields(thd, table,
+                                    table->triggers ? VCOL_UPDATE_ALL : 
+                                                      VCOL_UPDATE_FOR_WRITE);
   }
   return result;
 

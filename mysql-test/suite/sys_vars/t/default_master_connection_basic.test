@@ -5,6 +5,7 @@
 #
 
 --source include/load_sysvars.inc
+--source include/not_embedded.inc
 
 #############################################################
 #                 Save initial value                        #

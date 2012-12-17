@@ -24,7 +24,7 @@
 ###############################################################################
 
 --source include/load_sysvars.inc
-
+--source include/not_embedded.inc
 
 ###################################################################
 #              START OF max_relay_log_size TESTS                  #

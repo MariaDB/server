@@ -7481,7 +7481,7 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
     }
     prev_insert_id= to->file->next_insert_id;
     if (to->vfield)
-      update_virtual_fields(thd, to, TRUE);
+      update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
     if (to->default_field && to->update_default_fields())
     {
       error= 1;

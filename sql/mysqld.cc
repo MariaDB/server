@@ -274,6 +274,8 @@ extern "C" sig_handler handle_fatal_signal(int sig);
 
 /* Constants */
 
+#include <welcome_copyright_notice.h> // ORACLE_WELCOME_COPYRIGHT_NOTICE
+
 const char *show_comp_option_name[]= {"YES", "NO", "DISABLED"};
 
 static const char *tc_heuristic_recover_names[]=
@@ -619,6 +621,21 @@ int bootstrap_error;
 I_List<THD> threads;
 Rpl_filter* rpl_filter;
 Rpl_filter* binlog_filter;
+
+THD *first_global_thread()
+{
+  if (threads.is_empty())
+    return NULL;
+  return threads.head();
+}
+
+THD *next_global_thread(THD *thd)
+{
+  if (threads.is_last(thd))
+    return NULL;
+  struct ilink *next= thd->next;
+  return static_cast<THD*>(next);
+}
 
 struct system_variables global_system_variables;
 struct system_variables max_system_variables;
@@ -1790,6 +1807,7 @@ void clean_up(bool print_message)
 
   my_tz_free();
   my_dboptions_cache_free();
+  ignore_db_dirs_free();
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   servers_free(1);
   acl_free(1);
@@ -3436,6 +3454,9 @@ static int init_common_variables()
       mysql_init_variables())
     return 1;
 
+  if (ignore_db_dirs_init())
+    return 1;
+
 #ifdef HAVE_TZNAME
   struct tm tm_tmp;
   localtime_r(&server_start_time,&tm_tmp);
@@ -3863,6 +3884,12 @@ You should consider changing lower_case_table_names to 1 or 2",
   table_alias_charset= (lower_case_table_names ?
 			files_charset_info :
 			&my_charset_bin);
+
+  if (ignore_db_dirs_process_additions())
+  {
+    sql_print_error("An error occurred while storing ignore_db_dirs to a hash.");
+    return 1;
+  }
 
   return 0;
 }
@@ -6312,7 +6339,7 @@ struct my_option my_long_options[]=
 #ifdef HAVE_MMAP
   {"log-tc-size", 0, "Size of transaction coordinator log.",
    &opt_tc_log_size, &opt_tc_log_size, 0, GET_ULONG,
-   REQUIRED_ARG, TC_LOG_MIN_SIZE, TC_LOG_MIN_SIZE, (longlong) ULONG_MAX, 0,
+   REQUIRED_ARG, TC_LOG_MIN_SIZE, TC_LOG_MIN_SIZE, (ulonglong) ULONG_MAX, 0,
    TC_LOG_PAGE_SIZE, 0},
 #endif
   {"master-info-file", 0,
@@ -6939,6 +6966,7 @@ SHOW_VAR status_vars[]= {
   {"Aborted_clients",          (char*) &aborted_threads,        SHOW_LONG},
   {"Aborted_connects",         (char*) &aborted_connects,       SHOW_LONG},
   {"Access_denied_errors",     (char*) offsetof(STATUS_VAR, access_denied_errors), SHOW_LONG_STATUS},
+  {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Binlog_cache_disk_use",    (char*) &binlog_cache_disk_use,  SHOW_LONG},
   {"Binlog_cache_use",         (char*) &binlog_cache_use,       SHOW_LONG},
   {"Binlog_stmt_cache_disk_use",(char*) &binlog_stmt_cache_disk_use,  SHOW_LONG},
@@ -6946,7 +6974,6 @@ SHOW_VAR status_vars[]= {
   {"Busy_time",                (char*) offsetof(STATUS_VAR, busy_time), SHOW_DOUBLE_STATUS},
   {"Bytes_received",           (char*) offsetof(STATUS_VAR, bytes_received), SHOW_LONGLONG_STATUS},
   {"Bytes_sent",               (char*) offsetof(STATUS_VAR, bytes_sent), SHOW_LONGLONG_STATUS},
-  {"Binlog_bytes_written",     (char*) offsetof(STATUS_VAR, binlog_bytes_written), SHOW_LONGLONG_STATUS},
   {"Com",                      (char*) com_status_vars, SHOW_ARRAY},
   {"Compression",              (char*) &show_net_compression, SHOW_SIMPLE_FUNC},
   {"Connections",              (char*) &thread_id,              SHOW_LONG_NOFLUSH},
@@ -6972,14 +6999,11 @@ SHOW_VAR status_vars[]= {
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
   {"Handler_discover",         (char*) offsetof(STATUS_VAR, ha_discover_count), SHOW_LONG_STATUS},
-
   {"Handler_icp_attempts",     (char*) offsetof(STATUS_VAR, ha_icp_attempts), SHOW_LONG_STATUS},
   {"Handler_icp_match",        (char*) offsetof(STATUS_VAR, ha_icp_match), SHOW_LONG_STATUS},
-
   {"Handler_mrr_init",         (char*) offsetof(STATUS_VAR, ha_mrr_init_count),  SHOW_LONG_STATUS},
   {"Handler_mrr_key_refills",   (char*) offsetof(STATUS_VAR, ha_mrr_key_refills_count), SHOW_LONG_STATUS},
   {"Handler_mrr_rowid_refills", (char*) offsetof(STATUS_VAR, ha_mrr_rowid_refills_count), SHOW_LONG_STATUS},
-
   {"Handler_prepare",          (char*) offsetof(STATUS_VAR, ha_prepare_count),  SHOW_LONG_STATUS},
   {"Handler_read_first",       (char*) offsetof(STATUS_VAR, ha_read_first_count), SHOW_LONG_STATUS},
   {"Handler_read_key",         (char*) offsetof(STATUS_VAR, ha_read_key_count), SHOW_LONG_STATUS},
@@ -7005,8 +7029,8 @@ SHOW_VAR status_vars[]= {
   {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_SIMPLE_FUNC},
   {"Open_tables",              (char*) &show_open_tables,       SHOW_SIMPLE_FUNC},
   {"Opened_files",             (char*) &my_file_total_opened, SHOW_LONG_NOFLUSH},
-  {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_table_definitions", (char*) offsetof(STATUS_VAR, opened_shares), SHOW_LONG_STATUS},
+  {"Opened_tables",            (char*) offsetof(STATUS_VAR, opened_tables), SHOW_LONG_STATUS},
   {"Opened_views",            (char*) offsetof(STATUS_VAR, opened_views), SHOW_LONG_STATUS},
   {"Prepared_stmt_count",      (char*) &show_prepared_stmt_count, SHOW_SIMPLE_FUNC},
   {"Rows_sent",                (char*) offsetof(STATUS_VAR, rows_sent), SHOW_LONGLONG_STATUS},
@@ -7169,14 +7193,8 @@ static void usage(void)
   if (!default_collation_name)
     default_collation_name= (char*) default_charset_info->name;
   print_version();
-  puts("\
-Copyright (C) 2000-2008 MySQL AB, by Monty and others.\n\
-Copyright (C) 2000, 2011 Oracle.\n\
-Copyright (C) 2009-2011 Monty Program Ab.\n\
-This software comes with ABSOLUTELY NO WARRANTY. This is free software,\n\
-and you are welcome to modify and redistribute it under the GPL license\n\n\
-Starts the MariaDB database server.\n");
-
+  puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
+  puts("Starts the MariaDB database server.\n");
   printf("Usage: %s [OPTIONS]\n", my_progname);
   if (!opt_verbose)
     puts("\nFor more help options (several pages), use mysqld --verbose --help.");
@@ -7739,6 +7757,22 @@ mysqld_get_one_option(int optid,
   case OPT_MAX_LONG_DATA_SIZE:
     max_long_data_size_used= true;
     break;
+
+
+  case OPT_IGNORE_DB_DIRECTORY:
+    if (*argument == 0)
+      ignore_db_dirs_reset();
+    else
+    {
+      if (push_ignored_db_dir(argument))
+      {
+        sql_print_error("Can't start server: "
+                        "cannot process --ignore-db-dir=%.*s", 
+                        FN_REFLEN, argument);
+        return 1;
+      }
+    }
+    break;
   }
   return 0;
 }
@@ -8032,10 +8066,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     */
     max_relay_log_size_var= intern_find_sys_var("max_relay_log_size", 0);
     max_binlog_size_var= intern_find_sys_var("max_binlog_size", 0);
-    max_relay_log_size_var->option.min_value=
-      max_binlog_size_var->option.min_value; 
-    max_relay_log_size_var->option.def_value=
-      max_binlog_size_var->option.def_value;
+    if (max_binlog_size_var && max_relay_log_size_var)
+    {
+      max_relay_log_size_var->option.min_value=
+        max_binlog_size_var->option.min_value; 
+      max_relay_log_size_var->option.def_value=
+        max_binlog_size_var->option.def_value;
+    }
   }
   return 0;
 }
