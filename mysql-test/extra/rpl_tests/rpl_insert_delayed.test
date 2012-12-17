@@ -94,8 +94,10 @@ if  (`SELECT @@global.binlog_format = 'STATEMENT'`)
   #flush the logs before the test
   connection slave;
   FLUSH LOGS;
+  source include/wait_for_binlog_checkpoint.inc;
   connection master;
   FLUSH LOGS;
+  source include/wait_for_binlog_checkpoint.inc;
 }
 
 CREATE TABLE t1(a int, UNIQUE(a));
