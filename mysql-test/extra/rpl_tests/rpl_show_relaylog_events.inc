@@ -41,8 +41,10 @@ INSERT INTO t1 VALUES (3);
 #
 
 FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
 -- connection master
 FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
 DROP TABLE t1;
 
 --let $is_relay_log= 0
