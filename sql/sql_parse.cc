@@ -5955,6 +5955,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
 {
   register Create_field *new_field;
   LEX  *lex= thd->lex;
+  uint8 datetime_precision= length ? atoi(length) : 0;
   DBUG_ENTER("add_field_to_list");
 
   if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
@@ -5994,8 +5995,10 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
       NOW() as default for TIMESTAMP and DATETIME type.
     */
     if (default_value->type() == Item::FUNC_ITEM && 
-        !(((Item_func*)default_value)->functype() == Item_func::NOW_FUNC &&
-          (type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_DATETIME)))
+        (static_cast<Item_func*>(default_value)->functype() !=
+         Item_func::NOW_FUNC ||
+         (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME) ||
+         default_value->decimals < datetime_precision))
     {
       my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
       DBUG_RETURN(1);
@@ -6018,7 +6021,8 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
   }
 
   if (on_update_value &&
-      !(type == MYSQL_TYPE_TIMESTAMP || type == MYSQL_TYPE_DATETIME))
+      (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME ||
+       on_update_value->decimals < datetime_precision))
   {
     my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name->str);
     DBUG_RETURN(1);
