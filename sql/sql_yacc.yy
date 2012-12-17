@@ -1483,6 +1483,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         ev_alter_on_schedule_completion opt_ev_rename_to opt_ev_sql_stmt
         optional_flush_tables_arguments opt_dyncol_type dyncol_type
         opt_time_precision kill_type kill_option int_num
+        opt_default_time_precision
 
 %type <m_yes_no_unk>
         opt_chain opt_release
@@ -5898,7 +5899,7 @@ attribute:
           NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
         | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
         | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
-        | ON UPDATE_SYM NOW_SYM opt_time_precision
+        | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (YYTHD->mem_root) Item_func_now_local($4);
             if (item == NULL)
@@ -5992,7 +5993,7 @@ type_with_opt_collate:
 
 
 now_or_signed_literal:
-          NOW_SYM opt_time_precision
+          NOW_SYM opt_default_time_precision
           {
             $$= new (YYTHD->mem_root) Item_func_now_local($2);
             if ($$ == NULL)
@@ -7780,6 +7781,12 @@ select_alias:
         | AS TEXT_STRING_sys { $$=$2; }
         | ident { $$=$1; }
         | TEXT_STRING_sys { $$=$1; }
+        ;
+
+opt_default_time_precision:
+          /* empty */             { $$= NOT_FIXED_DEC;  }
+        | '(' ')'                 { $$= NOT_FIXED_DEC;  }
+        | '(' real_ulong_num ')'  { $$= $2; };
         ;
 
 opt_time_precision:
