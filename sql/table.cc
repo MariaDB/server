@@ -39,6 +39,7 @@
 #include "my_bit.h"
 #include "sql_select.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 
 /* INFORMATION_SCHEMA name */
@@ -544,6 +545,13 @@ inline bool is_system_table_name(const char *name, uint length)
              my_tolower(ci, name[2]) == 'm' &&
              my_tolower(ci, name[3]) == 'e') ||
 
+            /* one of mysql.*_stat tables */
+            (my_tolower(ci, name[length-5]) == 's' &&
+             my_tolower(ci, name[length-4]) == 't' &&
+             my_tolower(ci, name[length-3]) == 'a' &&
+             my_tolower(ci, name[length-2]) == 't' &&
+             my_tolower(ci, name[length-1]) == 's') ||
+           
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
              my_tolower(ci, name[1]) == 'v' &&
@@ -753,7 +761,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   uchar forminfo[288];
   uchar *record;
   uchar *disk_buff, *strpos, *null_flags, *null_pos;
-  ulong pos, record_offset;
+  ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
   handler *handler_file= 0;
@@ -6032,6 +6040,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
   keyinfo->flags= HA_GENERATED_KEY;
   keyinfo->ext_key_flags= keyinfo->flags;
+  keyinfo->is_statistics_from_stat_tables= FALSE;
   if (unique)
     keyinfo->flags|= HA_NOSAME;
   sprintf(buf, "key%i", key);
@@ -6042,6 +6051,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (!keyinfo->rec_per_key)
     return TRUE;
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
+  keyinfo->read_stats= NULL;
+  keyinfo->collected_stats= NULL;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -6785,6 +6796,7 @@ int TABLE_LIST::fetch_number_of_rows()
   {
     table->file->stats.records= ((select_union*)derived->result)->records;
     set_if_bigger(table->file->stats.records, 2);
+    table->used_stat_records= table->file->stats.records;
   }
   else
     error= table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -6880,6 +6892,14 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
+
+double KEY::actual_rec_per_key(uint i)
+{ 
+  if (rec_per_key == 0)
+    return 0;
+  return (is_statistics_from_stat_tables ?
+          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+}
 
 /*****************************************************************************
 ** Instansiate templates

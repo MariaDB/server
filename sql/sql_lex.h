@@ -2406,6 +2406,8 @@ struct LEX: public Query_tables_list
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
+  List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*
     A stack of name resolution contexts for the query. This stack is used
     at parse time to set local name resolution contexts for various parts
@@ -2466,6 +2468,7 @@ struct LEX: public Query_tables_list
     this command.
   */
   bool parse_vcol_expr;
+  bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
 
   enum SSL_type ssl_type;			/* defined in violite.h */
   enum enum_duplicates duplicates;
