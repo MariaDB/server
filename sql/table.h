@@ -300,6 +300,12 @@ enum tmp_table_type
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
 
+enum enum_vcol_update_mode
+{
+  VCOL_UPDATE_FOR_READ= 0,
+  VCOL_UPDATE_FOR_WRITE,
+  VCOL_UPDATE_ALL
+};
 
 class Filesort_info
 {
@@ -1871,6 +1877,7 @@ struct TABLE_LIST
   /* TRUE <=> derived table should be filled right after optimization. */
   bool          fill_me;
   /* TRUE <=> view/DT is merged. */
+  /* TODO: replace with derived_type */
   bool          merged;
   bool          merged_for_insert;
   /* TRUE <=> don't prepare this derived table/view as it should be merged.*/

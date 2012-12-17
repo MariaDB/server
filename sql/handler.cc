@@ -2671,8 +2671,7 @@ int handler::update_auto_increment()
   if (unlikely(nr == ULONGLONG_MAX))
       DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
 
-  DBUG_PRINT("info",("auto_increment: %llu  nb_reserved_values: %llu",
-                     nr, nb_reserved_values));
+  DBUG_PRINT("info",("auto_increment: %llu",nr));
 
   /* Store field without warning (Warning will be printed by insert) */
   save_count_cuted_fields= thd->count_cuted_fields;
@@ -2690,6 +2689,8 @@ int handler::update_auto_increment()
   }
   if (append)
   {
+    DBUG_PRINT("info",("nb_reserved_values: %llu",nb_reserved_values));
+
     auto_inc_interval_for_cur_row.replace(nr, nb_reserved_values,
                                           variables->auto_increment_increment);
     auto_inc_intervals_count++;
@@ -4609,7 +4610,20 @@ int handler::read_range_first(const key_range *start_key,
     DBUG_RETURN((result == HA_ERR_KEY_NOT_FOUND) 
 		? HA_ERR_END_OF_FILE
 		: result);
-  DBUG_RETURN (compare_key(end_range) <= 0 ? 0 : HA_ERR_END_OF_FILE);
+
+  if (compare_key(end_range) <= 0)
+  {
+    DBUG_RETURN(0);
+  }
+  else
+  {
+    /*
+      The last read row does not fall in the range. So request
+      storage engine to release row lock if possible.
+    */
+    unlock_row();
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
 }
 
 
@@ -4641,7 +4655,20 @@ int handler::read_range_next()
   result= ha_index_next(table->record[0]);
   if (result)
     DBUG_RETURN(result);
-  DBUG_RETURN(compare_key(end_range) <= 0 ? 0 : HA_ERR_END_OF_FILE);
+
+  if (compare_key(end_range) <= 0)
+  {
+    DBUG_RETURN(0);
+  }
+  else
+  {
+    /*
+      The last read row does not fall in the range. So request
+      storage engine to release row lock if possible.
+    */
+    unlock_row();
+    DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
 }
 
 

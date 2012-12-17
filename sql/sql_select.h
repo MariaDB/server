@@ -904,6 +904,15 @@ protected:
 
 public:
   JOIN_TAB *join_tab, **best_ref;
+  
+  /* 
+    Saved join_tab for pre_sorting. create_sort_index() will save here.. 
+  */
+  JOIN_TAB *pre_sort_join_tab;
+  uint pre_sort_index;
+  Item *pre_sort_idx_pushed_cond;
+  void clean_pre_sort_join_tab();
+
   /*
     For "Using temporary+Using filesort" queries, JOIN::join_tab can point to
     either: 
@@ -916,15 +925,6 @@ public:
   JOIN_TAB *table_access_tabs;
   uint     top_table_access_tabs_count;
   
-  /* 
-    Saved join_tab for pre_sorting. create_sort_index() will save here.. 
-  */
-  JOIN_TAB *pre_sort_join_tab;
-  uint pre_sort_index;
-  Item *pre_sort_idx_pushed_cond;
-  void clean_pre_sort_join_tab();
-
-
   JOIN_TAB **map2table;    ///< mapping between table indexes and JOIN_TABs
   JOIN_TAB *join_tab_save; ///< saved join_tab for subquery reexecution
 
@@ -1148,6 +1148,8 @@ public:
   bool          skip_sort_order;
 
   bool need_tmp, hidden_group_fields;
+  /* TRUE if there was full cleunap of the JOIN */
+  bool cleaned;
   DYNAMIC_ARRAY keyuse;
   Item::cond_result cond_value, having_value;
   List<Item> all_fields; ///< to store all fields that used in query
@@ -1282,6 +1284,7 @@ public:
     optimized= 0;
     have_query_plan= QEP_NOT_PRESENT_YET;
     initialized= 0;
+    cleaned= 0;
     cond_equal= 0;
     having_equal= 0;
     exec_const_cond= 0;

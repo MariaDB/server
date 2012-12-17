@@ -1004,7 +1004,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
                                                      thd_cs->mbmaxlen);
     }
     client_field->type=   server_field.type;
-    client_field->flags= server_field.flags;
+    client_field->flags= (uint16) server_field.flags;
     client_field->decimals= server_field.decimals;
     client_field->db_length=		strlen(client_field->db);
     client_field->table_length=		strlen(client_field->table);
