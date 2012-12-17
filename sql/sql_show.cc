@@ -45,6 +45,7 @@
 #include "set_var.h"
 #include "sql_trigger.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "sql_connect.h"
 #include "authors.h"
 #include "contributors.h"
@@ -5933,9 +5934,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
+    {
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_TIME);
+      set_statistics_for_table(thd, show_table);
+    }
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
@@ -5966,8 +5970,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           KEY *key=show_table->key_info+i;
           if (key->rec_per_key[j])
           {
-            ha_rows records=(show_table->file->stats.records /
-                             key->rec_per_key[j]);
+            ha_rows records=((double) show_table->stat_records() /
+                             key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }

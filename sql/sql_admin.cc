@@ -27,7 +27,9 @@
 #include "sql_acl.h"                         // *_ACL
 #include "sp.h"                              // Sroutine_hash_entry
 #include "sql_parse.h"                       // check_table_access
+#include "strfunc.h"
 #include "sql_admin.h"
+#include "sql_statistics.h"
 
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
@@ -320,7 +322,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   Protocol *protocol= thd->protocol;
   LEX *lex= thd->lex;
   int result_code;
+  int compl_result_code;
   bool need_repair_or_alter= 0;
+
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
@@ -640,9 +644,92 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       }
     }
 
-    DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
-    result_code = (table->table->file->*operator_func)(thd, check_opt);
-    DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+    result_code= compl_result_code= HA_ADMIN_OK;
+
+    if (operator_func == &handler::ha_analyze)
+    {
+      TABLE *tab= table->table;
+      Field **field_ptr= tab->field;
+
+      if (lex->with_persistent_for_clause &&
+          tab->s->table_category != TABLE_CATEGORY_USER)
+      {
+        compl_result_code= result_code= HA_ADMIN_INVALID;
+      }
+
+      if (!lex->column_list)
+      { 
+        uint fields= 0;
+        for ( ; *field_ptr; field_ptr++, fields++) ;         
+        bitmap_set_prefix(tab->read_set, fields);
+      }
+      else
+      {
+        int pos;
+        LEX_STRING *column_name;
+        List_iterator_fast<LEX_STRING> it(*lex->column_list);
+
+        bitmap_clear_all(tab->read_set);
+        while ((column_name= it++))
+	{
+          if (tab->s->fieldnames.type_names == 0 ||
+              (pos= find_type(&tab->s->fieldnames, column_name->str,
+                              column_name->length, 1)) <= 0)
+          {
+            compl_result_code= result_code= HA_ADMIN_INVALID;
+            break;
+          }
+          bitmap_set_bit(tab->read_set, pos-1);
+        } 
+        tab->file->column_bitmaps_signal(); 
+      }
+      
+      if (!lex->index_list)
+      {
+        tab->keys_in_use_for_query.init(tab->s->keys);
+      }
+      else
+      {
+        int pos;
+        LEX_STRING *index_name;
+        List_iterator_fast<LEX_STRING> it(*lex->index_list);
+   
+        tab->keys_in_use_for_query.clear_all();  
+        while ((index_name= it++))
+	{
+          if (tab->s->keynames.type_names == 0 ||
+              (pos= find_type(&tab->s->keynames, index_name->str,
+                              index_name->length, 1)) <= 0)
+          {
+            compl_result_code= result_code= HA_ADMIN_INVALID;
+            break;
+          }
+          tab->keys_in_use_for_query.set_bit(--pos);
+        }  
+      }
+    }
+
+    if (result_code == HA_ADMIN_OK)
+    {    
+      DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
+      result_code = (table->table->file->*operator_func)(thd, check_opt);
+      DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
+    }
+
+    if (compl_result_code == HA_ADMIN_OK &&
+        operator_func == &handler::ha_analyze && 
+        table->table->s->table_category == TABLE_CATEGORY_USER &&
+        (get_use_stat_tables_mode(thd) > NEVER ||
+         lex->with_persistent_for_clause)) 
+    {
+      if (!(compl_result_code=
+            alloc_statistics_for_table(thd, table->table)) &&
+          !(compl_result_code=
+            collect_statistics_for_table(thd, table->table)))
+        compl_result_code= update_statistics_for_table(thd, table->table);
+      if (compl_result_code)
+        result_code= HA_ADMIN_FAILED;
+    }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)
     {

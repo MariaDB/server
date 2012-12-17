@@ -636,11 +636,22 @@ void Item_sum::cleanup()
     @retval > 0       if key1 > key2
 */
 
-static int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2)
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2)
 {
   Field *f= (Field*) arg;
   return f->cmp(key1, key2);
 }
+
+
+C_MODE_START
+
+int count_distinct_walk(void *elem, element_count count, void *arg)
+{
+  (*((ulonglong*)arg))++;
+  return 0;
+}
+
+C_MODE_END
 
 
 /**
@@ -710,13 +721,13 @@ C_MODE_START
 
 /* Declarations for auxilary C-callbacks */
 
-static int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
+int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
     return memcmp(key1, key2, *(uint *) arg);
 }
 
 
-static int item_sum_distinct_walk(void *element, element_count num_of_dups,
+int item_sum_distinct_walk(void *element, element_count num_of_dups,
                                   void *item)
 {
   return ((Aggregator_distinct*) (item))->unique_walk_function(element);
