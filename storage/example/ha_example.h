@@ -67,11 +67,6 @@ public:
   }
 
   /** @brief
-    The name that will be used for display purposes.
-   */
-  const char *table_type() const { return "EXAMPLE"; }
-
-  /** @brief
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */

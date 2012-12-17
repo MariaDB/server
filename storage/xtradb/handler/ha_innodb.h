@@ -123,7 +123,6 @@ class ha_innobase: public handler
 	*/
 	enum row_type get_row_type() const;
 
-	const char* table_type() const;
 	const char* index_type(uint key_number);
 	const char** bas_ext() const;
 	Table_flags table_flags() const;

@@ -211,10 +211,10 @@ VARIABLE_NAME	VARIABLE_VALUE
 DEFAULT_STORAGE_ENGINE	MEMORY
 show global variables like 'default_storage_engine';
 Variable_name	Value
-default_storage_engine	MRG_MYISAM
+default_storage_engine	MRG_MyISAM
 select * from information_schema.global_variables where variable_name like 'default_storage_engine';
 VARIABLE_NAME	VARIABLE_VALUE
-DEFAULT_STORAGE_ENGINE	MRG_MYISAM
+DEFAULT_STORAGE_ENGINE	MRG_MyISAM
 set GLOBAL myisam_max_sort_file_size=2000000;
 Warnings:
 Warning	1292	Truncated incorrect myisam_max_sort_file_size value: '2000000'

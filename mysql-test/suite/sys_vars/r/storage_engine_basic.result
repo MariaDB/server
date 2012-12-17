@@ -19,7 +19,7 @@ MyISAM
 SET @@global.storage_engine = MERGE;
 SELECT @@global.storage_engine;
 @@global.storage_engine
-MRG_MYISAM
+MRG_MyISAM
 SET @@global.storage_engine = MEMORY;
 SELECT @@global.storage_engine;
 @@global.storage_engine
@@ -36,7 +36,7 @@ MyISAM
 SET @@session.storage_engine = MERGE;
 SELECT @@session.storage_engine;
 @@session.storage_engine
-MRG_MYISAM
+MRG_MyISAM
 SET @@session.storage_engine = MEMORY;
 SELECT @@session.storage_engine;
 @@session.storage_engine

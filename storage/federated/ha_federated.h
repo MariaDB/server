@@ -124,8 +124,6 @@ private:
 public:
   ha_federated(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_federated() {}
-  /* The name that will be used for display purposes */
-  const char *table_type() const { return "FEDERATED"; }
   /*
     Next pointer used in transaction
   */

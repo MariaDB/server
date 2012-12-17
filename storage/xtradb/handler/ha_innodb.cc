@@ -4005,17 +4005,6 @@ static const char* ha_innobase_exts[] = {
 };
 
 /****************************************************************//**
-Returns the table type (storage engine name).
-@return	table type */
-UNIV_INTERN
-const char*
-ha_innobase::table_type() const
-/*===========================*/
-{
-	return(innobase_hton_name);
-}
-
-/****************************************************************//**
 Returns the index type. */
 UNIV_INTERN
 const char*
