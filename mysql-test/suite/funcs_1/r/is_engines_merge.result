@@ -1,6 +1,6 @@
 SELECT * FROM information_schema.engines
 WHERE ENGINE = 'MRG_MYISAM';
-ENGINE	MRG_MYISAM
+ENGINE	MRG_MyISAM
 SUPPORT	YES
 COMMENT	Collection of identical MyISAM tables
 TRANSACTIONS	NO

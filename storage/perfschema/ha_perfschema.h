@@ -42,8 +42,6 @@ public:
 
   ~ha_perfschema();
 
-  const char *table_type(void) const { return pfs_engine_name; }
-
   const char *index_type(uint) { return ""; }
 
   const char **bas_ext(void) const;

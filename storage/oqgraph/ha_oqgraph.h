@@ -62,10 +62,6 @@ public:
   Table_flags table_flags() const;
 #endif
   ~ha_oqgraph() {}
-  const char *table_type() const
-  {
-    return "OQGRAPH";
-  }
   const char *index_type(uint inx)
   {
     return "HASH";

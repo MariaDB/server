@@ -1717,28 +1717,11 @@ static int myisammrg_init(void *p)
 struct st_mysql_storage_engine myisammrg_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(myisammrg)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &myisammrg_storage_engine,
-  "MRG_MYISAM",
-  "MySQL AB",
-  "Collection of identical MyISAM tables",
-  PLUGIN_LICENSE_GPL,
-  myisammrg_init, /* Plugin Init */
-  NULL, /* Plugin Deinit */
-  0x0100, /* 1.0 */
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(myisammrg)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &myisammrg_storage_engine,
-  "MRG_MYISAM",
+  "MRG_MyISAM",
   "MySQL AB",
   "Collection of identical MyISAM tables",
   PLUGIN_LICENSE_GPL,

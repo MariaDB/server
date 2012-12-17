@@ -46,8 +46,6 @@ public:
   ~ha_blackhole()
   {
   }
-  /* The name that will be used for display purposes */
-  const char *table_type() const { return "BLACKHOLE"; }
   /*
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes
