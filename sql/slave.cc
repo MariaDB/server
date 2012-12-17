@@ -5667,11 +5667,6 @@ bool rpl_master_erroneous_autoinc(THD *thd)
   return FALSE;
 }
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class I_List_iterator<i_string>;
-template class I_List_iterator<i_string_pair>;
-#endif
-
 /**
   @} (end of group Replication)
 */

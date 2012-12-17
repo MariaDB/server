@@ -50,11 +50,6 @@
   Instansiate templates and static variables
 *****************************************************************************/
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<Create_field>;
-template class List_iterator<Create_field>;
-#endif
-
 static const char *zero_timestamp="0000-00-00 00:00:00.000000";
 
 /* number of bytes to store second_part part of the TIMESTAMP(N) */

@@ -45,10 +45,6 @@
 if (my_b_write((file),(uchar*) (from),param->ref_length)) \
   DBUG_RETURN(1);
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class Bounded_queue<uchar, uchar>;
-#endif
-
 	/* functions defined in this file */
 
 static uchar *read_buffpek_from_file(IO_CACHE *buffer_file, uint count,
