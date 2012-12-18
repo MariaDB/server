@@ -1272,7 +1272,8 @@ enum enum_thread_type
   SYSTEM_THREAD_SLAVE_SQL= 4,
   SYSTEM_THREAD_NDBCLUSTER_BINLOG= 8,
   SYSTEM_THREAD_EVENT_SCHEDULER= 16,
-  SYSTEM_THREAD_EVENT_WORKER= 32
+  SYSTEM_THREAD_EVENT_WORKER= 32,
+  SYSTEM_THREAD_BINLOG_BACKGROUND= 64
 };
 
 inline char const *
@@ -4364,6 +4365,16 @@ public:
   Statement that need the binlog format to be unchanged.
 */
 #define CF_FORCE_ORIGINAL_BINLOG_FORMAT (1U << 16)
+
+/**
+  Statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
+*/
+#define CF_INSERTS_DATA (1U << 11)
+
+/**
+  Statement that updates existing rows (UPDATE, multi-update)
+*/
+#define CF_UPDATES_DATA (1U << 12)
 
 /* Bits in server_command_flags */
 

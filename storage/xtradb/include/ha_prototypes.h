@@ -111,7 +111,7 @@ UNIV_INTERN
 ibool
 thd_is_replication_slave_thread(
 /*============================*/
-	void*	thd);	/*!< in: thread handle (THD*) */
+	const void*	thd);	/*!< in: thread handle (THD*) */
 
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
@@ -135,6 +135,17 @@ innobase_mysql_print_thd(
 	void*	thd,		/*!< in: pointer to a MySQL THD object */
 	uint	max_query_len);	/*!< in: max query length to print, or 0 to
 				   use the default max length */
+
+/*****************************************************************//**
+Log code calls this whenever log has been written and/or flushed up
+to a new position. We use this to notify upper layer of a new commit
+checkpoint when necessary.*/
+UNIV_INTERN
+void
+innobase_mysql_log_notify(
+/*===============*/
+	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
+	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
 
 /**************************************************************//**
 Converts a MySQL type to an InnoDB type. Note that this function returns

@@ -298,13 +298,6 @@ void ha_partition::init_handler_variables()
 }
 
 
-const char *ha_partition::table_type() const
-{ 
-  // we can do this since we only support a single engine type
-  return m_file[0]->table_type(); 
-}
-
-
 /*
   Destructor method
 
@@ -3446,8 +3439,8 @@ void ha_partition::try_semi_consistent_read(bool yes)
 
     ADDITIONAL INFO:
 
-    We have to set timestamp fields and auto_increment fields, because those
-    may be used in determining which partition the row should be written to.
+    We have to set auto_increment fields, because those may be used in
+    determining which partition the row should be written to.
 */
 
 int ha_partition::write_row(uchar * buf)
@@ -3458,7 +3451,6 @@ int ha_partition::write_row(uchar * buf)
   bool have_auto_increment= table->next_number_field && buf == table->record[0];
   my_bitmap_map *old_map;
   THD *thd= ha_thd();
-  timestamp_auto_set_type saved_timestamp_type= table->timestamp_field_type;
   ulonglong saved_sql_mode= thd->variables.sql_mode;
   bool saved_auto_inc_field_not_null= table->auto_increment_field_not_null;
 #ifdef NOT_NEEDED
@@ -3466,11 +3458,6 @@ int ha_partition::write_row(uchar * buf)
 #endif
   DBUG_ENTER("ha_partition::write_row");
   DBUG_ASSERT(buf == m_rec0);
-
-  /* If we have a timestamp column, update it to the current time */
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
-  table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
 
   /*
     If we have an auto_increment column and we are writing a changed row
@@ -3547,7 +3534,6 @@ int ha_partition::write_row(uchar * buf)
 exit:
   thd->variables.sql_mode= saved_sql_mode;
   table->auto_increment_field_not_null= saved_auto_inc_field_not_null;
-  table->timestamp_field_type= saved_timestamp_type;
   DBUG_RETURN(error);
 }
 
@@ -3582,17 +3568,7 @@ int ha_partition::update_row(const uchar *old_data, uchar *new_data)
   uint32 new_part_id, old_part_id;
   int error= 0;
   longlong func_value;
-  timestamp_auto_set_type orig_timestamp_type= table->timestamp_field_type;
   DBUG_ENTER("ha_partition::update_row");
-
-  /*
-    We need to set timestamp field once before we calculate
-    the partition. Then we disable timestamp calculations
-    inside m_file[*]->update_row() methods
-  */
-  if (orig_timestamp_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
-  table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
 
   if ((error= get_parts_for_update(old_data, new_data, table->record[0],
                                    m_part_info, &old_part_id, &new_part_id,
@@ -3667,7 +3643,6 @@ exit:
       info(HA_STATUS_AUTO);
     set_auto_increment_if_higher(table->found_next_number_field);
   }
-  table->timestamp_field_type= orig_timestamp_type;
   DBUG_RETURN(error);
 }
 
@@ -4680,8 +4655,8 @@ int ha_partition::common_index_read(uchar *buf, bool have_start_key)
   bool reverse_order= FALSE;
   DBUG_ENTER("ha_partition::common_index_read");
 
-  DBUG_PRINT("info", ("m_ordered %u m_ordered_scan_ong %u have_start_key %u",
-                      m_ordered, m_ordered_scan_ongoing, have_start_key));
+  DBUG_PRINT("info", ("m_ordered: %u  have_start_key: %u",
+                      m_ordered, have_start_key));
 
   if (have_start_key)
   {

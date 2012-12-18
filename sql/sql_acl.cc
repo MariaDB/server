@@ -1634,14 +1634,20 @@ ulong acl_get(const char *host, const char *ip,
   acl_entry *entry;
   DBUG_ENTER("acl_get");
 
-  mysql_mutex_lock(&acl_cache->lock);
-  end=strmov((tmp_db=strmov(strmov(key, ip ? ip : "")+1,user)+1),db);
+  tmp_db= strmov(strmov(key, ip ? ip : "") + 1, user) + 1;
+  end= strnmov(tmp_db, db, key + sizeof(key) - tmp_db);
+
+  if (end >= key + sizeof(key)) // db name was truncated
+    DBUG_RETURN(0);             // no privileges for an invalid db name
+
   if (lower_case_table_names)
   {
     my_casedn_str(files_charset_info, tmp_db);
     db=tmp_db;
   }
   key_length= (size_t) (end-key);
+
+  mysql_mutex_lock(&acl_cache->lock);
   if (!db_is_pattern && (entry=(acl_entry*) acl_cache->search((uchar*) key,
                                                               key_length)))
   {
@@ -4888,11 +4894,17 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
 bool check_grant_db(THD *thd,const char *db)
 {
   Security_context *sctx= thd->security_ctx;
-  char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2];
+  char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
   uint len;
   bool error= TRUE;
 
-  len= (uint) (strmov(strmov(helping, sctx->priv_user) + 1, db) - helping) + 1;
+  end= strmov(helping, sctx->priv_user) + 1;
+  end= strnmov(end, db, helping + sizeof(helping) - end);
+
+  if (end >= helping + sizeof(helping)) // db name was truncated
+    return 1;                           // no privileges for an invalid db name
+
+  len= (uint) (end - helping) + 1;
 
   mysql_rwlock_rdlock(&LOCK_grant);
 
@@ -7012,17 +7024,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   DBUG_RETURN(result);
 }
 
-
-/*****************************************************************************
-  Instantiate used templates
-*****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List_iterator<LEX_COLUMN>;
-template class List_iterator<LEX_USER>;
-template class List<LEX_COLUMN>;
-template class List<LEX_USER>;
-#endif
 
 /**
   Validate if a user can proxy as another user

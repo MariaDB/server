@@ -82,7 +82,6 @@ public:
   ~ha_archive()
   {
   }
-  const char *table_type() const { return "ARCHIVE"; }
   const char *index_type(uint inx) { return "NONE"; }
   const char **bas_ext() const;
   ulonglong table_flags() const
