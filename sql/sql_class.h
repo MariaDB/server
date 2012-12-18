@@ -4369,12 +4369,12 @@ public:
 /**
   Statement that inserts new rows (INSERT, REPLACE, LOAD, ALTER TABLE)
 */
-#define CF_INSERTS_DATA (1U << 11)
+#define CF_INSERTS_DATA (1U << 17)
 
 /**
   Statement that updates existing rows (UPDATE, multi-update)
 */
-#define CF_UPDATES_DATA (1U << 12)
+#define CF_UPDATES_DATA (1U << 18)
 
 /* Bits in server_command_flags */
 

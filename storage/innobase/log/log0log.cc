@@ -37,6 +37,7 @@ Created 12/9/1995 Heikki Tuuri
 #endif
 
 #ifndef UNIV_HOTBACKUP
+#include "ha_prototypes.h"
 #include "mem0mem.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
