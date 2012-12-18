@@ -5363,10 +5363,6 @@ int handler::ha_write_row(uchar *buf)
   DBUG_ENTER("handler::ha_write_row");
   DEBUG_SYNC_C("ha_write_row_start");
 
-  /* If we have a timestamp column, update it to the current time */
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
-
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();
   increment_statistics(&SSV::ha_write_count);
@@ -5396,9 +5392,6 @@ int handler::ha_update_row(const uchar *old_data, uchar *new_data)
     (and the old record is in record[1]).
    */
   DBUG_ASSERT(new_data == table->record[0]);
-
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
 
   MYSQL_UPDATE_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

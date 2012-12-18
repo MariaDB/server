@@ -981,7 +981,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i)
     {
-      keyinfo->ext_key_flags= keyinfo->flags | HA_NOSAME;
       keyinfo->ext_key_part_map= 0;
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
@@ -1002,7 +1001,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
           keyinfo->ext_key_parts++;
           keyinfo->ext_key_part_map|= 1 << j;
         }
-      } 
+      }
+      if (j == first_key_parts)
+        keyinfo->ext_key_flags= keyinfo->flags | HA_NOSAME | HA_EXT_NOSAME;
     }
     share->ext_key_parts+= keyinfo->ext_key_parts;  
   }
@@ -1250,6 +1251,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   com_length= uint2korr(forminfo+284);
   vcol_screen_length= uint2korr(forminfo+286);
   share->vfields= 0;
+  share->default_fields= 0;
   share->stored_fields= share->fields;
   if (forminfo[46] != (uchar)255)
   {
@@ -1581,8 +1583,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
-    if (share->timestamp_field == reg_field)
-      share->timestamp_field_offset= i;
 
     if (use_hash)
     {
@@ -1604,6 +1604,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       if (share->stored_rec_length>=recpos)
         share->stored_rec_length= recpos-1;
     }
+    if (reg_field->has_insert_default_function() ||
+        reg_field->has_update_default_function())
+      ++share->default_fields;
   }
   *field_ptr=0;					// End marker
   /* Sanity checks: */
@@ -2315,7 +2318,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   uint records, i, bitmap_size;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
-  Field **field_ptr, **vfield_ptr;
+  Field **field_ptr, **vfield_ptr, **dfield_ptr;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: 0x%lx", share->db.str,
@@ -2419,9 +2422,6 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   if (share->found_next_number_field)
     outparam->found_next_number_field=
       outparam->field[(uint) (share->found_next_number_field - share->field)];
-  if (share->timestamp_field)
-    outparam->timestamp_field= (Field_timestamp*) outparam->field[share->timestamp_field_offset];
-
 
   /* Fix key->name and key_part->field */
   if (share->key_parts)
@@ -2472,11 +2472,9 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   }
 
   /*
-    Process virtual columns, if any.
+    Process virtual and default columns, if any.
   */
-  if (!share->vfields)
-    outparam->vfield= NULL;
-  else
+  if (share->vfields)
   {
     if (!(vfield_ptr = (Field **) alloc_root(&outparam->mem_root,
                                              (uint) ((share->vfields+1)*
@@ -2484,10 +2482,24 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
       goto err;
 
     outparam->vfield= vfield_ptr;
+  }
 
+  if (share->default_fields)
+  {
+    if (!(dfield_ptr = (Field **) alloc_root(&outparam->mem_root,
+                                             (uint) ((share->default_fields+1)*
+                                                     sizeof(Field*)))))
+      goto err;
+
+    outparam->default_field= dfield_ptr;
+  }
+
+  if (share->vfields || share->default_fields)
+  {
+    /* Reuse the same loop both for virtual and default fields. */
     for (field_ptr= outparam->field; *field_ptr; field_ptr++)
     {
-      if ((*field_ptr)->vcol_info)
+      if (share->vfields && (*field_ptr)->vcol_info)
       {
         if (unpack_vcol_info_from_frm(thd,
                                       outparam,
@@ -2500,8 +2512,15 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
         }
         *(vfield_ptr++)= *field_ptr;
       }
+      if (share->default_fields &&
+          ((*field_ptr)->has_insert_default_function() ||
+           (*field_ptr)->has_update_default_function()))
+        *(dfield_ptr++)= *field_ptr;
     }
-    *vfield_ptr= 0;                              // End marker
+    if (share->vfields)
+      *vfield_ptr= 0;                            // End marker
+    if (share->default_fields)
+      *dfield_ptr= 0;                            // End marker
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3926,9 +3945,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
   auto_increment_field_not_null= FALSE;
-
-  if (timestamp_field)
-    timestamp_field_type= timestamp_field->get_auto_set_type();
 
   pos_in_table_list= tl;
 
@@ -5856,6 +5872,51 @@ void TABLE::mark_virtual_columns_for_write(bool insert_fl)
 
 
 /**
+  Check if a table has a default function either for INSERT or UPDATE-like
+  operation
+  @retval true  there is a default function
+  @retval false there is no default function
+*/
+
+bool TABLE::has_default_function(bool is_update)
+{
+  Field **dfield_ptr, *dfield;
+  bool res= false;
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    if (is_update)
+      res= dfield->has_update_default_function();
+    else
+      res= dfield->has_insert_default_function();
+    if (res)
+      return res;
+  }
+  return res;
+}
+
+
+/**
+  Add all fields that have a default function to the table write set.
+*/
+
+void TABLE::mark_default_fields_for_write()
+{
+  Field **dfield_ptr, *dfield;
+  enum_sql_command cmd= in_use->lex->sql_command;
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    if (((sql_command_flags[cmd] & CF_INSERTS_DATA) &&
+         dfield->has_insert_default_function()) ||
+        ((sql_command_flags[cmd] & CF_UPDATES_DATA) &&
+         dfield->has_update_default_function()))
+      bitmap_set_bit(write_set, dfield->field_index);
+  }
+}
+
+
+/**
   @brief
   Allocate space for keys
 
@@ -6416,22 +6477,25 @@ bool is_simple_order(ORDER *order)
 
   @param  thd              Thread handle
   @param  table            The TABLE object
-  @param  for_write        Requests to compute only fields needed for write   
+  @param  vcol_update_mode Specifies what virtual column are computed   
   
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
-    Only fields from vcol_set are computed, and, when the flag for_write is not
-    set to TRUE, a virtual field is computed only if it's not stored.
-    The flag for_write is set to TRUE for row insert/update operations. 
- 
+    If vcol_update_mode is set to VCOL_UPDATE_ALL then all virtual column are
+    computed. Otherwise, only fields from vcol_set are computed: all of them,
+    if vcol_update_mode is set to VCOL_UPDATE_FOR_WRITE, and, only those with
+    the stored_in_db flag set to false, if vcol_update_mode is equal to
+    VCOL_UPDATE_FOR_READ.
+
   @retval
     0    Success
   @retval
     >0   Error occurred when storing a virtual field value
 */
 
-int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
+int update_virtual_fields(THD *thd, TABLE *table,
+                          enum enum_vcol_update_mode vcol_update_mode)
 {
   DBUG_ENTER("update_virtual_fields");
   Field **vfield_ptr, *vfield;
@@ -6444,9 +6508,9 @@ int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
   {
     vfield= (*vfield_ptr);
     DBUG_ASSERT(vfield->vcol_info && vfield->vcol_info->expr_item);
-    /* Only update those fields that are marked in the vcol_set bitmap */
-    if (bitmap_is_set(table->vcol_set, vfield->field_index) &&
-        (for_write || !vfield->stored_in_db))
+    if ((bitmap_is_set(table->vcol_set, vfield->field_index) &&
+         (vcol_update_mode == VCOL_UPDATE_FOR_WRITE || !vfield->stored_in_db)) ||
+        vcol_update_mode == VCOL_UPDATE_ALL)
     {
       /* Compute the actual value of the virtual fields */
       error= vfield->vcol_info->expr_item->save_in_field(vfield, 0);
@@ -6460,6 +6524,56 @@ int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
   thd->reset_arena_for_cached_items(0);
   DBUG_RETURN(0);
 }
+
+
+/**
+  Update all DEFAULT and/or ON INSERT fields.
+
+  @details
+    Compute and set the default value of all fields with a default function.
+    There are two kinds of default functions - one is used for INSERT-like
+    operations, the other for UPDATE-like operations. Depending on the field
+    definition and the current operation one or the other kind of update
+    function is evaluated.
+
+  @retval
+    0    Success
+  @retval
+    >0   Error occurred when storing a virtual field value
+*/
+
+int TABLE::update_default_fields()
+{
+  DBUG_ENTER("update_default_fields");
+  Field **dfield_ptr, *dfield;
+  int res= 0;
+  enum_sql_command cmd= in_use->lex->sql_command;
+
+  DBUG_ASSERT(default_field);
+
+  /* Iterate over virtual fields in the table */
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    /*
+      If an explicit default value for a filed overrides the default,
+      do not update the field with its automatic default value.
+    */
+    if (!(dfield->flags & HAS_EXPLICIT_VALUE))
+    {
+      if (sql_command_flags[cmd] & CF_INSERTS_DATA)
+        res= dfield->evaluate_insert_default_function();
+      if (sql_command_flags[cmd] & CF_UPDATES_DATA)
+        res= dfield->evaluate_update_default_function();
+      if (res)
+        DBUG_RETURN(res);
+    }
+    /* Unset the explicit default flag for the next record. */
+    dfield->flags&= ~HAS_EXPLICIT_VALUE;
+  }
+  DBUG_RETURN(res);
+}
+
 
 /*
   @brief Reset const_table flag
@@ -6767,12 +6881,3 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
            ext_key_parts : key_parts;
 }  
 
-
-/*****************************************************************************
-** Instansiate templates
-*****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<String>;
-template class List_iterator<String>;
-#endif

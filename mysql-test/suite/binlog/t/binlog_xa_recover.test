@@ -14,8 +14,24 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 # Insert some data to force a couple binlog rotations (3), so we get some
 # normal binlog checkpoints before starting the test.
 INSERT INTO t1 VALUES (100, REPEAT("x", 4100));
+# Wait for the master-bin.000002 binlog checkpoint to appear.
+--let $wait_for_all= 0
+--let $show_statement= SHOW BINLOG EVENTS IN "master-bin.000002"
+--let $field= Info
+--let $condition= = "master-bin.000002"
+--source include/wait_show_condition.inc
 INSERT INTO t1 VALUES (101, REPEAT("x", 4100));
+--let $wait_for_all= 0
+--let $show_statement= SHOW BINLOG EVENTS IN "master-bin.000003"
+--let $field= Info
+--let $condition= = "master-bin.000003"
+--source include/wait_show_condition.inc
 INSERT INTO t1 VALUES (102, REPEAT("x", 4100));
+--let $wait_for_all= 0
+--let $show_statement= SHOW BINLOG EVENTS IN "master-bin.000004"
+--let $field= Info
+--let $condition= = "master-bin.000004"
+--source include/wait_show_condition.inc
 
 # Now start a bunch of transactions that span multiple binlog
 # files. Leave then in the state prepared-but-not-committed in the engine
@@ -154,10 +170,19 @@ SET DEBUG_SYNC= "now SIGNAL con10_cont";
 connection con10;
 reap;
 connection default;
+
+# We need to sync the test case with the background processing of the
+# commit checkpoint, otherwise we get nondeterministic results.
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,binlog_background_checkpoint_processed";
+
 SET DEBUG_SYNC= "now SIGNAL con12_cont";
 connection con12;
 reap;
 connection default;
+SET DEBUG_SYNC= "now WAIT_FOR binlog_background_checkpoint_processed";
+SET GLOBAL debug_dbug= @old_dbug;
+
 SET DEBUG_SYNC= "now SIGNAL con11_cont";
 connection con11;
 reap;
@@ -211,7 +236,20 @@ RESET MASTER;
 # crash recovery fails due to the error insert used for previous test.
 INSERT INTO t1 VALUES (21, REPEAT("x", 4100));
 INSERT INTO t1 VALUES (22, REPEAT("x", 4100));
+# Wait for the master-bin.000003 binlog checkpoint to appear.
+--let $wait_for_all= 0
+--let $show_statement= SHOW BINLOG EVENTS IN "master-bin.000003"
+--let $field= Info
+--let $condition= = "master-bin.000003"
+--source include/wait_show_condition.inc
 INSERT INTO t1 VALUES (23, REPEAT("x", 4100));
+# Wait for the last (master-bin.000004) binlog checkpoint to appear.
+--let $wait_for_all= 0
+--let $show_statement= SHOW BINLOG EVENTS IN "master-bin.000004"
+--let $field= Info
+--let $condition= = "master-bin.000004"
+--source include/wait_show_condition.inc
+
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait-binlog_xa_recover.test
 EOF

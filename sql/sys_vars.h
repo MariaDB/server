@@ -2047,18 +2047,3 @@ public:
   }
 };
 
-
-/****************************************************************************
-  Used templates
-****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<set_var_base>;
-template class List_iterator_fast<set_var_base>;
-template class Sys_var_integer<int, GET_INT, SHOW_SINT>;
-template class Sys_var_integer<uint, GET_UINT, SHOW_INT>;
-template class Sys_var_integer<ulong, GET_ULONG, SHOW_LONG>;
-template class Sys_var_integer<ha_rows, GET_HA_ROWS, SHOW_HA_ROWS>;
-template class Sys_var_integer<ulonglong, GET_ULL, SHOW_LONGLONG>;
-#endif
-

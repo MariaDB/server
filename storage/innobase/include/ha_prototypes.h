@@ -145,6 +145,17 @@ innobase_mysql_print_thd(
 	uint	max_query_len);	/*!< in: max query length to print, or 0 to
 				   use the default max length */
 
+/*****************************************************************//**
+Log code calls this whenever log has been written and/or flushed up
+to a new position. We use this to notify upper layer of a new commit
+checkpoint when necessary.*/
+UNIV_INTERN
+void
+innobase_mysql_log_notify(
+/*===============*/
+	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
+	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
+
 /*************************************************************//**
 InnoDB uses this function to compare two data fields for which the data type
 is such that we must use MySQL code to compare them.

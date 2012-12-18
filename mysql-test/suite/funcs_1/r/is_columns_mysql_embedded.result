@@ -59,7 +59,7 @@ def	mysql	func	ret	2	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)
 def	mysql	func	type	4	NULL	NO	enum	9	27	NULL	NULL	NULL	utf8	utf8_general_ci	enum('function','aggregate')				
 def	mysql	general_log	argument	6	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext				
 def	mysql	general_log	command_type	5	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
-def	mysql	general_log	event_time	1	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP		
+def	mysql	general_log	event_time	1	CURRENT_TIMESTAMP(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP		
 def	mysql	general_log	server_id	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned				
 def	mysql	general_log	thread_id	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)				
 def	mysql	general_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext				
@@ -203,7 +203,7 @@ def	mysql	slow_log	rows_examined	6	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int
 def	mysql	slow_log	rows_sent	5	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)				
 def	mysql	slow_log	server_id	10	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned				
 def	mysql	slow_log	sql_text	11	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext				
-def	mysql	slow_log	start_time	1	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP		
+def	mysql	slow_log	start_time	1	CURRENT_TIMESTAMP(6)	NO	timestamp	NULL	NULL	NULL	NULL	6	NULL	NULL	timestamp(6)		on update CURRENT_TIMESTAMP		
 def	mysql	slow_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8	utf8_general_ci	mediumtext				
 def	mysql	tables_priv	Column_priv	8		NO	set	31	93	NULL	NULL	NULL	utf8	utf8_general_ci	set('Select','Insert','Update','References')				
 def	mysql	tables_priv	Db	2		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_bin	char(64)	PRI			

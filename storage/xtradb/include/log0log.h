@@ -41,6 +41,9 @@ Created 12/9/1995 Heikki Tuuri
 #include "sync0rw.h"
 #endif /* !UNIV_HOTBACKUP */
 
+/* Type used for all log sequence number storage and arithmetics */
+typedef	ib_uint64_t		lsn_t;
+
 /** Redo log buffer */
 typedef struct log_struct	log_t;
 /** Redo log group */
@@ -150,6 +153,13 @@ Gets the current lsn.
 UNIV_INLINE
 ib_uint64_t
 log_get_lsn(void);
+/*=============*/
+/************************************************************//**
+Gets the last lsn that is fully flushed to disk.
+@return	last flushed lsn */
+UNIV_INLINE
+ib_uint64_t
+log_get_flush_lsn(void);
 /*=============*/
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without

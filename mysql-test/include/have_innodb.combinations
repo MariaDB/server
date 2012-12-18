@@ -4,6 +4,9 @@ plugin-load-add=$HA_INNODB_SO
 innodb
 innodb-cmpmem
 innodb-trx
+innodb-buffer-pool-stats
+innodb-buffer-page
+innodb-buffer-page-lru
 
 [xtradb_plugin]
 ignore-builtin-innodb
@@ -11,9 +14,15 @@ plugin-load-add=$HA_XTRADB_SO
 innodb
 innodb-cmpmem
 innodb-trx
+innodb-buffer-pool-stats
+innodb-buffer-page
+innodb-buffer-page-lru
 
 [xtradb]
 innodb
 innodb-cmpmem
 innodb-trx
 innodb-metrics
+innodb-buffer-pool-stats
+innodb-buffer-page
+innodb-buffer-page-lru

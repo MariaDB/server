@@ -2830,3 +2830,79 @@ f0	f1	f2
 set sort_buffer_size= @save_sort_buffer_size;
 DROP TABLE t1;
 End of 5.3 tests
+#
+# Bug 54599: discarded fast range scan for query with 
+#            GROUP BY + ORDER BY + LIMIT 
+#
+create table t0 (a int);
+insert into t0 values (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+create table t1 (a int, b int, index idx1(a,b), index idx2(b,a));
+insert into t1
+select 1000*s4.a+100*s3.a+10*s2.a + s1.a, 1000*s4.a+100*s3.a+10*s2.a+s1.a
+from t0 s1, t0 s2, t0 s3, t0 s4;
+analyze table t1;
+explain
+select b, count(*) num_cnt from t1
+where a > 9750 group by b order by num_cnt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1	idx1	5	NULL	502	Using where; Using index; Using temporary; Using filesort
+flush status;
+select b, count(*) num_cnt from t1
+where a > 9750 group by b order by num_cnt;
+show status like '%Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	250
+Handler_read_last	0
+Handler_read_next	249
+Handler_read_prev	0
+Handler_read_rnd	249
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	250
+explain
+select b, count(*) num_cnt from t1 
+where a > 9750 group by b order by num_cnt limit 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	idx1	idx1	5	NULL	502	Using where; Using index; Using temporary; Using filesort
+flush status;
+select b, count(*) num_cnt from t1 
+where a > 9750 group by b order by num_cnt limit 1;
+show status like '%Handler_read%';
+Variable_name	Value
+Handler_read_first	0
+Handler_read_key	250
+Handler_read_last	0
+Handler_read_next	249
+Handler_read_prev	0
+Handler_read_rnd	1
+Handler_read_rnd_deleted	0
+Handler_read_rnd_next	250
+drop table t0, t1;
+#
+# LP bug #1002508 : the number  of expected rows to be examined is off
+# (bug #13528826)
+#             
+CREATE TABLE t1(a int PRIMARY KEY, b int) ENGINE=myisam;
+INSERT INTO t1 VALUES
+(5, 10), (2, 70), (7, 80), (6, 20), (1, 50), (9, 40), (8, 30), (3, 60);
+CREATE TABLE t2 (p int, a int, INDEX i_a(a)) ENGINE=myisam;
+INSERT INTO t2 VALUES
+(103, 7), (109, 3), (102, 3), (108, 1), (106, 3),
+(107, 7), (105, 1), (101, 3), (100, 7), (110, 1);
+EXPLAIN 
+SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+EXPLAIN 
+SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+EXPLAIN 
+SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+DROP TABLE t1,t2;
+End of 5.5 tests

@@ -411,6 +411,25 @@ log_get_lsn(void)
 	return(lsn);
 }
 
+/************************************************************//**
+Gets the last lsn that is fully flushed to disk.
+@return	last flushed lsn */
+UNIV_INLINE
+ib_uint64_t
+log_get_flush_lsn(void)
+/*=============*/
+{
+	ib_uint64_t	lsn;
+
+	mutex_enter(&(log_sys->mutex));
+
+	lsn = log_sys->flushed_to_disk_lsn;
+
+	mutex_exit(&(log_sys->mutex));
+
+	return(lsn);
+}
+
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without
 holding log_sys->mutex because it is constant.
