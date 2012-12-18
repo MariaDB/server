@@ -656,6 +656,7 @@ SHOW_COMP_OPTION have_ssl, have_symlink, have_dlopen, have_query_cache;
 SHOW_COMP_OPTION have_geometry, have_rtree_keys;
 SHOW_COMP_OPTION have_crypt, have_compress;
 SHOW_COMP_OPTION have_profiling;
+SHOW_COMP_OPTION have_openssl;
 
 /* Thread specific variables */
 
@@ -7366,8 +7367,13 @@ static int mysql_init_variables(void)
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
   have_ssl=SHOW_OPTION_YES;
+#if HAVE_YASSL
+  have_openssl= SHOW_OPTION_NO;
 #else
-  have_ssl=SHOW_OPTION_NO;
+  have_openssl= SHOW_OPTION_YES;
+#endif
+#else
+  have_openssl= have_ssl= SHOW_OPTION_NO;
 #endif
 #ifdef HAVE_BROKEN_REALPATH
   have_symlink=SHOW_OPTION_NO;

@@ -3074,7 +3074,7 @@ static Sys_var_have Sys_have_geometry(
 
 static Sys_var_have Sys_have_openssl(
        "have_openssl", "have_openssl",
-       READ_ONLY GLOBAL_VAR(have_ssl), NO_CMD_LINE);
+       READ_ONLY GLOBAL_VAR(have_openssl), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_profiling(
        "have_profiling", "have_profiling",
