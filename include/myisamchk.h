@@ -63,6 +63,8 @@
 #define T_ZEROFILL_KEEP_LSN     ((ulonglong) 1L << 33)
 /** If repair should not bump create_rename_lsn */
 #define T_NO_CREATE_RENAME_LSN  ((ulonglong) 1L << 33)
+#define T_CREATE_UNIQUE_BY_SORT ((ulonglong) 1L << 34)
+#define T_SUPPRESS_ERR_HANDLING ((ulonglong) 1L << 35)
 
 #define T_REP_ANY               (T_REP | T_REP_BY_SORT | T_REP_PARALLEL)
 

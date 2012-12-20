@@ -196,6 +196,9 @@ typedef struct st_maria_state_info
   /* LSN when we wrote file id to the log */
   LSN logrec_file_id;
 
+  uint8 dupp_key;                       /* Lastly processed index with    */
+                                        /* violated uniqueness constraint */
+
   /* the following isn't saved on disk */
   uint state_diff_length;		/* Should be 0 */
   uint state_length;			/* Length of state header in file */
@@ -667,6 +670,7 @@ struct st_maria_handler
   uchar length_buff[5];			/* temp buff to store blob lengths */
   int maria_rtree_recursion_depth;
 
+  my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
 };

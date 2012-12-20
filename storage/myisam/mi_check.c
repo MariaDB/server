@@ -2408,7 +2408,10 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
 			      (my_bool) (!(param->testflag & T_VERBOSE)),
                               param->sort_buffer_length))
     {
-      param->retry_repair= 1;
+      if ((param->testflag & T_CREATE_UNIQUE_BY_SORT) && sort_param.sort_info->dupp)
+        share->state.dupp_key= sort_param.key;
+      else
+        param->retry_repair= 1;
       if (! param->error_printed)
         mi_check_print_error(param, "Couldn't fix table with create_index_by_sort(). Error: %d",
                              my_errno);
@@ -3829,6 +3832,9 @@ static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a)
     sort_info->info->lastpos=get_record_for_key(sort_info->info,
 						sort_param->keyinfo,
 						(uchar*) a);
+    if ((param->testflag & (T_CREATE_UNIQUE_BY_SORT | T_SUPPRESS_ERR_HANDLING))
+        == T_CREATE_UNIQUE_BY_SORT)
+      param->testflag|= T_SUPPRESS_ERR_HANDLING;
     mi_check_print_warning(param,
 			   "Duplicate key for record at %10s against record at %10s",
 			   llstr(sort_info->info->lastpos,llbuff),
@@ -4664,7 +4670,7 @@ static my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
 }
 
 /*
-  Deactivate all not unique index that can be recreated fast
+  Deactivate all indexes that can be recreated fast.
   These include packed keys on which sorting will use more temporary
   space than the max allowed file length or for which the unpacked keys
   will take much more space than packed keys.
@@ -4672,7 +4678,8 @@ static my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows)
   rows we will put into the file.
  */
 
-void mi_disable_non_unique_index(MI_INFO *info, ha_rows rows)
+void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
+                                    my_bool all_keys)
 {
   MYISAM_SHARE *share=info->s;
   MI_KEYDEF    *key=share->keyinfo;
@@ -4682,11 +4689,13 @@ void mi_disable_non_unique_index(MI_INFO *info, ha_rows rows)
               (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES));
   for (i=0 ; i < share->base.keys ; i++,key++)
   {
-    if (!(key->flag & (HA_NOSAME | HA_SPATIAL | HA_AUTO_KEY)) &&
-        ! mi_too_big_key_for_sort(key,rows) && info->s->base.auto_key != i+1)
+    if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY)) &&
+        ! mi_too_big_key_for_sort(key,rows) && info->s->base.auto_key != i+1 &&
+        (all_keys || !(key->flag & HA_NOSAME))) 
     {
       mi_clear_key_active(share->state.key_map, i);
       info->update|= HA_STATE_CHANGED;
+      info->create_unique_index_by_sort= all_keys;
     }
   }
 }

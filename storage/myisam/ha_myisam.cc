@@ -139,6 +139,9 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
   char msgbuf[MYSQL_ERRMSG_SIZE];
   char name[NAME_LEN*2+2];
 
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    return;
+
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1] = 0; // healthy paranoia
 
@@ -571,6 +574,8 @@ void mi_check_print_error(HA_CHECK *param, const char *fmt,...)
 {
   param->error_printed|=1;
   param->out_flag|= O_DATA_LOST;
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    return;
   va_list args;
   va_start(args, fmt);
   mi_check_print_msg(param, "error", fmt, args);
@@ -1071,6 +1076,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
   param.thd= thd;
   param.tmpdir= &mysql_tmpdir_list;
   param.out_flag= 0;
+  share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name,file->filename);
 
   // Release latches since this can take a long time
@@ -1128,6 +1134,10 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
         error = mi_repair_by_sort(&param, file, fixed_name,
                                   test(param.testflag & T_QUICK));
       }
+      if (error && file->create_unique_index_by_sort && 
+          share->state.dupp_key != MAX_KEY)
+          print_keydup_error(share->state.dupp_key, 
+                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
     }
     else
     {
@@ -1435,6 +1445,8 @@ int ha_myisam::enable_indexes(uint mode)
     param.op_name= "recreating_index";
     param.testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
                      T_CREATE_MISSING_KEYS);
+    if (file->create_unique_index_by_sort)
+      param.testflag|= T_CREATE_UNIQUE_BY_SORT;
     param.myf_rw&= ~MY_WAIT_IF_FULL;
     param.sort_buffer_length=  THDVAR(thd, sort_buffer_size);
     param.stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
@@ -1502,15 +1514,16 @@ int ha_myisam::indexes_are_disabled(void)
   activate special bulk-insert optimizations
 
   SYNOPSIS
-    start_bulk_insert(rows)
+    start_bulk_insert(rows, flags)
     rows        Rows to be inserted
                 0 if we don't know
+    flags       Flags to control index creation
 
   NOTICE
     Do not forget to call end_bulk_insert() later!
 */
 
-void ha_myisam::start_bulk_insert(ha_rows rows)
+void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_myisam::start_bulk_insert");
   THD *thd= current_thd;
@@ -1544,7 +1557,10 @@ void ha_myisam::start_bulk_insert(ha_rows rows)
         mi_clear_all_keys_active(file->s->state.key_map);
       }
       else
-        mi_disable_non_unique_index(file,rows);
+      {
+        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+        mi_disable_indexes_for_rebuild(file, rows, all_keys);
+      }
     }
     else
     if (!file->bulk_insert &&

@@ -372,7 +372,7 @@ public:
   virtual int delete_row(const uchar * buf);
   virtual int delete_all_rows(void);
   virtual int truncate();
-  virtual void start_bulk_insert(ha_rows rows);
+  virtual void start_bulk_insert(ha_rows rows, uint flags);
   virtual int end_bulk_insert();
 private:
   ha_rows guess_bulk_insert_rows();
