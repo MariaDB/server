@@ -145,7 +145,8 @@ public:
            HA_REQUIRE_PRIMARY_KEY |
            HA_PRIMARY_KEY_IN_READ_INDEX |
            HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
-           HA_NO_AUTO_INCREMENT;
+           HA_NO_AUTO_INCREMENT |
+           HA_TABLE_SCAN_ON_INDEX;
   }
 
   /** @brief
@@ -258,7 +259,6 @@ public:
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key);
-  int delete_table(const char *from);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,

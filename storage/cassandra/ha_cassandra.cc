@@ -1605,7 +1605,10 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
   DBUG_ENTER("ha_cassandra::index_read_map");
 
   if (find_flag != HA_READ_KEY_EXACT)
+  {
+    DBUG_ASSERT(0); /* Non-equality lookups should never be done */
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  }
 
   uint key_len= calculate_key_len(table, active_index, key, keypart_map);
   store_key_image_to_rec(table->field[0], (uchar*)key, key_len);
@@ -2470,7 +2473,16 @@ err:
 }
 
 
-/* The following function was copied from ha_blackhole::store_lock: */
+/*
+  We can't really have any locks for Cassandra Storage Engine. We're reading
+  from Cassandra cluster, and other clients can asynchronously modify the data.
+  
+  We can enforce locking within this process, but this will not be useful. 
+ 
+  Thus, store_lock() should express that:
+  - Writes do not block other writes
+  - Reads should not block anything either, including INSERTs.
+*/
 THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
                                          THR_LOCK_DATA **to,
                                          enum thr_lock_type lock_type)
@@ -2478,27 +2490,13 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
   DBUG_ENTER("ha_cassandra::store_lock");
   if (lock_type != TL_IGNORE && lock.type == TL_UNLOCK)
   {
-    /*
-      Here is where we get into the guts of a row level lock.
-      If TL_UNLOCK is set
-      If we are not doing a LOCK TABLE or DISCARD/IMPORT
-      TABLESPACE, then allow multiple writers
-    */
-
+    /* Writes allow other writes */
     if ((lock_type >= TL_WRITE_CONCURRENT_INSERT &&
-         lock_type <= TL_WRITE) && !thd_in_lock_tables(thd)
-        && !thd_tablespace_op(thd))
+         lock_type <= TL_WRITE))
       lock_type = TL_WRITE_ALLOW_WRITE;
 
-    /*
-      In queries of type INSERT INTO t1 SELECT ... FROM t2 ...
-      MySQL would use the lock TL_READ_NO_INSERT on t2, and that
-      would conflict with TL_WRITE_ALLOW_WRITE, blocking all inserts
-      to t2. Convert the lock to a normal read lock to allow
-      concurrent inserts to t2.
-    */
-
-    if (lock_type == TL_READ_NO_INSERT && !thd_in_lock_tables(thd))
+    /* Reads allow everything, including INSERTs */
+    if (lock_type == TL_READ_NO_INSERT)
       lock_type = TL_READ;
 
     lock.type= lock_type;
@@ -2513,17 +2511,6 @@ ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
 {
   DBUG_ENTER("ha_cassandra::records_in_range");
   DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
-}
-
-
-int ha_cassandra::delete_table(const char *name)
-{
-  DBUG_ENTER("ha_cassandra::delete_table");
-  /*
-    Cassandra table is just a view. Dropping it doesn't affect the underlying
-    column family, so we do nothing here.
-  */
-  DBUG_RETURN(0);
 }
 
 
