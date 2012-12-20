@@ -195,31 +195,7 @@ static struct st_mysql_sys_var* cassandra_system_variables[]= {
   NULL
 };
 
-
-static SHOW_VAR cassandra_status_variables[]= {
-  {"row_inserts",
-    (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
-  {"row_insert_batches",
-    (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
-
-  {"multiget_reads",
-    (char*) &cassandra_counters.multiget_reads,      SHOW_LONG},
-  {"multiget_keys_scanned",
-    (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
-  {"multiget_rows_read",
-    (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
-
-  {"timeout_exceptions",
-    (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
-  {"unavailable_exceptions",
-    (char*) &cassandra_counters.unavailable_exceptions, SHOW_LONG},
-  {NullS, NullS, SHOW_LONG}
-};
-
-
 Cassandra_status_vars cassandra_counters;
-Cassandra_status_vars cassandra_counters_copy;
-
 
 /**
   @brief
@@ -2581,24 +2557,30 @@ void Cassandra_se_interface::print_error(const char *format, ...)
 }
 
 
-static int show_cassandra_vars(THD *thd, SHOW_VAR *var, char *buff)
-{
-  cassandra_counters_copy= cassandra_counters;
-
-  var->type= SHOW_ARRAY;
-  var->value= (char *) &cassandra_status_variables;
-  return 0;
-}
-
-
 struct st_mysql_storage_engine cassandra_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-static struct st_mysql_show_var func_status[]=
-{
-  {"Cassandra",  (char *)show_cassandra_vars, SHOW_FUNC},
-  {0,0,SHOW_UNDEF}
+static SHOW_VAR cassandra_status_variables[]= {
+  {"Cassandra_row_inserts",
+    (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
+  {"Cassandra_row_insert_batches",
+    (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
+
+  {"Cassandra_multiget_keys_scanned",
+    (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
+  {"Cassandra_multiget_reads",
+    (char*) &cassandra_counters.multiget_reads,      SHOW_LONG},
+  {"Cassandra_multiget_rows_read",
+    (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
+
+  {"Cassandra_timeout_exceptions",
+    (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
+  {"Cassandra_unavailable_exceptions",
+    (char*) &cassandra_counters.unavailable_exceptions, SHOW_LONG},
+  {NullS, NullS, SHOW_LONG}
 };
+
+
 
 
 maria_declare_plugin(cassandra)
@@ -2611,8 +2593,8 @@ maria_declare_plugin(cassandra)
   PLUGIN_LICENSE_GPL,
   cassandra_init_func,                            /* Plugin Init */
   cassandra_done_func,                            /* Plugin Deinit */
-  0x0001,                                       /* version number (0.1) */
-  func_status,                                  /* status variables */
+  0x0001,                                        /* version number (0.1) */
+  cassandra_status_variables,                     /* status variables */
   cassandra_system_variables,                     /* system variables */
   "0.1",                                        /* string version */
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL          /* maturity */

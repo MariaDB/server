@@ -74,8 +74,8 @@ Variable_name	Value
 cassandra_insert_batch_size	100
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_inserts	8
 Cassandra_row_insert_batches	7
+Cassandra_row_inserts	8
 CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
 delete from t1;
@@ -84,14 +84,14 @@ DELETE FROM t1 ORDER BY a LIMIT 1;
 DROP TABLE t1;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_inserts	10
 Cassandra_row_insert_batches	8
+Cassandra_row_inserts	10
 # FLUSH STATUS doesn't work for our variables, just like with InnoDB.
 flush status;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_inserts	10
-Cassandra_row_insert_batches	8
+Cassandra_row_insert_batches	0
+Cassandra_row_inserts	0
 #
 # Batched Key Access
 #
@@ -102,8 +102,8 @@ cassandra_multiget_batch_size	100
 # MRR-related status variables:
 show status like 'cassandra_multi%';
 Variable_name	Value
-Cassandra_multiget_reads	0
 Cassandra_multiget_keys_scanned	0
+Cassandra_multiget_reads	0
 Cassandra_multiget_rows_read	0
 CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
@@ -129,8 +129,8 @@ rowkey	a	rowkey	a
 9	9	9	9
 show status like 'cassandra_multi%';
 Variable_name	Value
-Cassandra_multiget_reads	1
 Cassandra_multiget_keys_scanned	10
+Cassandra_multiget_reads	1
 Cassandra_multiget_rows_read	10
 insert into t1 values(1, 8);
 insert into t1 values(3, 8);
@@ -150,8 +150,8 @@ rowkey	a	rowkey	a
 9	9	9	9
 show status like 'cassandra_multi%';
 Variable_name	Value
-Cassandra_multiget_reads	2
 Cassandra_multiget_keys_scanned	16
+Cassandra_multiget_reads	2
 Cassandra_multiget_rows_read	16
 delete from t1;
 drop table t1;
