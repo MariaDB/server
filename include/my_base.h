@@ -335,6 +335,12 @@ enum ha_base_keytype {
 #define HA_CREATE_DELAY_KEY_WRITE 64
 #define HA_CREATE_RELIES_ON_SQL_LAYER 128
 
+
+/* Flags used by start_bulk_insert */
+
+#define HA_CREATE_UNIQUE_INDEX_BY_SORT   1
+
+
 /*
   The following flags (OR-ed) are passed to handler::info() method.
   The method copies misc handler information out of the storage engine

@@ -3879,7 +3879,10 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
                                  (my_bool) (!(param->testflag & T_VERBOSE)),
                                  (size_t) param->sort_buffer_length))
     {
-      param->retry_repair=1;
+      if ((param->testflag & T_CREATE_UNIQUE_BY_SORT) && sort_param.sort_info->dupp)
+        share->state.dupp_key= sort_param.key;
+      else
+        param->retry_repair= 1;
       _ma_check_print_error(param, "Create index by sort failed");
       goto err;
     }
@@ -5498,6 +5501,9 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
     sort_info->dupp++;
     sort_info->info->cur_row.lastpos= get_record_for_key(sort_param->keyinfo,
                                                          a);
+    if ((param->testflag & (T_CREATE_UNIQUE_BY_SORT | T_SUPPRESS_ERR_HANDLING))
+        == T_CREATE_UNIQUE_BY_SORT)
+      param->testflag|= T_SUPPRESS_ERR_HANDLING;
     _ma_check_print_warning(param,
 			   "Duplicate key %2u for record at %10s against "
                             "record at %10s",
@@ -6410,7 +6416,7 @@ static my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
 }
 
 /*
-  Deactivate all not unique index that can be recreated fast
+  Deactivate all indexes that can be recreated fast.
   These include packed keys on which sorting will use more temporary
   space than the max allowed file length or for which the unpacked keys
   will take much more space than packed keys.
@@ -6418,7 +6424,8 @@ static my_bool maria_too_big_key_for_sort(MARIA_KEYDEF *key, ha_rows rows)
   rows we will put into the file.
  */
 
-void maria_disable_non_unique_index(MARIA_HA *info, ha_rows rows)
+void maria_disable_indexes_for_rebuild(MARIA_HA *info, ha_rows rows,
+                                    my_bool all_keys)
 {
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF    *key=share->keyinfo;
@@ -6428,12 +6435,13 @@ void maria_disable_non_unique_index(MARIA_HA *info, ha_rows rows)
               (!rows || rows >= MARIA_MIN_ROWS_TO_DISABLE_INDEXES));
   for (i=0 ; i < share->base.keys ; i++,key++)
   {
-    if (!(key->flag &
-          (HA_NOSAME | HA_SPATIAL | HA_AUTO_KEY | HA_RTREE_INDEX)) &&
-        ! maria_too_big_key_for_sort(key,rows) && share->base.auto_key != i+1)
+    if (!(key->flag & (HA_SPATIAL | HA_AUTO_KEY | HA_RTREE_INDEX)) &&
+        ! maria_too_big_key_for_sort(key,rows) && share->base.auto_key != i+1 &&
+        (all_keys || !(key->flag & HA_NOSAME))) 
     {
       maria_clear_key_active(share->state.key_map, i);
       info->update|= HA_STATE_CHANGED;
+      info->create_unique_index_by_sort= all_keys;
     }
   }
 }

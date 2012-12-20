@@ -383,7 +383,8 @@ int maria_recreate_table(HA_CHECK *param, MARIA_HA **org_info, char *filename);
 int maria_disable_indexes(MARIA_HA *info);
 int maria_enable_indexes(MARIA_HA *info);
 int maria_indexes_are_disabled(MARIA_HA *info);
-void maria_disable_non_unique_index(MARIA_HA *info, ha_rows rows);
+void maria_disable_indexes_for_rebuild(MARIA_HA *info, ha_rows rows,
+                                       my_bool all_keys);
 my_bool maria_test_if_sort_rep(MARIA_HA *info, ha_rows rows, ulonglong key_map,
 			       my_bool force);
 
