@@ -1,0 +1,7 @@
+
+--echo #
+set @@storage_engine= Aria;
+
+--source include/alter_table_mdev539.inc
+
+set @@storage_engine= default;
