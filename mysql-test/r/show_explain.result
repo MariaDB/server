@@ -1,5 +1,6 @@
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
+set debug_sync='RESET';
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int);
@@ -1076,3 +1077,4 @@ show explain for foo;
 ERROR HY000: You may only use constant expressions in this statement
 # End
 drop table t0;
+set debug_sync='RESET';

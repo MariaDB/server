@@ -49,6 +49,7 @@
 #include "sql_trigger.h"
 #include "transaction.h"
 #include "sql_prepare.h"
+#include "sql_statistics.h"
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <hash.h>
@@ -3147,6 +3148,16 @@ retry_share:
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
 
+    if (get_use_stat_tables_mode(thd) > NEVER)
+    {
+      if (share->table_category != TABLE_CATEGORY_SYSTEM)
+      {
+        if (!share->stats_can_be_read && 
+            !alloc_statistics_for_table_share(thd, share, TRUE))
+	  share->stats_can_be_read= TRUE;
+      }
+    }
+
     mysql_mutex_unlock(&LOCK_open);
 
     /* make a new table */
@@ -4629,6 +4640,29 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
     goto end;
   }
 
+  if (get_use_stat_tables_mode(thd) > NEVER && tables->table)
+  {
+    TABLE_SHARE *table_share= tables->table->s;
+    if (table_share && table_share->table_category != TABLE_CATEGORY_SYSTEM)
+    {
+      if (!table_share->stats_can_be_read && 
+          !alloc_statistics_for_table_share(thd, table_share, FALSE))
+      {    
+        KEY *key_info= table_share->key_info;
+        KEY *key_info_end= key_info + table_share->keys;
+        KEY *table_key_info= tables->table->key_info;
+        for ( ; key_info < key_info_end; key_info++, table_key_info++)
+          table_key_info->read_stats= key_info->read_stats;
+        Field **field_ptr= table_share->field;
+        Field **table_field_ptr= tables->table->field;
+        for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+          (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+  
+	table_share->stats_can_be_read= TRUE;
+      }	
+    }
+  }
+
 process_view_routines:
   /*
     Again we may need cache all routines used by this view and add
@@ -5576,6 +5610,8 @@ bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
   if (lock_tables(thd, tables, counter, flags))
     goto err;
 
+  (void) read_statistics_for_tables_if_needed(thd, tables);
+  
   if (derived)
   {
     if (mysql_handle_derived(thd->lex, DT_INIT))
@@ -9569,6 +9605,12 @@ has_write_table_auto_increment_not_first_in_pk(TABLE_LIST *tables)
     even when we already have some other tables open and locked.  One
     must call close_system_tables() to close systems tables opened
     with this call.
+
+  NOTES
+   In some situations we  use this function to open system tables for
+   writing. It happens, for examples, with statistical tables when
+   they are updated by an ANALYZE command. In these cases we should
+   guarantee that system tables will not be deadlocked.
 
   RETURN
     FALSE   Success
