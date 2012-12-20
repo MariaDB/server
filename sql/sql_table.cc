@@ -7351,7 +7351,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                                           MODE_STRICT_ALL_TABLES));
 
   from->file->info(HA_STATUS_VARIABLE);
-  to->file->ha_start_bulk_insert(from->file->stats.records);
+  to->file->ha_start_bulk_insert(from->file->stats.records,
+                                 ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
   errpos= 3;
 
   copy_end=copy;
