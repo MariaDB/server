@@ -1,7 +1,7 @@
 drop table if exists t0, t1;
 create table t1 (a int) engine=cassandra 
 thrift_host='localhost' keyspace='foo' column_family='colfam';
-ERROR 42000: Incorrect column name 'First column must be NOT NULL'
+ERROR 42000: This table type requires a primary key
 create table t1 (a int primary key, b int) engine=cassandra
 thrift_host='localhost' keyspace='foo' column_family='colfam';
 ERROR HY000: Unable to connect to foreign data source: Default TException. [Keyspace foo does not exist]
@@ -356,6 +356,8 @@ drop table t2;
 #
 # Mapping TIMESTAMP -> int64
 #
+set @save_tz= @@time_zone;
+set time_zone='UTC';
 CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
 insert into t2 values (1, '2012-08-29 01:23:45');
@@ -365,10 +367,11 @@ CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
 select * from t2;
 rowkey	datecol
-1	1346192625000
-10	1346192626000
+1	1346203425000
+10	1346203426000
 delete from t2;
 drop table t2;
+set time_zone=@save_tz;
 #
 # Check whether changing parameters with ALTER TABLE works.
 #
@@ -553,5 +556,27 @@ DROP TABLE t1;
 CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
 ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
 insert into t1 values (1, NULL);
+delete from t1;
+DROP TABLE t1;
+#
+# strange side effect of Cassandra - remiving all columns of primary
+# key removes all row.
+#
+CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
+ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+2	[{"ab":"ab"}]
+UPDATE t1 set dyn=NULL;
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+INSERT INTO t1 VALUES(2,column_create("ab","ab"));
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
+2	[{"ab":"ab"}]
+UPDATE t1 set dyn="";
+select rowkey, column_json(dyn) from t1;
+rowkey	column_json(dyn)
 delete from t1;
 DROP TABLE t1;

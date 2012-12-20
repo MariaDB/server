@@ -14,7 +14,8 @@ SET(cassandra_sources
 #INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
 #INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift)
-INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
+#INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
+INCLUDE_DIRECTORIES(AFTER /home/psergey/cassandra/thrift/include/thrift/) 
 
 # 
 STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
