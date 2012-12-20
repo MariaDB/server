@@ -68,6 +68,12 @@ wait/synch/mutex/sql/LOCK_thread_count
 wait/synch/mutex/sql/LOCK_user_conn
 wait/synch/mutex/sql/LOCK_user_locks
 wait/synch/mutex/sql/LOCK_uuid_short_generator
+wait/synch/mutex/sql/LOCK_wsrep_ready
+wait/synch/mutex/sql/LOCK_wsrep_replaying
+wait/synch/mutex/sql/LOCK_wsrep_rollback
+wait/synch/mutex/sql/LOCK_wsrep_slave_threads
+wait/synch/mutex/sql/LOCK_wsrep_sst
+wait/synch/mutex/sql/LOCK_wsrep_sst_init
 wait/synch/mutex/sql/LOCK_xid_cache
 wait/synch/mutex/sql/LOG::LOCK_log
 wait/synch/mutex/sql/LOG_INFO::lock
@@ -87,6 +93,7 @@ wait/synch/mutex/sql/Slave_reporting_capability::err_lock
 wait/synch/mutex/sql/TABLE_SHARE::LOCK_ha_data
 wait/synch/mutex/sql/THD::LOCK_thd_data
 wait/synch/mutex/sql/THD::LOCK_wakeup_ready
+wait/synch/mutex/sql/THD::LOCK_wsrep_thd
 wait/synch/mutex/sql/tz_LOCK
 select name from rwlock_instances
 where name not in ("wait/synch/rwlock/sql/CRYPTO_dynlock_value::lock")
@@ -122,6 +129,11 @@ wait/synch/cond/sql/COND_rpl_status
 wait/synch/cond/sql/COND_server_started
 wait/synch/cond/sql/COND_thread_cache
 wait/synch/cond/sql/COND_thread_count
+wait/synch/cond/sql/COND_wsrep_ready
+wait/synch/cond/sql/COND_wsrep_replaying
+wait/synch/cond/sql/COND_wsrep_rollback
+wait/synch/cond/sql/COND_wsrep_sst
+wait/synch/cond/sql/COND_wsrep_sst_init
 wait/synch/cond/sql/Event_scheduler::COND_state
 wait/synch/cond/sql/Master_info::data_cond
 wait/synch/cond/sql/Master_info::sleep_cond
@@ -139,6 +151,7 @@ wait/synch/cond/sql/Relay_log_info::sleep_cond
 wait/synch/cond/sql/Relay_log_info::start_cond
 wait/synch/cond/sql/Relay_log_info::stop_cond
 wait/synch/cond/sql/THD::COND_wakeup_ready
+wait/synch/cond/sql/THD::COND_wsrep_thd
 select event_name from file_instances group by event_name;
 event_name
 wait/io/file/aria/control
