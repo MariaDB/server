@@ -30,15 +30,6 @@ using namespace apache::thrift::protocol;
 using namespace org::apache::cassandra;
 
 
-void Cassandra_se_interface::print_error(const char *format, ...)
-{
-  va_list ap;
-  va_start(ap, format);
-  // it's not a problem if output was truncated
-  vsnprintf(err_buffer, sizeof(err_buffer), format, ap);
-  va_end(ap);
-}
-
 /*
   Implementation of connection to one Cassandra column family (ie., table)
 */

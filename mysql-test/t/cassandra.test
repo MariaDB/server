@@ -8,9 +8,9 @@ drop table if exists t0, t1;
 --enable_warnings
 
 # Test various errors on table creation.
---error ER_WRONG_COLUMN_NAME
+--error ER_REQUIRES_PRIMARY_KEY
 create table t1 (a int) engine=cassandra 
-  thrift_host='localhost' keyspace='foo' column_family='colfam';
+ thrift_host='localhost' keyspace='foo' column_family='colfam';
 
 --error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
 create table t1 (a int primary key, b int) engine=cassandra
@@ -466,6 +466,8 @@ drop table t2;
 --echo #
 --echo # Mapping TIMESTAMP -> int64
 --echo #
+set @save_tz= @@time_zone;
+set time_zone='UTC';
 CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol timestamp) ENGINE=CASSANDRA
   thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf4';
 insert into t2 values (1, '2012-08-29 01:23:45');
@@ -477,6 +479,7 @@ CREATE TABLE t2 (rowkey bigint PRIMARY KEY, datecol bigint) ENGINE=CASSANDRA
 select * from t2;
 delete from t2;
 drop table t2;
+set time_zone=@save_tz;
 
 --echo #
 --echo # Check whether changing parameters with ALTER TABLE works.

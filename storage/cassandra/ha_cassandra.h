@@ -139,18 +139,13 @@ public:
   */
   ulonglong table_flags() const
   {
-    /*
-      HA_BINLOG_STMT_CAPABLE
-        We are saying that this engine is just statement capable to have
-        an engine that can only handle statement-based logging. This is
-        used in testing.
-      HA_REC_NOT_IN_SEQ
-        If we don't set it, filesort crashes, because it assumes rowids are
-        1..8 byte numbers
-    */
     return HA_BINLOG_STMT_CAPABLE |
-           HA_REC_NOT_IN_SEQ;
-
+           HA_REC_NOT_IN_SEQ |
+           HA_NO_TRANSACTIONS |
+           HA_REQUIRE_PRIMARY_KEY |
+           HA_PRIMARY_KEY_IN_READ_INDEX |
+           HA_PRIMARY_KEY_REQUIRED_FOR_POSITION |
+           HA_NO_AUTO_INCREMENT;
   }
 
   /** @brief
@@ -239,64 +234,12 @@ private:
   CASSANDRA_TYPE_DEF * get_cassandra_field_def(char *cass_name,
                                                int cass_name_length);
 public:
+  int open(const char *name, int mode, uint test_if_locked);
+  int close(void);
 
-  /*
-    Everything below are methods that we implement in ha_example.cc.
-
-    Most of these methods are not obligatory, skip them and
-    MySQL will treat them as not implemented
-  */
-  /** @brief
-    We implement this in ha_example.cc; it's a required method.
-  */
-  int open(const char *name, int mode, uint test_if_locked);    // required
-
-  /** @brief
-    We implement this in ha_example.cc; it's a required method.
-  */
-  int close(void);                                              // required
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
   int write_row(uchar *buf);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
   int update_row(const uchar *old_data, uchar *new_data);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
   int delete_row(const uchar *buf);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
-  int index_next(uchar *buf);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
-  int index_prev(uchar *buf);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
-  int index_first(uchar *buf);
-
-  /** @brief
-    We implement this in ha_example.cc. It's not an obligatory method;
-    skip it and and MySQL will treat it as not implemented.
-  */
-  int index_last(uchar *buf);
 
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
@@ -312,8 +255,6 @@ public:
   int rnd_pos(uchar *buf, uchar *pos);                          ///< required
   void position(const uchar *record);                           ///< required
   int info(uint);                                               ///< required
-  int extra(enum ha_extra_function operation);
-  int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key);

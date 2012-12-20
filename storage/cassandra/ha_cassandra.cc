@@ -542,13 +542,6 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   int res;
   DBUG_ENTER("ha_cassandra::create");
 
-  Field **pfield= table_arg->s->field;
-  if (!((*pfield)->flags & NOT_NULL_FLAG))
-  {
-    my_error(ER_WRONG_COLUMN_NAME, MYF(0), "First column must be NOT NULL");
-    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
-  }
-
   if (table_arg->s->keys != 1 || table_arg->s->primary_key !=0 ||
       table_arg->key_info[0].key_parts != 1 ||
       table_arg->key_info[0].key_part[0].fieldnr != 1)
@@ -1680,7 +1673,7 @@ void ha_cassandra::print_conversion_error(const char *field_name,
   char buf[32];
   char *p= cass_value;
   size_t i= 0;
-  for (; (i < (int)sizeof(buf)-1) && (p < cass_value + cass_value_len); p++)
+  for (; (i < sizeof(buf)-1) && (p < cass_value + cass_value_len); p++)
   {
     buf[i++]= map2number[(*p >> 4) & 0xF];
     buf[i++]= map2number[*p & 0xF];
@@ -2163,7 +2156,7 @@ int ha_cassandra::info(uint flag)
   if (flag & HA_STATUS_VARIABLE)
   {
     stats.records= 1000;
-    //TODO: any other stats?
+    stats.deleted= 0;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -2346,55 +2339,6 @@ int ha_cassandra::multi_range_read_explain_info(uint mrr_mode, char *str, size_t
 }
 
 
-/////////////////////////////////////////////////////////////////////////////
-// Dummy implementations start
-/////////////////////////////////////////////////////////////////////////////
-
-
-int ha_cassandra::index_next(uchar *buf)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::index_next");
-  rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
-
-
-int ha_cassandra::index_prev(uchar *buf)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::index_prev");
-  rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
-
-
-int ha_cassandra::index_first(uchar *buf)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::index_first");
-  rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
-
-int ha_cassandra::index_last(uchar *buf)
-{
-  int rc;
-  DBUG_ENTER("ha_cassandra::index_last");
-  rc= HA_ERR_WRONG_COMMAND;
-  DBUG_RETURN(rc);
-}
-
-
-ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
-                                     key_range *max_key)
-{
-  DBUG_ENTER("ha_cassandra::records_in_range");
-  //DBUG_RETURN(10);                         // low number to force index usage
-  DBUG_RETURN(HA_POS_ERROR);
-}
-
-
 class Column_name_enumerator_impl : public Column_name_enumerator
 {
   ha_cassandra *obj;
@@ -2550,13 +2494,6 @@ err:
 }
 
 
-int ha_cassandra::extra(enum ha_extra_function operation)
-{
-  DBUG_ENTER("ha_cassandra::extra");
-  DBUG_RETURN(0);
-}
-
-
 /* The following function was copied from ha_blackhole::store_lock: */
 THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
                                          THR_LOCK_DATA **to,
@@ -2595,18 +2532,20 @@ THR_LOCK_DATA **ha_cassandra::store_lock(THD *thd,
 }
 
 
-int ha_cassandra::external_lock(THD *thd, int lock_type)
+ha_rows ha_cassandra::records_in_range(uint inx, key_range *min_key,
+                                       key_range *max_key)
 {
-  DBUG_ENTER("ha_cassandra::external_lock");
-  DBUG_RETURN(0);
+  DBUG_ENTER("ha_cassandra::records_in_range");
+  DBUG_RETURN(HA_POS_ERROR); /* Range scans are not supported */
 }
+
 
 int ha_cassandra::delete_table(const char *name)
 {
   DBUG_ENTER("ha_cassandra::delete_table");
   /*
     Cassandra table is just a view. Dropping it doesn't affect the underlying
-    column family.
+    column family, so we do nothing here.
   */
   DBUG_RETURN(0);
 }
@@ -2632,9 +2571,15 @@ bool ha_cassandra::check_if_incompatible_data(HA_CREATE_INFO *info,
 }
 
 
-/////////////////////////////////////////////////////////////////////////////
-// Dummy implementations end
-/////////////////////////////////////////////////////////////////////////////
+void Cassandra_se_interface::print_error(const char *format, ...)
+{
+  va_list ap;
+  va_start(ap, format);
+  // it's not a problem if output was truncated
+  my_vsnprintf(err_buffer, sizeof(err_buffer), format, ap);
+  va_end(ap);
+}
+
 
 static int show_cassandra_vars(THD *thd, SHOW_VAR *var, char *buff)
 {
@@ -2654,6 +2599,7 @@ static struct st_mysql_show_var func_status[]=
   {"Cassandra",  (char *)show_cassandra_vars, SHOW_FUNC},
   {0,0,SHOW_UNDEF}
 };
+
 
 maria_declare_plugin(cassandra)
 {
