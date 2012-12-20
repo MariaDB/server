@@ -3740,6 +3740,15 @@ static Sys_var_ulong Sys_progress_report_time(
        SESSION_VAR(progress_report_time), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(56), BLOCK_SIZE(1));
 
+const char *use_stat_tables_modes[] =
+           {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
+static Sys_var_enum Sys_optimizer_use_stat_tables(
+       "use_stat_tables",
+       "Specifies how to use system statistics tables. Possible values are "
+       "NEVER, COMPLEMENTARY, PREVERABLY",
+       SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
+       use_stat_tables_modes, DEFAULT(0));
+
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",
        "Disable system thread alarm calls. Disabling it may be useful "

@@ -36,6 +36,7 @@
 #include "sp.h"
 #include "events.h"
 #include "sql_handler.h"
+#include "sql_statistics.h"
 #include <my_dir.h>
 #include <m_ctype.h>
 #include "log.h"
@@ -815,6 +816,17 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
                        MYSQL_OPEN_SKIP_TEMPORARY) ||
       lock_db_routines(thd, db))
     goto exit;
+
+  if (!in_bootstrap)
+  {
+    for (table= tables; table; table= table->next_local)
+    {
+      LEX_STRING db_name= { table->db, table->db_length };
+      LEX_STRING table_name= { table->table_name, table->table_name_length };
+      if (table->open_type == OT_BASE_ONLY || !find_temporary_table(thd, table))
+        (void) delete_statistics_for_table(thd, &db_name, &table_name);
+    }
+  }
 
   /* mysql_ha_rm_tables() requires a non-null TABLE_LIST. */
   if (tables)
