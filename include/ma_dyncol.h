@@ -34,13 +34,6 @@
 #include <mysql_time.h>
 
 /*
-  Max length for data in a dynamic colums. This comes from how the
-  how the offset are stored.
-*/
-#define MAX_DYNAMIC_COLUMN_LENGTH 0X1FFFFFFFL
-#define MAX_DYNAMIC_COLUMN_LENGTH_NM 0XFFFFFFFFFL
-
-/*
   Limits of implementation
 */
 #define MAX_TOTAL_NAME_LENGTH 65535
@@ -101,7 +94,6 @@ struct st_dynamic_column_value
 
 typedef struct st_dynamic_column_value DYNAMIC_COLUMN_VALUE;
 
-/* old functions (deprecated) */
 #ifdef MADYNCOL_DEPRECATED
 enum enum_dyncol_func_result
 dynamic_column_create(DYNAMIC_COLUMN *str,
@@ -168,7 +160,7 @@ mariadb_dyncol_exists_named(DYNAMIC_COLUMN *str, LEX_STRING *name);
 
 /* List of not NULL columns */
 enum enum_dyncol_func_result
-mariadb_dyncol_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
+mariadb_dyncol_list(DYNAMIC_COLUMN *str, uint *count, uint **nums);
 enum enum_dyncol_func_result
 mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count, LEX_STRING **names);
 
@@ -213,17 +205,11 @@ int mariadb_dyncol_column_cmp_named(const LEX_STRING *s1, const LEX_STRING *s2);
 enum enum_dyncol_func_result
 mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count);
 
-/***************************************************************************
- Internal functions, don't use if you don't know what you are doing...
-***************************************************************************/
-
-#define mariadb_dyncol_reassociate(V,P,L, A) dynstr_reassociate((V),(P),(L),(A))
-
-#define dyncol_value_init(V) (V)->type= DYN_COL_NULL
+#define mariadb_dyncol_value_init(V) (V)->type= DYN_COL_NULL
 
 /*
   Prepare value for using as decimal
 */
-void dynamic_column_prepare_decimal(DYNAMIC_COLUMN_VALUE *value);
+void mariadb_dyncol_prepare_decimal(DYNAMIC_COLUMN_VALUE *value);
 
 #endif

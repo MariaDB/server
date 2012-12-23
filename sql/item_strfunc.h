@@ -1013,7 +1013,7 @@ public:
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
   virtual void print(String *str, enum_query_type query_type);
-  virtual enum Functype functype() const   { return DYNCOL; }
+  virtual enum Functype functype() const   { return DYNCOL_FUNC; }
 };
 
 
@@ -1051,11 +1051,9 @@ class Item_dyncol_get: public Item_str_func
 public:
   Item_dyncol_get(Item *str, Item *num)
     :Item_str_func(str, num)
-  {
-    max_length= MAX_DYNAMIC_COLUMN_LENGTH;
-  }
+  {}
   void fix_length_and_dec()
-  { maybe_null= 1; }
+  { maybe_null= 1; max_length= MAX_BLOB_WIDTH; }
   /* Mark that collation can change between calls */
   bool dynamic_result() { return 1; }
 
