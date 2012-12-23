@@ -1568,10 +1568,10 @@ ERROR 22007: Illegal value used as argument of dynamic column function
 #
 select column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" AS datetime, "date", "2011-04-05" AS date));
 column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" 
-[{"int":-1212},{"date":"2011-04-05"},{"time":"00:45:49.000001"},{"uint":12334},{"double":"1.23444e+50"},{"string":"gdgd\\dhdjh\"dhdhd"},{"decimal":23.344},{"datetime":"2011-04-05 00:45:49.000001"}]
+{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":"1.23444e+50","string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
 select column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date));
 column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date))
-[{"1":-1212},{"2":12334},{"3":23.344},{"4":"1.23444e+50"},{"5":"gdgd\\dhdjh\"dhdhd"},{"6":"00:45:49.000001"},{"7":"2011-04-05 00:45:49.000001"},{"8":"2011-04-05"}]
+{"1":-1212,"2":12334,"3":23.344,"4":"1.23444e+50","5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
 #
 # CHECK test
 #
@@ -1592,48 +1592,48 @@ NULL
 #
 select column_json(column_create("string", "'\"/\\`.,whatever")),hex(column_create("string", "'\"/\\`.,whatever"));
 column_json(column_create("string", "'\"/\\`.,whatever"))	hex(column_create("string", "'\"/\\`.,whatever"))
-[{"string":"'\"/\\`.,whatever"}]	040100060000000300737472696E670827222F5C602E2C7768617465766572
+{"string":"'\"/\\`.,whatever"}	040100060000000300737472696E670827222F5C602E2C7768617465766572
 #
 # embedding test
 #
 select column_json(column_create("val", "val", "emb", column_create("val2", "val2")));
 column_json(column_create("val", "val", "emb", column_create("val2", "val2")))
-[{"emb":[{"val2":"val2"}],{"val":"val"}]
+{"emb":{"val2":"val2"},"val":"val"}
 select column_json(column_create(1, "val", 2, column_create(3, "val2")));
 column_json(column_create(1, "val", 2, column_create(3, "val2")))
-[{"1":"val"},{"2":[{"3":"val2"}]]
+{"1":"val","2":{"3":"val2"}}
 #
 # Time encoding
 #
 select hex(column_create("t", "800:46:06.23434" AS time)) as hex,
 column_json(column_create("t", "800:46:06.23434" AS time)) as json;
 hex	json
-04010001000000070074649363B82003	[{"t":"800:46:06.234340"}]
+04010001000000070074649363B82003	{"t":"800:46:06.234340"}
 select hex(column_create(1, "800:46:06.23434" AS time)) as hex,
 column_json(column_create(1, "800:46:06.23434" AS time)) as json;
 hex	json
-000100010007649363B82003	[{"1":"800:46:06.234340"}]
+000100010007649363B82003	{"1":"800:46:06.234340"}
 select hex(column_create("t", "800:46:06" AS time)) as hex,
 column_json(column_create("t", "800:46:06" AS time)) as json;
 hex	json
-04010001000000070074860B32	[{"t":"800:46:06"}]
+04010001000000070074860B32	{"t":"800:46:06"}
 select hex(column_create(1, "800:46:06" AS time)) as hex,
 column_json(column_create(1, "800:46:06" AS time)) as json;
 hex	json
-000100010007000060B82003	[{"1":"800:46:06"}]
+000100010007000060B82003	{"1":"800:46:06"}
 select hex(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as hex,
 column_json(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as json;
 hex	json
-0401000100000005007495B90F649363B80A00	[{"t":"2012-12-21 10:46:06.234340"}]
+0401000100000005007495B90F649363B80A00	{"t":"2012-12-21 10:46:06.234340"}
 select hex(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as hex,
 column_json(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as json;
 hex	json
-00010001000595B90F649363B80A00	[{"1":"2012-12-21 10:46:06.234340"}]
+00010001000595B90F649363B80A00	{"1":"2012-12-21 10:46:06.234340"}
 select hex(column_create("t", "2012-12-21 10:46:06" AS datetime)) as hex,
 column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as json;
 hex	json
-0401000100000005007495B90F86AB00	[{"t":"2012-12-21 10:46:06"}]
+0401000100000005007495B90F86AB00	{"t":"2012-12-21 10:46:06"}
 select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
 column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
 hex	json
-00010001000595B90F000060B80A00	[{"1":"2012-12-21 10:46:06"}]
+00010001000595B90F000060B80A00	{"1":"2012-12-21 10:46:06"}

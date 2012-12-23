@@ -2368,7 +2368,7 @@ dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
 
 
 /**
-  List not-null columns in the packed string (only numeric foemat)
+  List not-null columns in the packed string (only numeric format)
 
   @param str             The packed string
   @param array_of_uint   Where to put reference on created array
@@ -2377,12 +2377,6 @@ dynamic_column_exists_internal(DYNAMIC_COLUMN *str, uint num_key,
 */
 enum enum_dyncol_func_result
 dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
-{
-  return mariadb_dyncol_list(str, array_of_uint);
-}
-
-enum enum_dyncol_func_result
-mariadb_dyncol_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
 {
   DYN_HEADER header;
   uchar *read;
@@ -2417,6 +2411,48 @@ mariadb_dyncol_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
   return ER_DYNCOL_OK;
 }
 
+/**
+  List not-null columns in the packed string (only numeric format)
+
+  @param str             The packed string
+  @param array_of_uint   Where to put reference on created array
+
+  @return ER_DYNCOL_* return code
+*/
+enum enum_dyncol_func_result
+mariadb_dyncol_list(DYNAMIC_COLUMN *str, uint *count, uint **nums)
+{
+  DYN_HEADER header;
+  uchar *read;
+  uint i;
+  enum enum_dyncol_func_result rc;
+
+  (*nums)= 0;                                   /* In case of errors */
+  if (str->length == 0)
+    return ER_DYNCOL_OK;                        /* no columns */
+
+  if ((rc= init_read_hdr(&header, str)) < 0)
+    return rc;
+
+  if (header.format != dyncol_fmt_num)
+    return ER_DYNCOL_FORMAT;
+
+  if (header.entry_size * header.column_count + FIXED_HEADER_SIZE >
+      str->length)
+    return ER_DYNCOL_FORMAT;
+
+  if (!((*nums)= my_malloc(sizeof(uint) * header.column_count, MYF(0))))
+    return ER_DYNCOL_RESOURCE;
+
+  for (i= 0, read= header.header;
+       i < header.column_count;
+       i++, read+= header.entry_size)
+  {
+    (*nums)[i]= uint2korr(read);
+  }
+  (*count)= header.column_count;
+  return ER_DYNCOL_OK;
+}
 
 /**
   List not-null columns in the packed string (any format)
@@ -4058,7 +4094,7 @@ mariadb_dyncol_json_internal(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json,
 
   rc= ER_DYNCOL_RESOURCE;
 
-  if (dynstr_append_mem(json, "[", 1))
+  if (dynstr_append_mem(json, "{", 1))
     goto err;
   for (i= 0, header.entry= header.header;
        i < header.column_count;
@@ -4080,8 +4116,7 @@ mariadb_dyncol_json_internal(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json,
       rc= ER_DYNCOL_FORMAT;
       goto err;
     }
-    if ((rc= dynamic_column_get_value(&header, &val)) < 0 ||
-        dynstr_append_mem(json, "{", 1))
+    if ((rc= dynamic_column_get_value(&header, &val)) < 0)
       goto err;
     if (header.format == dyncol_fmt_num)
     {
@@ -4125,12 +4160,11 @@ mariadb_dyncol_json_internal(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json,
     else
     {
       if ((rc= mariadb_dyncol_val_str(json, &val,
-                                &my_charset_utf8_general_ci, '"')) < 0 ||
-          dynstr_append_mem(json, "}", 1))
+                                      &my_charset_utf8_general_ci, '"')) < 0)
         goto err;
     }
   }
-  if (dynstr_append_mem(json, "]", 1))
+  if (dynstr_append_mem(json, "}", 1))
   {
     rc= ER_DYNCOL_RESOURCE;
     goto err;

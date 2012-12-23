@@ -3837,7 +3837,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
 
       if (type == DYN_COL_STRING &&
           args[valpos]->type() == Item::FUNC_ITEM &&
-          ((Item_func *)args[valpos])->functype() == DYNCOL)
+          ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)
       {
         force_names= 1;
         break;
@@ -3904,7 +3904,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
     }
     if (type == DYN_COL_STRING &&
         args[valpos]->type() == Item::FUNC_ITEM &&
-        ((Item_func *)args[valpos])->functype() == DYNCOL)
+        ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)
     {
       DBUG_ASSERT(names || force_names);
       type= DYN_COL_DYNCOL;
@@ -3988,7 +3988,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
     case DYN_COL_DECIMAL:
       if ((dres= args[valpos]->val_decimal(&dtmp)))
       {
-	dynamic_column_prepare_decimal(&vals[i]);
+	mariadb_dyncol_prepare_decimal(&vals[i]);
         DBUG_ASSERT(vals[i].x.decimal.value.len == dres->len);
         vals[i].x.decimal.value.intg= dres->intg;
         vals[i].x.decimal.value.frac= dres->frac;
@@ -3998,7 +3998,7 @@ bool Item_func_dyncol_create::prepare_arguments(bool force_names_arg)
       }
       else
       {
-	dynamic_column_prepare_decimal(&vals[i]); // just to be safe
+	mariadb_dyncol_prepare_decimal(&vals[i]); // just to be safe
         DBUG_ASSERT(args[valpos]->null_value);
       }
       break;
@@ -4055,7 +4055,7 @@ String *Item_func_dyncol_create::val_str(String *str)
       /* Move result from DYNAMIC_COLUMN to str_value */
       char *ptr;
       size_t length, alloc_length;
-      mariadb_dyncol_reassociate(&col, &ptr, &length, &alloc_length);
+      dynstr_reassociate(&col, &ptr, &length, &alloc_length);
       str_value.reassociate(ptr, (uint32) length, (uint32) alloc_length,
                             &my_charset_bin);
       res= &str_value;
@@ -4197,7 +4197,7 @@ String *Item_func_dyncol_add::val_str(String *str)
     /* Move result from DYNAMIC_COLUMN to str */
     char *ptr;
     size_t length, alloc_length;
-    mariadb_dyncol_reassociate(&col, &ptr, &length, &alloc_length);
+    dynstr_reassociate(&col, &ptr, &length, &alloc_length);
     str->reassociate(ptr, (uint32) length, (uint32) alloc_length,
                      &my_charset_bin);
     null_value= FALSE;
