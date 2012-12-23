@@ -801,12 +801,23 @@ my_bool dynstr_append_mem(DYNAMIC_STRING *str, const char *append,
 			  size_t length);
 extern my_bool dynstr_append_os_quoted(DYNAMIC_STRING *str, const char *append,
                                        ...);
+extern my_bool dynstr_append_quoted(DYNAMIC_STRING *str,
+                                    const char *append, size_t len,
+                                    char quote);
 extern my_bool dynstr_set(DYNAMIC_STRING *str, const char *init_str);
 extern my_bool dynstr_realloc(DYNAMIC_STRING *str, size_t additional_size);
 extern my_bool dynstr_trunc(DYNAMIC_STRING *str, size_t n);
 extern void dynstr_free(DYNAMIC_STRING *str);
+extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
+                                        CHARSET_INFO *to_cs,
+                                        const char *from, uint32 from_length,
+                                        CHARSET_INFO *from_cs, uint *errors);
 extern void dynstr_reassociate(DYNAMIC_STRING *str, char **res, size_t *length,
                                size_t *alloc_length);
+extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
+                                        CHARSET_INFO *to_cs,
+                                        const char *from, uint32 from_length,
+                                        CHARSET_INFO *from_cs, uint *errors);
 #ifdef HAVE_MLOCK
 extern void *my_malloc_lock(size_t length,myf flags);
 extern void my_free_lock(void *ptr);

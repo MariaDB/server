@@ -9820,6 +9820,7 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
   switch (rc) {
   case ER_DYNCOL_YES:
   case ER_DYNCOL_OK:
+  case ER_DYNCOL_TRUNCATED:
     break; // it is not an error
   case ER_DYNCOL_FORMAT:
     my_error(ER_DYN_COL_WRONG_FORMAT, MYF(0));
