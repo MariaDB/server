@@ -6048,6 +6048,7 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
   return NULL;
 }
 
+
 longlong Item_func_dyncol_check::val_int()
 {
   char buff[STRING_BUFFER_USUAL_SIZE];
@@ -6062,7 +6063,7 @@ longlong Item_func_dyncol_check::val_int()
   col.length= str->length();
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
-  rc= dynamic_column_check(&col);
+  rc= mariadb_dyncol_check(&col);
   if (rc < 0 && rc != ER_DYNCOL_FORMAT)
   {
     dynamic_column_error_message(rc);
@@ -6127,8 +6128,8 @@ longlong Item_func_dyncol_exists::val_int()
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
   rc= ((name == NULL) ?
-       dynamic_column_exists(&col, (uint) num) :
-       dynamic_column_exists_str(&col, name));
+       mariadb_dyncol_exists(&col, (uint) num) :
+       mariadb_dyncol_exists_named(&col, name));
   if (rc < 0)
   {
     dynamic_column_error_message(rc);

@@ -89,7 +89,7 @@ ha_create_table_option cassandra_field_option_list[]=
   /*
     Collect all other columns as dynamic here,
     the valid values are YES/NO, ON/OFF, 1/0.
-    The default is 0, that is true, yes, on.
+    The default is 0, that is false, no, off.
   */
   HA_FOPTION_BOOL("DYNAMIC_COLUMN_STORAGE", dyncol_field, 0),
   HA_FOPTION_END
@@ -862,9 +862,37 @@ public:
 /**
   Converting dynamic columns types to/from casandra types
 */
+
+
+/**
+  Check and initialize (if it is needed) string MEM_ROOT
+*/
+static void alloc_strings_memroot(MEM_ROOT *mem_root)
+{
+  if (!alloc_root_inited(mem_root))
+  {
+    /*
+      The mem_root used to allocate UUID (of length 36 + \0) so make
+      appropriate allocated size
+    */
+    init_alloc_root(mem_root,
+                    (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
+                    ALLOC_ROOT_MIN_BLOCK_SIZE,
+                    (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
+                    ALLOC_ROOT_MIN_BLOCK_SIZE);
+  }
+}
+
+static void free_strings_memroot(MEM_ROOT *mem_root)
+{
+  if (alloc_root_inited(mem_root))
+    free_root(mem_root, MYF(0));
+}
+
 bool cassandra_to_dyncol_intLong(const char *cass_data,
                                  int cass_data_len __attribute__((unused)),
-                                 DYNAMIC_COLUMN_VALUE *value)
+                                 DYNAMIC_COLUMN_VALUE *value,
+                                 MEM_ROOT *mem_root __attribute__((unused)))
 {
   value->type= DYN_COL_INT;
 #ifdef WORDS_BIGENDIAN
@@ -881,7 +909,7 @@ bool dyncol_to_cassandraLong(DYNAMIC_COLUMN_VALUE *value,
 {
   longlong *tmp= (longlong *) buff;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_long(tmp, value);
+    mariadb_dyncol_val_long(tmp, value);
   if (rc < 0)
     return true;
   *cass_data_len= sizeof(longlong);
@@ -897,7 +925,8 @@ bool dyncol_to_cassandraLong(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_intInt32(const char *cass_data,
                                   int cass_data_len __attribute__((unused)),
-                                  DYNAMIC_COLUMN_VALUE *value)
+                                  DYNAMIC_COLUMN_VALUE *value,
+                                  MEM_ROOT *mem_root __attribute__((unused)))
 {
   int32 tmp;
   value->type= DYN_COL_INT;
@@ -917,7 +946,7 @@ bool dyncol_to_cassandraInt32(DYNAMIC_COLUMN_VALUE *value,
 {
   longlong *tmp= (longlong *) ((char *)buff + sizeof(longlong));
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_long(tmp, value);
+    mariadb_dyncol_val_long(tmp, value);
   if (rc < 0)
     return true;
   *cass_data_len= sizeof(int32);
@@ -937,7 +966,8 @@ bool dyncol_to_cassandraInt32(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_intCounter(const char *cass_data,
                                     int cass_data_len __attribute__((unused)),
-                                    DYNAMIC_COLUMN_VALUE *value)
+                                    DYNAMIC_COLUMN_VALUE *value,
+                                    MEM_ROOT *mem_root __attribute__((unused)))
 {
   value->type= DYN_COL_INT;
   value->x.long_value= *((longlong *)cass_data);
@@ -951,7 +981,7 @@ bool dyncol_to_cassandraCounter(DYNAMIC_COLUMN_VALUE *value,
 {
   longlong *tmp= (longlong *)buff;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_long(tmp, value);
+    mariadb_dyncol_val_long(tmp, value);
   if (rc < 0)
     return true;
   *cass_data_len= sizeof(longlong);
@@ -962,7 +992,8 @@ bool dyncol_to_cassandraCounter(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_doubleFloat(const char *cass_data,
                                      int cass_data_len __attribute__((unused)),
-                                     DYNAMIC_COLUMN_VALUE *value)
+                                     DYNAMIC_COLUMN_VALUE *value,
+                                     MEM_ROOT *mem_root __attribute__((unused)))
 {
   value->type= DYN_COL_DOUBLE;
   value->x.double_value= *((float *)cass_data);
@@ -975,7 +1006,7 @@ bool dyncol_to_cassandraFloat(DYNAMIC_COLUMN_VALUE *value,
 {
   double tmp;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_double(&tmp, value);
+    mariadb_dyncol_val_double(&tmp, value);
   if (rc < 0)
     return true;
   *((float *)buff)= (float) tmp;
@@ -987,7 +1018,9 @@ bool dyncol_to_cassandraFloat(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_doubleDouble(const char *cass_data,
                                       int cass_data_len __attribute__((unused)),
-                                      DYNAMIC_COLUMN_VALUE *value)
+                                      DYNAMIC_COLUMN_VALUE *value,
+                                      MEM_ROOT *mem_root
+                                      __attribute__((unused)))
 {
   value->type= DYN_COL_DOUBLE;
   value->x.double_value= *((double *)cass_data);
@@ -1000,7 +1033,7 @@ bool dyncol_to_cassandraDouble(DYNAMIC_COLUMN_VALUE *value,
 {
   double *tmp= (double *)buff;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_double(tmp, value);
+    mariadb_dyncol_val_double(tmp, value);
   if (rc < 0)
     return true;
   *cass_data_len= sizeof(double);
@@ -1018,7 +1051,6 @@ bool cassandra_to_dyncol_strStr(const char *cass_data,
   value->x.string.charset= cs;
   value->x.string.value.str= (char *)cass_data;
   value->x.string.value.length= cass_data_len;
-  value->x.string.nonfreeable= TRUE; // do not try to free
   return 0;
 }
 
@@ -1030,7 +1062,7 @@ bool dyncol_to_cassandraStr(DYNAMIC_COLUMN_VALUE *value,
   if (init_dynamic_string(&tmp, NULL, 1024, 1024))
     return 1;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_str(&tmp, value, cs, FALSE);
+    mariadb_dyncol_val_str(&tmp, value, cs, '\0');
   if (rc < 0)
   {
     dynstr_free(&tmp);
@@ -1044,7 +1076,8 @@ bool dyncol_to_cassandraStr(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_strBytes(const char *cass_data,
                                   int cass_data_len,
-                                  DYNAMIC_COLUMN_VALUE *value)
+                                  DYNAMIC_COLUMN_VALUE *value,
+                                  MEM_ROOT *mem_root __attribute__((unused)))
 {
   return cassandra_to_dyncol_strStr(cass_data, cass_data_len, value,
                                     &my_charset_bin);
@@ -1060,7 +1093,8 @@ bool dyncol_to_cassandraBytes(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_strAscii(const char *cass_data,
                                   int cass_data_len,
-                                  DYNAMIC_COLUMN_VALUE *value)
+                                  DYNAMIC_COLUMN_VALUE *value,
+                                  MEM_ROOT *mem_root __attribute__((unused)))
 {
   return cassandra_to_dyncol_strStr(cass_data, cass_data_len, value,
                                     &my_charset_latin1_bin);
@@ -1076,7 +1110,8 @@ bool dyncol_to_cassandraAscii(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_strUTF8(const char *cass_data,
                                  int cass_data_len,
-                                 DYNAMIC_COLUMN_VALUE *value)
+                                 DYNAMIC_COLUMN_VALUE *value,
+                                 MEM_ROOT *mem_root __attribute__((unused)))
 {
   return cassandra_to_dyncol_strStr(cass_data, cass_data_len, value,
                                     &my_charset_utf8_unicode_ci);
@@ -1092,20 +1127,20 @@ bool dyncol_to_cassandraUTF8(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_strUUID(const char *cass_data,
                                  int cass_data_len,
-                                 DYNAMIC_COLUMN_VALUE *value)
+                                 DYNAMIC_COLUMN_VALUE *value,
+                                 MEM_ROOT *mem_root)
 {
   value->type= DYN_COL_STRING;
   value->x.string.charset= &my_charset_bin;
-  value->x.string.value.str= (char *)my_malloc(37, MYF(0));
+  alloc_strings_memroot(mem_root);
+  value->x.string.value.str= (char *)alloc_root(mem_root, 37);
   if (!value->x.string.value.str)
   {
     value->x.string.value.length= 0;
-    value->x.string.nonfreeable= TRUE;
     return 1;
   }
   convert_uuid2string(value->x.string.value.str, cass_data);
   value->x.string.value.length= 36;
-  value->x.string.nonfreeable= FALSE;
   return 0;
 }
 
@@ -1117,7 +1152,7 @@ bool dyncol_to_cassandraUUID(DYNAMIC_COLUMN_VALUE *value,
   if (init_dynamic_string(&tmp, NULL, 1024, 1024))
     return true;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_str(&tmp, value, &my_charset_latin1_bin, FALSE);
+    mariadb_dyncol_val_str(&tmp, value, &my_charset_latin1_bin, '\0');
   if (rc < 0 || tmp.length != 36 || convert_string2uuid((char *)buff, tmp.str))
   {
     dynstr_free(&tmp);
@@ -1132,7 +1167,8 @@ bool dyncol_to_cassandraUUID(DYNAMIC_COLUMN_VALUE *value,
 
 bool cassandra_to_dyncol_intBool(const char *cass_data,
                                  int cass_data_len,
-                                 DYNAMIC_COLUMN_VALUE *value)
+                                 DYNAMIC_COLUMN_VALUE *value,
+                                 MEM_ROOT *mem_root __attribute__((unused)))
 {
   value->type= DYN_COL_INT;
   value->x.long_value= (cass_data[0] ? 1 : 0);
@@ -1145,7 +1181,7 @@ bool dyncol_to_cassandraBool(DYNAMIC_COLUMN_VALUE *value,
 {
   longlong tmp;
   enum enum_dyncol_func_result rc=
-    dynamic_column_val_long(&tmp, value);
+    mariadb_dyncol_val_long(&tmp, value);
   if (rc < 0)
     return true;
   ((char *)buff)[0]= (tmp ? 1 : 0);
@@ -1430,10 +1466,7 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
       (CASSANDRA_TYPE_DEF *)(field_converters + n_fields);
     special_type_field_names=
       ((LEX_STRING*)(special_type_field_converters + max_non_default_fields));
-  }
 
-  if (dyncol_set)
-  {
     if (init_dynamic_array(&dynamic_values,
                            sizeof(DYNAMIC_COLUMN_VALUE),
                            DYNCOL_USUAL, DYNCOL_DELTA))
@@ -1667,14 +1700,6 @@ void ha_cassandra::print_conversion_error(const char *field_name,
 }
 
 
-void free_strings(DYNAMIC_COLUMN_VALUE *vals, uint num)
-{
-  for (uint i= 0; i < num; i++)
-    if (vals[i].type == DYN_COL_STRING &&
-        !vals[i].x.string.nonfreeable)
-      my_free(vals[i].x.string.value.str);
-}
-
 
 CASSANDRA_TYPE_DEF * ha_cassandra::get_cassandra_field_def(char *cass_name,
                                                            int cass_name_len)
@@ -1695,6 +1720,7 @@ CASSANDRA_TYPE_DEF * ha_cassandra::get_cassandra_field_def(char *cass_name,
 
 int ha_cassandra::read_cassandra_columns(bool unpack_pk)
 {
+  MEM_ROOT strings_root;
   char *cass_name;
   char *cass_value;
   int cass_value_len, cass_name_len;
@@ -1702,6 +1728,7 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
   int res= 0;
   ulong total_name_len= 0;
 
+  clear_alloc_root(&strings_root);
   /*
     cassandra_to_mariadb() calls will use field->store(...) methods, which
     require that the column is in the table->write_set
@@ -1770,7 +1797,8 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
       }
 
       if ((res= (*(type->cassandra_to_dynamic))(cass_value,
-                                                cass_value_len, &val)) ||
+                                                cass_value_len, &val,
+                                                &strings_root)) ||
           insert_dynamic(&dynamic_names, (uchar *) &nm) ||
           insert_dynamic(&dynamic_values, (uchar *) &val))
       {
@@ -1778,10 +1806,9 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
         {
           print_conversion_error(cass_name, cass_value, cass_value_len);
         }
-        free_strings((DYNAMIC_COLUMN_VALUE *)dynamic_values.buffer,
-                     dynamic_values.elements);
+        free_strings_memroot(&strings_root);
         // EOM shouldm be already reported if happened
-        res=1;
+        res= 1;
         goto err;
       }
     }
@@ -1790,21 +1817,17 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
   dynamic_rec.length= 0;
   if (dyncol_set)
   {
-    if (dynamic_column_create_many_internal_fmt(&dynamic_rec,
-                                                dynamic_names.elements,
-                                                dynamic_names.buffer,
-                                                (DYNAMIC_COLUMN_VALUE *)
-                                                dynamic_values.buffer,
-                                                FALSE,
-                                                TRUE) < 0)
+    if (mariadb_dyncol_create_many_named(&dynamic_rec,
+                                         dynamic_names.elements,
+                                         (LEX_STRING *)dynamic_names.buffer,
+                                         (DYNAMIC_COLUMN_VALUE *)
+                                         dynamic_values.buffer,
+                                         FALSE) < 0)
       dynamic_rec.length= 0;
 
-    free_strings((DYNAMIC_COLUMN_VALUE *)dynamic_values.buffer,
-                 dynamic_values.elements);
+    free_strings_memroot(&strings_root);
     dynamic_values.elements= dynamic_names.elements= 0;
-  }
-  if (dyncol_set)
-  {
+
     if (dynamic_rec.length == 0)
       table->field[dyncol_field]->set_null();
     else
@@ -1836,11 +1859,14 @@ err:
   return res;
 }
 
-int ha_cassandra::read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
-                              String *valcol, char **freenames)
+int ha_cassandra::read_dyncol(uint *count,
+                              DYNAMIC_COLUMN_VALUE **vals,
+                              LEX_STRING **names,
+                              String *valcol)
 {
   String *strcol;
   DYNAMIC_COLUMN col;
+
   enum enum_dyncol_func_result rc;
   DBUG_ENTER("ha_cassandra::read_dyncol");
 
@@ -1850,8 +1876,9 @@ int ha_cassandra::read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
   strcol= field->val_str(NULL, valcol);
   if (field->is_null())
   {
-    bzero(vals, sizeof(DYNAMIC_ARRAY));
-    bzero(names, sizeof(DYNAMIC_ARRAY));
+    *count= 0;
+    *names= 0;
+    *vals= 0;
     DBUG_RETURN(0); // nothing to write
   }
   /*
@@ -1861,7 +1888,7 @@ int ha_cassandra::read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
   bzero(&col, sizeof(col));
   col.str= (char *)strcol->ptr();
   col.length= strcol->length();
-  if ((rc= dynamic_column_vals(&col, names, vals, freenames)) < 0)
+  if ((rc= mariadb_dyncol_unpack(&col, count, names, vals)) < 0)
   {
     dynamic_column_error_message(rc);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -1869,34 +1896,33 @@ int ha_cassandra::read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
   DBUG_RETURN(0);
 }
 
-int ha_cassandra::write_dynamic_row(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names)
+int ha_cassandra::write_dynamic_row(uint count,
+                                    DYNAMIC_COLUMN_VALUE *vals,
+                                    LEX_STRING *names)
 {
   uint i;
   DBUG_ENTER("ha_cassandra::write_dynamic_row");
   DBUG_ASSERT(dyncol_set);
 
 
-  DBUG_ASSERT(names->elements == vals->elements);
-  for (i= 0; i < names->elements; i++)
+  for (i= 0; i < count; i++)
   {
     char buff[16];
     CASSANDRA_TYPE_DEF *type;
     void *freemem= NULL;
     char *cass_data;
     int cass_data_len;
-    LEX_STRING *name= dynamic_element(names, i, LEX_STRING*);
-    DYNAMIC_COLUMN_VALUE *val= dynamic_element(vals, i, DYNAMIC_COLUMN_VALUE*);
 
-    DBUG_PRINT("info", ("field %*s", (int)name->length, name->str));
-    type= get_cassandra_field_def(name->str, (int) name->length);
-    if ((*type->dynamic_to_cassandra)(val, &cass_data, &cass_data_len,
+    DBUG_PRINT("info", ("field %*s", (int)names[i].length, names[i].str));
+    type= get_cassandra_field_def(names[i].str, (int) names[i].length);
+    if ((*type->dynamic_to_cassandra)(vals +i, &cass_data, &cass_data_len,
                                       buff, &freemem))
     {
       my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
-               name->str, insert_lineno);
-      DBUG_RETURN(HA_ERR_AUTOINC_ERANGE);
+               names[i].str, insert_lineno);
+      DBUG_RETURN(HA_ERR_GENERIC);
     }
-    se->add_insert_column(name->str, name->length,
+    se->add_insert_column(names[i].str, names[i].length,
                           cass_data, cass_data_len);
     if (freemem)
       my_free(freemem);
@@ -1904,13 +1930,19 @@ int ha_cassandra::write_dynamic_row(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names)
   DBUG_RETURN(0);
 }
 
-void ha_cassandra::free_dynamic_row(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
-                                    char *free_names)
+void ha_cassandra::free_dynamic_row(DYNAMIC_COLUMN_VALUE **vals,
+                                    LEX_STRING **names)
 {
-  delete_dynamic(names);
-  delete_dynamic(vals);
-  if (free_names)
-    my_free(free_names);
+  if (*vals)
+  {
+    my_free(*vals);
+    *vals= 0;
+  }
+  if (*names)
+  {
+    my_free(*names);
+    *names= 0;
+  }
 }
 
 int ha_cassandra::write_row(uchar *buf)
@@ -1949,13 +1981,14 @@ int ha_cassandra::write_row(uchar *buf)
     if (dyncol_set && dyncol_field == i)
     {
       String valcol;
-      DYNAMIC_ARRAY vals, names;
-      char *free_names= NULL;
+      DYNAMIC_COLUMN_VALUE *vals;
+      LEX_STRING *names;
+      uint count;
       int rc;
       DBUG_ASSERT(field_converters[i] == NULL);
-      if (!(rc= read_dyncol(&vals, &names, &valcol, &free_names)))
-        rc= write_dynamic_row(&vals, &names);
-      free_dynamic_row(&vals, &names, free_names);
+      if (!(rc= read_dyncol(&count, &vals, &names, &valcol)))
+        rc= write_dynamic_row(count, vals, names);
+      free_dynamic_row(&vals, &names);
       if (rc)
       {
         dbug_tmp_restore_column_map(table->read_set, old_map);
@@ -2336,9 +2369,10 @@ public:
 
 int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
 {
-  DYNAMIC_ARRAY oldvals, oldnames, vals, names;
+  DYNAMIC_COLUMN_VALUE *oldvals, *vals;
+  LEX_STRING *oldnames, *names;
+  uint oldcount, count;
   String oldvalcol, valcol;
-  char *oldfree_names= NULL, *free_names= NULL;
   my_bitmap_map *old_map;
   int res;
   DBUG_ENTER("ha_cassandra::update_row");
@@ -2381,12 +2415,12 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
     my_ptrdiff_t diff;
     diff= (my_ptrdiff_t) (old_data - new_data);
     field->move_field_offset(diff);      // Points now at old_data
-    if ((res= read_dyncol(&oldvals, &oldnames, &oldvalcol, &oldfree_names)))
+    if ((res= read_dyncol(&oldcount, &oldvals, &oldnames, &oldvalcol)))
       DBUG_RETURN(res);
     field->move_field_offset(-diff);     // back to new_data
-    if ((res= read_dyncol(&vals, &names, &valcol, &free_names)))
+    if ((res= read_dyncol(&count, &vals, &names, &valcol)))
     {
-      free_dynamic_row(&oldnames, &oldvals, oldfree_names);
+      free_dynamic_row(&oldvals, &oldnames);
       DBUG_RETURN(res);
     }
   }
@@ -2399,9 +2433,9 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
     */
     Column_name_enumerator_impl name_enumerator(this);
     se->add_row_deletion(old_key, old_key_len, &name_enumerator,
-                         (LEX_STRING *)oldnames.buffer,
-                         (dyncol_set ? oldnames.elements : 0));
-    oldnames.elements= oldvals.elements= 0; // they will be deleted
+                         oldnames,
+                         (dyncol_set ? oldcount : 0));
+    oldcount= 0; // they will be deleted
   }
 
   se->start_row_insert(new_key, new_key_len);
@@ -2414,7 +2448,7 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
     if (dyncol_set && dyncol_field == i)
     {
       DBUG_ASSERT(field_converters[i] == NULL);
-      if ((res= write_dynamic_row(&vals, &names)))
+      if ((res= write_dynamic_row(count, vals, names)))
         goto err;
     }
     else
@@ -2434,24 +2468,19 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
   {
     /* find removed fields */
     uint i= 0, j= 0;
-    LEX_STRING *onames= (LEX_STRING *)oldnames.buffer;
-    LEX_STRING *nnames= (LEX_STRING *)names.buffer;
     /* both array are sorted */
-    for(; i < oldnames.elements; i++)
+    for(; i < oldcount; i++)
     {
       int scmp= 0;
-      while (j < names.elements &&
-             (nnames[j].length < onames[i].length ||
-             (nnames[j].length == onames[i].length &&
-              (scmp= memcmp(nnames[j].str, onames[i].str,
-                            onames[i].length)) < 0)))
+      while (j < count &&
+             (scmp = mariadb_dyncol_column_cmp_named(names + j,
+                                                     oldnames + i)) < 0)
         j++;
-      if (j < names.elements &&
-          nnames[j].length == onames[i].length &&
+      if (j < count &&
           scmp == 0)
         j++;
       else
-        se->add_insert_delete_column(onames[i].str, onames[i].length);
+        se->add_insert_delete_column(oldnames[i].str, oldnames[i].length);
     }
   }
 
@@ -2465,8 +2494,8 @@ int ha_cassandra::update_row(const uchar *old_data, uchar *new_data)
 err:
   if (dyncol_set)
   {
-    free_dynamic_row(&oldnames, &oldvals, oldfree_names);
-    free_dynamic_row(&names, &vals, free_names);
+    free_dynamic_row(&oldvals, &oldnames);
+    free_dynamic_row(&vals, &names);
   }
 
   DBUG_RETURN(res? HA_ERR_INTERNAL_ERROR: 0);

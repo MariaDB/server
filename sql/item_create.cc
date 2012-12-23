@@ -526,6 +526,54 @@ protected:
   virtual ~Create_func_coercibility() {}
 };
 
+class Create_func_dyncol_check : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_dyncol_check s_singleton;
+
+protected:
+  Create_func_dyncol_check() {}
+  virtual ~Create_func_dyncol_check() {}
+};
+
+class Create_func_dyncol_exists : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_dyncol_exists s_singleton;
+
+protected:
+  Create_func_dyncol_exists() {}
+  virtual ~Create_func_dyncol_exists() {}
+};
+
+class Create_func_dyncol_list : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_dyncol_list s_singleton;
+
+protected:
+  Create_func_dyncol_list() {}
+  virtual ~Create_func_dyncol_list() {}
+};
+
+class Create_func_dyncol_json : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_dyncol_json s_singleton;
+
+protected:
+  Create_func_dyncol_json() {}
+  virtual ~Create_func_dyncol_json() {}
+};
+
 
 class Create_func_compress : public Create_func_arg1
 {
@@ -3108,6 +3156,38 @@ Create_func_coercibility::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_dyncol_check Create_func_dyncol_check::s_singleton;
+
+Item*
+Create_func_dyncol_check::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_dyncol_check(arg1);
+}
+
+Create_func_dyncol_exists Create_func_dyncol_exists::s_singleton;
+
+Item*
+Create_func_dyncol_exists::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_dyncol_exists(arg1, arg2);
+}
+
+Create_func_dyncol_list Create_func_dyncol_list::s_singleton;
+
+Item*
+Create_func_dyncol_list::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_dyncol_list(arg1);
+}
+
+Create_func_dyncol_json Create_func_dyncol_json::s_singleton;
+
+Item*
+Create_func_dyncol_json::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_dyncol_json(arg1);
+}
+
 Create_func_concat Create_func_concat::s_singleton;
 
 Item*
@@ -5245,6 +5325,10 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("CHARACTER_LENGTH") }, BUILDER(Create_func_char_length)},
   { { C_STRING_WITH_LEN("CHAR_LENGTH") }, BUILDER(Create_func_char_length)},
   { { C_STRING_WITH_LEN("COERCIBILITY") }, BUILDER(Create_func_coercibility)},
+  { { C_STRING_WITH_LEN("COLUMN_CHECK") }, BUILDER(Create_func_dyncol_check)},
+  { { C_STRING_WITH_LEN("COLUMN_EXISTS") }, BUILDER(Create_func_dyncol_exists)},
+  { { C_STRING_WITH_LEN("COLUMN_LIST") }, BUILDER(Create_func_dyncol_list)},
+  { { C_STRING_WITH_LEN("COLUMN_JSON") }, BUILDER(Create_func_dyncol_json)},
   { { C_STRING_WITH_LEN("COMPRESS") }, BUILDER(Create_func_compress)},
   { { C_STRING_WITH_LEN("CONCAT") }, BUILDER(Create_func_concat)},
   { { C_STRING_WITH_LEN("CONCAT_WS") }, BUILDER(Create_func_concat_ws)},
@@ -5718,11 +5802,6 @@ Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list)
     return NULL;
 
   return new (thd->mem_root) Item_func_dyncol_create(*args, dfs);
-}
-
-Item *create_func_dyncol_json(THD *thd, Item *str)
-{
-  return new (thd->mem_root) Item_func_dyncol_json(str);
 }
 
 Item *create_func_dyncol_add(THD *thd, Item *str,

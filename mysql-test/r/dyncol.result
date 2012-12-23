@@ -1342,22 +1342,22 @@ hex(COLUMN_CREATE(0, 0.0 as decimal))
 set names utf8;
 select hex(column_create("адын", 1212));
 hex(column_create("адын", 1212))
-040100080008000000D0B0D0B4D18BD0BD7809
+040100080000000000D0B0D0B4D18BD0BD7809
 select hex(column_create("1212", 1212));
 hex(column_create("1212", 1212))
-040100040004000000313231327809
+040100040000000000313231327809
 select hex(column_create(1212, 2, "www", 3));
 hex(column_create(1212, 2, "www", 3))
-04020007000300000004030008777777313231320604
+04020007000000000003001000777777313231320604
 select hex(column_create("1212", 2, "www", 3));
 hex(column_create("1212", 2, "www", 3))
-04020007000300000004030008777777313231320604
+04020007000000000003001000777777313231320604
 select hex(column_create("1212", 2, 3, 3));
 hex(column_create("1212", 2, 3, 3))
-0402000500010000000401000833313231320604
+0402000500000000000100100033313231320604
 select hex(column_create("1212", 2, "адын", 1, 3, 3));
 hex(column_create("1212", 2, "адын", 1, 3, 3))
-0403000D000100000004010008080500103331323132D0B0D0B4D18BD0BD060402
+0403000D000000000001001000050020003331323132D0B0D0B4D18BD0BD060402
 set names default;
 # fetching column test (names)
 set names utf8;
@@ -1413,10 +1413,10 @@ set names default;
 # column changing test (names)
 select hex(column_add(column_create(1, "AAA"), "b", "BBB"));
 hex(column_add(column_create(1, "AAA"), "b", "BBB"))
-0402000200010000030101002331620841414108424242
+0402000200000003000100430031620841414108424242
 select hex(column_add(column_create("1", "AAA"), "b", "BBB"));
 hex(column_add(column_create("1", "AAA"), "b", "BBB"))
-0402000200010000030101002331620841414108424242
+0402000200000003000100430031620841414108424242
 select column_get(column_add(column_create(1, "AAA"), "b", "BBB"), 1 as char);
 column_get(column_add(column_create(1, "AAA"), "b", "BBB"), 1 as char)
 AAA
@@ -1425,25 +1425,25 @@ column_get(column_add(column_create(1, "AAA"), "b", "BBB"), "b" as char)
 BBB
 select hex(column_add(column_create("a", "AAA"), 1, "BBB"));
 hex(column_add(column_create("a", "AAA"), 1, "BBB"))
-0402000200010000030101002331610842424208414141
+0402000200000003000100430031610842424208414141
 select hex(column_add(column_create("a", "AAA"), "1", "BBB"));
 hex(column_add(column_create("a", "AAA"), "1", "BBB"))
-0402000200010000030101002331610842424208414141
+0402000200000003000100430031610842424208414141
 select hex(column_add(column_create("a", 1212 as integer), "b", "1212" as integer));
 hex(column_add(column_create("a", 1212 as integer), "b", "1212" as integer))
-04020002000100000001010010616278097809
+04020002000000000001002000616278097809
 select hex(column_add(column_create("a", 1212 as integer), "a", "1212" as integer));
 hex(column_add(column_create("a", 1212 as integer), "a", "1212" as integer))
-040100010001000000617809
+040100010000000000617809
 select hex(column_add(column_create("a", 1212 as integer), "a", NULL as integer));
 hex(column_add(column_create("a", 1212 as integer), "a", NULL as integer))
 0400000000
 select hex(column_add(column_create("a", 1212 as integer), "b", NULL as integer));
 hex(column_add(column_create("a", 1212 as integer), "b", NULL as integer))
-040100010001000000617809
+040100010000000000617809
 select hex(column_add(column_create("a", 1212 as integer), "b", 1212 as integer, "a", 11 as integer));
 hex(column_add(column_create("a", 1212 as integer), "b", 1212 as integer, "a", 11 as integer))
-040200020001000000010100086162167809
+040200020000000000010010006162167809
 select column_get(column_add(column_create("a", 1212 as integer), "b", 1212 as integer, "a", 11 as integer), "a" as integer);
 column_get(column_add(column_create("a", 1212 as integer), "b", 1212 as integer, "a", 11 as integer), "a" as integer)
 11
@@ -1452,13 +1452,13 @@ column_get(column_add(column_create("a", 1212 as integer), "b", 1212 as integer,
 1212
 select hex(column_add(column_create("a", 1212 as integer), "a", 1212 as integer, "b", 11 as integer));
 hex(column_add(column_create("a", 1212 as integer), "a", 1212 as integer, "b", 11 as integer))
-040200020001000000010100106162780916
+040200020000000000010020006162780916
 select hex(column_add(column_create("a", NULL as integer), "a", 1212 as integer, "b", 11 as integer));
 hex(column_add(column_create("a", NULL as integer), "a", 1212 as integer, "b", 11 as integer))
-040200020001000000010100106162780916
+040200020000000000010020006162780916
 select hex(column_add(column_create("a", 1212 as integer, "b", 1212 as integer), "a", 11 as integer));
 hex(column_add(column_create("a", 1212 as integer, "b", 1212 as integer), "a", 11 as integer))
-040200020001000000010100086162167809
+040200020000000000010010006162167809
 select hex(column_add(column_create("a", 1), "a", null));
 hex(column_add(column_create("a", 1), "a", null))
 0400000000
@@ -1470,29 +1470,29 @@ column_list(column_add(column_create("a", 1), "a", ""))
 `a`
 select hex(column_add("", "a", 1));
 hex(column_add("", "a", 1))
-0401000100010000006102
+0401000100000000006102
 # column delete (names)
 select hex(column_delete(column_create("a", 1212 as integer, "b", 1212 as integer), "a"));
 hex(column_delete(column_create("a", 1212 as integer, "b", 1212 as integer), "a"))
-040100010001000000627809
+040100010000000000627809
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b"))
-0402000200010000000101000861630206
+0402000200000000000100100061630206
 select hex(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer));
 hex(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer))
-0403000300010000000101000801020010616263020406
+0403000300000000000100100002002000616263020406
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "c"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "c"))
-0402000200010000000101000861620204
+0402000200000000000100100061620204
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "d"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "d"))
-0403000300010000000101000801020010616263020406
+0403000300000000000100100002002000616263020406
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b", "a"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b", "a"))
-0401000100010000006306
+0401000100000000006306
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b", "c"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "b", "c"))
-0401000100010000006102
+0401000100000000006102
 select hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "a", "b", "c"));
 hex(column_delete(column_create("a", 1 as integer, "b", 2 as integer, "c", 3 as integer), "a", "b", "c"))
 0400000000
@@ -1517,11 +1517,21 @@ ERROR 42S22: Unknown column 'color' in 'field list'
 #
 CREATE TABLE t1 (f1 tinyblob);
 INSERT INTO t1 VALUES (COLUMN_CREATE('col1', REPEAT('a',30)));
+select column_check(f1) from t1;
+column_check(f1)
+1
 UPDATE t1 SET f1 = COLUMN_ADD( f1, REPEAT('b',211), 'val2' );
 Warnings:
 Warning	1265	Data truncated for column 'f1' at row 1
+select column_check(f1) from t1;
+column_check(f1)
+0
 UPDATE t1 SET f1 = COLUMN_ADD( f1, REPEAT('c',211), 'val3' );
-ERROR HY000: Encountered illegal format of dynamic column string
+Warnings:
+Warning	1265	Data truncated for column 'f1' at row 1
+select column_check(f1) from t1;
+column_check(f1)
+0
 drop table t1;
 #
 # MDEV-490/MDEV-491 null as arguments
@@ -1550,8 +1560,8 @@ NULL
 #
 SELECT hex(COLUMN_CREATE(REPEAT('a',255),1));
 hex(COLUMN_CREATE(REPEAT('a',255),1))
-040100FF00FF00000061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616102
-SELECT hex(COLUMN_CREATE(REPEAT('a',256),1));
+040100FF000000000061616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616102
+SELECT hex(COLUMN_CREATE(REPEAT('a',65536),1));
 ERROR 22007: Illegal value used as argument of dynamic column function
 #
 # JSON conversion
@@ -1577,3 +1587,53 @@ COLUMN_CHECK('')
 SELECT COLUMN_CHECK(NULL);
 COLUMN_CHECK(NULL)
 NULL
+#
+# escaping check
+#
+select column_json(column_create("string", "'\"/\\`.,whatever")),hex(column_create("string", "'\"/\\`.,whatever"));
+column_json(column_create("string", "'\"/\\`.,whatever"))	hex(column_create("string", "'\"/\\`.,whatever"))
+[{"string":"'\"/\\`.,whatever"}]	040100060000000300737472696E670827222F5C602E2C7768617465766572
+#
+# embedding test
+#
+select column_json(column_create("val", "val", "emb", column_create("val2", "val2")));
+column_json(column_create("val", "val", "emb", column_create("val2", "val2")))
+[{"emb":[{"val2":"val2"}],{"val":"val"}]
+select column_json(column_create(1, "val", 2, column_create(3, "val2")));
+column_json(column_create(1, "val", 2, column_create(3, "val2")))
+[{"1":"val"},{"2":[{"3":"val2"}]]
+#
+# Time encoding
+#
+select hex(column_create("t", "800:46:06.23434" AS time)) as hex,
+column_json(column_create("t", "800:46:06.23434" AS time)) as json;
+hex	json
+04010001000000070074649363B82003	[{"t":"800:46:06.234340"}]
+select hex(column_create(1, "800:46:06.23434" AS time)) as hex,
+column_json(column_create(1, "800:46:06.23434" AS time)) as json;
+hex	json
+000100010007649363B82003	[{"1":"800:46:06.234340"}]
+select hex(column_create("t", "800:46:06" AS time)) as hex,
+column_json(column_create("t", "800:46:06" AS time)) as json;
+hex	json
+04010001000000070074860B32	[{"t":"800:46:06"}]
+select hex(column_create(1, "800:46:06" AS time)) as hex,
+column_json(column_create(1, "800:46:06" AS time)) as json;
+hex	json
+000100010007000060B82003	[{"1":"800:46:06"}]
+select hex(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as hex,
+column_json(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as json;
+hex	json
+0401000100000005007495B90F649363B80A00	[{"t":"2012-12-21 10:46:06.234340"}]
+select hex(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as hex,
+column_json(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as json;
+hex	json
+00010001000595B90F649363B80A00	[{"1":"2012-12-21 10:46:06.234340"}]
+select hex(column_create("t", "2012-12-21 10:46:06" AS datetime)) as hex,
+column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as json;
+hex	json
+0401000100000005007495B90F86AB00	[{"t":"2012-12-21 10:46:06"}]
+select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
+column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
+hex	json
+00010001000595B90F000060B80A00	[{"1":"2012-12-21 10:46:06"}]

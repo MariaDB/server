@@ -1001,10 +1001,10 @@ class Item_func_dyncol_create: public Item_str_func
 protected:
   DYNCALL_CREATE_DEF *defs;
   DYNAMIC_COLUMN_VALUE *vals;
-  uchar *keys;
+  uint *keys_num;
+  LEX_STRING *keys_str;
   bool names, force_names;
   bool prepare_arguments(bool force_names);
-  void cleanup_arguments();
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(List<Item> &args, DYNCALL_CREATE_DEF *dfs);
@@ -1013,6 +1013,7 @@ public:
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
   virtual void print(String *str, enum_query_type query_type);
+  virtual enum Functype functype() const   { return DYNCOL; }
 };
 
 
@@ -1081,3 +1082,4 @@ public:
 extern String my_empty_string;
 
 #endif /* ITEM_STRFUNC_INCLUDED */
+

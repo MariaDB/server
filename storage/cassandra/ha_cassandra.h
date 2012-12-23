@@ -37,6 +37,8 @@ typedef struct st_cassandra_share {
 } CASSANDRA_SHARE;
 
 class ColumnDataConverter;
+struct st_dynamic_column_value;
+typedef struct st_dynamic_column_value DYNAMIC_COLUMN_VALUE;
 
 struct ha_table_option_struct;
 
@@ -45,7 +47,8 @@ struct st_dynamic_column_value;
 
 typedef bool (* CAS2DYN_CONVERTER)(const char *cass_data,
                                    int cass_data_len,
-                                   struct st_dynamic_column_value *value);
+                                   struct st_dynamic_column_value *value,
+                                   MEM_ROOT *mem_root);
 typedef bool (* DYN2CAS_CONVERTER)(struct st_dynamic_column_value *value,
                                    char **cass_data,
                                    int *cass_data_len,
@@ -227,11 +230,14 @@ private:
   bool source_exhausted;
   bool mrr_start_read();
   int check_field_options(Field **fields);
-  int read_dyncol(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
-                  String *valcol, char **freenames);
-  int write_dynamic_row(DYNAMIC_ARRAY *names, DYNAMIC_ARRAY *vals);
-  void static free_dynamic_row(DYNAMIC_ARRAY *vals, DYNAMIC_ARRAY *names,
-                               char *free_names);
+  int read_dyncol(uint *count,
+                  DYNAMIC_COLUMN_VALUE **vals, LEX_STRING **names,
+                  String *valcol);
+  int write_dynamic_row(uint count,
+                        DYNAMIC_COLUMN_VALUE *vals,
+                        LEX_STRING *names);
+  void static free_dynamic_row(DYNAMIC_COLUMN_VALUE **vals,
+                               LEX_STRING **names);
   CASSANDRA_TYPE_DEF * get_cassandra_field_def(char *cass_name,
                                                int cass_name_length);
 public:

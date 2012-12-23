@@ -636,9 +636,14 @@ select COLUMN_CREATE(color, "black");
 CREATE TABLE t1 (f1 tinyblob);
 
 INSERT INTO t1 VALUES (COLUMN_CREATE('col1', REPEAT('a',30)));
+select column_check(f1) from t1;
 UPDATE t1 SET f1 = COLUMN_ADD( f1, REPEAT('b',211), 'val2' );
---error ER_DYN_COL_WRONG_FORMAT
+# we can't detect last string cut with 100% probability,
+# because we detect it by string end
+select column_check(f1) from t1;
 UPDATE t1 SET f1 = COLUMN_ADD( f1, REPEAT('c',211), 'val3' );
+select column_check(f1) from t1;
+
 drop table t1;
 
 --echo #
@@ -657,7 +662,7 @@ SELECT COLUMN_ADD( NULL, 'val', 'col');
 --echo #
 SELECT hex(COLUMN_CREATE(REPEAT('a',255),1));
 --error ER_DYN_COL_DATA
-SELECT hex(COLUMN_CREATE(REPEAT('a',256),1));
+SELECT hex(COLUMN_CREATE(REPEAT('a',65536),1));
 
 --echo #
 --echo # JSON conversion
@@ -672,3 +677,37 @@ SELECT COLUMN_CHECK(COLUMN_CREATE(1,'a'));
 SELECT COLUMN_CHECK('abracadabra');
 SELECT COLUMN_CHECK('');
 SELECT COLUMN_CHECK(NULL);
+
+--echo #
+--echo # escaping check
+--echo #
+select column_json(column_create("string", "'\"/\\`.,whatever")),hex(column_create("string", "'\"/\\`.,whatever"));
+
+--echo #
+--echo # embedding test
+--echo #
+select column_json(column_create("val", "val", "emb", column_create("val2", "val2")));
+select column_json(column_create(1, "val", 2, column_create(3, "val2")));
+
+--echo #
+--echo # Time encoding
+--echo #
+select hex(column_create("t", "800:46:06.23434" AS time)) as hex,
+       column_json(column_create("t", "800:46:06.23434" AS time)) as json;
+select hex(column_create(1, "800:46:06.23434" AS time)) as hex,
+       column_json(column_create(1, "800:46:06.23434" AS time)) as json;
+
+select hex(column_create("t", "800:46:06" AS time)) as hex,
+       column_json(column_create("t", "800:46:06" AS time)) as json;
+select hex(column_create(1, "800:46:06" AS time)) as hex,
+       column_json(column_create(1, "800:46:06" AS time)) as json;
+
+select hex(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as hex,
+       column_json(column_create("t", "2012-12-21 10:46:06.23434" AS datetime)) as json;
+select hex(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as hex,
+       column_json(column_create(1, "2012-12-21 10:46:06.23434" AS datetime)) as json;
+
+select hex(column_create("t", "2012-12-21 10:46:06" AS datetime)) as hex,
+       column_json(column_create("t", "2012-12-21 10:46:06" AS datetime)) as json;
+select hex(column_create(1, "2012-12-21 10:46:06" AS datetime)) as hex,
+       column_json(column_create(1, "2012-12-21 10:46:06" AS datetime)) as json;
