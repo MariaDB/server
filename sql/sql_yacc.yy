@@ -885,10 +885,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  COLUMN_CHECK_SYM
 %token  COLUMN_CREATE_SYM
 %token  COLUMN_DELETE_SYM
-%token  COLUMN_EXISTS_SYM
 %token  COLUMN_GET_SYM
-%token  COLUMN_JSON_SYM
-%token  COLUMN_LIST_SYM
 %token  COLUMN_SYM                    /* SQL-2003-R */
 %token  COLUMN_NAME_SYM               /* SQL-2003-N */
 %token  COMMENT_SYM
@@ -8808,30 +8805,9 @@ function_call_nonkeyword:
               MYSQL_YYABORT;
           }
         |
-          COLUMN_EXISTS_SYM '(' expr ',' expr ')'
-          {
-            $$= new (YYTHD->mem_root) Item_func_dyncol_exists($3, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        |
-          COLUMN_LIST_SYM '(' expr ')'
-          {
-            $$= new (YYTHD->mem_root) Item_func_dyncol_list($3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        |
           COLUMN_CREATE_SYM '(' dyncall_create_list ')'
           {
             $$= create_func_dyncol_create(YYTHD, *$3);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        |
-          COLUMN_JSON_SYM '(' expr ')'
-          {
-            $$= create_func_dyncol_json(YYTHD, $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -12927,10 +12903,7 @@ keyword:
         | COLUMN_CHECK_SYM      {}
         | COLUMN_CREATE_SYM     {}
         | COLUMN_DELETE_SYM     {}
-        | COLUMN_EXISTS_SYM     {}
         | COLUMN_GET_SYM        {}
-        | COLUMN_JSON_SYM       {}
-        | COLUMN_LIST_SYM       {}
         | COMMENT_SYM           {}
         | COMMIT_SYM            {}
         | CONTAINS_SYM          {}

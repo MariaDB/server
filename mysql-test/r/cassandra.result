@@ -532,7 +532,7 @@ delete from t1;
 drop table t1;
 CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd1';
 select * from t1;
-ERROR HY000: Internal error: 'Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 255: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_ver'
+ERROR HY000: Internal error: 'Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 16383: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_v'
 drop table t1;
 CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
 ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';

@@ -3872,10 +3872,10 @@ int JOIN_TAB_SCAN_MRR::next()
   int rc= join_tab->table->file->multi_range_read_next((range_id_t*)ptr) ? -1 : 0;
   if (!rc)
   {
-    /* 
+    /*
       If a record in in an incremental cache contains no fields then the
       association for the last record in cache will be equal to cache->end_pos
-    */ 
+    */
     /* 
     psergey: this makes no sense where HA_MRR_NO_ASSOC is used.
     DBUG_ASSERT(cache->buff <= (uchar *) (*ptr) &&

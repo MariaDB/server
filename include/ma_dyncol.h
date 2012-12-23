@@ -38,12 +38,13 @@
   how the offset are stored.
 */
 #define MAX_DYNAMIC_COLUMN_LENGTH 0X1FFFFFFFL
+#define MAX_DYNAMIC_COLUMN_LENGTH_NM 0XFFFFFFFFFL
 
 /*
   Limits of implementation
 */
-#define MAX_NAME_LENGTH 255
 #define MAX_TOTAL_NAME_LENGTH 65535
+#define MAX_NAME_LENGTH (MAX_TOTAL_NAME_LENGTH/4)
 
 /* NO and OK is the same used just to show semantics */
 #define ER_DYNCOL_NO ER_DYNCOL_OK
@@ -72,7 +73,8 @@ enum enum_dynamic_column_type
   DYN_COL_DECIMAL,
   DYN_COL_DATETIME,
   DYN_COL_DATE,
-  DYN_COL_TIME
+  DYN_COL_TIME,
+  DYN_COL_DYNCOL
 };
 
 typedef enum enum_dynamic_column_type DYNAMIC_COLUMN_TYPE;
@@ -88,7 +90,6 @@ struct st_dynamic_column_value
     struct {
       LEX_STRING value;
       CHARSET_INFO *charset;
-      my_bool nonfreeable;
     } string;
     struct {
       decimal_digit_t buffer[DECIMAL_BUFF_LENGTH];
@@ -100,6 +101,8 @@ struct st_dynamic_column_value
 
 typedef struct st_dynamic_column_value DYNAMIC_COLUMN_VALUE;
 
+/* old functions (deprecated) */
+#ifdef MADYNCOL_DEPRECATED
 enum enum_dyncol_func_result
 dynamic_column_create(DYNAMIC_COLUMN *str,
                       uint column_nr, DYNAMIC_COLUMN_VALUE *value);
@@ -109,21 +112,6 @@ dynamic_column_create_many(DYNAMIC_COLUMN *str,
                            uint column_count,
                            uint *column_numbers,
                            DYNAMIC_COLUMN_VALUE *values);
-
-enum enum_dyncol_func_result
-dynamic_column_create_many_fmt(DYNAMIC_COLUMN *str,
-                               uint column_count,
-                               uchar *column_keys,
-                               DYNAMIC_COLUMN_VALUE *values,
-                               my_bool names);
-enum enum_dyncol_func_result
-dynamic_column_create_many_internal_fmt(DYNAMIC_COLUMN *str,
-                                        uint column_count,
-                                        void *column_keys,
-                                        DYNAMIC_COLUMN_VALUE *values,
-                                        my_bool new_str,
-                                        my_bool string_keys);
-
 enum enum_dyncol_func_result
 dynamic_column_update(DYNAMIC_COLUMN *org, uint column_nr,
                       DYNAMIC_COLUMN_VALUE *value);
@@ -133,73 +121,105 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
                            uint *column_numbers,
                            DYNAMIC_COLUMN_VALUE *values);
 enum enum_dyncol_func_result
-dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
-                               uint add_column_count,
-                               void *column_keys,
-                               DYNAMIC_COLUMN_VALUE *values,
-                               my_bool string_keys);
-
-enum enum_dyncol_func_result
 dynamic_column_delete(DYNAMIC_COLUMN *org, uint column_nr);
 
 enum enum_dyncol_func_result
 dynamic_column_exists(DYNAMIC_COLUMN *org, uint column_nr);
+
 enum enum_dyncol_func_result
-dynamic_column_exists_str(DYNAMIC_COLUMN *str, LEX_STRING *name);
+dynamic_column_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
+
 enum enum_dyncol_func_result
-dynamic_column_exists_fmt(DYNAMIC_COLUMN *str, void *key, my_bool string_keys);
+dynamic_column_get(DYNAMIC_COLUMN *org, uint column_nr,
+                   DYNAMIC_COLUMN_VALUE *store_it_here);
+#endif
+
+/* new functions */
+enum enum_dyncol_func_result
+mariadb_dyncol_create_many(DYNAMIC_COLUMN *str,
+                           uint column_count,
+                           uint *column_numbers,
+                           DYNAMIC_COLUMN_VALUE *values,
+                           my_bool new_string);
+enum enum_dyncol_func_result
+mariadb_dyncol_create_many_named(DYNAMIC_COLUMN *str,
+                                 uint column_count,
+                                 LEX_STRING *column_keys,
+                                 DYNAMIC_COLUMN_VALUE *values,
+                                 my_bool new_string);
+
+
+enum enum_dyncol_func_result
+mariadb_dyncol_update_many(DYNAMIC_COLUMN *str,
+                           uint add_column_count,
+                           uint *column_keys,
+                           DYNAMIC_COLUMN_VALUE *values);
+enum enum_dyncol_func_result
+mariadb_dyncol_update_many_named(DYNAMIC_COLUMN *str,
+                                 uint add_column_count,
+                                 LEX_STRING *column_keys,
+                                 DYNAMIC_COLUMN_VALUE *values);
+
+
+enum enum_dyncol_func_result
+mariadb_dyncol_exists(DYNAMIC_COLUMN *org, uint column_nr);
+enum enum_dyncol_func_result
+mariadb_dyncol_exists_named(DYNAMIC_COLUMN *str, LEX_STRING *name);
 
 /* List of not NULL columns */
 enum enum_dyncol_func_result
-dynamic_column_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
+mariadb_dyncol_list(DYNAMIC_COLUMN *org, DYNAMIC_ARRAY *array_of_uint);
 enum enum_dyncol_func_result
-dynamic_column_list_str(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_lexstr);
-enum enum_dyncol_func_result
-dynamic_column_list_fmt(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array, my_bool string_keys);
+mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count, LEX_STRING **names);
 
 /*
    if the column do not exists it is NULL
 */
 enum enum_dyncol_func_result
-dynamic_column_get(DYNAMIC_COLUMN *org, uint column_nr,
+mariadb_dyncol_get(DYNAMIC_COLUMN *org, uint column_nr,
                    DYNAMIC_COLUMN_VALUE *store_it_here);
 enum enum_dyncol_func_result
-dynamic_column_get_str(DYNAMIC_COLUMN *str, LEX_STRING *name,
-                           DYNAMIC_COLUMN_VALUE *store_it_here);
+mariadb_dyncol_get_named(DYNAMIC_COLUMN *str, LEX_STRING *name,
+                         DYNAMIC_COLUMN_VALUE *store_it_here);
 
-my_bool dynamic_column_has_names(DYNAMIC_COLUMN *str);
-
-enum enum_dyncol_func_result
-dynamic_column_check(DYNAMIC_COLUMN *str);
+my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str);
 
 enum enum_dyncol_func_result
-dynamic_column_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json);
+mariadb_dyncol_check(DYNAMIC_COLUMN *str);
+
+enum enum_dyncol_func_result
+mariadb_dyncol_json(DYNAMIC_COLUMN *str, DYNAMIC_STRING *json);
 
 #define dynamic_column_initialize(A) memset((A), 0, sizeof(*(A)))
 #define dynamic_column_column_free(V) dynstr_free(V)
 
 /* conversion of values to 3 base types */
 enum enum_dyncol_func_result
-dynamic_column_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
+mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
                        CHARSET_INFO *cs, my_bool quote);
 enum enum_dyncol_func_result
-dynamic_column_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val);
+mariadb_dyncol_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val);
 enum enum_dyncol_func_result
-dynamic_column_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val);
+mariadb_dyncol_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val);
 
 
 enum enum_dyncol_func_result
-dynamic_column_vals(DYNAMIC_COLUMN *str,
-                    DYNAMIC_ARRAY *names, DYNAMIC_ARRAY *vals,
-                    char **free_names);
+mariadb_dyncol_unpack(DYNAMIC_COLUMN *str,
+                      uint *count,
+                      LEX_STRING **names, DYNAMIC_COLUMN_VALUE **vals);
+
+int mariadb_dyncol_column_cmp_named(const LEX_STRING *s1, const LEX_STRING *s2);
+
+enum enum_dyncol_func_result
+mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count);
 
 /***************************************************************************
  Internal functions, don't use if you don't know what you are doing...
 ***************************************************************************/
 
-#define dynamic_column_reassociate(V,P,L, A) dynstr_reassociate((V),(P),(L),(A))
+#define mariadb_dyncol_reassociate(V,P,L, A) dynstr_reassociate((V),(P),(L),(A))
 
-#define dynamic_column_value_init(V) (V)->type= DYN_COL_NULL
+#define dyncol_value_init(V) (V)->type= DYN_COL_NULL
 
 /*
   Prepare value for using as decimal
