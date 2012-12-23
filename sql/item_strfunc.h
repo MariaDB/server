@@ -1001,9 +1001,10 @@ class Item_func_dyncol_create: public Item_str_func
 protected:
   DYNCALL_CREATE_DEF *defs;
   DYNAMIC_COLUMN_VALUE *vals;
-  uint *nums;
-  void prepare_arguments();
-  void cleanup_arguments();
+  uint *keys_num;
+  LEX_STRING *keys_str;
+  bool names, force_names;
+  bool prepare_arguments(bool force_names);
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(List<Item> &args, DYNCALL_CREATE_DEF *dfs);
@@ -1012,6 +1013,7 @@ public:
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
   virtual void print(String *str, enum_query_type query_type);
+  virtual enum Functype functype() const   { return DYNCOL_FUNC; }
 };
 
 
@@ -1026,6 +1028,19 @@ public:
   virtual void print(String *str, enum_query_type query_type);
 };
 
+class Item_func_dyncol_json: public Item_str_func
+{
+public:
+  Item_func_dyncol_json(Item *str) :Item_str_func(str) {}
+  const char *func_name() const{ return "column_json"; }
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    maybe_null= TRUE;
+    collation.set(&my_charset_bin);
+    decimals= 0;
+  }
+};
 
 /*
   The following functions is always called from an Item_cast function
@@ -1036,11 +1051,9 @@ class Item_dyncol_get: public Item_str_func
 public:
   Item_dyncol_get(Item *str, Item *num)
     :Item_str_func(str, num)
-  {
-    max_length= MAX_DYNAMIC_COLUMN_LENGTH;
-  }
+  {}
   void fix_length_and_dec()
-  { maybe_null= 1; }
+  { maybe_null= 1; max_length= MAX_BLOB_WIDTH; }
   /* Mark that collation can change between calls */
   bool dynamic_result() { return 1; }
 
@@ -1067,3 +1080,4 @@ public:
 extern String my_empty_string;
 
 #endif /* ITEM_STRFUNC_INCLUDED */
+
