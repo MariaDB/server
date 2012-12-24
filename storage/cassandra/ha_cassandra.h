@@ -208,7 +208,7 @@ public:
   virtual double read_time(uint, uint, ha_rows rows)
   { return (double) rows /  20.0+1; }
 
-  virtual void start_bulk_insert(ha_rows rows);
+  virtual void start_bulk_insert(ha_rows rows, uint flags);
   virtual int end_bulk_insert();
 
   virtual int reset();
