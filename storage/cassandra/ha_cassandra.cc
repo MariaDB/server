@@ -2033,7 +2033,7 @@ int ha_cassandra::write_row(uchar *buf)
 }
 
 
-void ha_cassandra::start_bulk_insert(ha_rows rows)
+void ha_cassandra::start_bulk_insert(ha_rows rows, uint flags)
 {
   int ires;
   if (!se && (ires= connect_and_check_options(table)))
