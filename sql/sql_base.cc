@@ -3143,16 +3143,6 @@ retry_share:
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
 
-    if (get_use_stat_tables_mode(thd) > NEVER)
-    {
-      if (share->table_category != TABLE_CATEGORY_SYSTEM)
-      {
-        if (!share->stats_can_be_read && 
-            !alloc_statistics_for_table_share(thd, share, TRUE))
-	  share->stats_can_be_read= TRUE;
-      }
-    }
-
     mysql_mutex_unlock(&LOCK_open);
 
     /* make a new table */
@@ -4638,22 +4628,24 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
   if (get_use_stat_tables_mode(thd) > NEVER && tables->table)
   {
     TABLE_SHARE *table_share= tables->table->s;
-    if (table_share && table_share->table_category != TABLE_CATEGORY_SYSTEM)
+    if (table_share && table_share->table_category == TABLE_CATEGORY_USER &&
+        table_share->tmp_table == NO_TMP_TABLE)
     {
-      if (!table_share->stats_can_be_read && 
-          !alloc_statistics_for_table_share(thd, table_share, FALSE))
-      {    
-        KEY *key_info= table_share->key_info;
-        KEY *key_info_end= key_info + table_share->keys;
-        KEY *table_key_info= tables->table->key_info;
-        for ( ; key_info < key_info_end; key_info++, table_key_info++)
-          table_key_info->read_stats= key_info->read_stats;
-        Field **field_ptr= table_share->field;
-        Field **table_field_ptr= tables->table->field;
-        for ( ; *field_ptr; field_ptr++, table_field_ptr++)
-          (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
-  
-	table_share->stats_can_be_read= TRUE;
+      if (table_share->stats_cb.stats_can_be_read ||
+	  !alloc_statistics_for_table_share(thd, table_share, FALSE))
+      {
+        if (table_share->stats_cb.stats_can_be_read)
+        {   
+          KEY *key_info= table_share->key_info;
+          KEY *key_info_end= key_info + table_share->keys;
+          KEY *table_key_info= tables->table->key_info;
+          for ( ; key_info < key_info_end; key_info++, table_key_info++)
+            table_key_info->read_stats= key_info->read_stats;
+          Field **field_ptr= table_share->field;
+          Field **table_field_ptr= tables->table->field;
+          for ( ; *field_ptr; field_ptr++, table_field_ptr++)
+            (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+        }
       }	
     }
   }
@@ -4895,7 +4887,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
   }
 
   /*
-    Initialize temporary MEM_ROOT for new .FRM parsing. Do not allocate
+    Initialize temporary MEM_ROOT for new .FRM parsing. Do not alloctaate
     anything yet, to avoid penalty for statements which don't use views
     and thus new .FRM format.
   */
