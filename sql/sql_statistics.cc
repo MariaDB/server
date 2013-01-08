@@ -158,34 +158,6 @@ inline int open_single_stat_table(THD *thd, TABLE_LIST *table,
 }
 
 
-/**
-  @details
-  If the value of the parameter is_safe is TRUE then the function
-  just copies the address pointed by the parameter src into the memory
-  pointed by the parameter dest. Otherwise the function performs the
-  following statement as an atomic action:
-     if (*dest == NULL) { *dest= *src; }
-  i.e. the same copying is performed only if *dest is NULL.
-*/  
-
-static
-inline void store_address_if_first(void **dest, void **src, bool is_safe)
-{
-  if (is_safe)
-  {
-    if (!*dest)
-      memcpy(dest, src, sizeof(void *));
-  }
-  else
-  {
-    char *null= NULL;
-    my_atomic_rwlock_wrlock(&statistics_lock);
-    my_atomic_casptr(dest, (void **) &null, *src) 
-    my_atomic_rwlock_wrunlock(&statistics_lock);
-  }
-}
-
-
 /*
   The class Column_statistics_collected is a helper class used to collect
   statistics on a table column. The class is derived directly from
@@ -737,15 +709,16 @@ public:
 
   void get_stat_values()
   {
-    table_share->read_stats->cardinality_is_null= TRUE;
-    table_share->read_stats->cardinality= 0;
+    Table_statistics *read_stats= table_share->stats_cb.table_stats;
+    read_stats->cardinality_is_null= TRUE;
+    read_stats->cardinality= 0;
     if (find_stat())
     {
       Field *stat_field= stat_table->field[TABLE_STAT_CARDINALITY];
       if (!stat_field->is_null())
       {
-        table_share->read_stats->cardinality_is_null= FALSE;
-        table_share->read_stats->cardinality= stat_field->val_int();
+        read_stats->cardinality_is_null= FALSE;
+        read_stats->cardinality= stat_field->val_int();
       }
     }
   } 
@@ -1547,28 +1520,22 @@ public:
 */      
 
 static
-void create_min_max_stistical_fields_for_table(TABLE *table)
+void create_min_max_statistical_fields_for_table(TABLE *table)
 {
-  Field *table_field;
-  Field **field_ptr;
-  uchar *record;
   uint rec_buff_length= table->s->rec_buff_length;
 
-  for (field_ptr= table->field; *field_ptr; field_ptr++) 
+  if ((table->collected_stats->min_max_record_buffers=
+       (uchar *) alloc_root(&table->mem_root, 2*rec_buff_length)))
   {
-    table_field= *field_ptr;
-    table_field->collected_stats->max_value=
-      table_field->collected_stats->min_value= NULL;
-  }
+    uchar *record= table->collected_stats->min_max_record_buffers;
+    memset(record, 0,  2*rec_buff_length);
 
-  if ((record= (uchar *) alloc_root(&table->mem_root, 2*rec_buff_length)))
-  {
     for (uint i=0; i < 2; i++, record+= rec_buff_length)
     {
-      for (field_ptr= table->field; *field_ptr; field_ptr++) 
+      for (Field **field_ptr= table->field; *field_ptr; field_ptr++) 
       {
         Field *fld;
-        table_field= *field_ptr;
+        Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record-table->record[0];
         if (!bitmap_is_set(table->read_set, table_field->field_index))
           continue; 
@@ -1615,41 +1582,40 @@ void create_min_max_stistical_fields_for_table(TABLE *table)
 */      
 
 static
-void create_min_max_stistical_fields_for_table_share(THD *thd,
-                                                     TABLE_SHARE *table_share,
-                                                     bool is_safe)
+void create_min_max_statistical_fields_for_table_share(THD *thd,
+                                                       TABLE_SHARE *table_share)
 {
-  Field *table_field;
-  Field **field_ptr;
-  uchar *record;
+  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
+  Table_statistics *stats= stats_cb->table_stats; 
+
+  if (stats->min_max_record_buffers)
+    return;
+   
   uint rec_buff_length= table_share->rec_buff_length;
 
-  for (field_ptr= table_share->field; *field_ptr; field_ptr++) 
+  if ((stats->min_max_record_buffers=
+         (uchar *) alloc_root(&stats_cb->mem_root, 2*rec_buff_length)))
   {
-    table_field= *field_ptr;
-    table_field->read_stats->max_value=
-      table_field->read_stats->min_value= NULL;
-  }
+    uchar *record= stats->min_max_record_buffers;
+    memset(record, 0,  2*rec_buff_length);
 
-  if ((record= (uchar *) alloc_root(&table_share->mem_root, 2*rec_buff_length)))
-  {
     for (uint i=0; i < 2; i++, record+= rec_buff_length)
     {
-      for (field_ptr= table_share->field; *field_ptr; field_ptr++) 
+      for (Field **field_ptr= table_share->field; *field_ptr; field_ptr++) 
       {
         Field *fld;
-        table_field= *field_ptr;
+        Field *table_field= *field_ptr;
         my_ptrdiff_t diff= record - table_share->default_values;
-        if (!(fld= table_field->clone(&table_share->mem_root, diff)))
+        if (!(fld= table_field->clone(&stats_cb->mem_root, diff)))
           continue;
-        store_address_if_first(i == 0 ?
-                               (void **) &table_field->read_stats->min_value :
-		               (void **) &table_field->read_stats->max_value,
-                               (void **) &fld, 
-                               is_safe);
+        if (i == 0)
+          table_field->read_stats->min_value= fld;
+        else
+          table_field->read_stats->max_value= fld;
       }
     }
   }
+
 }
 
 
@@ -1684,6 +1650,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
 
   DBUG_ENTER("alloc_statistics_for_table");
 
+
   Table_statistics *table_stats= 
     (Table_statistics *) alloc_root(&table->mem_root,
                                     sizeof(Table_statistics));
@@ -1692,7 +1659,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   Column_statistics_collected *column_stats=
     (Column_statistics_collected *) alloc_root(&table->mem_root,
                                     sizeof(Column_statistics_collected) *
-                                    fields);
+				    (fields+1));
 
   uint keys= table->s->keys;
   Index_statistics *index_stats=
@@ -1711,10 +1678,14 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
   
-  memset(column_stats, 0, sizeof(Column_statistics) * fields);
+  memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
 
   for (field_ptr= table->field; *field_ptr; field_ptr++, column_stats++)
+  {
     (*field_ptr)->collected_stats= column_stats;
+    (*field_ptr)->collected_stats->max_value= NULL;
+    (*field_ptr)->collected_stats->min_value= NULL;
+  }
 
   memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
 
@@ -1728,10 +1699,52 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     idx_avg_frequency+= key_info->ext_key_parts;
   }
 
-  create_min_max_stistical_fields_for_table(table);
+  create_min_max_statistical_fields_for_table(table);
 
   DBUG_RETURN(0);
 }
+
+
+/**
+  @brief
+  Check whether any persistent statistics for the processed command is needed
+
+  @param
+  thd         The thread handle
+
+  @details
+  The function checks whether any persitent statistics for the processed
+  command is needed to be read.
+
+  @retval
+  TRUE        statistics is needed to be read 
+  @retval
+  FALSE       Otherwise
+*/
+
+static
+inline bool statistics_for_command_is_needed(THD *thd)
+{
+  if (thd->bootstrap || thd->variables.use_stat_tables == NEVER)
+    return FALSE;
+  
+  switch(thd->lex->sql_command) {
+  case SQLCOM_SELECT:
+  case SQLCOM_INSERT:
+  case SQLCOM_INSERT_SELECT:
+  case SQLCOM_UPDATE:
+  case SQLCOM_UPDATE_MULTI:
+  case SQLCOM_DELETE:
+  case SQLCOM_DELETE_MULTI:
+  case SQLCOM_REPLACE:
+  case SQLCOM_REPLACE_SELECT:
+    break;
+  default: 
+    return FALSE;
+  }
+
+  return TRUE;
+} 
 
 
 /**
@@ -1772,6 +1785,11 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   Here the second and the third threads try to allocate the memory for
   statistical data at the same time. The precautions are taken to
   guarantee the correctness of the allocation.
+
+  @note
+  Currently the function always is called with the parameter is_safe set
+  to FALSE. 
+
 */      
 
 int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share, 
@@ -1779,70 +1797,111 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
 {
   
   Field **field_ptr;
-  uint cnt= 0;
+  KEY *key_info, *end;
+  TABLE_STATISTICS_CB *stats_cb= &table_share->stats_cb;
 
   DBUG_ENTER("alloc_statistics_for_table_share");
 
   DEBUG_SYNC(thd, "statistics_mem_alloc_start1");
   DEBUG_SYNC(thd, "statistics_mem_alloc_start2");
 
-  Table_statistics *table_stats= 
-    (Table_statistics *) alloc_root(&table_share->mem_root,
-                                    sizeof(Table_statistics)); 
+  if (!statistics_for_command_is_needed(thd))
+    DBUG_RETURN(1);
+
+  if (!is_safe)
+    mysql_mutex_lock(&table_share->LOCK_ha_data);
+
+  if (stats_cb->stats_can_be_read)
+  {
+    if (!is_safe)
+      mysql_mutex_unlock(&table_share->LOCK_ha_data);
+    DBUG_RETURN(0);
+  }
+
+  Table_statistics *table_stats= stats_cb->table_stats;
   if (!table_stats)
-    DBUG_RETURN(1);
-  memset(table_stats, 0, sizeof(Table_statistics));
-  store_address_if_first((void **) &table_share->read_stats,
-                         (void **) &table_stats, is_safe);
-  table_stats= table_share->read_stats;
+  {
+    table_stats=  (Table_statistics *) alloc_root(&stats_cb->mem_root,
+                                                  sizeof(Table_statistics));
+    if (!table_stats)
+    {
+      if (!is_safe)
+        mysql_mutex_unlock(&table_share->LOCK_ha_data);
+      DBUG_RETURN(1);
+    }
+    memset(table_stats, 0, sizeof(Table_statistics));
+    stats_cb->table_stats= table_stats;
+  }
 
-  for (field_ptr= table_share->field; *field_ptr; field_ptr++, cnt++) ; 
-  Column_statistics *column_stats=
-    (Column_statistics *) alloc_root(&table_share->mem_root,
-                                     sizeof(Column_statistics) * cnt);
+  uint fields= table_share->fields;
+  Column_statistics *column_stats= table_stats->column_stats;
   if (!column_stats)
-    DBUG_RETURN(1);
-  memset(column_stats, 0, sizeof(Column_statistics) * cnt);
-  store_address_if_first((void **) &table_stats->column_stats,
-                         (void **) &column_stats, is_safe);
-  column_stats= table_stats->column_stats;
-
-  for (field_ptr= table_share->field; *field_ptr; field_ptr++, column_stats++)
-    (*field_ptr)->read_stats= column_stats;
+  {
+    column_stats= (Column_statistics *) alloc_root(&stats_cb->mem_root,
+                                                   sizeof(Column_statistics) *
+				                   (fields+1));  
+    if (column_stats)
+    { 
+      memset(column_stats, 0, sizeof(Column_statistics) * (fields+1));
+      table_stats->column_stats= column_stats;
+      for (field_ptr= table_share->field;
+           *field_ptr;
+           field_ptr++, column_stats++)
+      {
+        (*field_ptr)->read_stats= column_stats;
+        (*field_ptr)->read_stats->min_value= NULL;
+        (*field_ptr)->read_stats->max_value= NULL;
+      }
+      create_min_max_statistical_fields_for_table_share(thd, table_share);
+    }
+  }
 
   uint keys= table_share->keys;
-  Index_statistics *index_stats=
-    (Index_statistics *) alloc_root(&table_share->mem_root,
-                                    sizeof(Index_statistics) * keys);
+  Index_statistics *index_stats= table_stats->index_stats;
   if (!index_stats)
-    DBUG_RETURN(1);
-  memset(index_stats, 0, sizeof(Index_statistics) * keys);
-  store_address_if_first((void **) &table_stats->index_stats, 
-                         (void **) &index_stats, is_safe);
-  index_stats= table_stats->index_stats;
+  {
+    index_stats= (Index_statistics *) alloc_root(&stats_cb->mem_root,
+                                                 sizeof(Index_statistics) *
+                                                 keys);
+    if (index_stats)
+    {
+      table_stats->index_stats= index_stats;   
+      for (key_info= table_share->key_info, end= key_info + keys;
+           key_info < end; 
+           key_info++, index_stats++)
+      {
+        key_info->read_stats= index_stats;
+      }
+    }   
+  }
 
   uint key_parts= table_share->ext_key_parts;
-  ulong *idx_avg_frequency= (ulong*) alloc_root(&table_share->mem_root,
-                                                sizeof(ulong) * key_parts);
+  ulong *idx_avg_frequency=  table_stats->idx_avg_frequency;
   if (!idx_avg_frequency)
-    DBUG_RETURN(1);
-  memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
-  store_address_if_first((void **) &table_stats->idx_avg_frequency,
-                         (void **) &idx_avg_frequency, is_safe);
-  idx_avg_frequency= table_stats->idx_avg_frequency;
-  
-  KEY *key_info, *end;
-  for (key_info= table_share->key_info, end= key_info + table_share->keys;
-       key_info < end; 
-       key_info++, index_stats++)
   {
-    key_info->read_stats= index_stats;
-    key_info->read_stats->init_avg_frequency(idx_avg_frequency);
-    idx_avg_frequency+= key_info->ext_key_parts;
+    idx_avg_frequency= (ulong*) alloc_root(&stats_cb->mem_root,
+                                           sizeof(ulong) * key_parts);
+    if (idx_avg_frequency)
+    {
+      memset(idx_avg_frequency, 0, sizeof(ulong) * key_parts);
+      table_stats->idx_avg_frequency= idx_avg_frequency;
+      for (key_info= table_share->key_info, end= key_info + keys;
+           key_info < end; 
+           key_info++)
+      {
+        key_info->read_stats->init_avg_frequency(idx_avg_frequency);
+        idx_avg_frequency+= key_info->ext_key_parts;
+      }
+    }   
   }
-   
-  create_min_max_stistical_fields_for_table_share(thd, table_share, is_safe);
- 
+
+  if (column_stats && index_stats && idx_avg_frequency)
+    stats_cb->stats_can_be_read= TRUE;
+
+  if (!is_safe)
+    mysql_mutex_unlock(&table_share->LOCK_ha_data);
+
+
   DBUG_RETURN(0);
 }
 
@@ -2382,6 +2441,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   }
 
   /* Read statistics from the statistical table index_stats */
+  Table_statistics *read_stats= table_share->stats_cb.table_stats;
   stat_table= stat_tables[INDEX_STAT].table;
   Index_stat index_stat(stat_table, table);
   for (key_info= table_share->key_info,
@@ -2402,7 +2462,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       KEY *pk_key_info= table_share->key_info + table_share->primary_key;
       uint k= key_info->key_parts;
       uint pk_parts= pk_key_info->key_parts;
-      ha_rows n_rows= table_share->read_stats->cardinality;
+      ha_rows n_rows= read_stats->cardinality;
       double k_dist= n_rows / key_info->read_stats->get_avg_frequency(k-1);
       uint m= 0;
       for (uint j= 0; j < pk_parts; j++)
@@ -2429,8 +2489,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       for (uint l= k; l < k + m; l++)
       {
         double avg_frequency= key_info->read_stats->get_avg_frequency(l);
-        if (avg_frequency == 0 ||
-            table_share->read_stats->cardinality_is_null)
+        if (avg_frequency == 0 || read_stats->cardinality_is_null)
           avg_frequency= 1;
         else if (avg_frequency > 1)
 	{
@@ -2468,26 +2527,11 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 static
 bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 {
-  if (thd->bootstrap || thd->variables.use_stat_tables == 0)
-    return FALSE;
-
   if (!tables)
     return FALSE;
   
-  switch(thd->lex->sql_command) {
-  case SQLCOM_SELECT:
-  case SQLCOM_INSERT:
-  case SQLCOM_INSERT_SELECT:
-  case SQLCOM_UPDATE:
-  case SQLCOM_UPDATE_MULTI:
-  case SQLCOM_DELETE:
-  case SQLCOM_DELETE_MULTI:
-  case SQLCOM_REPLACE:
-  case SQLCOM_REPLACE_SELECT:
-    break;
-  default: 
+  if (!statistics_for_command_is_needed(thd))
     return FALSE;
-  }
 
   /* 
     Do not read statistics for any query over non-user tables.
@@ -2499,7 +2543,9 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
     if (!tl->is_view_or_derived() && tl->table)
     {
       TABLE_SHARE *table_share= tl->table->s;
-      if (table_share && table_share->table_category != TABLE_CATEGORY_USER)
+      if (table_share && 
+          (table_share->table_category != TABLE_CATEGORY_USER ||
+           table_share->tmp_table != NO_TMP_TABLE))
         return FALSE;
     }
   }
@@ -2510,8 +2556,8 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
     {
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
-          table_share->stats_can_be_read &&
-          !table_share->stats_is_read)
+          table_share->stats_cb.stats_can_be_read &&
+          !table_share->stats_cb.stats_is_read)
         return TRUE;
     } 
   }
@@ -2566,11 +2612,11 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
     { 
       TABLE_SHARE *table_share= tl->table->s;
       if (table_share && 
-          table_share->stats_can_be_read &&
-	  !table_share->stats_is_read)
+          table_share->stats_cb.stats_can_be_read &&
+	  !table_share->stats_cb.stats_is_read)
       {
         (void) read_statistics_for_table(thd, tl->table, stat_tables);
-        table_share->stats_is_read= TRUE;
+        table_share->stats_cb.stats_is_read= TRUE;
       }
     }
   }  
@@ -2994,20 +3040,20 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
 
 void set_statistics_for_table(THD *thd, TABLE *table)
 {
+  TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
+  Table_statistics *read_stats= stats_cb->table_stats;
   Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
     (use_stat_table_mode <= COMPLEMENTARY ||
-     !table->s->stats_is_read || !table->s->read_stats ||
-     table->s->read_stats->cardinality_is_null) ?
-    table->file->stats.records : table->s->read_stats->cardinality;
+     !stats_cb->stats_is_read || read_stats->cardinality_is_null) ?
+    table->file->stats.records : read_stats->cardinality;
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
        key_info < key_info_end; key_info++)
   {
     key_info->is_statistics_from_stat_tables=
       (use_stat_table_mode > COMPLEMENTARY &&
-       table->s->stats_is_read &&
-       key_info->read_stats &&
+       stats_cb->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
