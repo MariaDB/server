@@ -4137,7 +4137,8 @@ bool mysql_create_table_no_lock(THD *thd,
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
-  if (create_info->row_type != ROW_TYPE_FIXED &&
+  if (!create_info->frm_only &&
+      create_info->row_type != ROW_TYPE_FIXED &&
       create_info->row_type != ROW_TYPE_DEFAULT)
     db_options|= HA_OPTION_PACK_RECORD;
   alias= table_case_name(create_info, table_name);
@@ -4564,7 +4565,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   */
   if (open_and_lock_tables(thd, thd->lex->query_tables, FALSE, 0))
   {
-    result= TRUE;
+    /* is_error() may be 0 if table existed and we generated a warning */
+    result= thd->is_error();
     goto end;
   }
 
@@ -4759,7 +4761,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
     properly isolated from all concurrent operations which matter.
   */
   if (open_tables(thd, &thd->lex->query_tables, &not_used, 0))
+  {
+    res= thd->is_error();
     goto err;
+  }
   src_table->table->use_all_columns();
 
   DEBUG_SYNC(thd, "create_table_like_after_open");
@@ -6779,9 +6784,19 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                   my_sleep(100000););
   /*
     Create a table with a temporary name.
-    With create_info->frm_only == 1 this creates a .frm file only.
+    With create_info->frm_only == 1 this creates a .frm file only and
+    we keep the original row format.
     We don't log the statement, it will be logged later.
   */
+  if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
+  {
+    DBUG_ASSERT(create_info->frm_only);
+    /* Ensure we keep the original table format */
+    create_info->table_options= ((create_info->table_options &
+                                  ~HA_OPTION_PACK_RECORD) |
+                                 (table->s->db_create_options &
+                                  HA_OPTION_PACK_RECORD));
+  }
   tmp_disable_binlog(thd);
   error= mysql_create_table_no_lock(thd, new_db, tmp_name,
                                     create_info,
