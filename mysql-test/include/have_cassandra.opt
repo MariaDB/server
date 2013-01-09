@@ -1,1 +1,1 @@
---cassandra=on
+--plugin-load=$HA_CASSANDRA_SO --cassandra=on
