@@ -580,3 +580,14 @@ select rowkey, column_json(dyn) from t1;
 rowkey	column_json(dyn)
 delete from t1;
 DROP TABLE t1;
+#
+# MDEV-4005 #Server crashes on creating a Cassandra table
+# with a mix of static and dynamic columns
+#
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1 (
+pk int primary key,
+col_int int,
+dyncol blob DYNAMIC_COLUMN_STORAGE=yes
+) ENGINE=cassandra keyspace='bug' thrift_host = '127.0.0.1' column_family='cf1';
+drop table t1;

@@ -1517,6 +1517,7 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
           DBUG_RETURN(true);
         }
         (*conv)->field= *field;
+        break;
       }
     }
     if (dyncol_set && !(*field)) // is needed and not found
@@ -1611,7 +1612,7 @@ void ha_cassandra::free_field_converters()
     for (uint i=0; i < n_field_converters; i++)
       if (field_converters[i])
       {
-        DBUG_ASSERT(!dyncol_set || i == dyncol_field);
+        DBUG_ASSERT(!dyncol_set || i != dyncol_field);
         delete field_converters[i];
       }
     my_free(field_converters);
