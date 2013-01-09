@@ -563,6 +563,21 @@ typedef I_P_List <Wait_for_flush,
 
 
 /**
+  Control block to access table statistics loaded 
+  from persistent statistical tables
+*/
+
+struct TABLE_STATISTICS_CB
+{
+  MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
+  Table_statistics *table_stats; /* Structure to access the statistical data */
+  bool stats_can_be_read;        /* Memory for statistical data is allocated */
+  bool stats_is_read;            /* Statistical data for table has been read
+                                    from statistical tables */   
+};
+
+
+/**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
 */
@@ -599,14 +614,7 @@ struct TABLE_SHARE
   KEY  *key_info;			/* data of keys in database */
   uint	*blob_field;			/* Index to blobs in Field arrray*/
 
-  bool stats_can_be_read;      /* Memory for statistical data is allocated */
-  bool stats_is_read;          /* Statistical data for table has been read
-                                  from statistical tables */   
-  /*
-    This structure is used for statistical data on the table
-    that has been read from the statistical table table_stat
-  */ 
-  Table_statistics *read_stats;
+  TABLE_STATISTICS_CB stats_cb;
 
   uchar	*default_values;		/* row with default values */
   LEX_STRING comment;			/* Comment about table */

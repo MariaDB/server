@@ -1789,6 +1789,24 @@ disconnect con12828477_1;
 disconnect con12828477_2;
 disconnect con12828477_3;
 
+
+--echo #
+--echo # MDEV-3818: Query against view over IS tables worse than equivalent query without view
+--echo #
+
+create view v1 as select table_schema, table_name, column_name from information_schema.columns;
+
+explain extended
+select column_name from v1
+where (table_schema = "osm") and (table_name = "test");
+
+explain extended
+select information_schema.columns.column_name as column_name
+from information_schema.columns
+where (information_schema.columns.table_schema = 'osm') and (information_schema.columns.table_name = 'test');
+
+drop view v1;
+
 --echo #
 --echo # Clean-up.
 drop database mysqltest;
