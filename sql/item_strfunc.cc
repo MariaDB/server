@@ -3805,7 +3805,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
                                 sizeof(uint)) *
                                (arg_count / 2));
     keys_str= (LEX_STRING *) keys_num;
-    //status_var_increment(thd->status_var.feature_dynamic_columns);
+    status_var_increment(thd->status_var.feature_dynamic_columns);
   }
   return res || vals == 0 || keys_num == 0;
 }
