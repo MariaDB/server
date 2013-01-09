@@ -1,4 +1,10 @@
 
+
+IF(NOT WITH_CASSANDRA_STORAGE_ENGINE)
+  SET(WITHOUT_CASSANDRA 1)
+ENDIF(NOT WITH_CASSANDRA_STORAGE_ENGINE)
+
+
 SET(cassandra_sources 
      ha_cassandra.cc 
      ha_cassandra.h 
@@ -13,8 +19,8 @@ SET(cassandra_sources
 
 #INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
-INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift)
-#INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
+#INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift)
+INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
 #INCLUDE_DIRECTORIES(AFTER /home/psergey/cassandra/thrift/include/thrift/) 
 
 # 
