@@ -340,6 +340,8 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
     share->free_tables.empty();
     share->m_flush_tickets.empty();
 
+    init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
@@ -419,6 +421,14 @@ void TABLE_SHARE::destroy()
 {
   uint idx;
   KEY *info_it;
+
+  if (tmp_table == NO_TMP_TABLE)
+    mysql_mutex_lock(&LOCK_ha_data);
+  free_root(&stats_cb.mem_root, MYF(0));
+  stats_cb.stats_can_be_read= FALSE;
+  stats_cb.stats_is_read= FALSE;
+  if (tmp_table == NO_TMP_TABLE)
+    mysql_mutex_unlock(&LOCK_ha_data);
 
   /* The mutex is initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
