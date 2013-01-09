@@ -81,7 +81,7 @@ struct st_dynamic_column_value
     unsigned long long ulong_value;
     double double_value;
     struct {
-      LEX_STRING value;
+      MYSQL_LEX_STRING value;
       CHARSET_INFO *charset;
     } string;
     struct {
@@ -136,7 +136,7 @@ mariadb_dyncol_create_many(DYNAMIC_COLUMN *str,
 enum enum_dyncol_func_result
 mariadb_dyncol_create_many_named(DYNAMIC_COLUMN *str,
                                  uint column_count,
-                                 LEX_STRING *column_keys,
+                                 MYSQL_LEX_STRING *column_keys,
                                  DYNAMIC_COLUMN_VALUE *values,
                                  my_bool new_string);
 
@@ -149,20 +149,21 @@ mariadb_dyncol_update_many(DYNAMIC_COLUMN *str,
 enum enum_dyncol_func_result
 mariadb_dyncol_update_many_named(DYNAMIC_COLUMN *str,
                                  uint add_column_count,
-                                 LEX_STRING *column_keys,
+                                 MYSQL_LEX_STRING *column_keys,
                                  DYNAMIC_COLUMN_VALUE *values);
 
 
 enum enum_dyncol_func_result
 mariadb_dyncol_exists(DYNAMIC_COLUMN *org, uint column_nr);
 enum enum_dyncol_func_result
-mariadb_dyncol_exists_named(DYNAMIC_COLUMN *str, LEX_STRING *name);
+mariadb_dyncol_exists_named(DYNAMIC_COLUMN *str, MYSQL_LEX_STRING *name);
 
 /* List of not NULL columns */
 enum enum_dyncol_func_result
 mariadb_dyncol_list(DYNAMIC_COLUMN *str, uint *count, uint **nums);
 enum enum_dyncol_func_result
-mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count, LEX_STRING **names);
+mariadb_dyncol_list_named(DYNAMIC_COLUMN *str, uint *count,
+                          MYSQL_LEX_STRING **names);
 
 /*
    if the column do not exists it is NULL
@@ -171,7 +172,7 @@ enum enum_dyncol_func_result
 mariadb_dyncol_get(DYNAMIC_COLUMN *org, uint column_nr,
                    DYNAMIC_COLUMN_VALUE *store_it_here);
 enum enum_dyncol_func_result
-mariadb_dyncol_get_named(DYNAMIC_COLUMN *str, LEX_STRING *name,
+mariadb_dyncol_get_named(DYNAMIC_COLUMN *str, MYSQL_LEX_STRING *name,
                          DYNAMIC_COLUMN_VALUE *store_it_here);
 
 my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str);
@@ -198,9 +199,10 @@ mariadb_dyncol_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val);
 enum enum_dyncol_func_result
 mariadb_dyncol_unpack(DYNAMIC_COLUMN *str,
                       uint *count,
-                      LEX_STRING **names, DYNAMIC_COLUMN_VALUE **vals);
+                      MYSQL_LEX_STRING **names, DYNAMIC_COLUMN_VALUE **vals);
 
-int mariadb_dyncol_column_cmp_named(const LEX_STRING *s1, const LEX_STRING *s2);
+int mariadb_dyncol_column_cmp_named(const MYSQL_LEX_STRING *s1,
+                                    const MYSQL_LEX_STRING *s2);
 
 enum enum_dyncol_func_result
 mariadb_dyncol_column_count(DYNAMIC_COLUMN *str, uint *column_count);
