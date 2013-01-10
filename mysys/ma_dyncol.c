@@ -3815,7 +3815,7 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
         return ER_DYNCOL_RESOURCE;
       break;
     case DYN_COL_DOUBLE:
-      len= snprintf(buff, sizeof(buff), "%lg", val->x.double_value);
+      len= my_snprintf(buff, sizeof(buff), "%g", val->x.double_value);
       if (dynstr_realloc(str, len + (quote ? 2 : 0)))
         return ER_DYNCOL_RESOURCE;
       if (quote)

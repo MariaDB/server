@@ -1568,10 +1568,10 @@ ERROR 22007: Illegal value used as argument of dynamic column function
 #
 select column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" AS datetime, "date", "2011-04-05" AS date));
 column_json(column_create("int", -1212 as int, "uint", 12334 as unsigned int, "decimal", "23.344" as decimal, "double", 1.23444e50 as double, "string", 'gdgd\\dhdjh"dhdhd' as char, "time", "0:45:49.000001" AS time, "datetime", "2011-04-05 0:45:49.000001" 
-{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":"1.23444e+50","string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
+{"int":-1212,"date":"2011-04-05","time":"00:45:49.000001","uint":12334,"double":"1.2e50","string":"gdgd\\dhdjh\"dhdhd","decimal":23.344,"datetime":"2011-04-05 00:45:49.000001"}
 select column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date));
 column_json(column_create(1, -1212 as int, 2, 12334 as unsigned int, 3, "23.344" as decimal, 4, 1.23444e50 as double, 5, 'gdgd\\dhdjh"dhdhd' as char, 6, "0:45:49.000001" AS time, 7, "2011-04-05 0:45:49.000001" AS datetime, 8, "2011-04-05" AS date))
-{"1":-1212,"2":12334,"3":23.344,"4":"1.23444e+50","5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
+{"1":-1212,"2":12334,"3":23.344,"4":"1.2e50","5":"gdgd\\dhdjh\"dhdhd","6":"00:45:49.000001","7":"2011-04-05 00:45:49.000001","8":"2011-04-05"}
 #
 # CHECK test
 #
