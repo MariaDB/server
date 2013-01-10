@@ -3860,12 +3860,16 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
 
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
+  THD* current= current_thd;
   if (!thd)
     thd= current_thd;
 
-  Apc_target *apc_target= (Apc_target*)&thd->apc_target;
-  if (apc_target->have_apc_requests())
-      apc_target->process_apc_requests(); 
+  if (thd == current)
+  {
+    Apc_target *apc_target= (Apc_target*)&thd->apc_target;
+    if (apc_target->have_apc_requests())
+        apc_target->process_apc_requests(); 
+  }
 
   if (!(thd->killed & KILL_HARD_BIT))
     return 0;
