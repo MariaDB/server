@@ -57,6 +57,7 @@
 C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
+#include "sql_show.h"                           // append_identifier
 
 /**
    @todo Remove this. It is not safe to use a shared String object.
@@ -4663,9 +4664,6 @@ null:
   null_value= TRUE;
   return 1;
 }
-
-void
-append_identifier(THD *thd, String *packet, const char *name, uint length);
 
 void Item_dyncol_get::print(String *str, enum_query_type query_type)
 {
