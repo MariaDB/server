@@ -351,7 +351,7 @@ static my_bool type_and_offset_store_named(uchar *place, size_t offset_size,
                                            DYNAMIC_COLUMN_TYPE type,
                                            size_t offset)
 {
-  ulong val = (((ulong) offset) << 4) | (type - 1);
+  ulonglong val = (((ulong) offset) << 4) | (type - 1);
   DBUG_ASSERT(type != DYN_COL_NULL);
   DBUG_ASSERT(((type - 1) & (~0xf)) == 0); /* fit in 4 bits */
   DBUG_ASSERT(offset_size >= 2 && offset_size <= 5);
@@ -375,7 +375,7 @@ static my_bool type_and_offset_store_named(uchar *place, size_t offset_size,
     int4store(place, val);
     break;
   case 5:
-    if (offset >= 0xfffffffff)    /* all 1 value is reserved */
+    if (offset >= 0xfffffffffull)    /* all 1 value is reserved */
       return TRUE;
     int5store(place, val);
     break;
@@ -476,7 +476,7 @@ static size_t dynamic_column_offset_bytes_named(size_t data_length)
     return 3;
   if (data_length < 0xfffffff)            /* all 1 value is reserved */
     return 4;
-  if (data_length < 0xfffffffff)          /* all 1 value is reserved */
+  if (data_length < 0xfffffffffull)       /* all 1 value is reserved */
     return 5;
   return MAX_OFFSET_LENGTH_NM + 1;        /* For an error generation */
 }
@@ -548,7 +548,7 @@ static my_bool type_and_offset_read_named(DYNAMIC_COLUMN_TYPE *type,
     break;
   case 5:
     val= uint5korr(place);
-    lim= 0xfffffffff;
+    lim= 0xfffffffffull;
     break;
   case 1:
   default:
@@ -3956,7 +3956,7 @@ mariadb_dyncol_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val)
         rc= ER_DYNCOL_TRUNCATED;
       break;
     case DYN_COL_DATETIME:
-      *ll= (val->x.time_value.year * 10000000000L +
+      *ll= (val->x.time_value.year * 10000000000ull +
             val->x.time_value.month * 100000000L +
             val->x.time_value.day * 1000000 +
             val->x.time_value.hour * 10000 +
@@ -4022,7 +4022,7 @@ mariadb_dyncol_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val)
         rc= ER_DYNCOL_TRUNCATED;
       break;
     case DYN_COL_DATETIME:
-      *dbl= (double)(val->x.time_value.year * 10000000000L +
+      *dbl= (double)(val->x.time_value.year * 10000000000ull +
                      val->x.time_value.month * 100000000L +
                      val->x.time_value.day * 1000000 +
                      val->x.time_value.hour * 10000 +
