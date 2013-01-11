@@ -2633,7 +2633,8 @@ struct st_plan {
   uchar *place;
   size_t length;
   long long hdelta, ddelta, ndelta;
-  long long mv_offset, mv_length, mv_end;
+  long long mv_offset, mv_length;
+  uint mv_end;
   PLAN_ACT act;
 };
 typedef struct st_plan PLAN;
@@ -3294,8 +3295,8 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
   uint i;
   uint not_null;
   long long header_delta= 0;
+  long long header_delta_sign, data_delta_sign;
   int copy= FALSE;
-  int header_delta_sign, data_delta_sign;
   enum enum_dyncol_func_result rc;
   my_bool convert;
 
@@ -3495,7 +3496,7 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
   plan[add_column_count].act= PLAN_NOP;
   plan[add_column_count].place= header.dtpool;
 
-  new_header.column_count= header.column_count + header_delta;
+  new_header.column_count= (uint)(header.column_count + header_delta);
 
   /*
     Check if it is only "increasing" or only "decreasing" plan for (header
@@ -3835,11 +3836,11 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
       {
         char *alloc= NULL;
         char *from= val->x.string.value.str;
-        uint bufflen;
+        ulong bufflen;
         my_bool conv= !my_charset_same(val->x.string.charset, cs);
         my_bool rc;
         len= val->x.string.value.length;
-        bufflen= (len * (conv ? cs->mbmaxlen : 1));
+        bufflen= (ulong)(len * (conv ? cs->mbmaxlen : 1));
         if (dynstr_realloc(str, bufflen))
             return ER_DYNCOL_RESOURCE;
 
@@ -3852,7 +3853,7 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
             /* convert to the destination */
             str->length+= copy_and_convert_extended(str->str, bufflen,
                                                     cs,
-                                                    from, len,
+                                                    from, (uint32)len,
                                                     val->x.string.charset,
                                                     &dummy_errors);
             return ER_DYNCOL_OK;
@@ -3861,7 +3862,8 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
           {
             len=
               copy_and_convert_extended(alloc, bufflen, cs,
-                                        from, len, val->x.string.charset,
+                                        from, (uint32)len,
+                                        val->x.string.charset,
                                         &dummy_errors);
             from= alloc;
           }
