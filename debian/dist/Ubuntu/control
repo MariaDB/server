@@ -96,7 +96,7 @@ Description: MariaDB database common files (e.g. /etc/mysql/conf.d/mariadb.cnf)
 Package: mariadb-client-core-10.0
 Architecture: any
 Depends: mariadb-common, libmariadbclient18 (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
-Provides: mysql-client-core, mysql-client-core-5.1, mysql-client-core-10.0
+Provides: mysql-client-core, mysql-client-core-5.1, mysql-client-core-5.5
 Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0,
     mysql-client-5.1 (<< ${source:Version}), mysql-client-5.5 (<< ${source:Version}),
     mysql-client-core-5.1, mysql-client-core-5.5,
@@ -121,7 +121,7 @@ Package: mariadb-client-10.0
 Architecture: any
 Depends: debianutils (>=1.6), libdbi-perl, libdbd-mysql-perl (>= 1.2202), mariadb-common, libmariadbclient18 (>= ${source:Version}), mariadb-client-core-10.0 (>= ${source:Version}), ${perl:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Provides: virtual-mysql-client, mysql-client,
-    mysql-client-4.1, mysql-client-5.1, mysql-client-10.0
+    mysql-client-4.1, mysql-client-5.1, mysql-client-5.5
 Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
     mariadb-client (<< ${source:Version}),
     mariadb-client-5.1, mariadb-client-5.2, mariadb-client-5.3, mysql-client-5.5
@@ -141,7 +141,7 @@ Description: MariaDB database client binaries
 Package: mariadb-server-core-10.0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version})
-Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-10.0
+Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5
 Conflicts: mysql-server-5.0,
     mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
     mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5
