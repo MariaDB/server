@@ -918,6 +918,9 @@ The following options may be given as the first argument:
  Prohibit update of a VIEW, which does not contain a key
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
+ --use-stat-tables=name 
+ Specifies how to use system statistics tables. Possible
+ values are NEVER, COMPLEMENTARY, PREVERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1198,6 +1201,7 @@ transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
 transaction-read-only FALSE
 updatable-views-with-limit YES
+use-stat-tables NEVER
 userstat FALSE
 verbose TRUE
 wait-timeout 28800

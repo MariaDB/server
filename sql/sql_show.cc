@@ -45,6 +45,7 @@
 #include "set_var.h"
 #include "sql_trigger.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "sql_connect.h"
 #include "authors.h"
 #include "contributors.h"
@@ -3388,13 +3389,13 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
     Item_field *item_field;
     CHARSET_INFO *cs= system_charset_info;
 
-    if (item_func->arguments()[0]->type() == Item::FIELD_ITEM &&
+    if (item_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM &&
         item_func->arguments()[1]->const_item())
     {
       idx_field= 0;
       idx_val= 1;
     }
-    else if (item_func->arguments()[1]->type() == Item::FIELD_ITEM &&
+    else if (item_func->arguments()[1]->real_item()->type() == Item::FIELD_ITEM &&
              item_func->arguments()[0]->const_item())
     {
       idx_field= 1;
@@ -3403,7 +3404,7 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
     else
       return 0;
 
-    item_field= (Item_field*) item_func->arguments()[idx_field];
+    item_field= (Item_field*) item_func->arguments()[idx_field]->real_item();
     if (table->table != item_field->field->table)
       return 0;
     tmp_str= item_func->arguments()[idx_val]->val_str(&str_buff);
@@ -5929,9 +5930,12 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     TABLE *show_table= tables->table;
     KEY *key_info=show_table->s->key_info;
     if (show_table->file)
+    {
       show_table->file->info(HA_STATUS_VARIABLE |
                              HA_STATUS_NO_LOCK |
                              HA_STATUS_TIME);
+      set_statistics_for_table(thd, show_table);
+    }
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       KEY_PART_INFO *key_part= key_info->key_part;
@@ -5962,8 +5966,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           KEY *key=show_table->key_info+i;
           if (key->rec_per_key[j])
           {
-            ha_rows records=(show_table->file->stats.records /
-                             key->rec_per_key[j]);
+            ha_rows records=((double) show_table->stat_records() /
+                             key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }

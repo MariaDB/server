@@ -1,0 +1,100 @@
+--source include/load_sysvars.inc
+
+#############################################################
+#                 Save initial value                        #
+#############################################################
+
+SET @start_global_value = @@global.use_stat_tables;
+SELECT @start_global_value;
+SET @start_session_value = @@session.use_stat_tables;
+SELECT @start_session_value;
+
+###############################################################
+#     Display the DEFAULT value of use_stat_tables            #
+###############################################################
+
+SET @@global.use_stat_tables = 2;
+SET @@global.use_stat_tables = DEFAULT;
+SELECT @@global.use_stat_tables;
+
+
+##################################################################################
+# Change the value of use_stat_tables to a valid value for GLOBAL Scope          #
+##################################################################################
+
+SET @@global.use_stat_tables = 0;
+SELECT @@global.use_stat_tables;
+SET @@global.use_stat_tables = 1;
+SELECT @@global.use_stat_tables;
+SET @@global.use_stat_tables = 2;
+SELECT @@global.use_stat_tables;
+
+SET @@global.use_stat_tables = NEVER;
+SELECT @@global.use_stat_tables;
+SET @@global.use_stat_tables = COMPLEMENTARY;
+SELECT @@global.use_stat_tables;
+SET @@global.use_stat_tables = PREFERABLY;
+SELECT @@global.use_stat_tables;
+
+####################################################################################
+# Change the value of use_stat_tables to a valid value for SESSION Scope           #
+####################################################################################
+
+SET @@session.use_stat_tables = 0;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables = 1;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables = 2;
+SELECT @@session.use_stat_tables;
+
+SET @@session.use_stat_tables = NEVER;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables = PREFERABLY;
+SELECT @@session.use_stat_tables;
+SET @@session.use_stat_tables = COMPLEMENTARY;
+SELECT @@session.use_stat_tables;
+
+#####################################################################
+# Change the value of use_stat_tables to an invalid value           #
+#####################################################################
+set sql_mode=TRADITIONAL;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.use_stat_tables = 10;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.use_stat_tables = -1024;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.use_stat_tables = 2.4;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.use_stat_tables = OFF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.use_stat_tables = 10;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.use_stat_tables = -2;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.use_stat_tables = 1.2;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.use_stat_tables = ON;
+
+###############################################################################
+#   Check if the value in GLOBAL & SESSION Tables matches value in variable   #
+###############################################################################
+
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='use_stat_tables';
+
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='use_stat_tables';
+
+####################################
+#     Restore initial value        #
+####################################
+
+SET @@global.use_stat_tables = @start_global_value;
+SELECT @@global.use_stat_tables;
+SET @@session.use_stat_tables = @start_session_value;
+SELECT @@session.use_stat_tables;
+set sql_mode='';
+
+######################################################
+#         END OF use_stat_tables TESTS               #
+######################################################

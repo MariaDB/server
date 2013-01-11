@@ -1716,7 +1716,12 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         show describe load alter optimize keycache preload flush
         reset purge begin commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
-        repair analyze check start checksum
+        repair analyze
+        analyze_table_list analyze_table_elem_spec
+        opt_persistent_stat_clause persistent_stat_spec
+        persistent_column_stat_spec persistent_index_stat_spec
+        table_column_list table_index_list table_index_name
+        check start checksum
         field_list field_list_item field_spec kill column_def key_def
         keycache_list keycache_list_or_parts assign_to_keycache
         assign_to_keycache_parts
@@ -7432,7 +7437,7 @@ analyze:
             /* Will be overriden during execution. */
             YYPS->m_lock_type= TL_UNLOCK;
           }
-          table_list
+          analyze_table_list
           {
             THD *thd= YYTHD;
             LEX* lex= thd->lex;
@@ -7442,6 +7447,96 @@ analyze:
               MYSQL_YYABORT;
           }
         ;
+
+analyze_table_list:
+          analyze_table_elem_spec
+        | analyze_table_list ',' analyze_table_elem_spec
+        ;
+
+analyze_table_elem_spec:
+          table_name opt_persistent_stat_clause
+        ;
+
+opt_persistent_stat_clause:
+          /* empty */
+          {}        
+        | PERSISTENT_SYM FOR_SYM persistent_stat_spec  
+          { 
+            THD *thd= YYTHD;
+            thd->lex->with_persistent_for_clause= TRUE;
+          }
+        ;
+
+persistent_stat_spec:
+          ALL
+          {}
+        | COLUMNS persistent_column_stat_spec INDEXES persistent_index_stat_spec
+          {}
+
+persistent_column_stat_spec:
+          ALL {}
+        | '('
+          { 
+            THD *thd= YYTHD;
+            LEX* lex= thd->lex;
+            lex->column_list= new List<LEX_STRING>;
+            if (lex->column_list == NULL)
+              MYSQL_YYABORT;
+          }
+          table_column_list
+          ')' 
+        ;
+ 
+persistent_index_stat_spec:
+          ALL {}
+        | '('
+          { 
+            THD *thd= YYTHD;
+            LEX* lex= thd->lex;
+            lex->index_list= new List<LEX_STRING>;
+            if (lex->index_list == NULL)
+              MYSQL_YYABORT;
+          }
+          table_index_list
+          ')' 
+        ;
+
+table_column_list:
+          /* empty */
+          {}
+        | ident 
+          {
+            Lex->column_list->push_back((LEX_STRING*)
+            sql_memdup(&$1, sizeof(LEX_STRING)));
+          }
+        | table_column_list ',' ident
+          {
+            Lex->column_list->push_back((LEX_STRING*)
+            sql_memdup(&$3, sizeof(LEX_STRING)));
+          }
+        ;
+
+table_index_list:
+          /* empty */
+          {}
+        | table_index_name 
+        | table_index_list ',' table_index_name
+        ;
+
+table_index_name:
+          ident
+          {
+            Lex->index_list->push_back(
+              (LEX_STRING*) sql_memdup(&$1, sizeof(LEX_STRING)));
+          }
+        |
+          PRIMARY_SYM
+          {
+            LEX_STRING str= {(char*) "PRIMARY", 7};
+            Lex->index_list->push_back(
+              (LEX_STRING*) sql_memdup(&str, sizeof(LEX_STRING)));
+          }  
+        ;  
 
 binlog_base64_event:
           BINLOG_SYM TEXT_STRING_sys

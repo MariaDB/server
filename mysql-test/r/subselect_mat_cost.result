@@ -399,10 +399,10 @@ WHERE Code = Country GROUP BY Code)
 order by Country;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	CountryLanguage	index	NULL	PRIMARY	33	NULL	984	Using where; Using index
-3	MATERIALIZED	CountryLanguage	index	PRIMARY	PRIMARY	33	NULL	984	Using index; Using temporary
-3	MATERIALIZED	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using index
-2	MATERIALIZED	CountryLanguage	index	PRIMARY	PRIMARY	33	NULL	984	Using index; Using temporary
-2	MATERIALIZED	Country	eq_ref	PRIMARY	PRIMARY	3	world.CountryLanguage.Country	1	Using index
+3	MATERIALIZED	Country	index	PRIMARY	PRIMARY	3	NULL	239	Using index
+3	MATERIALIZED	CountryLanguage	ref	PRIMARY	PRIMARY	3	world.Country.Code	4	Using index
+2	MATERIALIZED	Country	index	PRIMARY	PRIMARY	3	NULL	239	Using index
+2	MATERIALIZED	CountryLanguage	ref	PRIMARY	PRIMARY	3	world.Country.Code	4	Using index
 select count(*)
 from CountryLanguage
 where

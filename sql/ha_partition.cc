@@ -3838,6 +3838,7 @@ int ha_partition::truncate_partition(Alter_info *alter_info, bool *binlog_stmt)
   SYNOPSIS
     start_bulk_insert()
     rows                  Number of rows to insert
+    flags       Flags to control index creation
 
   RETURN VALUE
     NONE
@@ -3845,7 +3846,7 @@ int ha_partition::truncate_partition(Alter_info *alter_info, bool *binlog_stmt)
   DESCRIPTION
     rows == 0 means we will probably insert many rows
 */
-void ha_partition::start_bulk_insert(ha_rows rows)
+void ha_partition::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_partition::start_bulk_insert");
 

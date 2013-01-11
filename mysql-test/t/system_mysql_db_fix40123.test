@@ -60,6 +60,11 @@ CREATE TABLE time_zone_transition_type (   Time_zone_id int unsigned NOT NULL,  
 
 CREATE TABLE time_zone_leap_second (   Transition_time bigint signed NOT NULL,   Correction int signed NOT NULL,   PRIMARY KEY TranTime (Transition_time) ) engine=MyISAM CHARACTER SET utf8   comment='Leap seconds information for time zones';
 
+CREATE TABLE table_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, cardinality bigint(21) unsigned DEFAULT NULL, PRIMARY KEY (db_name,table_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Tables';
+
+CREATE TABLE column_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, column_name varchar(64) NOT NULL, min_value varchar(255) DEFAULT NULL, max_value varchar(255) DEFAULT NULL, nulls_ratio double DEFAULT NULL, avg_length double DEFAULT NULL, avg_frequency double DEFAULT NULL, PRIMARY KEY (db_name,table_name,column_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+
+CREATE TABLE index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency double DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';
 
 # Run the mysql_fix_privilege_tables.sql using "mysql --force"
 --exec $MYSQL --force test < $MYSQL_FIX_PRIVILEGE_TABLES
@@ -73,7 +78,7 @@ CREATE TABLE time_zone_leap_second (   Transition_time bigint signed NOT NULL,  
 -- disable_query_log
 
 # Drop all tables created by this test
-DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, ndb_binlog_index, proxies_priv, slave_master_info, slave_relay_log_info, innodb_index_stats, innodb_table_stats, slave_worker_info;
+DROP TABLE db, host, user, func, plugin, tables_priv, columns_priv, procs_priv, servers, help_category, help_keyword, help_relation, help_topic, proc, time_zone, time_zone_leap_second, time_zone_name, time_zone_transition, time_zone_transition_type, general_log, slow_log, event, ndb_binlog_index, proxies_priv, slave_master_info, slave_relay_log_info, innodb_index_stats, innodb_table_stats, slave_worker_info, table_stats, column_stats, index_stats;
 
 -- enable_query_log
 
