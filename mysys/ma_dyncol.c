@@ -167,7 +167,7 @@ struct st_dyn_header
 
   uchar *entry, *data, *name;
   size_t offset;
-  uint length;
+  size_t length;
   enum enum_dynamic_column_type type;
 };
 
@@ -227,7 +227,12 @@ static int column_sort_num(const void *a, const void *b)
 
 int mariadb_dyncol_column_cmp_named(const LEX_STRING *s1, const LEX_STRING *s2)
 {
-  int rc= s1->length - s2->length;
+  /*
+    We compare instead of subtraction to avoid data loss in case of huge
+    length difference (more then fit in int).
+  */
+  int rc= (s1->length > s2->length ? 1 :
+           (s1->length < s2->length ? -1 : 0));
   if (rc == 0)
     rc= memcmp((void *)s1->str, (void *)s2->str,
                (size_t) s1->length);
@@ -273,7 +278,7 @@ static my_bool check_limit_named(const void *val)
 
 static void set_fixed_header_num(DYNAMIC_COLUMN *str, DYN_HEADER *hdr)
 {
-  set_fixed_header(str, hdr->offset_size, hdr->column_count);
+  set_fixed_header(str, (uint)hdr->offset_size, hdr->column_count);
   hdr->header= (uchar *)str->str + FIXED_HEADER_SIZE;
   hdr->nmpool= hdr->dtpool= hdr->header + hdr->header_size;
 }
@@ -288,8 +293,9 @@ static void set_fixed_header_named(DYNAMIC_COLUMN *str, DYN_HEADER *hdr)
   DBUG_ASSERT(hdr->column_count <= 0xffff);
   DBUG_ASSERT(hdr->offset_size <= MAX_OFFSET_LENGTH_NM);
   /* size of data offset, named format flag, size of names offset (0 means 2) */
-  str->str[0]= ((str->str[0] & ~(DYNCOL_FLG_OFFSET | DYNCOL_FLG_NMOFFSET)) |
-                (hdr->offset_size - 2) | DYNCOL_FLG_NAMES);
+  str->str[0]=
+    (char) ((str->str[0] & ~(DYNCOL_FLG_OFFSET | DYNCOL_FLG_NMOFFSET)) |
+            (hdr->offset_size - 2) | DYNCOL_FLG_NAMES);
   int2store(str->str + 1, hdr->column_count);        /* columns number */
   int2store(str->str + 3, hdr->nmpool_size);
   hdr->header= (uchar *)str->str + FIXED_HEADER_SIZE_NM;
@@ -529,8 +535,8 @@ static my_bool type_and_offset_read_named(DYNAMIC_COLUMN_TYPE *type,
                                           size_t *offset,
                                           uchar *place, size_t offset_size)
 {
-  ulong UNINIT_VAR(val);
-  ulong UNINIT_VAR(lim);
+  ulonglong UNINIT_VAR(val);
+  ulonglong UNINIT_VAR(lim);
   DBUG_ASSERT(offset_size >= 2 && offset_size <= 5);
 
   switch (offset_size) {
@@ -1671,8 +1677,8 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
   all_headers_size= fmt->fixed_hdr + hdr->header_size + hdr->nmpool_size;
   for (i= 0; i < column_count; i++)
   {
-    uint ord= ((uchar*)columns_order[i] - (uchar*)column_keys) /
-      fmt->key_size_in_array;
+    uint ord= (uint)(((uchar*)columns_order[i] - (uchar*)column_keys) /
+                     fmt->key_size_in_array);
     if (values[ord].type != DYN_COL_NULL)
     {
       /* Store header first in the str */
@@ -2626,8 +2632,8 @@ struct st_plan {
   void *key;
   uchar *place;
   size_t length;
-  int hdelta, ddelta, ndelta;
-  uint mv_offset, mv_length, mv_end;
+  long long hdelta, ddelta, ndelta;
+  long long mv_offset, mv_length, mv_end;
   PLAN_ACT act;
 };
 typedef struct st_plan PLAN;
@@ -2850,7 +2856,7 @@ dynamic_column_update_move_left(DYNAMIC_COLUMN *str, PLAN *plan,
   size_t curr_offset;
 
   write= (uchar *)str->str + FIXED_HEADER_SIZE;
-  set_fixed_header(str, new_offset_size, new_column_count);
+  set_fixed_header(str, (uint)new_offset_size, new_column_count);
 
   /*
     Move headers first.
@@ -3284,10 +3290,10 @@ dynamic_column_update_many_fmt(DYNAMIC_COLUMN *str,
   uchar *element;
   DYN_HEADER header, new_header;
   struct st_service_funcs *fmt, *new_fmt;
-  long data_delta= 0, name_delta= 0;
+  long long data_delta= 0, name_delta= 0;
   uint i;
   uint not_null;
-  int header_delta= 0;
+  long long header_delta= 0;
   int copy= FALSE;
   int header_delta_sign, data_delta_sign;
   enum enum_dyncol_func_result rc;
@@ -3802,7 +3808,7 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
                        CHARSET_INFO *cs, char quote)
 {
   char buff[40];
-  int len;
+  size_t len;
   switch (val->type) {
     case DYN_COL_INT:
       len= snprintf(buff, sizeof(buff), "%lld", val->x.long_value);
@@ -3873,13 +3879,15 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
         break;
       }
     case DYN_COL_DECIMAL:
-      len= sizeof(buff);
-      decimal2string(&val->x.decimal.value, buff, &len,
-                     0, val->x.decimal.value.frac,
-                     '0');
-      if (dynstr_append_mem(str, buff, len))
-        return ER_DYNCOL_RESOURCE;
-      break;
+      {
+        int len= sizeof(buff);
+        decimal2string(&val->x.decimal.value, buff, &len,
+                       0, val->x.decimal.value.frac,
+                       '0');
+        if (dynstr_append_mem(str, buff, len))
+          return ER_DYNCOL_RESOURCE;
+        break;
+      }
     case DYN_COL_DATETIME:
     case DYN_COL_DATE:
     case DYN_COL_TIME:
@@ -3924,9 +3932,9 @@ mariadb_dyncol_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val)
       break;
     case DYN_COL_STRING:
       {
-        longlong i= 0, sign= 1;
         char *src= val->x.string.value.str;
-        uint len= val->x.string.value.length;
+        size_t len= val->x.string.value.length;
+        longlong i= 0, sign= 1;
 
         while (len && my_isspace(&my_charset_latin1, *src)) src++,len--;
 
