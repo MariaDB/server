@@ -7,6 +7,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -16,6 +17,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -27,6 +29,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -49,6 +52,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -58,6 +62,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -69,6 +74,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -91,6 +97,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -100,6 +107,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -111,6 +119,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -136,6 +145,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -145,6 +155,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -156,6 +167,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -184,6 +196,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -193,6 +206,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -204,6 +218,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -235,6 +250,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -244,6 +260,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -255,6 +272,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK
@@ -289,6 +307,7 @@ mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 mysql
+mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
@@ -298,6 +317,7 @@ mysql.help_keyword                                 OK
 mysql.help_relation                                OK
 mysql.help_topic                                   OK
 mysql.host                                         OK
+mysql.index_stats                                  OK
 mysql.innodb_index_stats                           OK
 mysql.innodb_table_stats                           OK
 mysql.ndb_binlog_index                             OK
@@ -309,6 +329,7 @@ mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
 mysql.slave_worker_info                            OK
+mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
 mysql.time_zone                                    OK
 mysql.time_zone_leap_second                        OK

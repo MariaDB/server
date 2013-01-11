@@ -402,6 +402,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   char msgbuf[MYSQL_ERRMSG_SIZE];
   char name[NAME_LEN * 2 + 2];
 
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    return;
+
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1]= 0;                // healthy paranoia
 
@@ -855,6 +858,8 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   DBUG_ENTER("_ma_check_print_error");
   param->error_printed |= 1;
   param->out_flag |= O_DATA_LOST;
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    DBUG_VOID_RETURN;
   va_start(args, fmt);
   _ma_check_print_msg(param, "error", fmt, args);
   va_end(args);
@@ -1584,6 +1589,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   param->thd= thd;
   param->tmpdir= &mysql_tmpdir_list;
   param->out_flag= 0;
+  share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name, share->open_file_name.str);
 
   // Don't lock tables if we have used LOCK TABLE
@@ -1634,6 +1640,10 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         error= maria_repair_by_sort(param, file, fixed_name,
                                     test(param->testflag & T_QUICK));
       }
+      if (error && file->create_unique_index_by_sort && 
+          share->state.dupp_key != MAX_KEY)
+          print_keydup_error(share->state.dupp_key, 
+                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
     }
     else
     {
@@ -1942,6 +1952,8 @@ int ha_maria::enable_indexes(uint mode)
     param.op_name= "recreating_index";
     param.testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
                      T_CREATE_MISSING_KEYS | T_SAFE_REPAIR);
+    if (file->create_unique_index_by_sort)
+      param.testflag|= T_CREATE_UNIQUE_BY_SORT;
     if (bulk_insert_single_undo == BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)
     {
       bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_REPAIR;
@@ -2022,15 +2034,16 @@ int ha_maria::indexes_are_disabled(void)
   activate special bulk-insert optimizations
 
   SYNOPSIS
-    start_bulk_insert(rows)
-    rows        Rows to be inserted
+   start_bulk_insert(rows, flags)
+   rows        Rows to be inserted
                 0 if we don't know
+   flags       Flags to control index creation
 
   NOTICE
     Do not forget to call end_bulk_insert() later!
 */
 
-void ha_maria::start_bulk_insert(ha_rows rows)
+void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_maria::start_bulk_insert");
   THD *thd= table->in_use;
@@ -2096,7 +2109,10 @@ void ha_maria::start_bulk_insert(ha_rows rows)
         maria_clear_all_keys_active(file->s->state.key_map);
       }
       else
-        maria_disable_non_unique_index(file, rows);
+      {
+        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+        maria_disable_indexes_for_rebuild(file, rows, all_keys);
+      }
       if (share->now_transactional)
       {
         bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR;

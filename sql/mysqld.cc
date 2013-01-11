@@ -493,6 +493,7 @@ ulong executed_events=0;
 query_id_t global_query_id;
 my_atomic_rwlock_t global_query_id_lock;
 my_atomic_rwlock_t thread_running_lock;
+my_atomic_rwlock_t statistics_lock;
 ulong aborted_threads, aborted_connects;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
@@ -1908,6 +1909,7 @@ void clean_up(bool print_message)
   sys_var_end();
   my_atomic_rwlock_destroy(&global_query_id_lock);
   my_atomic_rwlock_destroy(&thread_running_lock);
+  my_atomic_rwlock_destroy(&statistics_lock); 
   mysql_mutex_lock(&LOCK_thread_count);
   DBUG_PRINT("quit", ("got thread count lock"));
   ready_to_exit=1;
@@ -2486,21 +2488,6 @@ void dec_connection_count(THD *thd)
 
 
 /*
-  Delete the THD object and decrease number of threads
-
-  SYNOPSIS
-    delete_thd()
-    thd		 Thread handler
-*/
-
-void delete_thd(THD *thd)
-{
-  thread_count--;
-  delete thd;
-}
-
-
-/*
   Unlink thd from global list of available connections and free thd
 
   SYNOPSIS
@@ -2518,14 +2505,23 @@ void unlink_thd(THD *thd)
 
   thd_cleanup(thd);
   dec_connection_count(thd);
+
+  mysql_mutex_lock(&LOCK_status);
+  add_to_status(&global_status_var, &thd->status_var);
+  mysql_mutex_unlock(&LOCK_status);
+
   mysql_mutex_lock(&LOCK_thread_count);
+  thread_count--;
+  thd->unlink();
   /*
     Used by binlog_reset_master.  It would be cleaner to use
     DEBUG_SYNC here, but that's not possible because the THD's debug
     sync feature has been shut down at this point.
   */
   DBUG_EXECUTE_IF("sleep_after_lock_thread_count_before_delete_thd", sleep(5););
-  delete_thd(thd);
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  delete thd;
   DBUG_VOID_RETURN;
 }
 
@@ -2629,10 +2625,13 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   /* Mark that current_thd is not valid anymore */
   my_pthread_setspecific_ptr(THR_THD,  0);
   if (put_in_cache)
+  {
+    mysql_mutex_lock(&LOCK_thread_count);
     put_in_cache= cache_thread();
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (put_in_cache)
-    DBUG_RETURN(0);                             // Thread is reused
+    mysql_mutex_unlock(&LOCK_thread_count);
+    if (put_in_cache)
+      DBUG_RETURN(0);                             // Thread is reused
+  }
 
   /* It's safe to broadcast outside a lock (COND... is not deleted here) */
   DBUG_PRINT("signal", ("Broadcasting COND_thread_count"));
@@ -6222,6 +6221,7 @@ error:
 */
 
 struct my_option my_long_options[]=
+
 {
   {"help", '?', "Display this help and exit.", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
@@ -7553,6 +7553,7 @@ static int mysql_init_variables(void)
   global_query_id= thread_id= 1L;
   my_atomic_rwlock_init(&global_query_id_lock);
   my_atomic_rwlock_init(&thread_running_lock);
+  my_atomic_rwlock_init(&statistics_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();

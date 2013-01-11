@@ -2008,11 +2008,11 @@ public:
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
   int ha_repair(THD* thd, HA_CHECK_OPT* check_opt);
-  void ha_start_bulk_insert(ha_rows rows)
+  void ha_start_bulk_insert(ha_rows rows, uint flags= 0)
   {
     DBUG_ENTER("handler::ha_start_bulk_insert");
     estimation_rows_to_insert= rows;
-    start_bulk_insert(rows);
+    start_bulk_insert(rows, flags);
     DBUG_VOID_RETURN;
   }
   int ha_end_bulk_insert()
@@ -2940,7 +2940,7 @@ private:
     DBUG_ASSERT(!(ha_table_flags() & HA_CAN_REPAIR));
     return HA_ADMIN_NOT_IMPLEMENTED;
   }
-  virtual void start_bulk_insert(ha_rows rows) {}
+  virtual void start_bulk_insert(ha_rows rows, uint flags) {}
   virtual int end_bulk_insert() { return 0; }
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)

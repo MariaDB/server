@@ -165,6 +165,7 @@ vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
 # Groff warnings on OpenSUSE.
 #
 .*/dbug/.*(groff|<standard input>) : .*
+.*groff.* : vertical spacing must be greater than
 
 #
 # Warnings on OpenSolaris

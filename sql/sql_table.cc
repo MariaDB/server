@@ -43,6 +43,7 @@
 #include "discover.h"                  // readfrm
 #include "my_pthread.h"                // pthread_mutex_t
 #include "log_event.h"                 // Query_log_event
+#include "sql_statistics.h"
 #include <hash.h>
 #include <myisam.h>
 #include <my_dir.h>
@@ -1890,6 +1891,17 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
     }
   }
 
+  if (!in_bootstrap)
+  {
+    for (table= tables; table; table= table->next_local)
+    {
+      LEX_STRING db_name= { table->db, table->db_length };
+      LEX_STRING table_name= { table->table_name, table->table_name_length };
+      if (table->open_type == OT_BASE_ONLY || !find_temporary_table(thd, table))
+        (void) delete_statistics_for_table(thd, &db_name, &table_name);
+    }
+  }
+  
   mysql_ha_rm_tables(thd, tables);
 
   if (!drop_temporary)
@@ -1900,6 +1912,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
                            MYSQL_OPEN_SKIP_TEMPORARY))
         DBUG_RETURN(true);
       for (table= tables; table; table= table->next_local)
+     
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
                          false);
     }
@@ -4134,7 +4147,8 @@ bool mysql_create_table_no_lock(THD *thd,
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
-  if (create_info->row_type != ROW_TYPE_FIXED &&
+  if (!create_info->frm_only &&
+      create_info->row_type != ROW_TYPE_FIXED &&
       create_info->row_type != ROW_TYPE_DEFAULT)
     db_options|= HA_OPTION_PACK_RECORD;
   alias= table_case_name(create_info, table_name);
@@ -4561,7 +4575,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   */
   if (open_and_lock_tables(thd, thd->lex->query_tables, FALSE, 0))
   {
-    result= TRUE;
+    /* is_error() may be 0 if table existed and we generated a warning */
+    result= thd->is_error();
     goto end;
   }
 
@@ -4771,7 +4786,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
     properly isolated from all concurrent operations which matter.
   */
   if (open_tables(thd, &thd->lex->query_tables, &not_used, 0))
+  {
+    res= thd->is_error();
     goto err;
+  }
   src_table->table->use_all_columns();
 
   DEBUG_SYNC(thd, "create_table_like_after_open");
@@ -5171,6 +5189,21 @@ mysql_compare_tables(TABLE *table,
          thd->calloc(sizeof(void*) * table->s->keys)) == NULL)
     DBUG_RETURN(1);
 
+  tmp_new_field_it.init(tmp_alter_info.create_list);
+  for (i= 0, f_ptr= table->field, tmp_new_field= tmp_new_field_it++;
+       (field= *f_ptr);
+       i++, f_ptr++, tmp_new_field= tmp_new_field_it++)
+  {
+    if (field->is_equal(tmp_new_field) == IS_EQUAL_NO &&
+        table->s->tmp_table == NO_TMP_TABLE)                             
+      (void) delete_statistics_for_column(thd, table, field);
+    else if (my_strcasecmp(system_charset_info,
+		           field->field_name,
+		           tmp_new_field->field_name))
+      (void) rename_column_in_stat_tables(thd, table, field,
+                                          tmp_new_field->field_name);
+  }    
+
   /*
     Use transformed info to evaluate possibility of in-place ALTER TABLE
     but use the preserved field to persist modifications.
@@ -5231,11 +5264,36 @@ mysql_compare_tables(TABLE *table,
     if (my_strcasecmp(system_charset_info,
 		      field->field_name,
 		      tmp_new_field->field_name))
-      field->flags|= FIELD_IS_RENAMED;      
+    {
+      field->flags|= FIELD_IS_RENAMED;
+      if (table->s->tmp_table == NO_TMP_TABLE)
+        rename_column_in_stat_tables(thd, table, field,
+                                     tmp_new_field->field_name);
+    }     
 
     /* Evaluate changes bitmap and send to check_if_incompatible_data() */
     if (!(tmp= field->is_equal(tmp_new_field)))
     {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+      {
+        KEY *key_info= table->key_info; 
+	for (uint i=0; i < table->s->keys; i++, key_info++)
+	{
+          if (field->part_of_key.is_set(i))
+	  {
+            uint key_parts= table->actual_n_key_parts(key_info);
+            for (uint j= 0; j < key_parts; j++)
+	    {
+              if (key_info->key_part[j].fieldnr-1 == field->field_index)
+	      {
+                (void) delete_statistics_for_index(thd, table, key_info,
+                                                   j >= key_info->key_parts);
+                break;
+	      }
+            }           
+          }
+        }      
+      }
       DBUG_PRINT("info", ("!field_is_equal('%s') -> ALTER_TABLE_DATA_CHANGED",
                           new_field->field_name));
       DBUG_RETURN(0);
@@ -5334,6 +5392,21 @@ mysql_compare_tables(TABLE *table,
       field= table->field[key_part->fieldnr];
       field->flags|= FIELD_IN_ADD_INDEX;
     }
+    if (table->s->tmp_table == NO_TMP_TABLE)
+    {
+      (void) delete_statistics_for_index(thd, table, table_key, FALSE);
+      if (table_key - table->key_info == table->s->primary_key)
+      {
+        KEY *tab_key_info= table->key_info;
+	for (uint j=0; j < table->s->keys; j++, tab_key_info++)
+	{
+          if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+	    (void) delete_statistics_for_index(thd, table, tab_key_info,
+                                               TRUE);
+	}
+      }
+    }
+
     DBUG_PRINT("info", ("index changed: '%s'", table_key->name));
   }
   /*end of for (; table_key < table_key_end;) */
@@ -5535,6 +5608,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   uint used_fields= create_info->used_fields;
   KEY *key_info=table->key_info;
   bool rc= TRUE;
+  bool modified_primary_key= FALSE;
   Create_field *def;
   Field **f_ptr,*field;
   DBUG_ENTER("mysql_prepare_alter_table");
@@ -5591,6 +5665,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (drop)
     {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+        (void) delete_statistics_for_column(thd, table, field);
       drop_it.remove();
       /*
         ALTER TABLE DROP COLUMN always changes table data even in cases
@@ -5729,7 +5805,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     Collect all keys which isn't in drop list. Add only those
     for which some fields exists.
   */
-
+ 
   for (uint i=0 ; i < table->s->keys ; i++,key_info++)
   {
     char *key_name= key_info->name;
@@ -5743,12 +5819,27 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     }
     if (drop)
     {
+      if (table->s->tmp_table == NO_TMP_TABLE)
+      {
+        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+        if (i == table->s->primary_key)
+	{
+          KEY *tab_key_info= table->key_info;
+	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
+	  {
+            if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+	      (void) delete_statistics_for_index(thd, table, tab_key_info,
+                                                 TRUE);
+	  }
+	}
+      }  
       drop_it.remove();
       continue;
     }
 
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
+    bool delete_index_stat= FALSE;
     for (uint j=0 ; j < key_info->key_parts ; j++,key_part++)
     {
       if (!key_part->field)
@@ -5771,7 +5862,12 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	  break;
       }
       if (!cfield)
+      {
+        if (table->s->primary_key == i)
+          modified_primary_key= TRUE;
+        delete_index_stat= TRUE;
 	continue;				// Field is removed
+      }
       key_part_length= key_part->length;
       if (cfield->field)			// Not new field
       {
@@ -5813,6 +5909,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                                             strlen(cfield->field_name),
 					    key_part_length));
     }
+    if (table->s->tmp_table == NO_TMP_TABLE)
+    {
+      if (delete_index_stat) 
+        (void) delete_statistics_for_index(thd, table, key_info, FALSE);
+      else if (modified_primary_key &&
+               key_info->key_parts != key_info->ext_key_parts)
+        (void) delete_statistics_for_index(thd, table, key_info, TRUE);
+    }
+
     if (key_parts.elements)
     {
       KEY_CREATE_INFO key_create_info;
@@ -5992,6 +6097,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   enum ha_extra_function extra_func= thd->locked_tables_mode
                                        ? HA_EXTRA_NOT_USED
                                        : HA_EXTRA_FORCE_REOPEN;
+  LEX_STRING old_db_name= { table_list->db, table_list->db_length };
+  LEX_STRING old_table_name= { table_list->table_name,
+                               table_list->table_name_length };
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -6310,6 +6418,12 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       else
       {
         *fn_ext(new_name)=0;
+
+        LEX_STRING new_db_name= { new_db, strlen(new_db) };
+        LEX_STRING new_table_name= { new_alias, strlen(new_alias) };
+        (void) rename_table_in_stat_tables(thd, &old_db_name, &old_table_name,
+                                           &new_db_name, &new_table_name);
+
         if (mysql_rename_table(old_db_type,db,table_name,new_db,new_alias, 0))
           error= -1;
         else if (Table_triggers_list::change_table_name(thd, db,
@@ -6696,9 +6810,19 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                   my_sleep(100000););
   /*
     Create a table with a temporary name.
-    With create_info->frm_only == 1 this creates a .frm file only.
+    With create_info->frm_only == 1 this creates a .frm file only and
+    we keep the original row format.
     We don't log the statement, it will be logged later.
   */
+  if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
+  {
+    DBUG_ASSERT(create_info->frm_only);
+    /* Ensure we keep the original table format */
+    create_info->table_options= ((create_info->table_options &
+                                  ~HA_OPTION_PACK_RECORD) |
+                                 (table->s->db_create_options &
+                                  HA_OPTION_PACK_RECORD));
+  }
   tmp_disable_binlog(thd);
   error= mysql_create_table_no_lock(thd, new_db, tmp_name,
                                     create_info,
@@ -7053,6 +7177,15 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     table is renamed and the SE is also changed, then an intermediate table
     is created and the additional call will not take place.
   */
+
+  if (new_name != table_name || new_db != db)
+  {
+    LEX_STRING new_db_name= { new_db, strlen(new_db) };
+    LEX_STRING new_table_name= { new_name, strlen(new_name) };
+    (void) rename_table_in_stat_tables(thd, &old_db_name, &old_table_name,
+                                        &new_db_name, &new_table_name);
+  }
+
   if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
   {
     DBUG_ASSERT(new_db_type == old_db_type);
@@ -7364,7 +7497,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
   from->file->info(HA_STATUS_VARIABLE);
-  to->file->ha_start_bulk_insert(from->file->stats.records);
+  to->file->ha_start_bulk_insert(from->file->stats.records,
+                                 ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
   errpos= 3;
 
   copy_end=copy;

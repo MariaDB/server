@@ -85,6 +85,9 @@ INDEX_COMMENT	varchar(1024)	NO
 SELECT table_catalog, table_schema, table_name, index_schema, index_name
 FROM information_schema.statistics WHERE table_catalog IS NOT NULL;
 table_catalog	table_schema	table_name	index_schema	index_name
+def	mysql	column_stats	mysql	PRIMARY
+def	mysql	column_stats	mysql	PRIMARY
+def	mysql	column_stats	mysql	PRIMARY
 def	mysql	columns_priv	mysql	PRIMARY
 def	mysql	columns_priv	mysql	PRIMARY
 def	mysql	columns_priv	mysql	PRIMARY
@@ -107,6 +110,10 @@ def	mysql	help_topic	mysql	PRIMARY
 def	mysql	help_topic	mysql	name
 def	mysql	host	mysql	PRIMARY
 def	mysql	host	mysql	PRIMARY
+def	mysql	index_stats	mysql	PRIMARY
+def	mysql	index_stats	mysql	PRIMARY
+def	mysql	index_stats	mysql	PRIMARY
+def	mysql	index_stats	mysql	PRIMARY
 def	mysql	ndb_binlog_index	mysql	PRIMARY
 def	mysql	plugin	mysql	PRIMARY
 def	mysql	proc	mysql	PRIMARY
@@ -128,6 +135,8 @@ def	mysql	slave_master_info	mysql	PRIMARY
 def	mysql	slave_relay_log_info	mysql	PRIMARY
 def	mysql	slave_worker_info	mysql	PRIMARY
 def	mysql	slave_worker_info	mysql	PRIMARY
+def	mysql	table_stats	mysql	PRIMARY
+def	mysql	table_stats	mysql	PRIMARY
 def	mysql	tables_priv	mysql	PRIMARY
 def	mysql	tables_priv	mysql	PRIMARY
 def	mysql	tables_priv	mysql	PRIMARY

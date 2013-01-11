@@ -302,10 +302,19 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
 void mark_tmp_table_for_reuse(TABLE *table);
-bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool *exists);
+bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool fast_check,
+                           bool *exists);
 int update_virtual_fields(THD *thd, TABLE *table,
       enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
+
+/* open_and_lock_tables with optional derived handling */
+int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
+
+extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
+                                  const void* key2);
+extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
 
 extern TABLE *unused_tables;
 extern Item **not_found_item;
@@ -472,7 +481,6 @@ open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
 
   return open_tables(thd, tables, counter, flags, &prelocking_strategy);
 }
-
 
 inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
                                        thr_lock_type lock_type, uint flags)

@@ -2926,7 +2926,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   DBUG_PRINT("enter",("keys_to_use: %lu  prev_tables: %lu  const_tables: %lu",
 		      (ulong) keys_to_use.to_ulonglong(), (ulong) prev_tables,
 		      (ulong) const_tables));
-  DBUG_PRINT("info", ("records: %lu", (ulong) head->file->stats.records));
+  DBUG_PRINT("info", ("records: %lu", (ulong) head->stat_records()));
   delete quick;
   quick=0;
   needed_reg.clear_all();
@@ -2934,7 +2934,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   DBUG_ASSERT(!head->is_filled_at_execution());
   if (keys_to_use.is_clear_all() || head->is_filled_at_execution())
     DBUG_RETURN(0);
-  records= head->file->stats.records;
+  records= head->stat_records();
   if (!records)
     records++;					/* purecov: inspected */
   scan_time= (double) records / TIME_FOR_COMPARE + 1;
@@ -3071,7 +3071,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     if (group_trp)
     {
       param.table->quick_condition_rows= min(group_trp->records,
-                                             head->file->stats.records);
+                                             head->stat_records());
       if (group_trp->read_cost < best_read_time)
       {
         best_trp= group_trp;
@@ -4677,7 +4677,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   DBUG_PRINT("info", ("index_merge scans cost %g", imerge_cost));
   if (imerge_too_expensive || (imerge_cost > read_time) ||
       ((non_cpk_scan_records+cpk_scan_records >=
-        param->table->file->stats.records) &&
+        param->table->stat_records()) &&
        read_time != DBL_MAX))
   {
     /*
@@ -4748,7 +4748,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       imerge_trp->read_cost= imerge_cost;
       imerge_trp->records= non_cpk_scan_records + cpk_scan_records;
       imerge_trp->records= min(imerge_trp->records,
-                               param->table->file->stats.records);
+                               param->table->stat_records());
       imerge_trp->range_scans= range_scans;
       imerge_trp->range_scans_end= range_scans + n_child_scans;
       read_time= imerge_cost;
@@ -4819,7 +4819,7 @@ skip_to_ror_scan:
         ((TRP_ROR_INTERSECT*)(*cur_roru_plan))->index_scan_costs;
     roru_total_records += (*cur_roru_plan)->records;
     roru_intersect_part *= (*cur_roru_plan)->records /
-                           param->table->file->stats.records;
+                           param->table->stat_records();
   }
 
   /*
@@ -4829,7 +4829,7 @@ skip_to_ror_scan:
     in disjunction do not share key parts.
   */
   roru_total_records -= (ha_rows)(roru_intersect_part*
-                                  param->table->file->stats.records);
+                                  param->table->stat_records());
   /* ok, got a ROR read plan for each of the disjuncts
     Calculate cost:
     cost(index_union_scan(scan_1, ... scan_n)) =
@@ -5106,12 +5106,12 @@ static inline
 ha_rows get_table_cardinality_for_index_intersect(TABLE *table)
 {
   if (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)
-    return table->file->stats.records;
+    return table->stat_records();
   else
   {
     ha_rows d;
     double q;
-    for (q= (double)table->file->stats.records, d= 1 ; q >= 10; q/= 10, d*= 10 ) ;
+    for (q= (double)table->stat_records(), d= 1 ; q >= 10; q/= 10, d*= 10 ) ;
     return (ha_rows) (floor(q+0.5) * d);
   } 
 }
@@ -5514,9 +5514,8 @@ ha_rows records_in_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     ha_rows ext_records= ext_index_scan->records;
     if (i < used_key_parts)
     {
-      ulong *rec_per_key= key_info->rec_per_key+i-1;
-      ulong f1= rec_per_key[0] ? rec_per_key[0] : 1;
-      ulong f2= rec_per_key[1] ? rec_per_key[1] : 1;
+      ulong f1= key_info->actual_rec_per_key(i-1);
+      ulong f2= key_info->actual_rec_per_key(i);
       ext_records= (ha_rows) ((double) ext_records / f2 * f1);
     }
     if (ext_records < table_cardinality)
@@ -6008,7 +6007,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
   info->is_covering= FALSE;
   info->index_scan_costs= 0.0;
   info->index_records= 0;
-  info->out_rows= (double) param->table->file->stats.records;
+  info->out_rows= (double) param->table->stat_records();
   bitmap_clear_all(&info->covered_fields);
   return info;
 }
@@ -6134,7 +6133,7 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
   min_range.flag= HA_READ_KEY_EXACT;
   max_range.key= key_val;
   max_range.flag= HA_READ_AFTER_KEY;
-  ha_rows prev_records= info->param->table->file->stats.records;
+  ha_rows prev_records= info->param->table->stat_records();
   DBUG_ENTER("ror_scan_selectivity");
 
   for (sel_arg= scan->sel_arg; sel_arg;
@@ -6361,7 +6360,7 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   double min_cost= DBL_MAX;
   DBUG_ENTER("get_best_ror_intersect");
 
-  if ((tree->n_ror_scans < 2) || !param->table->file->stats.records ||
+  if ((tree->n_ror_scans < 2) || !param->table->stat_records() ||
       !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_INTERSECT))
     DBUG_RETURN(NULL);
 
@@ -12659,14 +12658,14 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   double cpu_cost= 0; /* TODO: CPU cost of index_read calls? */
   DBUG_ENTER("cost_group_min_max");
 
-  table_records= table->file->stats.records;
+  table_records= table->stat_records();
   keys_per_block= (table->file->stats.block_size / 2 /
                    (index_info->key_length + table->file->ref_length)
                         + 1);
   num_blocks= (uint)(table_records / keys_per_block) + 1;
 
   /* Compute the number of keys in a group. */
-  keys_per_group= index_info->rec_per_key[group_key_parts - 1];
+  keys_per_group= index_info->actual_rec_per_key(group_key_parts - 1);
   if (keys_per_group == 0) /* If there is no statistics try to guess */
     /* each group contains 10% of all records */
     keys_per_group= (uint)(table_records / 10) + 1;
@@ -12686,7 +12685,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
       Compute the probability that two ends of a subgroup are inside
       different blocks.
     */
-    keys_per_subgroup= index_info->rec_per_key[used_key_parts - 1];
+    keys_per_subgroup= index_info->actual_rec_per_key(used_key_parts - 1);
     if (keys_per_subgroup >= keys_per_block) /* If a subgroup is bigger than */
       p_overlap= 1.0;       /* a block, it will overlap at least two blocks. */
     else

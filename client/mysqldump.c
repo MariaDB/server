@@ -1936,7 +1936,9 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
+#ifndef DBUG_OFF
         body_found= 1;
+#endif
       }
       else
       {

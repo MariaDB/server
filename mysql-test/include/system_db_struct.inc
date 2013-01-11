@@ -16,3 +16,6 @@ show create table proc;
 show create table event;
 show create table general_log;
 show create table slow_log;
+show create table table_stats;
+show create table column_stats;
+show create table index_stats;

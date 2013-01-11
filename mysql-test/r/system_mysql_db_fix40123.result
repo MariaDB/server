@@ -1,5 +1,6 @@
 show tables;
 Tables_in_db
+column_stats
 columns_priv
 db
 event
@@ -10,6 +11,7 @@ help_keyword
 help_relation
 help_topic
 host
+index_stats
 innodb_index_stats
 innodb_table_stats
 ndb_binlog_index
@@ -22,6 +24,7 @@ slave_master_info
 slave_relay_log_info
 slave_worker_info
 slow_log
+table_stats
 tables_priv
 time_zone
 time_zone_leap_second
@@ -269,5 +272,36 @@ slow_log	CREATE TABLE `slow_log` (
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+show create table table_stats;
+Table	Create Table
+table_stats	CREATE TABLE `table_stats` (
+  `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `cardinality` bigint(21) unsigned DEFAULT NULL,
+  PRIMARY KEY (`db_name`,`table_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Tables'
+show create table column_stats;
+Table	Create Table
+column_stats	CREATE TABLE `column_stats` (
+  `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `column_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `min_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+  `max_value` varchar(255) COLLATE utf8_bin DEFAULT NULL,
+  `nulls_ratio` double DEFAULT NULL,
+  `avg_length` double DEFAULT NULL,
+  `avg_frequency` double DEFAULT NULL,
+  PRIMARY KEY (`db_name`,`table_name`,`column_name`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'
+show create table index_stats;
+Table	Create Table
+index_stats	CREATE TABLE `index_stats` (
+  `db_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `prefix_arity` int(11) unsigned NOT NULL,
+  `avg_frequency` double DEFAULT NULL,
+  PRIMARY KEY (`db_name`,`table_name`,`index_name`,`prefix_arity`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Indexes'
 show tables;
 Tables_in_test
