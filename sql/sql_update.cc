@@ -32,6 +32,7 @@
 #include "sql_view.h"                           // check_key_in_view
 #include "sp_head.h"
 #include "sql_trigger.h"
+#include "sql_statistics.h"
 #include "probes_mysql.h"
 #include "debug_sync.h"
 #include "key.h"                                // is_key_used
@@ -393,6 +394,7 @@ int mysql_update(THD *thd,
 #endif
   /* Update the table->file->stats.records number */
   table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, 0, &error);
   if (error || !limit || thd->is_error() ||
