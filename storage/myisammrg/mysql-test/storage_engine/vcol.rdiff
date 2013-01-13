@@ -67,7 +67,7 @@
 < 4	5
 < DROP TABLE t1;
 ---
-> ERROR HY000: MRG_MYISAM storage engine does not support computed columns
+> ERROR HY000: MRG_MyISAM storage engine does not support computed columns
 > # ERROR: Statement ended with errno 1910, errname ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS (expected to succeed)
 > # ------------ UNEXPECTED RESULT ------------
 > # [ CREATE TABLE t1 (a INT(11) /*!*/ /*Custom column options*/, b INT(11) /*!*/ /*Custom column options*/ GENERATED ALWAYS AS (a+1)) ENGINE=MRG_MYISAM /*!*/ /*Custom table options*/ UNION(mrg.t1) INSERT_METHOD=LAST ]
