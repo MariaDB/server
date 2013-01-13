@@ -219,4 +219,24 @@ set debug_sync='RESET';
 set global use_stat_tables=@save_global_use_stat_tables;
 DROP DATABASE dbt3_s001;
 use test;
+set @save_global_use_stat_tables=@@global.use_stat_tables;
+set global use_stat_tables='preferably';
+set debug_sync='RESET';
+create table t1 (a int, b int, key(a));
+insert t1 values (1,1),(2,2);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+SET debug_sync='after_open_table_ignore_flush WAIT_FOR go';
+select * from information_schema.statistics where table_schema='test';
+select * from t1;
+a	b
+1	1
+2	2
+SET DEBUG_SYNC= "now SIGNAL go";
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
+def	test	t1	1	test	a	1	a	A	2	NULL	NULL	YES	BTREE		
+set debug_sync='RESET';
+drop table t1;
+set global use_stat_tables=@save_global_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
