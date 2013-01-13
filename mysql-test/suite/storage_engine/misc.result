@@ -28,6 +28,9 @@ DROP EVENT ev1;
 SELECT TABLE_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
 FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE ORDER BY TABLE_NAME;
 TABLE_NAME	COLUMN_NAME	REFERENCED_TABLE_NAME	REFERENCED_COLUMN_NAME
+column_stats	column_name	NULL	NULL
+column_stats	db_name	NULL	NULL
+column_stats	table_name	NULL	NULL
 columns_priv	Column_name	NULL	NULL
 columns_priv	Db	NULL	NULL
 columns_priv	Host	NULL	NULL
@@ -49,6 +52,10 @@ help_topic	help_topic_id	NULL	NULL
 help_topic	name	NULL	NULL
 host	Db	NULL	NULL
 host	Host	NULL	NULL
+index_stats	db_name	NULL	NULL
+index_stats	index_name	NULL	NULL
+index_stats	prefix_arity	NULL	NULL
+index_stats	table_name	NULL	NULL
 ndb_binlog_index	epoch	NULL	NULL
 plugin	name	NULL	NULL
 proc	db	NULL	NULL
@@ -64,6 +71,8 @@ proxies_priv	Proxied_host	NULL	NULL
 proxies_priv	Proxied_user	NULL	NULL
 proxies_priv	User	NULL	NULL
 servers	Server_name	NULL	NULL
+table_stats	db_name	NULL	NULL
+table_stats	table_name	NULL	NULL
 tables_priv	Db	NULL	NULL
 tables_priv	Host	NULL	NULL
 tables_priv	Table_name	NULL	NULL
