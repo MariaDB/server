@@ -4654,6 +4654,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
           Field **table_field_ptr= tables->table->field;
           for ( ; *field_ptr; field_ptr++, table_field_ptr++)
             (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+          tables->table->stats_is_read= table_share->stats_cb.stats_is_read;
         }
       }	
     }

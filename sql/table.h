@@ -1189,6 +1189,7 @@ public:
   bool no_partitions_used; /* If true, all partitions have been pruned away */
 #endif
   uint max_keys; /* Size of allocated key_info array. */
+  bool stats_is_read;     /* Persistent statistics is read for the table */
   MDL_ticket *mdl_ticket;
 
   void init(THD *thd, TABLE_LIST *tl);
