@@ -2718,9 +2718,8 @@ dynamic_column_update_copy(DYNAMIC_COLUMN *str, PLAN *plan,
     new_hdr->header_size + new_hdr->nmpool_size;
   for (i= 0, j= 0; i < add_column_count || j < hdr->column_count; i++)
   {
-    size_t first_offset;
+    size_t UNINIT_VAR(first_offset);
     uint start= j, end;
-    LINT_INIT(first_offset);
 
     /*
       Search in i and j for the next column to add from i and where to
@@ -2868,9 +2867,8 @@ dynamic_column_update_move_left(DYNAMIC_COLUMN *str, PLAN *plan,
        i < add_column_count || j < column_count;
        i++)
   {
-    size_t first_offset;
+    size_t UNINIT_VAR(first_offset);
     uint start= j, end;
-    LINT_INIT(first_offset);
 
     /*
       Search in i and j for the next column to add from i and where to
@@ -3058,9 +3056,8 @@ dynamic_column_update_move_right(DYNAMIC_COLUMN *str, PLAN *plan,
        i < add_column_count || j < column_count;
        i++)
   {
-    size_t first_offset;
+    size_t UNINIT_VAR(first_offset);
     uint start= j, end;
-    LINT_INIT(first_offset);
 
     /*
       Search in i and j for the next column to add from i and where to
