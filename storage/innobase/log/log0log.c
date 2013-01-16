@@ -48,6 +48,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0sys.h"
 #include "trx0trx.h"
+#include "ha_prototypes.h"
 
 /*
 General philosophy of InnoDB redo-logs:
