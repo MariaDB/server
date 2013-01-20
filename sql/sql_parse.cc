@@ -1425,6 +1425,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
               (thd->open_tables == NULL ||
                (thd->locked_tables_mode == LTM_LOCK_TABLES)));
 
+  thd_proc_info(thd, "updating status");
   /* Finalize server status flags after executing a command. */
   thd->update_server_status();
   thd->protocol->end_statement();
@@ -1482,38 +1483,30 @@ void log_slow_statement(THD *thd)
     DBUG_VOID_RETURN;                           // Don't set time for sub stmt
 
   /* Follow the slow log filter configuration. */ 
-  if (!(thd->variables.log_slow_filter & thd->query_plan_flags))
+  if (!thd->enable_slow_log ||
+      !(thd->variables.log_slow_filter & thd->query_plan_flags))
     DBUG_VOID_RETURN; 
  
-  /* 
-     If rate limiting of slow log writes is enabled, decide whether to log
-     this query to the log or not.
-  */ 
-  if (thd->variables.log_slow_rate_limit > 1 &&
-      (global_query_id % thd->variables.log_slow_rate_limit) != 0)
-    DBUG_VOID_RETURN;
-
-  /*
-    Do not log administrative statements unless the appropriate option is
-    set.
-  */
-  if (thd->enable_slow_log)
+  if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
+       ((thd->server_status &
+         (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
+        opt_log_queries_not_using_indexes &&
+        !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
+      thd->examined_row_count >= thd->variables.min_examined_row_limit)
   {
-    ulonglong end_utime_of_query= thd->current_utime();
-    thd_proc_info(thd, "logging slow query");
+    thd->status_var.long_query_count++;
+    /*
+      If rate limiting of slow log writes is enabled, decide whether to log
+      this query to the log or not.
+    */ 
+    if (thd->variables.log_slow_rate_limit > 1 &&
+        (global_query_id % thd->variables.log_slow_rate_limit) != 0)
+      DBUG_VOID_RETURN;
 
-    if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
-         ((thd->server_status &
-           (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
-          opt_log_queries_not_using_indexes &&
-           !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
-        thd->examined_row_count >= thd->variables.min_examined_row_limit)
-    {
-      thd_proc_info(thd, "logging slow query");
-      thd->status_var.long_query_count++;
-      slow_log_print(thd, thd->query(), thd->query_length(), 
-                     end_utime_of_query);
-    }
+    thd_proc_info(thd, "logging slow query");
+    slow_log_print(thd, thd->query(), thd->query_length(), 
+                   thd->utime_after_query);
+    thd_proc_info(thd, 0);
   }
   DBUG_VOID_RETURN;
 }
@@ -2945,6 +2938,7 @@ end_with_restore_list:
                       DBUG_ASSERT(!debug_sync_set_action(thd,
                                                          STRING_WITH_LEN(act2)));
                     };);
+    DEBUG_SYNC(thd, "after_mysql_insert");
     break;
   }
   case SQLCOM_REPLACE_SELECT:
@@ -6723,8 +6717,10 @@ void sql_kill(THD *thd, ulong id, killed_state state)
   uint error;
   if (!(error= kill_one_thread(thd, id, state)))
   {
-    if (! thd->killed)
+    if ((!thd->killed))
       my_ok(thd);
+    else
+      my_error(killed_errno(thd->killed), MYF(0), id);
   }
   else
     my_error(error, MYF(0), id);

@@ -285,6 +285,23 @@ DROP TABLE t1;
 
 --echo End of 5.0 tests
 
+--echo #
+--echo # MDEV-568 (AKA LP BUG#1007981, AKA MySQL bug#44771)
+--echo # Wrong result for a hash index look-up if the index is unique and
+--echo # the key is NULL
+--echo #
+CREATE TABLE t1 ( pk INT PRIMARY KEY, val INT, UNIQUE KEY USING HASH(val)) ENGINE=MEMORY;
+
+INSERT INTO t1 VALUES (1, NULL);
+INSERT INTO t1 VALUES (2, NULL);
+INSERT INTO t1 VALUES (3, 1);
+INSERT INTO t1 VALUES (4, NULL);
+EXPLAIN SELECT * FROM t1 WHERE val IS NULL;
+SELECT * FROM t1 WHERE val IS NULL;
+drop table t1;
+
+--echo End of 5.2 tests
+
 -- echo # bit index in heap tables
 
 create table t1 (a bit(63) not null) engine=heap;
@@ -314,6 +331,19 @@ INSERT INTO t1 (col_int_nokey, col_int_key) VALUES (3, 0), (4, 0), (3, 1);
 
 DELETE FROM t1 WHERE col_int_nokey = 5 ORDER BY col_int_key LIMIT 2;
 
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #1002564: Wrong result for a lookup query from a heap table
+--echo #
+
+CREATE TABLE t1 (c1 VARCHAR(10) NOT NULL, KEY i1 (c1(3))) ENGINE=MEMORY DEFAULT CHARSET=latin1;
+INSERT INTO t1 VALUES ('foo1'), ('bar2'), ('baz3');
+explain SELECT * FROM t1 WHERE c1='bar2';
+SELECT * FROM t1 WHERE c1='bar2';
+ALTER TABLE t1 DROP KEY i1, ADD KEY il (c1(3)) using btree;
+explain SELECT * FROM t1 WHERE c1='bar2';
+SELECT * FROM t1 WHERE c1='bar2';
 DROP TABLE t1;
 
 --echo End of 5.5 tests

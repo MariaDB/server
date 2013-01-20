@@ -981,7 +981,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i)
     {
-      keyinfo->ext_key_flags= keyinfo->flags | HA_NOSAME;
       keyinfo->ext_key_part_map= 0;
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
@@ -1002,7 +1001,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
           keyinfo->ext_key_parts++;
           keyinfo->ext_key_part_map|= 1 << j;
         }
-      } 
+      }
+      if (j == first_key_parts)
+        keyinfo->ext_key_flags= keyinfo->flags | HA_NOSAME | HA_EXT_NOSAME;
     }
     share->ext_key_parts+= keyinfo->ext_key_parts;  
   }
@@ -3444,6 +3445,9 @@ bool check_db_name(LEX_STRING *org_name)
   if (lower_case_table_names && name != any_db)
     my_casedn_str(files_charset_info, name);
 
+  if (db_name_is_in_ignore_db_dirs_list(name))
+    return 1;
+
   return check_table_name(name, name_length, check_for_path_chars);
 }
 
@@ -4967,7 +4971,16 @@ TABLE *TABLE_LIST::get_real_join_table()
     tbl= (tbl->view != NULL ?
           tbl->view->select_lex.get_table_list() :
           tbl->derived->first_select()->get_table_list());
+
+    /* find left table in outer join on this level */
+    while(tbl->outer_join & JOIN_TYPE_RIGHT)
+    {
+      DBUG_ASSERT(tbl->next_local);
+      tbl= tbl->next_local;
+    }
+
   }
+
   return tbl->table;
 }
 
@@ -6403,22 +6416,25 @@ bool is_simple_order(ORDER *order)
 
   @param  thd              Thread handle
   @param  table            The TABLE object
-  @param  for_write        Requests to compute only fields needed for write   
+  @param  vcol_update_mode Specifies what virtual column are computed   
   
   @details
     The function computes the values of the virtual columns of the table and
     stores them in the table record buffer.
-    Only fields from vcol_set are computed, and, when the flag for_write is not
-    set to TRUE, a virtual field is computed only if it's not stored.
-    The flag for_write is set to TRUE for row insert/update operations. 
- 
+    If vcol_update_mode is set to VCOL_UPDATE_ALL then all virtual column are
+    computed. Otherwise, only fields from vcol_set are computed: all of them,
+    if vcol_update_mode is set to VCOL_UPDATE_FOR_WRITE, and, only those with
+    the stored_in_db flag set to false, if vcol_update_mode is equal to
+    VCOL_UPDATE_FOR_READ.
+
   @retval
     0    Success
   @retval
     >0   Error occurred when storing a virtual field value
 */
 
-int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
+int update_virtual_fields(THD *thd, TABLE *table,
+                          enum enum_vcol_update_mode vcol_update_mode)
 {
   DBUG_ENTER("update_virtual_fields");
   Field **vfield_ptr, *vfield;
@@ -6431,9 +6447,9 @@ int update_virtual_fields(THD *thd, TABLE *table, bool for_write)
   {
     vfield= (*vfield_ptr);
     DBUG_ASSERT(vfield->vcol_info && vfield->vcol_info->expr_item);
-    /* Only update those fields that are marked in the vcol_set bitmap */
-    if (bitmap_is_set(table->vcol_set, vfield->field_index) &&
-        (for_write || !vfield->stored_in_db))
+    if ((bitmap_is_set(table->vcol_set, vfield->field_index) &&
+         (vcol_update_mode == VCOL_UPDATE_FOR_WRITE || !vfield->stored_in_db)) ||
+        vcol_update_mode == VCOL_UPDATE_ALL)
     {
       /* Compute the actual value of the virtual fields */
       error= vfield->vcol_info->expr_item->save_in_field(vfield, 0);
