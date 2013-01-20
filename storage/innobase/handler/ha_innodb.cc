@@ -1474,6 +1474,15 @@ innobase_next_autoinc(
 	ut_a(block > 0);
 	ut_a(max_value > 0);
 
+        /*
+          Allow auto_increment to go over max_value up to max ulonglong.
+          This allows us to detect that all values are exhausted.
+          If we don't do this, we will return max_value several times
+          and get duplicate key errors instead of auto increment value
+          out of range.
+        */
+        max_value= (~(ulonglong) 0);
+
 	/* Current value should never be greater than the maximum. */
 	ut_a(current <= max_value);
 
@@ -5236,7 +5245,10 @@ no_commit:
 				goto report_error;
 			}
 
-			/* MySQL errors are passed straight back. */
+			/* MySQL errors are passed straight back. except for
+                           HA_ERR_AUTO_INC_READ_FAILED. This can only happen
+                           for values out of range.
+                         */
 			error_result = (int) error;
 			goto func_exit;
 		}
@@ -10264,13 +10276,17 @@ ha_innobase::get_auto_increment(
 	/* Not in the middle of a mult-row INSERT. */
 	} else if (prebuilt->autoinc_last_value == 0) {
 		set_if_bigger(*first_value, autoinc);
-	/* Check for -ve values. */
-	} else if (*first_value > col_max_value && trx->n_autoinc_rows > 0) {
-		/* Set to next logical value. */
-		ut_a(autoinc > trx->n_autoinc_rows);
-		*first_value = (autoinc - trx->n_autoinc_rows) - 1;
 	}
 
+        if (*first_value > col_max_value)
+        {
+          	/* Out of range number. Let handler::update_auto_increment()
+                   take care of this */
+                prebuilt->autoinc_last_value = 0;
+                dict_table_autoinc_unlock(prebuilt->table);
+                *nb_reserved_values= 0;
+                return;
+        }
 	*nb_reserved_values = trx->n_autoinc_rows;
 
 	/* With old style AUTOINC locking we only update the table's
@@ -10279,7 +10295,7 @@ ha_innobase::get_auto_increment(
 		ulonglong	current;
 		ulonglong	next_value;
 
-		current = *first_value > col_max_value ? autoinc : *first_value;
+		current = *first_value;
 
 		/* Compute the last value in the interval */
 		next_value = innobase_next_autoinc(
@@ -11819,7 +11835,10 @@ i_s_innodb_lock_waits,
 i_s_innodb_cmp,
 i_s_innodb_cmp_reset,
 i_s_innodb_cmpmem,
-i_s_innodb_cmpmem_reset
+i_s_innodb_cmpmem_reset,
+i_s_innodb_buffer_page,
+i_s_innodb_buffer_page_lru,
+i_s_innodb_buffer_stats
 mysql_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

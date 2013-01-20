@@ -304,7 +304,7 @@ public:
       before_stmt_pos= MY_OFF_T_UNDEF;
   }
 
-  void set_binlog_cache_info(ulong param_max_binlog_cache_size,
+  void set_binlog_cache_info(my_off_t param_max_binlog_cache_size,
                              ulong *param_ptr_binlog_cache_use,
                              ulong *param_ptr_binlog_cache_disk_use)
   {
@@ -381,7 +381,7 @@ private:
     is configured. This corresponds to either
       . max_binlog_cache_size or max_binlog_stmt_cache_size.
   */
-  ulong saved_max_binlog_cache_size;
+  my_off_t saved_max_binlog_cache_size;
 
   /*
     Stores a pointer to the status variable that keeps track of the in-memory 
@@ -419,8 +419,8 @@ private:
 
 class binlog_cache_mngr {
 public:
-  binlog_cache_mngr(ulong param_max_binlog_stmt_cache_size,
-                    ulong param_max_binlog_cache_size,
+  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+                    my_off_t param_max_binlog_cache_size,
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
@@ -1279,12 +1279,6 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
 
   DBUG_ASSERT(thd);
 
-  lock_shared();
-  if (!opt_log)
-  {
-    unlock();
-    return 0;
-  }
   user_host_len= make_user_name(thd, user_host_buff);
 
   current_time= my_hrtime();
@@ -1295,15 +1289,19 @@ bool LOGGER::general_log_write(THD *thd, enum enum_server_command command,
                           command_name[(uint) command].length,
                           query, query_length);
                         
-  while (*current_handler)
-    error|= (*current_handler++)->
-      log_general(thd, current_time, user_host_buff,
-                  user_host_len, thd->thread_id,
-                  command_name[(uint) command].str,
-                  command_name[(uint) command].length,
-                  query, query_length,
-                  thd->variables.character_set_client) || error;
-  unlock();
+  if (opt_log && log_command(thd, command))
+  {
+    lock_shared();
+    while (*current_handler)
+      error|= (*current_handler++)->
+        log_general(thd, current_time, user_host_buff,
+                    user_host_len, thd->thread_id,
+                    command_name[(uint) command].str,
+                    command_name[(uint) command].length,
+                    query, query_length,
+                    thd->variables.character_set_client) || error;
+    unlock();
+  }
 
   return error;
 }
@@ -5333,7 +5331,7 @@ bool general_log_write(THD *thd, enum enum_server_command command,
                        const char *query, uint query_length)
 {
   /* Write the message to the log if we want to log this king of commands */
-  if (logger.log_command(thd, command))
+  if (logger.log_command(thd, command) || mysql_audit_general_enabled())
     return logger.general_log_write(thd, command, query, query_length);
 
   return FALSE;
@@ -6963,8 +6961,9 @@ int TC_LOG_MMAP::open(const char *opt_name)
 
   syncing= 0;
   active=pages;
+  DBUG_ASSERT(npages >= 2);
   pool=pages+1;
-  pool_last=pages+npages-1;
+  pool_last_ptr= &((pages+npages-1)->next);
   commit_ordered_queue= NULL;
   commit_ordered_queue_busy= false;
 
@@ -6997,8 +6996,8 @@ void TC_LOG_MMAP::get_active_from_pool()
   do
   {
     best_p= p= &pool;
-    if ((*p)->waiters == 0) // can the first page be used ?
-      break;                // yes - take it.
+    if ((*p)->waiters == 0 && (*p)->free > 0) // can the first page be used ?
+      break;                                  // yes - take it.
 
     best_free=0;            // no - trying second strategy
     for (p=&(*p)->next; *p; p=&(*p)->next)
@@ -7015,10 +7014,10 @@ void TC_LOG_MMAP::get_active_from_pool()
   mysql_mutex_assert_owner(&LOCK_active);
   active=*best_p;
 
-  if ((*best_p)->next)              // unlink the page from the pool
-    *best_p=(*best_p)->next;
-  else
-    pool_last=*best_p;
+  /* Unlink the page from the pool. */
+  if (!(*best_p)->next)
+    pool_last_ptr= best_p;
+  *best_p=(*best_p)->next;
   mysql_mutex_unlock(&LOCK_pool);
 
   mysql_mutex_lock(&active->lock);
@@ -7125,12 +7124,9 @@ int TC_LOG_MMAP::log_one_transaction(my_xid xid)
     mysql_mutex_unlock(&LOCK_active);
     mysql_mutex_lock(&p->lock);
     p->waiters++;
-    for (;;)
+    while (p->state == PS_DIRTY && syncing)
     {
-      int not_dirty = p->state != PS_DIRTY;
       mysql_mutex_unlock(&p->lock);
-      if (not_dirty || !syncing)
-        break;
       mysql_cond_wait(&p->cond, &LOCK_sync);
       mysql_mutex_lock(&p->lock);
     }
@@ -7182,8 +7178,8 @@ int TC_LOG_MMAP::sync()
 
   /* page is synced. let's move it to the pool */
   mysql_mutex_lock(&LOCK_pool);
-  pool_last->next=syncing;
-  pool_last=syncing;
+  (*pool_last_ptr)=syncing;
+  pool_last_ptr=&(syncing->next);
   syncing->next=0;
   syncing->state= err ? PS_ERROR : PS_POOL;
   mysql_cond_signal(&COND_pool);           // in case somebody's waiting

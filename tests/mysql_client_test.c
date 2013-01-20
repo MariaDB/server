@@ -17691,7 +17691,8 @@ static void test_bug43560(void)
   const char*  values[] = {"eins", "zwei", "drei", "viele", NULL};
   const char   insert_str[] = "INSERT INTO t1 (c2) VALUES (?)";
   unsigned long length;
-  
+  const unsigned int drop_db= opt_drop_db;
+
   DBUG_ENTER("test_bug43560");
   myheader("test_bug43560");
 
@@ -17756,9 +17757,11 @@ static void test_bug43560(void)
   rc= mysql_stmt_execute(stmt);
   DIE_UNLESS(rc && mysql_stmt_errno(stmt) == CR_SERVER_LOST);
 
-  client_disconnect(conn, 0);
+  opt_drop_db= 0;
+  client_disconnect(conn);
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
+  opt_drop_db= drop_db;
 
   DBUG_VOID_RETURN;
 }
@@ -18548,7 +18551,23 @@ static void test_progress_reporting()
   myquery(rc);
   rc= mysql_query(conn, "set @@global.progress_report_time=@save");
   myquery(rc);
-  client_disconnect(conn, 0);
+  mysql_close(conn);
+}
+
+/**
+  MDEV-3885 - connection suicide via mysql_kill() causes assertion in server
+*/
+
+static void test_mdev3885() 
+{
+  int rc;
+  MYSQL *conn;
+
+  myheader("test_mdev3885");
+  conn= client_connect(0, MYSQL_PROTOCOL_TCP, 0);
+  rc= mysql_kill(conn, mysql_thread_id(conn));
+  DIE_UNLESS(rc);
+  mysql_close(conn);
 }
 
 
@@ -19053,6 +19072,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug58036", test_bug58036 },
   { "test_bug57058", test_bug57058 },
   { "test_bug56976", test_bug56976 },
+  { "test_mdev3855", test_mdev3885 },
   { "test_bug11766854", test_bug11766854 },
   { "test_bug12337762", test_bug12337762 },
   { "test_progress_reporting", test_progress_reporting },

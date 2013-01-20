@@ -1569,6 +1569,15 @@ public:
     :Item_func(b), cached_result_type(INT_RESULT),
      entry(NULL), entry_thread_id(0), name(a)
   {}
+  Item_func_set_user_var(Item_func_set_user_var *item)
+    :Item_func(item), cached_result_type(item->cached_result_type),
+     entry(item->entry), entry_thread_id(item->entry_thread_id),
+     value(item->value), decimal_buff(item->decimal_buff),
+     null_item(item->null_item), save_result(item->save_result),
+     name(item->name)
+  {
+    //fixed= 1;
+  }
   enum Functype functype() const { return SUSERVAR_FUNC; }
   double val_real();
   longlong val_int();
@@ -2002,6 +2011,27 @@ public:
     return trace_unsupported_by_check_vcol_func_processor(func_name());
   }
 };
+
+
+class Item_func_last_value :public Item_func
+{
+protected:
+  Item *last_value;
+public:
+  Item_func_last_value(List<Item> &list) :Item_func(list) {}
+  double val_real();
+  longlong val_int();
+  String *val_str(String *);
+  my_decimal *val_decimal(my_decimal *);
+  void fix_length_and_dec();
+  enum Item_result result_type () const { return last_value->result_type(); }
+  const char *func_name() const { return "last_value"; }
+  table_map not_null_tables() const { return 0; }
+  enum_field_types field_type() const { return last_value->field_type(); }
+  bool const_item() const { return 0; }
+  void evaluate_sideeffects();
+};
+
 
 Item *get_system_var(THD *thd, enum_var_type var_type, LEX_STRING name,
                      LEX_STRING component);
