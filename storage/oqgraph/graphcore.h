@@ -104,7 +104,7 @@ namespace open_query
     void row_ref(void*) throw();
 
     static oqgraph* create(oqgraph_share*) throw();
-    static oqgraph_share *create() throw();
+    static oqgraph_share *create(TABLE*,Field*,Field*,Field*) throw();
 
     static void free(oqgraph*) throw();
     static void free(oqgraph_share*) throw();

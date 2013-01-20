@@ -1,8 +1,17 @@
-FIND_PACKAGE(Boost 1.40.0)
+MESSAGE(STATUS "Configuring OQGraph")
+FIND_PACKAGE(Boost)
 IF(NOT Boost_FOUND)
+   MESSAGE(STATUS "Boost not found")
   RETURN()
 ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
+
+FIND_PACKAGE(JUDY)
+IF(NOT JUDY_FOUND)
+  MESSAGE(STATUS "Judy not found")
+  RETURN()
+ENDIF()
+INCLUDE_DIRECTORIES(${JUDY_INCLUDE_DIR})
 
 IF(MSVC)
   # lp:756966 OQGRAPH on Win64 does not compile
@@ -33,4 +42,6 @@ IF(BOOST_OK)
 
   MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc STORAGE_ENGINE
                    MODULE_ONLY)
+ELSE(BOOST_OK)
+  MESSAGE(STATUS "Requisites for OQGraph not met")
 ENDIF(BOOST_OK)
