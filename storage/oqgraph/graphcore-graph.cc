@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2009-2011 Arjen G Lentz & Antony T Curtis for Open Query
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   Mk.II implementation by Antony Curtis & Arjen Lentz
+   Mk.III implementation by Antony Curtis & Arjen Lentz
    For more information, documentation, support, enhancement engineering,
    and non-GPL licensing, see http://openquery.com/graph
    or contact graph@openquery.com
@@ -24,19 +24,5 @@
    ======================================================================
 */
 
-#ifndef oq_graphcore_types_h_
-#define oq_graphcore_types_h_
+#include "graphcore-graph.h"
 
-namespace open_query
-{
-
-  typedef unsigned long long VertexID;
-  typedef double EdgeWeight;
-
-}
-
-
-class Field;
-typedef struct st_table TABLE;
-
-#endif
