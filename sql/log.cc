@@ -6379,8 +6379,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
   LINT_INIT(binlog_id);
 
-  DBUG_ASSERT(is_open());
-  if (likely(is_open()))                       // Should always be true
   {
     /*
       Lock the LOCK_log(), and once we get it, collect any additional writes
@@ -6407,7 +6405,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     DBUG_ASSERT(leader == queue /* the leader should be first in queue */);
 
     /* Now we have in queue the list of transactions to be committed in order. */
+  }
     
+  DBUG_ASSERT(is_open());
+  if (likely(is_open()))                       // Should always be true
+  {
     /*
       Commit every transaction in the queue.
 
