@@ -22,12 +22,9 @@ message(STATUS "GCC: All warnings disabled")
 endif()
 
 add_definitions( -DUNIX -DLINUX -DUBUNTU -DMARIADB -DFORCE_INIT_OF_VARS -DMYSQL_DYNAMIC_PLUGIN )
-add_definitions( -DHUGE_SUPPORT -DXML_SUPPORT -DMYSQL_SUPPORT -DZIP_SUPPORT -DODBC_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
-INCLUDE_DIRECTORIES(/usr/include/libxml2)
-INCLUDE_DIRECTORIES(/usr/include/i386-linux-gnu)
-INCLUDE_DIRECTORIES()
 get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
 message("inc_dirs = ${inc_dirs}")
 
@@ -42,22 +39,84 @@ colblk.cpp reldef.cpp tabcol.cpp table.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
 tabdos.cpp tabfix.cpp tabfmt.cpp tabmul.cpp tabsys.cpp tabvct.cpp   
 valblk.cpp value.cpp xindex.cpp xobject.cpp
-tabodbc.cpp odbconn.cpp
 filamzip.cpp tabtbl.cpp myconn.cpp myutil.cpp tabmysql.cpp
-tabxml.cpp plgxml.cpp libdoc.cpp)
+tabxml.cpp plgxml.cpp)
 
+#
+# XML
+#
 
-SET(XML_LIBRARY "-L/usr/lib/i386-linux-gnu -lxml2")
-#SET(MYSQL_LIBRARY "-L/usr/local/mysql/lib -lmysqlclient")
-#SET(MYSQL_LIBRARY "-L/ ../../libmysql/libmysqlclient.a")
+FIND_PACKAGE(LibXml2)
+IF (LIBXML2_FOUND)
+INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
+SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
+SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp)
+add_definitions(-DXML_SUPPORT)
+ENDIF()
+
+#
+# MySQL
+#
 
 # For static linking
 SET(MYSQL_LIBRARY mysqlclient)
-
-# For dynaric linking
+# For dynamic linking
 #SET(MYSQL_LIBRARY libmysql)
+add_definitions(-DMYSQL_SUPPORT)
 
-SET(ODBC_LIBRARY "-L/usr/lib -lodbc")
+#
+# ODBC
+#
+# Note, we currently detect unixODBC only on Linux.
+# TODO: detect iODBC as well. Simply adding "iodbc" into NAMES in
+# find_library does not work on machines with both unixODBC and iODBC
+# installed, because it finds headers from unixODBC while libraries
+# from iODBC. We could search for 'isql.h' instead of 'sql.h' so
+# the library 'libodbc' gets compiled with 'isql.h' and
+# the library 'libiodbc' gets compiled with 'sql'h.
+# This will also need changes in the sources (e.g. #include <isql.h>).
+#
+
+find_path(ODBC_INCLUDE_DIR sql.h
+/usr/include
+/usr/include/odbc
+/usr/local/include
+/usr/local/include/odbc
+/usr/local/odbc/include
+"C:/Program Files/ODBC/include"
+"C:/Program Files/Microsoft SDKs/Windows/v7.0A/include"
+"C:/Program Files/Microsoft SDKs/Windows/v6.0a/include"
+"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
+DOC "Specify the directory containing sql.h."
+)
+
+find_library(ODBC_LIBRARY
+NAMES odbc odbcinst odbc32
+PATHS
+/usr/lib
+/usr/lib/odbc
+/usr/local/lib
+/usr/local/lib/odbc
+/usr/local/odbc/lib
+"C:/Program Files/ODBC/lib"
+"C:/ODBC/lib/debug"
+"C:/Program Files/Microsoft SDKs/Windows/v7.0A/Lib"
+"C:/Program Files/Microsoft SDKs/Windows/v6.0A/Lib"
+"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"
+DOC "Specify the ODBC driver manager library here."
+)
+
+IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+INCLUDE_DIRECTORIES(${ODBC_INCLUDE_DIR})
+add_definitions(-DODBC_SUPPORT)
+SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabodbc.cpp odbconn.cpp)
+ELSE()
+SET(ODBC_LIBRARY "")
+ENDIF()
+
+#
+# Plugin definition
+#
 
 MYSQL_ADD_PLUGIN(connect  ${CONNECT_SOURCES}  
   STORAGE_ENGINE MODULE_ONLY 
