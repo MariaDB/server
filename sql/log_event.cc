@@ -6292,7 +6292,6 @@ rpl_slave_state::tostring(String *dest)
 {
   bool first= true;
   uint32 i;
-    int err= 1;
 
   lock();
 
@@ -6303,9 +6302,8 @@ rpl_slave_state::tostring(String *dest)
     element *e= (element *)my_hash_element(&hash, i);
     list_element *l= e->list;
 
-    DBUG_ASSERT(l /* We should never have empty list in element. */);
     if (!l)
-      goto err;
+      continue;                                 /* Nothing here */
 
     best_gtid.domain_id= e->domain_id;
     best_gtid.server_id= l->server_id;
@@ -6332,11 +6330,30 @@ rpl_slave_state::tostring(String *dest)
     dest->append_ulonglong(best_gtid.seq_no);
  }
 
-  err= 0;
-
-err:
   unlock();
-  return err;
+  return 0;
+}
+
+
+bool
+rpl_slave_state::is_empty()
+{
+  uint32 i;
+  bool result= true;
+
+  lock();
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    if (e->list)
+    {
+      result= false;
+      break;
+    }
+  }
+  unlock();
+
+  return result;
 }
 
 
