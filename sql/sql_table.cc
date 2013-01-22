@@ -4135,12 +4135,6 @@ bool mysql_create_table_no_lock(THD *thd,
 
 
   /* Check for duplicate fields and check type of table to create */
-  if (!alter_info->create_list.elements)
-  {
-    my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
-               MYF(0));
-    DBUG_RETURN(TRUE);
-  }
   if (check_engine(thd, db, table_name, create_info))
     DBUG_RETURN(TRUE);
 
@@ -4320,6 +4314,14 @@ bool mysql_create_table_no_lock(THD *thd,
   }
 #endif
 
+  // Added by O. Bertrand
+  if (!alter_info->create_list.elements &&
+      file->pre_create(thd, create_info, alter_info))
+  {
+    my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
+               MYF(0));
+    DBUG_RETURN(TRUE);
+  }
   if (mysql_prepare_create_table(thd, create_info, alter_info,
                                  internal_tmp_table,
                                  &db_options, file,

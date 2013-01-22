@@ -1930,7 +1930,11 @@ public:
     cached_table_flags= table_flags();
   }
   /* ha_ methods: pubilc wrappers for private virtual API */
-
+  
+  /* Added by O. Bertrand */
+  virtual bool pre_create(THD *thd, void *crt_info, void *alt_info)
+                          {return true;}
+  
   int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked);
   int ha_index_init(uint idx, bool sorted)
   {

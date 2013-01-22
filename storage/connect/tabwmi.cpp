@@ -1,5 +1,5 @@
 /***********************************************************************/
-/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012                  */
+/*  TABWMI: Author Olivier Bertrand -- PlugDB -- 2012 - 2013           */
 /*  TABWMI: Virtual table to get WMI information.                      */
 /***********************************************************************/
 #if !defined(WIN32)
@@ -20,6 +20,319 @@
 #include "valblk.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
+
+extern "C" int trace;
+
+/**************************************************************************/
+/*  Allocate the result structure that will contain result data.          */
+/**************************************************************************/
+PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                       int *dbtype, int *buftyp, unsigned int *length,
+                       bool blank = true, bool nonull = true);
+
+/* ------------------- Functions WMI Column info --------------------- */
+
+/***********************************************************************/
+/*  Structure used by WMI column info functions.                       */
+/***********************************************************************/
+typedef struct _WMIutil {
+  IWbemServices    *Svc;
+  IWbemClassObject *Cobj;
+} WMIUTIL, *PWMIUT;
+
+/***********************************************************************/
+/*  Initialize WMI operations.                                         */
+/***********************************************************************/
+PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
+{
+  IWbemLocator *loc;
+  char         *p;
+  HRESULT       res;
+	PWMIUT        wp = (PWMIUT)PlugSubAlloc(g, NULL, sizeof(WMIUTIL));
+
+	if (trace)
+		htrc("WMIColumns class %s space %s\n", SVP(classname), SVP(nsp));
+
+  /*********************************************************************/
+  /*  Set default values for the namespace and class name.             */
+  /*********************************************************************/
+	if (!nsp)
+		nsp = "root\\cimv2";
+
+	if (!classname) {
+		if (!stricmp(nsp, "root\\cimv2"))
+			classname = "ComputerSystemProduct";
+		else if (!stricmp(nsp, "root\\cli"))
+			classname = "Msft_CliAlias";
+		else {
+	    strcpy(g->Message, "Missing class name");
+		  return NULL;
+			} // endif classname
+
+		} // endif classname
+
+  /*********************************************************************/
+  /*  Initialize WMI.                                                  */
+  /*********************************************************************/
+//res = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+  res = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "Failed to initialize COM library. " 
+						"Error code = %p", res);
+    return NULL;
+	  } // endif res
+
+#if 0 // irrelevant for a DLL
+  res = CoInitializeSecurity(NULL, -1, NULL, NULL,
+                       RPC_C_AUTHN_LEVEL_CONNECT,
+                       RPC_C_IMP_LEVEL_IMPERSONATE,
+                       NULL, EOAC_NONE, NULL);
+	
+	if (res != RPC_E_TOO_LATE && FAILED(res)) {
+    sprintf(g->Message, "Failed to initialize security. " 
+						"Error code = %p", res);
+    CoUninitialize();
+    return NULL;
+		}	// endif Res
+#endif // 0
+
+  res = CoCreateInstance(CLSID_WbemLocator, NULL, 
+                         CLSCTX_INPROC_SERVER, IID_IWbemLocator, 
+                         (void**) &loc);
+  if (FAILED(res)) {
+    sprintf(g->Message, "Failed to create Locator. " 
+						"Error code = %p", res);
+    CoUninitialize();
+    return NULL;
+		}	// endif res
+    
+  res = loc->ConnectServer(_bstr_t(nsp), 
+                    NULL, NULL, NULL, 0, NULL, NULL, &wp->Svc);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "Could not connect. Error code = %p", res); 
+    loc->Release();     
+    CoUninitialize();
+    return NULL;
+		}	// endif res
+
+  loc->Release();
+
+	if (trace)
+		htrc("Successfully connected to namespace.\n");
+
+  /*********************************************************************/
+  /*  Perform a full class object retrieval.													 */
+  /*********************************************************************/
+	p = (char*)PlugSubAlloc(g, NULL, strlen(classname) + 7);
+
+	if (strchr(classname, '_'))
+	  strcpy(p, classname);
+	else
+	  strcat(strcpy(p, "Win32_"), classname);
+
+  res = wp->Svc->GetObject(bstr_t(p), 0, 0, &wp->Cobj, 0);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "failed GetObject %s in %s\n", classname, nsp);
+	  wp->Svc->Release();
+		wp->Svc = NULL;    // MUST be set to NULL	(why?)
+		return NULL;
+		}	// endif res
+
+	return wp;
+} // end of InitWMI
+
+/***********************************************************************/
+/* WMIColumns: constructs the result blocks containing the description */
+/* of all the columns of a WMI table of a specified class.             */
+/***********************************************************************/
+PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp)
+  {
+  static int dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
+                         DB_INT,  DB_INT,  DB_SHORT};
+  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                         TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static unsigned int len, length[] = {0, 6, 8, 10, 10, 6};
+  int     i = 0, n = 0, ncol = sizeof(dbtype) / sizeof(int);
+	int     lng, typ, prec;
+	LONG		low, upp;
+	BOOL    b1, b2 = TRUE;
+  BSTR    propname;
+	VARIANT val;
+	CIMTYPE type;
+  HRESULT res;
+	SAFEARRAY *prnlist = NULL;
+  PQRYRES qrp = NULL;
+  PCOLRES crp;
+
+  /*********************************************************************/
+  /*  Initialize WMI if not done yet.       	  											 */
+  /*********************************************************************/
+	if ((b1 = !wp) && !(wp = InitWMI(g, nsp, classname)))
+		return NULL;
+
+  /*********************************************************************/
+  /*  Get the number of properties to return.	  											 */
+  /*********************************************************************/
+	res = wp->Cobj->Get(bstr_t("__Property_Count"), 0, &val, NULL, NULL);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "failed Get(__Property_Count) res=%d\n", res);
+		goto err;
+		}	// endif res
+
+	if (!(n = val.lVal)) {
+    sprintf(g->Message, "Class %s in %s has no properties\n",
+												classname, nsp);
+		goto err;
+		}	// endif res
+
+  /*********************************************************************/
+  /*  Get max property name length.          	  											 */
+  /*********************************************************************/
+	res = wp->Cobj->GetNames(NULL, 
+        WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY, 
+        NULL, &prnlist);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "failed GetNames res=%d\n", res);
+		goto err;
+		}	// endif res
+
+	res = SafeArrayGetLBound(prnlist, 1, &low);
+  res = SafeArrayGetUBound(prnlist, 1, &upp);
+
+	for (long i = low; i <= upp; i++) {
+    // Get this property name.
+    res = SafeArrayGetElement(prnlist, &i, &propname);
+
+    if (FAILED(res)) {
+      sprintf(g->Message, "failed GetArrayElement res=%d\n", res);
+			goto err;
+			}	// endif res
+
+		len = (unsigned)SysStringLen(propname);
+		length[0] = max(length[0], len);
+		} // enfor i
+
+	res = SafeArrayDestroy(prnlist);
+
+  /*********************************************************************/
+  /*  Allocate the structures used to refer to the result set.         */
+  /*********************************************************************/
+  qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
+                                   dbtype, buftyp, length);
+
+  /*********************************************************************/
+  /*  Now get the results into blocks.                                 */
+  /*********************************************************************/
+	res = wp->Cobj->BeginEnumeration(WBEM_FLAG_NONSYSTEM_ONLY);
+
+  if (FAILED(res)) {
+    sprintf(g->Message, "failed BeginEnumeration hr=%d\n", res);
+		qrp = NULL;
+		goto err;
+		}	// endif hr
+
+  while (TRUE) {
+		res = wp->Cobj->Next(0, &propname, &val, &type, NULL);
+
+		if (FAILED(res)) {
+		  sprintf(g->Message, "failed getting Next hr=%d\n", res);
+			qrp = NULL;
+			goto err;
+		}	else if (res == WBEM_S_NO_MORE_DATA) {
+      VariantClear(&val);
+			break;
+		} // endif res
+
+		if (i >= n)
+			break;						 		// Should never happen
+		else
+			prec = 0;
+
+		switch (type) {
+			case CIM_STRING:
+				typ = TYPE_STRING;
+				lng = 255;
+				prec = 1;   // Case insensitive
+				break;
+			case CIM_SINT32:													
+			case CIM_UINT32:
+			case CIM_BOOLEAN:
+				typ = TYPE_INT;
+				lng = 9;
+				break;
+			case CIM_SINT8:
+			case CIM_UINT8:
+			case CIM_SINT16:
+			case CIM_UINT16:
+				typ = TYPE_SHORT;
+				lng = 6;
+				break;
+			case CIM_REAL64:
+			case CIM_REAL32:
+				prec = 2;
+			case CIM_SINT64:
+			case CIM_UINT64:
+				typ = TYPE_FLOAT;
+				lng = 15;
+				break;
+			case CIM_DATETIME:
+				typ = TYPE_DATE;
+				lng = 19;
+				break;
+			case CIM_CHAR16:
+				typ = TYPE_STRING;
+				lng = 16;
+				break;
+			case CIM_EMPTY:
+				typ = TYPE_STRING;
+				lng = 24;						 // ???
+				break;
+			default:
+				qrp->BadLines++;
+				goto suite;
+			} // endswitch type
+
+    crp = qrp->Colresp;                    // Column Name
+    crp->Kdata->SetValue(_com_util::ConvertBSTRToString(propname), i);
+    crp = crp->Next;                       // Data Type
+    crp->Kdata->SetValue(typ, i);
+    crp = crp->Next;                       // Type Name
+    crp->Kdata->SetValue(GetTypeName(typ), i);
+    crp = crp->Next;                       // Precision
+    crp->Kdata->SetValue(lng, i);
+    crp = crp->Next;                       // Length
+    crp->Kdata->SetValue(lng, i);
+    crp = crp->Next;                       // Scale (precision)
+    crp->Kdata->SetValue(prec, i);
+		i++;
+
+ suite:
+		SysFreeString(propname);
+    VariantClear(&val);
+    } // endfor i
+
+	qrp->Nblin = i;
+	b2 = b1;
+
+ err:
+	if (b2) {
+		// Cleanup
+	  wp->Cobj->Release();
+	  wp->Svc->Release();
+		wp->Svc = NULL;    // MUST be set to NULL	(why?)
+		CoUninitialize();
+		} // endif b
+
+  /*********************************************************************/
+  /*  Return the result pointer for use by GetData routines.           */
+  /*********************************************************************/
+  return qrp;
+  } // end of WMIColumns
 
 /* -------------- Implementation of the WMI classes	------------------ */
 

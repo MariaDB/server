@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.6                                                        */
+/*  Version 3.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2012  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2013  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -73,6 +73,300 @@ extern "C" int trace;
 /***********************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL, int, int, int, int *, int *,
                 unsigned int *, bool blank = true, bool nonull = false);
+
+/***********************************************************************/
+/* CSVColumns: constructs the result blocks containing the description */
+/* of all the columns of a CSV file that will be retrieved by #GetData.*/
+/* Note: the algorithm to set the type is based on the internal values */
+/* of types (TYPE_STRING < TYPE_FLOAT < TYPE_INT) (1 < 2 < 7).         */
+/* If these values are changed, this will have to be revisited.        */
+/***********************************************************************/
+PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
+  {
+  static int dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
+                         DB_INT,  DB_INT,  DB_SHORT};
+  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                         TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static unsigned int length[] = {6, 6, 8, 10, 10, 6};
+  char   *p, *colname[MAXCOL], dechar, filename[_MAX_PATH], buf[4096];
+  int     i, imax, hmax, n, nerr, phase, blank, digit, dec, type;
+  int     ncol = sizeof(dbtype) / sizeof(int);
+  int     num_read = 0, num_max = 10000000;     // Statistics
+  int     len[MAXCOL], typ[MAXCOL], prc[MAXCOL];
+  FILE   *infile;
+  PQRYRES qrp;
+  PCOLRES crp;
+
+//      num_max = atoi(p+1);             // Max num of record to test
+#if defined(WIN32)
+  if (strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
+    dechar = '.';
+  else
+    dechar = ',';
+#else   // !WIN32
+  dechar = '.';
+#endif  // !WIN32
+
+	if (trace)
+		htrc("File %s sep=%c q=%c hdr=%d mxr=%d\n",
+					SVP(fn), sep, q, hdr, mxr);
+
+  if (!fn) {
+    strcpy(g->Message, MSG(MISSING_FNAME));
+    return NULL;
+    } // endif fn
+
+  imax = hmax = nerr = 0;
+  mxr = max(0, mxr);
+
+  for (i = 0; i < MAXCOL; i++) {
+    colname[i] = NULL;
+    len[i] = 0;
+    typ[i] = TYPE_UNKNOWN;
+    prc[i] = 0;
+    } // endfor i
+
+  /*********************************************************************/
+  /*  Open the input file.                                             */
+  /*********************************************************************/
+  PlugSetPath(filename, fn, PlgGetDataPath(g));
+
+  if (!(infile = fopen(filename, "r"))) {
+    sprintf(g->Message, MSG(CANNOT_OPEN), filename);
+    return NULL;
+    } // endif infile
+
+  if (hdr) {
+    /*******************************************************************/
+    /*  Make the column names from the first line.                     */
+    /*******************************************************************/
+    phase = 0;
+
+    if (fgets(buf, sizeof(buf), infile)) {
+      n = strlen(buf) + 1;
+      buf[n - 2] = '\0';
+      p = (char*)PlugSubAlloc(g, NULL, n);
+      memcpy(p, buf, n);
+
+      //skip leading blanks
+      for (; *p == ' '; p++) ;
+
+      if (q && *p == q) {
+        // Header is quoted
+        p++;
+        phase = 1;
+        } // endif q
+
+      colname[0] = p;
+    } else {
+      sprintf(g->Message, MSG(FILE_IS_EMPTY), fn);
+      goto err;
+    } // endif's
+
+    for (i = 1; *p; p++)
+      if (phase == 1 && *p == q) {
+        *p = '\0';
+        phase = 0;
+      } else if (*p == sep && !phase) {
+        *p = '\0';
+
+        //skip leading blanks
+        for (; *(p+1) == ' '; p++) ;
+
+        if (q && *(p+1) == q) {
+          // Header is quoted
+          p++;
+          phase = 1;
+          } // endif q
+
+        colname[i++] = p + 1;
+        } // endif sep
+
+    num_read++;
+    imax = hmax = i;
+
+    for (i = 0; i < hmax; i++)
+      length[0] = max(length[0], strlen(colname[i]));
+
+    } // endif hdr
+
+  for (num_read++; num_read <= num_max; num_read++) {
+    /*******************************************************************/
+    /*  Now start the reading process. Read one line.                  */
+    /*******************************************************************/
+    if (fgets(buf, sizeof(buf), infile)) {
+      buf[strlen(buf) - 1] = '\0';
+    } else if (feof(infile)) {
+      sprintf(g->Message, MSG(EOF_AFTER_LINE), num_read -1);
+      break;
+    } else {
+      sprintf(g->Message, MSG(ERR_READING_REC), num_read, fn);
+      goto err;
+    } // endif's
+
+    /*******************************************************************/
+    /*  Make the test for field lengths.                               */
+    /*******************************************************************/
+    i = n = phase = blank = digit = dec = 0;
+
+    for (p = buf; *p; p++)
+      if (*p == sep) {
+        if (phase != 1) {
+          if (i == MAXCOL - 1) {
+            sprintf(g->Message, MSG(TOO_MANY_FIELDS), num_read, fn);
+            goto err;
+            } // endif i
+
+          if (n) {
+            len[i] = max(len[i], n);
+            type = (digit || (dec && n == 1)) ? TYPE_STRING
+                 : (dec) ? TYPE_FLOAT : TYPE_INT;
+            typ[i] = min(type, typ[i]);
+            prc[i] = max((typ[i] == TYPE_FLOAT) ? (dec - 1) : 0, prc[i]);
+            } // endif n
+
+          i++;
+          n = phase = blank = digit = dec = 0;
+        } else          // phase == 1
+          n++;
+
+      } else if (*p == ' ') {
+        if (phase < 2)
+          n++;
+
+        if (blank)
+          digit = 1;
+
+      } else if (*p == q) {
+        if (phase == 0) {
+          if (blank)
+            if (++nerr > mxr) {
+              sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
+              goto err;
+            } else
+              goto skip;
+
+          n = 0;
+          phase = digit = 1;
+        } else if (phase == 1) {
+          if (*(p+1) == q) {
+            // This is currently not implemented for CSV tables
+//          if (++nerr > mxr) {
+//            sprintf(g->Message, MSG(QUOTE_IN_QUOTE), num_read);
+//            goto err;
+//          } else
+//            goto skip;
+
+            p++;
+            n++;
+          } else
+            phase = 2;
+
+        } else if (++nerr > mxr) {      // phase == 2
+          sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
+          goto err;
+        } else
+          goto skip;
+
+      } else {
+        if (phase == 2)
+          if (++nerr > mxr) {
+            sprintf(g->Message, MSG(MISPLACED_QUOTE), num_read);
+            goto err;
+          } else
+            goto skip;
+
+        // isdigit cannot be used here because of debug assert
+        if (!strchr("0123456789", *p)) {
+          if (!digit && *p == dechar)
+            dec = 1;                    // Decimal point found
+          else if (blank || !(*p == '-' || *p == '+'))
+            digit = 1;
+
+        } else if (dec)
+          dec++;                        // More decimals
+
+        n++;
+        blank = 1;
+      } // endif's *p
+
+    if (phase == 1)
+      if (++nerr > mxr) {
+        sprintf(g->Message, MSG(UNBALANCE_QUOTE), num_read);
+        goto err;
+      } else
+        goto skip;
+
+    if (n) {
+      len[i] = max(len[i], n);
+      type = (digit || n == 0 || (dec && n == 1)) ? TYPE_STRING
+           : (dec) ? TYPE_FLOAT : TYPE_INT;
+      typ[i] = min(type, typ[i]);
+      prc[i]  = max((typ[i] == TYPE_FLOAT) ? (dec - 1) : 0, prc[i]);
+      } // endif n
+
+    imax = max(imax, i+1);
+   skip: ;                  // Skip erroneous line
+    } // endfor num_read
+
+	if (trace) {
+		htrc("imax=%d Lengths:", imax);
+
+		for (i = 0; i < imax; i++)
+			htrc(" %d", len[i]);
+
+		htrc("\n");
+	} // endif trace
+
+  fclose(infile);
+
+	if (trace)
+		htrc("CSVColumns: imax=%d hmax=%d len=%d\n",
+											imax, hmax, length[0]);
+
+  /*********************************************************************/
+  /*  Allocate the structures used to refer to the result set.         */
+  /*********************************************************************/
+  qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
+                                      dbtype, buftyp, length);
+  qrp->Nblin = imax;
+
+  /*********************************************************************/
+  /*  Now get the results into blocks.                                 */
+  /*********************************************************************/
+  for (i = 0; i < imax; i++) {
+    if (i >= hmax) {
+      sprintf(buf, "COL%.3d", i+1);
+      p = buf;
+    } else
+      p = colname[i];
+
+    if (typ[i] == TYPE_UNKNOWN)            // Void column
+      typ[i] = TYPE_STRING;
+
+    crp = qrp->Colresp;                    // Column Name
+    crp->Kdata->SetValue(p, i);
+    crp = crp->Next;                       // Data Type
+    crp->Kdata->SetValue(typ[i], i);
+    crp = crp->Next;                       // Type Name
+    crp->Kdata->SetValue(GetTypeName(typ[i]), i);
+    crp = crp->Next;                       // Precision
+    crp->Kdata->SetValue(len[i], i);
+    crp = crp->Next;                       // Length
+    crp->Kdata->SetValue(len[i], i);
+    crp = crp->Next;                       // Scale (precision)
+    crp->Kdata->SetValue(prc[i], i);
+    } // endfor i
+
+  /*********************************************************************/
+  /*  Return the result pointer for use by GetData routines.           */
+  /*********************************************************************/
+  return qrp;
+
+ err:
+  fclose(infile);
+  return NULL;
+  } // end of CSVCColumns
 
 /* --------------------------- Class CSVDEF -------------------------- */
 

@@ -126,6 +126,9 @@
 #define my_strlwr(p) my_casedn_str(default_charset_info, (p));
 #define my_stricmp(a, b) my_strcasecmp(default_charset_info, (a), (b))
 
+#if defined (WIN32)
+typedef struct _WMIutil *PWMIUT;       /* Used to call WMIColumns      */
+#endif
 /****************************************************************************/
 /*  CONNECT functions called externally.                                    */
 /****************************************************************************/
@@ -152,6 +155,14 @@ void XmlCleanupParserLib(void);
 /*  Functions called externally by pre_parser.                              */
 /****************************************************************************/
 PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info);
+PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn);
+PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
+PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
+                  char *table, char *colpat, int port, bool key);
+#if defined(WIN32)
+PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp= NULL);
+#endif   // WIN32
+char GetTypeID(char *type);
 enum enum_field_types PLGtoMYSQL(int type, bool gdf);
 bool check_string_char_length(LEX_STRING *str, const char *err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
@@ -388,17 +399,19 @@ static int connect_init_func(void *p)
 static int connect_done_func(void *p)
 {
   int error= 0;
+  PCONNECT pc, pn;
   DBUG_ENTER("connect_done_func");
 
   if (connect_open_tables.records)
     error= 1;
 
-	for (PCONNECT p= user_connect::to_users; p; p= p->next) {
-		if (p->g)
-		  PlugCleanup(p->g, true);
+	for (pc= user_connect::to_users; pc; pc= pn) {
+		if (pc->g)
+		  PlugCleanup(pc->g, true);
 
-    delete p;
-		} // endfor p
+    pn= pc->next;
+    delete pc;
+		} // endfor pc
 
   my_hash_free(&connect_open_tables);
   mysql_mutex_destroy(&connect_mutex);
@@ -613,11 +626,11 @@ PGLOBAL ha_connect::GetPlug(THD *thd)
 /****************************************************************************/
 /*  Return the value of an option specified in the option list.             */
 /****************************************************************************/
-char *ha_connect::GetListOption(char *opname, const char *oplist)
+char *ha_connect::GetListOption(char *opname, const char *oplist, char *def)
 {
   char key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= NULL;
+  char *opval= def;
   int n;
 
   for (pk= (char*)oplist; ; pk= ++pn) {
@@ -3244,26 +3257,99 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
   @note
   Not really implemented yet.
 */
-bool ha_connect::pre_create(THD *thd, void *alter_info)
+bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char   *ttp= "DOS" , *fn= NULL;
+  char    ttp= '?', spc= ',', qch= 0, *typn= "DOS";
+  char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep;
+#if defined(WIN32)
+  char   *nsp= NULL, *cls= NULL;
+#endif   // WIN32
+  int     port= MYSQL_PORT, hdr= 0, mxr= 0;
+  bool    ok= false;
   LEX    *lex= thd->lex;
+  HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   engine_option_value *pov;
   PQRYRES qrp;
   PCOLRES crp;
 	PGLOBAL g= GetPlug(thd);
 
-  if (!g)
+  fn= dsn= tab= db= host= user= pwd= prt= sep= NULL;
+
+  if (g) {
+    // Set default values
+    tab= (char*)create_info->alias;
+    db= thd->db;
+  } else
     return true;
 
-  for (pov= lex->create_info.option_list; pov; pov= pov->next)
-    if (!stricmp(pov->name.str, "table_type"))
-      ttp= pov->value.str;
-    else if (!stricmp(pov->name.str, "file_name"))
+  // Get the useful create options
+  for (pov= create_info->option_list; pov; pov= pov->next)
+    if (!stricmp(pov->name.str, "table_type")) {
+      typn= pov->value.str;
+      ttp= GetTypeID(typn);
+    } else if (!stricmp(pov->name.str, "file_name")) {
       fn= pov->value.str;
+    } else if (!stricmp(pov->name.str, "tabname")) {
+      tab= pov->value.str;
+    } else if (!stricmp(pov->name.str, "db_name")) {
+      db= pov->value.str;
+    } else if (!stricmp(pov->name.str, "sep_char")) {
+      sep= pov->value.str;
+      spc= (!strcmp(sep, "\\t")) ? '\t' : *sep;
+    } else if (!stricmp(pov->name.str, "qchar")) {
+      qch= *pov->value.str;
+    } else if (!stricmp(pov->name.str, "quoted")) {
+      if (!qch)
+        qch= '"';
 
-  if (!stricmp(ttp, "DBF") && fn) {
-    char *length, *decimals, *nm;
+    } else if (!stricmp(pov->name.str, "header")) {
+      hdr= atoi(pov->value.str);
+    } else if (!stricmp(pov->name.str, "option_list")) {
+      host= GetListOption("host", pov->value.str, "localhost");
+      user= GetListOption("user", pov->value.str, "root");
+      pwd= GetListOption("password", pov->value.str);
+      prt= GetListOption("port", pov->value.str);
+      port= (prt) ? atoi(prt) : MYSQL_PORT;
+#if defined(WIN32)
+      nsp= GetListOption("namespace", pov->value.str);
+      cls= GetListOption("class", pov->value.str);
+#endif
+      mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
+    } // endelse option_list
+
+  switch (ttp) {
+    case 'O':       // ODBC
+      if (!(dsn= create_info->connect_string.str))
+        sprintf(g->Message, "Missing %s connection string", typn);
+      else
+        ok= true;
+
+      break;
+    case 'A':       // DBF
+    case 'C':       // CSV
+      if (!fn)
+        sprintf(g->Message, "Missing %s file name", typn);
+      else
+        ok= true;
+
+      break;
+    case 'Y':       // MYSQL
+      if (!user)
+        user= "root";       // Avoid crash
+
+      ok= true;
+      break;
+#if defined(WIN32)
+    case 'W':       // WMI
+      ok= true;
+      break;
+#endif   // WIN32
+    default:
+      sprintf(g->Message, "Cannot get column info for table type %s", typn);
+    } // endif ttp
+
+  if (ok) {
+    char *length, *decimals, *nm, *rem;
     int   i, len, dec;
     bool  b;
     LEX_STRING *comment, *name;
@@ -3274,13 +3360,32 @@ bool ha_connect::pre_create(THD *thd, void *alter_info)
     if (cat)
       cat->SetDataPath(g, thd->db);
     else
-      return true;
+      return true;           // Should never happen
 
-    if (!(qrp= DBFColumns(g, fn, false)))
-      return true;
+    switch (ttp) {
+      case 'A':
+        qrp= DBFColumns(g, fn, false);
+        break;
+      case 'O':
+        qrp= MyODBCCols(g, tab, dsn);
+        break;
+      case 'Y':
+        qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
+        break;
+      case 'C':
+        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr);
+        break;
+#if defined(WIN32)
+      case 'W':
+        qrp= WMIColumns(g, nsp, cls);
+        break;
+#endif   // WIN32
+      } // endswitch ttp
 
-    comment= (LEX_STRING *)PlugSubAlloc(g, NULL, sizeof(LEX_STRING));
-    memset(comment, 0, sizeof(LEX_STRING));
+    if (!qrp) {
+    	push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      return true;
+      } // endif qrp
 
     for (i= 0; i < qrp->Nblin; i++) {
       crp = qrp->Colresp;                    // Column Name
@@ -3289,11 +3394,11 @@ bool ha_connect::pre_create(THD *thd, void *alter_info)
       crp = crp->Next;                       // Data Type
       type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
       crp = crp->Next;                       // Type Name
-      crp = crp->Next;                       // Precision
-      crp = crp->Next;                       // Length
+      crp = crp->Next;                       // Precision (length)
       len= crp->Kdata->GetIntValue(i);
       length= (char*)PlugSubAlloc(g, NULL, 8);
       sprintf(length, "%d", len);
+      crp = crp->Next;                       // Length
       crp = crp->Next;                       // Scale (precision)
 
       if ((dec= crp->Kdata->GetIntValue(i))) {
@@ -3302,18 +3407,23 @@ bool ha_connect::pre_create(THD *thd, void *alter_info)
       } else
         decimals= NULL;
 
-      comment= thd->make_lex_string(NULL, "", 0, true);
+      if ((crp= crp->Next) &&               // Remark (comment)
+          (rem= crp->Kdata->GetCharValue(i)))
+        comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
+      else
+        comment= thd->make_lex_string(NULL, "", 0, true);
 
       // Now add the field
 //    b= add_field_to_list(thd, &name, type, length, decimals,
 //          0, NULL, NULL, comment, NULL, NULL, NULL, 0, NULL, NULL);
-      b= add_fields(thd, alter_info, name, type, length, decimals,
+      b= add_fields(thd, alt_info, name, type, length, decimals,
                     0, comment, NULL, NULL, NULL);
       } // endfor i
 
     return false;
     } // endif ttp
 
+	push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
   return true;
 } // end of pre_create
 

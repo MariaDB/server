@@ -1,13 +1,13 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 1.5                                     */
+/*  Name: ODBCONN.CPP  Version 1.6                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -73,74 +73,7 @@ extern "C" int GetRcString(int id, char *buf, int bufsize);
 /**************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
                        int *dbtype, int *buftyp, unsigned int *length,
-                       bool blank = false, bool nonull = false)
-  {
-  char     cname[NAM_LEN+1];
-  int      i;
-  PCOLRES *pcrp, crp;
-  PQRYRES  qrp;
-
-  /************************************************************************/
-  /*  Allocate the structure used to contain the result set.              */
-  /************************************************************************/
-  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
-  pcrp = &qrp->Colresp;
-  qrp->Continued = false;
-  qrp->Truncated = false;
-  qrp->Info = false;
-  qrp->Suball = true;
-  qrp->Maxres = maxres;
-  qrp->Maxsize = 0;
-  qrp->Nblin = 0;
-  qrp->Nbcol = 0;                                     // will be ncol
-  qrp->Cursor = 0;
-  qrp->BadLines = 0;
-
-  for (i = 0; i < ncol; i++) {
-    *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-    crp = *pcrp;
-    pcrp = &crp->Next;
-    crp->Colp = NULL;
-    crp->Ncol = ++qrp->Nbcol;
-    crp->Type = buftyp[i];
-    crp->Length = length[i];
-    crp->Clen = GetTypeSize(crp->Type, length[i]);
-    crp->Prec = 0;
-    crp->DBtype = dbtype[i];
-
-    if (ids > 0) {
-#if defined(XMSG)
-      // Get header from message file
-			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
-			cname[NAM_LEN] = 0;					// for truncated long names
-#elif defined(WIN32)
-      // Get header from ressource file
-      LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
-#else   // !WIN32
-      GetRcString(ids + crp->Ncol, cname, sizeof(cname));
-#endif  // !WIN32
-      crp->Name = (PSZ)PlugSubAlloc(g, NULL, strlen(cname) + 1);
-      strcpy(crp->Name, cname);
-    } else
-      crp->Name = NULL;           // Will be set by caller
-
-    // Allocate the Value Block that will contain data
-    if (crp->Length || nonull)
-      crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                          crp->Length, 0, true, blank);
-    else
-      crp->Kdata = NULL;
-
-    if (g->Trace)
-      htrc("Column(%d) %s type=%d len=%d value=%p\n",
-              crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
-
-    } // endfor i
-
-  *pcrp = NULL;
-
-  return qrp;
-  } // end of PlgAllocResult
+                       bool blank = true, bool nonull = true);
 
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
@@ -192,6 +125,141 @@ void ResetNullValues(CATPARM *cap)
 
   } // end of ResetNullValues
 
+/***********************************************************************/
+/*  ODBCColumns: constructs the result blocks containing all columns   */
+/*  of an ODBC table that will be retrieved by GetData commands.       */
+/*  Note: The first two columns (Qualifier, Owner) are ignored.        */
+/***********************************************************************/
+PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
+                                                       char *colpat)
+  {
+  static int dbtype[] = {DB_CHAR,  DB_CHAR,
+                         DB_CHAR,  DB_SHORT, DB_CHAR,
+                         DB_INT,  DB_INT,  DB_SHORT,
+                         DB_SHORT, DB_SHORT, DB_CHAR};
+  static int buftyp[] = {TYPE_STRING, TYPE_STRING,
+                         TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                         TYPE_INT,   TYPE_INT,  TYPE_SHORT,
+                         TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
+  static unsigned int length[] = {0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
+  int      n, ncol = 11;
+  int      maxres;
+  PQRYRES  qrp;
+  CATPARM *cap;
+  ODBConn *ocp = op;
+
+  if (!op) {
+    /**********************************************************************/
+    /*  Open the connection with the ODBC data source.                    */
+    /**********************************************************************/
+    ocp = new(g) ODBConn(g, NULL);
+
+    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+      return NULL;
+
+    } // endif op
+
+  /************************************************************************/
+  /*  Do an evaluation of the result size.                                */
+  /************************************************************************/
+  n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
+  maxres = (n) ? (int)n : 250;
+  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  length[0] = (n) ? (n + 1) : 128;
+  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+  length[1] = (n) ? (n + 1) : 128;
+  n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+  length[2] = (n) ? (n + 1) : 128;
+
+#ifdef DEBTRACE
+ htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
+         maxres, length[0], length[1], length[2]);
+#endif
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS + 1,
+                                        dbtype, buftyp, length);
+
+#ifdef DEBTRACE
+ htrc("Getting col results ncol=%d\n", qrp->Nbcol);
+#endif
+
+  cap = AllocCatInfo(g, CAT_COL, table, qrp);
+  cap->Pat = (PUCHAR)colpat;
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  if ((n = ocp->GetCatInfo(cap)) >= 0) {
+    qrp->Nblin = n;
+    ResetNullValues(cap);
+
+#ifdef DEBTRACE
+ htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
+#endif
+  } else
+    qrp = NULL;
+
+  /************************************************************************/
+  /*  Close any local connection.                                         */
+  /************************************************************************/
+  if (!op)
+    ocp->Close();
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of ODBCColumns
+
+/**************************************************************************/
+/* MyODBCCols: returns column info as required by ha_connect::pre_create. */
+/**************************************************************************/
+PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
+  {
+  int      n;
+  PCOLRES  crp;
+  PQRYRES  qrp;
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  /**********************************************************************/
+  /*  Open the connection with the ODBC data source.                    */
+  /**********************************************************************/
+  if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+    return NULL;
+
+  /**********************************************************************/
+  /*  Get the information about the ODBC table columns.                 */
+  /**********************************************************************/
+  if ((qrp = ODBCColumns(g, ocp, dsn, tab, NULL)))
+    dsn = ocp->GetConnect();        // Complete connect string
+  else
+    return NULL;
+
+  /************************************************************************/
+  /*  Close the local connection.                                         */
+  /************************************************************************/
+  ocp->Close();
+
+  /************************************************************************/
+  /*  Keep only the info used by ha_connect::pre_create.                  */
+  /************************************************************************/
+  qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Owner and Table names
+  crp = qrp->Colresp->Next;                 // DB type
+
+  // Types must be PLG types, not SQL types
+  for (int i = 0; i < qrp->Nblin; i++)
+    crp->Kdata->SetValue(TranslateSQLType(crp->Kdata->GetIntValue(i),0,n),i);
+
+  crp = crp->Next->Next->Next->Next;        // Should be Radix
+  crp->Next = crp->Next->Next->Next;        // Should be Remark
+  qrp->Nbcol = 7;                           // Was 11, skipped 4
+  return qrp;
+  } // end of MyODBCCols
+
+#if 0                           // Currently not used by CONNECT
 /***********************************************************************/
 /*  ODBCTables: constructs the result blocks containing all tables in  */
 /*  an ODBC database that will be retrieved by GetData commands.       */
@@ -272,95 +340,6 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
   /************************************************************************/
   return qrp;
   } // end of ODBCTables
-
-/***********************************************************************/
-/*  ODBCColumns: constructs the result blocks containing all columns   */
-/*  of an ODBC table that will be retrieved by GetData commands.       */
-/*  Note: The first two columns (Qualifier, Owner) are ignored.        */
-/***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
-                                                       char *colpat)
-  {
-  static int dbtype[] = {DB_CHAR,  DB_CHAR,
-                         DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_INT,  DB_INT,  DB_SHORT,
-                         DB_SHORT, DB_SHORT, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING,
-                         TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                         TYPE_INT,   TYPE_INT,  TYPE_SHORT,
-                         TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
-  static unsigned int length[] = {0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
-  int      n, ncol = 11;
-  int     maxres;
-  PQRYRES  qrp;
-  CATPARM *cap;
-  ODBConn *ocp = op;
-
-  if (!op) {
-    /**********************************************************************/
-    /*  Open the connection with the ODBC data source.                    */
-    /**********************************************************************/
-    ocp = new(g) ODBConn(g, NULL);
-
-    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-      return NULL;
-
-    } // endif op
-
-  /************************************************************************/
-  /*  Do an evaluation of the result size.                                */
-  /************************************************************************/
-  n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-  maxres = (n) ? (int)n : 250;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-  length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-  length[1] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
-  length[2] = (n) ? (n + 1) : 128;
-
-#ifdef DEBTRACE
- htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
-         maxres, length[0], length[1], length[2]);
-#endif
-
-  /************************************************************************/
-  /*  Allocate the structures used to refer to the result set.            */
-  /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS + 1,
-                                        dbtype, buftyp, length);
-
-#ifdef DEBTRACE
- htrc("Getting col results ncol=%d\n", qrp->Nbcol);
-#endif
-
-  cap = AllocCatInfo(g, CAT_COL, table, qrp);
-  cap->Pat = (PUCHAR)colpat;
-
-  /************************************************************************/
-  /*  Now get the results into blocks.                                    */
-  /************************************************************************/
-  if ((n = ocp->GetCatInfo(cap)) >= 0) {
-    qrp->Nblin = n;
-    ResetNullValues(cap);
-
-#ifdef DEBTRACE
- htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
-#endif
-  } else
-    qrp = NULL;
-
-  /************************************************************************/
-  /*  Close any local connection.                                         */
-  /************************************************************************/
-  if (!op)
-    ocp->Close();
-
-  /************************************************************************/
-  /*  Return the result pointer for use by GetData routines.              */
-  /************************************************************************/
-  return qrp;
-  } // end of ODBCColumns
 
 /**************************************************************************/
 /*  PrimaryKeys: constructs the result blocks containing all the          */
@@ -606,7 +585,7 @@ PQRYRES GetColumnInfo(PGLOBAL g, char*& dsn,
 
   return qrpc;
   } // end of GetColumnInfo
-
+#endif // 0
 
 /***********************************************************************/
 /*  Implementation of DBX class.                                       */
