@@ -145,6 +145,11 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
     if (fgets(buf, sizeof(buf), infile)) {
       n = strlen(buf) + 1;
       buf[n - 2] = '\0';
+#if defined(UNIX)
+      // The file can be imported from Windows 
+      if (buf[n - 3] == '\r')
+        buf[n - 3] = 0;
+#endif   // UNIX
       p = (char*)PlugSubAlloc(g, NULL, n);
       memcpy(p, buf, n);
 
@@ -195,7 +200,13 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
     /*  Now start the reading process. Read one line.                  */
     /*******************************************************************/
     if (fgets(buf, sizeof(buf), infile)) {
-      buf[strlen(buf) - 1] = '\0';
+      n = strlen(buf);
+      buf[n - 1] = '\0';
+#if defined(UNIX)
+      // The file can be imported from Windows 
+      if (buf[n - 2] == '\r')
+        buf[n - 2] = 0;
+#endif   // UNIX
     } else if (feof(infile)) {
       sprintf(g->Message, MSG(EOF_AFTER_LINE), num_read -1);
       break;
