@@ -56,7 +56,7 @@ enum XDBTYPE {DB_ERROR     = 0,       /* Unknown or wrong type            */
               DB_STRING    = 1,       /* Null terminated string           */
               DB_CHAR      = 2,       /* Character array                  */
               DB_SHORT     = 3,       /* Used by some catalog functions   */
-              DB_INT      = 4,       /* Long integer array               */
+              DB_INT       = 4,       /* Long integer array               */
               DB_DOUBLE    = 5,       /* Double float array               */
               DB_DATE      = 6};      /* Datetime value array             */
 

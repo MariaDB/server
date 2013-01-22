@@ -335,7 +335,7 @@ char *GetValStr(OPVAL vop, bool neg);
 	ha_rows records_in_range(uint inx, key_range *min_key,
 	                         key_range *max_key);
   int delete_table(const char *from);
-  bool pre_create(THD *thd, void *alter_info);
+  bool pre_create(THD *thd, void *crt_info, void *alt_info);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
@@ -346,7 +346,7 @@ char *GetValStr(OPVAL vop, bool neg);
 	int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-	char *GetListOption(char *opname, const char *oplist);
+	char *GetListOption(char *opname, const char *oplist, char *def= NULL);
   bool  add_fields(THD *thd, void *alter_info, 
            LEX_STRING *field_name,
            enum_field_types type,

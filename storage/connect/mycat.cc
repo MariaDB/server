@@ -16,7 +16,9 @@
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.2                                                        */
+/*  Version 1.3                                                        */
+/*                                                                     */
+/*  Author: Olivier Bertrand                       2012 - 2013         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -84,16 +86,113 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-/***********************************************************************/
-/*  General DB routines.                                               */
-/***********************************************************************/
+/**************************************************************************/
+/*  Extern static variables.                                              */
+/**************************************************************************/
+#if defined(WIN32)
+extern "C" HINSTANCE s_hModule;           // Saved module handle
+#endif  // !WIN32
+
+extern int xtrace;
+
+/**************************************************************************/
+/*  General DB routines.                                                  */
+/**************************************************************************/
 //bool  PlugCheckPattern(PGLOBAL, LPCSTR, LPCSTR);
 #if !defined(WIN32)
 extern "C" int GetRcString(int id, char *buf, int bufsize);
 #endif  // !WIN32
 //void  ptrc(char const *fmt, ...);
 
-extern int xtrace;
+/**************************************************************************/
+/*  Allocate the result structure that will contain result data.          */
+/**************************************************************************/
+PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                       int *dbtype, int *buftyp, unsigned int *length,
+                       bool blank = false, bool nonull = false)
+  {
+  char     cname[NAM_LEN+1];
+  int      i;
+  PCOLRES *pcrp, crp;
+  PQRYRES  qrp;
+
+  /************************************************************************/
+  /*  Allocate the structure used to contain the result set.              */
+  /************************************************************************/
+  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
+  pcrp = &qrp->Colresp;
+  qrp->Continued = false;
+  qrp->Truncated = false;
+  qrp->Info = false;
+  qrp->Suball = true;
+  qrp->Maxres = maxres;
+  qrp->Maxsize = 0;
+  qrp->Nblin = 0;
+  qrp->Nbcol = 0;                                     // will be ncol
+  qrp->Cursor = 0;
+  qrp->BadLines = 0;
+
+  for (i = 0; i < ncol; i++) {
+    *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+    crp = *pcrp;
+    pcrp = &crp->Next;
+    crp->Colp = NULL;
+    crp->Ncol = ++qrp->Nbcol;
+    crp->Type = buftyp[i];
+    crp->Length = length[i];
+    crp->Clen = GetTypeSize(crp->Type, length[i]);
+    crp->Prec = 0;
+    crp->DBtype = dbtype[i];
+
+    if (ids > 0) {
+#if defined(XMSG)
+      // Get header from message file
+			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
+			cname[NAM_LEN] = 0;					// for truncated long names
+#elif defined(WIN32)
+      // Get header from ressource file
+      LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
+#else   // !WIN32
+      GetRcString(ids + crp->Ncol, cname, sizeof(cname));
+#endif  // !WIN32
+      crp->Name = (PSZ)PlugSubAlloc(g, NULL, strlen(cname) + 1);
+      strcpy(crp->Name, cname);
+    } else
+      crp->Name = NULL;           // Will be set by caller
+
+    // Allocate the Value Block that will contain data
+    if (crp->Length || nonull)
+      crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
+                                          crp->Length, 0, true, blank);
+    else
+      crp->Kdata = NULL;
+
+    if (g->Trace)
+      htrc("Column(%d) %s type=%d len=%d value=%p\n",
+              crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
+
+    } // endfor i
+
+  *pcrp = NULL;
+
+  return qrp;
+  } // end of PlgAllocResult
+
+/***********************************************************************/
+/*  Get a unique char identifier for types. The letter used are:       */
+/*  ABCDEF..I.KLM.O..R.T.VWXY..                                        */
+/***********************************************************************/
+char GetTypeID(char *type)
+  {
+  return (!type) ? 'D'                               // DOS (default)
+                 : (!stricmp(type, "FMT"))   ? 'T'	 // CSV
+                 : (!stricmp(type, "DIR"))   ? 'R'   // diR
+                 : (!stricmp(type, "DBF"))   ? 'A'   // dbAse
+                 : (!stricmp(type, "SYS"))   ? 'I'	 // INI
+	               : (!stricmp(type, "TBL"))   ? 'L'   // tbL
+                 : (!stricmp(type, "MYSQL")) ? 'Y'	 // mYsql
+                 : (!stricmp(type, "OEM"))   ? 'E' : toupper(*type);
+  } // end of GetTypeID
 
 /* ------------------------- Class CATALOG --------------------------- */
 
@@ -252,15 +351,8 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
-	/*********************************************************************/
-  /*  Get a unique char identifier for types. The letter used are:     */
-  /*  ABCDEF..IJKLM.OPQRSTUV.XYZ                                       */
-  /*********************************************************************/
-  char tc= (!stricmp(type, "FMT")) ? 'T' // fmT
-         : (!stricmp(type, "DBF")) ? 'A' // dbAse
-	       : (!stricmp(type, "TBL")) ? 'L' // tbL
-	       : (!stricmp(type, "OEM")) ? 'E' // oEm
-				 : (!stricmp(type, "DIR")) ? 'R' : toupper(*type);
+  // Get a unique char identifier for type
+  char tc= GetTypeID(type);
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
@@ -389,8 +481,8 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
       case 'A':
         recln= nlg;
         break;
-      case 'C':
       case 'T':
+      case 'C':
         // The number of separators (assuming an extra one can exist)
 //      recln= poff * ((qotd) ? 3 : 1);	 to be investigated
 				recln= nlg + poff * 3;     // To be safe
@@ -467,6 +559,7 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 /***********************************************************************/
 PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   {
+  char tc;
   PRELDEF tdp= NULL;
 
 	if (xtrace)
@@ -476,17 +569,14 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   /*  Get a unique char identifier for types. The letter used are:     */
   /*  ABCDEF..IJKLM.OPQRSTUVWXYZ and Allocate table definition class   */
   /*********************************************************************/
-  switch ((!am) ? 'D' : (!stricmp(am, "FMT"))   ? 'C'	 // CSV
-                      : (!stricmp(am, "DIR"))   ? 'R'
-                      : (!stricmp(am, "SYS"))   ? 'I'	 // INI
-//                    : (!stricmp(am, "DUMMY")) ? 'U'
-	                    : (!stricmp(am, "TBL"))   ? 'L'
-//                    : (!stricmp(am, "PLG"))   ? 'S'  // Compatibility
-                      : (!stricmp(am, "MYSQL")) ? 'Y'	 // mYsql
-                      : (!stricmp(am, "OEM"))   ? 'E' : toupper(*am)) {
+  tc= GetTypeID((char*)am);
+
+  switch (tc) {
     case 'F':
     case 'B':
+    case 'A':
     case 'D': tdp= new(g) DOSDEF;   break;
+    case 'T':
     case 'C': tdp= new(g) CSVDEF;   break;
     case 'I': tdp= new(g) INIDEF;   break;
     case 'R': tdp= new(g) DIRDEF;   break;

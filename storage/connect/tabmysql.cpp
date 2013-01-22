@@ -67,7 +67,13 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 
 extern "C" int   trace;
 
-#if 0
+/**************************************************************************/
+/*  Allocate the result structure that will contain result data.          */
+/**************************************************************************/
+PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                       int *dbtype, int *buftyp, unsigned int *length,
+                       bool blank = true, bool nonull = true);
+
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table that will be retrieved by GetData commands.        */
@@ -152,8 +158,11 @@ PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
     } else
       qrp->Nblin++;
 
+    if ((type = MYSQLtoPLG(cmd)) == TYPE_ERROR) {
+      sprintf(g->Message, "Unsupported column type %s", cmd);
+      return NULL;
+      } // endif type
 
-    type = MYSQLtoPLG(cmd);
     crp = crp->Next;
     crp->Kdata->SetValue(type, i);
     crp = crp->Next;
@@ -227,6 +236,7 @@ PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
   return qrp;
   } // end of MyColumns
 
+#if 0
 /**************************************************************************/
 /*  SemMySQLColumns: analyze a MySQL table for column format.             */
 /**************************************************************************/
@@ -327,7 +337,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
   Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name);	// Deprecated
   Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
-  Username = Cat->GetStringCatInfo(g, Name, "User", NULL);
+  Username = Cat->GetStringCatInfo(g, Name, "User", "root");
   Password = Cat->GetStringCatInfo(g, Name, "Password", NULL);
   Portnumber = Cat->GetIntCatInfo(Name, "Port", MYSQL_PORT);
   Bind = !!Cat->GetIntCatInfo(Name, "Bind", 0);
