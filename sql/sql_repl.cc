@@ -2236,6 +2236,13 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
+  if (lex_mi->gtid_pos_auto)
+    mi->gtid_pos_auto= true;
+  else if (lex_mi->gtid_pos_str.str ||
+           lex_mi->log_file_name || lex_mi->pos ||
+           lex_mi->relay_log_name || lex_mi->relay_log_pos)
+    mi->gtid_pos_auto= false;
+
   /*
     If user did specify neither host nor port nor any log name nor any log
     pos, i.e. he specified only user/password/master_connect_retry, he probably

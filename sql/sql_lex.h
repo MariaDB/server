@@ -290,6 +290,8 @@ struct LEX_MASTER_INFO
   char *relay_log_name;
   LEX_STRING connection_name;
   ulonglong pos;
+  LEX_STRING gtid_pos_str;
+  bool gtid_pos_auto;
   ulong relay_log_pos;
   ulong server_id;
   uint port, connect_retry;
@@ -313,6 +315,7 @@ struct LEX_MASTER_INFO
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= relay_log_name= 0;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
+    gtid_pos_auto= FALSE;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;

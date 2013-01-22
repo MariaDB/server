@@ -1786,8 +1786,7 @@ after_set_capability:
 
   /* Request dump start from slave replication GTID state. */
 
-  /* ToDo: This needs to be configurable somehow in a useful way ... */
-  if (rpl_global_gtid_slave_state.count())
+  if (mi->gtid_pos_auto)
   {
     int rc;
     char str_buf[256];
@@ -2162,6 +2161,8 @@ static bool send_show_master_info_header(THD *thd, bool full)
                                              10, MYSQL_TYPE_LONG));
     field_list.push_back(new Item_float("Slave_heartbeat_period",
                                         0.0, 3, 10));
+    field_list.push_back(new Item_return_int("Gtid_Pos_Auto", sizeof(ulong),
+                                             MYSQL_TYPE_LONG));
   }
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2332,6 +2333,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full)
       protocol->store((uint32)    mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store((double)    mi->heartbeat_period, 3, &tmp);
+      protocol->store((uint32)    (mi->gtid_pos_auto != 0));
     }
 
     mysql_mutex_unlock(&mi->rli.err_lock);
