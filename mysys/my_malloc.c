@@ -188,7 +188,7 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
                          my_flags & MY_THREAD_SPECIFIC);
     }
     else
-      update_malloc_size((longlong) (size - old_size), old_flags);
+      update_malloc_size((longlong)size - (longlong)old_size, old_flags);
   }
 
   DBUG_PRINT("exit",("ptr: %p", point));
