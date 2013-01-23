@@ -7905,7 +7905,7 @@ static bool do_fill_table(THD *thd,
   // Warning_info, so "useful warnings" get rejected. In order to avoid
   // that problem we create a Warning_info instance, which is capable of
   // storing "unlimited" number of warnings.
-  Warning_info wi(thd->query_id, true, true);
+  Warning_info wi(thd->query_id, true);
   Warning_info *wi_saved= thd->warning_info;
 
   thd->warning_info= &wi;

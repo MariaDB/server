@@ -363,7 +363,7 @@ private:
 public:
 
   Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings,
-               bool initialize);
+               bool initialize=true);
   ~Warning_info();
 
   /* Allocate memory for structures */

@@ -1224,7 +1224,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Object_creation_ctx *saved_creation_ctx;
   Warning_info *saved_warning_info;
-  Warning_info warning_info(thd->warning_info->warn_id(), false, true);
+  Warning_info warning_info(thd->warning_info->warn_id(), false);
 
   /*
     Just reporting a stack overrun error

@@ -2425,9 +2425,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
                              SLAVE_THD_TYPE thd_type)
 {
   DBUG_ENTER("init_slave_thread");
-#if !defined(DBUG_OFF)
-  int simulate_error= 0;
-#endif
+  int simulate_error __attribute__((unused))= 0;
   DBUG_EXECUTE_IF("simulate_io_slave_error_on_init",
                   simulate_error|= (1 << SLAVE_THD_IO););
   DBUG_EXECUTE_IF("simulate_sql_slave_error_on_init",

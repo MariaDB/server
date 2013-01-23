@@ -2963,7 +2963,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
   param= stmt->param_array[param_number];
 
   Diagnostics_area new_stmt_da, *save_stmt_da= thd->stmt_da;
-  Warning_info new_warnning_info(thd->query_id, false, true);
+  Warning_info new_warnning_info(thd->query_id, false);
   Warning_info *save_warinig_info= thd->warning_info;
 
   thd->stmt_da= &new_stmt_da;
