@@ -2126,7 +2126,7 @@ int ha_federatedx::write_row(uchar *buf)
   @details Initializes memory structures required for bulk insert.
 */
 
-void ha_federatedx::start_bulk_insert(ha_rows rows)
+void ha_federatedx::start_bulk_insert(ha_rows rows, uint flags)
 {
   uint page_size;
   DBUG_ENTER("ha_federatedx::start_bulk_insert");

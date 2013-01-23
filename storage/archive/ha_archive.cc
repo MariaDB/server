@@ -1669,7 +1669,7 @@ int ha_archive::info(uint flag)
   turn will keep selects from causing a sync to occur.
   Basically, yet another optimizations to keep compression working well.
 */
-void ha_archive::start_bulk_insert(ha_rows rows)
+void ha_archive::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_archive::start_bulk_insert");
   if (!rows || rows >= ARCHIVE_MIN_ROWS_TO_USE_BULK_INSERT)
