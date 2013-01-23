@@ -3454,6 +3454,36 @@ extern "C" my_thread_id mariadb_dbug_id()
 }
 #endif /* SAFEMALLOC */
 
+/* Thread Mem Usage By P.Linux */
+extern "C" {
+static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
+{
+  /* If thread specific memory */
+  if (is_thread_specific)
+  {
+    THD *thd= current_thd;
+    if (mysqld_server_initialized || thd)
+    {
+      /*
+        THD may not be set if we are called from my_net_init() before THD
+        thread has started.
+        However, this should never happen, so better to assert and
+        fix this.
+      */
+      DBUG_ASSERT(thd);
+      if (thd)
+      {
+        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
+                            (longlong) thd->status_var.memory_used, size));
+        thd->status_var.memory_used+= size;
+        DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
+      }
+    }
+  }
+  my_atomic_add64(&global_status_var.memory_used, size);
+}
+}
+
 
 /*
   Init common variables
@@ -3463,6 +3493,8 @@ static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
+
+  set_malloc_size_cb(my_malloc_size_cb_func);
 
   tzset();			// Set tzname
 
@@ -4675,36 +4707,6 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
-/* Thread Mem Usage By P.Linux */
-extern "C"
-void my_malloc_size_cb_func(long long size, myf my_flags)
-{
-  /* If thread specific memory */
-  if (my_flags)
-  {
-    THD *thd= current_thd;
-    if (mysqld_server_initialized || thd)
-    {
-      /*
-        THD may not be set if we are called from my_net_init() before THD
-        thread has started.
-        However, this should never happen, so better to assert and
-        fix this.
-      */
-      DBUG_ASSERT(thd);
-      if (thd)
-      {
-        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.memory_used, size));
-        thd->status_var.memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
-      }
-    }
-  }
-  my_atomic_add64(&global_status_var.memory_used, size);
-}
-
-
 #ifdef __WIN__
 int win_main(int argc, char **argv)
 #else
@@ -4717,7 +4719,6 @@ int mysqld_main(int argc, char **argv)
   */
   my_progname= argv[0];
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
-  set_malloc_size_cb(my_malloc_size_cb_func);
   mysqld_server_started= mysqld_server_initialized= 0;
 
 #ifdef HAVE_NPTL
@@ -5246,7 +5247,6 @@ int mysqld_main(int argc, char **argv)
 
   /* Must be initialized early for comparison of service name */
   system_charset_info= &my_charset_utf8_general_ci;
-  set_malloc_size_cb(my_malloc_size_cb_func);
 
   if (my_init())
   {

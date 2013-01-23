@@ -37,10 +37,10 @@
   *(size_t*) p= (size) | (flag);    \
   (p)= (type_of_p) (((char*) (p)) + MALLOC_PREFIX_SIZE); \
 } 
-static inline size_t malloc_size_and_flag(void *p, myf *flags)
+static inline size_t malloc_size_and_flag(void *p, my_bool *is_thread_specific)
 {
   size_t size= MALLOC_SIZE(p);
-  *flags= (size & 1);
+  *is_thread_specific= (size & 1);
   return size & ~ (ulonglong) 1;
 }
 #define MALLOC_SIZE_AND_FLAG(p,b) malloc_size_and_flag(p, b);
@@ -60,10 +60,10 @@ static MALLOC_SIZE_CB malloc_size_cb_func= NULL;
   decrement the memory usage
 */
 
-static void update_malloc_size(long long size, myf my_flags)
+static void update_malloc_size(long long size, my_bool is_thread_specific)
 {
   if (malloc_size_cb_func)
-    malloc_size_cb_func(size, my_flags);
+    malloc_size_cb_func(size, is_thread_specific);
 }
 
 void set_malloc_size_cb(MALLOC_SIZE_CB func)
@@ -145,7 +145,7 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
 {
   void *point;
   size_t old_size;
-  myf old_flags;
+  my_bool old_flags;
   DBUG_ENTER("my_realloc");
   DBUG_PRINT("my",("ptr: %p  size: %lu  my_flags: %lu", oldpoint,
                    (ulong) size, my_flags));
@@ -210,7 +210,7 @@ void my_free(void *ptr)
   if (ptr)
   {
     size_t old_size;
-    myf old_flags;
+    my_bool old_flags;
     old_size= MALLOC_SIZE_AND_FLAG(ptr, &old_flags);
     update_malloc_size(- (longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
     sf_free(MALLOC_FIX_POINTER_FOR_FREE(ptr));

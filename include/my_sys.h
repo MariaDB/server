@@ -161,7 +161,7 @@ extern my_thread_id (*sf_malloc_dbug_id)(void);
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
 #endif
 
-typedef void (*MALLOC_SIZE_CB) (long long size, myf my_flags); 
+typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 
 	/* defines when allocating data */

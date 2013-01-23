@@ -534,7 +534,10 @@ inline THD *_current_thd(void)
 }
 #endif
 #define current_thd _current_thd()
-#define set_current_thd(X) my_pthread_setspecific_ptr(THR_THD, (X))
+inline int set_current_thd(THD *thd)
+{
+  return my_pthread_setspecific_ptr(THR_THD, thd);
+}
 
 /*
   @todo remove, make it static in ha_maria.cc
