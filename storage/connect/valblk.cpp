@@ -113,6 +113,9 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
     case TYPE_DATE:        // ?????
       blkp = new(g) DATBLK(mp, nval);
       break;
+    case TYPE_BIGINT:
+      blkp = new(g) BIGBLK(mp, nval);
+      break;
     case TYPE_FLOAT:
       blkp = new(g) DBLBLK(mp, nval, prec);
       break;
@@ -231,6 +234,14 @@ short CHRBLK::GetShortValue(int n)
 int CHRBLK::GetIntValue(int n)
   {
   return atol((char *)GetValPtrEx(n));
+  } // end of GetIntValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to big int.          */
+/***********************************************************************/
+longlong CHRBLK::GetBigintValue(int n)
+  {
+  return atoll((char *)GetValPtrEx(n));
   } // end of GetIntValue
 
 /***********************************************************************/
@@ -1025,6 +1036,196 @@ void DATBLK::SetValue(PSZ p, int n)
     LNGBLK::SetValue(p, n);
 
   } // end of SetValue
+
+
+/* -------------------------- Class BIGBLK --------------------------- */
+
+/***********************************************************************/
+/*  Constructor.                                                       */
+/***********************************************************************/
+BIGBLK::BIGBLK(void *mp, int nval)
+      : VALBLK(mp, TYPE_BIGINT, nval), Lngp((longlong*&)Blkp)
+  {
+  } // end of BIGBLK constructor
+
+/***********************************************************************/
+/*  Initialization routine.                                            */
+/***********************************************************************/
+void BIGBLK::Init(PGLOBAL g, bool check)
+  {
+  if (!Blkp)
+    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(longlong));
+
+  Check = check;
+  Global = g;
+  } // end of Init
+
+/***********************************************************************/
+/*  Set one value in a block.                                          */
+/***********************************************************************/
+void BIGBLK::SetValue(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  Lngp[n] = valp->GetBigintValue();
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set one value in a block.                                          */
+/***********************************************************************/
+void BIGBLK::SetValue(PSZ p, int n)
+  {
+#if defined(_DEBUG) || defined(DEBTRACE)
+  if (Check) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(BAD_SET_STRING));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Check
+#endif
+
+  Lngp[n] = atoll(p);
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set one value in a block if val is less than the current value.    */
+/***********************************************************************/
+void BIGBLK::SetMin(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  longlong  lval = valp->GetIntValue();
+  longlong& lmin = Lngp[n];
+
+  if (lval < lmin)
+    lmin = lval;
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  Set one value in a block if val is greater than the current value. */
+/***********************************************************************/
+void BIGBLK::SetMax(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  longlong  lval = valp->GetIntValue();
+  longlong& lmax = Lngp[n];
+
+  if (lval > lmax)
+    lmax = lval;
+
+  } // end of SetMax
+
+/***********************************************************************/
+/*  Set one value in a block from a value in another block.            */
+/***********************************************************************/
+void BIGBLK::SetValue(PVBLK pv, int n1, int n2)
+  {
+  CheckType(pv)
+
+  Lngp[n1] = ((BIGBLK*)pv)->Lngp[n2];
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set many values in a block from values in another block.           */
+/***********************************************************************/
+void BIGBLK::SetValues(PVBLK pv, int k, int n)
+  {
+  CheckType(pv)
+  longlong *lp = ((BIGBLK*)pv)->Lngp;
+
+  for (register int i = k; i < n; i++)
+    Lngp[i] = lp[i];
+
+  } // end of SetValues
+
+/***********************************************************************/
+/*  This function is used by class RESCOL when calculating COUNT.      */
+/***********************************************************************/
+void BIGBLK::AddMinus1(PVBLK pv, int n1, int n2)
+  {
+  assert(Type == pv->GetType());
+  Lngp[n1] += (((BIGBLK*)pv)->Lngp[n2] - 1);
+  } // end of AddMinus1
+
+/***********************************************************************/
+/*  Move one value from i to j.                                        */
+/***********************************************************************/
+void BIGBLK::Move(int i, int j)
+  {
+  Lngp[j] = Lngp[i];
+  } // end of Move
+
+/***********************************************************************/
+/*  Compare a Value object with the nth value of the block.            */
+/***********************************************************************/
+int BIGBLK::CompVal(PVAL vp, int n)
+  {
+  CheckParms(vp, n)
+  longlong mlv = Lngp[n];
+  longlong vlv = vp->GetBigintValue();
+
+  return (vlv > mlv) ? 1 : (vlv < mlv) ? (-1) : 0;
+  } // end of CompVal
+
+/***********************************************************************/
+/*  Compare two values of the block.                                   */
+/***********************************************************************/
+int BIGBLK::CompVal(int i1, int i2)
+  {
+  longlong lv1 = Lngp[i1];
+  longlong lv2 = Lngp[i2];
+
+  return (lv1 > lv2) ? 1 : (lv1 < lv2) ? (-1) : 0;
+  } // end of CompVal
+
+/***********************************************************************/
+/*  Get a pointer on the nth value of the block.                       */
+/***********************************************************************/
+void *BIGBLK::GetValPtr(int n)
+  {
+  CheckIndex(n)
+  return Lngp + n;
+  } // end of GetValPtr
+
+/***********************************************************************/
+/*  Get a pointer on the nth value of the block.                       */
+/***********************************************************************/
+void *BIGBLK::GetValPtrEx(int n)
+  {
+  CheckIndex(n)
+  return Lngp + n;
+  } // end of GetValPtrEx
+
+/***********************************************************************/
+/*  Returns index of matching value in block or -1.                    */
+/***********************************************************************/
+int BIGBLK::Find(PVAL vp)
+  {
+  CheckType(vp)
+  int      i;
+  longlong n = vp->GetBigintValue();
+
+  for (i = 0; i < Nval; i++)
+    if (n == Lngp[i])
+      break;
+
+  return (i < Nval) ? i : (-1);
+  } // end of Find
+
+/***********************************************************************/
+/*  Returns the length of the longest string in the block.             */
+/***********************************************************************/
+int BIGBLK::GetMaxLength(void)
+  {
+  char buf[24];
+  int i, n;
+
+  for (i = n = 0; i < Nval; i++) {
+    sprintf(buf, "%lld", Lngp[i]);
+
+    n = max(n, (signed)strlen(buf));
+    } // endfor i
+
+  return n;
+  } // end of GetMaxLength
 
 
 /* -------------------------- Class DBLBLK --------------------------- */

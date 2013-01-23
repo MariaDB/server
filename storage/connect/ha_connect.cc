@@ -1075,6 +1075,9 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     case MYSQL_TYPE_TIMESTAMP:
       pcf->Type= TYPE_DATE;
       break;
+    case MYSQL_TYPE_LONGLONG:
+      pcf->Type= TYPE_BIGINT;
+      break;
     default:
       pcf->Type=TYPE_ERROR;
     } // endswitch type
@@ -3509,6 +3512,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_YEAR:
       case MYSQL_TYPE_NEWDATE:
       case MYSQL_TYPE_VARCHAR:
+      case MYSQL_TYPE_LONGLONG:
         break;                     // Ok
       case MYSQL_TYPE_VAR_STRING:
       case MYSQL_TYPE_STRING:
@@ -3518,7 +3522,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         break;                     // To be checked
       case MYSQL_TYPE_TINY:
       case MYSQL_TYPE_BIT:
-      case MYSQL_TYPE_LONGLONG:
       case MYSQL_TYPE_NULL:
       case MYSQL_TYPE_ENUM:
       case MYSQL_TYPE_SET:
