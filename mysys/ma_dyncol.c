@@ -342,8 +342,10 @@ static my_bool type_and_offset_store_num(uchar *place, size_t offset_size,
     int3store(place, val);
     break;
   case 4:
+#if SIZEOF_SIZE_T > 4
     if (offset >= 0x1fffffff)    /* all 1 value is reserved */
       return TRUE;
+#endif
     int4store(place, val);
     break;
   default:
@@ -381,8 +383,10 @@ static my_bool type_and_offset_store_named(uchar *place, size_t offset_size,
     int4store(place, val);
     break;
   case 5:
+#if SIZEOF_SIZE_T > 4
     if (offset >= 0xfffffffffull)    /* all 1 value is reserved */
       return TRUE;
+#endif
     int5store(place, val);
     break;
   case 1:
@@ -482,8 +486,10 @@ static size_t dynamic_column_offset_bytes_named(size_t data_length)
     return 3;
   if (data_length < 0xfffffff)            /* all 1 value is reserved */
     return 4;
+#if SIZEOF_SIZE_T > 4
   if (data_length < 0xfffffffffull)       /* all 1 value is reserved */
     return 5;
+#endif
   return MAX_OFFSET_LENGTH_NM + 1;        /* For an error generation */
 }
 
@@ -2403,7 +2409,8 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
       str->length)
     return ER_DYNCOL_FORMAT;
 
-  if (init_dynamic_array(array_of_uint, sizeof(uint), header.column_count, 0))
+  if (my_init_dynamic_array(array_of_uint, sizeof(uint), header.column_count,
+                            0, 0))
     return ER_DYNCOL_RESOURCE;
 
   for (i= 0, read= header.header;

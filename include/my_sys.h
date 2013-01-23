@@ -86,6 +86,10 @@ typedef struct my_aio_result {
 #define MY_SYNC       4096      /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768     /* my_create/delete/rename: sync directory */
 #define MY_SYNC_FILESIZE 65536  /* my_sync(): safe sync when file is extended */
+#define MY_THREAD_SPECIFIC 0x10000  /* my_malloc(): thread specific */
+#define MY_THREAD_MOVE     0x20000  /* realloc(); Memory can move */
+/* Tree that should delete things automaticly */ 
+#define MY_TREE_WITH_DELETE 0x40000
 
 #define MY_CHECK_ERROR	1	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2	/* Give time info about process*/
@@ -147,6 +151,18 @@ typedef struct my_aio_result {
 
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
+
+/* If we have our own safemalloc (for debugging) */
+#if defined(SAFEMALLOC)
+void sf_report_leaked_memory(my_thread_id id);
+extern my_thread_id (*sf_malloc_dbug_id)(void);
+#define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
+#else
+#define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
+#endif
+
+typedef void (*MALLOC_SIZE_CB) (long long size, myf my_flags); 
+extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
 
 	/* defines when allocating data */
 extern void *my_malloc(size_t Size,myf MyFlags);
@@ -323,6 +339,7 @@ typedef struct st_dynamic_array
   uint elements,max_element;
   uint alloc_increment;
   uint size_of_element;
+  myf malloc_flags;
 } DYNAMIC_ARRAY;
 
 typedef struct st_my_tmpdir
@@ -768,16 +785,11 @@ extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
 File create_temp_file(char *to, const char *dir, const char *pfx,
 		      int mode, myf MyFlags);
-#define my_init_dynamic_array(A,B,C,D) init_dynamic_array2(A,B,NULL,C,D)
-#define my_init_dynamic_array_ci(A,B,C,D) init_dynamic_array2(A,B,NULL,C,D)
-#define my_init_dynamic_array2(A,B,C,D,E) init_dynamic_array2(A,B,C,D,E)
-#define my_init_dynamic_array2_ci(A,B,C,D,E) init_dynamic_array2(A,B,C,D,E)
+#define my_init_dynamic_array(A,B,C,D,E) init_dynamic_array2(A,B,NULL,C,D,E)
+#define my_init_dynamic_array2(A,B,C,D,E,F) init_dynamic_array2(A,B,C,D,E,F)
 extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
                                    void *init_buffer, uint init_alloc,
-                                   uint alloc_increment);
-/* init_dynamic_array() function is deprecated */
-extern my_bool init_dynamic_array(DYNAMIC_ARRAY *array, uint element_size,
-                                  uint init_alloc, uint alloc_increment);
+                                   uint alloc_increment, myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const uchar * element);
 extern uchar *alloc_dynamic(DYNAMIC_ARRAY *array);
 extern uchar *pop_dynamic(DYNAMIC_ARRAY*);
@@ -829,7 +841,7 @@ extern void my_free_lock(void *ptr);
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
-			    size_t pre_alloc_size);
+			    size_t pre_alloc_size, myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);

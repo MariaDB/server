@@ -2481,7 +2481,9 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   }
 
-  if (!(row->record= (char*) my_malloc(table->s->reclength, MYF(MY_WME))))
+  /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
+  if (!(row->record= (char*) my_malloc(table->s->reclength,
+                                       MYF(MY_WME))))
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
   row->start_time=                thd->start_time;
@@ -2898,24 +2900,28 @@ pthread_handler_t handle_delayed_insert(void *arg)
     DBUG_LEAVE;
   }
 
-  di->table=0;
-  thd->killed= KILL_CONNECTION;	        // If error
-  mysql_mutex_unlock(&di->mutex);
+  {
+    DBUG_ENTER("handle_delayed_insert-cleanup");
+    di->table=0;
+    thd->killed= KILL_CONNECTION;	        // If error
+    mysql_mutex_unlock(&di->mutex);
 
-  close_thread_tables(thd);			// Free the table
-  thd->mdl_context.release_transactional_locks();
-  mysql_cond_broadcast(&di->cond_client);       // Safety
+    close_thread_tables(thd);			// Free the table
+    thd->mdl_context.release_transactional_locks();
+    mysql_cond_broadcast(&di->cond_client);       // Safety
 
-  mysql_mutex_lock(&LOCK_delayed_create);       // Because of delayed_get_table
-  mysql_mutex_lock(&LOCK_delayed_insert);
-  /*
-    di should be unlinked from the thread handler list and have no active
-    clients
-  */
-  delete di;
-  mysql_mutex_unlock(&LOCK_delayed_insert);
-  mysql_mutex_unlock(&LOCK_delayed_create);
+    mysql_mutex_lock(&LOCK_delayed_create);    // Because of delayed_get_table
+    mysql_mutex_lock(&LOCK_delayed_insert);
+    /*
+      di should be unlinked from the thread handler list and have no active
+      clients
+    */
+    delete di;
+    mysql_mutex_unlock(&LOCK_delayed_insert);
+    mysql_mutex_unlock(&LOCK_delayed_create);
 
+    DBUG_LEAVE;
+  }
   my_thread_end();
   pthread_exit(0);
 

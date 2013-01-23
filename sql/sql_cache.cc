@@ -1035,8 +1035,8 @@ void query_cache_insert(const char *packet, ulong length,
   /*
     Current_thd can be NULL when a new connection is immediately ended
     due to "Too many connections". thd->store_globals() has not been
-    called at this time and hence my_pthread_setspecific_ptr(THR_THD,
-    this) has not been called for this thread.
+    called at this time and hence set_current_thd(this) has not been
+    called for this thread.
   */
 
   if (!thd)

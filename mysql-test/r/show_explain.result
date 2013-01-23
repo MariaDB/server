@@ -1,5 +1,6 @@
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
+SET @old_debug= @@session.debug;
 set debug_sync='RESET';
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -12,12 +13,13 @@ show explain for 2000000000;
 ERROR HY000: Unknown thread id: 2000000000
 show explain for (select max(a) from t0);
 ERROR HY000: You may only use constant expressions in this statement
+SET @old_debug= @@session.debug;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr1;
 ERROR HY000: Target is not running an EXPLAINable command
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select count(*) from t1 where a < 100000;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -46,9 +48,10 @@ Note	1003	explain select max(c) from t1 where a < 10
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 set optimizer_switch= @show_expl_tmp;
+set debug_dbug=@old_debug;
 # UNION, first branch 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -61,9 +64,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
 2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+set debug_dbug=@old_debug;
 # UNION, second branch
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -76,9 +80,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
 2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+set debug_dbug=@old_debug;
 # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 B) from t0 A where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -88,9 +93,10 @@ Warnings:
 Note	1003	select a, (select max(a) from t0 B) from t0 A where a<1
 a	(select max(a) from t0 B)
 0	9
+set debug_dbug=@old_debug;
 # Uncorrelated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 B) from t0 A where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -101,9 +107,10 @@ Note	1003	explain select a, (select max(a) from t0 B) from t0 A where a<1
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
 2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+set debug_dbug=@old_debug;
 # correlated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -113,9 +120,10 @@ Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+set debug_dbug=@old_debug;
 # correlated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -125,9 +133,10 @@ Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+set debug_dbug=@old_debug;
 # correlated  subquery, select, while inside the subquery
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -137,9 +146,10 @@ Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+set debug_dbug=@old_debug;
 # correlated  subquery, explain, while inside the subquery
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -149,52 +159,57 @@ Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+set debug_dbug=@old_debug;
 # correlated  subquery, explain, while inside the subquery
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 a	(select max(a) from t0 b where b.a+a.a<10)
 0	9
+set debug_dbug=@old_debug;
 # Try to do SHOW EXPLAIN for a query that runs a  SET command:
 #   I've found experimentally that select_id==2 here...
 # 
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @foo= (select max(a) from t0 where sin(a) >0);
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
+set debug_dbug=@old_debug;
 #
 # Attempt SHOW EXPLAIN for an UPDATE
 #
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 drop table t2;
+set debug_dbug=@old_debug;
 #
 # Attempt SHOW EXPLAIN for a DELETE
 # 
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 drop table t2;
+set debug_dbug=@old_debug;
 #
 # Multiple SHOW EXPLAIN calls for one select 
 # 
 create table t2 as select a as a, a as dummy from t0 limit 3;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -219,13 +234,14 @@ a	SUBQ
 1	0
 2	0
 drop table t2;
+set debug_dbug=@old_debug;
 #
 # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
 #
 explain select * from t0 order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select * from t0 order by a;
 show explain for $thr2;
@@ -244,13 +260,14 @@ a
 7
 8
 9
+set debug_dbug=@old_debug;
 #
 # SHOW EXPLAIN for SELECT ... with "Using temporary"
 #
 explain select distinct a from t0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select distinct a from t0;
 show explain for $thr2;
@@ -269,13 +286,14 @@ a
 7
 8
 9
+set debug_dbug=@old_debug;
 #
 # SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
 #
 explain select distinct a from t0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select distinct a from t0;
 show explain for $thr2;
@@ -294,7 +312,7 @@ a
 7
 8
 9
-set debug_dbug='';
+set debug_dbug=@old_debug;
 #
 # MDEV-238: SHOW EXPLAIN: Server crashes in JOIN::print_explain with FROM subquery and GROUP BY
 #
@@ -304,7 +322,7 @@ explain SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-set debug_dbug='d,show_explain_in_find_all_keys';
+set debug_dbug='+d,show_explain_in_find_all_keys';
 SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 # FIXED by "conservative assumptions about when QEP is available" fix:
 #    NOTE: current code will not show "Using join buffer": 
@@ -314,7 +332,7 @@ a
 1
 2
 4
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t2;
 #
 # MDEV-239: Assertion `field_types == 0 ... ' failed in Protocol_text::store(double, uint32, String*) with 
@@ -329,7 +347,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -342,7 +360,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t2;
 #
 # MDEV-240: SHOW EXPLAIN: Assertion `this->optimized == 2' failed in 
@@ -359,7 +377,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	
 2	DERIVED	t3	system	NULL	NULL	NULL	NULL	1	
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM v1, t2;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
@@ -370,14 +388,14 @@ a	b
 8	7
 8	8
 8	9
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP VIEW v1;
 DROP TABLE t2, t3;
 #
 # MDEV-267: SHOW EXPLAIN: Server crashes in JOIN::print_explain on most of queries
 #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 select sleep(1);
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -386,29 +404,29 @@ Warnings:
 Note	1003	select sleep(1)
 sleep(1)
 0
-set debug_dbug='';
+set debug_dbug=@old_debug;
 #
 # Same as above, but try another reason for JOIN to be degenerate
 #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 a
-set debug_dbug='';
+set debug_dbug=@old_debug;
 #
 # Same as above, but try another reason for JOIN to be degenerate (2)
 #
 create table t3(a int primary key);
 insert into t3 select a from t0;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 a	a
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t3;
 #
 # MDEV-270: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with 
@@ -427,7 +445,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	SUBQUERY	t2	const	PRIMARY	PRIMARY	4	const	1	Using where
 3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 SELECT * FROM t2 WHERE a = 
 (SELECT MAX(a) FROM t2 
 WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
@@ -447,7 +465,7 @@ pk	a
 6	7
 7	7
 9	7
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t2;
 #
 # MDEV-273: SHOW EXPLAIN: server crashes in JOIN::print_explain on a query with impossible WHERE
@@ -479,7 +497,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 SELECT count(*) FROM t2, t3
 WHERE a1 < ALL ( 
 SELECT a1 FROM t2
@@ -498,7 +516,7 @@ WHERE a1 IN ( SELECT a1 FROM t2, t4 )
 )
 count(*)
 1740
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t2, t3, t4;
 #
 # MDEV-275: SHOW EXPLAIN: server crashes in JOIN::print_explain with IN subquery and aggregate function
@@ -508,12 +526,12 @@ INSERT INTO t2 VALUES
 (1,5),(2,4),(3,6),(4,9),(5,2),(6,8),(7,4),(8,8),(9,0),(10,43),
 (11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 show explain for $thr2;
 ERROR HY000: Target is not running an EXPLAINable command
 pk	a1
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -522,7 +540,7 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT, KEY(a));
 INSERT INTO t1 VALUES (3),(1),(5),(1);
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT 'test' FROM t1 WHERE a=1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -532,7 +550,7 @@ Note	1003	SELECT 'test' FROM t1 WHERE a=1
 test
 test
 test
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1;
 #
 # MDEV-299: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN changes back and forth during query execution
@@ -550,7 +568,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
 1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_test_if_quick_select';
+set debug_dbug='+d,show_explain_probe_test_if_quick_select';
 select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -578,7 +596,7 @@ Warnings:
 Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
 count(*)
 212
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1;
 #
 # MDEV-297: SHOW EXPLAIN: Server gets stuck until timeout occurs while
@@ -587,7 +605,7 @@ drop table t1;
 CREATE TABLE t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c));
 INSERT INTO t1 (a) VALUES (3),(1),(5),(1);
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SHOW INDEX FROM t1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -598,7 +616,7 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE		
 t1	1	c	1	c	A	NULL	NULL	NULL	YES	BTREE		
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1;
 #
 # MDEV-324: SHOW EXPLAIN: Plan produced by SHOW EXPLAIN for a query with TEMPTABLE view 
@@ -611,7 +629,7 @@ EXPLAIN SELECT a + 1 FROM v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
-set debug_dbug='d,show_explain_probe_join_tab_preread';
+set debug_dbug='+d,show_explain_probe_join_tab_preread';
 set @show_explain_probe_select_id=1;
 SELECT a + 1 FROM v1;
 show explain for $thr2;
@@ -623,7 +641,7 @@ Note	1003	SELECT a + 1 FROM v1
 a + 1
 2
 3
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -639,7 +657,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
-set debug_dbug='d,show_explain_probe_union_read';
+set debug_dbug='+d,show_explain_probe_union_read';
 SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -658,7 +676,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL
 Warnings:
 Note	1003	SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 )
 a
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1;
 #
 # MDEV-327: SHOW EXPLAIN: Different select_type in plans produced by SHOW EXPLAIN 
@@ -681,7 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	20	
 3	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	Using where
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
 show explain for $thr2;
@@ -694,7 +712,7 @@ Warnings:
 Note	1003	SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b )
 a	b
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1, t2;
 # 
 #  Test that SHOW EXPLAIN will print 'Distinct'.
@@ -716,7 +734,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
 1	SIMPLE	t3	ref	a	a	5	test.t1.a	7	Using index; Distinct
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select distinct t1.a from t1,t3 where t1.a=t3.a;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -727,7 +745,7 @@ Note	1003	select distinct t1.a from t1,t3 where t1.a=t3.a
 a
 1
 2
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1,t3,t4;
 #
 # ----------  SHOW EXPLAIN and permissions -----------------
@@ -738,7 +756,7 @@ grant super on *.* to test2@localhost;
 #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
 #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr2;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
@@ -751,12 +769,12 @@ a
 0
 1
 2
-set debug_dbug='';
+set debug_dbug=@old_debug;
 #
 # Check that user test2 can do SHOW EXPLAIN on its own queries 
 #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr_con2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -771,8 +789,9 @@ a
 # Now, grant test2 a PROCESSLIST permission, and see that he's able to observe us 
 #
 grant process on *.* to test2@localhost;
+set debug_dbug=@old_debug;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select * from t0 where a < 3;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -783,7 +802,7 @@ a
 0
 1
 2
-set debug_dbug='';
+set debug_dbug=@old_debug;
 revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
 #
@@ -848,7 +867,7 @@ ORDER BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using filesort
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
@@ -867,8 +886,9 @@ a+SLEEP(0.01)
 0
 0
 0
+set debug_dbug=@old_debug;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
@@ -887,7 +907,7 @@ a+SLEEP(0.01)
 0
 0
 0
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1;
 # 
 # MDEV-298: SHOW EXPLAIN: Plan returned by SHOW EXPLAIN only contains 
@@ -901,7 +921,7 @@ EXPLAIN SELECT a FROM t1 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT a FROM t1 GROUP BY a;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -925,7 +945,7 @@ a
 14
 15
 16
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1;
 #
 # MDEV-408: SHOW EXPLAIN: Some values are chopped off in SHOW EXPLAIN output
@@ -939,7 +959,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -949,7 +969,7 @@ Warnings:
 Note	1003	SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's'
 SUM(a + SLEEP(0.1))
 7862
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1, t2;
 #
 # MDEV-412: SHOW EXPLAIN: Server crashes in JOIN::print_explain on a query with inner join and ORDER BY the same column twice
@@ -987,7 +1007,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	b	b	6	NULL	107	Using where; Using index
 1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -997,7 +1017,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 Warnings:
 Note	1003	SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2
 field1	field2
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1,t2,t3;
 #
 # MDEV-423: SHOW EXPLAIN: 'Using where' for a subquery is shown in EXPLAIN, but not in SHOW EXPLAIN output
@@ -1018,7 +1038,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
 3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	20	Using where
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
 show explain for $thr2;
@@ -1031,7 +1051,7 @@ Note	1003	SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10
 max(a+b+c)
 279
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1,t2,t3;
 #
 # MDEV-416: Server crashes in SQL_SELECT::cleanup on EXPLAIN with SUM ( DISTINCT ) in a non-correlated subquery (5.5-show-explain tree)
@@ -1057,7 +1077,7 @@ select hex('ãû');
 hex('ãû')
 E3FB
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 select * from t0 where length('ãû') = a;
 set names utf8;
 show explain for $thr2;
@@ -1068,7 +1088,7 @@ Note	1003	select * from t0 where length('Ð³Ñ‹') = a
 set names default;
 a
 2
-set debug_dbug='';
+set debug_dbug=@old_debug;
 set names default;
 #
 # MDEV-462: SHOW EXPLAIN: Assertion `table_list->table' fails in find_field_in_table_ref if FOR contains a non-numeric value

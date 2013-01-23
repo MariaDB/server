@@ -934,7 +934,7 @@ int JOIN_CACHE::alloc_buffer()
   {
     ulong next_buff_size;
 
-    if ((buff= (uchar*) my_malloc(buff_size, MYF(0))))
+    if ((buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))))
       break;
 
     next_buff_size= buff_size > buff_size_decr ? buff_size-buff_size_decr : 0;
@@ -1012,7 +1012,7 @@ int JOIN_CACHE::realloc_buffer()
 {
   int rc;
   free();
-  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(0))));
+  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   reset(TRUE);
   return rc;   	
 }
@@ -2801,7 +2801,7 @@ int JOIN_CACHE_HASHED::realloc_buffer()
 {
   int rc;
   free();
-  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(0))));
+  rc= test(!(buff= (uchar*) my_malloc(buff_size, MYF(MY_THREAD_SPECIFIC))));
   init_hash_table();
   reset(TRUE);
   return rc;   	

@@ -330,7 +330,7 @@ typedef struct st_net {
   unsigned char reading_or_writing;
   char save_char;
   char net_skip_rest_factor;
-  my_bool unused1; /* Please remove with the next incompatible ABI change */
+  my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3; /* Please remove with the next incompatible ABI change. */
   /*
@@ -465,10 +465,10 @@ enum enum_mysql_set_option
 extern "C" {
 #endif
 
-my_bool	my_net_init(NET *net, Vio* vio);
+my_bool	my_net_init(NET *net, Vio* vio, unsigned int my_flags);
 void	my_net_local_init(NET *net);
 void	net_end(NET *net);
-  void	net_clear(NET *net, my_bool clear_buffer);
+void	net_clear(NET *net, my_bool clear_buffer);
 my_bool net_realloc(NET *net, size_t length);
 my_bool	net_flush(NET *net);
 my_bool	my_net_write(NET *net,const unsigned char *packet, size_t len);

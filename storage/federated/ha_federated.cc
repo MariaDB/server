@@ -1515,7 +1515,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(&mem_root, 256, 0);
+  init_alloc_root(&mem_root, 256, 0, 0);
 
   mysql_mutex_lock(&federated_mutex);
 
@@ -1656,7 +1656,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4);
+  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4, 0);
   reset();
 
   DBUG_RETURN(0);
@@ -3137,6 +3137,7 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
+  int int_arg;
   DBUG_ENTER("ha_federated::real_connect");
 
   /* 
@@ -3155,6 +3156,10 @@ int ha_federated::real_connect()
     DBUG_RETURN(-1);
   }
 
+  /* Ensure that memory is registered for the system, not for the THD */
+  int_arg= 0;
+  mysql_options(mysql,MYSQL_THREAD_SPECIFIC_MALLOC, &int_arg);
+
   /*
     BUG# 17044 Federated Storage Engine is not UTF8 clean
     Add set names to whatever charset the table is at open
@@ -3165,7 +3170,6 @@ int ha_federated::real_connect()
                 this->table->s->table_charset->csname);
 
   sql_query.length(0);
-
   if (!mysql_real_connect(mysql,
                           share->hostname,
                           share->username,

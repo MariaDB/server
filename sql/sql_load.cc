@@ -1371,7 +1371,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
   set_if_bigger(length,line_start.length());
   stack=stack_pos=(int*) sql_alloc(sizeof(int)*length);
 
-  if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(0))))
+  if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(MY_THREAD_SPECIFIC))))
     error=1; /* purecov: inspected */
   else
   {
@@ -1379,7 +1379,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
     if (init_io_cache(&cache,(get_it_from_net) ? -1 : file, 0,
 		      (get_it_from_net) ? READ_NET :
 		      (is_fifo ? READ_FIFO : READ_CACHE),0L,1,
-		      MYF(MY_WME)))
+		      MYF(MY_WME | MY_THREAD_SPECIFIC)))
     {
       my_free(buffer); /* purecov: inspected */
       buffer= NULL;
@@ -1605,7 +1605,7 @@ int READ_INFO::read_field()
     ** We come here if buffer is too small. Enlarge it and continue
     */
     if (!(new_buffer=(uchar*) my_realloc((char*) buffer,buff_length+1+IO_SIZE,
-					MYF(MY_WME))))
+					MYF(MY_WME | MY_THREAD_SPECIFIC))))
       return (error=1);
     to=new_buffer + (to-buffer);
     buffer=new_buffer;

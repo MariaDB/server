@@ -3485,7 +3485,8 @@ bool Item_func_group_concat::setup(THD *thd)
     init_tree(tree, (uint) min(thd->variables.max_heap_table_size,
                                thd->variables.sortbuff_size/16), 0,
               tree_key_length, 
-              group_concat_key_cmp_with_order , 0, NULL, (void*) this);
+              group_concat_key_cmp_with_order, NULL, (void*) this,
+              MYF(MY_THREAD_SPECIFIC));
   }
 
   if (distinct)

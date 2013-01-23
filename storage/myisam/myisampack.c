@@ -816,8 +816,8 @@ static HUFF_COUNTS *init_huff_count(MI_INFO *info,my_off_t records)
         'tree_pos'. It's keys are implemented by pointers into 'tree_buff'.
         This is accomplished by '-1' as the element size.
       */
-      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree,0, NULL,
-		NULL);
+      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
+		NULL, 0);
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
 	count[i].tree_pos=count[i].tree_buff =
 	  my_malloc(count[i].field_length > 1 ? tree_buff_length : 2,

@@ -153,8 +153,6 @@ void
 deinit_event_thread(THD *thd)
 {
   thd->proc_info= "Clearing";
-  DBUG_ASSERT(thd->net.buff != 0);
-  net_end(&thd->net);
   DBUG_PRINT("exit", ("Event thread finishing"));
   mysql_mutex_lock(&LOCK_thread_count);
   thread_count--;
@@ -182,12 +180,15 @@ deinit_event_thread(THD *thd)
 void
 pre_init_event_thread(THD* thd)
 {
+  THD *orig_thd= current_thd;
   DBUG_ENTER("pre_init_event_thread");
+
+  set_current_thd(thd);
   thd->client_capabilities= 0;
   thd->security_ctx->master_access= 0;
   thd->security_ctx->db_access= 0;
   thd->security_ctx->host_or_ip= (char*)my_localhost;
-  my_net_init(&thd->net, NULL);
+  my_net_init(&thd->net, NULL, MYF(MY_THREAD_SPECIFIC));
   thd->security_ctx->set_user((char*)"event_scheduler");
   thd->net.read_timeout= slave_net_timeout;
   thd->variables.option_bits|= OPTION_AUTO_IS_NULL;
@@ -207,6 +208,7 @@ pre_init_event_thread(THD* thd)
   /* Do not use user-supplied timeout value for system threads. */
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
 
+  set_current_thd(orig_thd);
   DBUG_VOID_RETURN;
 }
 
@@ -402,6 +404,7 @@ Event_scheduler::start()
     ret= TRUE;
     goto end;
   }
+
   pre_init_event_thread(new_thd);
   new_thd->system_thread= SYSTEM_THREAD_EVENT_SCHEDULER;
   new_thd->command= COM_DAEMON;
@@ -413,6 +416,7 @@ Event_scheduler::start()
   */
   new_thd->security_ctx->master_access |= SUPER_ACL;
 
+  /* This should not be marked with MY_THREAD_SPECIFIC */
   scheduler_param_value=
     (struct scheduler_param *)my_malloc(sizeof(struct scheduler_param), MYF(0));
   scheduler_param_value->thd= new_thd;
@@ -432,8 +436,6 @@ Event_scheduler::start()
     ret= TRUE;
 
     new_thd->proc_info= "Clearing";
-    DBUG_ASSERT(new_thd->net.buff != 0);
-    net_end(&new_thd->net);
     mysql_mutex_lock(&LOCK_thread_count);
     thread_count--;
     dec_thread_running();
@@ -533,6 +535,7 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
   pthread_t th;
   int res= 0;
   DBUG_ENTER("Event_scheduler::execute_top");
+
   if (!(new_thd= new THD()))
     goto error;
 
@@ -567,8 +570,6 @@ error:
   if (new_thd)
   {
     new_thd->proc_info= "Clearing";
-    DBUG_ASSERT(new_thd->net.buff != 0);
-    net_end(&new_thd->net);
     mysql_mutex_lock(&LOCK_thread_count);
     thread_count--;
     dec_thread_running();

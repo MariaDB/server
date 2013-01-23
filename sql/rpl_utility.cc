@@ -1117,7 +1117,7 @@ bool event_checksum_test(uchar *event_buf, ulong event_len, uint8 alg)
 
 Deferred_log_events::Deferred_log_events(Relay_log_info *rli) : last_added(NULL)
 {
-  my_init_dynamic_array(&array, sizeof(Log_event *), 32, 16);
+  my_init_dynamic_array(&array, sizeof(Log_event *), 32, 16, 0);
 }
 
 Deferred_log_events::~Deferred_log_events() 

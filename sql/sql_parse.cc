@@ -642,8 +642,6 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
-  net_end(&thd->net);
-  thd->cleanup();
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
@@ -1291,10 +1289,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         and flushes tables.
       */
       bool res;
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(0);
       res= reload_acl_and_cache(NULL, options | REFRESH_FAST,
                                 NULL, &not_used);
-      my_pthread_setspecific_ptr(THR_THD, thd);
+      set_current_thd(thd);
       if (res)
         break;
     }
@@ -1465,6 +1463,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   thd_proc_info(thd, "cleaning up");
   thd->reset_query();
+  thd->examined_row_count= 0;                   // For processlist
   thd->command=COM_SLEEP;
   dec_thread_running();
   thd_proc_info(thd, 0);
@@ -4794,7 +4793,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   mysql_mutex_lock(&LOCK_status);
   add_diff_to_status(&global_status_var, &thd->status_var,
                      &old_status_var);
-  thd->status_var= old_status_var;
+  memcpy(&thd->status_var, &old_status_var,
+         offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
   return res;
 }
@@ -6843,7 +6843,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
         mysql_mutex_unlock(&LOCK_thread_count);
         DBUG_RETURN(ER_KILL_DENIED_ERROR);
       }
-      if (!threads_to_kill.push_back(tmp, tmp->mem_root))
+      if (!threads_to_kill.push_back(tmp, thd->mem_root))
         mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from delete
     }
   }

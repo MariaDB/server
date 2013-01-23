@@ -68,13 +68,15 @@ typedef struct st_tree {
   MEM_ROOT mem_root;
   my_bool with_delete;
   tree_element_free free;
+  myf my_flags;
   uint flag;
 } TREE;
 
 	/* Functions on whole tree */
 void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
-               int size, qsort_cmp2 compare, my_bool with_delete,
-	       tree_element_free free_element, void *custom_arg);
+               int size, qsort_cmp2 compare,
+	       tree_element_free free_element, void *custom_arg,
+               myf my_flags);
 void delete_tree(TREE*);
 void reset_tree(TREE*);
 

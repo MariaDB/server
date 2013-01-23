@@ -807,17 +807,28 @@ THD::THD()
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-   main_warning_info(0, false)
+   main_warning_info(0, false, false)
 {
   ulong tmp;
 
   mdl_context.init(this);
   /*
+    We set THR_THD to temporally point to this THD to register all the
+    variables that allocates memory for this THD
+  */
+  THD *old_THR_THD= current_thd;
+  set_current_thd(this);
+  status_var.memory_used= 0;
+
+  main_warning_info.init();
+  /*
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
   */
-  init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
+  init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
+
   stmt_arena= this;
   thread_stack= 0;
   scheduler= thread_scheduler;                 // Will be fixed later
@@ -874,6 +885,7 @@ THD::THD()
   mysql_audit_init_thd(this);
 #endif
   net.vio=0;
+  net.buff= 0;
   client_capabilities= 0;                       // minimalistic client
   ull=0;
   system_thread= NON_SYSTEM_THREAD;
@@ -915,7 +927,7 @@ THD::THD()
   user_connect=(USER_CONN *)0;
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, 0);
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -923,7 +935,7 @@ THD::THD()
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
-			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16);
+			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, 0);
   else
     bzero((char*) &user_var_events, sizeof(user_var_events));
 
@@ -946,6 +958,8 @@ THD::THD()
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  /* Restore THR_THD */
+  set_current_thd(old_THR_THD);
 }
 
 
@@ -1214,6 +1228,7 @@ extern "C"   THD *_current_thd_noinline(void)
 
 void THD::init(void)
 {
+  DBUG_ENTER("thd::init");
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
@@ -1243,7 +1258,7 @@ void THD::init(void)
   tx_isolation= (enum_tx_isolation) variables.tx_isolation;
   update_charset();
   reset_current_stmt_binlog_format_row();
-  bzero((char *) &status_var, sizeof(status_var));
+  set_status_var_init();
   bzero((char *) &org_status_var, sizeof(org_status_var));
 
   if (variables.sql_log_bin)
@@ -1260,6 +1275,7 @@ void THD::init(void)
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
   apc_target.init(&LOCK_thd_data);
+  DBUG_VOID_RETURN;
 }
 
  
@@ -1433,8 +1449,16 @@ void THD::cleanup(void)
 
 THD::~THD()
 {
+  THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+
+  /*
+    In error cases, thd may not be current thd. We have to fix this so
+    that memory allocation counting is done correctly
+  */
+  set_current_thd(this);
+
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
   mysys_var=0;					// Safety (shouldn't be needed)
@@ -1443,10 +1467,8 @@ THD::~THD()
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
-  {
     vio_delete(net.vio);
-    net_end(&net);
-  }
+  net_end(&net);
 #endif
   stmt_map.reset();                     /* close all prepared statements */
   if (!cleanup_done)
@@ -1481,6 +1503,15 @@ THD::~THD()
 #endif
 
   free_root(&main_mem_root, MYF(0));
+  main_warning_info.free_memory();
+  if (status_var.memory_used != 0)
+  {
+    DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
+    SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
+    DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
+  }
+
+  set_current_thd(orig_thd);
   DBUG_VOID_RETURN;
 }
 
@@ -1752,7 +1783,7 @@ bool THD::store_globals()
   */
   DBUG_ASSERT(thread_stack);
 
-  if (my_pthread_setspecific_ptr(THR_THD,  this) ||
+  if (set_current_thd(this) ||
       my_pthread_setspecific_ptr(THR_MALLOC, &mem_root))
     return 1;
   /*
@@ -1796,7 +1827,7 @@ void THD::reset_globals()
   mysql_mutex_unlock(&LOCK_thd_data);
 
   /* Undocking the thread specific data. */
-  my_pthread_setspecific_ptr(THR_THD, NULL);
+  set_current_thd(0);
   my_pthread_setspecific_ptr(THR_MALLOC, NULL);
   
 }
@@ -3652,7 +3683,8 @@ void thd_increment_net_big_packet_count(ulong length)
 
 void THD::set_status_var_init()
 {
-  bzero((char*) &status_var, sizeof(status_var));
+  bzero((char*) &status_var, offsetof(STATUS_VAR,
+                                      last_cleared_system_status_var));
 }
 
 

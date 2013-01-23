@@ -821,8 +821,6 @@ const char *sanitize_file_name(const char *unsafe)
 */
 void destroy_thread(PFS_thread *pfs)
 {
-  DBUG_ENTER("destroy_thread");
-
   DBUG_ASSERT(pfs != NULL);
   if (pfs->m_filename_hash_pins)
   {
@@ -835,7 +833,6 @@ void destroy_thread(PFS_thread *pfs)
     pfs->m_table_share_hash_pins= NULL;
   }
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**

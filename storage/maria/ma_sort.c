@@ -164,7 +164,7 @@ int _ma_create_index_by_sort(MARIA_SORT_PARAM *info, my_bool no_messages,
                                       HA_FT_MAXBYTELEN, MYF(0))))
     {
       if (my_init_dynamic_array(&buffpek, sizeof(BUFFPEK), maxbuffer,
-			     maxbuffer/2))
+                                maxbuffer/2, 0))
       {
 	my_free(sort_keys);
         sort_keys= 0;
@@ -397,7 +397,7 @@ pthread_handler_t _ma_thr_find_all_keys(void *arg)
                       HA_FT_MAXBYTELEN : 0), MYF(0))))
       {
         if (my_init_dynamic_array(&sort_param->buffpek, sizeof(BUFFPEK),
-                                  maxbuffer, maxbuffer/2))
+                                  maxbuffer, maxbuffer/2, 0))
         {
           my_free(sort_keys);
           sort_keys= (uchar **) NULL;            /* for err: label */

@@ -65,15 +65,12 @@ int my_sync(File fd, myf my_flags)
 {
   int res;
   DBUG_ENTER("my_sync");
-
-  DBUG_PRINT("my",("fd: %d  my_flags: %d", fd, my_flags));
+  DBUG_PRINT("my",("fd: %d  my_flags: %lu", fd, my_flags));
 
   if (my_disable_sync)
     DBUG_RETURN(0);
 
   statistic_increment(my_sync_count,&THR_LOCK_open);
-
-  DBUG_PRINT("my",("Fd: %d  my_flags: %d", fd, my_flags));
 
   if (before_sync_wait)
     (*before_sync_wait)();
@@ -158,7 +155,7 @@ int my_sync_dir(const char *dir_name __attribute__((unused)),
   int res= 0;
   const char *correct_dir_name;
   DBUG_ENTER("my_sync_dir");
-  DBUG_PRINT("my",("Dir: '%s'  my_flags: %d", dir_name, my_flags));
+  DBUG_PRINT("my",("Dir: '%s'  my_flags: %lu", dir_name, my_flags));
   /* Sometimes the path does not contain an explicit directory */
   correct_dir_name= (dir_name[0] == 0) ? cur_dir_name : dir_name;
   /*

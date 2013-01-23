@@ -305,7 +305,7 @@ struct LEX_MASTER_INFO
   {
     bzero(this, sizeof(*this));
     my_init_dynamic_array(&repl_ignore_server_ids,
-                          sizeof(::server_id), 0, 16);
+                          sizeof(::server_id), 0, 16, 0);
   }
   void reset()
   {

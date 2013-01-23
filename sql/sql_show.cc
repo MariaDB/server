@@ -458,7 +458,7 @@ bool
 ignore_db_dirs_init()
 {
   return my_init_dynamic_array(&ignore_db_dirs_array, sizeof(LEX_STRING *),
-                               0, 0);
+                               0, 0, 0);
 }
 
 
@@ -737,7 +737,8 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
 
   bzero((char*) &table_list,sizeof(table_list));
 
-  if (!(dirp = my_dir(path,MYF(dir ? MY_WANT_STAT : 0))))
+  if (!(dirp = my_dir(path,MYF((dir ? MY_WANT_STAT : 0) |
+                               MY_THREAD_SPECIFIC))))
   {
     if (my_errno == ENOENT)
       my_error(ER_BAD_DB_ERROR, MYF(ME_BELL+ME_WAITTANG), db);
@@ -2334,11 +2335,14 @@ void Show_explain_request::call_in_target_thread()
                  target_thd->query_length(),
                  target_thd->query_charset());
 
+  DBUG_ASSERT(current_thd == target_thd);
+  set_current_thd(request_thd);
   if (target_thd->lex->unit.print_explain(explain_buf, 0 /* explain flags*/,
                                           &printed_anything))
   {
     failed_to_produce= TRUE;
   }
+  set_current_thd(target_thd);
 
   if (!printed_anything)
     failed_to_produce= TRUE;
@@ -2349,10 +2353,20 @@ void Show_explain_request::call_in_target_thread()
 
 int select_result_explain_buffer::send_data(List<Item> &items)
 {
+  int res;
+  THD *cur_thd= current_thd;
+  DBUG_ENTER("select_result_explain_buffer::send_data");
+
+  /*
+    Switch to the recieveing thread, so that we correctly count memory used
+    by it. This is needed as it's the receiving thread that will free the
+    memory.
+  */
+  set_current_thd(thd);
   fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
-  if ((dst_table->file->ha_write_tmp_row(dst_table->record[0])))
-    return 1;
-  return 0;
+  res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
+  set_current_thd(cur_thd);  
+  DBUG_RETURN(test(res));
 }
 
 
@@ -2578,6 +2592,18 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       }
       mysql_mutex_unlock(&tmp->LOCK_thd_data);
 
+      /*
+        This may become negative if we free a memory allocated by another
+        thread in this thread. However it's better that we notice it eventually
+        than hide it.
+      */
+      table->field[12]->store((longlong) (tmp->status_var.memory_used +
+                                          sizeof(THD)),
+                              FALSE);
+      table->field[12]->set_notnull();
+      table->field[13]->store((longlong) tmp->examined_row_count, TRUE);
+      table->field[13]->set_notnull();
+
       if (schema_table_store_record(thd, table))
       {
         mysql_mutex_unlock(&LOCK_thread_count);
@@ -2650,7 +2676,7 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_mutex_lock(&LOCK_status);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 200, 20))
+      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 200, 20, 0))
   {
     res= 1;
     goto err;
@@ -2999,7 +3025,8 @@ static int aggregate_user_stats(HASH *all_user_stats, HASH *agg_user_stats)
     {
       // First entry for this role.
       if (!(agg_user= (USER_STATS*) my_malloc(sizeof(USER_STATS),
-                                              MYF(MY_WME | MY_ZEROFILL))))
+                                              MYF(MY_WME | MY_ZEROFILL|
+                                                  MY_THREAD_SPECIFIC))))
       {
         sql_print_error("Malloc in aggregate_user_stats failed");
         DBUG_RETURN(1);
@@ -4372,7 +4399,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
 
   if (schema_table->i_s_requested_object & OPEN_TRIGGER_ONLY)
   {
-    init_sql_alloc(&tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+    init_sql_alloc(&tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 0);
     if (!Table_triggers_list::check_n_load(thd, db_name->str,
                                            table_name->str, &tbl, 1))
     {
@@ -7878,7 +7905,7 @@ static bool do_fill_table(THD *thd,
   // Warning_info, so "useful warnings" get rejected. In order to avoid
   // that problem we create a Warning_info instance, which is capable of
   // storing "unlimited" number of warnings.
-  Warning_info wi(thd->query_id, true);
+  Warning_info wi(thd->query_id, true, true);
   Warning_info *wi_saved= thd->warning_info;
 
   thd->warning_info= &wi;
@@ -8612,6 +8639,8 @@ ST_FIELD_INFO processlist_fields_info[]=
   {"MAX_STAGE", 2, MYSQL_TYPE_TINY,  0, 0, "Max_stage", SKIP_OPEN_TABLE},
   {"PROGRESS", 703, MYSQL_TYPE_DECIMAL,  0, 0, "Progress",
    SKIP_OPEN_TABLE},
+  {"MEMORY_USED", 7, MYSQL_TYPE_LONG, 0, 0, "Memory_used", SKIP_OPEN_TABLE},
+  {"EXAMINED_ROWS", 7, MYSQL_TYPE_LONG, 0, 0, "Examined_rows", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
@@ -8941,7 +8970,7 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_ENTER("initialize_schema_table");
 
   if (!(schema_table= (ST_SCHEMA_TABLE *)my_malloc(sizeof(ST_SCHEMA_TABLE),
-                                MYF(MY_WME | MY_ZEROFILL))))
+                                                   MYF(MY_WME | MY_ZEROFILL))))
       DBUG_RETURN(1);
   /* Historical Requirement */
   plugin->data= schema_table; // shortcut for the future

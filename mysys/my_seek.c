@@ -48,7 +48,7 @@ my_off_t my_seek(File fd, my_off_t pos, int whence, myf MyFlags)
 {
   os_off_t newpos= -1;
   DBUG_ENTER("my_seek");
-  DBUG_PRINT("my",("fd: %d Pos: %llu  Whence: %d  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d Pos: %llu  Whence: %d  MyFlags: %lu",
 		   fd, (ulonglong) pos, whence, MyFlags));
   DBUG_ASSERT(pos != MY_FILEPOS_ERROR);		/* safety check */
 
@@ -84,7 +84,7 @@ my_off_t my_tell(File fd, myf MyFlags)
 {
   os_off_t pos;
   DBUG_ENTER("my_tell");
-  DBUG_PRINT("my",("fd: %d  MyFlags: %d",fd, MyFlags));
+  DBUG_PRINT("my",("fd: %d  MyFlags: %lu",fd, MyFlags));
   DBUG_ASSERT(fd >= 0);
 #if defined (HAVE_TELL) && !defined (_WIN32)
   pos= tell(fd);

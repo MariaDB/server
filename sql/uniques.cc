@@ -84,10 +84,11 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
   my_b_clear(&file);
-  init_tree(&tree, (ulong) (max_in_memory_size / 16), 0, size, comp_func, 0,
-            NULL, comp_func_fixed_arg);
+  init_tree(&tree, (ulong) (max_in_memory_size / 16), 0, size, comp_func,
+            NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
   /* If the following fail's the next add will also fail */
-  my_init_dynamic_array(&file_ptrs, sizeof(BUFFPEK), 16, 16);
+  my_init_dynamic_array(&file_ptrs, sizeof(BUFFPEK), 16, 16,
+                        MYF(MY_THREAD_SPECIFIC));
   /*
     If you change the following, change it in get_max_elements function, too.
   */
@@ -602,7 +603,8 @@ bool Unique::walk(tree_walk_action action, void *walk_action_arg)
     return 1;
   if (flush_io_cache(&file) || reinit_io_cache(&file, READ_CACHE, 0L, 0, 0))
     return 1;
-  if (!(merge_buffer= (uchar *) my_malloc((ulong) max_in_memory_size, MYF(0))))
+  if (!(merge_buffer= (uchar *) my_malloc((ulong) max_in_memory_size,
+                                          MYF(MY_THREAD_SPECIFIC))))
     return 1;
   res= merge_walk(merge_buffer, (ulong) max_in_memory_size, size,
                   (BUFFPEK *) file_ptrs.buffer,
@@ -625,7 +627,7 @@ bool Unique::get(TABLE *table)
   {
     /* Whole tree is in memory;  Don't use disk if you don't need to */
     if ((record_pointers=table->sort.record_pointers= (uchar*)
-	 my_malloc(size * tree.elements_in_tree, MYF(0))))
+	 my_malloc(size * tree.elements_in_tree, MYF(MY_THREAD_SPECIFIC))))
     {
       tree_walk_action action= min_dupl_count ?
 		         (tree_walk_action) unique_intersect_write_to_ptrs :
@@ -650,7 +652,8 @@ bool Unique::get(TABLE *table)
 
       /* Open cached file if it isn't open */
   outfile=table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                MYF(MY_ZEROFILL));
+                                                     MYF(MY_ZEROFILL |
+                                                         MY_THREAD_SPECIFIC));
 
   if (!outfile ||
       (! my_b_inited(outfile) &&
@@ -673,7 +676,7 @@ bool Unique::get(TABLE *table)
 
   if (!(sort_buffer=(uchar*) my_malloc((sort_param.max_keys_per_buffer+1) *
 				       sort_param.sort_length,
-				       MYF(0))))
+				       MYF(MY_THREAD_SPECIFIC))))
     return 1;
   sort_param.unique_buff= sort_buffer+(sort_param.max_keys_per_buffer *
 				       sort_param.sort_length);

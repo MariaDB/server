@@ -167,7 +167,7 @@ enum mysql_option
   MYSQL_OPT_GUESS_CONNECTION, MYSQL_SET_CLIENT_IP, MYSQL_SECURE_AUTH,
   MYSQL_REPORT_DATA_TRUNCATION, MYSQL_OPT_RECONNECT,
   MYSQL_OPT_SSL_VERIFY_SERVER_CERT, MYSQL_PLUGIN_DIR, MYSQL_DEFAULT_AUTH,
-  MYSQL_PROGRESS_CALLBACK,
+  MYSQL_PROGRESS_CALLBACK, MYSQL_THREAD_SPECIFIC_MALLOC,
   /* MariaDB options */
   MYSQL_OPT_NONBLOCK=6000
 };
@@ -194,7 +194,7 @@ struct st_mysql_options {
   unsigned long max_allowed_packet;
   my_bool use_ssl;				/* if to use SSL or not */
   my_bool compress,named_pipe;
-  my_bool unused1;
+  my_bool thread_specific_malloc;
   my_bool unused2;
   my_bool unused3;
   my_bool unused4;

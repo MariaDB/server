@@ -278,8 +278,8 @@ public:
 
   int init()
   {
-    return init_dynamic_array(&file_names, sizeof(File_name_record),
-			      100, 100);
+    return my_init_dynamic_array(&file_names, sizeof(File_name_record),
+                                 100, 100, 0);
   }
 
   void init_by_dir_name(const char *dir)
@@ -2393,7 +2393,7 @@ int main(int argc, char** argv)
 
   my_init_time(); // for time functions
 
-  init_alloc_root(&s_mem_root, 16384, 0);
+  init_alloc_root(&s_mem_root, 16384, 0, 0);
   if (load_defaults("my", load_groups, &argc, &argv))
     exit(1);
 

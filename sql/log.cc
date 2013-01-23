@@ -8194,8 +8194,9 @@ binlog_background_thread(void *arg __attribute__((unused)))
   bool stop;
   MYSQL_BIN_LOG::xid_count_per_binlog *queue, *next;
   THD *thd;
-
   my_thread_init();
+  DBUG_ENTER("binlog_background_thread");
+
   thd= new THD;
   thd->system_thread= SYSTEM_THREAD_BINLOG_BACKGROUND;
   thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
@@ -8259,7 +8260,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
   mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -8310,7 +8311,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                    sizeof(my_xid), 0, 0, MYF(0)))
     goto err1;
 
-  init_alloc_root(&mem_root, TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE);
+  init_alloc_root(&mem_root, TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, 0);
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
 
