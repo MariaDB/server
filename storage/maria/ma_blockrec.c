@@ -528,7 +528,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
 
   if (my_init_dynamic_array(&info->bitmap_blocks,
                             sizeof(MARIA_BITMAP_BLOCK), default_extents,
-                            64, 0))
+                            64, MYF(0)))
     goto err;
   info->cur_row.extents_buffer_length= default_extents * ROW_EXTENT_SIZE;
   if (!(info->cur_row.extents= my_malloc(info->cur_row.extents_buffer_length,

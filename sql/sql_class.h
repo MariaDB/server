@@ -1429,7 +1429,7 @@ public:
     m_locked_tables_count(0)
   {
     init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
-                   MY_THREAD_SPECIFIC);
+                   MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
   ~Locked_tables_list()
@@ -1886,7 +1886,7 @@ public:
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
       init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
-                     MY_THREAD_SPECIFIC);
+                     MYF(MY_THREAD_SPECIFIC));
     }
   } transaction;
   Global_read_lock global_read_lock;

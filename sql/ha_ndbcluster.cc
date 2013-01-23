@@ -8649,7 +8649,7 @@ NDB_SHARE *ndbcluster_get_share(const char *key, TABLE *table,
       MEM_ROOT **root_ptr=
         my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
       MEM_ROOT *old_root= *root_ptr;
-      init_sql_alloc(&share->mem_root, 1024, 0, 0);
+      init_sql_alloc(&share->mem_root, 1024, 0, MYF(0));
       *root_ptr= &share->mem_root; // remember to reset before return
       share->state= NSS_INITIAL;
       /* enough space for key, db, and table_name */

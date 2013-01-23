@@ -935,7 +935,7 @@ THD::THD()
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
-			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, 0);
+			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, MYF(0));
   else
     bzero((char*) &user_var_events, sizeof(user_var_events));
 

@@ -634,7 +634,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
   //mysql->server_capabilities= client_flag;
-  init_alloc_root(&mysql->field_alloc, 8192, 0, 0);
+  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
 }
 
 /**

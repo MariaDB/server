@@ -458,7 +458,7 @@ bool
 ignore_db_dirs_init()
 {
   return my_init_dynamic_array(&ignore_db_dirs_array, sizeof(LEX_STRING *),
-                               0, 0, 0);
+                               0, 0, MYF(0));
 }
 
 
@@ -2676,7 +2676,7 @@ int add_status_vars(SHOW_VAR *list)
   if (status_vars_inited)
     mysql_mutex_lock(&LOCK_status);
   if (!all_status_vars.buffer && // array is not allocated yet - do it now
-      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 200, 20, 0))
+      my_init_dynamic_array(&all_status_vars, sizeof(SHOW_VAR), 200, 20, MYF(0)))
   {
     res= 1;
     goto err;
@@ -4399,7 +4399,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
 
   if (schema_table->i_s_requested_object & OPEN_TRIGGER_ONLY)
   {
-    init_sql_alloc(&tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 0);
+    init_sql_alloc(&tbl.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
     if (!Table_triggers_list::check_n_load(thd, db_name->str,
                                            table_name->str, &tbl, 1))
     {

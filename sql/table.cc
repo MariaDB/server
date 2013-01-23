@@ -307,7 +307,7 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     table_list->db,
                                     table_list->table_name, "", 0);
-  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 0);
+  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -340,7 +340,7 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
     share->free_tables.empty();
     share->m_flush_tickets.empty();
 
-    init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 0);
+    init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
@@ -2358,7 +2358,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
 
-  init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 0);
+  init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
     goto err;

@@ -881,7 +881,7 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
         /* Yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
           my_malloc(sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
-        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50, 0);
+        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50, MYF(0));
 
         /*
           Now, adding all keys from the page to dynarray
@@ -1767,7 +1767,7 @@ int maria_init_bulk_insert(MARIA_HA *info, ulong cache_size, ha_rows rows)
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
 		(qsort_cmp2)keys_compare,
-		(tree_element_free) keys_free, (void *)params++, 0);
+		(tree_element_free) keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

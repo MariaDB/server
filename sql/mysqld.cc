@@ -1121,7 +1121,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0, 0);
+  init_alloc_root(&m_root, 1024, 0, MYF(0));
 }
 
 void Buffered_logs::cleanup()
@@ -4761,7 +4761,7 @@ int mysqld_main(int argc, char **argv)
   my_getopt_skip_unknown= TRUE;
 
   /* prepare all_early_options array */
-  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, 0);
+  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, MYF(0));
   sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
   add_terminator(&all_early_options);
 
@@ -5355,7 +5355,7 @@ static void bootstrap(MYSQL_FILE *file)
 
   THD *thd= new THD;
   thd->bootstrap=1;
-  my_net_init(&thd->net,(st_vio*) 0, 0);
+  my_net_init(&thd->net,(st_vio*) 0, MYF(0));
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
@@ -7249,7 +7249,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096, 0);
+  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
@@ -7941,7 +7941,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* prepare all_options array */
   my_init_dynamic_array(&all_options, sizeof(my_option),
                         array_elements(my_long_options),
-                        array_elements(my_long_options)/4, 0);
+                        array_elements(my_long_options)/4, MYF(0));
   for (my_option *opt= my_long_options;
        opt < my_long_options + array_elements(my_long_options) - 1;
        opt++)

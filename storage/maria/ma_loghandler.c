@@ -3629,10 +3629,10 @@ my_bool translog_init_with_table(const char *directory,
       mysql_rwlock_init(key_TRANSLOG_DESCRIPTOR_open_files_lock,
                         &log_descriptor.open_files_lock) ||
       my_init_dynamic_array(&log_descriptor.open_files,
-                            sizeof(TRANSLOG_FILE*), 10, 10, 0) ||
+                            sizeof(TRANSLOG_FILE*), 10, 10, MYF(0)) ||
       my_init_dynamic_array(&log_descriptor.unfinished_files,
                             sizeof(struct st_file_counter),
-                            10, 10, 0))
+                            10, 10, MYF(0)))
     goto err;
   log_descriptor.min_need_file= 0;
   log_descriptor.min_file_number= 0;
@@ -5528,7 +5528,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
 
   if (my_init_dynamic_array(&groups,
                             sizeof(struct st_translog_group_descriptor),
-                            10, 10, 0))
+                            10, 10, MYF(0)))
   {
     translog_unlock();
     DBUG_PRINT("error", ("init array failed"));
