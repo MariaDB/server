@@ -1,7 +1,7 @@
 /*************** Valblk H Declares Source Code File (.H) ***************/
-/*  Name: VALBLK.H    Version 1.6                                      */
+/*  Name: VALBLK.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes declares.        */
 /***********************************************************************/
@@ -42,6 +42,7 @@ class VALBLK : public BLOCK {
   virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) = 0;
   virtual int    GetIntValue(int n) = 0;
+  virtual longlong GetBigintValue(int n) = 0;
   virtual double GetFloatValue(int n) = 0;
   virtual void   ReAlloc(void *mp, int n) {Blkp = mp; Nval = n;}
   virtual void   Reset(int n) = 0;
@@ -52,6 +53,7 @@ class VALBLK : public BLOCK {
   // Methods
   virtual void   SetValue(short sval, int n) {assert(false);}
   virtual void   SetValue(int lval, int n) {assert(false);}
+  virtual void   SetValue(longlong lval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetMin(PVAL valp, int n) = 0;
@@ -98,6 +100,7 @@ class CHRBLK : public VALBLK {
   virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n);
   virtual int    GetIntValue(int n);
+  virtual longlong GetBigintValue(int n);
   virtual double GetFloatValue(int n);
   virtual void   Reset(int n);
   virtual void   SetPrec(int p) {Ci = (p != 0);}
@@ -143,6 +146,7 @@ class STRBLK : public VALBLK {
   virtual PSZ    GetCharValue(int n) {return Strp[n];}
   virtual short  GetShortValue(int n) {return (short)atoi(Strp[n]);}
   virtual int    GetIntValue(int n) {return atol(Strp[n]);}
+  virtual longlong GetBigintValue(int n) {return atoll(Strp[n]);}
   virtual double GetFloatValue(int n) {return atof(Strp[n]);}
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
@@ -180,6 +184,7 @@ class SHRBLK : public VALBLK {
 //virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) {return Shrp[n];}
   virtual int    GetIntValue(int n) {return (int)Shrp[n];}
+  virtual longlong GetBigintValue(int n) {return (longlong)Shrp[n];}
   virtual double GetFloatValue(int n) {return (double)Shrp[n];}
   virtual void   Reset(int n) {Shrp[n] = 0;}
 
@@ -187,6 +192,7 @@ class SHRBLK : public VALBLK {
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(short sval, int n) {Shrp[n] = sval;}
   virtual void   SetValue(int lval, int n) {Shrp[n] = (short)lval;}
+  virtual void   SetValue(longlong lval, int n) {Shrp[n] = (short)lval;}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
@@ -220,6 +226,7 @@ class LNGBLK : public VALBLK {
 //virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) {return (short)Lngp[n];}
   virtual int    GetIntValue(int n) {return Lngp[n];}
+  virtual longlong GetBigintValue(int n) {return (longlong)Lngp[n];}
   virtual double GetFloatValue(int n) {return (double)Lngp[n];}
   virtual void   Reset(int n) {Lngp[n] = 0;}
 
@@ -227,6 +234,7 @@ class LNGBLK : public VALBLK {
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(short sval, int n) {Lngp[n] = (int)sval;}
   virtual void   SetValue(int lval, int n) {Lngp[n] = lval;}
+  virtual void   SetValue(longlong lval, int n) {Lngp[n] = (int)lval;}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
@@ -266,6 +274,48 @@ class DATBLK : public LNGBLK {
   }; // end of class DATBLK
 
 /***********************************************************************/
+/*  Class LNGBLK: represents a block of int integer values.           */
+/***********************************************************************/
+class BIGBLK : public VALBLK {
+ public:
+  // Constructors
+  BIGBLK(void *mp, int size);
+
+  // Implementation
+  virtual void   Init(PGLOBAL g, bool check);
+  virtual int    GetVlen(void) {return sizeof(longlong);}
+//virtual PSZ    GetCharValue(int n);
+  virtual short  GetShortValue(int n) {return (short)Lngp[n];}
+  virtual int    GetIntValue(int n) {return (int)Lngp[n];}
+  virtual longlong GetBigintValue(int n) {return Lngp[n];}
+  virtual double GetFloatValue(int n) {return (double)Lngp[n];}
+  virtual void   Reset(int n) {Lngp[n] = 0LL;}
+
+  // Methods
+  virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(short sval, int n) {Lngp[n] = (longlong)sval;}
+  virtual void   SetValue(int lval, int n) {Lngp[n] = (longlong)lval;}
+  virtual void   SetValue(longlong lval, int n) {Lngp[n] = lval;}
+  virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetMin(PVAL valp, int n);
+  virtual void   SetMax(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+  virtual void   SetValues(PVBLK pv, int k, int n);
+  virtual void   AddMinus1(PVBLK pv, int n1, int n2);
+  virtual void   Move(int i, int j);
+  virtual int    CompVal(PVAL vp, int n);
+  virtual int    CompVal(int i1, int i2);
+  virtual void  *GetValPtr(int n);
+  virtual void  *GetValPtrEx(int n);
+  virtual int    Find(PVAL vp);
+  virtual int    GetMaxLength(void);
+
+ protected:
+  // Members
+  longlong* const &Lngp;
+  }; // end of class BIGBLK
+
+/***********************************************************************/
 /*  Class DBLBLK: represents a block of double float values.           */
 /***********************************************************************/
 class DBLBLK : public VALBLK {
@@ -279,6 +329,7 @@ class DBLBLK : public VALBLK {
 //virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) {return (short)Dblp[n];}
   virtual int    GetIntValue(int n) {return (int)Dblp[n];}
+  virtual longlong GetBigintValue(int n) {return (longlong)Dblp[n];}
   virtual double GetFloatValue(int n) {return Dblp[n];}
   virtual void   Reset(int n) {Dblp[n] = 0.0;}
   virtual void   SetPrec(int p) {Prec = p;}

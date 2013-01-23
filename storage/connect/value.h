@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 1.6                                       */
+/*  Name: VALUE.H    Version 1.7                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -15,6 +15,11 @@
 #define __VALUE__H__
 #include "assert.h"
 #include "block.h"
+
+#if defined(WIN32)
+#define strtoll _strtoi64
+#define atoll(S) strtoll(S, NULL, 10)
+#endif   // WIN32
 
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
@@ -72,6 +77,7 @@ class DllExport VALUE : public BLOCK {
   virtual PSZ    GetCharValue(void) {assert(false); return NULL;}
   virtual short  GetShortValue(void) {assert(false); return 0;}
   virtual int    GetIntValue(void) = 0;
+  virtual longlong GetBigintValue(void) = 0;
   virtual double GetFloatValue(void) = 0;
   virtual void  *GetTo_Val(void) = 0;
           int    GetType(void) {return Type;}
@@ -85,6 +91,7 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetValue_bool(bool b) {assert(false);}
   virtual void   SetValue(short i) {assert(false);}
   virtual void   SetValue(int n) {assert(false);}
+  virtual void   SetValue(longlong n) {assert(false);}
   virtual void   SetValue(double f) {assert(false);}
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
   virtual void   SetBinValue(void *p) = 0;
@@ -116,6 +123,7 @@ class DllExport VALUE : public BLOCK {
   virtual char  *GetCharString(char *p) = 0;
   virtual char  *GetShortString(char *p, int n) {return "#####";}
   virtual char  *GetIntString(char *p, int n) = 0;
+  virtual char  *GetBigintString(char *p, int n) = 0;
   virtual char  *GetFloatString(char *p, int n, int prec) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op) = 0;
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np) = 0;
@@ -145,6 +153,7 @@ class STRING : public VALUE {
   STRING(PGLOBAL g, PSZ s, int n, int c = 0);
   STRING(PGLOBAL g, short i);
   STRING(PGLOBAL g, int n);
+  STRING(PGLOBAL g, longlong n);
   STRING(PGLOBAL g, double f);
 
   // Implementation
@@ -159,6 +168,7 @@ class STRING : public VALUE {
   virtual PSZ    GetCharValue(void) {return Strp;}
   virtual short  GetShortValue(void) {return (short)atoi(Strp);}
   virtual int    GetIntValue(void) {return atol(Strp);}
+  virtual longlong GetBigintValue(void) {return strtoll(Strp, NULL, 10);}
   virtual double GetFloatValue(void) {return atof(Strp);}
   virtual void  *GetTo_Val(void) {return Strp;}
 
@@ -169,6 +179,7 @@ class STRING : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetValue(short i);
   virtual void   SetValue(int n);
+  virtual void   SetValue(longlong n);
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
@@ -177,6 +188,7 @@ class STRING : public VALUE {
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
   virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
@@ -215,6 +227,7 @@ class SHVAL : public VALUE {
   SHVAL(PSZ s);
   SHVAL(short n);
   SHVAL(int n);
+  SHVAL(longlong n);
   SHVAL(double f);
 
   // Implementation
@@ -227,6 +240,7 @@ class SHVAL : public VALUE {
 //virtual PSZ    GetCharValue(void) {}
   virtual short  GetShortValue(void) {return Sval;}
   virtual int    GetIntValue(void) {return (int)Sval;}
+  virtual longlong GetBigintValue(void) {return (longlong)Sval;}
   virtual double GetFloatValue(void) {return (double)Sval;}
   virtual void  *GetTo_Val(void) {return &Sval;}
 
@@ -237,6 +251,7 @@ class SHVAL : public VALUE {
   virtual void   SetValue_bool(bool b) {Sval = (b) ? 1 : 0;}
   virtual void   SetValue(short i) {Sval = i;}
   virtual void   SetValue(int n) {Sval = (short)n;}
+  virtual void   SetValue(longlong n) {Sval = (short)n;}
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
@@ -245,6 +260,7 @@ class SHVAL : public VALUE {
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
   virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
@@ -293,6 +309,7 @@ class DllExport INTVAL : public VALUE {
   INTVAL(PSZ s);
   INTVAL(short i);
   INTVAL(int n);
+  INTVAL(longlong n);
   INTVAL(double f);
 
   // Implementation
@@ -305,6 +322,7 @@ class DllExport INTVAL : public VALUE {
 //virtual PSZ    GetCharValue(void) {}
   virtual short  GetShortValue(void) {return (short)Ival;}
   virtual int    GetIntValue(void) {return Ival;}
+  virtual longlong GetBigintValue(void) {return (longlong)Ival;}
   virtual double GetFloatValue(void) {return (double)Ival;}
   virtual void  *GetTo_Val(void) {return &Ival;}
 
@@ -315,6 +333,7 @@ class DllExport INTVAL : public VALUE {
   virtual void   SetValue_bool(bool b) {Ival = (b) ? 1 : 0;}
   virtual void   SetValue(short i) {Ival = (int)i;}
   virtual void   SetValue(int n) {Ival = n;}
+  virtual void   SetValue(longlong n) {Ival = (int)n;}
   virtual void   SetValue(double f) {Ival = (int)f;}
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
@@ -324,6 +343,7 @@ class DllExport INTVAL : public VALUE {
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
   virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
@@ -373,6 +393,7 @@ class DllExport DTVAL : public INTVAL {
   DTVAL(PGLOBAL g, PSZ s, int n);
   DTVAL(PGLOBAL g, short i);
   DTVAL(PGLOBAL g, int n);
+  DTVAL(PGLOBAL g, longlong n);
   DTVAL(PGLOBAL g, double f);
 
   // Implementation
@@ -414,6 +435,89 @@ class DllExport DTVAL : public INTVAL {
   }; // end of class DTVAL
 
 /***********************************************************************/
+/*  Class BIGVAL: represents bigint integer values.                    */
+/***********************************************************************/
+class DllExport BIGVAL : public VALUE {
+ public:
+  // Constructors
+  BIGVAL(PSZ s);
+  BIGVAL(short i);
+  BIGVAL(int n);
+  BIGVAL(longlong n);
+  BIGVAL(double f);
+
+  // Implementation
+  virtual bool   IsTypeNum(void) {return true;}
+  virtual bool   IsZero(void) {return Lval == 0;}
+  virtual void   Reset(void) {Lval = 0;}
+  virtual int    GetValLen(void);
+  virtual int    GetValPrec() {return 0;}
+  virtual int    GetSize(void) {return sizeof(longlong);}
+//virtual PSZ    GetCharValue(void) {}
+  virtual short  GetShortValue(void) {return (short)Lval;}
+  virtual int    GetIntValue(void) {return (int)Lval;}
+  virtual longlong GetBigintValue(void) {return Lval;}
+  virtual double GetFloatValue(void) {return (double)Lval;}
+  virtual void  *GetTo_Val(void) {return &Lval;}
+
+  // Methods
+  virtual bool   SetValue_pval(PVAL valp, bool chktype);
+  virtual void   SetValue_char(char *p, int n);
+  virtual void   SetValue_psz(PSZ s);
+  virtual void   SetValue_bool(bool b) {Lval = (b) ? 1 : 0;}
+  virtual void   SetValue(short i) {Lval = (longlong)i;}
+  virtual void   SetValue(int n) {Lval = (longlong)n;}
+  virtual void   SetValue(longlong n) {Lval = n;}
+  virtual void   SetValue(double f) {Lval = (longlong)f;}
+  virtual void   SetValue_pvblk(PVBLK blk, int n);
+  virtual void   SetBinValue(void *p);
+  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+  virtual void   GetBinValue(void *buf, int len);
+  virtual char  *ShowValue(char *buf, int);
+  virtual char  *GetCharString(char *p);
+  virtual char  *GetShortString(char *p, int n);
+  virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
+  virtual char  *GetFloatString(char *p, int n, int prec = -1);
+  virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual int    CompareValue(PVAL vp);
+  virtual void   Divide(int cnt);
+  virtual void   StdVar(PVAL vp, int cnt, bool b);
+  virtual void   Add(int lv) {Lval += (longlong)lv;}
+  virtual void   Add(PVAL vp);
+  virtual void   Add(PVBLK vbp, int i);
+  virtual void   Add(PVBLK vbp, int j, int k);
+  virtual void   Add(PVBLK vbp, int *x, int j, int k);
+  virtual void   AddSquare(PVAL vp);
+  virtual void   AddSquare(PVBLK vbp, int i);
+  virtual void   AddSquare(PVBLK vbp, int j, int k);
+  virtual void   Times(PVAL vp);
+  virtual void   SetMin(PVAL vp);
+  virtual void   SetMin(PVBLK vbp, int i);
+  virtual void   SetMin(PVBLK vbp, int j, int k);
+  virtual void   SetMin(PVBLK vbp, int *x, int j, int k);
+  virtual void   SetMax(PVAL vp);
+  virtual void   SetMax(PVBLK vbp, int i);
+  virtual void   SetMax(PVBLK vbp, int j, int k);
+  virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
+  virtual int    GetTime(PGLOBAL g, PVAL *vp, int np) {return 0;}
+  virtual bool   FormatValue(PVAL vp, char *fmt);
+  virtual void   Print(PGLOBAL g, FILE *, uint);
+  virtual void   Print(PGLOBAL g, char *, uint);
+
+ protected:
+          longlong SafeAdd(longlong n1, longlong n2);
+          longlong SafeMult(longlong n1, longlong n2);
+  // Default constructor not to be used
+  BIGVAL(void) : VALUE(TYPE_ERROR) {}
+
+  // Members
+  longlong Lval;
+  }; // end of class BIGVAL
+
+/***********************************************************************/
 /*  Class DFVAL: represents double float values.                       */
 /***********************************************************************/
 class DFVAL : public VALUE {
@@ -422,6 +526,7 @@ class DFVAL : public VALUE {
   DFVAL(PSZ s, int prec = 2);
   DFVAL(short i, int prec = 2);
   DFVAL(int n, int prec = 2);
+  DFVAL(longlong n, int prec = 2);
   DFVAL(double f, int prec = 2);
 
   // Implementation
@@ -434,6 +539,7 @@ class DFVAL : public VALUE {
 //virtual PSZ    GetCharValue(void) {}
   virtual short  GetShortValue(void) {return (short)Fval;}
   virtual int    GetIntValue(void) {return (int)Fval;}
+  virtual longlong GetBigintValue(void) {return (longlong)Fval;}
   virtual double GetFloatValue(void) {return Fval;}
   virtual void  *GetTo_Val(void) {return &Fval;}
           void   SetPrec(int prec) {Prec = prec;}
@@ -444,6 +550,7 @@ class DFVAL : public VALUE {
   virtual void   SetValue_psz(PSZ s);
   virtual void   SetValue(short i) {Fval = (double)i;}
   virtual void   SetValue(int n) {Fval = (double)n;}
+  virtual void   SetValue(longlong n) {Fval = (double)n;}
   virtual void   SetValue(double f) {Fval = f;}
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
@@ -453,6 +560,7 @@ class DFVAL : public VALUE {
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
   virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);

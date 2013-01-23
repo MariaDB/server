@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 1.9                                       */
+/*  Name: VALUE.CPP  Version 2.0                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -131,6 +131,7 @@ PSZ GetTypeName(int type)
     case TYPE_STRING: name = "CHAR";     break;
     case TYPE_SHORT:  name = "SMALLINT"; break;
     case TYPE_INT:    name = "INTEGER";  break;
+    case TYPE_BIGINT: name = "BIGINT";   break;
     case TYPE_DATE:   name = "DATE";     break;
     case TYPE_FLOAT:  name = "FLOAT";    break;
     } // endswitch type
@@ -146,8 +147,9 @@ int GetTypeSize(int type, int len)
   switch (type) {
     case TYPE_STRING: len = len * sizeof(char); break;
     case TYPE_SHORT:  len = sizeof(short);      break;
-    case TYPE_INT:    len = sizeof(int);       break;
-    case TYPE_DATE:   len = sizeof(int);       break;
+    case TYPE_INT:    len = sizeof(int);        break;
+    case TYPE_BIGINT: len = sizeof(longlong);   break;
+    case TYPE_DATE:   len = sizeof(int);        break;
     case TYPE_FLOAT:  len = sizeof(double);     break;
       break;
     default:          len = 0;
@@ -186,7 +188,8 @@ int GetDBType(int type)
   switch (type) {
     case TYPE_STRING: tp = DB_CHAR;   break;
     case TYPE_SHORT:  tp = DB_SHORT;  break;
-    case TYPE_INT:    tp = DB_INT;   break;
+    case TYPE_INT:    tp = DB_INT;    break;
+    case TYPE_BIGINT:
     case TYPE_FLOAT:  tp = DB_DOUBLE; break;
     case TYPE_DATE:   tp = DB_DATE;   break;
     default:          tp = DB_ERROR;
@@ -207,6 +210,7 @@ short GetSQLType(int type)
     case TYPE_SHORT:  tp = SQL_SMALLINT;  break;
     case TYPE_INT:    tp = SQL_INTEGER;   break;
     case TYPE_DATE:   tp = SQL_TIMESTAMP; break;
+    case TYPE_BIGINT:
     case TYPE_FLOAT:  tp = SQL_DOUBLE;    break;
     } // endswitch type
 
@@ -225,6 +229,7 @@ int GetSQLCType(int type)
     case TYPE_SHORT:  tp = SQL_C_SHORT;     break;
     case TYPE_INT:    tp = SQL_C_LONG;      break;
     case TYPE_DATE:   tp = SQL_C_TIMESTAMP; break;
+    case TYPE_BIGINT:
     case TYPE_FLOAT:  tp = SQL_C_DOUBLE;    break;
     } // endswitch type
 
@@ -242,6 +247,7 @@ char *GetFormatType(int type)
     case TYPE_STRING: c = "C"; break;
     case TYPE_SHORT:  c = "S"; break;
     case TYPE_INT:    c = "N"; break;
+    case TYPE_BIGINT: c = "L"; break;
     case TYPE_FLOAT:  c = "F"; break;
     case TYPE_DATE:   c = "D"; break;
     } // endswitch type
@@ -259,7 +265,8 @@ int GetFormatType(char c)
   switch (c) {
     case 'C': type = TYPE_STRING; break;
     case 'S': type = TYPE_SHORT;  break;
-    case 'N': type = TYPE_INT;   break;
+    case 'N': type = TYPE_INT;    break;
+    case 'L': type = TYPE_BIGINT; break;
     case 'F': type = TYPE_FLOAT;  break;
     case 'D': type = TYPE_DATE;   break;
     } // endswitch type
@@ -281,11 +288,12 @@ int TranslateSQLType(int stp, int prec, int& len)
       break;
     case SQL_LONGVARCHAR:                   //  (-1)
       type = TYPE_STRING;
-      len = min(abs(len), 128);
+      len = min(abs(len), 255);
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
-      type = (prec) ? TYPE_FLOAT : TYPE_INT;
+      type = (prec) ? TYPE_FLOAT
+           : (len > 10) ? TYPE_BIGINT : TYPE_INT;
       break;
     case SQL_INTEGER:                       //    4
       type = TYPE_INT;
@@ -314,11 +322,13 @@ int TranslateSQLType(int stp, int prec, int& len)
       type = TYPE_DATE;
       len = 19 + ((prec) ? (prec+1) : 0);
       break;
+    case SQL_BIGINT:                        //  (-5)
+      type = TYPE_BIGINT;
+      break;
     case SQL_UNKNOWN_TYPE:                  //    0
     case SQL_BINARY:                        //  (-2)
     case SQL_VARBINARY:                     //  (-3)
     case SQL_LONGVARBINARY:                 //  (-4)
-    case SQL_BIGINT:                        //  (-5)
 //  case SQL_BIT:                           //  (-7)
     case SQL_GUID:                          // (-11)
     default:
@@ -349,6 +359,7 @@ bool IsTypeNum(int type)
   {
   switch (type) {
     case TYPE_INT:
+    case TYPE_BIGINT:
     case TYPE_DATE:
     case TYPE_FLOAT:
     case TYPE_SHORT:
@@ -380,10 +391,11 @@ int ConvertType(int target, int type, CONV kind, bool match)
       if (match && (!IsTypeNum(target) || !IsTypeNum(type)))
         return TYPE_ERROR;
 
-      return (target == TYPE_FLOAT || type == TYPE_FLOAT) ? TYPE_FLOAT
-           : (target == TYPE_DATE  || type == TYPE_DATE)  ? TYPE_DATE
-           : (target == TYPE_INT   || type == TYPE_INT)   ? TYPE_INT
-                                                          : TYPE_SHORT;
+      return (target == TYPE_FLOAT  || type == TYPE_FLOAT)  ? TYPE_FLOAT
+           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
+           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
+           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
+                                                            : TYPE_SHORT;
     default:
       if (!target || target == type)
         return type;
@@ -394,6 +406,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
 
       return (target == TYPE_FLOAT  || type == TYPE_FLOAT)  ? TYPE_FLOAT
            : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
+           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
            : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
            : (target == TYPE_STRING || type == TYPE_STRING) ? TYPE_STRING
@@ -413,10 +426,11 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
 		htrc("AllocateConstant: value=%p type=%hd\n", value, type);
 
   switch (type) {
-    case TYPE_STRING: valp = new(g) STRING((PSZ)value);      break;
-    case TYPE_SHORT:  valp = new(g) SHVAL(*(short*)value);   break;
-    case TYPE_INT:    valp = new(g) INTVAL(*(int*)value);    break;
-    case TYPE_FLOAT:  valp = new(g) DFVAL(*(double *)value); break;
+    case TYPE_STRING: valp = new(g) STRING((PSZ)value);        break;
+    case TYPE_SHORT:  valp = new(g) SHVAL(*(short*)value);     break;
+    case TYPE_INT:    valp = new(g) INTVAL(*(int*)value);      break;
+    case TYPE_BIGINT: valp = new(g) BIGVAL(*(longlong*)value); break;
+    case TYPE_FLOAT:  valp = new(g) DFVAL(*(double *)value);   break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
       return NULL;
@@ -439,6 +453,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
 			break;
     case TYPE_DATE:   valp = new(g) DTVAL(g, len, prec, dom);  break;
     case TYPE_INT:    valp = new(g) INTVAL((int)0);            break;
+    case TYPE_BIGINT: valp = new(g) BIGVAL((longlong)0);       break;
     case TYPE_SHORT:  valp = new(g) SHVAL((short)0);           break;
     case TYPE_FLOAT:  valp = new(g) DFVAL(0.0, prec);          break;
     default:
@@ -470,10 +485,11 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
 
       valp = new(g) STRING(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
-    case TYPE_SHORT: valp = new(g) SHVAL(valp->GetShortValue());   break;
-    case TYPE_INT:   valp = new(g) INTVAL(valp->GetIntValue());    break;
-    case TYPE_DATE:  valp = new(g) DTVAL(g, valp->GetIntValue());  break;
-    case TYPE_FLOAT: valp = new(g) DFVAL(valp->GetFloatValue());   break;
+    case TYPE_SHORT:  valp = new(g) SHVAL(valp->GetShortValue());   break;
+    case TYPE_INT:    valp = new(g) INTVAL(valp->GetIntValue());    break;
+    case TYPE_BIGINT: valp = new(g) BIGVAL(valp->GetBigintValue()); break;
+    case TYPE_DATE:   valp = new(g) DTVAL(g, valp->GetIntValue());  break;
+    case TYPE_FLOAT:  valp = new(g) DFVAL(valp->GetFloatValue());   break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
       return NULL;
@@ -509,6 +525,9 @@ char *VALUE::ShowTypedValue(PGLOBAL g, char *buf, int typ, int n, int p)
       break;
     case TYPE_SHORT:
       buf = GetShortString(buf, n);
+      break;
+    case TYPE_BIGINT:
+      buf = GetBigintString(buf, n);
       break;
     default:
       // More should be added for additional values.
@@ -587,6 +606,17 @@ STRING::STRING(PGLOBAL g, int n) : VALUE(TYPE_STRING)
   } // end of STRING constructor
 
 /***********************************************************************/
+/*  STRING public constructor from bigint.                             */
+/***********************************************************************/
+STRING::STRING(PGLOBAL g, longlong n) : VALUE(TYPE_STRING)
+  {
+  Strp = (char *)PlugSubAlloc(g, NULL, 12);
+  Len = sprintf(Strp, "%lld", n);
+  Clen = Len;
+	Ci = false;
+  } // end of STRING constructor
+
+/***********************************************************************/
 /*  STRING public constructor from double.                             */
 /***********************************************************************/
 STRING::STRING(PGLOBAL g, double f) : VALUE(TYPE_STRING)
@@ -645,7 +675,7 @@ void STRING::SetValue_pvblk(PVBLK blk, int n)
   } // end of SetValue_pvblk
 
 /***********************************************************************/
-/*  STRING SetValue: get the character representation of an integer.   */
+/*  STRING SetValue: get the character representation of a short int.  */
 /***********************************************************************/
 void STRING::SetValue(short n)
   {
@@ -660,6 +690,23 @@ void STRING::SetValue(int n)
   char     buf[16];
   PGLOBAL& g = Global;
   int      k = sprintf(buf, "%d", n);
+
+  if (k > Len) {
+    sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
+    longjmp(g->jumper[g->jump_level], 138);
+  } else
+    SetValue_psz(buf);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  STRING SetValue: get the character representation of a big integer.*/
+/***********************************************************************/
+void STRING::SetValue(longlong n)
+  {
+  char     buf[24];
+  PGLOBAL& g = Global;
+  int      k = sprintf(buf, "%lld", n);
 
   if (k > Len) {
     sprintf(g->Message, MSG(VALSTR_TOO_LONG), buf, Len);
@@ -759,13 +806,22 @@ char *STRING::GetShortString(char *p, int n)
   } // end of GetShortString
 
 /***********************************************************************/
-/*  STRING GetIntString: get int representation of a char value.     */
+/*  STRING GetIntString: get int representation of a char value.       */
 /***********************************************************************/
 char *STRING::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, atol(Strp));
+  sprintf(p, "%*d", n, atol(Strp));
   return p;
   } // end of GetIntString
+
+/***********************************************************************/
+/*  STRING GetIntString: get big int representation of a char value.   */
+/***********************************************************************/
+char *STRING::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, atol(Strp));
+  return p;
+  } // end of GetBigintString
 
 /***********************************************************************/
 /*  STRING GetFloatString: get double representation of a char value.  */
@@ -1383,9 +1439,18 @@ SHVAL::SHVAL(short i) : VALUE(TYPE_SHORT)
   } // end of SHVAL constructor
 
 /***********************************************************************/
-/*  SHVAL  public constructor from int.                               */
+/*  SHVAL  public constructor from int.                                */
 /***********************************************************************/
 SHVAL::SHVAL(int n) : VALUE(TYPE_SHORT)
+  {
+  Sval = (short)n;
+  Clen = sizeof(short);
+  } // end of SHVAL constructor
+
+/***********************************************************************/
+/*  SHVAL  public constructor from big int.                            */
+/***********************************************************************/
+SHVAL::SHVAL(longlong n) : VALUE(TYPE_SHORT)
   {
   Sval = (short)n;
   Clen = sizeof(short);
@@ -1550,13 +1615,22 @@ char *SHVAL::GetShortString(char *p, int n)
   } // end of GetShortString
 
 /***********************************************************************/
-/*  SHVAL GetIntString: get int representation of a short value.     */
+/*  SHVAL GetIntString: get int representation of a short value.       */
 /***********************************************************************/
 char *SHVAL::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, (int)Sval);
+  sprintf(p, "%*d", n, (int)Sval);
   return p;
   } // end of GetIntString
+
+/***********************************************************************/
+/*  SHVAL GetBigintString: get big int representation of a short value.*/
+/***********************************************************************/
+char *SHVAL::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, (longlong)Sval);
+  return p;
+  } // end of GetBigintString
 
 /***********************************************************************/
 /*  SHVAL GetFloatString: get double representation of a short value.  */
@@ -1653,7 +1727,7 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
     Sval = strlen(p);
 
 		if (trace)
-			htrc("Compute result=%d val=%s op=%d\n", Sval, p, op);
+			htrc("Compute result=%hd val=%s op=%d\n", Sval, p, op);
 
   } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
     char *p, *tp = g->Message;
@@ -2039,7 +2113,7 @@ bool SHVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   {
   char c[16];
 
-  fmt.Type[0] = 'N';
+  fmt.Type[0] = 'S';
   fmt.Length = sprintf(c, "%hd", Sval);
   fmt.Prec = 0;
   return false;
@@ -2096,7 +2170,16 @@ INTVAL::INTVAL(int n) : VALUE(TYPE_INT)
   } // end of INTVAL constructor
 
 /***********************************************************************/
-/*  INTVAL  public constructor from double.                             */
+/*  INTVAL  public constructor from big int.                           */
+/***********************************************************************/
+INTVAL::INTVAL(longlong n) : VALUE(TYPE_INT)
+  {
+  Ival = (int)n;
+  Clen = sizeof(int);
+  } // end of INTVAL constructor
+
+/***********************************************************************/
+/*  INTVAL  public constructor from double.                            */
 /***********************************************************************/
 INTVAL::INTVAL(double f) : VALUE(TYPE_INT)
   {
@@ -2228,7 +2311,7 @@ void INTVAL::GetBinValue(void *buf, int buflen)
 /***********************************************************************/
 char *INTVAL::ShowValue(char *buf, int len)
   {
-  sprintf(buf, "%*ld", len, Ival);
+  sprintf(buf, "%*d", len, Ival);
   return buf;
   } // end of ShowValue
 
@@ -2251,13 +2334,22 @@ char *INTVAL::GetShortString(char *p, int n)
   } // end of GetShortString
 
 /***********************************************************************/
-/*  INTVAL GetIntString: get int representation of a int value.      */
+/*  INTVAL GetIntString: get int representation of a int value.        */
 /***********************************************************************/
 char *INTVAL::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, Ival);
+  sprintf(p, "%*d", n, Ival);
   return p;
   } // end of GetIntString
+
+/***********************************************************************/
+/*  INTVAL GetBigintString: get big int representation of a int value. */
+/***********************************************************************/
+char *INTVAL::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, (longlong)Ival);
+  return p;
+  } // end of GetBigintString
 
 /***********************************************************************/
 /*  INTVAL GetFloatString: get double representation of a int value.   */
@@ -3443,6 +3535,723 @@ bool DTVAL::FormatValue(PVAL vp, char *fmt)
 
   } // end of FormatValue
 
+/* -------------------------- Class BIGVAL ---------------------------- */
+
+/***********************************************************************/
+/*  BIGVAL  public constructor from char.                              */
+/***********************************************************************/
+BIGVAL::BIGVAL(PSZ s) : VALUE(TYPE_BIGINT)
+  {
+  Lval = atoll(s);
+  Clen = sizeof(longlong);
+  } // end of BIGVAL constructor
+
+/***********************************************************************/
+/*  BIGVAL  public constructor from short.                             */
+/***********************************************************************/
+BIGVAL::BIGVAL(short n) : VALUE(TYPE_BIGINT)
+  {
+  Lval = (longlong)n;
+  Clen = sizeof(longlong);
+  } // end of BIGVAL constructor
+
+/***********************************************************************/
+/*  BIGVAL  public constructor from int.                               */
+/***********************************************************************/
+BIGVAL::BIGVAL(int n) : VALUE(TYPE_BIGINT)
+  {
+  Lval = (longlong)n;
+  Clen = sizeof(longlong);
+  } // end of BIGVAL constructor
+
+/***********************************************************************/
+/*  BIGVAL  public constructor from big int.                           */
+/***********************************************************************/
+BIGVAL::BIGVAL(longlong n) : VALUE(TYPE_BIGINT)
+  {
+  Lval = n;
+  Clen = sizeof(longlong);
+  } // end of BIGVAL constructor
+
+/***********************************************************************/
+/*  BIGVAL  public constructor from double.                            */
+/***********************************************************************/
+BIGVAL::BIGVAL(double f) : VALUE(TYPE_BIGINT)
+  {
+  Lval = (longlong)f;
+  Clen = sizeof(longlong);
+  } // end of BIGVAL constructor
+
+/***********************************************************************/
+/*  BIGVAL GetValLen: returns the print length of the int object.      */
+/***********************************************************************/
+int BIGVAL::GetValLen(void)
+  {
+  char c[24];
+
+  return sprintf(c, "%lld", Lval);
+  } // end of GetValLen
+
+/***********************************************************************/
+/*  BIGVAL SetValue: copy the value of another Value object.           */
+/*  This function allows conversion if chktype is false.               */
+/***********************************************************************/
+bool BIGVAL::SetValue_pval(PVAL valp, bool chktype)
+  {
+  if (chktype && Type != valp->GetType())
+    return true;
+
+  Lval = valp->GetBigintValue();
+  return false;
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BIGVAL SetValue: convert chars extracted from a line to a big int. */
+/***********************************************************************/
+void BIGVAL::SetValue_char(char *p, int n)
+  {
+  char *p2;
+  bool  minus;
+
+  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
+
+  for (Lval = 0LL, minus = false; p < p2; p++)
+    switch (*p) {
+      case '-':
+        minus = true;
+      case '+':
+        break;
+      case '0': Lval = Lval * 10LL;       break;
+      case '1': Lval = Lval * 10LL + 1LL; break;
+      case '2': Lval = Lval * 10LL + 2LL; break;
+      case '3': Lval = Lval * 10LL + 3LL; break;
+      case '4': Lval = Lval * 10LL + 4LL; break;
+      case '5': Lval = Lval * 10LL + 5LL; break;
+      case '6': Lval = Lval * 10LL + 6LL; break;
+      case '7': Lval = Lval * 10LL + 7LL; break;
+      case '8': Lval = Lval * 10LL + 8LL; break;
+      case '9': Lval = Lval * 10LL + 9LL; break;
+      default:
+        p = p2;
+      } // endswitch *p
+
+  if (minus && Lval)
+    Lval = - Lval;
+
+	if (trace)
+		htrc(" setting big int to: %lld\n", Lval);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BIGVAL SetValue: fill a big int value from a string.               */
+/***********************************************************************/
+void BIGVAL::SetValue_psz(PSZ s)
+  {
+  Lval = atoll(s);
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BIGVAL SetValue: set value with a int extracted from a block.      */
+/***********************************************************************/
+void BIGVAL::SetValue_pvblk(PVBLK blk, int n)
+  {
+  Lval = blk->GetBigintValue(n);
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BIGVAL SetBinValue: with bytes extracted from a line.               */
+/***********************************************************************/
+void BIGVAL::SetBinValue(void *p)
+  {
+  Lval = *(longlong *)p;
+  } // end of SetBinValue
+
+/***********************************************************************/
+/*  GetBinValue: fill a buffer with the internal binary value.         */
+/*  This function checks whether the buffer length is enough and       */
+/*  returns true if not. Actual filling occurs only if go is true.     */
+/*  Currently used by WriteColumn of binary files.                     */
+/***********************************************************************/
+bool BIGVAL::GetBinValue(void *buf, int buflen, bool go)
+  {
+  // Test on length was removed here until a variable in column give the
+  // real field length. For BIN files the field length logically cannot
+  // be different from the variable length because no conversion is done.
+  // Therefore this test is useless anyway.
+//#if defined(_DEBUG)
+//  if (sizeof(int) > buflen)
+//    return true;
+//#endif
+
+  if (go)
+    *(longlong *)buf = Lval;
+
+  return false;
+  } // end of GetBinValue
+
+/***********************************************************************/
+/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
+/*  This is a fast implementation that does not do any checking.       */
+/***********************************************************************/
+void BIGVAL::GetBinValue(void *buf, int buflen)
+  {
+  assert(buflen == sizeof(longlong));
+
+  *(longlong *)buf = Lval;
+  } // end of GetBinValue
+
+/***********************************************************************/
+/*  BIGVAL ShowValue: get string representation of a big int value.    */
+/***********************************************************************/
+char *BIGVAL::ShowValue(char *buf, int len)
+  {
+  sprintf(buf, "%*lld", len, Lval);
+  return buf;
+  } // end of ShowValue
+
+/***********************************************************************/
+/*  BIGVAL GetCharString: get string representation of a big int value.*/
+/***********************************************************************/
+char *BIGVAL::GetCharString(char *p)
+  {
+  sprintf(p, "%lld", Lval);
+  return p;
+  } // end of GetCharString
+
+/***********************************************************************/
+/*  BIGVAL GetShortString: get short representation of a int value.    */
+/***********************************************************************/
+char *BIGVAL::GetShortString(char *p, int n)
+  {
+  sprintf(p, "%*hd", n, (short)Lval);
+  return p;
+  } // end of GetShortString
+
+/***********************************************************************/
+/*  BIGVAL GetIntString: get int representation of a int value.        */
+/***********************************************************************/
+char *BIGVAL::GetIntString(char *p, int n)
+  {
+  sprintf(p, "%*d", n, (int)Lval);
+  return p;
+  } // end of GetIntString
+
+/***********************************************************************/
+/*  BIGVAL GetBigintString: get big int representation of a int value. */
+/***********************************************************************/
+char *BIGVAL::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, Lval);
+  return p;
+  } // end of GetBigintString
+
+/***********************************************************************/
+/*  BIGVAL GetFloatString: get double representation of a int value.   */
+/***********************************************************************/
+char *BIGVAL::GetFloatString(char *p, int n, int prec)
+  {
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Lval);
+  return p;
+  } // end of GetFloatString
+
+/***********************************************************************/
+/*  BIGVAL compare value with another Value.                           */
+/***********************************************************************/
+bool BIGVAL::IsEqual(PVAL vp, bool chktype)
+  {
+  if (this == vp)
+    return true;
+  else if (chktype && Type != vp->GetType())
+    return false;
+  else
+    return (Lval == vp->GetBigintValue());
+
+  } // end of IsEqual
+
+/***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of big int integer filters.   */
+/***********************************************************************/
+int BIGVAL::CompareValue(PVAL vp)
+  {
+//assert(vp->GetType() == Type);
+
+  // Process filtering on big int integers.
+  longlong n = vp->GetBigintValue();
+
+	if (trace > 1)
+		htrc(" Comparing: val=%lld,%lld\n", Lval, n);
+
+  return (Lval > n) ? 1 : (Lval < n) ? (-1) : 0;
+  } // end of CompareValue
+
+/***********************************************************************/
+/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/***********************************************************************/
+longlong BIGVAL::SafeAdd(longlong n1, longlong n2)
+  {
+  PGLOBAL& g = Global;
+  longlong n = n1 + n2;
+
+  if ((n2 > 0LL) && (n < n1)) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if ((n2 < 0LL) && (n > n1)) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return n;
+  } // end of SafeAdd
+
+/***********************************************************************/
+/*  SafeMult: multiply values and test whether overflow occured.       */
+/***********************************************************************/
+longlong BIGVAL::SafeMult(longlong n1, longlong n2)
+  {
+  PGLOBAL& g = Global;
+  double   n = (double)n1 * (double)n2;
+
+  if (n > LLONG_MAX) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if (n < LLONG_MIN) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return n1 * n2;
+  } // end of SafeMult
+
+/***********************************************************************/
+/*  Compute a function on a int integers.                             */
+/***********************************************************************/
+bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  if (op == OP_LEN) {
+    assert(np == 1);
+    char buf[32];
+    char *p = vp[0]->GetCharString(buf);
+
+    Lval = strlen(p);
+
+		if (trace)
+			htrc("Compute result=%lld val=%s op=%d\n", Lval, p, op);
+
+  } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
+    char *p, *tp = g->Message;
+    char *p1, val1[32];
+    char *p2, val2[32];
+		bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
+
+    assert(np == 2);
+
+    p1 = vp[0]->GetCharString(val1);
+    p2 = vp[1]->GetCharString(val2);
+
+    if (op != OP_LIKE) {
+      if (!strcmp(p2, "\\t"))
+        p2 = "\t";
+
+			if (b) {		                      // Case insensitive
+				if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
+	          !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
+          strcpy(g->Message, MSG(NEW_RETURN_NULL));
+          return true;
+					} // endif p
+	  
+				// Make a lower case copy of p1 and p2
+		    p1 = strlwr(strcpy(tp, p1));     
+		    p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
+				} // endif b
+
+      if (op == OP_CNTIN) {
+        size_t t2 = strlen(p2);
+
+        for (Lval = 0LL; (p = strstr(p1, p2)); Lval++, p1 = p + t2) ;
+
+      } else                 // OP_INSTR
+        Lval = (p = strstr(p1, p2)) ? 1LL + (longlong)(p - p1) : 0LL;
+
+		  if (tp != g->Message)  // If working space was obtained
+		    delete [] tp;        // by the use of new, delete it.
+
+    } else                   // OP_LIKE
+      Lval = (PlugEvalLike(g, p1, p2, b)) ? 1LL : 0LL;
+
+		if (trace)
+			htrc("Compute result=%lld val=%s,%s op=%d\n", Lval, p1, p2, op);
+
+  } else {
+    longlong val[2];
+
+    assert(np <= 2);
+
+    for (int i = 0; i < np; i++)
+      val[i] = vp[i]->GetBigintValue();
+
+    switch (op) {
+      case OP_ABS:
+        assert(np == 1);
+        Lval = (*val >= 0LL) ? *val : -*val;
+        break;
+      case OP_SIGN:
+        assert(np == 1);
+        Lval = (*val < 0LL) ? (-1) : 1;
+        break;
+      case OP_CEIL:
+      case OP_FLOOR:
+        assert(np == 1);
+        Lval = *val;
+        break;
+      case OP_ADD:
+        assert(np == 2);
+        Lval = SafeAdd(val[0], val[1]);
+        break;
+      case OP_SUB:
+        assert(np == 2);
+        Lval = SafeAdd(val[0], -val[1]);
+        break;
+      case OP_MULT:
+        assert(np == 2);
+        Lval = SafeMult(val[0], val[1]);
+        break;
+      case OP_MIN:
+        assert(np == 2);
+        Lval = min(val[0], val[1]);
+        break;
+      case OP_MAX:
+        assert(np == 2);
+        Lval = max(val[0], val[1]);
+        break;
+      case OP_DIV:
+        assert(np == 2);
+
+        if (!val[1]) {
+          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          return true;
+          } // endif
+
+        Lval = val[0] / val[1];
+        break;
+      case OP_MOD:
+        assert(np == 2);
+
+        if (!val[1]) {
+          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          return true;
+          } // endif
+
+        Lval = val[0] % val[1];
+        break;
+      case OP_BITAND:
+        assert(np == 2);
+        Lval = val[0] & val[1];
+        break;
+      case OP_BITOR:
+        assert(np == 2);
+        Lval = val[0] | val[1];
+        break;
+      case OP_BITXOR:
+        assert(np == 2);
+        Lval = val[0] ^ val[1];
+        break;
+      case OP_BITNOT:
+        assert(np == 1);
+        Lval = ~val[0];
+        break;
+      case OP_DELTA:
+//      assert(np == 1);
+        Lval = val[0] - Lval;
+        break;
+      default:
+        sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+        return true;
+      } // endswitch op
+
+		if (trace)
+			if (np = 1)
+				htrc(" result=%lld val=%lld op=%d\n", Lval, val[0], op);
+			else
+				htrc(" result=%lld val=%lld,%lld op=%d\n",
+							 Lval, val[0], val[1], op);
+
+  } // endif op
+
+  return false;
+  } // end of Compute
+
+/***********************************************************************/
+/*  Divide: used by aggregate functions when calculating average.      */
+/***********************************************************************/
+void BIGVAL::Divide(int cnt)
+  {
+  Lval /= cnt;
+  } // end of Divide
+
+/***********************************************************************/
+/*  StdVar: used by aggregate functions for Stddev and Variance.       */
+/***********************************************************************/
+void BIGVAL::StdVar(PVAL vp, int cnt, bool b)
+  {
+  longlong lv2 = vp->GetBigintValue();
+
+  Lval = (cnt == 1) ? 0
+       : (SafeAdd(lv2, -(SafeMult(Lval, Lval) / cnt)) / (cnt - 1));
+
+  if (b)    // Builtin == FNC_STDDEV
+    Lval = (longlong)sqrt((double)Lval);
+
+  } // end of StdVar
+
+/***********************************************************************/
+/*  Times: used by aggregate functions for Stddev and Variance.        */
+/***********************************************************************/
+void BIGVAL::Times(PVAL vp)
+  {
+  Lval = SafeMult(Lval, vp->GetBigintValue());
+  } // end of Times
+
+/***********************************************************************/
+/*  Add: used by aggregate functions for Sum and other functions.      */
+/***********************************************************************/
+void BIGVAL::Add(PVAL vp)
+  {
+  Lval = SafeAdd(Lval, vp->GetBigintValue());
+  } // end of Add
+
+/***********************************************************************/
+/*  Add: used by QUERY for function Sum and other functions.           */
+/***********************************************************************/
+void BIGVAL::Add(PVBLK vbp, int i)
+  {
+  Lval = SafeAdd(Lval, vbp->GetBigintValue(i));
+  } // end of Add
+
+/***********************************************************************/
+/*  Add: used by QUERY for function Sum and other functions.           */
+/***********************************************************************/
+void BIGVAL::Add(PVBLK vbp, int j, int k)
+  {
+  CheckType(vbp)
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++)
+    Lval = SafeAdd(Lval, lp[i]);
+
+  } // end of Add
+
+/***********************************************************************/
+/*  Add: used by QUERY for function Sum and other functions.           */
+/***********************************************************************/
+void BIGVAL::Add(PVBLK vbp, int *x, int j, int k)
+  {
+  CheckType(vbp)
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++)
+    Lval = SafeAdd(Lval, lp[x[i]]);
+
+  } // end of Add
+
+/***********************************************************************/
+/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
+/***********************************************************************/
+void BIGVAL::AddSquare(PVAL vp)
+  {
+  longlong val = vp->GetBigintValue();
+
+  Lval = SafeAdd(Lval, SafeMult(val, val));
+  } // end of AddSquare
+
+/***********************************************************************/
+/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
+/***********************************************************************/
+void BIGVAL::AddSquare(PVBLK vbp, int i)
+  {
+  longlong val = vbp->GetBigintValue(i);
+
+  Lval = SafeAdd(Lval, SafeMult(val, val));
+  } // end of AddSquare
+
+/***********************************************************************/
+/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
+/***********************************************************************/
+void BIGVAL::AddSquare(PVBLK vbp, int j, int k)
+  {
+  CheckType(vbp)
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++)
+    Lval = SafeAdd(Lval, SafeMult(lp[i], lp[i]));
+
+  } // end of AddSquare
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool BIGVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Lval);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
+
+/***********************************************************************/
+/*  SetMin: used by the aggregate function MIN.                        */
+/***********************************************************************/
+void BIGVAL::SetMin(PVAL vp)
+  {
+  longlong val = vp->GetBigintValue();
+
+  if (val < Lval)
+    Lval = val;
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/***********************************************************************/
+void BIGVAL::SetMin(PVBLK vbp, int i)
+  {
+  longlong val = vbp->GetBigintValue(i);
+
+  if (val < Lval)
+    Lval = val;
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/***********************************************************************/
+void BIGVAL::SetMin(PVBLK vbp, int j, int k)
+  {
+  CheckType(vbp)
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++)
+    if (lp[i] < Lval)
+      Lval = lp[i];
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/***********************************************************************/
+void BIGVAL::SetMin(PVBLK vbp, int *x, int j, int k)
+  {
+  CheckType(vbp)
+  longlong  val;
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++) {
+    val = lp[x[i]];
+
+    if (val < Lval)
+      Lval = val;
+
+    } // endfor i
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  SetMax: used by the aggregate function MAX.                        */
+/***********************************************************************/
+void BIGVAL::SetMax(PVAL vp)
+  {
+  longlong val = vp->GetBigintValue();
+
+  if (val > Lval)
+    Lval = val;
+
+  } // end of SetMax
+
+/***********************************************************************/
+/*  SetMax: used by QUERY for the aggregate function MAX.              */
+/***********************************************************************/
+void BIGVAL::SetMax(PVBLK vbp, int i)
+  {
+  longlong val = vbp->GetBigintValue(i);
+
+  if (val > Lval)
+    Lval = val;
+
+  } // end of SetMax
+
+/***********************************************************************/
+/*  SetMax: used by QUERY for the aggregate function MAX.              */
+/***********************************************************************/
+void BIGVAL::SetMax(PVBLK vbp, int j, int k)
+  {
+  CheckType(vbp)
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++)
+    if (lp[i] > Lval)
+      Lval = lp[i];
+
+  } // end of SetMax
+
+/***********************************************************************/
+/*  SetMax: used by QUERY for the aggregate function MIN.              */
+/***********************************************************************/
+void BIGVAL::SetMax(PVBLK vbp, int *x, int j, int k)
+  {
+  CheckType(vbp)
+  longlong  val;
+  longlong *lp = (longlong *)vbp->GetValPointer();
+
+  for (register int i = j; i < k; i++) {
+    val = lp[x[i]];
+
+    if (val > Lval)
+      Lval = val;
+
+    } // endfor i
+
+  } // end of SetMax
+
+/***********************************************************************/
+/*  BIGVAL  SetFormat function (used to set SELECT output format).     */
+/***********************************************************************/
+bool BIGVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+  {
+  char c[16];
+
+  fmt.Type[0] = 'L';
+  fmt.Length = sprintf(c, "%lld", Lval);
+  fmt.Prec = 0;
+  return false;
+  } // end of SetConstFormat
+
+/***********************************************************************/
+/*  Make file output of a big int object.                              */
+/***********************************************************************/
+void BIGVAL::Print(PGLOBAL g, FILE *f, uint n)
+  {
+  char m[64];
+
+  memset(m, ' ', n);                             /* Make margin string */
+  m[n] = '\0';
+
+  fprintf(f, "%s%lld\n", m, Lval);
+  } /* end of Print */
+
+/***********************************************************************/
+/*  Make string output of a int object.                                */
+/***********************************************************************/
+void BIGVAL::Print(PGLOBAL g, char *ps, uint z)
+  {
+  sprintf(ps, "%lld", Lval);
+  } /* end of Print */
 
 /* -------------------------- Class DFVAL ---------------------------- */
 
@@ -3623,6 +4432,15 @@ char *DFVAL::GetIntString(char *p, int n)
   sprintf(p, "%*ld", n, (int)Fval);
   return p;
   } // end of GetIntString
+
+/***********************************************************************/
+/*  DFVAL GetBigintString: get big int representation of a double val. */
+/***********************************************************************/
+char *DFVAL::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, (longlong)Fval);
+  return p;
+  } // end of GetBigintString
 
 /***********************************************************************/
 /*  DFVAL GetFloatString: get double representation of a double value. */

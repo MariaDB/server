@@ -76,6 +76,7 @@
 #define  TYPE_STRING       1
 #define  TYPE_FLOAT        2
 #define  TYPE_SHORT        3
+#define  TYPE_BIGINT       5
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
 

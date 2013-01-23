@@ -98,9 +98,12 @@ int MYSQLtoPLG(int mytype)
       break;
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_INT24:
+    case MYSQL_TYPE_ENUM:        // ???
       type = TYPE_INT;
       break;
     case MYSQL_TYPE_LONGLONG:
+      type = TYPE_BIGINT;
+      break;
     case MYSQL_TYPE_DECIMAL:
 #if !defined(ALPHA)
     case MYSQL_TYPE_NEWDECIMAL:
