@@ -39,6 +39,7 @@ extern "C" {
 
 /* flags for hash_init */
 #define HASH_UNIQUE     1       /* hash_insert fails on duplicate key */
+#define HASH_THREAD_SPECIFIC 2  /* Mark allocated memory THREAD_SPECIFIC */
 
 typedef uint my_hash_value_type;
 typedef uchar *(*my_hash_get_key)(const uchar *,size_t*,my_bool);

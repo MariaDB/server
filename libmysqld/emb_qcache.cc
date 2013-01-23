@@ -415,7 +415,7 @@ int emb_load_querycache_result(THD *thd, Querycache_stream *src)
 
   if (!data)
     goto err;
-  init_alloc_root(&data->alloc, 8192,0);
+  init_alloc_root(&data->alloc, 8192,0,0);
   f_alloc= &data->alloc;
 
   data->fields= src->load_int();

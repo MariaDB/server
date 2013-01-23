@@ -683,6 +683,8 @@ typedef struct system_status_var
   ulonglong binlog_bytes_written;
   double last_query_cost;
   double cpu_time, busy_time;
+  /* Don't initialize */
+  volatile int64 memory_used;             /* This shouldn't be accumulated */
 } STATUS_VAR;
 
 /*
@@ -692,6 +694,7 @@ typedef struct system_status_var
 */
 
 #define last_system_status_var questions
+#define last_cleared_system_status_var memory_used
 
 void mark_transaction_to_rollback(THD *thd, bool all);
 
@@ -1425,7 +1428,8 @@ public:
     m_reopen_array(NULL),
     m_locked_tables_count(0)
   {
-    init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0);
+    init_sql_alloc(&m_locked_tables_root, MEM_ROOT_BLOCK_SIZE, 0,
+                   MY_THREAD_SPECIFIC);
   }
   void unlock_locked_tables(THD *thd);
   ~Locked_tables_list()
@@ -1881,7 +1885,8 @@ public:
     {
       bzero((char*)this, sizeof(*this));
       xid_state.xid.null();
-      init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
+      init_sql_alloc(&mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+                     MY_THREAD_SPECIFIC);
     }
   } transaction;
   Global_read_lock global_read_lock;

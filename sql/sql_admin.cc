@@ -398,7 +398,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           because it's already known that the table is badly damaged.
         */
 
-        Warning_info wi(thd->query_id, false);
+        Warning_info wi(thd->query_id, false, true);
         Warning_info *wi_saved= thd->warning_info;
 
         thd->warning_info= &wi;

@@ -1387,7 +1387,8 @@ public:
 
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
-    if (table->key_info - key_info == pk && table->key_info[pk].key_parts == 1)
+    if ((uint) (table->key_info - key_info) == pk &&
+        table->key_info[pk].key_parts == 1)
     {
       prefixes= 1;
       is_single_comp_pk= TRUE;

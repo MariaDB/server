@@ -61,9 +61,8 @@ int ft_init_stopwords()
     if (!(stopwords3=(TREE *)my_malloc(sizeof(TREE),MYF(0))))
       DBUG_RETURN(-1);
     init_tree(stopwords3,0,0,sizeof(FT_STOPWORD),(qsort_cmp2)&FT_STOPWORD_cmp,
-              0,
               (ft_stopword_file ? (tree_element_free)&FT_STOPWORD_free : 0),
-              NULL);
+              NULL, 0);
     /*
       Stopword engine currently does not support tricky
       character sets UCS2, UTF16, UTF32.

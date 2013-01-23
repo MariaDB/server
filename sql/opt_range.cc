@@ -1772,7 +1772,8 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   index= key_nr;
   head=  table;
   key_part_info= head->key_info[index].key_part;
-  my_init_dynamic_array(&ranges, sizeof(QUICK_RANGE*), 16, 16);
+  my_init_dynamic_array(&ranges, sizeof(QUICK_RANGE*), 16, 16,
+                        MYF(MY_THREAD_SPECIFIC));
 
   /* 'thd' is not accessible in QUICK_RANGE_SELECT::reset(). */
   mrr_buf_size= thd->variables.mrr_buff_size;
@@ -1781,7 +1782,8 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   if (!no_alloc && !parent_alloc)
   {
     // Allocates everything through the internal memroot
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     thd->mem_root= &alloc;
   }
   else
@@ -1793,7 +1795,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
 
   /* Allocate a bitmap for used columns (Q: why not on MEM_ROOT?) */
   if (!(bitmap= (my_bitmap_map*) my_malloc(head->s->column_bitmap_size,
-                                           MYF(MY_WME))))
+                                           MYF(MY_WME | MY_THREAD_SPECIFIC))))
   {
     column_bitmap.bitmap= 0;
     *create_error= 1;
@@ -1879,7 +1881,8 @@ QUICK_INDEX_SORT_SELECT::QUICK_INDEX_SORT_SELECT(THD *thd_param,
   index= MAX_KEY;
   head= table;
   bzero(&read_record, sizeof(read_record));
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   DBUG_VOID_RETURN;
 }
 
@@ -1949,7 +1952,8 @@ QUICK_ROR_INTERSECT_SELECT::QUICK_ROR_INTERSECT_SELECT(THD *thd_param,
   head= table;
   record= head->record[0];
   if (!parent_alloc)
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
   else
     bzero(&alloc, sizeof(MEM_ROOT));
   last_rowid= (uchar*) alloc_root(parent_alloc? parent_alloc : &alloc,
@@ -2232,7 +2236,8 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
   head= table;
   rowid_length= table->file->ref_length;
   record= head->record[0];
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   thd_param->mem_root= &alloc;
 }
 
@@ -2966,7 +2971,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.force_default_mrr= ordered_output;
 
     thd->no_errors=1;				// Don't warn about NULL
-    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     if (!(param.key_parts=
            (KEY_PART*) alloc_root(&alloc,
                                   sizeof(KEY_PART) *
@@ -3411,7 +3417,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   my_bitmap_map *old_sets[2];
 
   prune_param.part_info= part_info;
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0);
+  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
   range_par->mem_root= &alloc;
   range_par->old_root= thd->mem_root;
 
@@ -12859,7 +12866,8 @@ QUICK_GROUP_MIN_MAX_SELECT(TABLE *table, JOIN *join_arg, bool have_min_arg,
   DBUG_ASSERT(!parent_alloc);
   if (!parent_alloc)
   {
-    init_sql_alloc(&alloc, join->thd->variables.range_alloc_block_size, 0);
+    init_sql_alloc(&alloc, join->thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
     join->thd->mem_root= &alloc;
   }
   else
@@ -12914,7 +12922,8 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 
   if (min_max_arg_part)
   {
-    if (my_init_dynamic_array(&min_max_ranges, sizeof(QUICK_RANGE*), 16, 16))
+    if (my_init_dynamic_array(&min_max_ranges, sizeof(QUICK_RANGE*), 16, 16,
+                              MYF(MY_THREAD_SPECIFIC)))
       return 1;
 
     if (have_min)

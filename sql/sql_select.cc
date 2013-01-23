@@ -4947,7 +4947,8 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   /* set a barrier for the array of SARGABLE_PARAM */
   (*sargables)[0].field= 0; 
 
-  if (my_init_dynamic_array(keyuse,sizeof(KEYUSE),20,64))
+  if (my_init_dynamic_array(keyuse,sizeof(KEYUSE),20,64,
+                            MYF(MY_THREAD_SPECIFIC)))
     return TRUE;
 
   if (cond)
@@ -14362,7 +14363,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -19171,7 +19172,8 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     goto err;				/* purecov: inspected */
 
   table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                             MYF(MY_WME | MY_ZEROFILL));
+                                             MYF(MY_WME | MY_ZEROFILL|
+                                                 MY_THREAD_SPECIFIC));
   table->status=0;				// May be wrong if quick_select
 
   // If table has a range, move it to select
@@ -22418,6 +22420,7 @@ static void print_join(THD *thd,
   List_iterator_fast<TABLE_LIST> ti(*tables);
   TABLE_LIST **table;
   uint non_const_tables= 0;
+  DBUG_ENTER("print_join");
 
   for (TABLE_LIST *t= ti++; t ; t= ti++)
   {
@@ -22431,13 +22434,13 @@ static void print_join(THD *thd,
   if (!non_const_tables)
   {
     str->append(STRING_WITH_LEN("dual"));
-    return; // all tables were optimized away
+    DBUG_VOID_RETURN;                   // all tables were optimized away
   }
   ti.rewind();
 
   if (!(table= (TABLE_LIST **)thd->alloc(sizeof(TABLE_LIST*) *
                                                 non_const_tables)))
-    return;  // out of memory
+    DBUG_VOID_RETURN;                   // out of memory
 
   TABLE_LIST *tmp, **t= table + (non_const_tables - 1);
   while ((tmp= ti++))
@@ -22476,6 +22479,7 @@ static void print_join(THD *thd,
   }
   print_table_array(thd, eliminated_tables, str, table, 
                     table +  non_const_tables, query_type);
+  DBUG_VOID_RETURN;
 }
 
 /**
@@ -22984,7 +22988,8 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     reset_query_plan();
 
   if (!keyuse.buffer &&
-      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64))
+      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
+                            MYF(MY_THREAD_SPECIFIC)))
   {
     delete_dynamic(&added_keyuse);
     return REOPT_ERROR;

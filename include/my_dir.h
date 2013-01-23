@@ -45,8 +45,9 @@ extern "C" {
 #define MY_S_ISREG(m)	(((m) & MY_S_IFMT) == MY_S_IFREG)
 #define MY_S_ISFIFO(m)	(((m) & MY_S_IFMT) == MY_S_IFIFO)
 
-#define MY_DONT_SORT	512	/* my_lib; Don't sort files */
-#define MY_WANT_STAT	1024	/* my_lib; stat files */
+/* Ensure these dosn't clash with anything in my_sys.h */
+#define MY_DONT_SORT	8192	/* my_lib; Don't sort files */
+#define MY_WANT_STAT	16384	/* my_lib; stat files */
 
 	/* typedefs for my_dir & my_stat */
 

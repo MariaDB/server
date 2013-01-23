@@ -61,7 +61,7 @@ int my_copy(const char *from, const char *to, myf MyFlags)
   MY_STAT stat_buff,new_stat_buff;
   my_bool file_created= 0;
   DBUG_ENTER("my_copy");
-  DBUG_PRINT("my",("from %s to %s MyFlags %d", from, to, MyFlags));
+  DBUG_PRINT("my",("from %s to %s MyFlags %lu", from, to, MyFlags));
 
   from_file=to_file= -1;
   DBUG_ASSERT(!(MyFlags & (MY_FNABP | MY_NABP))); /* for my_read/my_write */

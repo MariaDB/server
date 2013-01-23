@@ -1003,7 +1003,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_EMFILE	EMFILE
 #endif
 
-typedef int		myf;	/* Type of MyFlags in my_funcs */
+typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 typedef char		my_bool; /* Small bool */
 
 /* Macros for converting *constants* to the right type */

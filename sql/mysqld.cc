@@ -1121,7 +1121,7 @@ private:
 
 void Buffered_logs::init()
 {
-  init_alloc_root(&m_root, 1024, 0);
+  init_alloc_root(&m_root, 1024, 0, 0);
 }
 
 void Buffered_logs::cleanup()
@@ -1765,6 +1765,7 @@ extern "C" void unireg_abort(int exit_code)
 
 static void mysqld_exit(int exit_code)
 {
+  DBUG_ENTER("mysqld_exit");
   /*
     Important note: we wait for the signal thread to end,
     but if a kill -15 signal was sent, the signal thread did
@@ -1776,6 +1777,7 @@ static void mysqld_exit(int exit_code)
   clean_up_error_log_mutex();
   my_end((opt_endinfo ? MY_CHECK_ERROR | MY_GIVE_INFO : 0));
   shutdown_performance_schema();        // we do it as late as possible
+  DBUG_LEAVE;
   exit(exit_code); /* purecov: inspected */
 }
 
@@ -2485,9 +2487,13 @@ void unlink_thd(THD *thd)
     sync feature has been shut down at this point.
   */
   DBUG_EXECUTE_IF("sleep_after_lock_thread_count_before_delete_thd", sleep(5););
+  /*
+    We must delete thd inside the lock to ensure that we don't start cleanup
+    before THD is deleted
+  */
+  delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  delete thd;
   DBUG_VOID_RETURN;
 }
 
@@ -2594,7 +2600,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   DBUG_ENTER("one_thread_per_connection_end");
   unlink_thd(thd);
   /* Mark that current_thd is not valid anymore */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   if (put_in_cache)
   {
     mysql_mutex_lock(&LOCK_thread_count);
@@ -2606,9 +2612,10 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 
   /* It's safe to broadcast outside a lock (COND... is not deleted here) */
   DBUG_PRINT("signal", ("Broadcasting COND_thread_count"));
+  mysql_cond_broadcast(&COND_thread_count);
+
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
-  mysql_cond_broadcast(&COND_thread_count);
 
   pthread_exit(0);
   return 0;                                     // Avoid compiler warnings
@@ -3142,9 +3149,9 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   THD *thd= current_thd;
   MYSQL_ERROR::enum_warning_level level;
   sql_print_message_func func;
-
   DBUG_ENTER("my_message_sql");
-  DBUG_PRINT("error", ("error: %u  message: '%s'  Flag: %d", error, str, MyFlags));
+  DBUG_PRINT("error", ("error: %u  message: '%s'  Flag: %lu", error, str,
+                       MyFlags));
 
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
@@ -3430,6 +3437,28 @@ SHOW_VAR com_status_vars[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
+#ifdef SAFEMALLOC
+/*
+  Return the id for the current THD, to allow safemalloc to associate
+  the memory with the right id.
+*/
+
+extern "C" my_thread_id mariadb_dbug_id()
+{
+  THD *thd;
+  if ((thd= current_thd))
+  {
+    return thd->thread_id;
+  }
+  return my_thread_dbug_id();
+}
+#endif /* SAFEMALLOC */
+
+
+/*
+  Init common variables
+*/
+
 static int init_common_variables()
 {
   umask(((~my_umask) & 0666));
@@ -3438,6 +3467,9 @@ static int init_common_variables()
   tzset();			// Set tzname
 
   sf_leaking_memory= 0; // no memory leaks from now on
+#ifdef SAFEMALLOC
+  sf_malloc_dbug_id= mariadb_dbug_id;
+#endif
 
   max_system_variables.pseudo_thread_id= (ulong)~0;
   server_start_time= flush_status_time= my_time(0);
@@ -3897,6 +3929,7 @@ You should consider changing lower_case_table_names to 1 or 2",
 
 static int init_thread_environment()
 {
+  DBUG_ENTER("init_thread_environment");
   mysql_mutex_init(key_LOCK_thread_count, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_status, &LOCK_status, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_delayed_insert,
@@ -3975,9 +4008,9 @@ static int init_thread_environment()
       pthread_key_create(&THR_MALLOC,NULL))
   {
     sql_print_error("Can't create thread-keys");
-    return 1;
+    DBUG_RETURN(1);
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -4641,6 +4674,37 @@ static void test_lc_time_sz()
 }
 #endif//DBUG_OFF
 
+
+/* Thread Mem Usage By P.Linux */
+extern "C"
+void my_malloc_size_cb_func(long long size, myf my_flags)
+{
+  /* If thread specific memory */
+  if (my_flags)
+  {
+    THD *thd= current_thd;
+    if (mysqld_server_initialized || thd)
+    {
+      /*
+        THD may not be set if we are called from my_net_init() before THD
+        thread has started.
+        However, this should never happen, so better to assert and
+        fix this.
+      */
+      DBUG_ASSERT(thd);
+      if (thd)
+      {
+        DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
+                            (longlong) thd->status_var.memory_used, size));
+        thd->status_var.memory_used+= size;
+        DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
+      }
+    }
+  }
+  my_atomic_add64(&global_status_var.memory_used, size);
+}
+
+
 #ifdef __WIN__
 int win_main(int argc, char **argv)
 #else
@@ -4653,6 +4717,9 @@ int mysqld_main(int argc, char **argv)
   */
   my_progname= argv[0];
   sf_leaking_memory= 1; // no safemalloc memory leak reports if we exit early
+  set_malloc_size_cb(my_malloc_size_cb_func);
+  mysqld_server_started= mysqld_server_initialized= 0;
+
 #ifdef HAVE_NPTL
   ld_assume_kernel_is_set= (getenv("LD_ASSUME_KERNEL") != 0);
 #endif
@@ -4665,7 +4732,6 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
-  mysqld_server_started= mysqld_server_initialized= 0;
   orig_argc= argc;
   orig_argv= argv;
   my_getopt_use_args_separator= TRUE;
@@ -4695,7 +4761,7 @@ int mysqld_main(int argc, char **argv)
   my_getopt_skip_unknown= TRUE;
 
   /* prepare all_early_options array */
-  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25);
+  my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, 0);
   sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
   add_terminator(&all_early_options);
 
@@ -4956,8 +5022,6 @@ int mysqld_main(int argc, char **argv)
   if (Events::init(opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
-  mysqld_server_initialized= 1;
-
   if (opt_bootstrap)
   {
     select_thread_in_use= 0;                    // Allow 'kill' to work
@@ -4970,6 +5034,9 @@ int mysqld_main(int argc, char **argv)
       exit(0);
     }
   }
+
+  /* It's now safe to use thread specific memory */
+  mysqld_server_initialized= 1;
 
   create_shutdown_thread();
   start_handle_manager();
@@ -4999,7 +5066,6 @@ int mysqld_main(int argc, char **argv)
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
 #endif
-
 
   /* Signal threads waiting for server to be started */
   mysql_mutex_lock(&LOCK_server_started);
@@ -5180,6 +5246,7 @@ int mysqld_main(int argc, char **argv)
 
   /* Must be initialized early for comparison of service name */
   system_charset_info= &my_charset_utf8_general_ci;
+  set_malloc_size_cb(my_malloc_size_cb_func);
 
   if (my_init())
   {
@@ -5288,7 +5355,7 @@ static void bootstrap(MYSQL_FILE *file)
 
   THD *thd= new THD;
   thd->bootstrap=1;
-  my_net_init(&thd->net,(st_vio*) 0);
+  my_net_init(&thd->net,(st_vio*) 0, 0);
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
@@ -5705,17 +5772,20 @@ void handle_connections_sockets()
     ** Don't allow too many connections
     */
 
+    DBUG_PRINT("info", ("Creating THD for new connection"));
     if (!(thd= new THD))
     {
       (void) mysql_socket_shutdown(new_sock, SHUT_RDWR);
       (void) closesocket(new_sock);
       continue;
     }
+    /* Set to get io buffers to be part of THD */
+    set_current_thd(thd);
     if (!(vio_tmp=vio_new(new_sock,
 			  sock == unix_sock ? VIO_TYPE_SOCKET :
 			  VIO_TYPE_TCPIP,
 			  sock == unix_sock ? VIO_LOCALHOST: 0)) ||
-	my_net_init(&thd->net,vio_tmp))
+	my_net_init(&thd->net, vio_tmp, MYF(MY_THREAD_SPECIFIC)))
     {
       /*
         Only delete the temporary vio if we didn't already attach it to the
@@ -5730,6 +5800,7 @@ void handle_connections_sockets()
 	(void) closesocket(new_sock);
       }
       delete thd;
+      set_current_thd(0);
       continue;
     }
     if (sock == unix_sock)
@@ -5741,6 +5812,7 @@ void handle_connections_sockets()
       thd->scheduler= extra_thread_scheduler;
     }
     create_new_thread(thd);
+    set_current_thd(0);
   }
   DBUG_VOID_RETURN;
 }
@@ -5834,16 +5906,19 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
       CloseHandle(hConnectedPipe);
       continue;
     }
+    set_current_thd(thd);
     if (!(thd->net.vio= vio_new_win32pipe(hConnectedPipe)) ||
-	my_net_init(&thd->net, thd->net.vio))
+	my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
+      set_current_thd(0);
       continue;
     }
     /* Host is unknown */
     thd->security_ctx->host= my_strdup(my_localhost, MYF(0));
     create_new_thread(thd);
+    set_current_thd(0);
   }
   CloseHandle(connectOverlapped.hEvent);
   DBUG_LEAVE;
@@ -6023,6 +6098,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
       errmsg= "Could not set client to read mode";
       goto errorconn;
     }
+    set_current_thd(thd);
     if (!(thd->net.vio= vio_new_win32shared_memory(handle_client_file_map,
                                                    handle_client_map,
                                                    event_client_wrote,
@@ -6030,7 +6106,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
                                                    event_server_wrote,
                                                    event_server_read,
                                                    event_conn_closed)) ||
-                        my_net_init(&thd->net, thd->net.vio))
+        my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       errmsg= 0;
@@ -6039,6 +6115,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
     thd->security_ctx->host= my_strdup(my_localhost, MYF(0)); /* Host is unknown */
     create_new_thread(thd);
     connect_number++;
+    set_current_thd(thd);
     continue;
 
 errorconn:
@@ -6066,6 +6143,7 @@ errorconn:
       CloseHandle(event_conn_closed);
     delete thd;
   }
+  set_current_thd(0);
 
   /* End shared memory handling */
 error:
@@ -7024,6 +7102,7 @@ SHOW_VAR status_vars[]= {
   {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
+  {"Memory_used",              (char*) offsetof(STATUS_VAR, memory_used), SHOW_LONGLONG_STATUS},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
@@ -7170,7 +7249,7 @@ static int option_cmp(my_option *a, my_option *b)
 static void print_help()
 {
   MEM_ROOT mem_root;
-  init_alloc_root(&mem_root, 4096, 4096);
+  init_alloc_root(&mem_root, 4096, 4096, 0);
 
   pop_dynamic(&all_options);
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
@@ -7862,7 +7941,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* prepare all_options array */
   my_init_dynamic_array(&all_options, sizeof(my_option),
                         array_elements(my_long_options),
-                        array_elements(my_long_options)/4);
+                        array_elements(my_long_options)/4, 0);
   for (my_option *opt= my_long_options;
        opt < my_long_options + array_elements(my_long_options) - 1;
        opt++)
@@ -8364,7 +8443,7 @@ void refresh_status(THD *thd)
   add_to_status(&global_status_var, &thd->status_var);
 
   /* Reset thread's status variables */
-  bzero((uchar*) &thd->status_var, sizeof(thd->status_var));
+  thd->set_status_var_init();
   bzero((uchar*) &thd->org_status_var, sizeof(thd->org_status_var)); 
   thd->start_bytes_received= 0;
 

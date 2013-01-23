@@ -2200,7 +2200,8 @@ bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
   /* Sort requests according to MDL_key. */
   if (! (sort_buf= (MDL_request **)my_malloc(req_count *
                                              sizeof(MDL_request*),
-                                             MYF(MY_WME))))
+                                             MYF(MY_WME |
+                                                 MY_THREAD_SPECIFIC))))
     DBUG_RETURN(TRUE);
 
   for (p_req= sort_buf; p_req < sort_buf + req_count; p_req++)

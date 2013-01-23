@@ -5352,7 +5352,7 @@ fl_log_iterator_buffer_init(struct handler_iterator *iterator)
   /* to be able to make my_free without crash in case of error */
   iterator->buffer= 0;
 
-  if (!(dirp = my_dir(fl_dir, MYF(0))))
+  if (!(dirp = my_dir(fl_dir, MYF(MY_THREAD_SPECIFIC))))
   {
     return HA_ITERATOR_ERROR;
   }
@@ -5361,7 +5361,7 @@ fl_log_iterator_buffer_init(struct handler_iterator *iterator)
                                sizeof(enum log_status) +
                                + FN_REFLEN + 1) *
                               (uint) dirp->number_off_files),
-                             MYF(0))) == 0)
+                             MYF(MY_THREAD_SPECIFIC))) == 0)
   {
     return HA_ITERATOR_ERROR;
   }
@@ -5395,6 +5395,7 @@ fl_log_iterator_buffer_init(struct handler_iterator *iterator)
   iterator->buffer= buff;
   iterator->next= &fl_log_iterator_next;
   iterator->destroy= &fl_log_iterator_destroy;
+  my_dirend(dirp);
   return HA_ITERATOR_OK;
 }
 

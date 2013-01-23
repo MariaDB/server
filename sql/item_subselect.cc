@@ -5053,7 +5053,7 @@ bool Ordered_key::alloc_keys_buffers()
   DBUG_ASSERT(key_buff_elements > 0);
 
   if (!(key_buff= (rownum_t*) my_malloc((size_t)(key_buff_elements * 
-    sizeof(rownum_t)), MYF(MY_WME))))
+    sizeof(rownum_t)), MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /*
@@ -5480,7 +5480,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
       !(null_bitmaps= (MY_BITMAP**) thd->alloc(merge_keys_count *
                                                sizeof(MY_BITMAP*))) ||
       !(row_num_to_rowid= (uchar*) my_malloc((size_t)(row_count * rowid_length),
-        MYF(MY_WME))))
+        MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /* Create the only non-NULL key if there is any. */

@@ -58,6 +58,8 @@ struct st_irem
 #ifdef HAVE_BACKTRACE
   void *frame[SF_REMEMBER_FRAMES]; /* call stack                  */
 #endif
+  uint32 flags;                /* Flags passed to malloc 	  */
+  my_thread_id thread_id;      /* Which thread did the allocation */
   uint32 marker;               /* Underrun marker value           */
 };
 
@@ -79,11 +81,21 @@ static int bad_ptr(const char *where, void *ptr);
 static void free_memory(void *ptr);
 static void sf_terminate();
 
+/* Setup default call to get a thread id for the memory */
+
+my_thread_id default_sf_malloc_dbug_id(void)
+{
+  return my_thread_dbug_id();
+}
+
+my_thread_id (*sf_malloc_dbug_id)(void)= default_sf_malloc_dbug_id;
+
+
 /**
   allocates memory
 */
 
-void *sf_malloc(size_t size)
+void *sf_malloc(size_t size, myf my_flags)
 {
   struct st_irem *irem;
   uchar *data;
@@ -114,7 +126,9 @@ void *sf_malloc(size_t size)
   data= (uchar*) (irem + 1);
   irem->datasize= size;
   irem->prev=     0;
+  irem->flags=    my_flags;
   irem->marker=   MAGICSTART; 
+  irem->thread_id= sf_malloc_dbug_id();
   data[size + 0]= MAGICEND0;
   data[size + 1]= MAGICEND1;
   data[size + 2]= MAGICEND2;
@@ -154,17 +168,17 @@ void *sf_malloc(size_t size)
   return data;
 }
 
-void *sf_realloc(void *ptr, size_t size)
+void *sf_realloc(void *ptr, size_t size, myf my_flags)
 {
   char *data;
 
   if (!ptr)
-    return sf_malloc(size);
+    return sf_malloc(size, my_flags);
 
   if (bad_ptr("Reallocating", ptr))
     return 0;
 
-  if ((data= sf_malloc(size)))
+  if ((data= sf_malloc(size, my_flags)))
   {
     struct st_irem *irem= (struct st_irem *)ptr - 1;
     set_if_smaller(size, irem->datasize);
@@ -182,9 +196,37 @@ void sf_free(void *ptr)
   free_memory(ptr);
 }
 
+/**
+  Return size of memory block and if block is thread specific
+
+  sf_malloc_usable_size()
+  @param ptr	Pointer to malloced block
+  @param flags  We will store 1 here if block is marked as MY_THREAD_SPECIFIC
+                otherwise 0
+
+  @return       Size of block                
+*/
+
+size_t sf_malloc_usable_size(void *ptr, myf *flags)
+{
+  struct st_irem *irem= (struct st_irem *)ptr - 1;
+  DBUG_ENTER("sf_malloc_usable_size");
+  *flags= test(irem->flags & MY_THREAD_SPECIFIC);
+  DBUG_PRINT("exit", ("size: %lu  flags: %lu", (ulong) irem->datasize,
+                      *flags));
+  DBUG_RETURN(irem->datasize);
+}
+
 static void free_memory(void *ptr)
 {
   struct st_irem *irem= (struct st_irem *)ptr - 1;
+
+  if ((irem->flags & MY_THREAD_SPECIFIC) &&
+      irem->thread_id != sf_malloc_dbug_id())
+  {
+    DBUG_PRINT("warning",
+               ("Memory: %p was allocated by thread %lu and freed by thread %lu", ptr, (ulong) irem->thread_id, (ulong) sf_malloc_dbug_id()));
+  }
 
   pthread_mutex_lock(&sf_mutex);
   /* Remove this structure from the linked list */
@@ -312,9 +354,11 @@ static int sf_sanity()
 
 /**
   report on all the memory pieces that have not been free'd
+
+  @param id	Id of thread to report. 0 if all
 */
 
-static void sf_terminate()
+void sf_report_leaked_memory(my_thread_id id)
 {
   size_t total= 0;
   struct st_irem *irem;
@@ -322,21 +366,29 @@ static void sf_terminate()
   sf_sanity();
 
   /* Report on all the memory that was allocated but not free'd */
-  if (!sf_leaking_memory && sf_malloc_root)
+
+  for (irem= sf_malloc_root; irem; irem= irem->next)
   {
-    for (irem= sf_malloc_root; irem; irem= irem->next)
+    if (!id || (irem->thread_id == id && irem->flags & MY_THREAD_SPECIFIC))
     {
       fprintf(stderr, "Warning: %4lu bytes lost, allocated at ",
               (ulong) irem->datasize);
       print_stack(irem->frame);
       total+= irem->datasize;
     }
+  }
+  if (total)
     fprintf(stderr, "Memory lost: %lu bytes in %d chunks\n",
             (ulong) total, sf_malloc_count);
-  }
+  return;
+}
+
+static void sf_terminate()
+{
+  if (!sf_leaking_memory)
+    sf_report_leaked_memory(0);
 
   pthread_mutex_destroy(&sf_mutex);
-  return;
 }
 
 #endif

@@ -4343,7 +4343,9 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
     uint size=ALIGN_SIZE(sizeof(user_var_entry))+name.length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(size,MYF(MY_WME | ME_FATALERROR))))
+    if (!(entry = (user_var_entry*) my_malloc(size,
+                                              MYF(MY_WME | ME_FATALERROR |
+                                                  MY_THREAD_SPECIFIC))))
       return 0;
     entry->name.str=(char*) entry+ ALIGN_SIZE(sizeof(user_var_entry))+
       extra_size;
@@ -4571,7 +4573,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 	  entry->value=0;
         entry->value= (char*) my_realloc(entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATALERROR));
+                                             ME_FATALERROR |
+                                             MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }

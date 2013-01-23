@@ -1779,7 +1779,9 @@ past_checksum:
       }
     }
   }
+#ifndef DBUG_OFF
 after_set_capability:
+#endif
 
 err:
   if (errmsg)
@@ -2426,10 +2428,22 @@ static int init_slave_thread(THD* thd, Master_info *mi,
 #if !defined(DBUG_OFF)
   int simulate_error= 0;
 #endif
+  DBUG_EXECUTE_IF("simulate_io_slave_error_on_init",
+                  simulate_error|= (1 << SLAVE_THD_IO););
+  DBUG_EXECUTE_IF("simulate_sql_slave_error_on_init",
+                  simulate_error|= (1 << SLAVE_THD_SQL););
+  /* We must call store_globals() before doing my_net_init() */
+  if (init_thr_lock() || thd->store_globals() ||
+      my_net_init(&thd->net, 0, MYF(MY_THREAD_SPECIFIC)) ||
+      IF_DBUG(simulate_error & (1<< thd_type), 0))
+  {
+    thd->cleanup();
+    DBUG_RETURN(-1);
+  }
+
   thd->system_thread = (thd_type == SLAVE_THD_SQL) ?
     SYSTEM_THREAD_SLAVE_SQL : SYSTEM_THREAD_SLAVE_IO;
   thd->security_ctx->skip_grants();
-  my_net_init(&thd->net, 0);
 /*
   Adding MAX_LOG_EVENT_HEADER_LEN to the max_allowed_packet on all
   slave threads, since a replication event can become this much larger
@@ -2445,17 +2459,6 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
-
-  DBUG_EXECUTE_IF("simulate_io_slave_error_on_init",
-                  simulate_error|= (1 << SLAVE_THD_IO););
-  DBUG_EXECUTE_IF("simulate_sql_slave_error_on_init",
-                  simulate_error|= (1 << SLAVE_THD_SQL););
-  if (init_thr_lock() || thd->store_globals() ||
-      IF_DBUG(simulate_error & (1<< thd_type), 0))
-  {
-    thd->cleanup();
-    DBUG_RETURN(-1);
-  }
 
   if (thd_type == SLAVE_THD_SQL)
     thd_proc_info(thd, "Waiting for the next event in relay log");
@@ -3494,8 +3497,6 @@ err_during_init:
   mi->rli.relay_log.description_event_for_queue= 0;
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
-  DBUG_ASSERT(thd->net.buff != 0);
-  net_end(&thd->net); // destructor will not free it, because net.vio is 0
   mysql_mutex_lock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   delete thd;
@@ -3901,8 +3902,6 @@ err_during_init:
     to avoid unneeded position re-init
   */
   thd->temporary_tables = 0; // remove tempation from destructor to close them
-  DBUG_ASSERT(thd->net.buff != 0);
-  net_end(&thd->net); // destructor will not free it, because we are weird
   DBUG_ASSERT(rli->sql_thd == thd);
   THD_CHECK_SENTRY(thd);
   rli->sql_thd= 0;

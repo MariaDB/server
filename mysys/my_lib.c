@@ -100,7 +100,7 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   char	dirent_tmp[sizeof(struct dirent)+_POSIX_PATH_MAX+1];
 
   DBUG_ENTER("my_dir");
-  DBUG_PRINT("my",("path: '%s' MyFlags: %d",path,MyFlags));
+  DBUG_PRINT("my",("path: '%s' MyFlags: %lu",path,MyFlags));
 
 #if !defined(HAVE_READDIR_R)
   mysql_mutex_lock(&THR_LOCK_open);
@@ -122,12 +122,14 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
                              ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)));
   
   if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
-                            ENTRIES_START_SIZE, ENTRIES_INCREMENT))
+                            ENTRIES_START_SIZE, ENTRIES_INCREMENT,
+                            MyFlags))
   {
     my_free(buffer);
     goto error;
   }
-  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE);
+  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE,
+                  MyFlags);
   
   /* MY_DIR structure is allocated and completly initialized at this point */
   result= (MY_DIR*)buffer;
@@ -263,12 +265,13 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
                              ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)));
   
   if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
-                            ENTRIES_START_SIZE, ENTRIES_INCREMENT))
+                            ENTRIES_START_SIZE, ENTRIES_INCREMENT,
+                            MyFlags))
   {
     my_free(buffer);
     goto error;
   }
-  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE);
+  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE, MyFlags);
   
   /* MY_DIR structure is allocated and completly initialized at this point */
   result= (MY_DIR*)buffer;
@@ -383,7 +386,7 @@ int my_fstat(File Filedes, MY_STAT *stat_area,
              myf MyFlags __attribute__((unused)))
 {
   DBUG_ENTER("my_fstat");
-  DBUG_PRINT("my",("fd: %d  MyFlags: %d", Filedes, MyFlags));
+  DBUG_PRINT("my",("fd: %d  MyFlags: %lu", Filedes, MyFlags));
 #ifdef _WIN32
   DBUG_RETURN(my_win_fstat(Filedes, stat_area));
 #else
@@ -396,7 +399,7 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
 {
   int m_used;
   DBUG_ENTER("my_stat");
-  DBUG_PRINT("my", ("path: '%s'  stat_area: 0x%lx  MyFlags: %d", path,
+  DBUG_PRINT("my", ("path: '%s'  stat_area: 0x%lx  MyFlags: %lu", path,
                     (long) stat_area, my_flags));
 
   if ((m_used= (stat_area == NULL)))

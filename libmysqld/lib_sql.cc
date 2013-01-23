@@ -634,7 +634,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
   //mysql->server_capabilities= client_flag;
-  init_alloc_root(&mysql->field_alloc, 8192, 0);
+  init_alloc_root(&mysql->field_alloc, 8192, 0, 0);
 }
 
 /**
@@ -906,8 +906,9 @@ int Protocol::begin_dataset()
   if (!data)
     return 1;
   alloc= &data->alloc;
-  init_alloc_root(alloc,8192,0);	/* Assume rowlength < 8192 */
-  alloc->min_malloc=sizeof(MYSQL_ROWS);
+  /* Assume rowlength < 8192 */
+  init_alloc_root(alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }
 

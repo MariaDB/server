@@ -3591,9 +3591,10 @@ sub mysql_install_db {
 	verbose       => $opt_verbose,
        ) != 0)
   {
+    my $data= mtr_grab_file($path_bootstrap_log);
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
-	      "see $path_bootstrap_log for errors");
+	      "The $path_bootstrap_log file contains:\n$data\n");
   }
 }
 

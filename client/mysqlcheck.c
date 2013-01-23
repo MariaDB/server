@@ -994,8 +994,10 @@ int main(int argc, char **argv)
   }
 
   if (opt_auto_repair &&
-      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,64) ||
-       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,64)))
+      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, 0) ||
+       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, 0)))
     goto end;
 
   if (opt_alldbs)

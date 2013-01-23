@@ -70,12 +70,13 @@ extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
 
 #ifdef SAFEMALLOC
-void *sf_malloc(size_t size);
-void *sf_realloc(void *ptr, size_t size);
+void *sf_malloc(size_t size, myf my_flags);
+void *sf_realloc(void *ptr, size_t size, myf my_flags);
 void sf_free(void *ptr);
+size_t sf_malloc_usable_size(void *ptr, myf *my_flags);
 #else
-#define sf_malloc(X)    malloc(X)
-#define sf_realloc(X,Y) realloc(X,Y)
+#define sf_malloc(X,Y)    malloc(X)
+#define sf_realloc(X,Y,Z) realloc(X,Y)
 #define sf_free(X)      free(X)
 #endif
 

@@ -158,7 +158,7 @@ bool servers_init(bool dont_read_servers_table)
   }
 
   /* Initialize the mem root for data */
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (dont_read_servers_table)
     goto end;
@@ -178,7 +178,7 @@ bool servers_init(bool dont_read_servers_table)
   return_val= servers_reload(thd);
   delete thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
 
 end:
   DBUG_RETURN(return_val);
@@ -209,7 +209,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, 0);
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table,NULL,1,0, 
                        FALSE))

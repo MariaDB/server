@@ -151,7 +151,7 @@ void udf_init()
 
   mysql_rwlock_init(key_rwlock_THR_LOCK_udf, &THR_LOCK_udf);
 
-  init_sql_alloc(&mem, UDF_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&mem, UDF_ALLOC_BLOCK_SIZE, 0, 0);
   THD *new_thd = new THD;
   if (!new_thd ||
       my_hash_init(&udf_hash,system_charset_info,32,0,0,get_hash_key, NULL, 0))
@@ -258,7 +258,7 @@ end:
   close_mysql_tables(new_thd);
   delete new_thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

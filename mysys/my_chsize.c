@@ -43,7 +43,7 @@ int my_chsize(File fd, my_off_t newlength, int filler, myf MyFlags)
   my_off_t oldsize;
   uchar buff[IO_SIZE];
   DBUG_ENTER("my_chsize");
-  DBUG_PRINT("my",("fd: %d  length: %lu  MyFlags: %d",fd,(ulong) newlength,
+  DBUG_PRINT("my",("fd: %d  length: %lu  MyFlags: %lu",fd,(ulong) newlength,
 		   MyFlags));
 
   if ((oldsize= my_seek(fd, 0L, MY_SEEK_END, MYF(MY_WME+MY_FAE))) == newlength)

@@ -4973,7 +4973,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
     anything yet, to avoid penalty for statements which don't use views
     and thus new .FRM format.
   */
-  init_sql_alloc(&new_frm_mem, 8024, 0);
+  init_sql_alloc(&new_frm_mem, 8024, 0, 0);
 
   thd->current_tablenr= 0;
 restart:
@@ -9265,7 +9265,7 @@ my_bool mysql_rm_tmp_tables(void)
     my_dirend(dirp);
   }
   delete thd;
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_RETURN(0);
 }
 

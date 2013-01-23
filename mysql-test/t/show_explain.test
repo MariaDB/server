@@ -8,6 +8,7 @@
 drop table if exists t0, t1, t2, t3, t4;
 drop view if exists v1;
 --enable_warnings
+SET @old_debug= @@session.debug;
 
 # 
 # Testcases in this file do not work with embedded server. The reason for this
@@ -56,6 +57,7 @@ let $thr1=`select connection_id()`;
 connect (con1, localhost, root,,);
 connection con1;
 let $thr2=`select connection_id()`;
+SET @old_debug= @@session.debug;
 connection default;
 
 # SHOW EXPLAIN FOR <idle thread>
@@ -73,7 +75,7 @@ let $wait_condition= select State='show_explain_trap' from information_schema.pr
 #
 connection con1;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select count(*) from t1 where a < 100000;
 
 connection default;
@@ -101,95 +103,102 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 set optimizer_switch= @show_expl_tmp;
-
+set debug_dbug=@old_debug;
 
 --echo # UNION, first branch 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a from t0 A union select a+1 from t0 B;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 
 --echo # UNION, second branch
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a from t0 A union select a+1 from t0 B;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 
 --echo # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 
 --echo # Uncorrelated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send explain select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo # correlated  subquery, select
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo # correlated  subquery, explain
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo # correlated  subquery, select, while inside the subquery
 set @show_explain_probe_select_id=2; # <---
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo # correlated  subquery, explain, while inside the subquery
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
-
+set debug_dbug=@old_debug;
 
 --echo # correlated  subquery, explain, while inside the subquery
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 --source include/wait_condition.inc
@@ -197,6 +206,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 # TODO: explain in the parent subuqery when the un-correlated child has been
 # run (and have done irreversible cleanups)
@@ -209,7 +219,7 @@ reap;
 --echo #   I've found experimentally that select_id==2 here...
 --echo # 
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send set @foo= (select max(a) from t0 where sin(a) >0);
 connection default;
 --source include/wait_condition.inc
@@ -217,13 +227,14 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # Attempt SHOW EXPLAIN for an UPDATE
 --echo #
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
@@ -234,13 +245,14 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 drop table t2;
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # Attempt SHOW EXPLAIN for a DELETE
 --echo # 
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
@@ -251,14 +263,14 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 drop table t2;
-
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # Multiple SHOW EXPLAIN calls for one select 
 --echo # 
 create table t2 as select a as a, a as dummy from t0 limit 3;
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 --source include/wait_condition.inc
@@ -268,13 +280,14 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 drop table t2;
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
 --echo #
 explain select * from t0 order by a;
 
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 send select * from t0 order by a; 
 connection default;
@@ -282,6 +295,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # SHOW EXPLAIN for SELECT ... with "Using temporary"
@@ -290,7 +304,7 @@ connection default;
 explain select distinct a from t0;
 connection con1;
 
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 send select distinct a from t0; 
 connection default;
@@ -298,6 +312,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
@@ -306,7 +321,7 @@ connection default;
 explain select distinct a from t0;
 connection con1;
 
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 send select distinct a from t0; 
 connection default;
@@ -314,7 +329,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # MDEV-238: SHOW EXPLAIN: Server crashes in JOIN::print_explain with FROM subquery and GROUP BY
@@ -323,7 +338,7 @@ CREATE TABLE t2 ( a INT );
 INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
 explain SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 
-set debug_dbug='d,show_explain_in_find_all_keys';
+set debug_dbug='+d,show_explain_in_find_all_keys';
 send SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 
 connection default;
@@ -334,7 +349,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t2;
 
 
@@ -350,7 +365,7 @@ INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
 EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
 
 connection default;
@@ -358,7 +373,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t2;
 
 
@@ -374,7 +389,7 @@ INSERT INTO t2 VALUES (4),(5),(6),(7),(8),(9);
 explain SELECT * FROM v1, t2;
 
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send SELECT * FROM v1, t2;
 
 connection default;
@@ -383,7 +398,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP VIEW v1;
 DROP TABLE t2, t3;
 
@@ -391,21 +406,21 @@ DROP TABLE t2, t3;
 --echo # MDEV-267: SHOW EXPLAIN: Server crashes in JOIN::print_explain on most of queries
 --echo #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select sleep(1);
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 
 --echo #
 --echo # Same as above, but try another reason for JOIN to be degenerate
 --echo #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0 where 1>10;
 connection default;
 --source include/wait_condition.inc
@@ -413,7 +428,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # Same as above, but try another reason for JOIN to be degenerate (2)
@@ -421,7 +436,7 @@ set debug_dbug='';
 create table t3(a int primary key);
 insert into t3 select a from t0;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send select * from t0,t3 where t3.a=112233;
 connection default;
 --source include/wait_condition.inc
@@ -429,7 +444,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t3;
 
 --echo #
@@ -448,7 +463,7 @@ explain SELECT * FROM t2 WHERE a =
        );
 
 set @show_explain_probe_select_id=2;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 send SELECT * FROM t2 WHERE a = 
        (SELECT MAX(a) FROM t2 
         WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
@@ -458,7 +473,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t2;
 
 
@@ -491,7 +506,7 @@ WHERE a1 < ALL (
 );
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 send
 SELECT count(*) FROM t2, t3
 WHERE a1 < ALL ( 
@@ -504,7 +519,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t2, t3, t4;
 
 --echo #
@@ -516,7 +531,7 @@ INSERT INTO t2 VALUES
   (11,23),(12,3),(13,45),(14,16),(15,2),(16,33),(17,2),(18,5),(19,9),(20,2);
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_end';
+set debug_dbug='+d,show_explain_probe_join_exec_end';
 send
   SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
@@ -525,10 +540,9 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 DROP TABLE t2;
-
 DROP TABLE t1;
 
 --echo #
@@ -538,7 +552,7 @@ CREATE TABLE t1(a INT, KEY(a));
 INSERT INTO t1 VALUES (3),(1),(5),(1);
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 
 send SELECT 'test' FROM t1 WHERE a=1;
 connection default;
@@ -546,7 +560,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 DROP TABLE t1;
 
@@ -570,7 +584,7 @@ set join_cache_level=0;
 explain select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_test_if_quick_select';
+set debug_dbug='+d,show_explain_probe_test_if_quick_select';
 
 send 
 select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
@@ -587,7 +601,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
+set debug_dbug=@old_debug;
 drop table t1;
 
 --echo #
@@ -598,7 +612,7 @@ CREATE TABLE t1(a INT, b INT, c INT, KEY(a), KEY(b), KEY(c));
 INSERT INTO t1 (a) VALUES (3),(1),(5),(1);
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 
 send SHOW INDEX FROM t1;
 connection default;
@@ -606,7 +620,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 DROP TABLE t1;
 
@@ -620,7 +634,7 @@ CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 
 EXPLAIN SELECT a + 1 FROM v1;
 
-set debug_dbug='d,show_explain_probe_join_tab_preread';
+set debug_dbug='+d,show_explain_probe_join_tab_preread';
 set @show_explain_probe_select_id=1;
 
 send
@@ -630,7 +644,7 @@ connection default;
 evalp show explain for $thr2;
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 DROP VIEW v1;
 DROP TABLE t1;
@@ -646,7 +660,7 @@ INSERT INTO t1 VALUES (4),(6);
 EXPLAIN 
 SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
 
-set debug_dbug='d,show_explain_probe_union_read';
+set debug_dbug='+d,show_explain_probe_union_read';
 send
 SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
 
@@ -660,8 +674,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
-
+set debug_dbug=@old_debug;
 DROP TABLE t1;
 
 --echo #
@@ -683,7 +696,7 @@ SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 --send
 SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
@@ -694,7 +707,7 @@ evalp show explain for $thr2;
 
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 DROP TABLE t1, t2;
 
 --echo # 
@@ -717,7 +730,7 @@ insert into t3 select * from t4;
 explain select distinct t1.a from t1,t3 where t1.a=t3.a;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 --send
 select distinct t1.a from t1,t3 where t1.a=t3.a;
 connection default;
@@ -726,7 +739,7 @@ evalp show explain for $thr2;
 
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 drop table t1,t3,t4;
 
@@ -744,7 +757,7 @@ connection con1;
 --echo #  First, make sure that user 'test2' cannot do SHOW EXPLAIN on us
 --echo #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send
 select * from t0 where a < 3;
 
@@ -760,7 +773,7 @@ evalp show explain for $thr2;
 
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 --echo #
 --echo # Check that user test2 can do SHOW EXPLAIN on its own queries 
@@ -770,7 +783,7 @@ connect (con3, localhost, test2,,);
 connection con2;
 let $thr_con2=`select connection_id()`;
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send
 select * from t0 where a < 3;
 
@@ -796,9 +809,10 @@ disconnect con2;
 grant process on *.* to test2@localhost;
 connect (con2, localhost, test2,,);
 connection con1;
+set debug_dbug=@old_debug;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 send
 select * from t0 where a < 3;
 
@@ -810,7 +824,7 @@ evalp show explain for $thr2;
 
 connection con1;
 reap;
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 revoke all privileges on test.* from test2@localhost;
 drop user test2@localhost;
@@ -890,7 +904,7 @@ WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 --send
 SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
@@ -902,9 +916,10 @@ evalp show explain for $thr2;
 
 connection con1;
 reap;
+set debug_dbug=@old_debug;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 --send
 SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
@@ -917,7 +932,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 drop table t1;
 
@@ -933,7 +948,7 @@ INSERT INTO t1 SELECT t11.a FROM t1 t11, t1 t12, t1 t13;
 EXPLAIN SELECT a FROM t1 GROUP BY a;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 --send
 SELECT a FROM t1 GROUP BY a;
 
@@ -944,7 +959,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 drop table t1;
 
@@ -960,7 +975,7 @@ INSERT INTO t2 VALUES (86,'English'),(87,'Russian');
 explain SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 --send
 SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
 
@@ -971,8 +986,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
-
+set debug_dbug=@old_debug;
 drop table t1, t2;
 
 --echo #
@@ -1011,7 +1025,7 @@ explain
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 
 send
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
@@ -1023,7 +1037,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
+set debug_dbug=@old_debug;
 
 DROP TABLE t1,t2,t3;
 
@@ -1047,7 +1061,7 @@ SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 
 send
 SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
@@ -1060,8 +1074,7 @@ evalp show explain for $thr2;
 connection con1;
 reap;
 
-set debug_dbug='';
-
+set debug_dbug=@old_debug;
 DROP TABLE t1,t2,t3;
 
 --echo #
@@ -1088,7 +1101,7 @@ select charset('ãû');
 select hex('ãû');
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_join_exec_start';
+set debug_dbug='+d,show_explain_probe_join_exec_start';
 
 send
 select * from t0 where length('ãû') = a;
@@ -1103,7 +1116,7 @@ connection con1;
 # The constant should be two letters, the last looking like 'bl'
 reap;
 
-set debug_dbug='';
+set debug_dbug=@old_debug;
 set names default;
 
 --echo #

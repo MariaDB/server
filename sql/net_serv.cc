@@ -120,14 +120,15 @@ static my_bool net_write_buff(NET *net,const uchar *packet,ulong len);
 
 /** Init with packet info. */
 
-my_bool my_net_init(NET *net, Vio* vio)
+my_bool my_net_init(NET *net, Vio* vio, uint my_flags)
 {
   DBUG_ENTER("my_net_init");
+  DBUG_PRINT("enter", ("my_flags: %u", my_flags));
   net->vio = vio;
   my_net_local_init(net);			/* Set some limits */
   if (!(net->buff=(uchar*) my_malloc((size_t) net->max_packet+
 				     NET_HEADER_SIZE + COMP_HEADER_SIZE +1,
-				     MYF(MY_WME))))
+				     MYF(MY_WME | my_flags))))
     DBUG_RETURN(1);
   net->buff_end=net->buff+net->max_packet;
   net->error=0; net->return_status=0;
@@ -139,6 +140,7 @@ my_bool my_net_init(NET *net, Vio* vio)
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
   net->unused= 0;
+  net->thread_specific_malloc= test(my_flags & MY_THREAD_SPECIFIC);
 
   if (vio != 0)					/* If real connection */
   {
@@ -193,7 +195,9 @@ my_bool net_realloc(NET *net, size_t length)
   */
   if (!(buff= (uchar*) my_realloc((char*) net->buff, pkt_length +
                                   NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
-                                  MYF(MY_WME))))
+                                  MYF(MY_WME |
+                                      (net->thread_specific_malloc ?
+                                       MY_THREAD_SPECIFIC : 0)))))
   {
     /* @todo: 1 and 2 codes are identical. */
     net->error= 1;
@@ -603,7 +607,10 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     uchar *b;
     uint header_length=NET_HEADER_SIZE+COMP_HEADER_SIZE;
     if (!(b= (uchar*) my_malloc(len + NET_HEADER_SIZE +
-                                COMP_HEADER_SIZE + 1, MYF(MY_WME))))
+                                COMP_HEADER_SIZE + 1,
+                                MYF(MY_WME |
+                                    (net->thread_specific_malloc ?
+                                     MY_THREAD_SPECIFIC : 0)))))
     {
       net->error= 2;
       net->last_errno= ER_OUT_OF_RESOURCES;

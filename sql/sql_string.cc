@@ -42,7 +42,9 @@ bool String::real_alloc(uint32 length)
   if (Alloced_length < arg_length)
   {
     free();
-    if (!(Ptr=(char*) my_malloc(arg_length,MYF(MY_WME))))
+    if (!(Ptr=(char*) my_malloc(arg_length,MYF(MY_WME |
+                                               (thread_specific ?
+                                                MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
     Alloced_length=arg_length;
     alloced=1;
@@ -90,10 +92,16 @@ bool String::realloc_raw(uint32 alloc_length)
       return TRUE;                                 /* Overflow */
     if (alloced)
     {
-      if (!(new_ptr= (char*) my_realloc(Ptr,len,MYF(MY_WME))))
+      if (!(new_ptr= (char*) my_realloc(Ptr,len,
+                                        MYF(MY_WME |
+                                            (thread_specific ?
+                                             MY_THREAD_SPECIFIC : 0)))))
         return TRUE;				// Signal error
     }
-    else if ((new_ptr= (char*) my_malloc(len,MYF(MY_WME))))
+    else if ((new_ptr= (char*) my_malloc(len,
+                                         MYF(MY_WME |
+                                             (thread_specific ?
+                                              MY_THREAD_SPECIFIC : 0)))))
     {
       if (str_length > len - 1)
         str_length= 0;

@@ -1114,7 +1114,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       plugin_array_version++;
       if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
         tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
+      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, 0);
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1507,8 +1507,8 @@ int plugin_init(int *argc, char **argv, int flags)
   init_plugin_psi_keys();
 #endif
 
-  init_alloc_root(&plugin_mem_root, 4096, 4096);
-  init_alloc_root(&tmp_root, 4096, 4096);
+  init_alloc_root(&plugin_mem_root, 4096, 4096, 0);
+  init_alloc_root(&tmp_root, 4096, 4096, 0);
 
   if (my_hash_init(&bookmark_hash, &my_charset_bin, 16, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
@@ -1518,9 +1518,9 @@ int plugin_init(int *argc, char **argv, int flags)
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 
   if (my_init_dynamic_array(&plugin_dl_array,
-                            sizeof(struct st_plugin_dl *),16,16) ||
+                            sizeof(struct st_plugin_dl *),16,16,0) ||
       my_init_dynamic_array(&plugin_array,
-                            sizeof(struct st_plugin_int *),16,16))
+                            sizeof(struct st_plugin_int *),16,16,0))
     goto err;
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
@@ -1716,12 +1716,11 @@ static bool register_builtin(struct st_maria_plugin *plugin,
 */
 static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
 {
-  THD thd;
   TABLE_LIST tables;
   TABLE *table;
   READ_RECORD read_record_info;
   int error;
-  THD *new_thd= &thd;
+  THD *new_thd= new THD;
   bool result;
 #ifdef EMBEDDED_LIBRARY
   No_such_table_error_handler error_handler;
@@ -1732,7 +1731,7 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   new_thd->store_globals();
   new_thd->db= my_strdup("mysql", MYF(0));
   new_thd->db_length= 5;
-  bzero((char*) &thd.net, sizeof(thd.net));
+  bzero((char*) &new_thd->net, sizeof(new_thd->net));
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_READ);
 
 #ifdef EMBEDDED_LIBRARY
@@ -1799,7 +1798,8 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   close_mysql_tables(new_thd);
 end:
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD, 0);
+  delete new_thd;
+  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

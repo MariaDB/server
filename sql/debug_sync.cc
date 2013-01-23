@@ -239,7 +239,8 @@ void debug_sync_init_thread(THD *thd)
   if (opt_debug_sync_timeout)
   {
     thd->debug_sync_control= (st_debug_sync_control*)
-      my_malloc(sizeof(st_debug_sync_control), MYF(MY_WME | MY_ZEROFILL));
+      my_malloc(sizeof(st_debug_sync_control),
+                MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
     if (!thd->debug_sync_control)
     {
       /*
