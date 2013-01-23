@@ -670,20 +670,21 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
       int larg= va_arg(ap, int);
       to= process_int_arg(to, end, 0, larg, 'd', print_type);
       width-= (to - org_to);
-      if ((end - to) >= 4 && (int) width >= 4)
+      if ((end - to) >= 3 && (int) width >= 3)
       {
         char errmsg_buff[MYSYS_STRERROR_SIZE];
         *to++= ' ';
         *to++= '"';
         my_strerror(errmsg_buff, sizeof(errmsg_buff), larg);
         to= process_str_arg(cs, to, end, width-3, errmsg_buff, print_type);
-        *to++= '"';
+        if (end > to)
+          *to++= '"';
       }
       continue;
     }
 
     /* We come here on '%%', unknown code or too long parameter */
-    if (to == end)
+    if (to >= end)
       break;
     *to++='%';				/* % used as % or unknown code */
   }
