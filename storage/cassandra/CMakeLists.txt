@@ -1,32 +1,49 @@
+# use the first path that has Thrift.h included, if found
 
+FIND_PATH(Thrift_INCLUDE_DIRS Thrift.h PATHS
+$ENV{THRIFT_INCLUDE}      # environment variable to be used optionally
+${Thrift_INCLUDE_DIR}     # this may be set
+/usr/local/include/thrift # list of additional directories to look from
+/opt/local/include/thrift
+/usr/include/thrift
+/opt/include/thrift
+)
 
-IF(NOT WITH_CASSANDRA_STORAGE_ENGINE)
-  SET(WITHOUT_CASSANDRA 1)
-ENDIF(NOT WITH_CASSANDRA_STORAGE_ENGINE)
+# Verify that thrift linking library is found
+FIND_LIBRARY(Thrift_LIBS NAMES thrift PATHS ${Thrift_LIB_PATHS} ${Thrift_LIB})
+IF(EXISTS ${Thrift_LIBS})
+  GET_FILENAME_COMPONENT(LINK_DIR ${Thrift_LIBS} PATH ABSOLUTE)
+ELSE()
+  RETURN()
+ENDIF()
 
+INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}) 
+SET(CMAKE_REQUIRED_INCLUDES ${Thrift_INCLUDE_DIRS})
 
-SET(cassandra_sources 
-     ha_cassandra.cc 
-     ha_cassandra.h 
-     cassandra_se.h
-     cassandra_se.cc
-     gen-cpp/Cassandra.cpp
-     gen-cpp/cassandra_types.h 
-     gen-cpp/cassandra_types.cpp
-     gen-cpp/cassandra_constants.h 
-     gen-cpp/cassandra_constants.cpp
-     gen-cpp/Cassandra.h)
+CHECK_CXX_SOURCE_COMPILES(
+"
+#include <Thrift.h>
+int main() { return 0; }
+" CASSANDRASE_OK)
 
-#INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
+IF(CASSANDRASE_OK)
+  SET(cassandra_sources 
+      ha_cassandra.cc 
+      ha_cassandra.h 
+      cassandra_se.h
+      cassandra_se.cc
+      gen-cpp/Cassandra.cpp
+      gen-cpp/cassandra_types.h 
+      gen-cpp/cassandra_types.cpp
+      gen-cpp/cassandra_constants.h 
+      gen-cpp/cassandra_constants.cpp
+      gen-cpp/Cassandra.h)
 
-#INCLUDE_DIRECTORIES(AFTER /usr/local/include/thrift)
-INCLUDE_DIRECTORIES(AFTER /home/buildbot/build/thrift-inst/include/thrift/) 
-#INCLUDE_DIRECTORIES(AFTER /home/psergey/cassandra/thrift/include/thrift/) 
+  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+  STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+  LINK_DIRECTORIES(${LINK_DIR})
 
-# 
-STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-#LINK_DIRECTORIES(/home/psergey/cassandra/thrift/lib)
-
-MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift)
-# was: STORAGE_ENGINE MANDATORY 
+  MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT CassandraSE)
+  INSTALL(FILES cassandra.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
+          COMPONENT CassandraSE)
+ENDIF(CASSANDRASE_OK)

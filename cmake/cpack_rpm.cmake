@@ -20,12 +20,13 @@ SET(CPACK_COMPONENT_CLIENT_GROUP "client")
 SET(CPACK_COMPONENT_MANPAGESCLIENT_GROUP "client")
 SET(CPACK_COMPONENT_README_GROUP "server")
 SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
+SET(CPACK_COMPONENT_CASSANDRASELIBRARIES_GROUP "CassandraSE")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                                 SupportFiles Development ManPagesDevelopment
                                 ManPagesTest Readme ManPagesClient Test 
-                                Common Client SharedLibraries)
+                                Common Client SharedLibraries CassandraSE)
 
 SET(CPACK_RPM_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
@@ -63,6 +64,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "${CPACK_RPM_SPEC_MORE_DEFINE}
 ")
 
 SET(CPACK_RPM_PACKAGE_REQUIRES "MariaDB-common")
+SET(CPACK_RPM_CassandraSE_PACKAGE_REQUIRES "MariaDB-server")
 
 SET(CPACK_RPM_server_USER_FILELIST "%ignore /etc" "%ignore /etc/init.d" "%config(noreplace) /etc/my.cnf.d/*")
 SET(CPACK_RPM_common_USER_FILELIST "%config(noreplace) /etc/my.cnf")
