@@ -520,7 +520,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (!groups)
     groups= (char**) fake_groups;
 
-  my_progname= (char *)"mysql_embedded";
+  if (!my_progname)
+    my_progname= (char *)"mysql_embedded";
 
   /*
     Perform basic logger initialization logger. Should be called after
@@ -907,7 +908,7 @@ int Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(alloc, 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }
