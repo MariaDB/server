@@ -1467,12 +1467,12 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
     special_type_field_names=
       ((LEX_STRING*)(special_type_field_converters + max_non_default_fields));
 
-    if (init_dynamic_array(&dynamic_values,
+    if (my_init_dynamic_array(&dynamic_values,
                            sizeof(DYNAMIC_COLUMN_VALUE),
                            DYNCOL_USUAL, DYNCOL_DELTA))
       DBUG_RETURN(true);
     else
-      if (init_dynamic_array(&dynamic_names,
+      if (my_init_dynamic_array(&dynamic_names,
                              sizeof(LEX_STRING),
                              DYNCOL_USUAL, DYNCOL_DELTA))
       {
