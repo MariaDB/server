@@ -458,7 +458,6 @@ DROP TABLE t1;
 
 # Execute twice so number stablizes a bit
 let $tmp= `select memory_used from information_schema.processlist`;
-let $tmp= `select memory_used from information_schema.processlist`;
 set @var= repeat('a',20000);
 let $tmp2= `select memory_used from information_schema.processlist`;
 --disable_query_log
