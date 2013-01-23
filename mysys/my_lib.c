@@ -123,13 +123,13 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   
   if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
-                            MyFlags))
+                            MYF(MyFlags)))
   {
     my_free(buffer);
     goto error;
   }
   init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE,
-                  MyFlags);
+                  MYF(MyFlags));
   
   /* MY_DIR structure is allocated and completly initialized at this point */
   result= (MY_DIR*)buffer;
@@ -266,12 +266,12 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   
   if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
-                            MyFlags))
+                            MYF(MyFlags)))
   {
     my_free(buffer);
     goto error;
   }
-  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE, MyFlags);
+  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE, MYF(MyFlags));
   
   /* MY_DIR structure is allocated and completly initialized at this point */
   result= (MY_DIR*)buffer;

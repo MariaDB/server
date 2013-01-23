@@ -3964,7 +3964,7 @@ restart:
       my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
     MEM_ROOT *old_root= *root_ptr;
     MEM_ROOT mem_root;
-    init_sql_alloc(&mem_root, 4096, 0, 0);
+    init_sql_alloc(&mem_root, 4096, 0, MYF(0));
     List<Cluster_schema> post_epoch_log_list;
     List<Cluster_schema> post_epoch_unlock_list;
     *root_ptr= &mem_root;

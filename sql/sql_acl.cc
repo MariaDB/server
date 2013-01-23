@@ -749,13 +749,13 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   acl_cache->clear(1);				// Clear locked hostname cache
 
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, 0);
+  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (init_read_record(&read_record_info,thd,table= tables[0].table,NULL,1,0, 
                        FALSE))
     goto end;
 
   table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST), 20, 50, 0);
+  (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST), 20, 50, MYF(0));
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_HOST host;
@@ -807,7 +807,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     goto end;
 
   table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, 0);
+  (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
   if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
@@ -1009,7 +1009,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     goto end;
 
   table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB), 50, 100, 0);
+  (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB), 50, 100, MYF(0));
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_DB db;
@@ -1067,7 +1067,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   freeze_size(&acl_dbs);
 
   (void) my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 
-                               50, 100, 0);
+                               50, 100, MYF(0));
   if (tables[3].table)
   {
     init_read_record(&read_record_info, thd, table= tables[3].table, NULL, 1, 
@@ -1722,7 +1722,7 @@ static void init_check_host(void)
 {
   DBUG_ENTER("init_check_host");
   (void) my_init_dynamic_array(&acl_wild_hosts,sizeof(struct acl_host_and_ip),
-                               acl_users.elements, 1, 0);
+                               acl_users.elements, 1, MYF(0));
   (void) my_hash_init(&acl_check_hosts,system_charset_info,
                       acl_users.elements, 0, 0,
                       (my_hash_get_key) check_get_key, 0, 0);
@@ -4412,7 +4412,7 @@ my_bool grant_reload(THD *thd)
     opertion possible in case of failure.
   */
   old_mem= memex;
-  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, 0);
+  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if ((return_val= grant_load(thd, tables)))
   {						// Error. Revert to old hash

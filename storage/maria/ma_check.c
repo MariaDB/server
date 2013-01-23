@@ -3766,7 +3766,7 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
   param->read_cache.end_of_file= sort_info.filelength;
   sort_param.wordlist=NULL;
   init_alloc_root(&sort_param.wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
-                  param->malloc_flags);
+                  MYF(param->malloc_flags));
 
   sort_param.key_cmp=sort_key_cmp;
   sort_param.lock_in_memory=maria_lock_memory;
@@ -4404,7 +4404,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
          sort_param[i].keyinfo->seg->charset->mbmaxlen);
       sort_param[i].key_length+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
       init_alloc_root(&sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
-                      param->malloc_flags);
+                      MYF(param->malloc_flags));
     }
   }
   sort_info.total_keys=i;

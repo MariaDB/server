@@ -240,7 +240,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
   bzero(&wtree,sizeof(wtree));
 
   init_tree(&aio.dtree,0,0,sizeof(FT_SUPERDOC),(qsort_cmp2)&FT_SUPERDOC_cmp,
-            NULL, NULL, 0);
+            NULL, NULL, MYF(0));
 
   maria_ft_parse_init(&wtree, aio.charset);
   ftparser_param->flags= 0;

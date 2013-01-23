@@ -1170,7 +1170,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
   {
     options->init_commands= (DYNAMIC_ARRAY*)my_malloc(sizeof(DYNAMIC_ARRAY),
 						      MYF(MY_WME));
-    my_init_dynamic_array(options->init_commands,sizeof(char*),5, 5, 0);
+    my_init_dynamic_array(options->init_commands,sizeof(char*),5, 5, MYF(0));
   }
 
   if (!(tmp= my_strdup(cmd,MYF(MY_WME))) ||

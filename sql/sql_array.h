@@ -101,7 +101,7 @@ public:
   Dynamic_array(uint prealloc=16, uint increment=16)
   {
     my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
-                          MY_THREAD_SPECIFIC);
+                          MYF(MY_THREAD_SPECIFIC));
   }
 
   Elem& at(int idx)

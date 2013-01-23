@@ -156,7 +156,7 @@ static my_bool acquire_plugins(THD *thd, plugin_ref plugin, void *arg)
   {
     /* specify some reasonable initialization defaults */
     my_init_dynamic_array(&thd->audit_class_plugins,
-                          sizeof(plugin_ref), 16, 16, 0);
+                          sizeof(plugin_ref), 16, 16, MYF(0));
   }
   
   /* lock the plugin and add it to the list */

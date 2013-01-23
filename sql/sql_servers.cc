@@ -209,7 +209,7 @@ static bool servers_load(THD *thd, TABLE_LIST *tables)
 
   my_hash_reset(&servers_cache);
   free_root(&mem, MYF(0));
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, 0);
+  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (init_read_record(&read_record_info,thd,table=tables[0].table,NULL,1,0, 
                        FALSE))

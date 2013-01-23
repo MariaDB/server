@@ -2410,7 +2410,7 @@ dynamic_column_list(DYNAMIC_COLUMN *str, DYNAMIC_ARRAY *array_of_uint)
     return ER_DYNCOL_FORMAT;
 
   if (my_init_dynamic_array(array_of_uint, sizeof(uint), header.column_count,
-                            0, 0))
+                            0, MYF(0)))
     return ER_DYNCOL_RESOURCE;
 
   for (i= 0, read= header.header;

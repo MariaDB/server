@@ -4973,7 +4973,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
     anything yet, to avoid penalty for statements which don't use views
     and thus new .FRM format.
   */
-  init_sql_alloc(&new_frm_mem, 8024, 0, 0);
+  init_sql_alloc(&new_frm_mem, 8024, 0, MYF(0));
 
   thd->current_tablenr= 0;
 restart:

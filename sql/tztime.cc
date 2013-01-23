@@ -1637,7 +1637,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, 32 * 1024, 0, 0);
+  init_sql_alloc(&tz_storage, 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -2599,7 +2599,7 @@ main(int argc, char **argv)
   }
   else
   {
-    init_alloc_root(&tz_storage, 32768, 0, 0);
+    init_alloc_root(&tz_storage, 32768, 0, MYF(0));
 
     if (strcmp(argv[1], "--leap") == 0)
     {
@@ -2676,7 +2676,7 @@ main(int argc, char **argv)
 
   MY_INIT(argv[0]);
 
-  init_alloc_root(&tz_storage, 32768, 0);
+  init_alloc_root(&tz_storage, 32768, MYF(0));
 
   /* let us set some well known timezone */
   setenv("TZ", "MET", 1);

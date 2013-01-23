@@ -1114,7 +1114,7 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       plugin_array_version++;
       if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
         tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, 0);
+      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, MYF(0));
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1507,8 +1507,8 @@ int plugin_init(int *argc, char **argv, int flags)
   init_plugin_psi_keys();
 #endif
 
-  init_alloc_root(&plugin_mem_root, 4096, 4096, 0);
-  init_alloc_root(&tmp_root, 4096, 4096, 0);
+  init_alloc_root(&plugin_mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
 
   if (my_hash_init(&bookmark_hash, &my_charset_bin, 16, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
@@ -1518,9 +1518,9 @@ int plugin_init(int *argc, char **argv, int flags)
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 
   if (my_init_dynamic_array(&plugin_dl_array,
-                            sizeof(struct st_plugin_dl *),16,16,0) ||
+                            sizeof(struct st_plugin_dl *), 16, 16, MYF(0)) ||
       my_init_dynamic_array(&plugin_array,
-                            sizeof(struct st_plugin_int *),16,16,0))
+                            sizeof(struct st_plugin_int *), 16, 16, MYF(0)))
     goto err;
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
