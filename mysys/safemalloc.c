@@ -207,45 +207,14 @@ void sf_free(void *ptr)
   @return       Size of block                
 */
 
-size_t sf_malloc_usable_size(void *ptr, myf *flags)
+size_t sf_malloc_usable_size(void *ptr, my_bool *is_thread_specific)
 {
   struct st_irem *irem= (struct st_irem *)ptr - 1;
   DBUG_ENTER("sf_malloc_usable_size");
-  *flags= test(irem->flags & MY_THREAD_SPECIFIC);
+  *is_thread_specific= test(irem->flags & MY_THREAD_SPECIFIC);
   DBUG_PRINT("exit", ("size: %lu  flags: %lu", (ulong) irem->datasize,
-                      *flags));
+                      (ulong)irem->flags));
   DBUG_RETURN(irem->datasize);
-}
-
-static void free_memory(void *ptr)
-{
-  struct st_irem *irem= (struct st_irem *)ptr - 1;
-
-  if ((irem->flags & MY_THREAD_SPECIFIC) &&
-      irem->thread_id != sf_malloc_dbug_id())
-  {
-    DBUG_PRINT("warning",
-               ("Memory: %p was allocated by thread %lu and freed by thread %lu", ptr, (ulong) irem->thread_id, (ulong) sf_malloc_dbug_id()));
-  }
-
-  pthread_mutex_lock(&sf_mutex);
-  /* Remove this structure from the linked list */
-  if (irem->prev)
-    irem->prev->next= irem->next;
-   else
-    sf_malloc_root= irem->next;
-
-  if (irem->next)
-    irem->next->prev= irem->prev;
-
-  /* Handle the statistics */
-  sf_malloc_count--;
-  pthread_mutex_unlock(&sf_mutex);
-
-  /* only trash the data and magic values, but keep the stack trace */
-  TRASH_FREE((uchar*)(irem + 1) - 4, irem->datasize + 8);
-  free(irem);
-  return;
 }
 
 #ifdef HAVE_BACKTRACE
@@ -276,6 +245,39 @@ static void print_stack(void **frame)
 #else
 #define print_stack(X)          fprintf(stderr, "???\n")
 #endif
+
+static void free_memory(void *ptr)
+{
+  struct st_irem *irem= (struct st_irem *)ptr - 1;
+
+  if ((irem->flags & MY_THREAD_SPECIFIC) && irem->thread_id &&
+      irem->thread_id != sf_malloc_dbug_id())
+  {
+    fprintf(stderr, "Warning: %4lu bytes freed by T@%lu, allocated by T@%lu at ",
+              (ulong) irem->datasize,
+              (ulong) sf_malloc_dbug_id(), (ulong) irem->thread_id);
+      print_stack(irem->frame);
+  }
+
+  pthread_mutex_lock(&sf_mutex);
+  /* Remove this structure from the linked list */
+  if (irem->prev)
+    irem->prev->next= irem->next;
+   else
+    sf_malloc_root= irem->next;
+
+  if (irem->next)
+    irem->next->prev= irem->prev;
+
+  /* Handle the statistics */
+  sf_malloc_count--;
+  pthread_mutex_unlock(&sf_mutex);
+
+  /* only trash the data and magic values, but keep the stack trace */
+  TRASH_FREE((uchar*)(irem + 1) - 4, irem->datasize + 8);
+  free(irem);
+  return;
+}
 
 static void warn(const char *format,...)
 {
@@ -371,8 +373,10 @@ void sf_report_leaked_memory(my_thread_id id)
   {
     if (!id || (irem->thread_id == id && irem->flags & MY_THREAD_SPECIFIC))
     {
-      fprintf(stderr, "Warning: %4lu bytes lost, allocated at ",
-              (ulong) irem->datasize);
+      my_thread_id tid = irem->thread_id && irem->flags & MY_THREAD_SPECIFIC ?
+                         irem->thread_id : 0;
+      fprintf(stderr, "Warning: %4lu bytes lost, allocated by T@%lu at ",
+              (ulong) irem->datasize,tid);
       print_stack(irem->frame);
       total+= irem->datasize;
     }

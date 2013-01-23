@@ -793,6 +793,7 @@ THD::THD()
    accessed_rows_and_keys(0),
    warning_info(&main_warning_info),
    stmt_da(&main_da),
+   thread_id(0),
    global_disable_checkpoint(0),
    is_fatal_error(0),
    transaction_rollback_request(0),
@@ -867,7 +868,6 @@ THD::THD()
   connection_name.length= 0;
 
   bzero(&variables, sizeof(variables));
-  thread_id= 0;
   one_shot_set= 0;
   file_id = 0;
   query_id= 0;
