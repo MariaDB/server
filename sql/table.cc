@@ -2341,13 +2341,11 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   uint records, i, bitmap_size;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
-  Field **field_ptr, **vfield_ptr, **dfield_ptr;
+  Field **field_ptr, **UNINIT_VAR(vfield_ptr), **UNINIT_VAR(dfield_ptr);
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: 0x%lx", share->db.str,
                       share->table_name.str, (long) outparam));
-  LINT_INIT(dfield_ptr);
-  LINT_INIT(vfield_ptr);
 
   thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_VIEW; // not a view
 

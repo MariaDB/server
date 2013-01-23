@@ -195,7 +195,6 @@ ma_packrec\.c : .*result of 32-bit shift implicitly converted to 64 bits.* : 550
 .* : .*no matching operator delete found; memory will not be freed if initialization throws an exception.*
 ctype-simple\.c : .*unary minus operator applied to unsigned type, result still unsigned.*
 sql/sys_vars\.cc : invalid access to non-static data member
-sql/sys_vars\.cc : perhaps the .*offsetof.* macro was used incorrectly
 string3\.h : memset used with constant zero length parameter
 
 

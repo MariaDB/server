@@ -3137,7 +3137,6 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
-  int int_arg;
   DBUG_ENTER("ha_federated::real_connect");
 
   /* 
@@ -3155,10 +3154,6 @@ int ha_federated::real_connect()
     remote_error_number= HA_ERR_OUT_OF_MEM;
     DBUG_RETURN(-1);
   }
-
-  /* Ensure that memory is registered for the system, not for the THD */
-  int_arg= 0;
-  mysql_options(mysql,MYSQL_THREAD_SPECIFIC_MALLOC, &int_arg);
 
   /*
     BUG# 17044 Federated Storage Engine is not UTF8 clean

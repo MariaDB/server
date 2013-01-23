@@ -3292,9 +3292,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   if (mysql->options.extension && mysql->options.extension->async_context)
     net->vio->async_context= mysql->options.extension->async_context;
 
-  if (my_net_init(net, net->vio,
-                  MYF(mysql->options.thread_specific_malloc ?
-                      MY_THREAD_SPECIFIC : 0)))
+  if (my_net_init(net, net->vio, MYF(0)))
   {
     vio_delete(net->vio);
     net->vio = 0;
@@ -4221,9 +4219,6 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     if (mysql->options.extension)
       mysql->options.extension->report_progress= 
         (void (*)(const MYSQL *, uint, uint, double, const char *, uint)) arg;
-    break;
-  case MYSQL_THREAD_SPECIFIC_MALLOC:
-    mysql->options.thread_specific_malloc= *(uint*) arg;
     break;
   case MYSQL_OPT_NONBLOCK:
     if (mysql->options.extension &&

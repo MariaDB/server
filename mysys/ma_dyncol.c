@@ -342,10 +342,8 @@ static my_bool type_and_offset_store_num(uchar *place, size_t offset_size,
     int3store(place, val);
     break;
   case 4:
-#if SIZEOF_SIZE_T > 4
     if (offset >= 0x1fffffff)    /* all 1 value is reserved */
       return TRUE;
-#endif
     int4store(place, val);
     break;
   default:
@@ -488,8 +486,8 @@ static size_t dynamic_column_offset_bytes_named(size_t data_length)
     return 4;
 #if SIZEOF_SIZE_T > 4
   if (data_length < 0xfffffffffull)       /* all 1 value is reserved */
-    return 5;
 #endif
+    return 5;
   return MAX_OFFSET_LENGTH_NM + 1;        /* For an error generation */
 }
 
