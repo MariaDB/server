@@ -51,10 +51,12 @@ add_definitions( -DUNIX -DLINUX -DUBUNTU )
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive -fexceptions -fPIC ")
 get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
 SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
+SET(IPHLPAPI_LIBRARY "")
 ELSE(!UNIX)
 # Windows (manually add exception handling to the CONNECT project)
 SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabwmi.cpp tabmac.cpp macutil.cpp)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+SET(IPHLPAPI_LIBRARY iphlpapi.lib)
 ENDIF(UNIX)
 
 
