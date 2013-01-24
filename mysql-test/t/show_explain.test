@@ -240,6 +240,7 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+--source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
@@ -258,6 +259,7 @@ connection default;
 --source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
+--source include/wait_condition.inc
 --error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
@@ -275,7 +277,9 @@ send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from
 connection default;
 --source include/wait_condition.inc
 evalp show explain for $thr2;
+--source include/wait_condition.inc
 evalp show explain for $thr2;
+--source include/wait_condition.inc
 evalp show explain for $thr2;
 connection con1;
 reap;
