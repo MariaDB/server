@@ -64,25 +64,29 @@ ENDIF(UNIX)
 # XML
 #
 
-IF(UNIX)
-  FIND_PACKAGE(LibXml2)
-  IF (LIBXML2_FOUND)
-    INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
-    SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabxml.cpp plgxml.cpp libdoc.cpp)
-    add_definitions(-DXML_SUPPORT)
-  ENDIF(LIBXML2_FOUND)
-ELSE(!UNIX)
-  # Windows
-  # This to be localized
-  INCLUDE_DIRECTORIES("D:/Libxml/include")
-  SET(XML_LIBRARY "D:/libxml/lib/libxml2.lib")
+IF(WIN32)
+  # Adding some typical places to search in
+  SET(PC_LIBXML_INCLUDE_DIRS
+      C:/libxml2/include
+      C:/libxml/include
+      D:/libxml/include)
+  SET(PC_LIBXML_LIBRARY_DIRS
+      C:/libxml2/lib
+      C:/libxml/lib
+      D:/libxml/lib)
+ENDIF(WIN32)
+FIND_PACKAGE(LibXml2)
+IF (LIBXML2_FOUND)
+  INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
+  SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabxml.cpp plgxml.cpp libdoc.cpp)
   add_definitions(-DXML_SUPPORT)
-  # Domdoc support
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
-  add_definitions(-DDOMDOC_SUPPORT)
-ENDIF(UNIX)
+  IF(WIN32)
+    # Domdoc support. TODO: add msxml4.dll detection.
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+    add_definitions(-DDOMDOC_SUPPORT)
+  ENDIF(WIN32)
+ENDIF(LIBXML2_FOUND)
 
 
 #
