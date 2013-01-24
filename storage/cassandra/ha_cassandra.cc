@@ -879,7 +879,7 @@ static void alloc_strings_memroot(MEM_ROOT *mem_root)
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
                     ALLOC_ROOT_MIN_BLOCK_SIZE,
                     (36 + 1 + ALIGN_SIZE(sizeof(USED_MEM))) * 10 +
-                    ALLOC_ROOT_MIN_BLOCK_SIZE);
+                    ALLOC_ROOT_MIN_BLOCK_SIZE, MYF(MY_THREAD_SPECIFIC));
   }
 }
 
@@ -1469,12 +1469,12 @@ bool ha_cassandra::setup_field_converters(Field **field_arg, uint n_fields)
 
     if (my_init_dynamic_array(&dynamic_values,
                            sizeof(DYNAMIC_COLUMN_VALUE),
-                           DYNCOL_USUAL, DYNCOL_DELTA))
+                           DYNCOL_USUAL, DYNCOL_DELTA, MYF(0)))
       DBUG_RETURN(true);
     else
       if (my_init_dynamic_array(&dynamic_names,
                              sizeof(LEX_STRING),
-                             DYNCOL_USUAL, DYNCOL_DELTA))
+                             DYNCOL_USUAL, DYNCOL_DELTA,MYF(0)))
       {
         delete_dynamic(&dynamic_values);
         DBUG_RETURN(true);
