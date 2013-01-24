@@ -3480,7 +3480,9 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
       }
     }
   }
-  my_atomic_add64(&global_status_var.memory_used, size);
+  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+  int64 volatile * volatile ptr=&global_status_var.memory_used;
+  my_atomic_add64(ptr, size);
 }
 }
 
