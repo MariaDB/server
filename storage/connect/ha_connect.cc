@@ -162,8 +162,8 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn);
 #if defined(MYSQL_SUPPORT)
 PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
                   char *table, char *colpat, int port, bool key);
-enum enum_field_types PLGtoMYSQL(int type, bool gdf);
 #endif   // MYSQL_SUPPORT
+enum enum_field_types PLGtoMYSQL(int type, bool gdf);
 #if defined(WIN32)
 PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp= NULL);
 #endif   // WIN32
