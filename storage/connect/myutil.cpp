@@ -48,6 +48,8 @@ int MYSQLtoPLG(char *typname)
            !stricmp(typname, "time") || !stricmp(typname, "timestamp") ||
            !stricmp(typname, "year"))
     type = TYPE_DATE;
+  else if (!stricmp(typname, "bigint") || !stricmp(typname, "longlong"))
+    type = TYPE_BIGINT;
   else
     type = TYPE_ERROR;
 
@@ -76,6 +78,9 @@ enum enum_field_types PLGtoMYSQL(int type, bool gdf)
       break;
     case TYPE_STRING:
       mytype = MYSQL_TYPE_VARCHAR;
+      break;
+    case TYPE_BIGINT:
+      mytype = MYSQL_TYPE_LONGLONG;
       break;
     default:
       mytype = MYSQL_TYPE_NULL;

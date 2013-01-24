@@ -219,8 +219,8 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
 /**************************************************************************/
 PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
   {
-  int      n;
-  PCOLRES  crp;
+  int      type, len, prec;
+  PCOLRES  crpt, crpl, crpp;
   PQRYRES  qrp;
   ODBConn *ocp = new(g) ODBConn(g, NULL);
 
@@ -247,14 +247,28 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
   /*  Keep only the info used by ha_connect::pre_create.                  */
   /************************************************************************/
   qrp->Colresp = qrp->Colresp->Next->Next;  // Skip Owner and Table names
-  crp = qrp->Colresp->Next;                 // DB type
 
-  // Types must be PLG types, not SQL types
-  for (int i = 0; i < qrp->Nblin; i++)
-    crp->Kdata->SetValue(TranslateSQLType(crp->Kdata->GetIntValue(i),0,n),i);
+  crpt = qrp->Colresp->Next;                // SQL type
+  crpl = crpt->Next->Next;                  // Length
+  crpp = crpl->Next->Next;                  // Decimals
 
-  crp = crp->Next->Next->Next->Next;        // Should be Radix
-  crp->Next = crp->Next->Next->Next;        // Should be Remark
+  for (int i = 0; i < qrp->Nblin; i++) {
+    // Types must be PLG types, not SQL types
+    type = crpt->Kdata->GetIntValue(i);
+    len  = crpl->Kdata->GetIntValue(i);
+    prec = crpp->Kdata->GetIntValue(i);
+    type = TranslateSQLType(type, prec, len);
+    crpt->Kdata->SetValue(type, i);
+
+    // Some data sources do not count prec in length
+    if (type == TYPE_FLOAT)
+      len += (prec + 2);                    // To be safe
+
+    // Could have been changed for blobs or numeric
+    crpl->Kdata->SetValue(len, i);          
+    } // endfor i
+
+  crpp->Next = crpp->Next->Next->Next;      // Should be Remark
   qrp->Nbcol = 7;                           // Was 11, skipped 4
   return qrp;
   } // end of MyODBCCols
