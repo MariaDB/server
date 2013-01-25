@@ -2981,7 +2981,7 @@ struct rpl_slave_state
     uint32 domain_id;
 
     list_element *grab_list() { list_element *l= list; list= NULL; return l; }
-    void add (list_element *l)
+    void add(list_element *l)
     {
       l->next= list;
       list= l;
@@ -3008,7 +3008,7 @@ struct rpl_slave_state
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                       bool in_transaction);
   uint64 next_subid(uint32 domain_id);
-  int tostring(String *dest);
+  int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool is_empty();
 
   void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
@@ -3027,10 +3027,21 @@ struct rpl_slave_state
   containing a gigen GTID, by simply scanning backwards from the newest
   one until a lower seq_no is found in the Gtid_list_log_event at the
   start of a binlog for the given domain_id and server_id.
+
+  We also remember the last logged GTID for every domain_id. This is used
+  to know where to start when a master is changed to a slave. As a side
+  effect, it also allows to skip a hash lookup in the very common case of
+  logging a new GTID with same server id as last GTID.
 */
 struct rpl_binlog_state
 {
-  /* Mapping from (domain_id,server_id) to its GTID. */
+  struct element {
+    uint32 domain_id;
+    HASH hash;                /* Containing all server_id for one domain_id */
+    /* The most recent entry in the hash. */
+    rpl_gtid *last_gtid;
+  };
+  /* Mapping from domain_id to collection of elements. */
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_binlog_state;
@@ -3038,12 +3049,14 @@ struct rpl_binlog_state
   rpl_binlog_state();
   ~rpl_binlog_state();
 
-  ulong count() const { return hash.records; }
-  int update(const struct rpl_gtid *gtid);
   void reset();
-  uint32 seq_no_for_server_id(uint32 server_id);
+  int update(const struct rpl_gtid *gtid);
+  uint32 seq_no_from_state();
   int write_to_iocache(IO_CACHE *dest);
   int read_from_iocache(IO_CACHE *src);
+  uint32 count();
+  int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
+  int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
 };
 
 

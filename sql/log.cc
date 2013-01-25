@@ -120,7 +120,7 @@ static MYSQL_BIN_LOG::xid_count_per_binlog *
 static bool start_binlog_background_thread();
 
 
-rpl_binlog_state rpl_global_gtid_binlog_state;
+static rpl_binlog_state rpl_global_gtid_binlog_state;
 
 /**
    purge logs, master and slave sides both, related error code
@@ -5488,6 +5488,13 @@ end:
 }
 
 
+int
+MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
+{
+  return rpl_global_gtid_binlog_state.get_most_recent_gtid_list(list, size);
+}
+
+
 /**
   Write an event to the binary log. If with_annotate != NULL and
   *with_annotate = TRUE write also Annotate_rows before the event
@@ -8176,8 +8183,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
     else
       error= read_state_from_file();
     /* Pick the next unused seq_no from the loaded/recovered binlog state. */
-    global_gtid_counter= rpl_global_gtid_binlog_state.seq_no_for_server_id
-      (global_system_variables.server_id);
+    global_gtid_counter= rpl_global_gtid_binlog_state.seq_no_from_state();
 
     delete ev;
     end_io_cache(&log);

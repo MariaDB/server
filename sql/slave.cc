@@ -1792,10 +1792,29 @@ after_set_capability:
     char str_buf[256];
     String connect_state(str_buf, sizeof(str_buf), system_charset_info);
     connect_state.length(0);
+    rpl_gtid *binlog_gtid_list= NULL;
+    uint32 num_binlog_gtids= 0;
+
+    if (opt_bin_log)
+    {
+      int err= mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
+                                                       &num_binlog_gtids);
+      if (err)
+      {
+        err_code= ER_OUTOFMEMORY;
+        errmsg= "The slave I/O thread stops because a fatal out-of-memory "
+          "error is encountered when it tries to compute @slave_connect_state.";
+        sprintf(err_buff, "%s Error: Out of memory", errmsg);
+        goto err;
+      }
+    }
 
     connect_state.append(STRING_WITH_LEN("SET @slave_connect_state='"),
                          system_charset_info);
-    rpl_global_gtid_slave_state.tostring(&connect_state);
+    rpl_global_gtid_slave_state.tostring(&connect_state, binlog_gtid_list,
+                                         num_binlog_gtids);
+    if (binlog_gtid_list)
+      my_free(binlog_gtid_list);
     connect_state.append(STRING_WITH_LEN("'"), system_charset_info);
     rc= mysql_real_query(mysql, connect_state.ptr(), connect_state.length());
     if (rc)
