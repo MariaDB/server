@@ -396,6 +396,7 @@ private:
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
 
 class binlog_cache_mngr;
+class rpl_gtid;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -773,6 +774,7 @@ public:
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
   int read_state_from_file();
   int write_state_to_file();
+  int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
 };
 
 class Log_event_handler

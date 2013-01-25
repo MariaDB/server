@@ -6279,6 +6279,24 @@ rpl_slave_state::next_subid(uint32 domain_id)
 #endif
 
 
+static
+bool
+rpl_slave_state_tostring_helper(String *dest, rpl_gtid *gtid, bool *first)
+{
+  if (*first)
+    *first= false;
+  else
+    if (dest->append(",",1))
+      return true;
+  return
+    dest->append_ulonglong(gtid->domain_id) ||
+    dest->append("-",1) ||
+    dest->append_ulonglong(gtid->server_id) ||
+    dest->append("-",1) ||
+    dest->append_ulonglong(gtid->seq_no);
+}
+
+
 /*
   Prepare the current slave state as a string, suitable for sending to the
   master to request to receive binlog events starting from that GTID state.
@@ -6288,10 +6306,20 @@ rpl_slave_state::next_subid(uint32 domain_id)
 */
 
 int
-rpl_slave_state::tostring(String *dest)
+rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
 {
   bool first= true;
   uint32 i;
+  HASH gtid_hash;
+  uchar *rec;
+  rpl_gtid *gtid;
+  int res= 1;
+
+  my_hash_init(&gtid_hash, &my_charset_bin, 32, offsetof(rpl_gtid, domain_id),
+               sizeof(uint32), NULL, NULL, HASH_UNIQUE);
+  for (i= 0; i < num_extra; ++i)
+    if (my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
+      goto err;
 
   lock();
 
@@ -6319,19 +6347,43 @@ rpl_slave_state::tostring(String *dest)
       }
     }
 
-    if (first)
-      first= false;
-    else
-      dest->append("-",1);
-    dest->append_ulonglong(best_gtid.domain_id);
-    dest->append("-",1);
-    dest->append_ulonglong(best_gtid.server_id);
-    dest->append("-",1);
-    dest->append_ulonglong(best_gtid.seq_no);
- }
+    /* Check if we have something newer in the extra list. */
+    rec= my_hash_search(&gtid_hash, (const uchar *)&best_gtid.domain_id, 0);
+    if (rec)
+    {
+      gtid= (rpl_gtid *)rec;
+      if (gtid->seq_no > best_gtid.seq_no)
+        memcpy(&best_gtid, gtid, sizeof(best_gtid));
+      if (my_hash_delete(&gtid_hash, rec))
+      {
+        unlock();
+        goto err;
+      }
+    }
+
+    if (rpl_slave_state_tostring_helper(dest, &best_gtid, &first))
+    {
+      unlock();
+      goto err;
+    }
+  }
 
   unlock();
-  return 0;
+
+  /* Also add any remaining extra domain_ids. */
+  for (i= 0; i < gtid_hash.records; ++i)
+  {
+    gtid= (rpl_gtid *)my_hash_element(&gtid_hash, i);
+    if (rpl_slave_state_tostring_helper(dest, gtid, &first))
+      goto err;
+  }
+
+  res= 0;
+
+err:
+  my_hash_free(&gtid_hash);
+
+  return res;
 }
 
 
@@ -6359,18 +6411,28 @@ rpl_slave_state::is_empty()
 
 rpl_binlog_state::rpl_binlog_state()
 {
-  my_hash_init(&hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), 2*sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
+  my_hash_init(&hash, &my_charset_bin, 32, offsetof(element, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
 }
 
 
+void
+rpl_binlog_state::reset()
+{
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+    my_hash_free(&((element *)my_hash_element(&hash, i))->hash);
+  my_hash_reset(&hash);
+}
+
 rpl_binlog_state::~rpl_binlog_state()
 {
-  mysql_mutex_destroy(&LOCK_binlog_state);
+  reset();
   my_hash_free(&hash);
+  mysql_mutex_destroy(&LOCK_binlog_state);
 }
 
 
@@ -6385,67 +6447,129 @@ rpl_binlog_state::~rpl_binlog_state()
 int
 rpl_binlog_state::update(const struct rpl_gtid *gtid)
 {
-  uchar *rec;
+  rpl_gtid *lookup_gtid;
+  element *elem;
 
-  rec= my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0);
-  if (rec)
+  elem= (element *)my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0);
+  if (elem)
   {
-    const rpl_gtid *old_gtid= (const rpl_gtid *)rec;
-    if (old_gtid->seq_no > gtid->seq_no)
-      sql_print_warning("Out-of-order GTIDs detected for "
-                        "domain_id=%u, server_id=%u. "
-                        "Please ensure that independent replication streams "
-                        "use different replication domain_id to avoid "
-                        "inconsistencies.", gtid->domain_id, gtid->server_id);
-    else
-      memcpy(rec, gtid, sizeof(*gtid));
+    /*
+      By far the most common case is that successive events within same
+      replication domain have the same server id (it changes only when
+      switching to a new master). So save a hash lookup in this case.
+    */
+    if (likely(elem->last_gtid->server_id == gtid->server_id))
+    {
+      elem->last_gtid->seq_no= gtid->seq_no;
+      return 0;
+    }
+
+    lookup_gtid= (rpl_gtid *)
+      my_hash_search(&elem->hash, (const uchar *)&gtid->server_id, 0);
+    if (lookup_gtid)
+    {
+      lookup_gtid->seq_no= gtid->seq_no;
+      elem->last_gtid= lookup_gtid;
+      return 0;
+    }
+
+    /* Allocate a new GTID and insert it. */
+    lookup_gtid= (rpl_gtid *)my_malloc(sizeof(*lookup_gtid), MYF(MY_WME));
+    if (!lookup_gtid)
+      return 1;
+    memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
+    if (my_hash_insert(&elem->hash, (const uchar *)lookup_gtid))
+    {
+      my_free(lookup_gtid);
+      return 1;
+    }
+    elem->last_gtid= lookup_gtid;
     return 0;
   }
 
-  if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
-    return 1;
-  memcpy(rec, gtid, sizeof(*gtid));
-  return my_hash_insert(&hash, rec);
-}
+  /* First time we see this domain_id; allocate a new element. */
+  elem= (element *)my_malloc(sizeof(*elem), MYF(MY_WME));
+  lookup_gtid= (rpl_gtid *)my_malloc(sizeof(*lookup_gtid), MYF(MY_WME));
+  if (elem && lookup_gtid)
+  {
+    elem->domain_id= gtid->domain_id;
+    my_hash_init(&elem->hash, &my_charset_bin, 32,
+                 offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
+                 HASH_UNIQUE);
+    elem->last_gtid= lookup_gtid;
+    memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
+    if (0 == my_hash_insert(&elem->hash, (const uchar *)lookup_gtid))
+    {
+      lookup_gtid= NULL;                        /* Do not free. */
+      if (0 == my_hash_insert(&hash, (const uchar *)elem))
+        return 0;
+    }
+    my_hash_free(&elem->hash);
+  }
 
-
-void
-rpl_binlog_state::reset()
-{
-  my_hash_reset(&hash);
+  /* An error. */
+  if (elem)
+    my_free(elem);
+  if (lookup_gtid)
+    my_free(lookup_gtid);
+  return 1;
 }
 
 
 uint32
-rpl_binlog_state::seq_no_for_server_id(uint32 server_id)
+rpl_binlog_state::seq_no_from_state()
 {
-  ulong i;
+  ulong i, j;
   uint64 seq_no= 0;
 
   for (i= 0; i < hash.records; ++i)
   {
-    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
-    if (gtid->server_id == server_id && gtid->seq_no > seq_no)
-      seq_no= gtid->seq_no;
+    element *e= (element *)my_hash_element(&hash, i);
+    for (j= 0; j < e->hash.records; ++j)
+    {
+      const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&e->hash, j);
+      if (gtid->seq_no > seq_no)
+        seq_no= gtid->seq_no;
+    }
   }
   return seq_no;
 }
 
 
+/*
+  Write binlog state to text file, so we can read it in again without having
+  to scan last binlog file (normal shutdown/startup, not crash recovery).
+
+  The most recent GTID within each domain_id is written after any other GTID
+  within this domain.
+*/
 int
 rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
 {
-  ulong i;
+  ulong i, j;
   char buf[21];
 
-  for (i= 0; i < count(); ++i)
+  for (i= 0; i < hash.records; ++i)
   {
     size_t res;
-    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
-    longlong10_to_str(gtid->seq_no, buf, 10);
-    res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
-    if (res == (size_t) -1)
-      return 1;
+    element *e= (element *)my_hash_element(&hash, i);
+    for (j= 0; j <= e->hash.records; ++j)
+    {
+      const rpl_gtid *gtid;
+      if (j < e->hash.records)
+      {
+        gtid= (const rpl_gtid *)my_hash_element(&e->hash, j);
+        if (gtid == e->last_gtid)
+          continue;
+      }
+      else
+        gtid= e->last_gtid;
+
+      longlong10_to_str(gtid->seq_no, buf, 10);
+      res= my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf);
+      if (res == (size_t) -1)
+        return 1;
+    }
   }
 
   return 0;
@@ -6861,6 +6985,78 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
 }
 
 
+uint32
+rpl_binlog_state::count()
+{
+  uint32 c= 0;
+  uint32 i;
+
+  for (i= 0; i < hash.records; ++i)
+    c+= ((element *)my_hash_element(&hash, i))->hash.records;
+
+  return c;
+}
+
+
+int
+rpl_binlog_state::get_gtid_list(rpl_gtid *gtid_list, uint32 list_size)
+{
+  uint32 i, j, pos;
+
+  pos= 0;
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    for (j= 0; j <= e->hash.records; ++j)
+    {
+      const rpl_gtid *gtid;
+      if (j < e->hash.records)
+      {
+        gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
+        if (gtid == e->last_gtid)
+          continue;
+      }
+      else
+        gtid= e->last_gtid;
+
+      if (pos >= list_size)
+        return 1;
+      memcpy(&gtid_list[pos++], gtid, sizeof(*gtid));
+    }
+  }
+
+  return 0;
+}
+
+
+/*
+  Get a list of the most recently binlogged GTID, for each domain_id.
+
+  This can be used when switching from being a master to being a slave,
+  to know where to start replicating from the new master.
+
+  The returned list must be de-allocated with my_free().
+
+  Returns 0 for ok, non-zero for out-of-memory.
+*/
+int
+rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
+{
+  uint32 i;
+
+  *size= hash.records;
+  if (!(*list= (rpl_gtid *)my_malloc(*size * sizeof(rpl_gtid), MYF(MY_WME))))
+    return 1;
+  for (i= 0; i < *size; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    memcpy(&((*list)[i]), e->last_gtid, sizeof(rpl_gtid));
+  }
+
+  return 0;
+}
+
+
 #ifdef MYSQL_SERVER
 
 Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
@@ -6871,12 +7067,7 @@ Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
   /* Failure to allocate memory will be caught by is_valid() returning false. */
   if (count != 0 && count < (1<<28) &&
       (list = (rpl_gtid *)my_malloc(count * sizeof(*list), MYF(MY_WME))))
-  {
-    uint32 i;
-
-    for (i= 0; i < count; ++i)
-      list[i]= *(rpl_gtid *)my_hash_element(&gtid_set->hash, i);
-  }
+    gtid_set->get_gtid_list(list, count);
 }
 
 bool
