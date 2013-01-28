@@ -84,11 +84,37 @@ IF(CONNECT_WITH_XML)
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabxml.cpp plgxml.cpp libdoc.cpp)
     add_definitions(-DXML_SUPPORT)
+
     IF(WIN32)
-      # Domdoc support. TODO: add msxml4.dll detection.
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
-      add_definitions(-DDOMDOC_SUPPORT)
+      find_library(MSXML_LIBRARY
+      NAMES msxml6 msxml4 msxml3 msxml2
+      PATHS
+      "C:/Program Files/Microsoft SDKs/Windows/v7.0A/Lib"
+      "C:/Program Files/Microsoft SDKs/Windows/v6.0A/Lib"
+      "C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"
+      DOC "Specify the MSXML? library here."
+      )
+      IF(MSXML_LIBRARY MATCHES .*msxml6[.].*)
+        add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
+        message(STATUS "MSXML library version: msxml6")
+        SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      ELSEIF(MSXML_LIBRARY MATCHES .*msxml4[.].*)
+        add_definitions(-DMSX4 -DDOMDOC_SUPPORT)
+        message("MSXML library version: msxml4")
+        SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      ELSEIF(MSXML_LIBRARY MATCHES .*msxml3[.].*)
+        message("MSXML library version: msxml3")
+        add_definitions(-DMSX3 -DDOMDOC_SUPPORT)
+        SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      ELSEIF(MSXML_LIBRARY MATCHES .*msxml2[.].*)
+        message("MSXML library version: msxml2")
+        add_definitions(-DMXS2 -DDOMDOC_SUPPORT)
+        SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      ELSE()
+        message(STATUS "msxml? library not found")
+      ENDIF()
     ENDIF(WIN32)
+
   ENDIF(LIBXML2_FOUND)
 ENDIF(CONNECT_WITH_XML)
 
