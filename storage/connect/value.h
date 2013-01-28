@@ -39,14 +39,18 @@ typedef struct _datpar *PDTP;         // For DTVAL
 /*  Utilities used to test types and to allocated values.              */
 /***********************************************************************/
 int   GetPLGType(int);
+#ifdef ODBC_SUPPORT
 short GetSQLType(int);
 int   GetSQLCType(int);
+#endif
 PVAL  AllocateValue(PGLOBAL, void *, short);
 
 // Exported functions
 DllExport PSZ   GetTypeName(int);
 DllExport int   GetTypeSize(int, int);
+#ifdef ODBC_SUPPORT
 DllExport int   TranslateSQLType(int stp, int prec, int& len);
+#endif
 DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
 DllExport int   GetDBType(int);
