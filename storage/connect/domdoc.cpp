@@ -10,8 +10,12 @@
 #import "msxml2.dll"	//Does not exist on Vista
 #elif defined(MSX3)
 #import "msxml3.dll"	//Causes error C2872: DOMNodeType: ambiguous symbol	??
+#elif defined(MSX4)
+#import "msxml4.dll"	//Causes error C2872: DOMNodeType: ambiguous symbol	??
+#elif defined(MSX6)
+#import "msxml6.dll"	//Causes error C2872: DOMNodeType: ambiguous symbol	??
 #else			 // MSX4
-#import "msxml4.dll"	//Causes error C2872: DOMNodeType: ambiguous symbol
+#error MSX? is not defined
 #endif		 // MSX
 using namespace MSXML2;
 #else
