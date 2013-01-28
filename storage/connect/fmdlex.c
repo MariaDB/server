@@ -21,6 +21,10 @@
 
 #define FLEX_SCANNER
 
+#if WIN32
+#define __STDC__ 1
+#endif
+
 #include <stdio.h>
 
 
