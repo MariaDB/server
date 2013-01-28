@@ -143,7 +143,7 @@ typedef unsigned char BYTE;
 typedef char *LPSTR;
 typedef char *PSZ;
 #if !defined(NODW)
-typedef int   DWORD;
+typedef unsigned int   DWORD;
 #endif   // !NODW
 #undef  HANDLE     
 typedef int   HANDLE;

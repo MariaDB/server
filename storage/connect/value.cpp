@@ -32,14 +32,16 @@
 #include "my_global.h"
 #if defined(WIN32)
 //#include <windows.h>
-#include <sql.h>
-#include <sqlext.h>
 #else   // !WIN32
 #include <string.h>
-#include "sqlutil.h"
 #endif  // !WIN32
 
 #include <math.h>
+
+#ifdef ODBC_SUPPORT
+#include <sql.h>
+#include <sqlext.h>
+#endif
 
 #undef DOMAIN                           // Was defined in math.h
 
@@ -198,6 +200,7 @@ int GetDBType(int type)
   return tp;
   } // end of GetPLGType
 
+#if ODBC_SUPPORT
 /***********************************************************************/
 /*  GetSQLType: returns the SQL_TYPE corresponding to a PLG type.      */
 /***********************************************************************/
@@ -235,6 +238,8 @@ int GetSQLCType(int type)
 
   return tp;
   } // end of GetSQLCType
+#endif /* ODBC_SUPPORT */
+
 
 /***********************************************************************/
 /*  GetFormatType: returns the FORMAT character(s) according to type.  */
@@ -274,6 +279,7 @@ int GetFormatType(char c)
   return type;
   } // end of GetFormatType
 
+#ifdef ODBC_SUPPORT
 /***********************************************************************/
 /*  TranslateSQLType: translate a SQL Type to a PLG type.              */
 /***********************************************************************/
@@ -338,6 +344,7 @@ int TranslateSQLType(int stp, int prec, int& len)
 
   return type;
   } // end of TranslateSQLType
+#endif ODBC_SUPPORT
 
 /***********************************************************************/
 /*  IsTypeChar: returns true for character type(s).                    */
