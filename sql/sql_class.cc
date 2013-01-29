@@ -684,7 +684,7 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
     values doesn't have to very accurate and the memory it points to is static,
     but we need to attempt a snapshot on the pointer values to avoid using NULL
     values. The pointer to thd->query however, doesn't point to static memory
-    and has to be protected by LOCK_thread_count or risk pointing to
+    and has to be protected by thd->LOCK_thd_data or risk pointing to
     uninitialized memory.
   */
   const char *proc_info= thd->proc_info;
@@ -719,19 +719,20 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
     str.append(proc_info);
   }
 
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-
-  if (thd->query())
+  /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
-    if (max_query_len < 1)
-      len= thd->query_length();
-    else
-      len= min(thd->query_length(), max_query_len);
-    str.append('\n');
-    str.append(thd->query(), len);
+    if (thd->query())
+    {
+      if (max_query_len < 1)
+        len= thd->query_length();
+      else
+        len= min(thd->query_length(), max_query_len);
+      str.append('\n');
+      str.append(thd->query(), len);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
@@ -795,6 +796,7 @@ THD::THD()
    stmt_da(&main_da),
    thread_id(0),
    global_disable_checkpoint(0),
+   failed_com_change_user(0),
    is_fatal_error(0),
    transaction_rollback_request(0),
    is_fatal_sub_stmt_error(0),
@@ -1365,7 +1367,7 @@ void THD::change_user(void)
   mysql_mutex_unlock(&LOCK_status);
 
   cleanup();
-  killed= NOT_KILLED;
+  reset_killed();
   cleanup_done= 0;
   init();
   stmt_map.reset();
@@ -1635,6 +1637,10 @@ void THD::awake(killed_state state_to_set)
     if (!slave_thread)
       MYSQL_CALLBACK(scheduler, post_kill_notification, (this));
   }
+
+  /* Interrupt target waiting inside a storage engine. */
+  if (state_to_set != NOT_KILLED)
+    ha_kill_query(this, thd_kill_level(this));
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
   if (mysys_var)
@@ -3880,21 +3886,31 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
   DBUG_VOID_RETURN;
 }
 
+#if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
 /**
-  Check the killed state of a user thread
-  @param thd  user thread
-  @retval 0 the user thread is active
-  @retval 1 the user thread has been killed
-
-  This is used to signal a storage engine if it should be killed.
-  See also THD::check_killed().
+  This is a backward compatibility method, made obsolete
+  by the thd_kill_statement service. Keep it here to avoid breaking the
+  ABI in case some binary plugins still use it.
 */
-
+#undef thd_killed
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
+  return thd_kill_level(thd) > THD_ABORT_SOFTLY;
+}
+#else
+#error now thd_killed() function can go away
+#endif
+
+/*
+  return thd->killed status to the client,
+  mapped to the API enum thd_kill_levels values.
+*/
+extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
+{
   THD* current= current_thd;
+
   if (!thd)
-    thd= current_thd;
+    thd= current;
 
   if (thd == current)
   {
@@ -3903,11 +3919,11 @@ extern "C" int thd_killed(const MYSQL_THD thd)
         apc_target->process_apc_requests(); 
   }
 
-  if (!(thd->killed & KILL_HARD_BIT))
-    return 0;
-  return thd->killed;
-}
+  if (likely(thd->killed == NOT_KILLED))
+    return THD_IS_NOT_KILLED;
 
+  return thd->killed & KILL_HARD_BIT ? THD_ABORT_ASAP : THD_ABORT_SOFTLY;
+}
 
 /**
    Send an out-of-band progress report to the client
@@ -4949,7 +4965,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
     There is no good place to set up the transactional data, so we
     have to do it here.
   */
-  if (binlog_setup_trx_data())
+  if (binlog_setup_trx_data() == NULL)
     DBUG_RETURN(NULL);
 
   Rows_log_event* pending= binlog_get_pending_rows_event(is_transactional);
@@ -5642,4 +5658,3 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
 }
 
 #endif /* !defined(MYSQL_CLIENT) */
-

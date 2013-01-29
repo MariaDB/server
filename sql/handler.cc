@@ -700,7 +700,6 @@ static my_bool closecon_handlerton(THD *thd, plugin_ref plugin,
   return FALSE;
 }
 
-
 /**
   @note
     don't bother to rollback here, it's done already
@@ -709,6 +708,25 @@ void ha_close_connection(THD* thd)
 {
   plugin_foreach(thd, closecon_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, 0);
 }
+
+static my_bool kill_handlerton(THD *thd, plugin_ref plugin,
+                               void *level)
+{
+  handlerton *hton= plugin_data(plugin, handlerton *);
+
+  if (hton->state == SHOW_OPTION_YES && hton->kill_query &&
+      thd_get_ha_data(thd, hton))
+    hton->kill_query(hton, thd, *(enum thd_kill_levels *) level);
+  return FALSE;
+}
+
+void ha_kill_query(THD* thd, enum thd_kill_levels level)
+{
+  DBUG_ENTER("ha_kill_query");
+  plugin_foreach(thd, kill_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &level);
+  DBUG_VOID_RETURN;
+}
+
 
 /* ========================================================================
  ======================= TRANSACTIONS ===================================*/
@@ -2365,18 +2383,25 @@ int handler::read_first_row(uchar * buf, uint primary_key)
   if (stats.deleted < 10 || primary_key >= MAX_KEY ||
       !(index_flags(primary_key, 0, 0) & HA_READ_ORDER))
   {
-    if ((!(error= ha_rnd_init(1))))
+    if (!(error= ha_rnd_init(1)))
     {
-      while ((error= ha_rnd_next(buf)) == HA_ERR_RECORD_DELETED) ;
-      (void) ha_rnd_end();
+      while ((error= ha_rnd_next(buf)) == HA_ERR_RECORD_DELETED)
+        /* skip deleted row */;
+      const int end_error= ha_rnd_end();
+      if (!error)
+        error= end_error;
     }
   }
   else
   {
     /* Find the first row through the primary key */
-    if (!(error = ha_index_init(primary_key, 0)))
+    if (!(error= ha_index_init(primary_key, 0)))
+    {
       error= ha_index_first(buf);
-    (void) ha_index_end();
+      const int end_error= ha_index_end();
+      if (!error)
+        error= end_error;
+    }
   }
   DBUG_RETURN(error);
 }
@@ -2775,7 +2800,15 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   table->mark_columns_used_by_index_no_reset(table->s->next_number_index,
                                         table->read_set);
   column_bitmaps_signal();
-  ha_index_init(table->s->next_number_index, 1);
+
+  if (ha_index_init(table->s->next_number_index, 1))
+  {
+    /* This should never happen, assert in debug, and fail in release build */
+    DBUG_ASSERT(0);
+    *first_value= ULONGLONG_MAX;
+    return;
+  }
+
   if (table->s->next_number_keypart == 0)
   {						// Autoincrement at key-start
     error=ha_index_last(table->record[1]);
@@ -2806,13 +2839,25 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   }
 
   if (error)
-    nr=1;
+  {
+    if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
+    {
+      /* No entry found, start with 1. */
+      nr= 1;
+    }
+    else
+    {
+      DBUG_ASSERT(0);
+      nr= ULONGLONG_MAX;
+    }
+  }
   else
     nr= ((ulonglong) table->next_number_field->
          val_int_offset(table->s->rec_buff_length)+1);
   ha_index_end();
   (void) extra(HA_EXTRA_NO_KEYREAD);
   *first_value= nr;
+  return;
 }
 
 
@@ -4725,7 +4770,9 @@ extern "C" enum icp_result handler_index_cond_check(void* h_arg)
   THD *thd= h->table->in_use;
   enum icp_result res;
 
-  if (thd_killed(thd))
+  enum thd_kill_levels abort_at= h->has_transactions() ?
+    THD_ABORT_SOFTLY : THD_ABORT_ASAP;
+  if (thd_kill_level(thd) > abort_at)
     return ICP_ABORTED_BY_USER;
 
   if (h->end_range && h->compare_key2(h->end_range) > 0)
@@ -5156,6 +5203,7 @@ int handler::ha_write_row(uchar *buf)
   int error;
   Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
   DBUG_ENTER("handler::ha_write_row");
+  DEBUG_SYNC_C("ha_write_row_start");
 
   MYSQL_INSERT_ROW_START(table_share->db.str, table_share->table_name.str);
   mark_trx_read_write();

@@ -112,8 +112,6 @@ dynamic_column_update_many(DYNAMIC_COLUMN *str,
                            uint add_column_count,
                            uint *column_numbers,
                            DYNAMIC_COLUMN_VALUE *values);
-enum enum_dyncol_func_result
-dynamic_column_delete(DYNAMIC_COLUMN *org, uint column_nr);
 
 enum enum_dyncol_func_result
 dynamic_column_exists(DYNAMIC_COLUMN *org, uint column_nr);

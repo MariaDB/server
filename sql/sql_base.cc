@@ -8973,7 +8973,8 @@ fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
-    if ((value->save_in_field(rfield, 0) < 0) && !ignore_errors)
+    if ((!rfield->vcol_info || rfield->stored_in_db) && 
+        (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
       my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
       goto err;
@@ -9329,7 +9330,11 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
     in_use->killed= KILL_SYSTEM_THREAD;
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
+    {
+      mysql_mutex_lock(in_use->mysys_var->current_mutex);
       mysql_cond_broadcast(in_use->mysys_var->current_cond);
+      mysql_mutex_unlock(in_use->mysys_var->current_mutex);
+    }
     mysql_mutex_unlock(&in_use->mysys_var->mutex);
     signalled= TRUE;
   }
