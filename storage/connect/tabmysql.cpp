@@ -40,7 +40,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-//#include "os2def.h"
 #include "osutil.h"
 //#include <io.h>
 //#include <fcntl.h>

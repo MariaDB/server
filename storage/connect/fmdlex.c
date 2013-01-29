@@ -392,7 +392,6 @@ char *yytext;
 #include <io.h>
 #endif    /* UNIX */
 #include <string.h>
-#include "os2def.h"
 #include "preparse.h"
 
 #define isatty _isatty
