@@ -19,8 +19,8 @@
 /*  to avoid too complicated classes and unuseful duplication of many  */
 /*  functions used on one family only. The drawback is that for new    */
 /*  types of objects, we shall have more classes to update.            */
-/*  Currently the only implemented types are STRING, int, DOUBLE and  */
-/*  DATE. Shortly we should add at least int VARCHAR and LONGLONG.    */
+/*  Currently the only implemented types are STRING, INT, DOUBLE, DATE */
+/*  and LONGLONG. Shortly we should add at least TINY and VARCHAR.     */
 /***********************************************************************/
 
 #ifndef __VALUE_H
@@ -195,7 +195,6 @@ int GetDBType(int type)
   return tp;
   } // end of GetPLGType
 
-
 /***********************************************************************/
 /*  GetFormatType: returns the FORMAT character(s) according to type.  */
 /***********************************************************************/
@@ -293,7 +292,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
                                                             : TYPE_SHORT;
     default:
-      if (!target || target == type)
+      if (target == TYPE_ERROR || target == type)
         return type;
 
       if (match && ((IsTypeChar(target) && !IsTypeChar(type)) ||
@@ -711,11 +710,11 @@ char *STRING::GetIntString(char *p, int n)
   } // end of GetIntString
 
 /***********************************************************************/
-/*  STRING GetIntString: get big int representation of a char value.   */
+/*  STRING GetBigintString: get big int representation of a char value.*/
 /***********************************************************************/
 char *STRING::GetBigintString(char *p, int n)
   {
-  sprintf(p, "%*lld", n, atol(Strp));
+  sprintf(p, "%*lld", n, atoll(Strp));
   return p;
   } // end of GetBigintString
 
@@ -1237,7 +1236,7 @@ void STRING::SetMax(PVAL vp)
   } // end of SetMax
 
 /***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/*  SetMax: used by QUERY for the aggregate function MAX.              */
 /***********************************************************************/
 void STRING::SetMax(PVBLK vbp, int i)
   {
@@ -1246,10 +1245,10 @@ void STRING::SetMax(PVBLK vbp, int i)
   if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
     strcpy(Strp, val);
 
-  } // end of SetMin
+  } // end of SetMax
 
 /***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/*  SetMax: used by QUERY for the aggregate function MAX.              */
 /***********************************************************************/
 void STRING::SetMax(PVBLK vbp, int j, int k)
   {
@@ -1263,10 +1262,10 @@ void STRING::SetMax(PVBLK vbp, int j, int k)
 
     } // endfor i
 
-  } // end of SetMin
+  } // end of SetMax
 
 /***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
+/*  SetMax: used by QUERY for the aggregate function MAX.              */
 /***********************************************************************/
 void STRING::SetMax(PVBLK vbp, int *x, int j, int k)
   {
@@ -1280,7 +1279,7 @@ void STRING::SetMax(PVBLK vbp, int *x, int j, int k)
 
     } // endfor i
 
-  } // end of SetMin
+  } // end of SetMax
 
 /***********************************************************************/
 /*  STRING SetFormat function (used to set SELECT output format).      */
@@ -1757,12 +1756,13 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-		if (trace)
-			if (np = 1)
-			  htrc(" result=%hd val=%hd op=%d\n", Sval, val[0], op);
-			else
-			  htrc(" result=%hd val=%hd,%hd op=%d\n", 
-						   Sval, val[0], val[1], op);
+	if (trace) {
+		if (np = 1)
+			htrc(" result=%hd val=%hd op=%d\n", Sval, val[0], op);
+		else
+			htrc(" result=%hd val=%hd,%hd op=%d\n",
+						Sval, val[0], val[1], op);
+		} // endif trace
 
   } // endif op
 
@@ -2257,7 +2257,7 @@ char *INTVAL::GetFloatString(char *p, int n, int prec)
   } // end of GetFloatString
 
 /***********************************************************************/
-/*  INTVAL compare value with another Value.                            */
+/*  INTVAL compare value with another Value.                           */
 /***********************************************************************/
 bool INTVAL::IsEqual(PVAL vp, bool chktype)
   {
@@ -2272,7 +2272,7 @@ bool INTVAL::IsEqual(PVAL vp, bool chktype)
 
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of int integer filters.      */
+/*  This function is used for evaluation of int integer filters.       */
 /***********************************************************************/
 int INTVAL::CompareValue(PVAL vp)
   {
@@ -2506,12 +2506,13 @@ bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-		if (trace)
-			if (np = 1)
-				htrc(" result=%d val=%d op=%d\n", Ival, val[0], op);
-			else
-				htrc(" result=%d val=%d,%d op=%d\n",
-							 Ival, val[0], val[1], op);
+	if (trace) {
+		if (np = 1)
+			htrc(" result=%d val=%d op=%d\n", Ival, val[0], op);
+		else
+			htrc(" result=%d val=%d,%d op=%d\n",
+						 Ival, val[0], val[1], op);
+		} // endif trace
 
   } // endif op
 
@@ -2783,7 +2784,7 @@ bool INTVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   } // end of SetConstFormat
 
 /***********************************************************************/
-/*  Make file output of a int object.                                 */
+/*  Make file output of a int object.                                  */
 /***********************************************************************/
 void INTVAL::Print(PGLOBAL g, FILE *f, uint n)
   {
@@ -2796,7 +2797,7 @@ void INTVAL::Print(PGLOBAL g, FILE *f, uint n)
   } /* end of Print */
 
 /***********************************************************************/
-/*  Make string output of a int object.                               */
+/*  Make string output of a int object.                                */
 /***********************************************************************/
 void INTVAL::Print(PGLOBAL g, char *ps, uint z)
   {
@@ -4162,7 +4163,7 @@ DFVAL::DFVAL(PSZ s, int prec) : VALUE(TYPE_FLOAT)
   } // end of DFVAL constructor
 
 /***********************************************************************/
-/*  DFVAL  public constructor from short.                               */
+/*  DFVAL  public constructor from short.                              */
 /***********************************************************************/
 DFVAL::DFVAL(short n, int prec) : VALUE(TYPE_FLOAT)
   {
@@ -4172,9 +4173,19 @@ DFVAL::DFVAL(short n, int prec) : VALUE(TYPE_FLOAT)
   } // end of DFVAL constructor
 
 /***********************************************************************/
-/*  DFVAL  public constructor from int.                               */
+/*  DFVAL  public constructor from int.                                */
 /***********************************************************************/
 DFVAL::DFVAL(int n, int prec) : VALUE(TYPE_FLOAT)
+  {
+  Fval = (double)n;
+  Prec = prec;
+  Clen = sizeof(double);
+  } // end of DFVAL constructor
+
+/***********************************************************************/
+/*  DFVAL  public constructor from big int.                            */
+/***********************************************************************/
+DFVAL::DFVAL(longlong n, int prec) : VALUE(TYPE_FLOAT)
   {
   Fval = (double)n;
   Prec = prec;
@@ -4513,12 +4524,13 @@ bool DFVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       return true;
     } // endswitch op
 
-	if (trace)
+	if (trace) {
 		if (np == 1)
 			htrc("Compute result=%lf val=%lf op=%d\n", Fval, val[0], op);
 		else
 			htrc("Compute result=%lf val=%lf,%lf op=%d\n",
-						Fval, val[0], val[1], op);
+										Fval, val[0], val[1], op);
+		} // endif trace
 
   return false;
   } // end of Compute

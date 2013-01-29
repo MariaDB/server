@@ -130,9 +130,9 @@ OPTION(CONNECT_WITH_MYSQL
 IF(CONNECT_WITH_MYSQL)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} myconn.cpp tabmysql.cpp)
   # For static linking
-  SET(MYSQL_LIBRARY mysqlclient)
+  #SET(MYSQL_LIBRARY mysqlclient)
   # For dynamic linking
-  #SET(MYSQL_LIBRARY libmysql)
+  SET(MYSQL_LIBRARY libmysql)
   add_definitions(-DMYSQL_SUPPORT)
   IF(!UNIX)
     #

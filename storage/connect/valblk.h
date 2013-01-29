@@ -274,7 +274,7 @@ class DATBLK : public LNGBLK {
   }; // end of class DATBLK
 
 /***********************************************************************/
-/*  Class LNGBLK: represents a block of int integer values.           */
+/*  Class BIGBLK: represents a block of big integer values.            */
 /***********************************************************************/
 class BIGBLK : public VALBLK {
  public:
