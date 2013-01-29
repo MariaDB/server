@@ -47,14 +47,6 @@ class DllExport FIXFAM : public BLKFAM {
   // No additional members
   }; // end of class FIXFAM
 
-#if defined(WIN32)
-typedef __int64 BIGINT;
-#else   // !WIN32
-typedef off64_t BIGINT;
-#define FILE_BEGIN    SEEK_SET  
-#define FILE_CURRENT  SEEK_CUR  
-#define FILE_END      SEEK_END  
-#endif  // !WIN32
 
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for files     */

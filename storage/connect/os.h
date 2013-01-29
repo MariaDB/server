@@ -12,7 +12,7 @@ typedef off_t off64_t;
 #if defined(WIN32)
 typedef __int64 BIGINT;
 #else   // !WIN32
-typedef off64_t BIGINT;
+typedef longlong  BIGINT;
 #define FILE_BEGIN    SEEK_SET  
 #define FILE_CURRENT  SEEK_CUR  
 #define FILE_END      SEEK_END  
@@ -28,7 +28,7 @@ typedef char *LPTSTR;
 typedef char *PSZ;
 typedef int INT;
 #if !defined(NODW)
-typedef int   DWORD;
+typedef unsigned int DWORD;
 #endif   /* !NODW */
 #undef  HANDLE     
 typedef int   HANDLE;
