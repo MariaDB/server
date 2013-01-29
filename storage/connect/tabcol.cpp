@@ -9,11 +9,7 @@
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
-#if defined(OS16) || defined(OS32)
-#include <os2def.h>
-#else
 #include "my_global.h"
-#endif
 
 /***********************************************************************/
 /*  Include required application header files                          */

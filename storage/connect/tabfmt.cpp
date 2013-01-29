@@ -19,9 +19,8 @@
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(OS16) || defined(OS32)
-#include <os2def.h>
-#elif defined(WIN32)
+
+#if defined(WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
