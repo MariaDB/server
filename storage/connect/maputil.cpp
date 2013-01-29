@@ -3,7 +3,6 @@
 #include "osutil.h"
 #include <errno.h>
 #include <stddef.h>
-//typedef int HANDLE;	done in os2def.h
 #else /* WINDOWS */
 //#include <windows.h>
 #include "osutil.h"

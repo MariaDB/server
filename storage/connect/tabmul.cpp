@@ -37,9 +37,7 @@
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(OS16) || defined(OS32)
-#include <os2def.h>
-#elif defined(WIN32)
+#if defined(WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
