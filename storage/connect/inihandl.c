@@ -35,8 +35,6 @@
 
 // The types and variables used locally
 //typedef int bool;
-typedef const char *LPCSTR;
-typedef char *LPSTR;
 typedef unsigned int uint;
 #define DWORD int
 #define TRUE  1
