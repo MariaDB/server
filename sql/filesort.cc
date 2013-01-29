@@ -61,7 +61,6 @@ static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static void register_used_fields(Sort_param *param);
 static bool save_index(Sort_param *param, uint count,
                        Filesort_info *table_sort);
-static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static uint suffix_length(ulong string_length);
 static uint sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 		       bool *multi_byte_charset);
@@ -181,6 +180,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     when index_merge select has finished with it.
   */
   table->sort.io_cache= NULL;
+  DBUG_ASSERT(table_sort.record_pointers == NULL);
   
   outfile= table_sort.io_cache;
   my_b_clear(&tempfile);
@@ -608,6 +608,8 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   if (!quick_select)
   {
     next_pos=(uchar*) 0;			/* Find records in sequence */
+    DBUG_EXECUTE_IF("bug14365043_1",
+                    DBUG_SET("+d,ha_rnd_init_fail"););
     if (file->ha_rnd_init_with_error(1))
       DBUG_RETURN(HA_POS_ERROR);
     file->extra_opt(HA_EXTRA_CACHE,
@@ -865,21 +867,9 @@ static void make_sortkey(register Sort_param *param,
     bool maybe_null=0;
     if ((field=sort_field->field))
     {						// Field
-      if (field->maybe_null())
-      {
-	if (field->is_null())
-	{
-	  if (sort_field->reverse)
-	    memset(to, 255, sort_field->length+1);
-	  else
-	    memset(to, 0, sort_field->length+1);
-	  to+= sort_field->length+1;
-	  continue;
-	}
-	else
-	  *to++=1;
-      }
-      field->sort_string(to, sort_field->length);
+      field->make_sort_key(to, sort_field->length);
+      if ((maybe_null = field->maybe_null()))
+        to++;
     }
     else
     {						// Item
@@ -1039,8 +1029,11 @@ static void make_sortkey(register Sort_param *param,
     }
     if (sort_field->reverse)
     {							/* Revers key */
-      if (maybe_null)
-        to[-1]= ~to[-1];
+      if (maybe_null && (to[-1]= !to[-1]))
+      {
+        to+= sort_field->length; // don't waste the time reversing all 0's
+        continue;
+      }
       length=sort_field->length;
       while (length--)
       {

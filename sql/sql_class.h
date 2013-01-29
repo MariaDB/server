@@ -1751,7 +1751,7 @@ public:
   bool save_prep_leaf_list;
 
 #ifndef MYSQL_CLIENT
-  int binlog_setup_trx_data();
+  binlog_cache_mngr *  binlog_setup_trx_data();
 
   /*
     Public interface to write RBR events to the binlog
@@ -2234,6 +2234,7 @@ public:
 
   bool	     no_errors;
   uint8      password;
+  uint8      failed_com_change_user;
 
   /**
     Set to TRUE if execution of the current compound statement
@@ -2747,6 +2748,19 @@ public:
   inline int killed_errno() const
   {
     return ::killed_errno(killed);
+  }
+  inline void reset_killed()
+  {
+    /*
+      Resetting killed has to be done under a mutex to ensure
+      its not done during an awake() call.
+    */
+    if (killed != NOT_KILLED)
+    {
+      mysql_mutex_lock(&LOCK_thd_data);
+      killed= NOT_KILLED;
+      mysql_mutex_unlock(&LOCK_thd_data);
+    }
   }
   inline void send_kill_message() const
   {
@@ -3974,6 +3988,8 @@ class Unique :public Sql_alloc
   uint full_size;
   uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
 
+  bool merge(TABLE *table, uchar *buff, bool without_last_merge);
+
 public:
   ulong elements;
   Unique(qsort_cmp2 comp_func, void *comp_func_fixed_arg,
@@ -4014,7 +4030,7 @@ public:
   }
 
   void reset();
-  bool walk(tree_walk_action action, void *walk_action_arg);
+  bool walk(TABLE *table, tree_walk_action action, void *walk_action_arg);
 
   uint get_size() const { return size; }
   ulonglong get_max_in_memory_size() const { return max_in_memory_size; }

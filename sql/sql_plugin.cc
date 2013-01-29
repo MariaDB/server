@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab
+   Copyright (c) 2010, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1875,8 +1875,11 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, int *argc, char **argv,
   DBUG_RETURN(FALSE);
 error:
   mysql_mutex_unlock(&LOCK_plugin);
-  sql_print_error("Couldn't load plugin named '%s' with soname '%s'.",
-                  name.str, dl.str);
+  if (name.str)
+    sql_print_error("Couldn't load plugin '%s' from '%s'.",
+                    name.str, dl.str);
+  else
+    sql_print_error("Couldn't load plugins from '%s'.", dl.str);
   DBUG_RETURN(TRUE);
 }
 
@@ -2021,7 +2024,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_STRING *name)
   struct st_plugin_int *tmp= plugin_find_internal(name, MYSQL_ANY_PLUGIN);
   int error;
   DBUG_ASSERT(tmp);
-  mysql_mutex_assert_owner(&LOCK_plugin);
+  mysql_mutex_assert_owner(&LOCK_plugin); // because of tmp->state
 
   if (tmp->state == PLUGIN_IS_DISABLED)
   {
@@ -2108,8 +2111,12 @@ bool mysql_install_plugin(THD *thd, const LEX_STRING *name,
 
     This hack should be removed when LOCK_plugin is fixed so it
     protects only what it supposed to protect.
+
+    See also mysql_uninstall_plugin() and initialize_audit_plugin()
   */
-  mysql_audit_acquire_plugins(thd, MYSQL_AUDIT_GENERAL_CLASS);
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
+  mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
   mysql_rwlock_wrlock(&LOCK_system_variables_hash);
@@ -2252,8 +2259,15 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
     When audit event is triggered during [UN]INSTALL PLUGIN, plugin
     list iterator acquires the same lock (within the same thread)
     second time.
+
+    This hack should be removed when LOCK_plugin is fixed so it
+    protects only what it supposed to protect.
+
+    See also mysql_install_plugin() and initialize_audit_plugin()
   */
-  mysql_audit_acquire_plugins(thd, MYSQL_AUDIT_GENERAL_CLASS);
+  unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE] =
+  { MYSQL_AUDIT_GENERAL_CLASSMASK };
+  mysql_audit_acquire_plugins(thd, event_class_mask);
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -2263,11 +2277,19 @@ bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
   {
     fix_dl_name(thd->mem_root, &dl);
     st_plugin_dl *plugin_dl= plugin_dl_find(&dl);
-    struct st_maria_plugin *plugin;
-    for (plugin= plugin_dl->plugins; plugin->info; plugin++)
+    if (plugin_dl)
     {
-      LEX_STRING str= { const_cast<char*>(plugin->name), strlen(plugin->name) };
-      error|= do_uninstall(thd, table, &str);
+      for (struct st_maria_plugin *plugin= plugin_dl->plugins;
+           plugin->info; plugin++)
+      {
+        LEX_STRING str= { const_cast<char*>(plugin->name), strlen(plugin->name) };
+        error|= do_uninstall(thd, table, &str);
+      }
+    }
+    else
+    {
+      my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "SONAME", dl.str);
+      error= true;
     }
   }
   reap_plugins();

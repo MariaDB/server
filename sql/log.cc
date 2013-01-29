@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010-2011 Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1552,10 +1552,7 @@ binlog_trans_log_savepos(THD *thd, my_off_t *pos)
 {
   DBUG_ENTER("binlog_trans_log_savepos");
   DBUG_ASSERT(pos != NULL);
-  if (thd_get_ha_data(thd, binlog_hton) == NULL)
-    thd->binlog_setup_trx_data();
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
   DBUG_ASSERT(mysql_bin_log.is_open());
   *pos= cache_mngr->trx_cache.get_byte_position();
   DBUG_PRINT("return", ("*pos: %lu", (ulong) *pos));
@@ -2105,15 +2102,17 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   binlog_trans_log_savepos(thd, (my_off_t*) sv);
   /* Write it to the binary log */
 
-  String log_query;
-  if (log_query.append(STRING_WITH_LEN("SAVEPOINT ")) ||
+  char buf[1024];
+  String log_query(buf, sizeof(buf), &my_charset_bin);
+  if (log_query.copy(STRING_WITH_LEN("SAVEPOINT "), &my_charset_bin) ||
       append_identifier(thd, &log_query,
                         thd->lex->ident.str, thd->lex->ident.length))
     DBUG_RETURN(1);
   int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
   Query_log_event qinfo(thd, log_query.ptr(), log_query.length(),
                         TRUE, FALSE, TRUE, errcode);
-  DBUG_RETURN(mysql_bin_log.write(&qinfo));
+  int ret= mysql_bin_log.write(&qinfo);
+  DBUG_RETURN(ret);
 }
 
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
@@ -2128,8 +2127,9 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
   if (unlikely(trans_has_updated_non_trans_table(thd) ||
                (thd->variables.option_bits & OPTION_KEEP_LOG)))
   {
-    String log_query;
-    if (log_query.append(STRING_WITH_LEN("ROLLBACK TO ")) ||
+    char buf[1024];
+    String log_query(buf, sizeof(buf), &my_charset_bin);
+    if (log_query.copy(STRING_WITH_LEN("ROLLBACK TO "), &my_charset_bin) ||
         append_identifier(thd, &log_query,
                           thd->lex->ident.str, thd->lex->ident.length))
       DBUG_RETURN(1);
@@ -4953,14 +4953,14 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   binlog_hton, which has internal linkage.
 */
 
-int THD::binlog_setup_trx_data()
+binlog_cache_mngr *THD::binlog_setup_trx_data()
 {
   DBUG_ENTER("THD::binlog_setup_trx_data");
   binlog_cache_mngr *cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
 
   if (cache_mngr)
-    DBUG_RETURN(0);                             // Already set up
+    DBUG_RETURN(cache_mngr);                             // Already set up
 
   cache_mngr= (binlog_cache_mngr*) my_malloc(sizeof(binlog_cache_mngr), MYF(MY_ZEROFILL));
   if (!cache_mngr ||
@@ -4970,18 +4970,18 @@ int THD::binlog_setup_trx_data()
                        LOG_PREFIX, binlog_cache_size, MYF(MY_WME)))
   {
     my_free(cache_mngr);
-    DBUG_RETURN(1);                      // Didn't manage to set it up
+    DBUG_RETURN(0);                      // Didn't manage to set it up
   }
   thd_set_ha_data(this, binlog_hton, cache_mngr);
 
-  cache_mngr= new (thd_get_ha_data(this, binlog_hton))
+  cache_mngr= new (cache_mngr)
               binlog_cache_mngr(max_binlog_stmt_cache_size,
                                 max_binlog_cache_size,
                                 &binlog_stmt_cache_use,
                                 &binlog_stmt_cache_disk_use,
                                 &binlog_cache_use,
                                 &binlog_cache_disk_use);
-  DBUG_RETURN(0);
+  DBUG_RETURN(cache_mngr);
 }
 
 /*
@@ -5064,9 +5064,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   int err= 0;
   DBUG_ENTER("binlog_start_consistent_snapshot");
 
-  thd->binlog_setup_trx_data();
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
 
   /* Server layer calls us with LOCK_commit_ordered locked, so this is safe. */
   strmake(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file,
@@ -5178,11 +5176,7 @@ THD::binlog_get_pending_rows_event(bool is_transactional) const
 void
 THD::binlog_set_pending_rows_event(Rows_log_event* ev, bool is_transactional)
 {
-  if (thd_get_ha_data(this, binlog_hton) == NULL)
-    binlog_setup_trx_data();
-
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  binlog_cache_mngr *const cache_mngr= binlog_setup_trx_data();
 
   DBUG_ASSERT(cache_mngr);
 
@@ -5261,12 +5255,18 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
     /*
       Write pending event to the cache.
     */
+    DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
+                    {DBUG_SET("+d,simulate_file_write_error");});
     if (pending->write(file))
     {
       set_write_error(thd, is_transactional);
       if (check_write_error(thd) && cache_data &&
           stmt_has_updated_non_trans_table(thd))
         cache_data->set_incident();
+      delete pending;
+      cache_data->set_pending(NULL);
+      DBUG_EXECUTE_IF("simulate_disk_full_at_flush_pending",
+                      {DBUG_SET("-d,simulate_file_write_error");});
       DBUG_RETURN(1);
     }
 
@@ -5350,11 +5350,9 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
     }
     else
     {
-      if (thd->binlog_setup_trx_data())
+      binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
+      if (!cache_mngr)
         goto err;
-
-      binlog_cache_mngr *const cache_mngr=
-        (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 
       is_trans_cache= use_trans_cache(thd, using_trans);
       file= cache_mngr->get_binlog_cache_log(is_trans_cache);
@@ -7987,8 +7985,9 @@ TC_LOG_BINLOG::log_and_order(THD *thd, my_xid xid, bool all,
   int err;
   DBUG_ENTER("TC_LOG_BINLOG::log_and_order");
 
-  binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  binlog_cache_mngr *cache_mngr= thd->binlog_setup_trx_data();
+  if (!cache_mngr)
+    DBUG_RETURN(0);
 
   cache_mngr->using_xa= TRUE;
   cache_mngr->xa_xid= xid;
@@ -8536,7 +8535,7 @@ static int show_binlog_vars(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 static SHOW_VAR binlog_status_vars_top[]= {
-  {"binlog", (char *) &show_binlog_vars, SHOW_FUNC},
+  {"Binlog", (char *) &show_binlog_vars, SHOW_FUNC},
   {NullS, NullS, SHOW_LONG}
 };
 

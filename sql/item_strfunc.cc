@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -341,7 +342,7 @@ String *Item_func_sha2::val_str_ascii(String *str)
 
 void Item_func_sha2::fix_length_and_dec()
 {
-  maybe_null = 1;
+  set_persist_maybe_null(1);
   max_length = 0;
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
@@ -467,7 +468,7 @@ String *Item_func_aes_decrypt::val_str(String *str)
 void Item_func_aes_decrypt::fix_length_and_dec()
 {
    max_length=args[0]->max_length;
-   maybe_null= 1;
+   set_persist_maybe_null(1);
 }
 
 
@@ -1337,7 +1338,7 @@ void Item_str_func::left_right_max_length()
   if (args[1]->const_item())
   {
     int length= (int) args[1]->val_int();
-    if (length <= 0)
+    if (args[1]->null_value || length <= 0)
       char_length=0;
     else
       set_if_smaller(char_length, (uint) length);
@@ -1444,7 +1445,9 @@ void Item_func_substr::fix_length_and_dec()
   if (args[1]->const_item())
   {
     int32 start= (int32) args[1]->val_int();
-    if (start < 0)
+    if (args[1]->null_value)
+      max_length= 0;
+    else if (start < 0)
       max_length= ((uint)(-start) > max_length) ? 0 : (uint)(-start);
     else
       max_length-= min((uint)(start - 1), max_length);
@@ -1452,7 +1455,7 @@ void Item_func_substr::fix_length_and_dec()
   if (arg_count == 3 && args[2]->const_item())
   {
     int32 length= (int32) args[2]->val_int();
-    if (length <= 0)
+    if (args[2]->null_value || length <= 0)
       max_length=0; /* purecov: inspected */
     else
       set_if_smaller(max_length,(uint) length);
@@ -2411,7 +2414,7 @@ void Item_func_elt::fix_length_and_dec()
     set_if_bigger(decimals,args[i]->decimals);
   }
   fix_char_length(char_length);
-  maybe_null=1;					// NULL if wrong first arg
+  set_persist_maybe_null(1);			  // NULL if wrong first arg
 }
 
 
@@ -2650,7 +2653,9 @@ void Item_func_repeat::fix_length_and_dec()
 
     /* Assumes that the maximum length of a String is < INT_MAX32. */
     /* Set here so that rest of code sees out-of-bound value as such. */
-    if (count > INT_MAX32)
+    if (args[1]->null_value)
+      count= 0;
+    else if (count > INT_MAX32)
       count= INT_MAX32;
 
     ulonglong char_length= (ulonglong) args[0]->max_char_length() * count;
@@ -2659,7 +2664,7 @@ void Item_func_repeat::fix_length_and_dec()
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
+    set_persist_maybe_null(1);
   }
 }
 
@@ -2729,14 +2734,16 @@ void Item_func_rpad::fix_length_and_dec()
     DBUG_ASSERT(collation.collation->mbmaxlen > 0);
     /* Assumes that the maximum length of a String is < INT_MAX32. */
     /* Set here so that rest of code sees out-of-bound value as such. */
-    if (char_length > INT_MAX32)
+    if (args[1]->null_value)
+      char_length= 0;
+    else if (char_length > INT_MAX32)
       char_length= INT_MAX32;
     fix_char_length_ulonglong(char_length);
   }
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
+    set_persist_maybe_null(1);
   }
 }
 
@@ -2833,14 +2840,16 @@ void Item_func_lpad::fix_length_and_dec()
     DBUG_ASSERT(collation.collation->mbmaxlen > 0);
     /* Assumes that the maximum length of a String is < INT_MAX32. */
     /* Set here so that rest of code sees out-of-bound value as such. */
-    if (char_length > INT_MAX32)
+    if (args[1]->null_value)
+      char_length= 0;
+    else if (char_length > INT_MAX32)
       char_length= INT_MAX32;
     fix_char_length_ulonglong(char_length);
   }
   else
   {
     max_length= MAX_BLOB_WIDTH;
-    maybe_null= 1;
+    set_persist_maybe_null(1);
   }
 }
 
@@ -3814,7 +3823,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 
 void Item_func_dyncol_create::fix_length_and_dec()
 {
-  maybe_null= TRUE;
+  set_persist_maybe_null(1);
   collation.set(&my_charset_bin);
   decimals= 0;
 }
@@ -4366,8 +4375,7 @@ String *Item_dyncol_get::val_str(String *str_result)
   case DYN_COL_DECIMAL:
   {
     int res;
-    int length=
-      my_decimal_string_length((const my_decimal*)&val.x.decimal.value);
+    int length= decimal_string_size(&val.x.decimal.value);
     if (str_result->alloc(length))
       goto null;
     if ((res= decimal2string(&val.x.decimal.value, (char*) str_result->ptr(),

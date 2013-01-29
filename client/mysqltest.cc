@@ -1660,12 +1660,12 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
 {
   int fd;
   size_t len;
-  char buff[512];
+  char buff[16384];
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
   while((len= my_read(fd, (uchar*)&buff,
-                      sizeof(buff), MYF(0))) > 0)
+                      sizeof(buff)-1, MYF(0))) > 0)
   {
     char *p= buff, *start= buff;
     while (p < buff+len)
@@ -1676,7 +1676,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
         /* Add fake newline instead of cr and output the line */
         *p= '\n';
         p++; /* Step past the "fake" newline */
-        dynstr_append_mem(ds, start, p-start);
+        *p= 0;
+        replace_dynstr_append_mem(ds, start, p-start);
         p++; /* Step past the "fake" newline */
         start= p;
       }
@@ -1684,7 +1685,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
         p++;
     }
     /* Output any chars that migh be left */
-    dynstr_append_mem(ds, start, p-start);
+    *p= 0;
+    replace_dynstr_append_mem(ds, start, p-start);
   }
   my_close(fd, MYF(0));
   return 0;
@@ -4397,7 +4399,10 @@ void do_change_user(struct st_command *command)
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
   if (mysql_change_user(mysql, ds_user.str, ds_passwd.str, ds_db.str))
-    die("change user failed: %s", mysql_error(mysql));
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+		 mysql_sqlstate(mysql), &ds_res);
+  else
+    handle_no_error(command);
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);

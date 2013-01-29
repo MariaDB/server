@@ -1296,7 +1296,7 @@ public:
     if (tree->elements == 0)
       return (ulonglong) tree->elements_in_tree();
     count= 0;  
-    tree->walk(count_distinct_walk, (void*) &count);
+    tree->walk(table_field->table, count_distinct_walk, (void*) &count);
     return count;
   }
 };

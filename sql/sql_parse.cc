@@ -991,7 +991,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->security_ctx->user= 0;
     thd->user_connect= 0;
 
-    rc= acl_authenticate(thd, 0, packet_length);
+    /*
+      to limit COM_CHANGE_USER ability to brute-force passwords,
+      we only allow three unsuccessful COM_CHANGE_USER per connection.
+    */
+    if (thd->failed_com_change_user >= 3)
+    {
+      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      rc= 1;
+    }
+    else
+      rc= acl_authenticate(thd, 0, packet_length);
+
     MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
     if (rc)
     {
@@ -1006,6 +1017,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->variables.collation_connection= save_collation_connection;
       thd->variables.character_set_results= save_character_set_results;
       thd->update_charset();
+      thd->failed_com_change_user++;
+      my_sleep(1000000);
     }
     else
     {
@@ -4633,16 +4646,20 @@ finish:
 
   if (! thd->in_sub_stmt)
   {
-    /* report error issued during command execution */
-    if (thd->killed_errno())
+    if (thd->killed != NOT_KILLED)
     {
-      if (! thd->stmt_da->is_set())
-        thd->send_kill_message();
-    }
-    if (thd->killed < KILL_CONNECTION)
-    {
-      thd->killed= NOT_KILLED;
-      thd->mysys_var->abort= 0;
+      /* report error issued during command execution */
+      if (thd->killed_errno())
+      {
+        /* If we already sent 'ok', we can ignore any kill query statements */
+        if (! thd->stmt_da->is_set())
+          thd->send_kill_message();
+      }
+      if (thd->killed < KILL_CONNECTION)
+      {
+        thd->reset_killed();
+        thd->mysys_var->abort= 0;
+      }
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);
@@ -6266,8 +6283,13 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->next_name_resolution_table= NULL;
   /* Link table in global list (all used tables) */
   lex->add_to_query_tables(ptr);
-  ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
-                        MDL_TRANSACTION);
+
+  // Pure table aliases do not need to be locked:
+  if (!test(table_options & TL_OPTION_ALIAS))
+  {
+    ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
+                          MDL_TRANSACTION);
+  }
   DBUG_RETURN(ptr);
 }
 

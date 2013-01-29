@@ -116,13 +116,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -142,13 +142,13 @@ BEGIN
 #Q> INSERT INTO test2.t2 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -168,13 +168,13 @@ BEGIN
 #Q> INSERT INTO test3.t3 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test3`.`t3` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -200,22 +200,22 @@ BEGIN
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -235,13 +235,13 @@ BEGIN
 #Q> INSERT INTO test2.v2 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -263,13 +263,13 @@ BEGIN
 #Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -328,13 +328,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -384,13 +384,13 @@ BEGIN
 #Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -490,13 +490,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -514,13 +514,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -538,13 +538,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test3`.`t3` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -566,22 +566,22 @@ BEGIN
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -599,13 +599,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -623,13 +623,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -708,13 +708,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -734,13 +734,13 @@ BEGIN
 #Q> INSERT INTO test2.t2 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -760,13 +760,13 @@ BEGIN
 #Q> INSERT INTO test3.t3 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test3`.`t3` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -792,22 +792,22 @@ BEGIN
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -827,13 +827,13 @@ BEGIN
 #Q> INSERT INTO test2.v2 VALUES (1), (2), (3)
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -855,13 +855,13 @@ BEGIN
 #Q> WHERE xtest1.xt1.a=test2.t2.a AND test2.t2.a=test3.t3
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -920,13 +920,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -976,13 +976,13 @@ BEGIN
 #Q> WHERE test1.t1.a=test2.t2.a AND test2.t2.a=test3.t3
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1082,13 +1082,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test1`.`t1` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test1.t1
+### INSERT INTO `test1`.`t1`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1105,13 +1105,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1128,13 +1128,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test3`.`t3` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test3.t3
+### INSERT INTO `test3`.`t3`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1155,22 +1155,22 @@ BEGIN
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test1.t1
+### DELETE FROM `test1`.`t1`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1187,13 +1187,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Write_rows: table id # flags: STMT_END_F
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### INSERT INTO test2.t2
+### INSERT INTO `test2`.`t2`
 ### SET
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
 # at #
@@ -1210,13 +1210,13 @@ BEGIN
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Table_map: `test2`.`t2` mapped to number #
 #010909  4:46:40 server id #  end_log_pos # 	Delete_rows: table id # flags: STMT_END_F
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=3 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
-### DELETE FROM test2.t2
+### DELETE FROM `test2`.`t2`
 ### WHERE
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # at #

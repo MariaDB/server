@@ -342,6 +342,7 @@ static PSI_file_info	all_innodb_files[] = {
 static INNOBASE_SHARE *get_share(const char *table_name);
 static void free_share(INNOBASE_SHARE *share);
 static int innobase_close_connection(handlerton *hton, THD* thd);
+static void innobase_kill_query(handlerton *hton, THD* thd, enum thd_kill_levels level);
 static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
 static int innobase_commit(handlerton *hton, THD* thd, bool all);
 static int innobase_rollback(handlerton *hton, THD* thd, bool all);
@@ -921,8 +922,7 @@ convert_error_code_to_mysql(
 		return(0);
 
 	case DB_INTERRUPTED:
-		my_error(ER_QUERY_INTERRUPTED, MYF(0));
-		/* fall through */
+                return(HA_ERR_ABORTED_BY_USER);
 
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
 		push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -1013,11 +1013,23 @@ convert_error_code_to_mysql(
 	case DB_TABLE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
 
-	case DB_TOO_BIG_RECORD:
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 page_get_free_space_of_empty(flags
-						      & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* If prefix is true then a 768-byte prefix is stored
+		locally for BLOB fields. Refer to dict_table_get_format() */
+		bool prefix = ((flags & DICT_TF_FORMAT_MASK)
+		 	       >> DICT_TF_FORMAT_SHIFT) < UNIV_FORMAT_B;
+		my_printf_error(ER_TOO_BIG_ROWSIZE,
+			"Row size too large (> %lu). Changing some columns "
+			"to TEXT or BLOB %smay help. In current row "
+			"format, BLOB prefix of %d bytes is stored inline.",
+			MYF(0),
+			page_get_free_space_of_empty(flags &
+				DICT_TF_COMPACT) / 2,
+			prefix ? "or using ROW_FORMAT=DYNAMIC "
+			"or ROW_FORMAT=COMPRESSED ": "",
+			prefix ? DICT_MAX_FIXED_COL_LEN : 0);
 		return(HA_ERR_TO_BIG_ROW);
+        }
 
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
@@ -1487,19 +1499,19 @@ innobase_next_autoinc(
         */
         max_value= (~(ulonglong) 0);
 
-	/* Current value should never be greater than the maximum. */
-	ut_a(current <= max_value);
-
 	/* According to MySQL documentation, if the offset is greater than
 	the step then the offset is ignored. */
 	if (offset > block) {
 		offset = 0;
 	}
 
-	/* Check for overflow. */
+	/* Check for overflow. Current can be > max_value if the value is
+	in reality a negative value.The visual studio compilers converts
+	large double values automatically into unsigned long long datatype
+	maximum value */
 	if (block >= max_value
 	    || offset > max_value
-	    || current == max_value
+	    || current >= max_value
 	    || max_value - offset <= offset) {
 
 		next_value = max_value;
@@ -2145,7 +2157,7 @@ trx_is_interrupted(
 /*===============*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	return(trx && trx->mysql_thd && thd_killed((THD*) trx->mysql_thd));
+	return(trx && trx->mysql_thd && thd_kill_level((THD*) trx->mysql_thd));
 }
 
 /**********************************************************************//**
@@ -2276,6 +2288,7 @@ innobase_init(
         innobase_hton->flags=HTON_NO_FLAGS;
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
+        innobase_hton->kill_query = innobase_kill_query;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -3321,6 +3334,35 @@ innobase_close_connection(
 	trx_free_for_mysql(trx);
 
 	DBUG_RETURN(0);
+}
+
+
+/*****************************************************************//**
+Cancel any pending lock request associated with the current THD. */
+static
+void
+innobase_kill_query(
+/*======================*/
+        handlerton*	hton,	    /*!< in: innobase handlerton */
+	THD*	thd,	            /*!< in: MySQL thread being killed */
+        enum thd_kill_levels level) /*!< in: kill level */
+{
+	trx_t*	trx;
+	DBUG_ENTER("innobase_kill_query");
+	DBUG_ASSERT(hton == innodb_hton_ptr);
+
+	mutex_enter(&kernel_mutex);
+
+	trx = thd_to_trx(thd);
+
+	/* Cancel a pending lock request. */
+	if (trx && trx->wait_lock) {
+		lock_cancel_waiting_and_release(trx->wait_lock);
+	}
+
+	mutex_exit(&kernel_mutex);
+
+	DBUG_VOID_RETURN;
 }
 
 
@@ -8825,7 +8867,7 @@ ha_innobase::check(
 			row_mysql_unlock_data_dictionary(prebuilt->trx);
 		}
 
-		if (thd_killed(user_thd)) {
+		if (thd_kill_level(user_thd)) {
 			break;
 		}
 
@@ -8882,7 +8924,7 @@ ha_innobase::check(
 	mutex_exit(&kernel_mutex);
 
 	prebuilt->trx->op_info = "";
-	if (thd_killed(user_thd)) {
+	if (thd_kill_level(user_thd)) {
 		my_error(ER_QUERY_INTERRUPTED, MYF(0));
 	}
 
@@ -11867,8 +11909,8 @@ static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 static MYSQL_SYSVAR_UINT(change_buffering_debug, ibuf_debug,
   PLUGIN_VAR_RQCMDARG,
-  "Debug flags for InnoDB change buffering (0=none)",
-  NULL, NULL, 0, 0, 1, 0);
+  "Debug flags for InnoDB change buffering (0=none, 2=crash at merge)",
+  NULL, NULL, 0, 0, 2, 0);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
