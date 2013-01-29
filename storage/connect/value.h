@@ -169,7 +169,7 @@ class STRING : public VALUE {
   virtual PSZ    GetCharValue(void) {return Strp;}
   virtual short  GetShortValue(void) {return (short)atoi(Strp);}
   virtual int    GetIntValue(void) {return atol(Strp);}
-  virtual longlong GetBigintValue(void) {return strtoll(Strp, NULL, 10);}
+  virtual longlong GetBigintValue(void) {return atoll(Strp);}
   virtual double GetFloatValue(void) {return atof(Strp);}
   virtual void  *GetTo_Val(void) {return Strp;}
 
@@ -449,8 +449,8 @@ class DllExport BIGVAL : public VALUE {
 
   // Implementation
   virtual bool   IsTypeNum(void) {return true;}
-  virtual bool   IsZero(void) {return Lval == 0;}
-  virtual void   Reset(void) {Lval = 0;}
+  virtual bool   IsZero(void) {return Lval == 0LL;}
+  virtual void   Reset(void) {Lval = 0LL;}
   virtual int    GetValLen(void);
   virtual int    GetValPrec() {return 0;}
   virtual int    GetSize(void) {return sizeof(longlong);}
@@ -465,7 +465,7 @@ class DllExport BIGVAL : public VALUE {
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual void   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
-  virtual void   SetValue_bool(bool b) {Lval = (b) ? 1 : 0;}
+  virtual void   SetValue_bool(bool b) {Lval = (b) ? 1LL : 0LL;}
   virtual void   SetValue(short i) {Lval = (longlong)i;}
   virtual void   SetValue(int n) {Lval = (longlong)n;}
   virtual void   SetValue(longlong n) {Lval = n;}

@@ -1,7 +1,7 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 1.4                                      */
+/*  Name: VALBLK.CPP  Version 1.5                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes functions.       */
 /*  Second family is VALBLK, representing simple suballocated arrays   */
