@@ -56,12 +56,6 @@ typedef class ha_connect *PHC;
 /***********************************************************************/
 extern int xtrace;
 
-#if defined(WIN32)
-typedef unsigned __int64   ulonglong;
-#else
-typedef unsigned long long ulonglong;
-#endif
-
 /***********************************************************************/
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
