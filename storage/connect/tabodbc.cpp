@@ -46,12 +46,12 @@
 #else
 #if defined(UNIX)
 #include <errno.h>
+#define NODW
 #include "osutil.h"
 #else
 #include <io.h>
 #endif
 #include <fcntl.h>
-#define NODW
 #endif
 
 /***********************************************************************/

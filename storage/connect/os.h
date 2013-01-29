@@ -28,7 +28,13 @@ typedef char *LPTSTR;
 typedef char *PSZ;
 typedef int INT;
 #if !defined(NODW)
-typedef unsigned int DWORD;
+/*
+  sqltypes.h from unixODBC incorrectly defines
+  DWORD as "unsigned int" instead of "unsigned long" on 64-bit platforms.
+  Add "#define NODW" into all files including this file that include
+  sqltypes.h (through sql.h or sqlext.h).
+*/
+typedef unsigned long DWORD;
 #endif   /* !NODW */
 #undef  HANDLE     
 typedef int   HANDLE;
