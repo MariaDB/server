@@ -136,35 +136,8 @@ extern "C" {
 /***********************************************************************/
 /*  General purpose type definitions.                                  */
 /***********************************************************************/
-#if !defined(WIN32)
-typedef const char *LPCTSTR;
-typedef const char *LPCSTR;
-typedef unsigned char BYTE;
-typedef char *LPSTR;
-typedef char *PSZ;
-#if !defined(NODW)
-typedef unsigned int   DWORD;
-#endif   // !NODW
-#undef  HANDLE     
-typedef int   HANDLE;
-#ifdef __cplusplus
-typedef int   bool;
-#else
-#define bool  my_bool
-#endif
-#define _MAX_PATH   PATH_MAX
-#define stricmp     strcasecmp
-#define _stricmp    strcasecmp
-#define strnicmp    strncasecmp
-#define _strnicmp   strncasecmp
-#define _MAX_PATH   260
-#define _MAX_DRIVE    3
-#define _MAX_DIR    256
-#define _MAX_FNAME  256
-#define _MAX_EXT    256
-#define INVALID_HANDLE_VALUE  (-1)
-#define __stdcall
-#endif   // !WIN32
+#include "os.h"
+
 typedef uint  OFFSET;
 typedef char  NAME[9];
 

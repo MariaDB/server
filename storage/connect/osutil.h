@@ -5,26 +5,8 @@
 #include "my_global.h"
 #include <errno.h>
 #include <stddef.h>
+#include "os.h"
 
-typedef const void *LPCVOID;
-typedef const char *LPCTSTR;
-typedef const char *LPCSTR;
-typedef unsigned char BYTE;
-typedef char *LPSTR;
-typedef char *LPTSTR;
-typedef char *PSZ;
-typedef int   INT;
-//typedef int   DWORD;
-#undef  HANDLE
-typedef int   HANDLE;
-#ifdef __cplusplus
-//typedef int   bool;
-#else
-#define bool  my_bool
-#endif
-#define _MAX_PATH  PATH_MAX
-#define stricmp    strcasecmp
-#define strnicmp   strncasecmp
 #define MB_OK  0x00000000
 
 #if defined(__cplusplus)
