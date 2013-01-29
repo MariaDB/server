@@ -20,10 +20,17 @@ ENDIF()
 INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}) 
 SET(CMAKE_REQUIRED_INCLUDES ${Thrift_INCLUDE_DIRS})
 
+STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+
 CHECK_CXX_SOURCE_COMPILES(
 "
 #include <Thrift.h>
-int main() { return 0; }
+#include <boost/shared_ptr.hpp>
+int main() {
+  boost::shared_ptr<char> p(new char(10));
+  return 0;
+}
 " CASSANDRASE_OK)
 
 IF(CASSANDRASE_OK)
@@ -39,11 +46,11 @@ IF(CASSANDRASE_OK)
       gen-cpp/cassandra_constants.cpp
       gen-cpp/Cassandra.h)
 
-  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-  STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   LINK_DIRECTORIES(${LINK_DIR})
 
   MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT CassandraSE)
-  INSTALL(FILES cassandra.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
-          COMPONENT CassandraSE)
+  IF (INSTALL_SYSCONFDIR)
+    INSTALL(FILES cassandra.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
+            COMPONENT CassandraSE)
+  ENDIF(INSTALL_SYSCONFDIR)
 ENDIF(CASSANDRASE_OK)
