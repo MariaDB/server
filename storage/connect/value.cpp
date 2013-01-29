@@ -38,11 +38,6 @@
 
 #include <math.h>
 
-#ifdef ODBC_SUPPORT
-#include <sql.h>
-#include <sqlext.h>
-#endif
-
 #undef DOMAIN                           // Was defined in math.h
 
 /***********************************************************************/
@@ -200,46 +195,6 @@ int GetDBType(int type)
   return tp;
   } // end of GetPLGType
 
-#if ODBC_SUPPORT
-/***********************************************************************/
-/*  GetSQLType: returns the SQL_TYPE corresponding to a PLG type.      */
-/***********************************************************************/
-short GetSQLType(int type)
-  {
-  short tp = SQL_TYPE_NULL;
-
-  switch (type) {
-    case TYPE_STRING: tp = SQL_CHAR;      break;
-    case TYPE_SHORT:  tp = SQL_SMALLINT;  break;
-    case TYPE_INT:    tp = SQL_INTEGER;   break;
-    case TYPE_DATE:   tp = SQL_TIMESTAMP; break;
-    case TYPE_BIGINT: tp = SQL_BIGINT;    break;                    //  (-5)
-    case TYPE_FLOAT:  tp = SQL_DOUBLE;    break;
-    } // endswitch type
-
-  return tp;
-  } // end of GetSQLType
-
-/***********************************************************************/
-/*  GetSQLCType: returns the SQL_C_TYPE corresponding to a PLG type.   */
-/***********************************************************************/
-int GetSQLCType(int type)
-  {
-  int tp = SQL_TYPE_NULL;
-
-  switch (type) {
-    case TYPE_STRING: tp = SQL_C_CHAR;      break;
-    case TYPE_SHORT:  tp = SQL_C_SHORT;     break;
-    case TYPE_INT:    tp = SQL_C_LONG;      break;
-    case TYPE_DATE:   tp = SQL_C_TIMESTAMP; break;
-    case TYPE_BIGINT: tp = SQL_C_SBIGINT;   break;
-    case TYPE_FLOAT:  tp = SQL_C_DOUBLE;    break;
-    } // endswitch type
-
-  return tp;
-  } // end of GetSQLCType
-#endif /* ODBC_SUPPORT */
-
 
 /***********************************************************************/
 /*  GetFormatType: returns the FORMAT character(s) according to type.  */
@@ -279,72 +234,6 @@ int GetFormatType(char c)
   return type;
   } // end of GetFormatType
 
-#ifdef ODBC_SUPPORT
-/***********************************************************************/
-/*  TranslateSQLType: translate a SQL Type to a PLG type.              */
-/***********************************************************************/
-int TranslateSQLType(int stp, int prec, int& len)
-  {
-  int type;
-
-  switch (stp) {
-    case SQL_CHAR:                          //    1
-    case SQL_VARCHAR:                       //   12
-      type = TYPE_STRING;
-      break;
-    case SQL_LONGVARCHAR:                   //  (-1)
-      type = TYPE_STRING;
-      len = min(abs(len), 255);
-      break;
-    case SQL_NUMERIC:                       //    2
-    case SQL_DECIMAL:                       //    3
-      type = (prec) ? TYPE_FLOAT
-           : (len > 10) ? TYPE_BIGINT : TYPE_INT;
-      break;
-    case SQL_INTEGER:                       //    4
-      type = TYPE_INT;
-      break;
-    case SQL_SMALLINT:                      //    5
-    case SQL_TINYINT:                       //  (-6)
-    case SQL_BIT:                           //  (-7)
-      type = TYPE_SHORT;
-      break;
-    case SQL_FLOAT:                         //    6
-    case SQL_REAL:                          //    7
-    case SQL_DOUBLE:                        //    8
-      type = TYPE_FLOAT;
-      break;
-    case SQL_DATETIME:                      //    9
-//  case SQL_DATE:                          //    9
-      type = TYPE_DATE;
-      len = 10;
-      break;
-    case SQL_INTERVAL:                      //   10
-//  case SQL_TIME:                          //   10
-      type = TYPE_STRING;
-      len = 8 + ((prec) ? (prec+1) : 0);
-      break;
-    case SQL_TIMESTAMP:                     //   11
-      type = TYPE_DATE;
-      len = 19 + ((prec) ? (prec+1) : 0);
-      break;
-    case SQL_BIGINT:                        //  (-5)
-      type = TYPE_BIGINT;
-      break;
-    case SQL_UNKNOWN_TYPE:                  //    0
-    case SQL_BINARY:                        //  (-2)
-    case SQL_VARBINARY:                     //  (-3)
-    case SQL_LONGVARBINARY:                 //  (-4)
-//  case SQL_BIT:                           //  (-7)
-    case SQL_GUID:                          // (-11)
-    default:
-      type = TYPE_ERROR;
-      len = 0;
-    } // endswitch type
-
-  return type;
-  } // end of TranslateSQLType
-#endif ODBC_SUPPORT
 
 /***********************************************************************/
 /*  IsTypeChar: returns true for character type(s).                    */
