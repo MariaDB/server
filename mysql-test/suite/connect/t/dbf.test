@@ -1,23 +1,45 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-CREATE TABLE t1 (a int) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (10),(20);
 SELECT * FROM t1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
+
+--echo #
+--echo # Testing that table options in lower case and mixed case are understood:
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=CONNECT table_type=dbf file_name='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+CREATE TABLE t1 (a CHAR(10)) ENGINE=CONNECT Table_Type=dbf File_Name='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('test');
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing multiple columns
+--echo #
 CREATE TABLE t1
 (
-  a int(11) DEFAULT NULL,
-  b char(10) DEFAULT NULL,
-  c varchar(10) DEFAULT NULL
-) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+  a INT DEFAULT NULL,
+  b CHAR(10) DEFAULT NULL,
+  c VARCHAR(10) DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 INSERT INTO t1 VALUES (1,'1','1');
 INSERT INTO t1 VALUES (2,'2','2');
 SELECT * FROM t1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
+
 
 --echo #
 --echo # Testing long column name
@@ -25,8 +47,8 @@ DROP TABLE t1;
 --error ER_UNKNOWN_ERROR
 CREATE TABLE t1
 (
-  a012345678901234567890123456789 int(8) DEFAULT NULL
-) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+  a012345678901234567890123456789 INT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 
 --echo #
 --echo # Testing 2 columns with long names
@@ -34,12 +56,246 @@ CREATE TABLE t1
 --error ER_UNKNOWN_ERROR
 CREATE TABLE t1
 (
-  a0123456789a int(8) DEFAULT NULL,
-  b0123456789b int(8) DEFAULT NULL
-) ENGINE=CONNECT table_type=DBF file_name='t02x11.dbf';
+  a0123456789a INT DEFAULT NULL,
+  b0123456789b INT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x11.dbf';
 
 #
-# TODO: add a test with shorter name 'a012345678a'.
-# It should also fail.
+# TODO: add a test with shorter name 'a012345678a'. It should also fail.
 #
+
+
+#
+# TODO: BIGINT: 'L' (logical) DBF column type is created. This is wrong.
+#
+#--echo #
+#--echo # Testing BIGINT
+#--echo #
+#DROP TABLE IF EXISTS t1;
+#CREATE TABLE t1
+#(
+#  a bigint DEFAULT NULL
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+#INSERT INTO t1 VALUES (-0x8000000000000000);
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: TINYINT is not supported
+#
+--echo #
+--echo # Testing TINYINT
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a TINYINT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES (123);
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: SMALLINT: 'S' (unknown) DBF column type is created.
+#
+#--echo #
+#--echo # Testing SMALLINT
+#--echo #
+#CREATE TABLE t1
+#(
+#  a SMALLINT DEFAULT NULL
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES (0x7FFF);
+#INSERT INTO t1 VALUES (-0x8000);
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing VARCHAR
+--echo #
+CREATE TABLE t1
+(
+  a VARCHAR(255)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (REPEAT('a',255));
+SELECT LENGTH(a) FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing too long CHAR
+--echo # All columns longer than 255 bytes should be rejected
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a CHAR(86) CHARACTER SET utf8
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+
+
+--echo #
+--echo # Testing too long VARCHAR
+--echo # All columns longer than 255 bytes should be rejected
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(256)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(86) CHARACTER SET utf8
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a VARCHAR(64000)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+
+--echo #
+--echo # Testing BLOB
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a BLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a TINYBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a MEDIUMBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a LONGBLOB
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+
+# TODO: utf8 does not work
+#--echo #
+#--echo # Testing varchar with utf8
+#--echo #
+#SET NAMES utf8;
+#CREATE TABLE t1
+#(
+#  a VARCHAR(10) CHARACTER SET utf8
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES (REPEAT(_ucs2 0x00DF,10));
+#SELECT * FROM t1;
+#DROP TABLE IF EXISTS t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing DATE
+--echo #
+CREATE TABLE t1
+(
+  a DATE
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('2001-01-01');
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+
+--echo #
+--echo # Testing FLOAT
+--echo #
+CREATE TABLE t1
+(
+  a FLOAT(12,4)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+#
+# TODO: this return error: 
+# Got error 122 'Value 123.0000000000 too long for column a of length 12'
+# from CONNECT
+#
+#CREATE TABLE t1
+#(
+#  a FLOAT
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#--error ER_GET_ERRMSG  - why this error?
+#INSERT INTO t1 VALUES (123);
+#SELECT * FROM t1;
+#DROP TABLE IF EXISTS t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: this creates a column of type 'D' (date), which is wrong
+#
+#--echo #
+#--echo # Testing DATETIME
+#--echo #
+#CREATE TABLE t1
+#(
+#  a DATETIME
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES ('2013-02-01');
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+#
+# TODO: this creates a column of type 'D' (date), which is wrong
+#
+#--echo #
+#--echo # Testing TIMESTAMP
+#--echo #
+#CREATE TABLE t1
+#(
+#  a TIMESTAMP
+#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+#INSERT INTO t1 VALUES ('2013-02-01');
+#SELECT * FROM t1;
+#DROP TABLE t1;
+#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+--echo #
+--echo # Testing double
+--echo #
+CREATE TABLE t1
+(
+  a DOUBLE(20,5)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (123);
+INSERT INTO t1 VALUES (123456789.12345);
+SELECT * FROM t1;
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+
+# TODO:
+# Testing with no FILE_NAME specified
+# Currently it returns:
+# ERROR 1296 (HY000): Got error 174 'Open(a+) error 21
+# on /opt/mariadb-5.5/data/: Is a directory' from CONNECT 
+#CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF;
+
+
 
