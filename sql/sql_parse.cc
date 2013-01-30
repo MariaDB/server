@@ -2393,6 +2393,7 @@ case SQLCOM_PREPARE:
     LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
     Master_info *mi;
     bool new_master= 0;
+    bool master_info_added;
 
     if (check_global_access(thd, SUPER_ACL))
       goto error;
@@ -2415,15 +2416,19 @@ case SQLCOM_PREPARE:
       new_master= 1;
     }
 
-    res= change_master(thd, mi);
+    res= change_master(thd, mi, &master_info_added);
     if (res && new_master)
     {
       /*
-        The new master was added by change_master(). Remove it as it didn't
-        work.
+        If the new master was added by change_master(), remove it as it didn't
+        work (this will free mi as well).
+
+        If new master was not added, we still need to free mi.
       */
-      master_info_index->remove_master_info(&lex_mi->connection_name);
-      delete mi;
+      if (master_info_added)
+        master_info_index->remove_master_info(&lex_mi->connection_name);
+      else
+        delete mi;
     }
 
     mysql_mutex_unlock(&LOCK_active_mi);

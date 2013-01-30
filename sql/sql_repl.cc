@@ -1677,10 +1677,14 @@ static bool get_string_parameter(char *to, const char *from, size_t length,
   @param mi Pointer to Master_info object belonging to the slave's IO
   thread.
 
+  @param master_info_added Out parameter saying if the Master_info *mi was
+  added to the global list of masters. This is useful in error conditions
+  to know if caller should free Master_info *mi.
+
   @retval FALSE success
   @retval TRUE error
 */
-bool change_master(THD* thd, Master_info* mi)
+bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 {
   int thread_mask;
   const char* errmsg= 0;
@@ -1695,6 +1699,7 @@ bool change_master(THD* thd, Master_info* mi)
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
 
+  *master_info_added= false;
   /* 
     We need to check if there is an empty master_host. Otherwise
     change master succeeds, a master.info file is created containing 
@@ -1743,6 +1748,7 @@ bool change_master(THD* thd, Master_info* mi)
       ret= TRUE;
       goto err;
     }
+    *master_info_added= true;
   }
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Master: '%.*s'  Master_info_file: '%s'  "
