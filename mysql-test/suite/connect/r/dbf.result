@@ -1,0 +1,42 @@
+CREATE TABLE t1 (a int) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1;
+a
+10
+20
+DROP TABLE t1;
+CREATE TABLE t1
+(
+a int(11) DEFAULT NULL,
+b char(10) DEFAULT NULL,
+c varchar(10) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	2
+DROP TABLE t1;
+#
+# Testing long column name
+#
+CREATE TABLE t1
+(
+a012345678901234567890123456789 int(8) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+ERROR HY000: DBF: Column name 'a012345678901234567890123456789' is too long (max=11)
+#
+# Testing 2 columns with long names
+#
+CREATE TABLE t1
+(
+a0123456789a int(8) DEFAULT NULL,
+b0123456789b int(8) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t02x11.dbf';
+ERROR HY000: DBF: Column name 'a0123456789a' is too long (max=11)

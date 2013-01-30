@@ -1,0 +1,45 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE t1 (a int) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+CREATE TABLE t1
+(
+  a int(11) DEFAULT NULL,
+  b char(10) DEFAULT NULL,
+  c varchar(10) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
+--echo #
+--echo # Testing long column name
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a012345678901234567890123456789 int(8) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+
+--echo #
+--echo # Testing 2 columns with long names
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a0123456789a int(8) DEFAULT NULL,
+  b0123456789b int(8) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t02x11.dbf';
+
+#
+# TODO: add a test with shorter name 'a012345678a'.
+# It should also fail.
+#
+
