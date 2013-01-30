@@ -512,6 +512,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
 /****************************************************************************/
 bool DBFFAM::AllocateBuffer(PGLOBAL g)
   {
+  char c;
   int  rc;
   MODE mode = Tdbp->GetMode();
 
@@ -570,12 +571,29 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       header->Reclen = (ushort)reclen;
       descp = (DESCRIPTOR*)header;
 
+      // Currently only standard Xbase types are supported
       for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext()) {
         descp++;
+
+        switch ((c = *GetFormatType(cdp->GetType()))) {
+          case 'S':           // Short integer
+          case 'L':           // Large (big) integer
+            c = 'N';          // Numeric
+          case 'N':           // Numeric (integer)
+          case 'F':           // Float (double)
+            descp->Decimals = (uchar)cdp->F.Prec;
+          case 'C':           // Char
+          case 'D':           // Date
+            break;
+          default:            // Should never happen
+            sprintf(g->Message, "Unsupported DBF type %c for column %s",
+                                c, cdp->GetName());
+            return true;
+          } // endswitch c
+
         strncpy(descp->Name, cdp->GetName(), 11);
-        descp->Type = *GetFormatType(cdp->GetType());
+        descp->Type = c;
         descp->Length = (uchar)cdp->GetLong();
-        descp->Decimals = (uchar)cdp->F.Prec;
         } // endfor cdp
 
       *(char*)(++descp) = EOH;

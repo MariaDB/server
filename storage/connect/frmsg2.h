@@ -963,7 +963,7 @@
 #define MSG_VALTYPE_NOMATCH "Disparit‚ types de valeur"
 #define MSG_VALUE_ERROR     "Colonne %s: bloc valeur nul"
 #define MSG_VALUE_NOT_ALLOC "Valeur non allou‚e pour la colonne R%d %s"
-#define MSG_VALUE_TOO_BIG   "Valeur %d trop grande pour la colonne %s"
+#define MSG_VALUE_TOO_BIG   "Valeur %lld trop grande pour la colonne %s"
 #define MSG_VALUE_TOO_LONG  "Valeur %s trop longue pour la colonne %s de longueur %d"
 #define MSG_VAL_ALLOC_ERR   "Allocation impossible du noeud valeur"
 #define MSG_VAL_TOO_LONG    "Valeur %s trop longue pour le champ %s"
