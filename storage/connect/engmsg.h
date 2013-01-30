@@ -963,7 +963,7 @@
 #define MSG_VALTYPE_NOMATCH "Non matching Value types"
 #define MSG_VALUE_ERROR     "Column %s: value is null"
 #define MSG_VALUE_NOT_ALLOC "Value not allocated for column R%d %s"
-#define MSG_VALUE_TOO_BIG   "Value %d too big for column %s"
+#define MSG_VALUE_TOO_BIG   "Value %lld too big for column %s"
 #define MSG_VALUE_TOO_LONG  "Value %s too long for column %s of length %d"
 #define MSG_VAL_ALLOC_ERR   "Cannot allocate value node"
 #define MSG_VAL_TOO_LONG    "Value field %s too long for %s"

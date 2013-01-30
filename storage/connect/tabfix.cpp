@@ -355,8 +355,10 @@ void BINCOL::ReadColumn(PGLOBAL g)
     case 'T':                 // Tiny integer
       Value->SetValue((int)*p);
       break;
-    case 'I':                 // Integer or
     case 'L':                 // Long Integer
+      strcpy(g->Message, "Format L is deprecated, use I");
+      longjmp(g->jumper[g->jump_level], 11);
+    case 'I':                 // Integer
       Value->SetValue(*(int*)p);
       break;
     case 'F':                 // Float
@@ -383,9 +385,9 @@ void BINCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void BINCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, *s;
-  int    n;
-  PTDBFIX tdbp = (PTDBFIX)To_Tdb;
+  char    *p, *s;
+  longlong n;
+  PTDBFIX  tdbp = (PTDBFIX)To_Tdb;
 
 	if (trace) {
 		htrc("BIN WriteColumn: col %s R%d coluse=%.4X status=%.4X",
@@ -419,29 +421,41 @@ void BINCOL::WriteColumn(PGLOBAL g)
 
       break;
     case 'S':                 // Short integer
-      n = Value->GetIntValue();
+      n = Value->GetBigintValue();
 
-      if (n > 32767 || n < -32768) {
+      if (n > 32767LL || n < -32768LL) {
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
         longjmp(g->jumper[g->jump_level], 31);
       } else if (Status)
         *(short *)p = (short)n;
 
       break;
-    case 'T':                 // Short integer
-      n = Value->GetIntValue();
+    case 'T':                 // Tiny integer
+      n = Value->GetBigintValue();
 
-      if (n > 255 || n < -256) {
+      if (n > 255LL || n < -256LL) {
         sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
         longjmp(g->jumper[g->jump_level], 31);
       } else if (Status)
         *p = (char)n;
 
       break;
-    case 'I':                 // Integer or
     case 'L':                 // Long Integer
-      if (Status)
+      strcpy(g->Message, "Format L is deprecated, use I");
+      longjmp(g->jumper[g->jump_level], 11);
+    case 'I':                 // Integer
+      n = Value->GetBigintValue();
+
+      if (n > INT_MAX || n < INT_MIN) {
+        sprintf(g->Message, MSG(VALUE_TOO_BIG), n, Name);
+        longjmp(g->jumper[g->jump_level], 31);
+      } else if (Status)
         *(int *)p = Value->GetIntValue();
+
+      break;
+    case 'B':                 // Large (big) integer
+      if (Status)
+        *(longlong *)p = (longlong)Value->GetBigintValue();
 
       break;
     case 'F':                 // Float
