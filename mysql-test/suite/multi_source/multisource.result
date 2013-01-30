@@ -1,3 +1,7 @@
+change master 'abc' to relay_log_file='';
+ERROR HY000: Failed initializing relay log position: Could not find target log during relay log initialization
+change master 'abc2' to master_host='';
+ERROR HY000: Incorrect arguments to MASTER_HOST
 change master 'master1' to 
 master_port=MYPORT_1, 
 master_host='127.0.0.1', 
