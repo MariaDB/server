@@ -1,0 +1,224 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+SET NAMES utf8;
+
+--vertical_results
+
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample.xml
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/latin1.xml $MYSQLD_DATADIR/test/latin1.xml
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/cp1251.xml $MYSQLD_DATADIR/test/cp1251.xml
+
+#--echo $MYSQL_TEST_DIR
+#--exec pwd
+#SELECT LOAD_FILE('test/xsample.xml');
+
+
+--echo #
+--echo # Testing tag values
+--echo #
+CREATE TABLE t1
+(
+  AUTHOR CHAR(50),
+  TITLE CHAR(32),
+  TRANSLATOR CHAR(40),
+  PUBLISHER CHAR(40),
+  DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml';
+
+
+--echo #
+--echo # Testing that tag names are case sensitive
+--echo #
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1
+(
+  author CHAR(50),
+  TITLE CHAR(32),
+  TRANSLATOR CHAR(40),
+  PUBLISHER CHAR(40),
+  DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing attribute values
+--echo #
+CREATE TABLE t1 (
+  ISBN CHAR(15),
+  LANG CHAR(2),
+  SUBJECT CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml' OPTION_LIST='Coltype=@';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that attribute names are case sensitive
+--echo #
+CREATE TABLE t1 (
+  isbn CHAR(15),
+  LANG CHAR(2),
+  SUBJECT CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml' OPTION_LIST='Coltype=@';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing mixed tag and attribute values
+--echo #
+CREATE TABLE t1 (
+  ISBN CHAR(15) FIELD_FORMAT='@',
+  LANG CHAR(2)  FIELD_FORMAT='@',
+  SUBJECT CHAR(32) FIELD_FORMAT='@',
+  AUTHOR CHAR(50),
+  TITLE CHAR(32),
+  TRANSLATOR CHAR(40),
+  PUBLISHER CHAR(40),
+  DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing INSERT on mixed tag and attribute values
+--echo #
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample2.xml
+CREATE TABLE t1 (
+  ISBN CHAR(15) FIELD_FORMAT='@',
+  LANG CHAR(2)  FIELD_FORMAT='@',
+  SUBJECT CHAR(32) FIELD_FORMAT='@',
+  AUTHOR CHAR(50),
+  TITLE CHAR(32),
+  TRANSLATOR CHAR(40),
+  PUBLISHER CHAR(40),
+  DATEPUB INT(4)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample2.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK';
+INSERT INTO t1 (ISBN, LANG, SUBJECT, AUTHOR, TITLE, PUBLISHEr, DATEPUB)
+VALUES('9782212090529','fr','général','Alain Michard',
+'XML, Langage et Applications','Eyrolles Paris',1998);
+SELECT * FROM t1;
+SELECT LOAD_FILE('test/xsample2.xml');
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/xsample2.xml
+
+
+--echo #
+--echo # Testing XPath
+--echo #
+CREATE TABLE t1 (
+  isbn       CHAR(15) FIELD_FORMAT='@ISBN',
+  language   CHAR(2)  FIELD_FORMAT='@LANG',
+  subject    CHAR(32) FIELD_FORMAT='@SUBJECT',
+  authorfn   CHAR(20) FIELD_FORMAT='AUTHOR/FIRSTNAME',
+  authorln   CHAR(20) FIELD_FORMAT='AUTHOR/LASTNAME',
+  title      CHAR(32) FIELD_FORMAT='TITLE',
+  translated CHAR(32) FIELD_FORMAT='TRANSLATOR/@PREFIX',
+  tranfn     CHAR(20) FIELD_FORMAT='TRANSLATOR/FIRSTNAME',
+  tranln     CHAR(20) FIELD_FORMAT='TRANSLATOR/LASTNAME',
+  publisher  CHAR(20) FIELD_FORMAT='PUBLISHER/NAME',
+  location   CHAR(20) FIELD_FORMAT='PUBLISHER/PLACE',
+  year       INT(4)   FIELD_FORMAT='DATEPUB'
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
+SELECT * FROM t1;
+SELECT isbn, title, translated, tranfn, tranln, location FROM t1
+WHERE translated <> '';
+DROP TABLE t1;
+
+
+#
+# TODO: Connect.pdf says nodes with variable depth are not supported
+#
+#--echo #
+#--echo # Relative paths are not supported
+#--echo #
+#CREATE TABLE t1 (
+#  authorfn   CHAR(20) FIELD_FORMAT='//FIRSTNAME',
+#  authorln   CHAR(20) FIELD_FORMAT='//LASTNAME'
+#) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+#  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
+#SELECT * FROM t1;
+#DROP TABLE t1;
+
+
+#
+# TODO: Connect.pdf says absolute paths are not supported
+#
+#--echo #
+#--echo # Absolute path is not supported
+#--echo #
+#CREATE TABLE t1 (
+#  authorfn   CHAR(20) FIELD_FORMAT='/BIBLIO/BOOK/AUTHOR/FIRSTNAME',
+#  authorln   CHAR(20) FIELD_FORMAT='/BIBLIO/BOOK/AUTHOR/LASTNAME'
+#) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+#  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
+#SELECT * FROM t1;
+#DROP TABLE t1;
+
+
+--echo #
+--echo # Testing that XPath is case sensitive
+--echo #
+CREATE TABLE t1
+(
+  isbn       CHAR(15) FIELD_FORMAT='@isbn'
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
+  TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing character sets
+--echo #
+CREATE TABLE t1
+(
+  c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml';
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  c CHAR(16) CHARACTER SET utf8
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml';
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Conversion from latin1 to cp1251 produces a warning.
+--echo # Question marks are returned.
+--echo #
+CREATE TABLE t1
+(
+  c CHAR(16) CHARACTER SET cp1251
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml';
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
+
+
+#
+# TODO: Cyrillic does not work
+#
+#CREATE TABLE t1
+#(
+#  c CHAR(16) CHARACTER SET utf8
+#) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml';
+#SELECT c, HEX(c) FROM t1;
+#DROP TABLE t1;
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/xsample.xml
+--remove_file $MYSQLD_DATADIR/test/latin1.xml
+--remove_file $MYSQLD_DATADIR/test/cp1251.xml
