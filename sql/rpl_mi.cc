@@ -62,7 +62,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
     my_casedn_str(system_charset_info, cmp_connection_name.str);
   }
 
-  my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16);
+  my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16, MYF(0));
   bzero((char*) &file, sizeof(file));
   mysql_mutex_init(key_master_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);

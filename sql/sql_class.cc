@@ -739,7 +739,7 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
     values doesn't have to very accurate and the memory it points to is static,
     but we need to attempt a snapshot on the pointer values to avoid using NULL
     values. The pointer to thd->query however, doesn't point to static memory
-    and has to be protected by LOCK_thread_count or risk pointing to
+    and has to be protected by thd->LOCK_thd_data or risk pointing to
     uninitialized memory.
   */
   const char *proc_info= thd->proc_info;
@@ -774,19 +774,20 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
     str.append(proc_info);
   }
 
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-
-  if (thd->query())
+  /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
+  if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
-    if (max_query_len < 1)
-      len= thd->query_length();
-    else
-      len= min(thd->query_length(), max_query_len);
-    str.append('\n');
-    str.append(thd->query(), len);
+    if (thd->query())
+    {
+      if (max_query_len < 1)
+        len= thd->query_length();
+      else
+        len= min(thd->query_length(), max_query_len);
+      str.append('\n');
+      str.append(thd->query(), len);
+    }
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
-
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   if (str.c_ptr_safe() == buffer)
     return buffer;
@@ -851,7 +852,9 @@ THD::THD()
    m_statement_psi(NULL),
    m_idle_psi(NULL),
    m_server_idle(false),
+   thread_id(0),
    global_disable_checkpoint(0),
+   failed_com_change_user(0),
    is_fatal_error(0),
    transaction_rollback_request(0),
    is_fatal_sub_stmt_error(0),
@@ -865,17 +868,28 @@ THD::THD()
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-   main_warning_info(0, false)
+   main_warning_info(0, false, false)
 {
   ulong tmp;
 
   mdl_context.init(this);
   /*
+    We set THR_THD to temporally point to this THD to register all the
+    variables that allocates memory for this THD
+  */
+  THD *old_THR_THD= current_thd;
+  set_current_thd(this);
+  status_var.memory_used= 0;
+
+  main_warning_info.init();
+  /*
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
   */
-  init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
+  init_sql_alloc(&main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+                 MYF(MY_THREAD_SPECIFIC));
+
   stmt_arena= this;
   thread_stack= 0;
   scheduler= thread_scheduler;                 // Will be fixed later
@@ -914,7 +928,6 @@ THD::THD()
   connection_name.length= 0;
 
   bzero(&variables, sizeof(variables));
-  thread_id= 0;
   one_shot_set= 0;
   file_id = 0;
   query_id= 0;
@@ -932,6 +945,7 @@ THD::THD()
   mysql_audit_init_thd(this);
 #endif
   net.vio=0;
+  net.buff= 0;
   client_capabilities= 0;                       // minimalistic client
   ull=0;
   system_thread= NON_SYSTEM_THREAD;
@@ -973,7 +987,7 @@ THD::THD()
   user_connect=(USER_CONN *)0;
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
-               (my_hash_free_key) free_user_var, 0);
+               (my_hash_free_key) free_user_var, HASH_THREAD_SPECIFIC);
 
   sp_proc_cache= NULL;
   sp_func_cache= NULL;
@@ -981,7 +995,7 @@ THD::THD()
   /* For user vars replication*/
   if (opt_bin_log)
     my_init_dynamic_array(&user_var_events,
-			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16);
+			  sizeof(BINLOG_USER_VAR_EVENT *), 16, 16, MYF(0));
   else
     bzero((char*) &user_var_events, sizeof(user_var_events));
 
@@ -1004,6 +1018,8 @@ THD::THD()
   prepare_derived_at_open= FALSE;
   create_tmp_table_for_derived= FALSE;
   save_prep_leaf_list= FALSE;
+  /* Restore THR_THD */
+  set_current_thd(old_THR_THD);
 }
 
 
@@ -1272,6 +1288,7 @@ extern "C"   THD *_current_thd_noinline(void)
 
 void THD::init(void)
 {
+  DBUG_ENTER("thd::init");
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
@@ -1302,7 +1319,7 @@ void THD::init(void)
   tx_read_only= variables.tx_read_only;
   update_charset();
   reset_current_stmt_binlog_format_row();
-  bzero((char *) &status_var, sizeof(status_var));
+  set_status_var_init();
   bzero((char *) &org_status_var, sizeof(org_status_var));
 
   if (variables.sql_log_bin)
@@ -1319,6 +1336,7 @@ void THD::init(void)
   debug_sync_init_thread(this);
 #endif /* defined(ENABLED_DEBUG_SYNC) */
   apc_target.init(&LOCK_thd_data);
+  DBUG_VOID_RETURN;
 }
 
  
@@ -1408,7 +1426,7 @@ void THD::change_user(void)
   mysql_mutex_unlock(&LOCK_status);
 
   cleanup();
-  killed= NOT_KILLED;
+  reset_killed();
   cleanup_done= 0;
   init();
   stmt_map.reset();
@@ -1492,8 +1510,16 @@ void THD::cleanup(void)
 
 THD::~THD()
 {
+  THD *orig_thd= current_thd;
   THD_CHECK_SENTRY(this);
   DBUG_ENTER("~THD()");
+
+  /*
+    In error cases, thd may not be current thd. We have to fix this so
+    that memory allocation counting is done correctly
+  */
+  set_current_thd(this);
+
   /* Ensure that no one is using THD */
   mysql_mutex_lock(&LOCK_thd_data);
   mysys_var=0;					// Safety (shouldn't be needed)
@@ -1502,10 +1528,8 @@ THD::~THD()
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
-  {
     vio_delete(net.vio);
-    net_end(&net);
-  }
+  net_end(&net);
 #endif
   stmt_map.reset();                     /* close all prepared statements */
   if (!cleanup_done)
@@ -1540,6 +1564,15 @@ THD::~THD()
 #endif
 
   free_root(&main_mem_root, MYF(0));
+  main_warning_info.free_memory();
+  if (status_var.memory_used != 0)
+  {
+    DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
+    SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
+    DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
+  }
+
+  set_current_thd(orig_thd);
   DBUG_VOID_RETURN;
 }
 
@@ -1663,6 +1696,10 @@ void THD::awake(killed_state state_to_set)
     if (!slave_thread)
       MYSQL_CALLBACK(scheduler, post_kill_notification, (this));
   }
+
+  /* Interrupt target waiting inside a storage engine. */
+  if (state_to_set != NOT_KILLED)
+    ha_kill_query(this, thd_kill_level(this));
 
   /* Broadcast a condition to kick the target if it is waiting on it. */
   if (mysys_var)
@@ -1811,7 +1848,7 @@ bool THD::store_globals()
   */
   DBUG_ASSERT(thread_stack);
 
-  if (my_pthread_setspecific_ptr(THR_THD,  this) ||
+  if (set_current_thd(this) ||
       my_pthread_setspecific_ptr(THR_MALLOC, &mem_root))
     return 1;
   /*
@@ -1855,7 +1892,7 @@ void THD::reset_globals()
   mysql_mutex_unlock(&LOCK_thd_data);
 
   /* Undocking the thread specific data. */
-  my_pthread_setspecific_ptr(THR_THD, NULL);
+  set_current_thd(0);
   my_pthread_setspecific_ptr(THR_MALLOC, NULL);
   
 }
@@ -3711,7 +3748,8 @@ void thd_increment_net_big_packet_count(ulong length)
 
 void THD::set_status_var_init()
 {
-  bzero((char*) &status_var, sizeof(status_var));
+  bzero((char*) &status_var, offsetof(STATUS_VAR,
+                                      last_cleared_system_status_var));
 }
 
 
@@ -3907,19 +3945,29 @@ void THD::restore_backup_open_tables_state(Open_tables_backup *backup)
   DBUG_VOID_RETURN;
 }
 
+#if MARIA_PLUGIN_INTERFACE_VERSION < 0x0200
 /**
-  Check the killed state of a user thread
-  @param thd  user thread
-  @retval 0 the user thread is active
-  @retval 1 the user thread has been killed
-
-  This is used to signal a storage engine if it should be killed.
-  See also THD::check_killed().
+  This is a backward compatibility method, made obsolete
+  by the thd_kill_statement service. Keep it here to avoid breaking the
+  ABI in case some binary plugins still use it.
 */
-
+#undef thd_killed
 extern "C" int thd_killed(const MYSQL_THD thd)
 {
+  return thd_kill_level(thd) > THD_ABORT_SOFTLY;
+}
+#else
+#error now thd_killed() function can go away
+#endif
+
+/*
+  return thd->killed status to the client,
+  mapped to the API enum thd_kill_levels values.
+*/
+extern "C" enum thd_kill_levels thd_kill_level(const MYSQL_THD thd)
+{
   THD* current= current_thd;
+
   if (!thd)
     thd= current;
 
@@ -3930,9 +3978,10 @@ extern "C" int thd_killed(const MYSQL_THD thd)
         apc_target->process_apc_requests(); 
   }
 
-  if (!(thd->killed & KILL_HARD_BIT))
-    return 0;
-  return thd->killed;
+  if (likely(thd->killed == NOT_KILLED))
+    return THD_IS_NOT_KILLED;
+
+  return thd->killed & KILL_HARD_BIT ? THD_ABORT_ASAP : THD_ABORT_SOFTLY;
 }
 
 
@@ -5115,7 +5164,7 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
     There is no good place to set up the transactional data, so we
     have to do it here.
   */
-  if (binlog_setup_trx_data())
+  if (binlog_setup_trx_data() == NULL)
     DBUG_RETURN(NULL);
 
   Rows_log_event* pending= binlog_get_pending_rows_event(is_transactional);
@@ -5808,4 +5857,3 @@ bool Discrete_intervals_list::append(Discrete_interval *new_interval)
 }
 
 #endif /* !defined(MYSQL_CLIENT) */
-

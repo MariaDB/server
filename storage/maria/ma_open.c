@@ -160,7 +160,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
   if (my_init_dynamic_array(&info.pinned_pages,
                             sizeof(MARIA_PINNED_PAGE),
                             max(share->base.blobs*2 + 4,
-                                MARIA_MAX_TREE_LEVELS*3), 16))
+                                MARIA_MAX_TREE_LEVELS*3), 16, MYF(0)))
     goto err;
 
 

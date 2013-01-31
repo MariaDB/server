@@ -794,6 +794,31 @@ lock_table_get_n_locks(
 /*===================*/
 	const dict_table_t*	table)	/*!< in: table */
 	__attribute__((nonnull));
+#ifdef UNIV_DEBUG
+/*********************************************************************//**
+Checks that a transaction id is sensible, i.e., not in the future.
+@return	true if ok */
+UNIV_INTERN
+bool
+lock_check_trx_id_sanity(
+/*=====================*/
+	trx_id_t	trx_id,		/*!< in: trx id */
+	const rec_t*	rec,		/*!< in: user record */
+	dict_index_t*	index,		/*!< in: index */
+	const ulint*	offsets)	/*!< in: rec_get_offsets(rec, index) */
+	__attribute__((nonnull, warn_unused_result));
+/*******************************************************************//**
+Check if the transaction holds any locks on the sys tables
+or its records.
+@return	the strongest lock found on any sys table or 0 for none */
+UNIV_INTERN
+const lock_t*
+lock_trx_has_sys_table_locks(
+/*=========================*/
+	const trx_t*	trx)	/*!< in: transaction to check */
+	__attribute__((warn_unused_result));
+#endif /* UNIV_DEBUG */
+
 /** Lock modes and types */
 /* @{ */
 #define LOCK_MODE_MASK	0xFUL	/*!< mask used to extract mode from the

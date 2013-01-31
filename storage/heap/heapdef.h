@@ -62,7 +62,8 @@ typedef struct {
 extern HP_SHARE *hp_find_named_heap(const char *name);
 extern int hp_rectest(HP_INFO *info,const uchar *old);
 extern uchar *hp_find_block(HP_BLOCK *info,ulong pos);
-extern int hp_get_new_block(HP_BLOCK *info, size_t* alloc_length);
+extern int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block,
+                            size_t* alloc_length);
 extern void hp_free(HP_SHARE *info);
 extern uchar *hp_free_level(HP_BLOCK *block,uint level,HP_PTRS *pos,
 			   uchar *last_pos);

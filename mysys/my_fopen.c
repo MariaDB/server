@@ -44,7 +44,7 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
   FILE *fd;
   char type[5];
   DBUG_ENTER("my_fopen");
-  DBUG_PRINT("my",("Name: '%s'  flags: %d  MyFlags: %d",
+  DBUG_PRINT("my",("Name: '%s'  flags: %d  MyFlags: %lu",
 		   filename, flags, MyFlags));
 
   make_ftype(type,flags);
@@ -229,7 +229,7 @@ int my_fclose(FILE *fd, myf MyFlags)
 {
   int err,file;
   DBUG_ENTER("my_fclose");
-  DBUG_PRINT("my",("stream: 0x%lx  MyFlags: %d", (long) fd, MyFlags));
+  DBUG_PRINT("my",("stream: 0x%lx  MyFlags: %lu", (long) fd, MyFlags));
 
   mysql_mutex_lock(&THR_LOCK_open);
   file= my_fileno(fd);
@@ -265,7 +265,7 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
   FILE *fd;
   char type[5];
   DBUG_ENTER("my_fdopen");
-  DBUG_PRINT("my",("fd: %d  Flags: %d  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d  Flags: %d  MyFlags: %lu",
 		   Filedes, Flags, MyFlags));
 
   make_ftype(type,Flags);

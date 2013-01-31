@@ -45,6 +45,7 @@ uchar *hp_find_block(HP_BLOCK *block, ulong pos)
 
   SYNOPSIS
     hp_get_new_block()
+      info	        heap handle
       block             HP_BLOCK tree-like block
       alloc_length OUT  Amount of memory allocated from the heap
       
@@ -54,7 +55,7 @@ uchar *hp_find_block(HP_BLOCK *block, ulong pos)
     1  Out of memory
 */
 
-int hp_get_new_block(HP_BLOCK *block, size_t *alloc_length)
+int hp_get_new_block(HP_SHARE *info, HP_BLOCK *block, size_t *alloc_length)
 {
   reg1 uint i,j;
   HP_PTRS *root;
@@ -77,7 +78,10 @@ int hp_get_new_block(HP_BLOCK *block, size_t *alloc_length)
    */
   *alloc_length= (sizeof(HP_PTRS)* ((i == block->levels) ? i : i - 1) +
                   block->records_in_block* block->recbuffer);
-  if (!(root=(HP_PTRS*) my_malloc(*alloc_length,MYF(MY_WME))))
+  if (!(root=(HP_PTRS*) my_malloc(*alloc_length,
+                                  MYF(MY_WME |
+                                      (info->internal ?
+                                       MY_THREAD_SPECIFIC : 0)))))
     return 1;
 
   if (i == 0)

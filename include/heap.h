@@ -153,6 +153,7 @@ typedef struct st_heap_share
   THR_LOCK lock;
   mysql_mutex_t intern_lock;            /* Locking for use with _locking */
   my_bool delete_on_close;
+  my_bool internal;                     /* Internal temporary table */
   LIST open_list;
   uint auto_key;
   uint auto_key_type;			/* real type of the auto key segment */

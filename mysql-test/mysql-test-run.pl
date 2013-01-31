@@ -3525,6 +3525,11 @@ sub mysql_install_db {
     mtr_appendfile_to_file("$sql_dir/mysql_system_tables.sql",
 			   $bootstrap_sql_file);
 
+    # Add the performance tables
+    # for a production system
+    mtr_appendfile_to_file("$sql_dir/mysql_performance_tables.sql",
+                          $bootstrap_sql_file);
+
     # Add the mysql system tables initial data
     # for a production system
     mtr_appendfile_to_file("$sql_dir/mysql_system_tables_data.sql",
@@ -3593,9 +3598,10 @@ sub mysql_install_db {
 	verbose       => $opt_verbose,
        ) != 0)
   {
+    my $data= mtr_grab_file($path_bootstrap_log);
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
-	      "see $path_bootstrap_log for errors");
+	      "The $path_bootstrap_log file contains:\n$data\n");
   }
 }
 

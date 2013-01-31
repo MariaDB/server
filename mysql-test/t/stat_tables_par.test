@@ -242,4 +242,37 @@ DROP DATABASE dbt3_s001;
 
 use test;
 
+#
+# Bug mdev-4019: crash when executing in parallel ANALYZE and 
+#                SELECT * FROM information_schema.statistics
+# 
+
+set @save_global_use_stat_tables=@@global.use_stat_tables;
+set global use_stat_tables='preferably';
+set debug_sync='RESET';
+
+create table t1 (a int, b int, key(a));
+insert t1 values (1,1),(2,2);
+
+analyze table t1;
+
+SET debug_sync='after_open_table_ignore_flush WAIT_FOR go';
+send select * from information_schema.statistics where table_schema='test';
+
+connect(con1, localhost, root);
+connection con1;
+select * from t1;
+SET DEBUG_SYNC= "now SIGNAL go";
+
+connection default;
+reap;
+
+connection default;
+disconnect con1;
+set debug_sync='RESET';
+
+drop table t1;
+set global use_stat_tables=@save_global_use_stat_tables;
+
+
 set use_stat_tables=@save_use_stat_tables;

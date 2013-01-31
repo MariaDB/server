@@ -1,4 +1,4 @@
-/* Copyright (c) 2007, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2007, 2011, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1202,7 +1202,7 @@ MDL_wait::timed_wait(THD *thd, struct timespec *abs_timeout,
   THD_ENTER_COND(thd, &m_COND_wait_status, &m_LOCK_wait_status,
                   wait_state_name, & old_stage);
   thd_wait_begin(thd, THD_WAIT_META_DATA_LOCK);
-  while (!m_wait_status && !thd_killed(thd) &&
+  while (!m_wait_status && !thd->killed &&
          wait_result != ETIMEDOUT && wait_result != ETIME)
   {
     wait_result= mysql_cond_timedwait(&m_COND_wait_status, &m_LOCK_wait_status,
@@ -1224,7 +1224,7 @@ MDL_wait::timed_wait(THD *thd, struct timespec *abs_timeout,
       false, which means that the caller intends to restart the
       wait.
     */
-    if (thd_killed(thd))
+    if (thd->killed)
       m_wait_status= KILLED;
     else if (set_status_on_timeout)
       m_wait_status= TIMEOUT;
@@ -2095,7 +2095,11 @@ MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
   */
   m_wait.reset_status();
 
-  if (lock->needs_notification(ticket))
+  /*
+    Don't break conflicting locks if timeout is 0 as 0 is used
+    To check if there is any conflicting locks...
+  */
+  if (lock->needs_notification(ticket) && lock_wait_timeout)
     lock->notify_conflicting_locks(this);
 
   mysql_prlock_unlock(&lock->m_rwlock);
@@ -2217,7 +2221,8 @@ bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
   /* Sort requests according to MDL_key. */
   if (! (sort_buf= (MDL_request **)my_malloc(req_count *
                                              sizeof(MDL_request*),
-                                             MYF(MY_WME))))
+                                             MYF(MY_WME |
+                                                 MY_THREAD_SPECIFIC))))
     DBUG_RETURN(TRUE);
 
   for (p_req= sort_buf; p_req < sort_buf + req_count; p_req++)

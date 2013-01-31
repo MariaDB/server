@@ -2299,7 +2299,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
 
   sort_param.wordlist=NULL;
-  init_alloc_root(&sort_param.wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0);
+  init_alloc_root(&sort_param.wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+                  MYF(param->malloc_flags));
 
   if (share->data_file_type == DYNAMIC_RECORD)
     length=max(share->base.min_pack_length+1,share->base.min_block_length);
@@ -2869,7 +2870,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                     sort_param[i].keyinfo->seg->charset->mbmaxlen;
       sort_param[i].key_length+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
-      init_alloc_root(&sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0);
+      init_alloc_root(&sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+                      MYF(param->malloc_flags));
     }
   }
   sort_info.total_keys=i;

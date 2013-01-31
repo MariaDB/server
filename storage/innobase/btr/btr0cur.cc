@@ -679,7 +679,7 @@ retry_page_get:
 #ifdef UNIV_ZIP_DEBUG
 		const page_zip_des_t*	page_zip
 			= buf_block_get_page_zip(block);
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		buf_block_dbg_add_level(
@@ -2045,7 +2045,7 @@ any_extern:
 
 	page_zip = buf_block_get_page_zip(block);
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (page_zip
@@ -2254,7 +2254,7 @@ btr_cur_pessimistic_update(
 				MTR_MEMO_X_LOCK));
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
@@ -2392,7 +2392,7 @@ make_external:
 	btr_search_update_hash_on_delete(cursor);
 
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 	page_cursor = btr_cur_get_page_cur(cursor);
 
@@ -2499,7 +2499,7 @@ make_external:
 		buf_block_t*	rec_block = btr_cur_get_block(cursor);
 
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 		page = buf_block_get_frame(rec_block);
 #endif /* UNIV_ZIP_DEBUG */
 		page_zip = buf_block_get_page_zip(rec_block);
@@ -2525,7 +2525,7 @@ make_external:
 
 return_after_reservations:
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 	if (n_extents > 0) {
@@ -2887,7 +2887,7 @@ btr_cur_set_deleted_flag_for_ibuf(
 					when the tablespace is
 					uncompressed */
 	ibool		val,		/*!< in: value to set */
-	mtr_t*		mtr)		/*!< in: mtr */
+	mtr_t*		mtr)		/*!< in/out: mini-transaction */
 {
 	/* We do not need to reserve btr_search_latch, as the page
 	has just been read to the buffer pool and there cannot be
@@ -2987,12 +2987,14 @@ btr_cur_optimistic_delete(
 				page, 1);
 		}
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip
+		     || page_zip_validate(page_zip, page, cursor->index));
 #endif /* UNIV_ZIP_DEBUG */
 		page_cur_delete_rec(btr_cur_get_page_cur(cursor),
 				    cursor->index, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip
+		     || page_zip_validate(page_zip, page, cursor->index));
 #endif /* UNIV_ZIP_DEBUG */
 
 		if (dict_index_is_clust(cursor->index)
@@ -3087,7 +3089,7 @@ btr_cur_pessimistic_delete(
 	rec = btr_cur_get_rec(cursor);
 	page_zip = buf_block_get_page_zip(block);
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 	offsets = rec_get_offsets(rec, index, NULL, ULINT_UNDEFINED, &heap);
@@ -3097,7 +3099,7 @@ btr_cur_pessimistic_delete(
 						      rec, offsets, page_zip,
 						      rb_ctx, mtr);
 #ifdef UNIV_ZIP_DEBUG
-		ut_a(!page_zip || page_zip_validate(page_zip, page));
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 	}
 
@@ -3158,7 +3160,7 @@ btr_cur_pessimistic_delete(
 
 	page_cur_delete_rec(btr_cur_get_page_cur(cursor), index, offsets, mtr);
 #ifdef UNIV_ZIP_DEBUG
-	ut_a(!page_zip || page_zip_validate(page_zip, page));
+	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
 	ut_ad(btr_check_node_ptr(index, block, mtr));
