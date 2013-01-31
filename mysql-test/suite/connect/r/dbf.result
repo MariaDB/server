@@ -1,3 +1,39 @@
+CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
+BEGIN
+SELECT '---';
+SELECT fieldno AS `FieldN`;
+SELECT TRIM(TRAILING 0x00 FROM LEFT(content, 10)) AS `Name`;
+SELECT SUBSTRING(content, 12, 1) AS `Type`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,13,4))),16,10) AS `Offset`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,17,1))),16,10) AS `Length`;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,18,1))),16,10) AS `Dec`;
+SELECT HEX(REVERSE(SUBSTRING(content,19,1))) AS `Flags`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,20,4))),16,10) AS `Next`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,24,4))),16,10) AS `Step`;
+END//
+CREATE PROCEDURE test.dbf_header(in fname VARCHAR(1024)) DETERMINISTIC
+BEGIN
+DECLARE content BLOB;
+DECLARE offset INT;
+DECLARE fieldno INT;
+SELECT '--------';
+SELECT LOAD_FILE(fname) INTO content;
+SELECT LENGTH(content) AS FileSize;
+SELECT HEX(LEFT(content, 1)) AS DBF_Version;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,5,4))),16,10) AS NRecords;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,9,2))),16,10) AS FirstRecPos;
+SELECT CONV(HEX(REVERSE(SUBSTRING(content,11,2))),16,10) AS RecLength;
+SELECT HEX(REVERSE(SUBSTRING(content,29,2))) AS TableFlags;
+SELECT HEX(REVERSE(SUBSTRING(content,30,1))) AS CodePageMark;
+SET offset=33;
+SET fieldno=0;
+WHILE SUBSTR(content, offset, 1) <> 0x0D AND offset + 32 < LENGTH(content) DO
+CALL dbf_field(fieldno, SUBSTRING(content, offset, 32));
+SET offset=offset + 32;
+SET fieldno=fieldno + 1;
+END WHILE;
+SELECT '--------';
+END//
 CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -34,6 +70,24 @@ INSERT INTO t1 VALUES ('test');
 SELECT * FROM t1;
 a
 test
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	77
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	11
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
 DROP TABLE t1;
 #
 # Testing multiple columns
@@ -50,6 +104,40 @@ SELECT * FROM t1;
 a	b	c
 1	1	1
 2	2	2
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	194
+DBF_Version	03
+NRecords	2
+FirstRecPos	130
+RecLength	32
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+---	---
+FieldN	1
+Name	b
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	2
+Name	c
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+--------	--------
 DROP TABLE t1;
 #
 # Testing long column name
@@ -87,6 +175,24 @@ INSERT INTO t1 VALUES (REPEAT('a',255));
 SELECT LENGTH(a) FROM t1;
 LENGTH(a)
 255
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	322
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	256
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	C
+Offset	0
+Length	255
+Dec	0
+Flags	00
+--------	--------
 DROP TABLE t1;
 #
 # Testing too long CHAR
@@ -150,6 +256,24 @@ INSERT INTO t1 VALUES ('2001-01-01');
 SELECT * FROM t1;
 a
 2001-01-01
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	75
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	9
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	D
+Offset	0
+Length	8
+Dec	0
+Flags	00
+--------	--------
 DROP TABLE t1;
 #
 # Testing FLOAT
@@ -162,6 +286,24 @@ INSERT INTO t1 VALUES (123);
 SELECT * FROM t1;
 a
 123.0000
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	79
+DBF_Version	03
+NRecords	1
+FirstRecPos	66
+RecLength	13
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	F
+Offset	0
+Length	12
+Dec	4
+Flags	00
+--------	--------
 DROP TABLE t1;
 #
 # Testing double
@@ -176,4 +318,24 @@ SELECT * FROM t1;
 a
 123.00000
 123456789.12345
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	108
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	21
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	F
+Offset	0
+Length	20
+Dec	5
+Flags	00
+--------	--------
 DROP TABLE IF EXISTS t1;
+DROP PROCEDURE test.dbf_field;
+DROP PROCEDURE test.dbf_header;

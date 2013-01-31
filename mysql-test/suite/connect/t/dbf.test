@@ -1,5 +1,47 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
+
+DELIMITER //;
+CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
+BEGIN
+  SELECT '---';
+  SELECT fieldno AS `FieldN`;
+  SELECT TRIM(TRAILING 0x00 FROM LEFT(content, 10)) AS `Name`;
+  SELECT SUBSTRING(content, 12, 1) AS `Type`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,13,4))),16,10) AS `Offset`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,17,1))),16,10) AS `Length`;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,18,1))),16,10) AS `Dec`;
+  SELECT HEX(REVERSE(SUBSTRING(content,19,1))) AS `Flags`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,20,4))),16,10) AS `Next`;
+-- SELECT CONV(HEX(REVERSE(SUBSTRING(content,24,4))),16,10) AS `Step`;
+END//
+
+CREATE PROCEDURE test.dbf_header(in fname VARCHAR(1024)) DETERMINISTIC
+BEGIN
+  DECLARE content BLOB;
+  DECLARE offset INT;
+  DECLARE fieldno INT;
+  SELECT '--------';
+  SELECT LOAD_FILE(fname) INTO content;
+  SELECT LENGTH(content) AS FileSize;
+  SELECT HEX(LEFT(content, 1)) AS DBF_Version;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,5,4))),16,10) AS NRecords;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,9,2))),16,10) AS FirstRecPos;
+  SELECT CONV(HEX(REVERSE(SUBSTRING(content,11,2))),16,10) AS RecLength;
+  SELECT HEX(REVERSE(SUBSTRING(content,29,2))) AS TableFlags;
+  SELECT HEX(REVERSE(SUBSTRING(content,30,1))) AS CodePageMark;
+  SET offset=33;
+  SET fieldno=0;
+  WHILE SUBSTR(content, offset, 1) <> 0x0D AND offset + 32 < LENGTH(content) DO
+    CALL dbf_field(fieldno, SUBSTRING(content, offset, 32));
+    SET offset=offset + 32;
+    SET fieldno=fieldno + 1;
+  END WHILE;
+  SELECT '--------';
+END//
+DELIMITER ;//
+
+
 CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (10),(20);
@@ -21,10 +63,18 @@ CREATE TABLE t1 (a CHAR(10)) ENGINE=CONNECT Table_Type=dbf File_Name='t1.dbf';
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES ('test');
 SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
+#
+# TODO: this creates DBF record with length=32, which looks wrong
+#
 --echo #
 --echo # Testing multiple columns
 --echo #
@@ -37,6 +87,11 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES (1,'1','1');
 INSERT INTO t1 VALUES (2,'2','2');
 SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
@@ -126,6 +181,11 @@ CREATE TABLE t1
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 INSERT INTO t1 VALUES (REPEAT('a',255));
 SELECT LENGTH(a) FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
@@ -212,6 +272,11 @@ CREATE TABLE t1
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 INSERT INTO t1 VALUES ('2001-01-01');
 SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
@@ -226,6 +291,11 @@ CREATE TABLE t1
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 INSERT INTO t1 VALUES (123);
 SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 #
@@ -286,6 +356,11 @@ CREATE TABLE t1
 INSERT INTO t1 VALUES (123);
 INSERT INTO t1 VALUES (123456789.12345);
 SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
 DROP TABLE IF EXISTS t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
@@ -298,4 +373,5 @@ DROP TABLE IF EXISTS t1;
 #CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF;
 
 
-
+DROP PROCEDURE test.dbf_field;
+DROP PROCEDURE test.dbf_header;
