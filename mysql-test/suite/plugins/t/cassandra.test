@@ -1,7 +1,10 @@
 #
 # Tests for cassandra storage engine
 #
---source include/have_cassandra.inc
+if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'cassandra' AND support IN ('YES', 'DEFAULT', 'ENABLED')`)
+{
+  --skip Test requires Cassandra.
+}
 
 --disable_warnings
 drop table if exists t0, t1;
