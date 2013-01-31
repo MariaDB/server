@@ -2785,16 +2785,6 @@ int ha_connect::delete_all_rows()
   DBUG_RETURN(rc);
 } // end of delete_all_rows
 
-#if defined(WIN32)
-#define HA_LOCK_READ   1
-#define HA_LOCK_WRITE  2
-#define HA_LOCK_UNLOCK 3
-#else   // !WIN32
-#define HA_LOCK_READ   0
-#define HA_LOCK_WRITE  1
-#define HA_LOCK_UNLOCK 2
-#endif  // !WIN32
-
 /**
   @brief
   This create a lock on the table. If you are implementing a storage engine
@@ -2833,13 +2823,13 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   // Action will depend on lock_type
   switch (lock_type) {
-    case HA_LOCK_WRITE:
+    case F_WRLCK:
       newmode= MODE_WRITE;
       break;
-    case HA_LOCK_READ:
+    case F_RDLCK:
       newmode= MODE_READ;
       break;
-    case HA_LOCK_UNLOCK:
+    case F_UNLCK:
     default:
       newmode= MODE_ANY;
     } // endswitch mode
