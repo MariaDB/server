@@ -39,7 +39,7 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
 {
   File fd;
   DBUG_ENTER("my_open");
-  DBUG_PRINT("my",("Name: '%s'  Flags: %d  MyFlags: %d",
+  DBUG_PRINT("my",("Name: '%s'  Flags: %d  MyFlags: %lu",
 		   FileName, Flags, MyFlags));
   if (!(MyFlags & (MY_WME | MY_FAE | MY_FFNF)))
     MyFlags|= my_global_flags;
@@ -71,7 +71,7 @@ int my_close(File fd, myf MyFlags)
 {
   int err;
   DBUG_ENTER("my_close");
-  DBUG_PRINT("my",("fd: %d  MyFlags: %d",fd, MyFlags));
+  DBUG_PRINT("my",("fd: %d  MyFlags: %lu",fd, MyFlags));
   if (!(MyFlags & (MY_WME | MY_FAE)))
     MyFlags|= my_global_flags;
 

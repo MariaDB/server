@@ -961,7 +961,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
              ddl_log_entry->handler_name));
   handler_name.str= (char*)ddl_log_entry->handler_name;
   handler_name.length= strlen(ddl_log_entry->handler_name);
-  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0); 
+  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
   if (!strcmp(ddl_log_entry->handler_name, reg_ext))
     frm_action= TRUE;
   else
@@ -1525,7 +1525,7 @@ void execute_ddl_log_recovery()
   global_ddl_log.recovery_phase= FALSE;
   delete thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 
@@ -5395,7 +5395,7 @@ mysql_compare_tables(TABLE *table,
     if (table->s->tmp_table == NO_TMP_TABLE)
     {
       (void) delete_statistics_for_index(thd, table, table_key, FALSE);
-      if (table_key - table->key_info == table->s->primary_key)
+      if ((uint) (table_key - table->key_info) == table->s->primary_key)
       {
         KEY *tab_key_info= table->key_info;
 	for (uint j=0; j < table->s->keys; j++, tab_key_info++)
@@ -7555,7 +7555,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
     else
     {
       from->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                                MYF(MY_FAE | MY_ZEROFILL));
+                                                MYF(MY_FAE | MY_ZEROFILL |
+                                                    MY_THREAD_SPECIFIC));
       bzero((char *) &tables, sizeof(tables));
       tables.table= from;
       tables.alias= tables.table_name= from->s->table_name.str;

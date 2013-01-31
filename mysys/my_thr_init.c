@@ -425,7 +425,12 @@ struct st_my_thread_var *_my_thread_var(void)
 
 my_thread_id my_thread_dbug_id()
 {
-  return my_thread_var->id;
+  /*
+    We need to do this test as some system thread may not yet have called
+    my_thread_init().
+  */
+  struct st_my_thread_var *tmp= my_thread_var;
+  return tmp ? tmp->id : 0;
 }
 
 #ifdef DBUG_OFF

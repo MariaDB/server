@@ -3,6 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -354,7 +355,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec()
   {
-    maybe_null=1;
+    set_persist_maybe_null(1);
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length = args[0]->max_length + 9;
   }
@@ -370,7 +371,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec()
   {
-    maybe_null=1;
+    set_persist_maybe_null(1);
     /* 9 = MAX ((8- (arg_len % 8)) + 1) */
     max_length= args[0]->max_length;
     if (max_length >= 9U)
@@ -398,7 +399,7 @@ public:
     constructor_helper();
   }
   String *val_str(String *);
-  void fix_length_and_dec() { maybe_null=1; max_length = 13; }
+  void fix_length_and_dec() { set_persist_maybe_null(1); max_length = 13; }
   const char *func_name() const { return "encrypt"; }
   bool check_vcol_func_processor(uchar *int_arg) 
   {
@@ -468,7 +469,7 @@ public:
   void fix_length_and_dec()
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    maybe_null=1;
+    set_persist_maybe_null(1);
   }
   const char *func_name() const { return "database"; }
   const char *fully_qualified_func_name() const { return "database()"; }
@@ -649,7 +650,7 @@ public:
   {
     collation.set(default_charset());
     max_length=64;
-    maybe_null= 1;
+    set_persist_maybe_null(1);
   }
 };
 
@@ -676,7 +677,7 @@ public:
   Item_func_unhex(Item *a) :Item_str_func(a) 
   { 
     /* there can be bad hex strings */
-    maybe_null= 1; 
+    set_persist_maybe_null(1);
   }
   const char *func_name() const { return "unhex"; }
   String *val_str(String *);
@@ -762,7 +763,7 @@ public:
   void fix_length_and_dec()
   {
     collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
-    maybe_null=1;
+    set_persist_maybe_null(1);
     max_length=MAX_BLOB_WIDTH;
   }
   bool check_vcol_func_processor(uchar *int_arg) 
@@ -795,7 +796,7 @@ public:
   { 
     decimals= 0; 
     fix_length_and_charset(3 * 8 + 7, default_charset()); 
-    maybe_null= 1;
+    set_persist_maybe_null(1);
   }
 };
 
@@ -910,7 +911,7 @@ public:
   {
      collation.set(system_charset_info);
      max_length= 64 * collation.collation->mbmaxlen; // should be enough
-     maybe_null= 0;
+     set_persist_maybe_null(0);
   };
   table_map not_null_tables() const { return 0; }
 };
@@ -925,7 +926,7 @@ public:
   {
      collation.set(system_charset_info);
      max_length= 64 * collation.collation->mbmaxlen; // should be enough
-     maybe_null= 0;
+     set_persist_maybe_null(0);
   };
   table_map not_null_tables() const { return 0; }
 };
@@ -971,7 +972,8 @@ class Item_func_uncompress: public Item_str_func
   String buffer;
 public:
   Item_func_uncompress(Item *a): Item_str_func(a){}
-  void fix_length_and_dec(){ maybe_null= 1; max_length= MAX_BLOB_WIDTH; }
+  void fix_length_and_dec()
+  { set_persist_maybe_null(1); max_length= MAX_BLOB_WIDTH; }
   const char *func_name() const{return "uncompress";}
   String *val_str(String *) ZLIB_DEPENDED_FUNCTION
 };
@@ -1001,9 +1003,10 @@ class Item_func_dyncol_create: public Item_str_func
 protected:
   DYNCALL_CREATE_DEF *defs;
   DYNAMIC_COLUMN_VALUE *vals;
-  uint *nums;
-  void prepare_arguments();
-  void cleanup_arguments();
+  uint *keys_num;
+  LEX_STRING *keys_str;
+  bool names, force_names;
+  bool prepare_arguments(bool force_names);
   void print_arguments(String *str, enum_query_type query_type);
 public:
   Item_func_dyncol_create(List<Item> &args, DYNCALL_CREATE_DEF *dfs);
@@ -1012,6 +1015,7 @@ public:
   const char *func_name() const{ return "column_create"; }
   String *val_str(String *);
   virtual void print(String *str, enum_query_type query_type);
+  virtual enum Functype functype() const   { return DYNCOL_FUNC; }
 };
 
 
@@ -1026,6 +1030,19 @@ public:
   virtual void print(String *str, enum_query_type query_type);
 };
 
+class Item_func_dyncol_json: public Item_str_func
+{
+public:
+  Item_func_dyncol_json(Item *str) :Item_str_func(str) {}
+  const char *func_name() const{ return "column_json"; }
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    maybe_null= TRUE;
+    collation.set(&my_charset_bin);
+    decimals= 0;
+  }
+};
 
 /*
   The following functions is always called from an Item_cast function
@@ -1036,11 +1053,9 @@ class Item_dyncol_get: public Item_str_func
 public:
   Item_dyncol_get(Item *str, Item *num)
     :Item_str_func(str, num)
-  {
-    max_length= MAX_DYNAMIC_COLUMN_LENGTH;
-  }
+  {}
   void fix_length_and_dec()
-  { maybe_null= 1; }
+  { set_persist_maybe_null(1); max_length= MAX_BLOB_WIDTH; }
   /* Mark that collation can change between calls */
   bool dynamic_result() { return 1; }
 
@@ -1059,7 +1074,8 @@ class Item_func_dyncol_list: public Item_str_func
 {
 public:
   Item_func_dyncol_list(Item *str) :Item_str_func(str) {};
-  void fix_length_and_dec() { maybe_null= 1; max_length= MAX_BLOB_WIDTH; };
+  void fix_length_and_dec()
+  { set_persist_maybe_null(1); max_length= MAX_BLOB_WIDTH; };
   const char *func_name() const{ return "column_list"; }
   String *val_str(String *);
 };
@@ -1067,3 +1083,4 @@ public:
 extern String my_empty_string;
 
 #endif /* ITEM_STRFUNC_INCLUDED */
+

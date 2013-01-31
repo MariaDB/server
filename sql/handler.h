@@ -882,6 +882,10 @@ struct handlerton
    */
    int  (*close_connection)(handlerton *hton, THD *thd);
    /*
+     Tell handler that query has been killed.
+   */
+   void (*kill_query)(handlerton *hton, THD *thd, enum thd_kill_levels level);
+   /*
      sv points to an uninitialized storage area of requested size
      (see savepoint_offset description)
    */
@@ -1934,6 +1938,7 @@ public:
   int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked);
   int ha_index_init(uint idx, bool sorted)
   {
+    DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
     int result;
     DBUG_ENTER("ha_index_init");
     DBUG_ASSERT(inited==NONE);
@@ -1958,6 +1963,7 @@ public:
   virtual int prepare_index_scan() { return 0; }
   int ha_rnd_init(bool scan) __attribute__ ((warn_unused_result))
   {
+    DBUG_EXECUTE_IF("ha_rnd_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
     int result;
     DBUG_ENTER("ha_rnd_init");
     DBUG_ASSERT(inited==NONE || (inited==RND && scan));
@@ -3095,6 +3101,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin);
 TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
+void ha_kill_query(THD* thd, enum thd_kill_levels level);
 bool ha_flush_logs(handlerton *db_type);
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);

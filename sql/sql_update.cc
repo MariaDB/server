@@ -493,7 +493,8 @@ int mysql_update(THD *thd,
       ha_rows found_rows;
 
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
-						    MYF(MY_FAE | MY_ZEROFILL));
+						    MYF(MY_FAE | MY_ZEROFILL |
+                                                        MY_THREAD_SPECIFIC));
       if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
                                                select, limit,
@@ -2233,11 +2234,16 @@ err:
   }
 
 err2:
-  (void) table->file->ha_rnd_end();
-  (void) tmp_table->file->ha_rnd_end();
+  if (table->file->inited)
+    (void) table->file->ha_rnd_end();
+  if (tmp_table->file->inited)
+    (void) tmp_table->file->ha_rnd_end();
   check_opt_it.rewind();
   while (TABLE *tbl= check_opt_it++)
-      tbl->file->ha_rnd_end();
+  {
+    if (tbl->file->inited)
+      (void) tbl->file->ha_rnd_end();
+  }
 
   if (updated != org_updated)
   {

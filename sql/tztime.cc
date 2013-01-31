@@ -1637,7 +1637,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, 32 * 1024, 0);
+  init_sql_alloc(&tz_storage, 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -1718,14 +1718,11 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   }
 
   table= tz_tables[0].table;
-  /*
-    It is OK to ignore ha_index_init()/ha_index_end() return values since
-    mysql.time_zone* tables are MyISAM and these operations always succeed
-    for MyISAM.
-  */
-  (void)table->file->ha_index_init(0, 1);
-  table->use_all_columns();
 
+  if (table->file->ha_index_init(0, 1))
+    goto end_with_close;
+
+  table->use_all_columns();
   tz_leapcnt= 0;
 
   res= table->file->ha_index_first(table->record[0]);
@@ -1803,7 +1800,7 @@ end:
   else
   {
     /* Remember that we don't have a THD */
-    my_pthread_setspecific_ptr(THR_THD,  0);
+    set_current_thd(0);
     my_pthread_setspecific_ptr(THR_MALLOC,  0);
   }
   
@@ -1913,12 +1910,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   tz_tables= tz_tables->next_local;
   table->field[0]->store(tz_name->ptr(), tz_name->length(),
                          &my_charset_latin1);
-  /*
-    It is OK to ignore ha_index_init()/ha_index_end() return values since
-    mysql.time_zone* tables are MyISAM and these operations always succeed
-    for MyISAM.
-  */
-  (void)table->file->ha_index_init(0, 1);
+  if (table->file->ha_index_init(0, 1))
+    goto end;
 
   if (table->file->ha_index_read_map(table->record[0], table->field[0]->ptr,
                                      HA_WHOLE_KEY, HA_READ_KEY_EXACT))
@@ -1951,7 +1944,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->get_key_image(keybuff,
                        min(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
-  (void)table->file->ha_index_init(0, 1);
+  if (table->file->ha_index_init(0, 1))
+    goto end;
 
   if (table->file->ha_index_read_map(table->record[0], keybuff,
                                      HA_WHOLE_KEY, HA_READ_KEY_EXACT))
@@ -1983,7 +1977,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   field->get_key_image(keybuff,
                        min(field->key_length(), sizeof(keybuff)),
                        Field::itRAW);
-  (void)table->file->ha_index_init(0, 1);
+  if (table->file->ha_index_init(0, 1))
+    goto end;
 
   res= table->file->ha_index_read_map(table->record[0], keybuff,
                                       (key_part_map)1, HA_READ_KEY_EXACT);
@@ -2053,7 +2048,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   */
   table= tz_tables->table; 
   table->field[0]->store((longlong) tzid, TRUE);
-  (void)table->file->ha_index_init(0, 1);
+  if (table->file->ha_index_init(0, 1))
+    goto end;
 
   res= table->file->ha_index_read_map(table->record[0], keybuff,
                                       (key_part_map)1, HA_READ_KEY_EXACT);
@@ -2187,8 +2183,8 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 
 end:
 
-  if (table)
-    (void)table->file->ha_index_end();
+  if (table && table->file->inited)
+    (void) table->file->ha_index_end();
 
   DBUG_RETURN(return_val);
 }
@@ -2541,7 +2537,7 @@ scan_tz_dir(char * name_end)
       }
       else if (MY_S_ISREG(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        init_alloc_root(&tz_storage, 32768, 0);
+        init_alloc_root(&tz_storage, 32768, 0, MYF(MY_THREAD_SPECIFIC));
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
@@ -2599,7 +2595,7 @@ main(int argc, char **argv)
   }
   else
   {
-    init_alloc_root(&tz_storage, 32768, 0);
+    init_alloc_root(&tz_storage, 32768, 0, MYF(0));
 
     if (strcmp(argv[1], "--leap") == 0)
     {
@@ -2676,7 +2672,7 @@ main(int argc, char **argv)
 
   MY_INIT(argv[0]);
 
-  init_alloc_root(&tz_storage, 32768, 0);
+  init_alloc_root(&tz_storage, 32768, MYF(0));
 
   /* let us set some well known timezone */
   setenv("TZ", "MET", 1);

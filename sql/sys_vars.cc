@@ -3674,7 +3674,7 @@ Sys_slave_skip_counter("sql_slave_skip_counter",
                        "Skip the next N events from the master log",
                        SESSION_VAR(slave_skip_counter),
                        NO_CMD_LINE,
-                       offsetof(Master_info, rli.slave_skip_counter),
+                       my_offsetof(Master_info, rli.slave_skip_counter),
                        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
                        ON_UPDATE(update_slave_skip_counter));
 
@@ -3693,7 +3693,7 @@ Sys_max_relay_log_size( "max_relay_log_size",
                         "set to max_binlog_size",
                         SESSION_VAR(max_relay_log_size),
                         CMD_LINE(REQUIRED_ARG),
-                        offsetof(Master_info, rli.max_relay_log_size),
+                        my_offsetof(Master_info, rli.max_relay_log_size),
                         VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
                         BLOCK_SIZE(IO_SIZE),
                         ON_UPDATE(update_max_relay_log_size));

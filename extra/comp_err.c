@@ -894,7 +894,7 @@ static struct errors *generate_empty_message(uint d_code)
   if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
                                                MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1))
+  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1, MYF(0)))
     return(0);				/* OOM: Fatal error */
 
   new_error->er_name= NULL;
@@ -928,7 +928,7 @@ static struct errors *parse_error_string(char *str, int er_count)
                                                MYF(MY_WME))))
     DBUG_RETURN(0);
 
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0))
+  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0, MYF(0)))
     DBUG_RETURN(0);				/* OOM: Fatal error */
 
   /* getting the error name */

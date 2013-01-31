@@ -993,11 +993,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  COLLATION_SYM                 /* SQL-2003-N */
 %token  COLUMNS
 %token  COLUMN_ADD_SYM
+%token  COLUMN_CHECK_SYM
 %token  COLUMN_CREATE_SYM
 %token  COLUMN_DELETE_SYM
-%token  COLUMN_EXISTS_SYM
 %token  COLUMN_GET_SYM
-%token  COLUMN_LIST_SYM
 %token  COLUMN_SYM                    /* SQL-2003-R */
 %token  COLUMN_NAME_SYM               /* SQL-2003-N */
 %token  COMMENT_SYM
@@ -8566,7 +8565,7 @@ dyncall_create_element:
        alloc_root(YYTHD->mem_root, sizeof(DYNCALL_CREATE_DEF));
      if ($$ == NULL)
        MYSQL_YYABORT;
-     $$->num= $1;
+     $$->key= $1;
      $$->value= $3;
      $$->type= (DYNAMIC_COLUMN_TYPE)$4;
      $$->cs= lex->charset;
@@ -9120,16 +9119,9 @@ function_call_nonkeyword:
               MYSQL_YYABORT;
           }
         |
-          COLUMN_EXISTS_SYM '(' expr ',' expr ')'
+          COLUMN_CHECK_SYM '(' expr ')'
           {
-            $$= new (YYTHD->mem_root) Item_func_dyncol_exists($3, $5);
-            if ($$ == NULL)
-              MYSQL_YYABORT;
-          }
-        |
-          COLUMN_LIST_SYM '(' expr ')'
-          {
-            $$= new (YYTHD->mem_root) Item_func_dyncol_list($3);
+            $$= new (YYTHD->mem_root) Item_func_dyncol_check($3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11758,11 +11750,19 @@ show_param:
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_SHOW_AUTHORS;
+            push_warning_printf(YYTHD, MYSQL_ERROR::WARN_LEVEL_WARN,
+                                ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                                ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                                "SHOW AUTHORS");
           }
         | CONTRIBUTORS_SYM
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_SHOW_CONTRIBUTORS;
+            push_warning_printf(YYTHD, MYSQL_ERROR::WARN_LEVEL_WARN,
+                                ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                                ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                                "SHOW CONTRIBUTORS");
           }
         | PRIVILEGES
           {
@@ -13277,11 +13277,10 @@ keyword:
         | CHECKPOINT_SYM        {}
         | CLOSE_SYM             {}
         | COLUMN_ADD_SYM        {}
+        | COLUMN_CHECK_SYM      {}
         | COLUMN_CREATE_SYM     {}
         | COLUMN_DELETE_SYM     {}
-        | COLUMN_EXISTS_SYM     {}
         | COLUMN_GET_SYM        {}
-        | COLUMN_LIST_SYM       {}
         | COMMENT_SYM           {}
         | COMMIT_SYM            {}
         | CONTAINS_SYM          {}

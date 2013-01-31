@@ -8649,7 +8649,7 @@ NDB_SHARE *ndbcluster_get_share(const char *key, TABLE *table,
       MEM_ROOT **root_ptr=
         my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
       MEM_ROOT *old_root= *root_ptr;
-      init_sql_alloc(&share->mem_root, 1024, 0);
+      init_sql_alloc(&share->mem_root, 1024, 0, MYF(0));
       *root_ptr= &share->mem_root; // remember to reset before return
       share->state= NSS_INITIAL;
       /* enough space for key, db, and table_name */
@@ -9493,7 +9493,7 @@ pthread_handler_t ndb_util_thread_func(void *arg __attribute__((unused)))
   thd->init_for_queries();
   thd->main_security_ctx.host_or_ip= "";
   thd->client_capabilities = 0;
-  my_net_init(&thd->net, 0);
+  my_net_init(&thd->net, 0, MYF(MY_THREAD_SPECIFIC));
   thd->main_security_ctx.master_access= ~0;
   thd->main_security_ctx.priv_user[0] = 0;
   /* Do not use user-supplied timeout value for system threads. */
@@ -9730,11 +9730,9 @@ next:
   mysql_mutex_lock(&LOCK_ndb_util_thread);
 
 ndb_util_thread_end:
-  net_end(&thd->net);
 ndb_util_thread_fail:
   if (share_list)
     delete [] share_list;
-  thd->cleanup();
   delete thd;
   
   /* signal termination */

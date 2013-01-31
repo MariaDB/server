@@ -164,6 +164,7 @@ typedef struct st_handler_check_param
 
   mysql_mutex_t print_msg_mutex;
   my_bool need_print_msg_lock;
+  myf malloc_flags;
 } HA_CHECK;
 
 

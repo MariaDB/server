@@ -209,7 +209,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);    // required
   int close(void);                                              // required
 
-  void start_bulk_insert(ha_rows rows);
+  void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
   int write_row(uchar *buf);
   int update_row(const uchar *old_data, uchar *new_data);

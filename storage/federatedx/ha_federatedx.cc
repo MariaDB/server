@@ -1519,7 +1519,7 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
 
   mysql_mutex_assert_owner(&federatedx_mutex);
 
-  init_alloc_root(&mem_root, 4096, 4096);
+  init_alloc_root(&mem_root, 4096, 4096, MYF(0));
 
   fill_server(&mem_root, &tmp_server, share, table ? table->s->table_charset : 0);
 
@@ -1577,7 +1577,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   query.length(0);
 
   bzero(&tmp_share, sizeof(tmp_share));
-  init_alloc_root(&mem_root, 256, 0);
+  init_alloc_root(&mem_root, 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
 
@@ -1791,7 +1791,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
 
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4);
+  my_init_dynamic_array(&results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4, MYF(0));
 
   reset();
 
@@ -2126,7 +2126,7 @@ int ha_federatedx::write_row(uchar *buf)
   @details Initializes memory structures required for bulk insert.
 */
 
-void ha_federatedx::start_bulk_insert(ha_rows rows)
+void ha_federatedx::start_bulk_insert(ha_rows rows, uint flags)
 {
   uint page_size;
   DBUG_ENTER("ha_federatedx::start_bulk_insert");

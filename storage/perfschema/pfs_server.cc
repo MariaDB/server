@@ -209,7 +209,8 @@ void shutdown_performance_schema(void)
 */
 void init_pfs_instrument_array()
 {
-  my_init_dynamic_array(&pfs_instr_config_array, sizeof(PFS_instr_config*), 10, 10);
+  my_init_dynamic_array(&pfs_instr_config_array, sizeof(PFS_instr_config*),
+                        10, 10, MYF(0));
   pfs_instr_config_state=  PFS_INSTR_CONFIG_ALLOCATED;
 }
 

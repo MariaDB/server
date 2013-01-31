@@ -801,8 +801,6 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
-  net_end(&thd->net);
-  thd->cleanup();
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
@@ -1173,7 +1171,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->security_ctx->user= 0;
     thd->user_connect= 0;
 
-    rc= acl_authenticate(thd, 0, packet_length);
+    /*
+      to limit COM_CHANGE_USER ability to brute-force passwords,
+      we only allow three unsuccessful COM_CHANGE_USER per connection.
+    */
+    if (thd->failed_com_change_user >= 3)
+    {
+      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      rc= 1;
+    }
+    else
+      rc= acl_authenticate(thd, 0, packet_length);
+
     MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
     if (rc)
     {
@@ -1188,6 +1197,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->variables.collation_connection= save_collation_connection;
       thd->variables.character_set_results= save_character_set_results;
       thd->update_charset();
+      thd->failed_com_change_user++;
+      my_sleep(1000000);
     }
     else
     {
@@ -1489,10 +1500,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         and flushes tables.
       */
       bool res;
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(0);
       res= reload_acl_and_cache(NULL, options | REFRESH_FAST,
                                 NULL, &not_used);
-      my_pthread_setspecific_ptr(THR_THD, thd);
+      set_current_thd(thd);
       if (res)
         break;
     }
@@ -1663,6 +1674,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
+  thd->set_examined_row_count(0);                   // For processlist
   thd->set_command(COM_SLEEP);
 
   /* Performance Schema Interface instrumentation, end */
@@ -2595,6 +2607,7 @@ case SQLCOM_PREPARE:
     LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
     Master_info *mi;
     bool new_master= 0;
+    bool master_info_added;
 
     if (check_global_access(thd, SUPER_ACL))
       goto error;
@@ -2617,15 +2630,19 @@ case SQLCOM_PREPARE:
       new_master= 1;
     }
 
-    res= change_master(thd, mi);
+    res= change_master(thd, mi, &master_info_added);
     if (res && new_master)
     {
       /*
-        The new master was added by change_master(). Remove it as it didn't
-        work.
+        If the new master was added by change_master(), remove it as it didn't
+        work (this will free mi as well).
+
+        If new master was not added, we still need to free mi.
       */
-      master_info_index->remove_master_info(&lex_mi->connection_name);
-      delete mi;
+      if (master_info_added)
+        master_info_index->remove_master_info(&lex_mi->connection_name);
+      else
+        delete mi;
     }
 
     mysql_mutex_unlock(&LOCK_active_mi);
@@ -4852,16 +4869,20 @@ finish:
 
   if (! thd->in_sub_stmt)
   {
-    /* report error issued during command execution */
-    if (thd->killed_errno())
+    if (thd->killed != NOT_KILLED)
     {
-      if (! thd->stmt_da->is_set())
-        thd->send_kill_message();
-    }
-    if (thd->killed < KILL_CONNECTION)
-    {
-      thd->killed= NOT_KILLED;
-      thd->mysys_var->abort= 0;
+      /* report error issued during command execution */
+      if (thd->killed_errno())
+      {
+        /* If we already sent 'ok', we can ignore any kill query statements */
+        if (! thd->stmt_da->is_set())
+          thd->send_kill_message();
+      }
+      if (thd->killed < KILL_CONNECTION)
+      {
+        thd->reset_killed();
+        thd->mysys_var->abort= 0;
+      }
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);
@@ -5011,7 +5032,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   mysql_mutex_lock(&LOCK_status);
   add_diff_to_status(&global_status_var, &thd->status_var,
                      &old_status_var);
-  thd->status_var= old_status_var;
+  memcpy(&thd->status_var, &old_status_var,
+         offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
   return res;
 }
@@ -6494,8 +6516,13 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   ptr->next_name_resolution_table= NULL;
   /* Link table in global list (all used tables) */
   lex->add_to_query_tables(ptr);
-  ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
-                        MDL_TRANSACTION);
+
+  // Pure table aliases do not need to be locked:
+  if (!test(table_options & TL_OPTION_ALIAS))
+  {
+    ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
+                          MDL_TRANSACTION);
+  }
   DBUG_RETURN(ptr);
 }
 
@@ -7071,7 +7098,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
         mysql_mutex_unlock(&LOCK_thread_count);
         DBUG_RETURN(ER_KILL_DENIED_ERROR);
       }
-      if (!threads_to_kill.push_back(tmp, tmp->mem_root))
+      if (!threads_to_kill.push_back(tmp, thd->mem_root))
         mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from delete
     }
   }

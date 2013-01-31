@@ -46,7 +46,7 @@ table_mapping::table_mapping()
 		   offsetof(entry,table_id),sizeof(ulong),
 		   0,0,0);
   /* We don't preallocate any block, this is consistent with m_free=0 above */
-  init_alloc_root(&m_mem_root, TABLE_ID_HASH_SIZE*sizeof(entry), 0);
+  init_alloc_root(&m_mem_root, TABLE_ID_HASH_SIZE*sizeof(entry), 0, MYF(0));
   DBUG_VOID_RETURN;
 }
 

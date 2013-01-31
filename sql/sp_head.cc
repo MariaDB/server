@@ -508,7 +508,7 @@ sp_head::operator new(size_t size) throw()
   MEM_ROOT own_root;
   sp_head *sp;
 
-  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC);
+  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
   sp= (sp_head *) alloc_root(&own_root, size);
   if (sp == NULL)
     DBUG_RETURN(NULL);
@@ -592,7 +592,7 @@ sp_head::init(LEX *lex)
     types of stored procedures to simplify reset_lex()/restore_lex() code.
   */
   lex->trg_table_fields.empty();
-  my_init_dynamic_array(&m_instr, sizeof(sp_instr *), 16, 8);
+  my_init_dynamic_array(&m_instr, sizeof(sp_instr *), 16, 8, MYF(0));
 
   m_param_begin= NULL;
   m_param_end= NULL;
@@ -1252,7 +1252,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     DBUG_RETURN(TRUE);
 
   /* init per-instruction memroot */
-  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   DBUG_ASSERT(!(m_flags & IS_INVOKED));
   m_flags|= IS_INVOKED;
@@ -1709,7 +1709,7 @@ sp_head::execute_trigger(THD *thd,
     TODO: we should create sp_rcontext once per command and reuse it
     on subsequent executions of a trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= new sp_rcontext(m_pcont, 0, octx)) ||
@@ -1826,7 +1826,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= new sp_rcontext(m_pcont, return_value_fld, octx)) ||
@@ -4017,8 +4017,6 @@ typedef struct st_sp_table
     Multi-set key:
       db_name\0table_name\0alias\0 - for normal tables
       db_name\0table_name\0        - for temporary tables
-    Note that in both cases we don't take last '\0' into account when
-    we count length of key.
   */
   LEX_STRING qname;
   uint db_length, table_name_length;
@@ -4075,19 +4073,26 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   for (; table ; table= table->next_global)
     if (!table->derived && !table->schema_table)
     {
-      char tname[(SAFE_NAME_LEN + 1) * 3];           // db\0table\0alias\0
-      uint tlen, alen;
+      /*
+        Structure of key for the multi-set is "db\0table\0alias\0".
+        Since "alias" part can have arbitrary length we use String
+        object to construct the key. By default String will use
+        buffer allocated on stack with NAME_LEN bytes reserved for
+        alias, since in most cases it is going to be smaller than
+        NAME_LEN bytes.
+      */
+      char tname_buff[(SAFE_NAME_LEN + 1) * 3];
+      String tname(tname_buff, sizeof(tname_buff), &my_charset_bin);
+      uint temp_table_key_length;
 
-      tlen= table->db_length;
-      memcpy(tname, table->db, tlen);
-      tname[tlen++]= '\0';
-      memcpy(tname+tlen, table->table_name, table->table_name_length);
-      tlen+= table->table_name_length;
-      tname[tlen++]= '\0';
-      alen= strlen(table->alias);
-      memcpy(tname+tlen, table->alias, alen);
-      tlen+= alen;
-      tname[tlen]= '\0';
+      tname.length(0);
+      tname.append(table->db, table->db_length);
+      tname.append('\0');
+      tname.append(table->table_name, table->table_name_length);
+      tname.append('\0');
+      temp_table_key_length= tname.length();
+      tname.append(table->alias);
+      tname.append('\0');
 
       /*
         Upgrade the lock type because this table list will be used
@@ -4102,9 +4107,10 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
         (and therefore should not be prelocked). Otherwise we will erroneously
         treat table with same name but with different alias as non-temporary.
       */
-      if ((tab= (SP_TABLE*) my_hash_search(&m_sptabs, (uchar *)tname, tlen)) ||
-          ((tab= (SP_TABLE*) my_hash_search(&m_sptabs, (uchar *)tname,
-                                        tlen - alen - 1)) &&
+      if ((tab= (SP_TABLE*) my_hash_search(&m_sptabs, (uchar *)tname.ptr(),
+                                           tname.length())) ||
+          ((tab= (SP_TABLE*) my_hash_search(&m_sptabs, (uchar *)tname.ptr(),
+                                            temp_table_key_length)) &&
            tab->temp))
       {
         if (tab->lock_type < table->lock_type)
@@ -4123,11 +4129,11 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
             lex_for_tmp_check->create_info.options & HA_LEX_CREATE_TMP_TABLE)
         {
           tab->temp= TRUE;
-          tab->qname.length= tlen - alen - 1;
+          tab->qname.length= temp_table_key_length;
         }
         else
-          tab->qname.length= tlen;
-        tab->qname.str= (char*) thd->memdup(tname, tab->qname.length + 1);
+          tab->qname.length= tname.length();
+        tab->qname.str= (char*) thd->memdup(tname.ptr(), tab->qname.length);
         if (!tab->qname.str)
           return FALSE;
         tab->table_name_length= table->table_name_length;
@@ -4196,7 +4202,7 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (!(tab_buff= (char *)thd->calloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
                                         stab->lock_count)) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
-                                       stab->qname.length + 1)))
+                                       stab->qname.length)))
       DBUG_RETURN(FALSE);
 
     for (uint j= 0; j < stab->lock_count; j++)

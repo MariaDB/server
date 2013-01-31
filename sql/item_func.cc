@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -111,7 +111,7 @@ void Item_func::set_arguments(List<Item> &list)
 }
 
 Item_func::Item_func(List<Item> &list)
-  :allowed_arg_cols(1)
+  :allowed_arg_cols(1), persistent_maybe_null(0)
 {
   set_arguments(list);
 }
@@ -119,6 +119,7 @@ Item_func::Item_func(List<Item> &list)
 Item_func::Item_func(THD *thd, Item_func *item)
   :Item_result_field(thd, item),
    allowed_arg_cols(item->allowed_arg_cols),
+   persistent_maybe_null(0),
    arg_count(item->arg_count),
    used_tables_cache(item->used_tables_cache),
    not_null_tables_cache(item->not_null_tables_cache),
@@ -446,6 +447,8 @@ void Item_func::update_used_tables()
     args[i]->update_used_tables();
     used_tables_cache|=args[i]->used_tables();
     const_item_cache&=args[i]->const_item();
+    if (!persistent_maybe_null && args[i]->maybe_null)
+      maybe_null= 1;
   }
 }
 
@@ -1712,7 +1715,7 @@ void Item_func_div::fix_length_and_dec()
   case IMPOSSIBLE_RESULT:
     DBUG_ASSERT(0);
   }
-  maybe_null= 1; // devision by zero
+  set_persist_maybe_null(1); // devision by zero
   DBUG_VOID_RETURN;
 }
 
@@ -1796,7 +1799,7 @@ void Item_func_int_div::fix_length_and_dec()
   max_length=args[0]->max_length -
     (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
      args[0]->decimals : 0);
-  maybe_null=1;
+  set_persist_maybe_null(1);
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
 
@@ -1883,7 +1886,7 @@ void Item_func_mod::result_precision()
 void Item_func_mod::fix_length_and_dec()
 {
   Item_num_op::fix_length_and_dec();
-  maybe_null= 1;
+  set_persist_maybe_null(1);
   unsigned_flag= args[0]->unsigned_flag;
 }
 
@@ -3078,7 +3081,7 @@ longlong Item_func_field::val_int()
 
 void Item_func_field::fix_length_and_dec()
 {
-  maybe_null=0; max_length=3;
+  set_persist_maybe_null(0); max_length=3;
   cmp_type= args[0]->result_type();
   for (uint i=1; i < arg_count ; i++)
     cmp_type= item_cmp_type(cmp_type, args[i]->result_type());
@@ -4194,7 +4197,8 @@ longlong Item_func_last_insert_id::val_int()
     thd->first_successful_insert_id_in_prev_stmt= value;
     return value;
   }
-  return thd->read_first_successful_insert_id_in_prev_stmt();
+  return
+    static_cast<longlong>(thd->read_first_successful_insert_id_in_prev_stmt());
 }
 
 
@@ -4341,7 +4345,9 @@ user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
     uint size=ALIGN_SIZE(sizeof(user_var_entry))+name.length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(size,MYF(MY_WME | ME_FATALERROR))))
+    if (!(entry = (user_var_entry*) my_malloc(size,
+                                              MYF(MY_WME | ME_FATALERROR |
+                                                  MY_THREAD_SPECIFIC))))
       return 0;
     entry->name.str=(char*) entry+ ALIGN_SIZE(sizeof(user_var_entry))+
       extra_size;
@@ -4569,7 +4575,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 	  entry->value=0;
         entry->value= (char*) my_realloc(entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATALERROR));
+                                             ME_FATALERROR |
+                                             MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }
@@ -5312,7 +5319,7 @@ void Item_func_get_user_var::fix_length_and_dec()
 {
   THD *thd=current_thd;
   int error;
-  maybe_null=1;
+  set_persist_maybe_null(1);
   decimals=NOT_FIXED_DEC;
   max_length=MAX_BLOB_WIDTH;
 
@@ -5511,7 +5518,7 @@ void Item_func_get_system_var::update_null_value()
 void Item_func_get_system_var::fix_length_and_dec()
 {
   char *cptr;
-  maybe_null= TRUE;
+  set_persist_maybe_null(1);
   max_length= 0;
 
   if (var->check_type(var_type))
@@ -6078,7 +6085,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
 
   status_var_increment(thd->status_var.feature_fulltext);
 
-  maybe_null=1;
+  set_persist_maybe_null(1);
   join_key=0;
 
   /*
@@ -6412,7 +6419,7 @@ longlong Item_func_row_count::val_int()
 Item_func_sp::Item_func_sp(Name_resolution_context *context_arg, sp_name *name)
   :Item_func(), context(context_arg), m_name(name), m_sp(NULL), sp_result_field(NULL)
 {
-  maybe_null= 1;
+  set_persist_maybe_null(1);
   m_name->init_qname(current_thd);
   dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
@@ -6423,7 +6430,7 @@ Item_func_sp::Item_func_sp(Name_resolution_context *context_arg,
                            sp_name *name, List<Item> &list)
   :Item_func(list), context(context_arg), m_name(name), m_sp(NULL),sp_result_field(NULL)
 {
-  maybe_null= 1;
+  set_persist_maybe_null(1);
   m_name->init_qname(current_thd);
   dummy_table= (TABLE*) sql_calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
@@ -6551,6 +6558,19 @@ Item_func_sp::init_result_field(THD *thd)
 
 
 /**
+  @note
+  Deterministic stored procedures are considered inexpensive.
+  Consequently such procedures may be evaluated during optimization,
+  if they are constant (checked by the optimizer).
+*/
+
+bool Item_func_sp::is_expensive()
+{
+  return !(m_sp->m_chistics->detistic);
+}
+
+
+/**
   @brief Initialize local members with values from the Field interface.
 
   @note called from Item::fix_fields.
@@ -6564,7 +6584,7 @@ void Item_func_sp::fix_length_and_dec()
   decimals= sp_result_field->decimals();
   max_length= sp_result_field->field_length;
   collation.set(sp_result_field->charset());
-  maybe_null= 1;
+  set_persist_maybe_null(1);
   unsigned_flag= test(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
