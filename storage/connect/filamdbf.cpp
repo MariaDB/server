@@ -194,7 +194,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   static unsigned int length[] = {11, 6, 8, 10, 10, 6};
   char       buf[2], filename[_MAX_PATH];
   int        ncol = sizeof(dbtype) / sizeof(int);
-  int        rc, type, field, fields;
+  int        rc, type, len, field, fields;
   BOOL       bad;
   DBFHEADER  mainhead;
   DESCRIPTOR thisfield;
@@ -260,11 +260,12 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
     if (fread(&thisfield, HEADLEN, 1, infile) != 1) {
       sprintf(g->Message, MSG(ERR_READING_REC), field+1, fn);
       goto err;
-      } // endif fread
+    } else
+      len = thisfield.Length;
 
 		if (trace)
 			htrc("%-11s %c  %6ld  %3d   %2d  %3d  %3d\n",
-					 thisfield.Name, thisfield.Type, thisfield.Offset, thisfield.Length,
+					 thisfield.Name, thisfield.Type, thisfield.Offset, len,
 					 thisfield.Decimals, thisfield.Setfield, thisfield.Mdxfield);
 
     /************************************************************************/
@@ -276,7 +277,8 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
         type = TYPE_STRING;
         break;
       case 'N':
-        type = (thisfield.Decimals) ? TYPE_FLOAT : TYPE_INT;
+        type = (thisfield.Decimals) ? TYPE_FLOAT
+             : (len > 10) ? TYPE_BIGINT : TYPE_INT;
         break;
       case 'F':
         type = TYPE_FLOAT;
