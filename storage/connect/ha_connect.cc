@@ -146,10 +146,10 @@ RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
 bool  CntInfo(PGLOBAL g, PTDB tdbp, PXF info);
 int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                     bool *incl, key_part_map *kmap);
-#if defined(XML_SUPPORT) && !defined(NOXML2)
+#ifdef LIBXML2_SUPPORT
 void XmlInitParserLib(void);
 void XmlCleanupParserLib(void);
-#endif   // XML_SUPPORT  &&         !NOXML2)
+#endif   // LIBXML2_SUPPORT
 
 /****************************************************************************/
 /*  Functions called externally by pre_parser.                              */
@@ -3692,14 +3692,14 @@ bool APIENTRY DllMain(HINSTANCE hInst, ULONG ulReason, PCONTEXT pctx)
         printf("version=%s\n", version);
         trace= xtrace;
         } // endif xtrace
-#if defined(XML_SUPPORT) && !defined(NOXML2)
+#ifdef LIBXML2_SUPPORT
       XmlInitParserLib();
-#endif   // XML_SUPPORT  &&         !NOXML2)
+#endif   // LIBXML2_SUPPORT
       break;
     case DLL_PROCESS_DETACH:
-#if defined(XML_SUPPORT) && !defined(NOXML2)
+#ifdef LIBXML2_SUPPORT
       XmlCleanupParserLib();
-#endif   // XML_SUPPORT  &&         !NOXML2)
+#endif   // LIBXML2_SUPPORT
       break;
     case DLL_THREAD_ATTACH:
       break;
@@ -3732,9 +3732,9 @@ void __attribute__((constructor)) init()
     trace= xtrace;
     } // endif xtrace
 
-#if defined(XML_SUPPORT) && !defined(NOXML2)
+#ifdef LIBXML2_SUPPORT
     XmlInitParserLib();
-#endif   // XML_SUPPORT  &&         !NOXML2)
+#endif   // LIBXML2_SUPPORT
   } // end of init
 
 /**************************************************************************/
@@ -3742,9 +3742,9 @@ void __attribute__((constructor)) init()
 /**************************************************************************/
 void __attribute__((destructor)) fini()
   {
-#if defined(XML_SUPPORT) && !defined(NOXML2)
+#ifdef LIBXML2_SUPPORT
   XmlCleanupParserLib();
-#endif   // XML_SUPPORT  &&         !NOXML2)
+#endif   // LIBXML2_SUPPORT
   } // end of fini
 #endif  // !WIN32
 

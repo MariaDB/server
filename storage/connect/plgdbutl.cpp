@@ -119,14 +119,14 @@ MBLOCK Nmblk = {NULL, false, 0, false, NULL};   // Used to init MBLOCK's
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 bool EvalLikePattern(LPCSTR, LPCSTR);
 void PlugConvertConstant(PGLOBAL, void* &, short&);
-#if defined(XML_SUPPORT)
-#if defined(WIN32) && defined(DOMDOC_SUPPORT)
+
+#ifdef DOMDOC_SUPPORT
 void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
-#endif   // WIN32
-#if !defined(NOXML2)
+#endif   // DOMDOC_SUPPORT
+
+#ifdef LIBXML2_SUPPORT
 void CloseXML2File(PGLOBAL, PFBLOCK, bool);
-#endif   // !NOXML2
-#endif   // XML_SUPPORT
+#endif   // LIBXML2_SUPPORT
 
 /**************************************************************************/
 /*  Utility for external callers (such as XDB)                            */
@@ -808,18 +808,16 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
       fp->Mode = MODE_ANY;
       fp->Count = 0;
       break;
-#if defined(XML_SUPPORT)
-#if defined(WIN32) && defined(DOMDOC_SUPPORT)
+#ifdef defined(DOMDOC_SUPPORT)
     case TYPE_FB_XML:
       CloseXMLFile(g, fp, all);
       break;
-#endif   // WIN32
-#if !defined(NOXML2)
+#endif   // DOMDOC_SUPPORT
+#ifdef LIBXML2_SUPPORT
     case TYPE_FB_XML2:
       CloseXML2File(g, fp, all);
       break;
-#endif   // !NOXML2
-#endif   // XML_SUPPORT
+#endif   // LIBXML2_SUPPORT
     default:
       rc = RC_FX;
     } // endswitch Type
