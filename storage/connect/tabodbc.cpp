@@ -272,7 +272,7 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
   DBQ = fn;
   } // end of SetFile
 
-#if !defined(NO_ICONV)
+#ifdef ICONV_SUPPORT
 /******************************************************************/
 /*  Convert an UTF-8 string to latin characters.                  */
 /******************************************************************/
@@ -290,7 +290,7 @@ int TDBODBC::Decode(iconv_t cd, char *utf, char *buf, size_t n)
   buf[n - o] = '\0';
   return rc;
   } // end of Decode
-#endif   // !NO_ICONV
+#endif   // ICONV_SUPPORT
 
 /***********************************************************************/
 /*  MakeSQL: make the SQL statement use with ODBC connection.          */
@@ -305,11 +305,11 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   bool    first = true;
   PTABLE  tablep = To_Table;
   PCOL    colp;
-#if !defined(NO_ICONV)
+#ifdef ICONV_SUPPORT
   iconv_t cd = iconv_open("ISO-8859-1", "UTF-8");
 #else
-	void   *cd = NULL;
-#endif   // !NO_ICONV
+  void   *cd = NULL;
+#endif   // ICONV_SUPPORT
 
   if (!cnt) {
     // Normal SQL statement to retrieve results
@@ -405,9 +405,9 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
     strcat(strcat(sql, ownp), ".");
 
   strcat(sql, tabname);
-#if !defined(NO_ICONV)
+#ifdef ICONV_SUPPORT
   iconv_close(cd);
-#endif   // !NO_ICONV
+#endif   // ICONV_SUPPORT
 
 	if (To_Filter)
 	  strcat(strcat(sql, " WHERE "), To_Filter);
