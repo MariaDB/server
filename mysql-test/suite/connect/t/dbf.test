@@ -120,22 +120,23 @@ CREATE TABLE t1
 #
 
 
-#
-# TODO: BIGINT: 'L' (logical) DBF column type is created. This is wrong.
-#
-#--echo #
-#--echo # Testing BIGINT
-#--echo #
-#DROP TABLE IF EXISTS t1;
-#CREATE TABLE t1
-#(
-#  a bigint DEFAULT NULL
-#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-#INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
-#INSERT INTO t1 VALUES (-0x8000000000000000);
-#SELECT * FROM t1;
-#DROP TABLE t1;
-#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+--echo #
+--echo # Testing BIGINT
+--echo #
+CREATE TABLE t1
+(
+  a bigint DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (-0x8000000000000000);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
 #
@@ -155,21 +156,23 @@ CREATE TABLE t1
 #--remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
-#
-# TODO: SMALLINT: 'S' (unknown) DBF column type is created.
-#
-#--echo #
-#--echo # Testing SMALLINT
-#--echo #
-#CREATE TABLE t1
-#(
-#  a SMALLINT DEFAULT NULL
-#) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-#INSERT INTO t1 VALUES (0x7FFF);
-#INSERT INTO t1 VALUES (-0x8000);
-#SELECT * FROM t1;
-#DROP TABLE t1;
-#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+--echo #
+--echo # Testing SMALLINT
+--echo #
+CREATE TABLE t1
+(
+  a SMALLINT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFF);
+INSERT INTO t1 VALUES (-0x8000);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
 --echo #

@@ -157,6 +157,38 @@ b0123456789b INT DEFAULT NULL
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x11.dbf';
 ERROR HY000: DBF: Column name 'a0123456789a' is too long (max=11)
 #
+# Testing BIGINT
+#
+CREATE TABLE t1
+(
+a bigint DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFFFFFFFFFFFFFF);
+INSERT INTO t1 VALUES (-0x8000000000000000);
+SELECT * FROM t1;
+a
+9223372036854775807
+-9223372036854775808
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	108
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	21
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	20
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
+#
 # Testing TINYINT
 #
 CREATE TABLE t1
@@ -164,6 +196,38 @@ CREATE TABLE t1
 a TINYINT DEFAULT NULL
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 ERROR HY000: Unsupported type for column 'a'
+#
+# Testing SMALLINT
+#
+CREATE TABLE t1
+(
+a SMALLINT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES (0x7FFF);
+INSERT INTO t1 VALUES (-0x8000);
+SELECT * FROM t1;
+a
+32767
+-32768
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	80
+DBF_Version	03
+NRecords	2
+FirstRecPos	66
+RecLength	7
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	a
+Type	N
+Offset	0
+Length	6
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE t1;
 #
 # Testing VARCHAR
 #
