@@ -23,6 +23,8 @@
 #include "xobject.h"
 #include "libdoc.h"
 
+#include "sql_string.h"
+
 extern "C" {
 extern char version[];
 extern int  trace;
@@ -64,8 +66,6 @@ void CloseXML2File(PGLOBAL g, PFBLOCK fp, bool all)
   if (xp && xp->Count > 1 && !all) {
     xp->Count--;
   } else if (xp && xp->Count > 0) {
-    iconv_close(xp->Cd);
-    iconv_close(xp->Cd2);
     xmlFreeDoc(xp->Docp);
     xp->Count = 0;
   } // endif
@@ -85,8 +85,6 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
   Nlist = NULL;
   Ctxp = NULL;
   Xop = NULL;
-  Cd = (fp) ? ((PX2BLOCK)fp)->Cd : NULL;
-  Cd2 = (fp) ? ((PX2BLOCK)fp)->Cd2 : NULL;
   } // end of LIBXMLDOC constructor
 
 /******************************************************************/
@@ -95,8 +93,6 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 bool LIBXMLDOC::Initialize(PGLOBAL g)
   {
 //int n = xmlKeepBlanksDefault(0);
-  Cd = iconv_open("ISO-8859-1", "UTF-8");
-  Cd2 = iconv_open("UTF-8", "ISO-8859-1");
   return MakeNSlist(g);
   } // end of Initialize
 
@@ -135,8 +131,6 @@ PFBLOCK LIBXMLDOC::LinkXblock(PGLOBAL g, MODE m, int rc, char *fn)
   xp->Docp = Docp;
 //  xp->Ctxp = Ctxp;
 //  xp->Xop = Xop;
-  xp->Cd = Cd;
-  xp->Cd2 = Cd2;          // Temporary
 
   // Return xp as a fp
   return (PFBLOCK)xp;
@@ -379,17 +373,12 @@ bool LIBXMLDOC::CheckDocument(FILE *of, xmlNodePtr np)
 /******************************************************************/
 int LIBXMLDOC::Decode(xmlChar *cnt, char *buf, int n)
   {
-#if defined(WIN32) || defined(AIX)
-  const char *inp = (const char *)cnt;
-#else
-        char *inp = (char *)cnt;
-#endif
-  char       *outp = buf;
-  size_t      i = strlen(inp), o = n;
-
-  int rc = iconv(Cd, &inp, &i, &outp, &o);
-  buf[n - o] = '\0';
-  return rc;
+  uint dummy_errors;
+  uint32 len= copy_and_convert(buf, n, &my_charset_latin1,
+                               cnt, strlen(cnt), &my_charset_utf8_bin,
+                               &dummy_errors);
+  buf[len]= '\0';
+  return 0;
   } // end of Decode
 
 /******************************************************************/
@@ -397,27 +386,22 @@ int LIBXMLDOC::Decode(xmlChar *cnt, char *buf, int n)
 /******************************************************************/
 xmlChar *LIBXMLDOC::Encode(PGLOBAL g, char *txt)
   {
-#if defined(WIN32) || defined(AIX)
-  const char *inp = (const char *)txt;
-#else
-        char *inp = (char *)txt;
-#endif
-  int         rc;
-  size_t      i = strlen(inp);
-  size_t      n, o = 2*i + 1;
-  char       *outp, *buf;
-
+  const CHARSET_INFO *ics= &my_charset_latin1; // TODO: Field->charset()
+  const CHARSET_INFO *ocs= &my_charset_utf8_bin;
+  size_t      i = strlen(txt);
+  size_t      o = i * ocs->mbmaxlen / ics->mbmaxlen + 1;
+  char        *buf;
   if (g) {
-    n = o;
-    buf = (char*)PlugSubAlloc(g, NULL, n);
+    buf = (char*)PlugSubAlloc(g, NULL, o);
   } else {
-    n = o = 1024;
+    o = 1024;
     buf = Buf;
   } // endif g
-
-  outp = buf;
-  rc = iconv(Cd2, &inp, &i, &outp, &o);
-  buf[n - o] = '\0';
+  uint dummy_errors;
+  uint32 len= copy_and_convert(buf, o, ocs,
+                               txt, i, ics,
+                               &dummy_errors);
+  buf[len]= '\0';
   return BAD_CAST buf;
   } // end of Encode
 
