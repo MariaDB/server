@@ -808,7 +808,7 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
       fp->Mode = MODE_ANY;
       fp->Count = 0;
       break;
-#ifdef defined(DOMDOC_SUPPORT)
+#ifdef DOMDOC_SUPPORT
     case TYPE_FB_XML:
       CloseXMLFile(g, fp, all);
       break;
