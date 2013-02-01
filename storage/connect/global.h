@@ -19,6 +19,10 @@
 #define DllExport
 #endif  // !WIN32
 
+#if defined(DOMDOC_SUPPORT) || defined(LIBXML2_SUPPORT)
+#define XML_SUPPORT 1
+#endif
+
 #if defined(XMSG) 
 // Definition used to read messages from message file.
 #include "msgid.h"

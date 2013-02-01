@@ -17,14 +17,14 @@ PXDOC GetDomDoc(PGLOBAL g, char *nsl, char *nsdf,
   } // end of GetDomDoc
 #endif   // !DOMDOC_SUPPORT
 
-#if defined(NOXML2)
+#ifndef LIBXML2_SUPPORT
 PXDOC GetLibxmlDoc(PGLOBAL g, char *nsl, char *nsdf, 
 															char *enc, PFBLOCK fp)
   {
   strcpy(g->Message, "libxml2 not supported");
   return NULL;
   } // end of GetLibxmlDoc
-#endif   // NOXML2
+#endif   // LIBXML2_SUPPORT
 
 /******************************************************************/
 /*  XMLDOCUMENT constructor.                                      */
