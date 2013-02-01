@@ -1317,7 +1317,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     istable= true;
 //  strmake(tname, table_name, sizeof(tname)-1);
 
-    if (xmod == MODE_ANY && *tdbp->GetName() != '#') {
+    if (xmod == MODE_ANY && stop && *tdbp->GetName() != '#') {
       // We are in a create index query
       if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
         sprintf(g->Message, "Table %s cannot be indexed", tdbp->GetName());

@@ -373,9 +373,10 @@ bool LIBXMLDOC::CheckDocument(FILE *of, xmlNodePtr np)
 /******************************************************************/
 int LIBXMLDOC::Decode(xmlChar *cnt, char *buf, int n)
   {
-  uint dummy_errors;
-  uint32 len= copy_and_convert(buf, n, &my_charset_latin1,
-                               cnt, strlen(cnt), &my_charset_utf8_bin,
+  const char *txt = (const char *)cnt;
+  uint   dummy_errors;
+  uint32 len= copy_and_convert(buf, n, &my_charset_latin1, txt,
+                               strlen(txt), &my_charset_utf8_bin,
                                &dummy_errors);
   buf[len]= '\0';
   return 0;
