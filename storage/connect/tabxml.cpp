@@ -904,22 +904,25 @@ int TDBXML::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBXML::CloseDB(PGLOBAL g)
   {
-  if (Changed) {
-    char    filename[_MAX_PATH];
-//  PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+  if (Docp) {
+    if (Changed) {
+      char    filename[_MAX_PATH];
+//    PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
 
-    // We used the file name relative to recorded datapath
-    PlugSetPath(filename, Xfile, GetPath());
+      // We used the file name relative to recorded datapath
+      PlugSetPath(filename, Xfile, GetPath());
 
-    if (Mode == MODE_INSERT)
-      TabNode->AddText(g, "\n");
+      if (Mode == MODE_INSERT)
+        TabNode->AddText(g, "\n");
 
-    // Save the modified document
-    int rc = Docp->DumpDoc(g, filename);
-    } // endif Changed
+      // Save the modified document
+      int rc = Docp->DumpDoc(g, filename);
+      } // endif Changed
 
-  // Free the document and terminate XML processing
-  Docp->CloseDoc(g, To_Xb);
+    // Free the document and terminate XML processing
+    Docp->CloseDoc(g, To_Xb);
+    } // endif docp
+
   } // end of CloseDB
 
 // ------------------------ XMLCOL functions ----------------------------
