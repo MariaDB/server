@@ -75,6 +75,6 @@ protected:
 	int          count;										// if used by several handlers
   // Statistics
   ulong        nrd, fnd, nfd;
-  struct timeb tb1, tb2;
+  ulonglong tb1;
 }; // end of user_connect class definition
 

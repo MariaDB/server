@@ -76,8 +76,7 @@ user_connect::user_connect(THD *thd, const char *dbn)
 	 
   // Statistics
   nrd= fnd= nfd= 0;
-  bzero((char*) &tb1, sizeof(struct timeb));
-  bzero((char*) &tb2, sizeof(struct timeb));
+  tb1= 0;
 } // end of user_connect constructor
 
 

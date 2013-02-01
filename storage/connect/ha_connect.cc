@@ -2462,9 +2462,7 @@ int ha_connect::rnd_init(bool scan)
     } // endif g
 
   xp->nrd= xp->fnd= xp->nfd= 0;
-#ifndef __FreeBSD__
-  ftime(&xp->tb1);
-#endif
+  xp->tb1= my_interval_timer();
   DBUG_RETURN(0);
 } // end of rnd_init
 
@@ -2545,14 +2543,11 @@ int ha_connect::rnd_next(uchar *buf)
 
 #ifndef DBUG_OFF
   if (rc || !(xp->nrd++ % 16384)) {
-#ifndef __FreeBSD__
-    ftime(&xp->tb2);
-#endif
-    double elapsed= (double) (xp->tb2.time - xp->tb1.time)
-      + ((double) (xp->tb2.millitm - xp->tb1.millitm) / 1000.0);
+    ulonglong tb2= my_interval_timer();
+    double elapsed= (double) (tb2 - xp->tb1) / 1000000000ULL;
     DBUG_PRINT("rnd_next", ("rc=%d nrd=%u fnd=%u nfd=%u sec=%.3lf\n",
                              rc, xp->nrd, xp->fnd, xp->nfd, elapsed));
-    xp->tb1= xp->tb2;
+    xp->tb1= tb2;
     xp->fnd= xp->nfd= 0;
     } // endif nrd
 #endif
