@@ -22,8 +22,6 @@ typedef struct _x2block {         /* Loaded XML file block        */
   xmlDocPtr          Docp;        /* Document interface pointer   */
 //  xmlXPathContextPtr Ctxp;
 //  xmlXPathObjectPtr  Xop;
-  iconv_t            Cd;
-  iconv_t            Cd2;
   } X2BLOCK, *PX2BLOCK;
 
 /******************************************************************/
@@ -65,8 +63,6 @@ class LIBXMLDOC : public XMLDOCUMENT {
   xmlNodeSetPtr      Nlist;
   xmlXPathContextPtr Ctxp;
   xmlXPathObjectPtr  Xop;
-  iconv_t            Cd;
-  iconv_t            Cd2;                  // Temporary
   char              *Buf;                  // Temporary
 }; // end of class LIBXMLDOC
 
