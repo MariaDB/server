@@ -738,6 +738,76 @@ static char **remaining_argv;
 int orig_argc;
 char **orig_argv;
 
+static struct my_option pfs_early_options[]=
+{
+  {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
+    "Default startup value for a performance schema instrument.",
+    &pfs_param.m_pfs_instrument, &pfs_param.m_pfs_instrument, 0, GET_STR,
+    OPT_ARG, 0, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_stages_current", 0,
+    "Default startup value for the events_stages_current consumer.",
+    &pfs_param.m_consumer_events_stages_current_enabled,
+    &pfs_param.m_consumer_events_stages_current_enabled, 0, GET_BOOL,
+    OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_stages_history", 0,
+    "Default startup value for the events_stages_history consumer.",
+    &pfs_param.m_consumer_events_stages_history_enabled,
+    &pfs_param.m_consumer_events_stages_history_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_stages_history_long", 0,
+    "Default startup value for the events_stages_history_long consumer.",
+    &pfs_param.m_consumer_events_stages_history_long_enabled,
+    &pfs_param.m_consumer_events_stages_history_long_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_statements_current", 0,
+    "Default startup value for the events_statements_current consumer.",
+    &pfs_param.m_consumer_events_statements_current_enabled,
+    &pfs_param.m_consumer_events_statements_current_enabled, 0,
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_statements_history", 0,
+    "Default startup value for the events_statements_history consumer.",
+    &pfs_param.m_consumer_events_statements_history_enabled,
+    &pfs_param.m_consumer_events_statements_history_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_statements_history_long", 0,
+    "Default startup value for the events_statements_history_long consumer.",
+    &pfs_param.m_consumer_events_statements_history_long_enabled,
+    &pfs_param.m_consumer_events_statements_history_long_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_waits_current", 0,
+    "Default startup value for the events_waits_current consumer.",
+    &pfs_param.m_consumer_events_waits_current_enabled,
+    &pfs_param.m_consumer_events_waits_current_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_waits_history", 0,
+    "Default startup value for the events_waits_history consumer.",
+    &pfs_param.m_consumer_events_waits_history_enabled,
+    &pfs_param.m_consumer_events_waits_history_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_events_waits_history_long", 0,
+    "Default startup value for the events_waits_history_long consumer.",
+    &pfs_param.m_consumer_events_waits_history_long_enabled,
+    &pfs_param.m_consumer_events_waits_history_long_enabled, 0,
+    GET_BOOL, OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_global_instrumentation", 0,
+    "Default startup value for the global_instrumentation consumer.",
+    &pfs_param.m_consumer_global_instrumentation_enabled,
+    &pfs_param.m_consumer_global_instrumentation_enabled, 0,
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_thread_instrumentation", 0,
+    "Default startup value for the thread_instrumentation consumer.",
+    &pfs_param.m_consumer_thread_instrumentation_enabled,
+    &pfs_param.m_consumer_thread_instrumentation_enabled, 0,
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
+  {"performance_schema_consumer_statements_digest", 0,
+    "Default startup value for the statements_digest consumer.",
+    &pfs_param.m_consumer_statement_digest_enabled,
+    &pfs_param.m_consumer_statement_digest_enabled, 0,
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
+};
+
+
+
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
 PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active, key_LOCK_pool,
@@ -1316,6 +1386,7 @@ pthread_handler_t signal_hand(void *arg);
 static int mysql_init_variables(void);
 static int get_options(int *argc_ptr, char ***argv_ptr);
 static bool add_terminator(DYNAMIC_ARRAY *options);
+static bool add_many_options(DYNAMIC_ARRAY *, my_option *, size_t);
 extern "C" my_bool mysqld_get_one_option(int, const struct my_option *, char *);
 static int init_thread_environment();
 static char *get_relative_path(const char *path);
@@ -4857,6 +4928,8 @@ int mysqld_main(int argc, char **argv)
 
   /* prepare all_early_options array */
   my_init_dynamic_array(&all_early_options, sizeof(my_option), 100, 25, MYF(0));
+  add_many_options(&all_early_options, pfs_early_options,
+                  array_elements(pfs_early_options));
   sys_var_add_options(&all_early_options, sys_var::PARSE_EARLY);
   add_terminator(&all_early_options);
 
@@ -4867,6 +4940,7 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
+  pfs_param.m_pfs_instrument= const_cast<char*>("");
 
   /*
     Initialize the array of performance schema instrument configurations.
@@ -6299,7 +6373,6 @@ error:
 */
 
 struct my_option my_long_options[]=
-
 {
   {"help", '?', "Display this help and exit.", 
    &opt_help, &opt_help, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
@@ -6726,10 +6799,8 @@ struct my_option my_long_options[]=
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &table_cache_size, &table_cache_size, 0, GET_ULONG,
-   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
-  {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
+   REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0}
 };
-
 
 static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
 {
@@ -7439,10 +7510,19 @@ SHOW_VAR status_vars[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
-bool add_terminator(DYNAMIC_ARRAY *options)
+static bool add_terminator(DYNAMIC_ARRAY *options)
 {
   my_option empty_element= {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0};
   return insert_dynamic(options, (uchar *)&empty_element);
+}
+
+static bool add_many_options(DYNAMIC_ARRAY *options, my_option *list,
+                            size_t elements)
+{
+  for (my_option *opt= list; opt < list + elements; opt++)
+    if (insert_dynamic(options, opt))
+      return 1;
+  return 0;
 }
 
 #ifndef EMBEDDED_LIBRARY
@@ -7486,6 +7566,8 @@ static void print_help()
   init_alloc_root(&mem_root, 4096, 4096, MYF(0));
 
   pop_dynamic(&all_options);
+  add_many_options(&all_options, pfs_early_options,
+                  array_elements(pfs_early_options));
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
@@ -8248,10 +8330,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   my_init_dynamic_array(&all_options, sizeof(my_option),
                         array_elements(my_long_options),
                         array_elements(my_long_options)/4, MYF(0));
-  for (my_option *opt= my_long_options;
-       opt < my_long_options + array_elements(my_long_options) - 1;
-       opt++)
-    insert_dynamic(&all_options, (uchar*) opt);
+  add_many_options(&all_options, my_long_options, array_elements(my_long_options));
   sys_var_add_options(&all_options, 0);
   add_terminator(&all_options);
 
