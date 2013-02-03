@@ -1186,7 +1186,6 @@ wsrep-max-ws-size 1073741824
 wsrep-mysql-replication-bundle 0
 wsrep-node-address 
 wsrep-node-incoming-address AUTO
-wsrep-node-name meddwl
 wsrep-notify-cmd 
 wsrep-on FALSE
 wsrep-provider none
