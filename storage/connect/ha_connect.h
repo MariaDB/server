@@ -347,6 +347,7 @@ char *GetValStr(OPVAL vop, bool neg);
 
 protected:
 	char *GetListOption(char *opname, const char *oplist, char *def= NULL);
+  char *encode(PGLOBAL g, char *cnm);
   bool  add_fields(THD *thd, void *alter_info, 
            LEX_STRING *field_name,
            enum_field_types type,
