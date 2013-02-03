@@ -3134,6 +3134,22 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
 } // end of records_in_range
 
 /**
+  Convert an ISO-8859-1 column name to UTF-8
+*/
+char *ha_connect::encode(PGLOBAL g, char *cnm)
+  {
+  char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
+  uint   dummy_errors;
+  uint32 len= copy_and_convert(buf, strlen(cnm) * 3,
+                               &my_charset_utf8_bin,
+                               cnm, strlen(cnm),
+                               &my_charset_latin1,
+                               &dummy_errors);
+  buf[len]= '\0';
+  return buf;
+  } // end of Encode
+
+/**
   Store field definition for create.
 
   @return
@@ -3349,7 +3365,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
     } // endif ttp
 
   if (ok) {
-    char *length, *decimals, *nm, *rem;
+    char *length, *decimals, *cnm, *rem;
     int   i, len, dec;
     bool  b;
     LEX_STRING *comment, *name;
@@ -3392,18 +3408,18 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       } // endif qrp
 
     for (i= 0; i < qrp->Nblin; i++) {
-      crp = qrp->Colresp;                    // Column Name
-      nm= crp->Kdata->GetCharValue(i);
-      name= thd->make_lex_string(NULL, nm, strlen(nm), true);
-      crp = crp->Next;                       // Data Type
+      crp= qrp->Colresp;                    // Column Name
+      cnm= encode(g, crp->Kdata->GetCharValue(i));
+      name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
+      crp= crp->Next;                       // Data Type
       type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
-      crp = crp->Next;                       // Type Name
-      crp = crp->Next;                       // Precision (length)
+      crp= crp->Next;                       // Type Name
+      crp= crp->Next;                       // Precision (length)
       len= crp->Kdata->GetIntValue(i);
       length= (char*)PlugSubAlloc(g, NULL, 8);
       sprintf(length, "%d", len);
-      crp = crp->Next;                       // Length
-      crp = crp->Next;                       // Scale (precision)
+      crp= crp->Next;                       // Length
+      crp= crp->Next;                       // Scale (precision)
 
       if ((dec= crp->Kdata->GetIntValue(i))) {
         decimals= (char*)PlugSubAlloc(g, NULL, 8);
