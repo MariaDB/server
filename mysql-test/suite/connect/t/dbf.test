@@ -375,6 +375,44 @@ DROP TABLE IF EXISTS t1;
 # on /opt/mariadb-5.5/data/: Is a directory' from CONNECT 
 #CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF;
 
+--echo #
+--echo # Testing ALTER
+--echo #
+CREATE TABLE t1
+(
+  a VARCHAR(10)
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('10');
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+ALTER TABLE t1 MODIFY a VARCHAR(10) NOT NULL;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+ALTER TABLE t1 MODIFY a INT(8) NOT NULL;
+SHOW CREATE TABLE t1;
+--error ER_GET_ERRMSG
+SELECT * FROM t1;
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 DROP PROCEDURE test.dbf_field;
 DROP PROCEDURE test.dbf_header;
