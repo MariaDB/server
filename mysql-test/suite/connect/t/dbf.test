@@ -414,5 +414,28 @@ eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
 DROP TABLE IF EXISTS t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
+
+--echo #
+--echo # Testing NULL
+--echo #
+# TODO: NULLs should probably change to DEFAULT and produce a warning
+CREATE TABLE t1
+(
+  c1 VARCHAR(10),
+  c2 VARCHAR(10) DEFAULT 'def',
+  i1 INT,
+  i2 INT DEFAULT 123
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('10','10',10,10);
+INSERT INTO t1 VALUES (NULL,NULL,NULL,NULL);
+SELECT * FROM t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--vertical_results
+--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+--horizontal_results
+DROP TABLE IF EXISTS t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
+
 DROP PROCEDURE test.dbf_field;
 DROP PROCEDURE test.dbf_header;
