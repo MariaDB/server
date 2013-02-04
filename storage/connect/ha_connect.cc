@@ -3141,7 +3141,7 @@ char *ha_connect::encode(PGLOBAL g, char *cnm)
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
   uint32 len= copy_and_convert(buf, strlen(cnm) * 3,
-                               &my_charset_utf8_bin,
+                               &my_charset_utf8_general_ci,
                                cnm, strlen(cnm),
                                &my_charset_latin1,
                                &dummy_errors);
