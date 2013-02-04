@@ -272,4 +272,18 @@ public:
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);     ///< required
+
+  my_bool register_query_cache_table(THD *thd, char *table_key,
+                                     uint key_length,
+                                     qc_engine_callback
+                                     *engine_callback,
+                                     ulonglong *engine_data)
+  {
+    /* 
+      Do not put data from Cassandra tables into query cache (because there 
+      is no way to tell whether the data in cassandra cluster has changed or 
+      not)
+    */
+    return FALSE;
+  }
 };
