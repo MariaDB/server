@@ -16,6 +16,7 @@ sub skip_combinations {
              unless -e '/etc/pam.d/mariadb_mtr';
   $skip{'t/cassandra.test'} = 'Cassandra is not running'
              unless cassandra_running();
+  $skip{'t/cassandra_qcache.test'} = $skip{'t/cassandra.test'};
   %skip;
 }
 
