@@ -515,5 +515,64 @@ Dec	0
 Flags	00
 --------	--------
 DROP TABLE IF EXISTS t1;
+#
+# Testing NULL
+#
+CREATE TABLE t1
+(
+c1 VARCHAR(10),
+c2 VARCHAR(10) DEFAULT 'def',
+i1 INT,
+i2 INT DEFAULT 123
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+INSERT INTO t1 VALUES ('10','10',10,10);
+INSERT INTO t1 VALUES (NULL,NULL,NULL,NULL);
+SELECT * FROM t1;
+c1	c2	i1	i2
+10	10	10	10
+		0	0
+CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+--------	--------
+FileSize	248
+DBF_Version	03
+NRecords	2
+FirstRecPos	162
+RecLength	43
+TableFlags	0000
+CodePageMark	00
+---	---
+FieldN	0
+Name	c1
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	1
+Name	c2
+Type	C
+Offset	0
+Length	10
+Dec	0
+Flags	00
+---	---
+FieldN	2
+Name	i1
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+---	---
+FieldN	3
+Name	i2
+Type	N
+Offset	0
+Length	11
+Dec	0
+Flags	00
+--------	--------
+DROP TABLE IF EXISTS t1;
 DROP PROCEDURE test.dbf_field;
 DROP PROCEDURE test.dbf_header;
