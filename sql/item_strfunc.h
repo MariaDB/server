@@ -1038,7 +1038,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec()
   {
-    maybe_null= TRUE;
+    set_persist_maybe_null(1);
     collation.set(&my_charset_bin);
     decimals= 0;
   }
