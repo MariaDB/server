@@ -1,9 +1,11 @@
 package My::Suite::Plugins;
 
+use My::Platform;
+
 @ISA = qw(My::Suite);
 
 sub cassandra_running() { 
-  return 0 if IS_WINDOW; 
+  return 0 if IS_WINDOWS; 
   system 'echo show version | cqlsh -3 2>/dev/null >/dev/null'; 
   return $? == 0; 
 } 
