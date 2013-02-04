@@ -185,7 +185,7 @@ void *my_realloc(void *oldpoint, size_t size, myf my_flags)
       /* memory moved between system and thread specific */
       update_malloc_size(-(longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
       update_malloc_size((longlong) size + MALLOC_PREFIX_SIZE,
-                         my_flags & MY_THREAD_SPECIFIC);
+                         test(my_flags & MY_THREAD_SPECIFIC));
     }
     else
       update_malloc_size((longlong)size - (longlong)old_size, old_flags);
