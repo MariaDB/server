@@ -5,9 +5,6 @@
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
-#ifdef ICONV_SUPPORT
-#include <iconv.h>
-#endif   // ICONV_SUPPORT
 #include "colblk.h"
 
 typedef class ODBCDEF *PODEF;
@@ -88,12 +85,7 @@ class TDBODBC : public TDBASE {
 
  protected:
   // Internal functions
-#ifdef ICONV_SUPPORT
-	int		Decode(iconv_t cd, char *utf, char *buf, size_t n);
-#else     // no ICONV_SUPPORT
-inline int Decode(void *cd, char *str, char *buf, size_t n)
-									{strncpy(buf, str, n); return 0;}
-#endif    // ICONV_SUPPORT
+  int Decode(char *utf, char *buf, size_t n);
   char *MakeSQL(PGLOBAL g, bool cnt);
 //bool  MakeUpdate(PGLOBAL g, PSELECT selist);
 //bool  MakeInsert(PGLOBAL g);

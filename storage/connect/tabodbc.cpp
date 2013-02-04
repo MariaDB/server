@@ -72,6 +72,9 @@
 #include "tabcol.h"
 #include "valblk.h"
 
+#include "sql_string.h"
+
+
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
@@ -272,25 +275,21 @@ void TDBODBC::SetFile(PGLOBAL g, PSZ fn)
   DBQ = fn;
   } // end of SetFile
 
-#ifdef ICONV_SUPPORT
+
 /******************************************************************/
 /*  Convert an UTF-8 string to latin characters.                  */
 /******************************************************************/
-int TDBODBC::Decode(iconv_t cd, char *utf, char *buf, size_t n)
-  {
-#if defined(WIN32) || defined(AIX)
-  const char *inp = (const char *)utf;
-#else
-        char *inp = (char *)utf;
-#endif
-  char       *outp = buf;
-  size_t      i = strlen(inp), o = n;
-  int         rc = iconv(cd, &inp, &i, &outp, &o);
+int TDBODBC::Decode(char *txt, char *buf, size_t n)
+{
+  uint dummy_errors;
+  uint32 len= copy_and_convert(buf, n, &my_charset_latin1,
+                               txt, strlen(txt),
+                               &my_charset_utf8_general_ci,
+                               &dummy_errors);
+  buf[len]= '\0';
+  return 0;
+} // end of Decode
 
-  buf[n - o] = '\0';
-  return rc;
-  } // end of Decode
-#endif   // ICONV_SUPPORT
 
 /***********************************************************************/
 /*  MakeSQL: make the SQL statement use with ODBC connection.          */
@@ -305,11 +304,6 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   bool    first = true;
   PTABLE  tablep = To_Table;
   PCOL    colp;
-#ifdef ICONV_SUPPORT
-  iconv_t cd = iconv_open("ISO-8859-1", "UTF-8");
-#else
-  void   *cd = NULL;
-#endif   // ICONV_SUPPORT
 
   if (!cnt) {
     // Normal SQL statement to retrieve results
@@ -321,9 +315,9 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
       colist = (char*)PlugSubAlloc(g, NULL, (NAM_LEN + 4) * ncol);
 
       for (colp = Columns; colp; colp = colp->GetNext())
-				if (!colp->IsSpecial()) {
-					// Column name can be in UTF-8 encoding
-				  rc = Decode(cd, colp->GetName(), buf, sizeof(buf));
+        if (!colp->IsSpecial()) {
+          // Column name can be in UTF-8 encoding
+          rc= Decode(colp->GetName(), buf, sizeof(buf));
 
           if (Quote) {
             if (first) {
@@ -357,8 +351,8 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
     strcpy(colist, "count(*)");
   } // endif cnt
 
-	// Table name can be encoded in UTF-8
-	rc = Decode(cd, TableName, buf, sizeof(buf));
+  // Table name can be encoded in UTF-8
+  rc = Decode(TableName, buf, sizeof(buf));
 
   // Put table name between identifier quotes in case in contains blanks
   tabname = (char*)PlugSubAlloc(g, NULL, strlen(buf) + 3);
@@ -405,9 +399,6 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
     strcat(strcat(sql, ownp), ".");
 
   strcat(sql, tabname);
-#ifdef ICONV_SUPPORT
-  iconv_close(cd);
-#endif   // ICONV_SUPPORT
 
 	if (To_Filter)
 	  strcat(strcat(sql, " WHERE "), To_Filter);
