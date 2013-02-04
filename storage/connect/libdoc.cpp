@@ -376,7 +376,7 @@ int LIBXMLDOC::Decode(xmlChar *cnt, char *buf, int n)
   const char *txt = (const char *)cnt;
   uint   dummy_errors;
   uint32 len= copy_and_convert(buf, n, &my_charset_latin1, txt,
-                               strlen(txt), &my_charset_utf8_bin,
+                               strlen(txt), &my_charset_utf8_general_ci,
                                &dummy_errors);
   buf[len]= '\0';
   return 0;
@@ -388,7 +388,7 @@ int LIBXMLDOC::Decode(xmlChar *cnt, char *buf, int n)
 xmlChar *LIBXMLDOC::Encode(PGLOBAL g, char *txt)
   {
   const CHARSET_INFO *ics= &my_charset_latin1; // TODO: Field->charset()
-  const CHARSET_INFO *ocs= &my_charset_utf8_bin;
+  const CHARSET_INFO *ocs= &my_charset_utf8_general_ci;
   size_t      i = strlen(txt);
   size_t      o = i * ocs->mbmaxlen / ics->mbmaxlen + 1;
   char        *buf;
