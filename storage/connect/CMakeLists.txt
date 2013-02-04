@@ -215,23 +215,6 @@ ENDIF(CONNECT_WITH_ODBC)
 
 
 #
-# iconv
-#
-OPTION(CONNECT_WITH_ICONV "Compile CONNECT with iconv support" ON)
-
-IF(CONNECT_WITH_ICONV)
-  add_definitions(-DICONV_SUPPORT)
-  IF(UNIX)
-    SET(ICONV_LIBRARY "")
-  ELSE()
-    #Windows
-    # TODO: this is to be localized
-    SET(ICONV_LIBRARY "D:/libxml/lib/iconv.lib")
-  ENDIF(UNIX)
-ENDIF(CONNECT_WITH_ICONV)
-
-
-#
 # Plugin definition
 #
 
