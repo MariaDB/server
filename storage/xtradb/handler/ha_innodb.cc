@@ -5609,6 +5609,7 @@ wsrep_store_key_val_for_row(
 
 			/* Pad the unused space with spaces. */
 
+#ifdef REMOVED
 			if (true_len < key_len) {
 				ulint	pad_len = key_len - true_len;
 				ut_a(!(pad_len % cs->mbminlen));
@@ -5617,6 +5618,7 @@ wsrep_store_key_val_for_row(
 					       0x20 /* space */);
 				buff += pad_len;
 			}
+#endif /* REMOVED */
 		}
 	}
 
@@ -7988,30 +7990,35 @@ wsrep_append_foreign_key(
 		mutex_enter(&(dict_sys->mutex));
 		if (referenced)
 		{
-			foreign->referenced_table = 
-				dict_table_check_if_in_cache_low(
+			foreign->referenced_table =
+				dict_table_get_low(
 					foreign->referenced_table_name_lookup);
-			foreign->referenced_index = 
-				wsrep_dict_foreign_find_index(
-					foreign->referenced_table,
-					foreign->referenced_col_names,
-					foreign->n_fields, 
-					foreign->foreign_index,
-					TRUE, FALSE);
+			if (foreign->referenced_table)
+			{
+				foreign->referenced_index =
+					wsrep_dict_foreign_find_index(
+						foreign->referenced_table,
+						foreign->referenced_col_names,
+						foreign->n_fields, 
+						foreign->foreign_index,
+						TRUE, FALSE);
+			}
 		}
 		else
 		{
-	  		foreign->foreign_table = 
-				dict_table_check_if_in_cache_low(
+	  		foreign->foreign_table =
+				dict_table_get_low(
 					foreign->foreign_table_name_lookup);
-			foreign->foreign_index = 
-				wsrep_dict_foreign_find_index(
-					foreign->foreign_table,
-					foreign->foreign_col_names,
-					foreign->n_fields,
-					foreign->referenced_index, 
-					TRUE, FALSE);
-
+			if (foreign->foreign_table)
+			{
+				foreign->foreign_index =
+					wsrep_dict_foreign_find_index(
+						foreign->foreign_table,
+						foreign->foreign_col_names,
+						foreign->n_fields,
+						foreign->referenced_index, 
+						TRUE, FALSE);
+			}
 		}
 		mutex_exit(&(dict_sys->mutex));
 	}
@@ -8030,7 +8037,7 @@ wsrep_append_foreign_key(
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ? 
-		foreign->referenced_index : foreign->foreign_index;
+		foreign->referenced_index : index;
 	dict_index_t *idx = (referenced) ? 
 		UT_LIST_GET_FIRST(foreign->referenced_table->indexes) :
 		UT_LIST_GET_FIRST(foreign->foreign_table->indexes);
@@ -8042,8 +8049,8 @@ wsrep_append_foreign_key(
 	ut_a(idx);
 	key[0] = (char)i;
 
-	rcode = wsrep_rec_get_primary_key(
-		&key[1], &len, rec, index, 
+	rcode = wsrep_rec_get_foreign_key(
+		&key[1], &len, rec, index, idx, 
 		wsrep_protocol_version > 1);
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
@@ -8191,6 +8198,15 @@ ha_innobase::wsrep_append_keys(
 {
 	DBUG_ENTER("wsrep_append_keys");
 	trx_t *trx = thd_to_trx(thd);
+
+	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
+		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s", 
+			    wsrep_thd_thread_id(thd),
+			    table_share->tmp_table,
+			    (wsrep_thd_query(thd)) ? 
+			    wsrep_thd_query(thd) : "void");
+		DBUG_RETURN(0);
+	}
 
 	/* if no PK, calculate hash of full row, to be the key value */
 	if (prebuilt->clust_index_was_generated && wsrep_certify_nonPK) {
@@ -12516,6 +12532,9 @@ innobase_xa_prepare(
 	to the session variable take effect only in the next transaction */
 	if (!trx->support_xa) {
 
+#ifdef WITH_WSREP
+                thd_get_xid(thd, (MYSQL_XID*) &trx->xid);
+#endif // WITH_WSREP
 		return(0);
 	}
 
