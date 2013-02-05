@@ -189,7 +189,6 @@ CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
 #if defined(_DEBUG)
   assert(qrp);
 #endif
-
   m = (size_t)qrp->Maxres;
   n = (size_t)qrp->Nbcol;
   cap = (CATPARM *)PlugSubAlloc(g, NULL, sizeof(CATPARM));
@@ -375,6 +374,50 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
   qrp->Nbcol = 7;                           // Was 11, skipped 4
   return qrp;
   } // end of MyODBCCols
+
+/*************************************************************************/
+/*  ODBCDataSources: constructs the result blocks containing all ODBC    */
+/*  data sources available on the local host.                            */
+/*************************************************************************/
+PQRYRES ODBCDataSources(PGLOBAL g)
+  {
+  static int dbtype[] = {DB_CHAR, DB_CHAR};
+  static int buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static unsigned int length[] = {0, 256};
+  int      n, ncol = 2;
+  int      maxres;
+  PQRYRES  qrp;
+  ODBConn *ocp = new(g) ODBConn(g, NULL);
+
+  /************************************************************************/
+  /*  Do an evaluation of the result size.                                */
+  /************************************************************************/
+  maxres = 512;                       // This is completely arbitrary
+  n = ocp->GetMaxValue(SQL_MAX_DSN_LENGTH);
+  length[0] = (n) ? (n + 1) : 256;
+
+#ifdef DEBTRACE
+ htrc("ODBCDataSources: max=%d len=%d\n", maxres, length[0]);
+#endif
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  qrp = PlgAllocResult(g, ncol, maxres, 0, dbtype, buftyp, length);
+  qrp->Colresp->Name = "Name";
+  qrp->Colresp->Next->Name = "Description";
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  if (ocp->GetDataSources(qrp))
+    qrp = NULL;
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of ODBCDataSources
 
 #if 0                           // Currently not used by CONNECT
 /***********************************************************************/
@@ -1504,6 +1547,50 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 
   return false;
   } // end of BindParam
+
+/***********************************************************************/
+/*  Get the list of Data Sources and set it in qrp.                    */
+/***********************************************************************/
+bool ODBConn::GetDataSources(PQRYRES qrp)
+  {
+  UCHAR  *dsn, *des;
+  UWORD   dir = SQL_FETCH_FIRST;
+  SWORD   n1, n2, p1, p2;
+  PCOLRES crp1 = qrp->Colresp, crp2 = qrp->Colresp->Next;
+  RETCODE rc;
+
+  n1 = crp1->Clen;
+  n2 = crp2->Clen;
+
+  try {
+    rc = SQLAllocEnv(&m_henv);
+
+    if (!Check(rc))
+      ThrowDBX(rc);  // Fatal
+
+    for (int i = 0; i < qrp->Maxres; i++) {
+      dsn = (UCHAR*)crp1->Kdata->GetValPtr(i);
+      des = (UCHAR*)crp2->Kdata->GetValPtr(i);
+      rc = SQLDataSources(m_henv, dir, dsn, n1, &p1, des, n2, &p2);
+
+      if (rc == SQL_NO_DATA_FOUND)
+        break;
+      else if (!Check(rc))
+        ThrowDBX(rc);  // Fatal
+
+      qrp->Nblin++;
+      dir = SQL_FETCH_NEXT;
+      } // endfor i
+
+  } catch(DBX *x) {
+    strcpy(m_G->Message, x->GetErrorMessage(0));
+    SQLFreeEnv(m_henv);
+    return true;
+  } // end try/catch
+
+  SQLFreeEnv(m_henv);
+  return false;
+  } // end of GetDataSources
 
 /***********************************************************************/
 /*  Allocate recset and call SQLTables, SQLColumns or SQLPrimaryKeys.  */

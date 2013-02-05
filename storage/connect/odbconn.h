@@ -143,6 +143,7 @@ class ODBConn : public BLOCK {
 	bool ExecuteSQL(void);
 	bool BindParam(ODBCCOL *colp);
 	int  GetCatInfo(CATPARM *cap);
+  bool GetDataSources(PQRYRES qrp);
 
  public:
   // Set special options
