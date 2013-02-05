@@ -38,7 +38,7 @@ cleanup_joiner()
 check_pid()
 {
     local pid_file=$1
-    [ -r $pid_file ] && ps -p $(cat $pid_file) >/dev/null 2>&1
+    [ -r "$pid_file" ] && ps -p $(cat $pid_file) >/dev/null 2>&1
 }
 
 check_pid_and_port()

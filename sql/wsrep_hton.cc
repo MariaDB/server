@@ -59,6 +59,7 @@ void wsrep_cleanup_transaction(THD *thd)
     }
     thd->wsrep_exec_mode= LOCAL_STATE;
   }
+  thd->wsrep_trx_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
 }
 
 /*
@@ -321,7 +322,12 @@ wsrep_run_wsrep_commit(
     }
     DBUG_RETURN(WSREP_TRX_OK);
   }
-  if (!rcode) {
+  if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_trx_handle.trx_id)
+  {
+    WSREP_WARN("SQL statement was ineffective: %s\n => Skipping replication", thd->query());
+  } 
+  else if (!rcode) 
+  {
     rcode = wsrep->pre_commit(
                               wsrep,
                               (wsrep_conn_id_t)thd->thread_id,

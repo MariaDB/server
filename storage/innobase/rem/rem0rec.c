@@ -1777,11 +1777,12 @@ rec_print(
 #endif /* !UNIV_HOTBACKUP */
 #ifdef WITH_WSREP
 int
-wsrep_rec_get_primary_key(
+wsrep_rec_get_foreign_key(
 	byte 		*buf,     /* out: extracted key */
 	ulint 		*buf_len, /* in/out: length of buf */
 	const rec_t*	rec,	  /* in: physical record */
-	dict_index_t*	index,	  /* in: record descriptor */
+	dict_index_t*	index_for,  /* in: index in foreign table */
+	dict_index_t*	index_ref,  /* in: index in referenced table */
 	ibool		new_protocol) /* in: protocol > 1 */
 {
 	const byte*	data;
@@ -1793,22 +1794,28 @@ wsrep_rec_get_primary_key(
 	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
         const ulint*    offsets;
 
-	ut_ad(index);
+	ut_ad(index_for);
+	ut_ad(index_ref);
 
         rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index, offsets_, ULINT_UNDEFINED, &heap);
+	offsets = rec_get_offsets(rec, index_for, offsets_, 
+				  ULINT_UNDEFINED, &heap);
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));
 
 	ut_ad(rec);
 
-	key_parts = dict_index_get_n_unique_in_tree(index);
+	key_parts = dict_index_get_n_unique_in_tree(index_for);
 	for (i = 0; 
-	     i < key_parts && (index->type & DICT_CLUSTERED || i < key_parts - 1); 
+	     i < key_parts && 
+	       (index_for->type & DICT_CLUSTERED || i < key_parts - 1); 
 	     i++) {
-
-                dict_field_t*	  field = dict_index_get_nth_field(index, i);
-		const dict_col_t* col = dict_field_get_col(field);
+		dict_field_t*	  field_f = 
+			dict_index_get_nth_field(index_for, i);
+		const dict_col_t* col_f = dict_field_get_col(field_f);
+                dict_field_t*	  field_r = 
+			dict_index_get_nth_field(index_ref, i);
+		const dict_col_t* col_r = dict_field_get_col(field_r);
 
 		data = rec_get_nth_field(rec, offsets, i, &len);
 		if (key_len + ((len != UNIV_SQL_NULL) ? len + 1 : 1) > 
@@ -1820,25 +1827,25 @@ wsrep_rec_get_primary_key(
 		}
 
 		if (len == UNIV_SQL_NULL) {
-			ut_a(!(col->prtype & DATA_NOT_NULL));
+			ut_a(!(col_f->prtype & DATA_NOT_NULL));
 			*buf++ = 1;
 			key_len++;
 		} else if (!new_protocol) {
-			if (!(col->prtype & DATA_NOT_NULL)) {
+			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
 				key_len++;
 			}
 			memcpy(buf, data, len);
 			wsrep_innobase_mysql_sort(
-				(int)(col->prtype & DATA_MYSQL_TYPE_MASK),
-				(uint)dtype_get_charset_coll(col->prtype),
+				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+				(uint)dtype_get_charset_coll(col_f->prtype),
 				buf, len);
 		} else { /* new protocol */
-			if (!(col->prtype & DATA_NOT_NULL)) {
+			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
 				key_len++;
 			}
-			switch (col->mtype) {
+			switch (col_f->mtype) {
 			case DATA_INT: {
 				byte* ptr = buf+len;
 				for (;;) {
@@ -1850,7 +1857,7 @@ wsrep_rec_get_primary_key(
 					data++;
 				}
 		
-				if (!(col->prtype & DATA_UNSIGNED)) {
+				if (!(col_f->prtype & DATA_UNSIGNED)) {
 					buf[len-1] = (byte) (buf[len-1] ^ 128);
 				}
 
@@ -1862,8 +1869,10 @@ wsrep_rec_get_primary_key(
 				/* Copy the actual data */
 				ut_memcpy(buf, data, len);
 				wsrep_innobase_mysql_sort(
-					(int)(col->prtype & DATA_MYSQL_TYPE_MASK),
-					(uint)dtype_get_charset_coll(col->prtype),
+					(int)
+					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
+					(uint)
+					dtype_get_charset_coll(col_f->prtype),
 					buf, len);
 				break;
 			case DATA_BLOB:

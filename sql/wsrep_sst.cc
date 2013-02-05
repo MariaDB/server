@@ -164,10 +164,10 @@ bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
 
 static wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
 
-bool wsrep_init_first()
+bool wsrep_before_SE()
 {
   return (wsrep_provider != NULL
-          && strcmp (wsrep_provider, WSREP_NONE)
+          && strcmp (wsrep_provider,   WSREP_NONE)
           && strcmp (wsrep_sst_method, WSREP_SST_SKIP)
           && strcmp (wsrep_sst_method, WSREP_SST_MYSQLDUMP));
 }

@@ -18,8 +18,6 @@
 
 # This is a reference script for Percona XtraBackup-based state snapshot tansfer
 
-TMPDIR="/tmp"
-
 . $(dirname $0)/wsrep_sst_common
 
 cleanup_joiner()
@@ -34,8 +32,8 @@ cleanup_joiner()
 
 check_pid()
 {
-    local pid_file=$1
-    [ -r $pid_file ] && ps -p $(cat $pid_file) >/dev/null 2>&1
+    local pid_file="$1"
+    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
 }
 
 kill_xtrabackup()
@@ -100,6 +98,15 @@ then
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
 
+        TMPDIR=${TMPDIR:-""}
+        if [ -z "${TMPDIR}" ]; then
+            # try to get it from my.cnf
+            TMPDIR=$(grep -E '^\s*tmpdir' $WSREP_SST_OPT_CONF | \
+                     awk -F = '{ print $2 }' | sed 's/^\s//g' | sed 's/\s.*//g' )
+            # if failed default to /tmp
+            [ -z "${TMPDIR}" ] && TMPDIR="/tmp"
+        fi
+
         INNOBACKUPEX_ARGS="--galera-info --tmpdir=${TMPDIR} --stream=tar
                            --defaults-file=${WSREP_SST_OPT_CONF}
                            --socket=${WSREP_SST_OPT_SOCKET}"
@@ -113,9 +120,6 @@ then
         fi
 
         set +e
-
-        # This file and variable seems to have no effect and probably should be deleted
-        XTRABACKUP_PID=$(mktemp --tmpdir wsrep_sst_xtrabackupXXXX.pid)
 
         ${INNOBACKUPEX_BIN} ${INNOBACKUPEX_ARGS} ${TMPDIR} \
         2> ${DATA}/innobackup.backup.log | \
@@ -133,14 +137,17 @@ then
           exit 22
         fi
 
-        if check_pid ${XTRABACKUP_PID}
+        # innobackupex implicitly writes PID to fixed location in ${TMPDIR}
+        XTRABACKUP_PID="${TMPDIR}/xtrabackup_pid"
+
+        if check_pid "${XTRABACKUP_PID}"
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
             kill_xtrabackup
             exit 22
         fi
 
-        rm -f ${XTRABACKUP_PID}
+        rm -f "${XTRABACKUP_PID}"
 
     else # BYPASS
         STATE="${WSREP_SST_OPT_GTID}"

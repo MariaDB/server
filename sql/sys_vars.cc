@@ -3662,7 +3662,7 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
 static Sys_var_charptr Sys_wsrep_node_name (
        "wsrep_node_name", "Node name",
        GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(glob_hostname), 
+       IN_FS_CHARSET, DEFAULT(wsrep_node_name), 
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_charptr Sys_wsrep_node_address (

@@ -21,6 +21,8 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
 #include "../wsrep/wsrep_api.h"
 
+#define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
+
 class set_var;
 class THD;
 
@@ -167,7 +169,7 @@ extern bool wsrep_sst_donor_update           UPDATE_ARGS;
 extern bool wsrep_slave_threads_check        CHECK_ARGS;
 extern bool wsrep_slave_threads_update       UPDATE_ARGS;
 
-extern bool wsrep_init_first(); // initialize wsrep before storage
+extern bool  wsrep_before_SE(); // initialize wsrep before storage
                                 // engines (true) or after (false)
 extern int   wsrep_init();
 extern void  wsrep_deinit();
@@ -206,8 +208,8 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal);
 
 
 /* wsrep initialization sequence at startup
- * @param first wsrep_init_first() value */
-extern void wsrep_init_startup(bool first);
+ * @param first wsrep_before_SE() value */
+extern void wsrep_init_startup(bool before);
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
 extern int  wsrep_wait_committing_connections_close(int wait_time);
@@ -258,11 +260,11 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_LOG_CONFLICT_THD(thd, role)                                      \
     WSREP_LOG(sql_print_information, 	                                       \
       "%s: \n "       	                                                       \
-      "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %ld\n "	       \
+      "  THD: %lu, mode: %s, state: %s, conflict: %s, seqno: %lld\n "          \
       "  SQL: %s",							       \
       role, wsrep_thd_thread_id(thd), wsrep_thd_exec_mode_str(thd),            \
       wsrep_thd_query_state_str(thd),                                          \
-      wsrep_thd_conflict_state_str(thd), wsrep_thd_trx_seqno(thd),             \
+      wsrep_thd_conflict_state_str(thd), (long long)wsrep_thd_trx_seqno(thd),  \
       wsrep_thd_query(thd)                                                     \
     );
 

@@ -7030,9 +7030,15 @@ wsrep_append_foreign_key(
 		mutex_enter(&(dict_sys->mutex));
 		if (referenced)
 		{
+<<<<<<< TREE
 			foreign->referenced_table = 
 				dict_table_check_if_in_cache_low(
+=======
+			foreign->referenced_table =
+				dict_table_get_low(
+>>>>>>> MERGE-SOURCE
 					foreign->referenced_table_name_lookup);
+<<<<<<< TREE
 			foreign->referenced_index = 
 				wsrep_dict_foreign_find_index(
 					foreign->referenced_table,
@@ -7040,12 +7046,30 @@ wsrep_append_foreign_key(
 					foreign->n_fields, 
 					foreign->foreign_index,
 					TRUE, FALSE);
+=======
+			if (foreign->referenced_table)
+			{
+				foreign->referenced_index =
+					wsrep_dict_foreign_find_index(
+						foreign->referenced_table,
+						foreign->referenced_col_names,
+						foreign->n_fields, 
+						foreign->foreign_index,
+						TRUE, FALSE);
+			}
+>>>>>>> MERGE-SOURCE
 		}
 		else
 		{
+<<<<<<< TREE
 	  		foreign->foreign_table = 
 				dict_table_check_if_in_cache_low(
+=======
+	  		foreign->foreign_table =
+				dict_table_get_low(
+>>>>>>> MERGE-SOURCE
 					foreign->foreign_table_name_lookup);
+<<<<<<< TREE
 			foreign->foreign_index = 
 				wsrep_dict_foreign_find_index(
 					foreign->foreign_table,
@@ -7054,6 +7078,18 @@ wsrep_append_foreign_key(
 					foreign->referenced_index, 
 					TRUE, FALSE);
 
+=======
+			if (foreign->foreign_table)
+			{
+				foreign->foreign_index =
+					wsrep_dict_foreign_find_index(
+						foreign->foreign_table,
+						foreign->foreign_col_names,
+						foreign->n_fields,
+						foreign->referenced_index, 
+						TRUE, FALSE);
+			}
+>>>>>>> MERGE-SOURCE
 		}
 		mutex_exit(&(dict_sys->mutex));
 	}
@@ -7072,7 +7108,7 @@ wsrep_append_foreign_key(
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ? 
-		foreign->referenced_index : foreign->foreign_index;
+		foreign->referenced_index : index;
 	dict_index_t *idx = (referenced) ? 
 		UT_LIST_GET_FIRST(foreign->referenced_table->indexes) :
 		UT_LIST_GET_FIRST(foreign->foreign_table->indexes);
@@ -7084,8 +7120,8 @@ wsrep_append_foreign_key(
 	ut_a(idx);
 	key[0] = (char)i;
 
-	rcode = wsrep_rec_get_primary_key(
-		&key[1], &len, rec, index, 
+	rcode = wsrep_rec_get_foreign_key(
+		&key[1], &len, rec, index, idx, 
 		wsrep_protocol_version > 1);
 	if (rcode != DB_SUCCESS) {
 		WSREP_ERROR(
@@ -11448,6 +11484,9 @@ innobase_xa_prepare(
 	to the session variable take effect only in the next transaction */
 	if (!trx->support_xa) {
 
+#ifdef WITH_WSREP
+                thd_get_xid(thd, (MYSQL_XID*) &trx->xid);
+#endif // WITH_WSREP
 		return(0);
 	}
 

@@ -354,8 +354,9 @@ size_t guess_ip (char* buf, size_t buf_len)
   // try to find the address of the first one
 #if (TARGET_OS_LINUX == 1)
   const char cmd[] = "/sbin/ifconfig | "
-      "grep -m1 -1 -E '^[a-z]?eth[0-9]' | tail -n 1 | "
-      "awk '{ print $2 }' | awk -F : '{ print $2 }'";
+//      "grep -m1 -1 -E '^[a-z]?eth[0-9]' | tail -n 1 | "
+      "grep -E '^[[:space:]]+inet addr:' | grep -m1 -v 'inet addr:127' | "
+      "sed 's/:/ /' | awk '{ print $3 }'";
 #elif defined(__sun__)
   const char cmd[] = "/sbin/ifconfig -a | "
       "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";

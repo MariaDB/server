@@ -833,11 +833,12 @@ two upmost bits in a two byte offset for special purposes */
 #define REC_MAX_DATA_SIZE	(16 * 1024)
 
 #ifdef WITH_WSREP
-int wsrep_rec_get_primary_key(
+int wsrep_rec_get_foreign_key(
 	byte 		*buf,     /* out: extracted key */
 	ulint 		*buf_len, /* in/out: length of buf */
 	const rec_t*	rec,	  /* in: physical record */
-	dict_index_t*	index,	  /* in: record descriptor */
+	dict_index_t*	index_for,  /* in: index for foreign table */
+	dict_index_t*	index_ref,  /* in: index for referenced table */
 	ibool		new_protocol); /* in: protocol > 1 */
 #endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
