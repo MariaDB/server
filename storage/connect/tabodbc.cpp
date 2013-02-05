@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.3                                                        */
+/*  Version 2.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -32,7 +32,7 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -74,6 +74,7 @@
 
 #include "sql_string.h"
 
+PQRYRES ODBCDataSources(PGLOBAL g);
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -82,6 +83,16 @@
 extern int num_read, num_there, num_eq[2];                // Statistics
 
 /* -------------------------- Class ODBCDEF -------------------------- */
+
+/***********************************************************************/
+/*  Constructor.                                                       */
+/***********************************************************************/
+ODBCDEF::ODBCDEF(void)
+	{
+  Connect = Tabname = Tabowner = Tabqual = Qchar = NULL; 
+  Catver = Options = 0; 
+  Info = false;
+  }  // end of ODBCDEF constructor
 
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
@@ -102,6 +113,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Options = Cat->GetIntCatInfo(Name, "Options", dop);
 //Options = Cat->GetIntCatInfo(Name, "Options", 0);
   Pseudo = 2;    // FILID is Ok but not ROWID
+  Info = Cat->GetBoolCatInfo(Name, "Info", false);
   return false;
   } // end of DefineAM
 
@@ -116,12 +128,16 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
   /*  Allocate a TDB of the proper type.                               */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  tdbp = new(g) TDBODBC(this);
+  if (!Info) {
+    tdbp = new(g) TDBODBC(this);
 
-  if (Multiple == 1)
-    tdbp = new(g) TDBMUL(tdbp);
-  else if (Multiple == 2)
-    strcpy(g->Message, MSG(NO_ODBC_MUL));
+    if (Multiple == 1)
+      tdbp = new(g) TDBMUL(tdbp);
+    else if (Multiple == 2)
+      strcpy(g->Message, MSG(NO_ODBC_MUL));
+
+  } else
+    tdbp = new(g) TDBOIF(this);
 
   return tdbp;
   } // end of GetTable
@@ -880,5 +896,184 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
     } // endif Buf_Type
 
   } // end of WriteColumn
+
+/* ---------------------------TDBOIF class --------------------------- */
+
+/***********************************************************************/
+/*  Implementation of the TDBOIF class.                                */
+/***********************************************************************/
+TDBOIF::TDBOIF(PODEF tdp) : TDBASE(tdp)
+  {
+  Qrp = NULL;
+	Init = false;
+	N = -1;
+  } // end of TDBOIF constructor
+
+/***********************************************************************/
+/*  Allocate OIF column description block.                             */
+/***********************************************************************/
+PCOL TDBOIF::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+	{
+	POIFCOL colp;
+
+	colp = (POIFCOL)new(g) OIFCOL(cdp, this, n);
+
+	if (cprec) {
+		colp->SetNext(cprec->GetNext());
+		cprec->SetNext(colp);
+	} else {
+		colp->SetNext(Columns);
+		Columns = colp;
+	} // endif cprec
+
+	if (!colp->Flag) {
+		if (!stricmp(colp->Name, "Name"))
+			colp->Flag = 1;
+		else if (!stricmp(colp->Name, "Description"))
+			colp->Flag = 2;
+
+		} // endif Flag
+
+	return colp;
+	} // end of MakeCol
+
+/***********************************************************************/
+/*  Initialize: Get the list of ODBC data sources.                     */
+/***********************************************************************/
+bool TDBOIF::Initialize(PGLOBAL g)
+  {
+	if (Init)
+		return false;
+
+  if (!(Qrp = ODBCDataSources(g)))
+    return true;
+
+	Init = true;
+	return false;
+	} // end of Initialize
+
+/***********************************************************************/
+/*  OIF: Get the number of properties.                                 */
+/***********************************************************************/
+int TDBOIF::GetMaxSize(PGLOBAL g)
+  {
+	if (MaxSize < 0) {
+		if (Initialize(g))
+			return -1;
+
+		MaxSize = Qrp->Nblin;
+		} // endif MaxSize
+
+	return MaxSize;
+	} // end of GetMaxSize
+
+/***********************************************************************/
+/*  OIF Access Method opening routine.                                 */
+/***********************************************************************/
+bool TDBOIF::OpenDB(PGLOBAL g)
+  {
+  if (Use == USE_OPEN) {
+    /*******************************************************************/
+    /*  Table already open.                                            */
+    /*******************************************************************/
+		N = -1;
+    return false;
+    } // endif use
+
+  if (Mode != MODE_READ) {
+    /*******************************************************************/
+    /* ODBC Info tables cannot be modified.                            */
+    /*******************************************************************/
+    strcpy(g->Message, "OIF tables are read only");
+    return true;
+    } // endif Mode
+
+  /*********************************************************************/
+  /*  Initialize the ODBC processing.                                  */
+  /*********************************************************************/
+	if (Initialize(g))
+    return true;
+
+  return InitCol(g);
+  } // end of OpenDB
+
+/***********************************************************************/
+/*  Initialize columns.                                                */
+/***********************************************************************/
+bool TDBOIF::InitCol(PGLOBAL g)
+  {
+  POIFCOL colp;
+
+  for (colp = (POIFCOL)Columns; colp; colp = (POIFCOL)colp->GetNext())
+    switch (colp->Flag) {
+      case 1:
+        colp->Crp = Qrp->Colresp;
+        break;
+      case 2:
+        colp->Crp = Qrp->Colresp->Next;
+        break;
+      default:
+        strcpy(g->Message, "Invalid column name or flag");
+        return true;
+      } // endswitch Flag
+
+  return false;
+  } // end of InitCol
+
+/***********************************************************************/
+/*  Data Base read routine for OIF access method.                      */
+/***********************************************************************/
+int TDBOIF::ReadDB(PGLOBAL g)
+  {
+  return (++N < Qrp->Nblin) ? RC_OK : RC_EF;
+  } // end of ReadDB
+
+/***********************************************************************/
+/*  WriteDB: Data Base write routine for OIF access methods.           */
+/***********************************************************************/
+int TDBOIF::WriteDB(PGLOBAL g)
+  {
+	strcpy(g->Message, "OIF tables are read only");
+  return RC_FX;
+  } // end of WriteDB
+
+/***********************************************************************/
+/*  Data Base delete line routine for OIF access methods.              */
+/***********************************************************************/
+int TDBOIF::DeleteDB(PGLOBAL g, int irc)
+  {
+  strcpy(g->Message, "Delete not enabled for OIF tables");
+  return RC_FX;
+  } // end of DeleteDB
+
+/***********************************************************************/
+/*  Data Base close routine for WMI access method.                     */
+/***********************************************************************/
+void TDBOIF::CloseDB(PGLOBAL g)
+  {
+  // Nothing to do
+  } // end of CloseDB
+
+// ------------------------ OIFCOL functions ----------------------------
+
+/***********************************************************************/
+/*  OIFCOL public constructor.                                         */
+/***********************************************************************/
+OIFCOL::OIFCOL(PCOLDEF cdp, PTDB tdbp, int n)
+			: COLBLK(cdp, tdbp, n)
+  {
+	Tdbp = (PTDBOIF)tdbp;
+	Crp = NULL;
+	Flag = cdp->GetOffset();
+  } // end of WMICOL constructor
+
+/***********************************************************************/
+/*  Read the next Data Source elements.                                */
+/***********************************************************************/
+void OIFCOL::ReadColumn(PGLOBAL g)
+  {
+  // Get the value of the Name or Description property
+	Value->SetValue_psz(Crp->Kdata->GetCharValue(Tdbp->N));
+  } // end of ReadColumn
 
 /* ------------------------ End of Tabodbc --------------------------- */

@@ -3272,20 +3272,21 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
   char    ttp= '?', spc= ',', qch= 0, *typn= "DOS";
-  char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep;
+  char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep, *inf;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int     port= MYSQL_PORT, hdr= 0, mxr= 0;
-  bool    ok= false;
+  bool    b= false, ok= false, info= false;
   LEX    *lex= thd->lex;
+  LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   engine_option_value *pov;
   PQRYRES qrp;
   PCOLRES crp;
   PGLOBAL g= GetPlug(thd);
 
-  fn= dsn= tab= db= host= user= pwd= prt= sep= NULL;
+  fn= dsn= tab= db= host= user= pwd= prt= sep= inf= NULL;
 
   if (g) {
     // Set default values
@@ -3327,15 +3328,18 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       cls= GetListOption("class", pov->value.str);
 #endif   // WIN32
       mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
+      inf= GetListOption("info", pov->value.str);
     } // endelse option_list
 
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case 'O':       // ODBC
-      if (!(dsn= create_info->connect_string.str))
+      info= !!strchr("1yYoO", *inf);
+
+      if (!(dsn= create_info->connect_string.str) && !info)
         sprintf(g->Message, "Missing %s connection string", typn);
       else
-        ok= true;
+        ok= !info;
 
       break;
 #endif   // ODBC_SUPPORT
@@ -3367,8 +3371,6 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   if (ok) {
     char *length, *decimals, *cnm, *rem;
     int   i, len, dec;
-    bool  b;
-    LEX_STRING *comment, *name;
     enum_field_types type;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
@@ -3407,7 +3409,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;
       } // endif qrp
 
-    for (i= 0; i < qrp->Nblin; i++) {
+    for (i= 0; !b && i < qrp->Nblin; i++) {
       crp= qrp->Colresp;                    // Column Name
       cnm= encode(g, crp->Kdata->GetCharValue(i));
       name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
@@ -3440,8 +3442,17 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
                     0, comment, NULL, NULL, NULL);
       } // endfor i
 
-    return false;
-    } // endif ttp
+    return b;
+  } else if (info) {       // ODBC Data Sources
+    comment= thd->make_lex_string(NULL, "", 0, true);
+    name= thd->make_lex_string(NULL, "Name", 4, true);
+    b= add_fields(thd, alt_info, name, MYSQL_TYPE_VARCHAR, "256", 0,
+                  0, comment, NULL, NULL, NULL);
+    name= thd->make_lex_string(NULL, "Description", 11, true);
+    b= add_fields(thd, alt_info, name, MYSQL_TYPE_VARCHAR, "256", 0,
+                  0, comment, NULL, NULL, NULL);
+    return b;
+  } // endif info
 
   push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
   return true;

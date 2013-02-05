@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.4                                      */
+/*  Name: TABODBC.H   Version 1.5                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
@@ -10,6 +10,8 @@
 typedef class ODBCDEF *PODEF;
 typedef class TDBODBC *PTDBODBC;
 typedef class ODBCCOL *PODBCCOL;
+typedef class TDBOIF  *PTDBOIF;
+typedef class OIFCOL  *POIFCOL;
 
 /***********************************************************************/
 /*  ODBC table.                                                        */
@@ -17,8 +19,7 @@ typedef class ODBCCOL *PODBCCOL;
 class DllExport ODBCDEF : public TABDEF { /* Logical table description */
  public:
   // Constructor
-  ODBCDEF(void)
-		{Connect = Tabname = Tabowner = Tabqual = Qchar = NULL; Options = 0;}
+  ODBCDEF(void);
 
   // Implementation
   virtual const char *GetType(void) {return "ODBC";}
@@ -43,6 +44,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Qchar;              /* Identifier quoting character          */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  bool    Info;               /* true if getting data sources          */
   }; // end of ODBCDEF
 
 #if !defined(NODBC)
@@ -158,5 +160,66 @@ class ODBCCOL : public COLBLK {
 	SQLLEN  Slen;								 // Used with Fetch
 	int     Rank;						     // Rank (position) number in the query
   }; // end of class ODBCCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the ODBC info table.             */
+/***********************************************************************/
+class TDBOIF : public TDBASE {
+  friend class OIFCOL;
+ public:
+  // Constructor
+  TDBOIF(PODEF tdp);
+
+  // Implementation
+  virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
+
+  // Methods
+	virtual int  GetRecpos(void) {return N;}
+  virtual int  GetProgCur(void) {return N;}
+	virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+
+  // Database routines
+	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  GetMaxSize(PGLOBAL g);
+  virtual bool OpenDB(PGLOBAL g);
+  virtual int  ReadDB(PGLOBAL g);
+  virtual int  WriteDB(PGLOBAL g);
+  virtual int  DeleteDB(PGLOBAL g, int irc);
+	virtual void CloseDB(PGLOBAL g);
+
+ protected:
+	// Specific routines
+					bool Initialize(PGLOBAL g);
+          bool InitCol(PGLOBAL g);
+
+  // Members
+  PQRYRES Qrp;           
+	int     N;	          			// Row number
+	bool    Init;          
+  }; // end of class TDBOIF
+
+/***********************************************************************/
+/*  Class OIFCOL: ODBC info column.                                    */
+/***********************************************************************/
+class OIFCOL : public COLBLK {
+	friend class TDBOIF;
+ public:
+  // Constructors
+  OIFCOL(PCOLDEF cdp, PTDB tdbp, int n);
+
+  // Implementation
+  virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
+
+  // Methods
+  virtual void ReadColumn(PGLOBAL g);
+
+ protected:
+  OIFCOL(void) {}							// Default constructor not to be used
+
+  // Members
+	PTDBOIF Tdbp;								// Points to ODBC table block
+  PCOLRES Crp;                // The column data array
+  int     Flag;
+  }; // end of class OIFCOL
 #endif  // !NODBC
 
