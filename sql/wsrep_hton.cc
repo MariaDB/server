@@ -240,7 +240,7 @@ wsrep_run_wsrep_commit(
 
   while (wsrep_replaying > 0                       && 
          thd->wsrep_conflict_state == NO_CONFLICT  &&
-         thd->killed == THD::NOT_KILLED            &&
+         thd->killed == NOT_KILLED                 &&
          !shutdown_in_progress) 
   {
 
