@@ -31,8 +31,8 @@ const  char* wsrep_provider_options = 0;
 const  char* wsrep_cluster_address  = 0;
 const  char* wsrep_cluster_name     = 0;
 const  char* wsrep_node_name        = 0;
-static char  node_address[256] = { 0, };
-const  char* wsrep_node_address     = node_address; // ???
+const  char* wsrep_node_address     = 0;
+const  char* wsrep_node_incoming_address = 0;
 const  char* wsrep_start_position   = 0;
 ulong   wsrep_OSU_method_options;
 static int   wsrep_thread_change    = 0;
@@ -44,6 +44,8 @@ int wsrep_init_vars()
   wsrep_cluster_address = my_strdup("", MYF(MY_WME));
   wsrep_cluster_name    = my_strdup(WSREP_CLUSTER_NAME, MYF(MY_WME));
   wsrep_node_name       = my_strdup("", MYF(MY_WME));
+  wsrep_node_address    = my_strdup("", MYF(MY_WME));
+  wsrep_node_incoming_address= my_strdup(WSREP_NODE_INCOMING_AUTO, MYF(MY_WME));
   wsrep_start_position  = my_strdup(WSREP_START_POSITION_ZERO, MYF(MY_WME));
 
   global_system_variables.binlog_format=BINLOG_FORMAT_ROW;

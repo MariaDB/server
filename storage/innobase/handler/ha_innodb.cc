@@ -4978,6 +4978,7 @@ wsrep_store_key_val_for_row(
 
 			/* Pad the unused space with spaces. */
 
+#ifdef REMOVED
 			if (true_len < key_len) {
 				ulint	pad_len = key_len - true_len;
 				ut_a(!(pad_len % cs->mbminlen));
@@ -4986,6 +4987,7 @@ wsrep_store_key_val_for_row(
 					       0x20 /* space */);
 				buff += pad_len;
 			}
+#endif /* REMOVED */
 		}
 	}
 
@@ -7280,6 +7282,15 @@ ha_innobase::wsrep_append_keys(
 {
 	DBUG_ENTER("wsrep_append_keys");
 	trx_t *trx = thd_to_trx(thd);
+
+	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
+		WSREP_DEBUG("skipping tmp table DML: THD: %lu tmp: %d SQL: %s", 
+			    wsrep_thd_thread_id(thd),
+			    table_share->tmp_table,
+			    (wsrep_thd_query(thd)) ? 
+			    wsrep_thd_query(thd) : "void");
+		DBUG_RETURN(0);
+	}
 
 	/* if no PK, calculate hash of full row, to be the key value */
 	if (prebuilt->clust_index_was_generated && wsrep_certify_nonPK) {

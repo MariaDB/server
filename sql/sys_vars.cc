@@ -3677,9 +3677,7 @@ static Sys_var_charptr Sys_wsrep_node_incoming_address(
        "wsrep_node_incoming_address", "Client connection address",
        GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(wsrep_node_incoming_address), 
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_node_name_check), 
-       ON_UPDATE(wsrep_node_name_update));
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",

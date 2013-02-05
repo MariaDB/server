@@ -30,9 +30,6 @@ my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
  */
 
 const char* wsrep_data_home_dir = NULL;
-
-#define WSREP_NODE_INCOMING_AUTO "AUTO"
-const char* wsrep_node_incoming_address = WSREP_NODE_INCOMING_AUTO;
 const char* wsrep_dbug_option   = "";
 
 long    wsrep_slave_threads            = 1; // # of slave action appliers wanted
@@ -463,9 +460,9 @@ int wsrep_init()
     wsrep_data_home_dir = mysql_real_data_home;
 
   char node_addr[512]= { 0, };
+  size_t const node_addr_max= sizeof(node_addr) - 1;
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))
   {
-    size_t const node_addr_max= sizeof(node_addr);
     size_t const ret= guess_ip(node_addr, node_addr_max);
     if (!(ret > 0 && ret < node_addr_max))
     {
@@ -476,11 +473,11 @@ int wsrep_init()
   }
   else
   {
-    strncpy(node_addr, wsrep_node_address, sizeof(node_addr) - 1);
+    strncpy(node_addr, wsrep_node_address, node_addr_max);
   }
 
-  static char inc_addr[512]= { 0, };
-
+  char inc_addr[512]= { 0, };
+  size_t const inc_addr_max= sizeof (inc_addr);
   if ((!wsrep_node_incoming_address ||
        !strcmp (wsrep_node_incoming_address, WSREP_NODE_INCOMING_AUTO)))
   {
@@ -490,7 +487,6 @@ int wsrep_init()
       const char* const colon= strrchr(node_addr, ':');
       if (strchr(node_addr, ':') == colon) // 1 or 0 ':'
       {
-        size_t const inc_addr_max= sizeof (inc_addr);
         size_t const ip_len= colon ? colon - node_addr : node_addr_len;
         if (ip_len + 7 /* :55555\0 */ < inc_addr_max)
         {
@@ -512,13 +508,32 @@ int wsrep_init()
       }
     }
 
-    // this is to display detected address on SHOW VARIABLES...
-    wsrep_node_incoming_address = inc_addr;
-
-    if (!strlen(wsrep_node_incoming_address))
+    if (!strlen(inc_addr))
     {
         WSREP_WARN("Guessing address for incoming client connections failed. "
                    "Try setting wsrep_node_incoming_address explicitly.");
+    }
+  }
+  else if (!strchr(wsrep_node_incoming_address, ':')) // no port included
+  {
+    if ((int)inc_addr_max <=
+        snprintf(inc_addr, inc_addr_max, "%s:%u",
+                 wsrep_node_incoming_address,(int)mysqld_port))
+    {
+      WSREP_WARN("Guessing address for incoming client connections: "
+                 "address too long.");
+      inc_addr[0]= '\0';
+    }
+  }
+  else
+  {
+    size_t const need = strlen (wsrep_node_incoming_address);
+    if (need >= inc_addr_max) {
+      WSREP_WARN("wsrep_node_incoming_address too long: %zu", need);
+      inc_addr[0]= '\0';
+    }
+    else {
+      memcpy (inc_addr, wsrep_node_incoming_address, need);
     }
   }
 
@@ -527,7 +542,7 @@ int wsrep_init()
   wsrep_args.data_dir        = wsrep_data_home_dir;
   wsrep_args.node_name       = (wsrep_node_name) ? wsrep_node_name : "";
   wsrep_args.node_address    = node_addr;
-  wsrep_args.node_incoming   = wsrep_node_incoming_address;
+  wsrep_args.node_incoming   = inc_addr;
   wsrep_args.options         = (wsrep_provider_options) ?
                                 wsrep_provider_options : "";
   wsrep_args.proto_ver       = wsrep_max_protocol_version;

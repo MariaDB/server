@@ -114,7 +114,9 @@ extern const char* wsrep_provider_vendor;
 extern int         wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
 extern void        wsrep_free_status(THD *thd);
 
-#define WSREP_SST_ADDRESS_AUTO "AUTO"
+#define WSREP_SST_ADDRESS_AUTO   "AUTO"
+#define WSREP_NODE_INCOMING_AUTO "AUTO"
+
 // MySQL variables funcs
 
 #define CHECK_ARGS   (sys_var *self, THD* thd, set_var *var)
