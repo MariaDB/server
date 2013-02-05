@@ -1681,9 +1681,10 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	  }
 	}
 	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
+        key_part_map keypart_map= (1 << table->key_info[key_nr].key_parts) - 1;
 	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
                                                         key_nr, (uchar*) key,
-                                                        HA_WHOLE_KEY,
+                                                        keypart_map,
                                                         HA_READ_KEY_EXACT))))
 	  goto err;
       }
@@ -2272,11 +2273,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
             want to send "Server shutdown in progress" in the
             INSERT THREAD.
           */
-          if (di->thd.stmt_da->sql_errno() == ER_SERVER_SHUTDOWN)
-            my_message(ER_QUERY_INTERRUPTED, ER(ER_QUERY_INTERRUPTED), MYF(0));
-          else
-            my_message(di->thd.stmt_da->sql_errno(), di->thd.stmt_da->message(),
-                       MYF(0));
+          my_message(di->thd.stmt_da->sql_errno(), di->thd.stmt_da->message(),
+                     MYF(0));
         }
         di->unlock();
         goto end_create;
@@ -2326,6 +2324,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
 {
   my_ptrdiff_t adjust_ptrs;
   Field **field,**org_field, *found_next_number_field;
+  Field **UNINIT_VAR(vfield);
   TABLE *copy;
   TABLE_SHARE *share;
   uchar *bitmap;
@@ -2361,7 +2360,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
         killed using mysql_notify_thread_having_shared_lock() or
         kill_delayed_threads_for_table().
       */
-      if (!thd.is_error() || thd.stmt_da->sql_errno() == ER_SERVER_SHUTDOWN)
+      if (!thd.is_error())
         my_message(ER_QUERY_INTERRUPTED, ER(ER_QUERY_INTERRUPTED), MYF(0));
       else
         my_message(thd.stmt_da->sql_errno(), thd.stmt_da->message(), MYF(0));
@@ -2384,6 +2383,13 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
                                       share->column_bitmap_size*3);
   if (!copy_tmp)
     goto error;
+
+  if (share->vfields)
+  {
+    vfield= (Field **) client_thd->alloc((share->vfields+1)*sizeof(Field*));
+    if (!vfield)
+      goto error;
+  }
 
   /* Copy the TABLE object. */
   copy= new (copy_tmp) TABLE;
@@ -2413,6 +2419,27 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       (*field)->table->found_next_number_field= *field;
   }
   *field=0;
+
+  if (share->vfields)
+  {
+    copy->vfield= vfield;
+    for (field= copy->field; *field; field++)
+    {
+      if ((*field)->vcol_info)
+      {
+        bool error_reported= FALSE;
+        if (unpack_vcol_info_from_frm(client_thd,
+                                      client_thd->mem_root,
+                                      copy,
+                                      *field,
+                                      &(*field)->vcol_info->expr_str,
+                                      &error_reported))
+          goto error;
+        *vfield++= *field;
+      }
+    }
+    *vfield= 0; 
+  }
 
   /* Adjust timestamp */
   if (table->timestamp_field)
@@ -2727,7 +2754,10 @@ pthread_handler_t handle_delayed_insert(void *arg)
   thd->thread_id= thd->variables.pseudo_thread_id= thread_id++;
   thd->set_current_time();
   threads.append(thd);
-  thd->killed=abort_loop ? KILL_CONNECTION : NOT_KILLED;
+  if (abort_loop)
+    thd->killed= KILL_CONNECTION;
+  else
+    thd->reset_killed();
   mysql_mutex_unlock(&LOCK_thread_count);
 
   mysql_thread_set_psi_id(thd->thread_id);
@@ -2826,8 +2856,12 @@ pthread_handler_t handle_delayed_insert(void *arg)
         set_timespec(abstime, delayed_insert_timeout);
 
         /* Information for pthread_kill */
+        mysql_mutex_unlock(&di->mutex);
+        mysql_mutex_lock(&di->thd.mysys_var->mutex);
         di->thd.mysys_var->current_mutex= &di->mutex;
         di->thd.mysys_var->current_cond= &di->cond;
+        mysql_mutex_unlock(&di->thd.mysys_var->mutex);
+        mysql_mutex_lock(&di->mutex);
         thd_proc_info(&(di->thd), "Waiting for INSERT");
 
         DBUG_PRINT("info",("Waiting for someone to insert rows"));

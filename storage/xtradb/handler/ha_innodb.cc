@@ -410,6 +410,7 @@ static PSI_file_info	all_innodb_files[] = {
 static INNOBASE_SHARE *get_share(const char *table_name);
 static void free_share(INNOBASE_SHARE *share);
 static int innobase_close_connection(handlerton *hton, THD* thd);
+static void innobase_kill_query(handlerton *hton, THD* thd, enum thd_kill_levels level);
 static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
 static int innobase_commit(handlerton *hton, THD* thd, bool all);
 static int innobase_rollback(handlerton *hton, THD* thd, bool all);
@@ -1083,6 +1084,13 @@ thd_to_trx_id(
 }
 #endif
 
+my_bool
+ha_innobase::is_fake_change_enabled(THD* thd)
+{
+	trx_t*	trx	= thd_to_trx(thd);
+	return(trx && trx->fake_changes);
+}
+
 /********************************************************************//**
 Call this function when mysqld passes control to the client. That is to
 avoid deadlocks on the adaptive hash S-latch possibly held by thd. For more
@@ -1154,8 +1162,7 @@ convert_error_code_to_mysql(
 		return(0);
 
 	case DB_INTERRUPTED:
-		my_error(ER_QUERY_INTERRUPTED, MYF(0));
-		/* fall through */
+                return(HA_ERR_ABORTED_BY_USER);
 
 	case DB_FOREIGN_EXCEED_MAX_CASCADE:
 		push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -2422,7 +2429,7 @@ trx_is_interrupted(
 /*===============*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	return(trx && trx->mysql_thd && thd_killed((THD*) trx->mysql_thd));
+	return(trx && trx->mysql_thd && thd_kill_level((THD*) trx->mysql_thd));
 }
 
 /**********************************************************************//**
@@ -2683,6 +2690,7 @@ innobase_init(
         innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
         innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
 #endif /* WITH_WSREP */
+        innobase_hton->kill_query = innobase_kill_query;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -3095,6 +3103,14 @@ innobase_change_buffering_inited_ok:
 	srv_use_doublewrite_buf = (ibool) innobase_use_doublewrite;
 	srv_use_checksums = (ibool) innobase_use_checksums;
 	srv_fast_checksum = (ibool) innobase_fast_checksum;
+
+	if (innobase_fast_checksum) {
+		fprintf(stderr,
+			"InnoDB: Warning: innodb_fast_checksum is DEPRECATED "
+			"and *WILL* be removed in Percona Server 5.6. Please "
+			"consult the Percona Server 5.6 documentation for "
+			"help in upgrading.\n");
+	}
 
 	srv_blocking_lru_restore = (ibool) innobase_blocking_lru_restore;
 
@@ -3835,6 +3851,33 @@ innobase_close_connection(
 	DBUG_RETURN(0);
 }
 
+/*****************************************************************//**
+Cancel any pending lock request associated with the current THD. */
+static
+void
+innobase_kill_query(
+/*======================*/
+        handlerton*	hton,	    /*!< in: innobase handlerton */
+	THD*	thd,	            /*!< in: MySQL thread being killed */
+        enum thd_kill_levels level) /*!< in: kill level */
+{
+	trx_t*	trx;
+	DBUG_ENTER("innobase_kill_query");
+	DBUG_ASSERT(hton == innodb_hton_ptr);
+
+	mutex_enter(&kernel_mutex);
+
+	trx = thd_to_trx(thd);
+
+	/* Cancel a pending lock request. */
+	if (trx && trx->wait_lock) {
+		lock_cancel_waiting_and_release(trx->wait_lock);
+	}
+
+	mutex_exit(&kernel_mutex);
+
+	DBUG_VOID_RETURN;
+}
 
 /*************************************************************************//**
 ** InnoDB database tables
@@ -6554,7 +6597,9 @@ no_commit:
 	error = row_insert_for_mysql((byte*) record, prebuilt);
 
 #ifdef EXTENDED_FOR_USERSTAT
-	if (error == DB_SUCCESS) rows_changed++;
+	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
+		rows_changed++;
+	}
 #endif
 
 	/* Handle duplicate key errors */
@@ -6960,7 +7005,9 @@ ha_innobase::update_row(
 	}
 
 #ifdef EXTENDED_FOR_USERSTAT
-	if (error == DB_SUCCESS) rows_changed++;
+	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
+		rows_changed++;
+	}
 #endif
 
 	innodb_srv_conc_exit_innodb(trx);
@@ -7039,7 +7086,9 @@ ha_innobase::delete_row(
 	error = row_update_for_mysql((byte*) record, prebuilt);
 
 #ifdef EXTENDED_FOR_USERSTAT
-	if (error == DB_SUCCESS) rows_changed++;
+	if (UNIV_LIKELY(error == DB_SUCCESS && !trx->fake_changes)) {
+		rows_changed++;
+	}
 #endif
 
 	innodb_srv_conc_exit_innodb(trx);
@@ -10532,7 +10581,7 @@ ha_innobase::check(
 			row_mysql_unlock_data_dictionary(prebuilt->trx);
 		}
 
-		if (thd_killed(user_thd)) {
+		if (thd_kill_level(user_thd)) {
 			break;
 		}
 
@@ -10589,7 +10638,7 @@ ha_innobase::check(
 	mutex_exit(&kernel_mutex);
 
 	prebuilt->trx->op_info = "";
-	if (thd_killed(user_thd)) {
+	if (thd_kill_level(user_thd)) {
 		my_error(ER_QUERY_INTERRUPTED, MYF(0));
 	}
 
@@ -13640,6 +13689,8 @@ static MYSQL_SYSVAR_BOOL(checksums, innobase_use_checksums,
 
 static MYSQL_SYSVAR_BOOL(fast_checksum, innobase_fast_checksum,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "DEPRECATED. #### WARNING #### : This feature is DEPRECATED and WILL "
+  "be removed in Percona Server 5.6. "
   "Change the algorithm of checksum for the whole of datapage to 4-bytes word based. "
   "The original checksum is checked after the new one. It may be slow for reading page"
   " which has orginal checksum. Overwrite the page or recreate the InnoDB database, "
@@ -14073,6 +14124,11 @@ static MYSQL_SYSVAR_BOOL(track_changed_pages, srv_track_changed_pages,
     "Track the redo log for changed pages and output a changed page bitmap",
     NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ULONGLONG(max_bitmap_file_size, srv_max_bitmap_file_size,
+    PLUGIN_VAR_RQCMDARG,
+    "The maximum size of changed page bitmap files",
+    NULL, NULL, 100*1024*1024ULL, 4096ULL, ULONGLONG_MAX, 0);
+
 static MYSQL_SYSVAR_ULONGLONG(changed_pages_limit, srv_changed_pages_limit,
   PLUGIN_VAR_RQCMDARG,
   "The maximum number of rows for "
@@ -14309,6 +14365,13 @@ static MYSQL_SYSVAR_ULINT(lazy_drop_table, srv_lazy_drop_table,
   "e.g. for http://bugs.mysql.com/51325",
   NULL, NULL, 0, 0, 1, 0);
 
+static MYSQL_SYSVAR_BOOL(locking_fake_changes, srv_fake_changes_locks,
+  PLUGIN_VAR_NOCMDARG,
+  "###EXPERIMENTAL### if enabled, transactions will get S row locks instead "
+  "of X locks for fake changes.  If disabled, fake change transactions will "
+  "not take any locks at all.",
+  NULL, NULL, TRUE);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_block_size),
@@ -14400,6 +14463,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(use_native_aio),
   MYSQL_SYSVAR(change_buffering),
   MYSQL_SYSVAR(track_changed_pages),
+  MYSQL_SYSVAR(max_bitmap_file_size),
   MYSQL_SYSVAR(changed_pages_limit),
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
   MYSQL_SYSVAR(change_buffering_debug),
@@ -14421,6 +14485,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(corrupt_table_action),
   MYSQL_SYSVAR(lazy_drop_table),
   MYSQL_SYSVAR(fake_changes),
+  MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(merge_sort_block_size),
   NULL
 };
@@ -14669,7 +14734,7 @@ int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t 
 
 bool ha_innobase::is_thd_killed()
 { 
-  return thd_killed(user_thd);
+  return thd_kill_level(user_thd);
 }
 
 /**

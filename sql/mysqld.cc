@@ -733,8 +733,8 @@ char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 
 static volatile sig_atomic_t kill_in_progress;
 my_bool opt_stack_trace;
-my_bool opt_expect_abort= 0;
-static my_bool opt_bootstrap, opt_myisam_log;
+my_bool opt_expect_abort= 0, opt_bootstrap= 0;
+static my_bool opt_myisam_log;
 static int cleanup_done;
 static ulong opt_specialflag;
 static char *opt_binlog_index_name;
@@ -2569,21 +2569,6 @@ void dec_connection_count(THD *thd)
 
 
 /*
-  Delete the THD object and decrease number of threads
-
-  SYNOPSIS
-    delete_thd()
-    thd		 Thread handler
-*/
-
-void delete_thd(THD *thd)
-{
-  thread_count--;
-  delete thd;
-}
-
-
-/*
   Unlink thd from global list of available connections and free thd
 
   SYNOPSIS
@@ -2601,14 +2586,23 @@ void unlink_thd(THD *thd)
 
   thd_cleanup(thd);
   dec_connection_count(thd);
+
+  mysql_mutex_lock(&LOCK_status);
+  add_to_status(&global_status_var, &thd->status_var);
+  mysql_mutex_unlock(&LOCK_status);
+
   mysql_mutex_lock(&LOCK_thread_count);
+  thread_count--;
+  thd->unlink();
   /*
     Used by binlog_reset_master.  It would be cleaner to use
     DEBUG_SYNC here, but that's not possible because the THD's debug
     sync feature has been shut down at this point.
   */
   DBUG_EXECUTE_IF("sleep_after_lock_thread_count_before_delete_thd", sleep(5););
-  delete_thd(thd);
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  delete thd;
   DBUG_VOID_RETURN;
 }
 
@@ -2717,10 +2711,13 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   /* Mark that current_thd is not valid anymore */
   my_pthread_setspecific_ptr(THR_THD,  0);
   if (put_in_cache)
+  {
+    mysql_mutex_lock(&LOCK_thread_count);
     put_in_cache= cache_thread();
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (put_in_cache)
-    DBUG_RETURN(0);                             // Thread is reused
+    mysql_mutex_unlock(&LOCK_thread_count);
+    if (put_in_cache)
+      DBUG_RETURN(0);                             // Thread is reused
+  }
 
   /* It's safe to broadcast outside a lock (COND... is not deleted here) */
   DBUG_PRINT("signal", ("Broadcasting COND_thread_count"));
@@ -6086,7 +6083,7 @@ void create_thread_to_handle_connection(THD *thd)
   if (cached_thread_count > wake_thread)
   {
     /* Get thread from cache */
-    thread_cache.append(thd);
+    thread_cache.push_back(thd);
     wake_thread++;
     mysql_cond_signal(&COND_thread_cache);
   }

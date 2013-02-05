@@ -2598,7 +2598,6 @@ static bool show_status_array(THD *thd, const char *wild,
   int len;
   LEX_STRING null_lex_str;
   SHOW_VAR tmp, *var;
-  COND *partial_cond= 0;
   enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
   bool res= FALSE;
   CHARSET_INFO *charset= system_charset_info;
@@ -2612,7 +2611,6 @@ static bool show_status_array(THD *thd, const char *wild,
   if (*prefix)
     *prefix_end++= '_';
   len=name_buffer + sizeof(name_buffer) - prefix_end;
-  partial_cond= make_cond_for_info_schema(cond, table->pos_in_table_list);
 
   for (; variables->name; variables++)
   {
@@ -2635,13 +2633,13 @@ static bool show_status_array(THD *thd, const char *wild,
     if (show_type == SHOW_ARRAY)
     {
       show_status_array(thd, wild, (SHOW_VAR *) var->value, value_type,
-                        status_var, name_buffer, table, ucase_names, partial_cond);
+                        status_var, name_buffer, table, ucase_names, cond);
     }
     else
     {
       if (!(wild && wild[0] && wild_case_compare(system_charset_info,
                                                  name_buffer, wild)) &&
-          (!partial_cond || partial_cond->val_int()))
+          (!cond || cond->val_int()))
       {
         char *value=var->value;
         const char *pos, *end;                  // We assign a lot of const's
@@ -3187,13 +3185,13 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
     Item_field *item_field;
     CHARSET_INFO *cs= system_charset_info;
 
-    if (item_func->arguments()[0]->type() == Item::FIELD_ITEM &&
+    if (item_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM &&
         item_func->arguments()[1]->const_item())
     {
       idx_field= 0;
       idx_val= 1;
     }
-    else if (item_func->arguments()[1]->type() == Item::FIELD_ITEM &&
+    else if (item_func->arguments()[1]->real_item()->type() == Item::FIELD_ITEM &&
              item_func->arguments()[0]->const_item())
     {
       idx_field= 1;
@@ -3202,7 +3200,7 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
     else
       return 0;
 
-    item_field= (Item_field*) item_func->arguments()[idx_field];
+    item_field= (Item_field*) item_func->arguments()[idx_field]->real_item();
     if (table->table != item_field->field->table)
       return 0;
     tmp_str= item_func->arguments()[idx_val]->val_str(&str_buff);
@@ -5671,7 +5669,13 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   {
     DBUG_RETURN(1);
   }
-  proc_table->file->ha_index_init(0, 1);
+
+  if (proc_table->file->ha_index_init(0, 1))
+  {
+    res= 1;
+    goto err;
+  }
+
   if ((res= proc_table->file->ha_index_first(proc_table->record[0])))
   {
     res= (res == HA_ERR_END_OF_FILE) ? 0 : 1;
@@ -5697,7 +5701,9 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   }
 
 err:
-  proc_table->file->ha_index_end();
+  if (proc_table->file->inited)
+    (void) proc_table->file->ha_index_end();
+
   close_system_tables(thd, &open_tables_state_backup);
   DBUG_RETURN(res);
 }
@@ -6893,9 +6899,12 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
       schema_table_idx == SCH_GLOBAL_VARIABLES)
     option_type= OPT_GLOBAL;
 
+  COND *partial_cond= make_cond_for_info_schema(cond, tables);
+
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
   res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, option_type),
-                         option_type, NULL, "", tables->table, upper_case_names, cond);
+                         option_type, NULL, "", tables->table,
+                         upper_case_names, partial_cond);
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
 }
@@ -6932,13 +6941,18 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
     tmp1= &thd->status_var;
   }
 
+  COND *partial_cond= make_cond_for_info_schema(cond, tables);
+  // Evaluate and cache const subqueries now, before the mutex.
+  if (partial_cond)
+    partial_cond->val_int();
+
   mysql_mutex_lock(&LOCK_status);
   if (option_type == OPT_GLOBAL)
     calc_sum_of_all_status(&tmp);
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
                          option_type, tmp1, "", tables->table,
-                         upper_case_names, cond);
+                         upper_case_names, partial_cond);
   mysql_mutex_unlock(&LOCK_status);
   DBUG_RETURN(res);
 }

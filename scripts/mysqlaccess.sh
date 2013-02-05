@@ -118,10 +118,10 @@ Usage: $script [host [user [db]]] OPTIONS
   --rollback           undo the last changes to the grant-tables.
 
   Note:
-    + At least the user and the db must be given (even with wildcards)
-    + If no host is given, `localhost' is assumed
-    + Wilcards (*,?,%,_) are allowed for host, user and db, but be sure 
-      to escape them from your shell!! (ie type \\* or '*')
+    At least the user and the db must be given (even with wildcards)
+    If no host is given, `localhost' is assumed
+    Wilcards (*,?,%,_) are allowed for host, user and db, but be sure 
+    to escape them from your shell!! (ie type \\* or '*')
 _OPTIONS
 
 $RELEASE = <<'_RELEASE';
@@ -930,7 +930,7 @@ sub MergeConfigFile {
                              $unsafeConfig = $fname;
                          }
                      }
-                     if ( $group eq 'client' ) {
+                     if ( $group eq 'client' || $group eq "client-server") {
                          $MYSQL_CNF{'mysql'}{$item} = $value;
                          $MYSQL_CNF{'mysqldump'}{$item} = $value;
                      } else {
@@ -2423,7 +2423,7 @@ sub Print_Header {
 sub Print_Footer {
     if ($MySQLaccess::CMD) { #command-line mode
     print "\n"
-         ."BUGs can be reported by email to bugs\@mysql.com\n";
+         ."BUGs can be reported trough https://mariadb.atlassian.net/browse/MDEV\n";
     }
     if ($MySQLaccess::CGI) { #CGI-BIN mode
     if ($MySQLaccess::Param{'brief'}) {
@@ -2431,7 +2431,7 @@ sub Print_Footer {
     }
     print "<HR>\n"
          ."<ADDRESS>\n"
-         ."BUGs can be reported by email to <a href=mailto:bugs\@mysql.com>bugs\@mysql.com</a><BR>\n"
+         ."BUGs can be reported through <a href=\"https://mariadb.atlassian.net/browse/MDEV\">MariaDB JIRA</a><BR>\n"
 #         ."Don't forget to mention the version $VERSION!<BR>\n"
          ."</ADDRESS>\n"
          ."</BODY>\n"

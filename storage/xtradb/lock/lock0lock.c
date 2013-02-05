@@ -5771,8 +5771,13 @@ lock_sec_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes && mode == LOCK_X) {
-		mode = LOCK_S;
+	if (UNIV_UNLIKELY((thr && thr_get_trx(thr)->fake_changes))) {
+		if (!srv_fake_changes_locks) {
+			return(DB_SUCCESS);
+		}
+		if (mode == LOCK_X) {
+			mode = LOCK_S;
+		}
 	}
 
 	heap_no = page_rec_get_heap_no(rec);
@@ -5851,8 +5856,13 @@ lock_clust_rec_read_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	if (thr && thr_get_trx(thr)->fake_changes && mode == LOCK_X) {
-		mode = LOCK_S;
+	if (UNIV_UNLIKELY((thr && thr_get_trx(thr)->fake_changes))) {
+		if (!srv_fake_changes_locks) {
+			return(DB_SUCCESS);
+		}
+		if (mode == LOCK_X) {
+			mode = LOCK_S;
+		}
 	}
 
 	heap_no = page_rec_get_heap_no(rec);

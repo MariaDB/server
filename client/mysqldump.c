@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1182,13 +1182,13 @@ check_consistent_binlog_pos(char *binlog_pos_file, char *binlog_pos_offset)
   found= 0;
   while ((row= mysql_fetch_row(res)))
   {
-    if (0 == strcmp(row[0], "binlog_snapshot_file"))
+    if (0 == strcmp(row[0], "Binlog_snapshot_file"))
     {
       if (binlog_pos_file)
         strmake(binlog_pos_file, row[1], FN_REFLEN-1);
       found++;
     }
-    else if (0 == strcmp(row[0], "binlog_snapshot_position"))
+    else if (0 == strcmp(row[0], "Binlog_snapshot_position"))
     {
       if (binlog_pos_offset)
         strmake(binlog_pos_offset, row[1], LONGLONG_LEN);
@@ -1914,7 +1914,9 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
                           const char *str_create)
 {
   uint i;
+#ifndef DBUG_OFF
   my_bool body_found= 0;
+#endif
   char *create_stmt_ptr= NULL;
   ulong create_stmt_len= 0;
   MYSQL_FIELD *field;
@@ -1932,7 +1934,9 @@ static void print_xml_row(FILE *xml_file, const char *row_name,
       {
         create_stmt_ptr= (*row)[i];
         create_stmt_len= lengths[i];
+#ifndef DBUG_OFF
         body_found= 1;
+#endif
       }
       else
       {
@@ -2547,7 +2551,7 @@ static uint get_table_structure(char *table, char *db, char *table_type,
   verbose_msg("-- Retrieving table structure for table %s...\n", table);
 
   len= my_snprintf(query_buff, sizeof(query_buff),
-                   "SET OPTION SQL_QUOTE_SHOW_CREATE=%d",
+                   "SET SQL_QUOTE_SHOW_CREATE=%d",
                    (opt_quoted || opt_keywords));
   if (!create_options)
     strmov(query_buff+len,
@@ -5288,7 +5292,7 @@ static my_bool get_view_structure(char *table, char* db)
   verbose_msg("-- Retrieving view structure for table %s...\n", table);
 
 #ifdef NOT_REALLY_USED_YET
-  sprintf(insert_pat,"SET OPTION SQL_QUOTE_SHOW_CREATE=%d",
+  sprintf(insert_pat,"SET SQL_QUOTE_SHOW_CREATE=%d",
           (opt_quoted || opt_keywords));
 #endif
 

@@ -27,7 +27,7 @@
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
-#include "sql_show.h"
+#include "sql_show.h"    //append_identifier()
 
 
 /**
@@ -266,6 +266,7 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   DBUG_ENTER("recreate_temporary_table");
 
   memset(&create_info, 0, sizeof(create_info));
+  create_info.options|= HA_LEX_CREATE_TMP_TABLE;
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
 
