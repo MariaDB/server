@@ -1,0 +1,11 @@
+#! /bin/sh
+
+path=`dirname $0`
+. "$path/SETUP.sh"
+
+extra_flags="$pentium_cflags $fast_cflags $wsrep_cflags"
+extra_configs="$pentium_configs $wsrep_configs --with-wsrep"
+
+#strip=yes
+
+. "$path/FINISH.sh"
