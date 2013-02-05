@@ -3496,6 +3496,14 @@ static int init_common_variables()
   umask(((~my_umask) & 0666));
   my_decimal_set_zero(&decimal_zero); // set decimal_zero constant;
 
+  if (pthread_key_create(&THR_THD,NULL) ||
+      pthread_key_create(&THR_MALLOC,NULL))
+  {
+    sql_print_error("Can't create thread-keys");
+    return 1;
+  }
+
+  set_current_thd(0);
   set_malloc_size_cb(my_malloc_size_cb_func);
 
   tzset();			// Set tzname
@@ -4038,12 +4046,6 @@ static int init_thread_environment()
 				     PTHREAD_CREATE_DETACHED);
   pthread_attr_setscope(&connection_attrib, PTHREAD_SCOPE_SYSTEM);
 
-  if (pthread_key_create(&THR_THD,NULL) ||
-      pthread_key_create(&THR_MALLOC,NULL))
-  {
-    sql_print_error("Can't create thread-keys");
-    DBUG_RETURN(1);
-  }
   DBUG_RETURN(0);
 }
 
