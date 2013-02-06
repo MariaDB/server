@@ -2,6 +2,7 @@
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC OPTION_LIST='info=yes';
 if (!`SELECT count(*) FROM t1 WHERE Name='ConnectEngineXLS'`)
 {
+  DROP TABLE t1;
   Skip Need ODBC data source ConnectEngineXLS;
 }
 SHOW CREATE TABLE t1;
