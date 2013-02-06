@@ -1,0 +1,19 @@
+--disable_query_log
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC OPTION_LIST='info=yes';
+if (!`SELECT count(*) FROM t1 WHERE Name='ConnectEngineXLS'`)
+{
+  Skip Need ODBC data source ConnectEngineXLS;
+}
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--enable_query_log
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/contacts.xls $MYSQLD_DATADIR/test/contacts.xls
+
+--eval CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=$MYSQLD_DATADIR/test/contacts.xls';
+SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
+DROP TABLE contact;
+
+--remove_file $MYSQLD_DATADIR/test/contacts.xls

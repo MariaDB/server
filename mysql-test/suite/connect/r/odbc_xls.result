@@ -1,0 +1,15 @@
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `Name` varchar(256) DEFAULT NULL,
+  `Description` varchar(256) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=ODBC `OPTION_LIST`='info=yes'
+CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=C:/Users/bar/maria-bzr/maria-10.0-connect/bld/mysql-test/var/mysqld.1/data//test/contacts.xls';;
+SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
+Nom	Fonction
+Du Halgouet Tanguy	
+Vandamme Anna	
+Thomas Willy	
+Thomas Dominique	
+Lemonnier Nathalie	Directeur Marketing Client
+Menseau Eric	
+DROP TABLE contact;
