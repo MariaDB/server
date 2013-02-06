@@ -1,0 +1,81 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/dept.dat $MYSQLD_DATADIR/test/dept.dat
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT
+) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Testing manual examples
+--echo #
+CREATE TABLE t1
+(
+  number   CHAR(4) not null,
+  location CHAR(15) flag=5,
+  director CHAR(5) flag=20,
+  function CHAR(12) flag=26,
+  name     CHAR(22) flag=38
+) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12),
+  city char(12),
+  birth date date_format='DD/MM/YYYY',
+  hired date date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12),
+  city char(12),
+  birth date date_format='DD/MM/YYYY',
+  hired date date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1
+(
+  name char(12),
+  city char(12),
+  birth date date_format='DD/MM/YYYY',
+  hired date date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1
+(
+  name char(12),
+  city char(12),
+  birth date date_format='DD/MM/YYYY',
+  hired date date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/dept.dat
+--remove_file $MYSQLD_DATADIR/test/boys.txt
+--remove_file $MYSQLD_DATADIR/test/boyswin.txt
