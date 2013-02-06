@@ -141,7 +141,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
    } // endswitch
 
   // Try to open the addressed file.
-	fd = open(fileName, openMode);
+   fd= global_open(g, MSGID_NONE, fileName, openMode);
 
 	if (fd != INVALID_HANDLE_VALUE && mode != MODE_INSERT) {
     /* We must know about the size of the file. */

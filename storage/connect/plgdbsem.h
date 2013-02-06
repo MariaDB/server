@@ -508,3 +508,16 @@ DllExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
 DllExport int     GetIniSize(char *, char *, char *, char *);
 DllExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
 DllExport void    NewPointer(PTABS, void *, void *);
+
+
+#define MSGID_NONE                         0
+#define MSGID_CANNOT_OPEN                  1
+#define MSGID_OPEN_MODE_ERROR              2
+#define MSGID_OPEN_STRERROR                3
+#define MSGID_OPEN_ERROR_AND_STRERROR      4
+#define MSGID_OPEN_MODE_STRERROR           5
+#define MSGID_OPEN_EMPTY_FILE              6
+
+FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
+int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
+int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);

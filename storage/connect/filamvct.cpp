@@ -169,7 +169,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
 	if (Header == 2)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
-  if (!(s = fopen(filename, "rb"))) {
+  if (!(s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb"))) {
 		// Consider this is a void table
 		Last = Nrec; 
 		Block = 0;
@@ -215,11 +215,11 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
 				k = fseek(s, 0, SEEK_SET);
 
 		} else
-		  s = fopen(filename, "r+b");
+		  s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r+b");
 
 	} else {      // Header == 2
     strcat(PlugRemoveType(filename, filename), ".blk");
-	  s = fopen(filename, "wb");
+	  s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "wb");
 	} // endif Header
 
 	if (!s) {
@@ -341,15 +341,13 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
 #if defined(WIN32)
-  h = open(filename, _O_CREAT | _O_WRONLY, S_IREAD | S_IWRITE);
+  h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename, _O_CREAT | _O_WRONLY, S_IREAD | S_IWRITE);
 #else   // !WIN32
-  h = open(filename,  O_CREAT |  O_WRONLY, S_IREAD | S_IWRITE);
+  h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename,  O_CREAT |  O_WRONLY, S_IREAD | S_IWRITE);
 #endif  // !WIN32
 
-  if (h == -1) {
-    sprintf(g->Message, MSG(OPEN_EMPTY_FILE), To_File, strerror(errno));
+  if (h == -1)
     return true;
-    } // endif h
 
 	n = (Header == 1 || Header == 3) ? sizeof(VECHEADER) : 0;
 
@@ -429,9 +427,6 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
@@ -663,10 +658,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
           fclose(Stream);
           PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-          if (!(Stream = fopen(filename, "ab"))) {
-            sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                    "ab", (int)errno, filename);
-            strcat(strcat(g->Message, ": "), strerror(errno));
+          if (!(Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "ab"))) {
             Closing = true;          // Tell CloseDB of error
             return RC_FX;
             } // endif Stream
@@ -791,10 +783,8 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 			  Stream = NULL;											// For SetBlockInfo
         PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-        if (!(h = open(filename, O_WRONLY))) {
-          sprintf(g->Message, MSG(OPEN_STRERROR), strerror(errno));
+        if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
           return RC_FX;
-          } // endif
 
         /***************************************************************/
         /*  Remove extra blocks.                                       */
@@ -857,9 +847,6 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
     opmode = "wb";
 
   if (!(T_Stream = PlugOpenFile(g, tempname, opmode))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            opmode, (int)errno, tempname);
-    strcat(strcat(g->Message, ": "), strerror(errno));
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
@@ -1963,9 +1950,6 @@ bool VECFAM::OpenColumnFile(PGLOBAL g, char *opmode, int i)
   sprintf(filename, Colfn, i+1);
 
   if (!(Streams[i] = PlugOpenFile(g, filename, opmode))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
@@ -2240,10 +2224,8 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
         sprintf(filename, Colfn, i + 1);
         rc = PlugCloseFile(g, To_Fbs[i]);
 
-        if (!(h = open(filename, O_WRONLY))) {
-          sprintf(g->Message, MSG(OPEN_STRERROR), strerror(errno));
+        if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
           return RC_FX;
-          } // endif
 
         /***************************************************************/
         /*  Remove extra records.                                      */
@@ -2302,9 +2284,6 @@ bool VECFAM::OpenTempFile(PGLOBAL g)
       sprintf(tempname, Tempat, i+1);
 
       if (!(T_Streams[i] = PlugOpenFile(g, tempname, "wb"))) {
-        sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                "wb", (int)errno, tempname);
-        strcat(strcat(g->Message, ": "), strerror(errno));
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif

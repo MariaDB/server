@@ -231,12 +231,8 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
     char *p;
     FILE *stream;
 
-    if (!(stream = fopen(filename, "r"))) {
-      sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-              "r", (int)errno, filename);
-      strcat(strcat(g->Message, ": "), strerror(errno));
+    if (!(stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r")))
       return true;
-      } // endif stream
 
     while (n < PFNZ) {
       if (!fgets(filename, sizeof(filename), stream)) {

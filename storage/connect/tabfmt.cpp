@@ -130,10 +130,8 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
   /*********************************************************************/
   PlugSetPath(filename, fn, PlgGetDataPath(g));
 
-  if (!(infile = fopen(filename, "r"))) {
-    sprintf(g->Message, MSG(CANNOT_OPEN), filename);
+  if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
     return NULL;
-    } // endif infile
 
   if (hdr) {
     /*******************************************************************/
