@@ -1,3 +1,23 @@
+#
+# Testing errors
+#
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+SELECT * FROM t1;
+a
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1.dbf: No such file or directory
+DROP TABLE t1;
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR 42000: A table must have at least 1 column
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1105	Cannot open DATADIR/test/t1.dbf
+Error	1113	A table must have at least 1 column
 CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
 BEGIN
 SELECT '---';
@@ -470,32 +490,6 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
---------	--------
-FileSize	77
-DBF_Version	03
-NRecords	1
-FirstRecPos	66
-RecLength	11
-TableFlags	0000
-CodePageMark	00
----	---
-FieldN	0
-Name	a
-Type	C
-Offset	0
-Length	10
-Dec	0
-Flags	00
---------	--------
-ALTER TABLE t1 MODIFY a INT(8) NOT NULL;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(8) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
-SELECT * FROM t1;
-ERROR HY000: Got error 174 'DBF file t1.dbf is corrupted' from CONNECT
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------
 FileSize	77
