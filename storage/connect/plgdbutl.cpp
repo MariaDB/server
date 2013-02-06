@@ -128,6 +128,91 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 void CloseXML2File(PGLOBAL, PFBLOCK, bool);
 #endif   // LIBXML2_SUPPORT
 
+
+/***********************************************************************/
+/* Routines for file IO with error reporting to g->Message             */
+/***********************************************************************/
+static void
+global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
+{
+  int len;
+  switch (msgid)
+  {
+    case MSGID_CANNOT_OPEN:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(CANNOT_OPEN), // Cannot open %s
+                    path);
+      break;
+
+    case MSGID_OPEN_MODE_ERROR:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(OPEN_MODE_ERROR), // "Open(%s) error %d on %s"
+                    mode, (int) errno, path);
+      break;
+
+    case MSGID_OPEN_MODE_STRERROR:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(OPEN_MODE_ERROR) ": %s", // Open(%s) error %d on %s: %s
+                    mode, (int) errno, path, strerror(errno));
+      break;
+
+    case MSGID_OPEN_STRERROR:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(OPEN_STRERROR), // "open error: %s"
+                    strerror(errno));
+      break;
+
+    case MSGID_OPEN_ERROR_AND_STRERROR:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
+                    errno, mode, path, strerror(errno));
+      break;
+
+    case MSGID_OPEN_EMPTY_FILE:
+      len= snprintf(g->Message, sizeof(g->Message) - 1,
+                    MSG(OPEN_EMPTY_FILE), // "Opening empty file %s: %s"
+                    path, strerror(errno));
+    default:
+      DBUG_ASSERT(0);
+      /* Fall through*/
+    case 0:
+      len= 0;
+  }
+  g->Message[len]= '\0';
+}
+
+
+FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode)
+{
+  FILE *f;
+  if (!(f= fopen(path, mode)))
+    global_open_error_msg(g, msgid, path, mode);
+  return f;
+}
+
+
+int global_open(GLOBAL *g, int msgid, const char *path, int flags)
+{
+  int h;
+  if ((h= open(path, flags)) <= 0)
+    global_open_error_msg(g, msgid, path, "");
+  return h;
+}
+
+
+int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
+{
+  int h;
+  if ((h= open(path, flags, mode)) <= 0)
+  {
+    char modestr[64];
+    snprintf(modestr, sizeof(modestr), "%d", mode);
+    global_open_error_msg(g, msgid, path, modestr);
+  }
+  return h;
+}
+
+
 /**************************************************************************/
 /*  Utility for external callers (such as XDB)                            */
 /**************************************************************************/
@@ -739,7 +824,7 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
 		htrc("dbuserp=%p\n", dbuserp);
 		} // endif trace
 
-  if ((fop = fopen(fname, ftype)) != NULL) {
+  if ((fop= global_fopen(g, MSGID_OPEN_MODE_STRERROR, fname, ftype)) != NULL) {
 		if (trace)
 			htrc(" fop=%p\n", fop);
 
@@ -1417,9 +1502,9 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
 
   for (i = 0; i < 2; i++) {
 #if defined(WIN32)
-    h[i] = open(fn[i], _O_RDONLY | _O_BINARY);
+    h[i]= global_open(g, MSGID_NONE, fn[i], _O_RDONLY | _O_BINARY);
 #else   // !WIN32
-    h[i] = open(fn[i], O_RDONLY);
+    h[i]= global_open(g, MSGOD_NONE, fn[i], O_RDONLY);
 #endif  // !WIN32
 
     if (h[i] == -1) {

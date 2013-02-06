@@ -158,24 +158,22 @@ int TXTFAM::GetFileLength(PGLOBAL g)
   int    len;
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
-  h = open(filename, _O_RDONLY);
+  h= global_open(g, MSGID_OPEN_MODE_STRERROR, filename, _O_RDONLY);
 
 	if (trace)
 		htrc("GetFileLength: fn=%s h=%d\n", filename, h);
 
   if (h == -1) {
     if (errno != ENOENT) {
-      sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-              "r", (int)errno, filename);
-      strcat(strcat(g->Message, ": "), strerror(errno));
-
-			if (trace)
-				htrc("%s\n", g->Message);
-
+      if (trace)
+        htrc("%s\n", g->Message);
       len = -1;
-    } else
+    }
+    else
+    {
       len = 0;          // File does not exist yet
-
+      g->Message[0]= '\0';
+    }
   } else {
     if ((len = _filelength(h)) < 0)
       sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", filename);
@@ -385,10 +383,6 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
-
 		if (trace)
 			htrc("%s\n", g->Message);
 
@@ -799,10 +793,8 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       PlugSetPath(filename, To_File, Tdbp->GetPath());
       rc = PlugCloseFile(g, To_Fb);
 
-      if (!(h = open(filename, O_WRONLY))) {
-        sprintf(g->Message, MSG(OPEN_STRERROR), strerror(errno));
+      if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
         return RC_FX;
-        } // endif
 
       /*****************************************************************/
       /*  Remove extra records.                                        */
@@ -848,10 +840,6 @@ bool DOSFAM::OpenTempFile(PGLOBAL g)
   strcat(PlugRemoveType(tempname, tempname), ".t");
 
   if (!(T_Stream = PlugOpenFile(g, tempname, "wb"))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            "wb", (int)errno, tempname);
-    strcat(strcat(g->Message, ": "), strerror(errno));
-
 		if (trace)
 			htrc("%s\n", g->Message);
 

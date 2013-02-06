@@ -224,7 +224,7 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   int   rc;
   FILE *of;
 
-  if (!(of = fopen(ofn, "w")))
+  if (!(of= global_fopen(g, MSGID_CANNOT_OPEN, ofn, "w")))
     return -1;
 
 #if 1

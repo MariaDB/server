@@ -430,10 +430,8 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
       rc = PlugCloseFile(g, To_Fb);
       PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-      if (!(h = open(filename, O_WRONLY))) {
-        sprintf(g->Message, MSG(OPEN_STRERROR), strerror(errno));
+      if ((h= global_open(g, MSGID_OPEN_STRERROR, filename, O_WRONLY)) <= 0)
         return RC_FX;
-        } // endif
 
       /*****************************************************************/
       /*  Remove extra records.                                        */
@@ -849,12 +847,10 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
       return true;
     } // endswitch
 
-  Hfile = open(filename, oflag, tmode);
+  Hfile= global_open(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, oflag, tmode);
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
-    strcat(g->Message, strerror(errno));
   } else
     rc = 0;
 

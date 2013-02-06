@@ -215,10 +215,8 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   /**************************************************************************/
   PlugSetPath(filename, fn, PlgGetDataPath(g));
 
-  if (!(infile = fopen(filename, "rb"))) {
-    sprintf(g->Message, MSG(CANNOT_OPEN), filename);
+  if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
     return NULL;
-    } // endif file
 
   /**************************************************************************/
   /*  Get the first 32 bytes of the header.                                 */
@@ -384,10 +382,8 @@ int DBFBASE::ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath)
   /************************************************************************/
   PlugSetPath(filename, fname, defpath);
 
-  if (!(infile = fopen(filename, "rb"))) {
-    sprintf(g->Message, MSG(CANNOT_OPEN), filename);
+  if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
     return 0;              // Assume file does not exist
-    } // endif file
 
   /************************************************************************/
   /*  Get the first 32 bytes of the header.                               */
@@ -487,9 +483,6 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-            opmode, (int)errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
@@ -839,15 +832,17 @@ void DBFFAM::CloseTableFile(PGLOBAL g)
         char filename[_MAX_PATH];
 
         PlugSetPath(filename, To_File, Tdbp->GetPath());
-        Stream = fopen(filename, "r+b");
-        fseek(Stream, 4, SEEK_SET);     // Get header.Records position
-        fwrite(&n, sizeof(int), 1, Stream);
-        fclose(Stream);
-				Stream = NULL;
-        Records = n;                    // Update Records value
-        } // endif n
-
+        if ((Stream= global_fopen(g, MSGID_OPEN_MODE_STRERROR, filename, "r+b")))
+        {
+          fseek(Stream, 4, SEEK_SET);     // Get header.Records position
+          fwrite(&n, sizeof(int), 1, Stream);
+          fclose(Stream);
+          Stream= NULL;
+          Records= n;                    // Update Records value
+        }
       } // endif n
+
+    } // endif n
 
   } else  // Finally close the file
     rc = PlugCloseFile(g, To_Fb);

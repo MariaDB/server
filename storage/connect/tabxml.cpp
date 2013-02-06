@@ -388,7 +388,7 @@ int TDBXML::LoadTableFile(PGLOBAL g)
     // Parse the XML file
     if (Docp->ParseFile(filename)) {
       // Does the file exist?
-      int h = open(filename, _O_RDONLY);
+      int h= global_open(g, MSGID_NONE, filename, _O_RDONLY);
 
       rc = (h == -1 && errno == ENOENT) ? RC_NF : RC_INFO;
       if (h != -1) close(h);

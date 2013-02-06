@@ -2097,9 +2097,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
       return true;
     } // endswitch mode
 
-  if (!(Xfile = fopen(filename, pmod))) {
-    sprintf(g->Message, MSG(OPEN_MODE_ERROR), pmod, errno, filename);
-    strcat(strcat(g->Message, ": "), strerror(errno));
+  if (!(Xfile= global_fopen(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, pmod))) {
 #if defined(TRACE)
     printf("Open: %s\n", g->Message);
 #endif   // TRACE
@@ -2431,12 +2429,10 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
       return true;
     } // endswitch
 
-  Hfile = open(filename, oflag, pmod);
+  Hfile= global_open(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, oflag, pmod);
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     rc = errno;
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, mode, filename);
-    strcat(g->Message, strerror(errno));
 #if defined(TRACE)
     printf("Open: %s\n", g->Message);
 #endif   // TRACE
