@@ -1,6 +1,21 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+SHOW CREATE TABLE t1;
+--replace_regex /on .*test.t1.dbf/on DATADIR\/test\/t1.dbf/
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--error ER_TABLE_MUST_HAVE_COLUMNS
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+--replace_regex /Cannot open .*test.t1.dbf/Cannot open DATADIR\/test\/t1.dbf/
+SHOW WARNINGS;
+
+
 DELIMITER //;
 CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
 BEGIN
@@ -403,14 +418,16 @@ SELECT * FROM t1;
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
 eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
 --horizontal_results
-ALTER TABLE t1 MODIFY a INT(8) NOT NULL;
-SHOW CREATE TABLE t1;
---error ER_GET_ERRMSG
-SELECT * FROM t1;
---vertical_results
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
---horizontal_results
+
+# TODO: this does not work on Windows
+#ALTER TABLE t1 MODIFY a INT(8) NOT NULL;
+#SHOW CREATE TABLE t1;
+#--error ER_GET_ERRMSG
+#SELECT * FROM t1;
+#--vertical_results
+#--replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
+#eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+#--horizontal_results
 DROP TABLE IF EXISTS t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
