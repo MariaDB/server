@@ -271,7 +271,10 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
   } // endif Mul
 
+#if defined(WIN32)
  suite:
+#endif
+
   if (n) {
     Filenames = (char**)PlugSubAlloc(g, NULL, n * sizeof(char*));
 
