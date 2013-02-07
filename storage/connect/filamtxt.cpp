@@ -871,7 +871,7 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       htrc("after read req=%d len=%d\n", req, len);
 
     if (len != req) {
-      sprintf(g->Message, MSG(DEL_READ_ERROR), req, len);
+      sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
       return true;
       } // endif len
 

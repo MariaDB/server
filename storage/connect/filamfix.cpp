@@ -308,6 +308,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
   } else {                           // Mode == MODE_UPDATE
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream)
+    {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
@@ -317,7 +318,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
 
       } else
         T_Stream = Stream;
-
+    }
     Modif++;                         // Modified line in Update mode
   } // endif Mode
 
@@ -488,7 +489,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 #endif
 
     if (len != req) {
-      sprintf(g->Message, MSG(DEL_READ_ERROR), req, len);
+      sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
       return true;
       } // endif len
 
@@ -1135,13 +1136,14 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
   } else {                           // Mode == MODE_UPDATE
     // Tfile is the temporary file or the table file handle itself
     if (Tfile == INVALID_HANDLE_VALUE)
+    {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
 
       } else
         Tfile = Hfile;
-
+    }
     Modif++;                         // Modified line in Update mode
   } // endif Mode
 

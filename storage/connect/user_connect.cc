@@ -144,7 +144,7 @@ bool user_connect::CheckCleanup(void)
     last_query_id= thdp->query_id;
 
     if (xtrace)
-      printf("=====> Begin new query %d\n", last_query_id);
+      printf("=====> Begin new query %llu\n", last_query_id);
 
     return true;
     } // endif query_id

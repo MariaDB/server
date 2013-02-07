@@ -471,7 +471,7 @@ void BINCOL::WriteColumn(PGLOBAL g)
       break;
     case 'C':                 // Characters
       if ((n = (signed)strlen(Value->GetCharString(Buf))) > Long) {
-        sprintf(g->Message, MSG(BIN_F_TOO_LONG), Name, n, Long);
+        sprintf(g->Message, MSG(BIN_F_TOO_LONG), Name, (int) n, Long);
         longjmp(g->jumper[g->jump_level], 31);
         } // endif n
 

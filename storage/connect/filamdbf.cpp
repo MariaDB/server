@@ -731,7 +731,7 @@ bool DBFFAM::CopyHeader(PGLOBAL g)
     if (fseek(Stream, 0, SEEK_SET))
       strcpy(g->Message, "Seek error in CopyHeader");
     else if ((n = fread(hdr, 1, hlen, Stream)) != hlen)
-      sprintf(g->Message, MSG(BAD_READ_NUMBER), n, To_File);
+      sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, To_File);
     else if ((n = fwrite(hdr, 1, hlen, T_Stream)) != hlen)
       sprintf(g->Message, MSG(WRITE_STRERROR), To_Fbt->Fname
                                              , strerror(errno));

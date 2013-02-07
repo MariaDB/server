@@ -164,7 +164,9 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
 
     case MSGID_OPEN_ERROR_AND_STRERROR:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
-                    MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
+                    //OPEN_ERROR does not work, as it wants mode %d (not %s)
+                    //MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
+                    "Open error %d in mode %s on %s: %s",
                     errno, mode, path, strerror(errno));
       break;
 
@@ -1472,6 +1474,7 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
     return;
 
   if (!t->P1 || t->P1->Num == 50)
+  {
     if (!(tp = new TABPTR)) {
       PGLOBAL g = t->G;
 
@@ -1482,6 +1485,7 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
       tp->Num = 0;
       t->P1 = tp;
     } /* endif tp */
+  }
 
   t->P1->Old[t->P1->Num] = oldv;
   t->P1->New[t->P1->Num++] = newv;
