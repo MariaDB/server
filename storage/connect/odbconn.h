@@ -90,9 +90,8 @@ class DBX : public BLOCK {
 
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
-  PSZ     GetErrorMessage(int i)
-          {return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i]
-                                                : "No ODBC error";}
+  const char *GetErrorMessage(int i)
+  { return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i] : "No ODBC error"; }
  protected:
   void    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
 
