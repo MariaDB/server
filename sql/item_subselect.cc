@@ -2306,7 +2306,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                          ref_pointer_array+i,
                                          (char *)"<no matter>",
                                          (char *)"<list ref>"));
-      if (!abort_on_null)
+      if (!abort_on_null && select_lex->ref_pointer_array[i]->maybe_null)
       {
         Item *having_col_item=
           new Item_is_not_null_test(this,
@@ -2325,10 +2325,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                            (char *)"<no matter>",
                                            (char *)"<list ref>"));
         item= new Item_cond_or(item, item_isnull);
-        /* 
-          TODO: why we create the above for cases where the right part
-                cant be NULL?
-        */
         if (left_expr->element_index(i)->maybe_null)
         {
           if (!(item= new Item_func_trig_cond(item, get_cond_guard(i))))
@@ -2338,6 +2334,11 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
             DBUG_RETURN(true);
         }
         *having_item= and_items(*having_item, having_col_item);
+      }
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      {
+        if (!(item= new Item_func_trig_cond(item, get_cond_guard(i))))
+          DBUG_RETURN(true);
       }
       *where_item= and_items(*where_item, item);
     }
