@@ -317,8 +317,8 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
   {
   PVAL valp;
 
-	if (trace)
-		htrc("AllocateConstant: value=%p type=%hd\n", value, type);
+  if (trace)
+    htrc("AllocateConstant: value=%p type=%hd\n", value, type);
 
   switch (type) {
     case TYPE_STRING: valp = new(g) STRING((PSZ)value);        break;
@@ -345,7 +345,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
 
   switch (type) {
     case TYPE_STRING: valp = new(g) STRING(g, (PSZ)NULL, len, prec);
-			break;
+      break;
     case TYPE_DATE:   valp = new(g) DTVAL(g, len, prec, dom);  break;
     case TYPE_INT:    valp = new(g) INTVAL((int)0);            break;
     case TYPE_BIGINT: valp = new(g) BIGVAL((longlong)0);       break;
@@ -426,8 +426,8 @@ char *VALUE::ShowTypedValue(PGLOBAL g, char *buf, int typ, int n, int p)
       break;
     default:
       // More should be added for additional values.
-			if (trace)
-				htrc("Invalid col format type %d\n", typ);
+      if (trace)
+        htrc("Invalid col format type %d\n", typ);
 
       sprintf(g->Message, MSG(BAD_COL_FORMAT), typ);
       longjmp(g->jumper[g->jump_level], 31);
@@ -458,7 +458,7 @@ STRING::STRING(PSZ s) : VALUE(TYPE_STRING)
   Strp = s;
   Len = strlen(s);
   Clen = Len;
-	Ci = false;
+  Ci = false;
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -475,7 +475,7 @@ STRING::STRING(PGLOBAL g, PSZ s, int n, int c) : VALUE(TYPE_STRING)
     Strp = s;
 
   Clen = Len;
-	Ci = (c != 0);
+  Ci = (c != 0);
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -486,7 +486,7 @@ STRING::STRING(PGLOBAL g, short i) : VALUE(TYPE_STRING)
   Strp = (char *)PlugSubAlloc(g, NULL, 12);
   Len = sprintf(Strp, "%hd", i);
   Clen = Len;
-	Ci = false;
+  Ci = false;
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -497,7 +497,7 @@ STRING::STRING(PGLOBAL g, int n) : VALUE(TYPE_STRING)
   Strp = (char *)PlugSubAlloc(g, NULL, 12);
   Len = sprintf(Strp, "%d", n);
   Clen = Len;
-	Ci = false;
+  Ci = false;
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -508,7 +508,7 @@ STRING::STRING(PGLOBAL g, longlong n) : VALUE(TYPE_STRING)
   Strp = (char *)PlugSubAlloc(g, NULL, 12);
   Len = sprintf(Strp, "%lld", n);
   Clen = Len;
-	Ci = false;
+  Ci = false;
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -519,7 +519,7 @@ STRING::STRING(PGLOBAL g, double f) : VALUE(TYPE_STRING)
   Strp = (char *)PlugSubAlloc(g, NULL, 32);
   Len = sprintf(Strp, "%lf", f);
   Clen = Len;
-	Ci = false;
+  Ci = false;
   } // end of STRING constructor
 
 /***********************************************************************/
@@ -548,8 +548,8 @@ void STRING::SetValue_char(char *p, int n)
 
   *(++p) = '\0';
 
-	if (trace)
-		htrc(" Setting string to: '%s'\n", Strp);
+  if (trace)
+    htrc(" Setting string to: '%s'\n", Strp);
 
   } // end of SetValue_char
 
@@ -752,14 +752,14 @@ int STRING::CompareValue(PVAL vp)
   int n;
 //assert(vp->GetType() == Type);
 
-	if (trace)
-		htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
+  if (trace)
+    htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
 
   // Process filtering on character strings.
   if (Ci || vp->IsCi())
-	  n = stricmp(Strp, vp->GetCharValue());
-	else
-	  n = strcmp(Strp, vp->GetCharValue());
+    n = stricmp(Strp, vp->GetCharValue());
+  else
+    n = strcmp(Strp, vp->GetCharValue());
 
 #if defined(WIN32)
   if (n == _NLSCMPERROR)
@@ -777,9 +777,9 @@ int STRING::CompareValue(PVAL vp)
 BYTE STRING::TestValue(PVAL vp)
   {
   // Process filtering on character strings.
-	bool ci = (Ci || vp->IsCi());
+  bool ci = (Ci || vp->IsCi());
   int  n = (ci) ? stricmp(Strp, vp->GetCharValue())
-								: strcmp(Strp, vp->GetCharValue());
+                : strcmp(Strp, vp->GetCharValue());
 
 #if defined(WIN32)
   if (n == _NLSCMPERROR)
@@ -839,8 +839,8 @@ bool STRING::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
       } // endif p
 
-		if (trace)
-			htrc("SUBSTR result=%s val=%s,%d,%d", Strp, s, i, n);
+    if (trace)
+      htrc("SUBSTR result=%s val=%s,%d,%d", Strp, s, i, n);
 
   } else if (op == OP_LTRIM || op == OP_RTRIM) {
     /*******************************************************************/
@@ -967,8 +967,8 @@ bool STRING::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
       } // endif n
 
-		if (trace)
-			htrc(" function result=%s\n", strg);
+    if (trace)
+      htrc(" function result=%s\n", strg);
 
   } else if (op == OP_SNDX) {
     /*******************************************************************/
@@ -1069,8 +1069,8 @@ bool STRING::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
               i = strlen(Strp) + (pp - p[0]) + strlen(p[2]);
 
               if (i > Len) {
-								if (trace)
-									htrc(" error len=%d R_Length=%d\n", i, Len);
+                if (trace)
+                  htrc(" error len=%d R_Length=%d\n", i, Len);
 
                 sprintf(g->Message, MSG(OP_RES_TOO_LONG), op);
                 return true;
@@ -1122,14 +1122,14 @@ bool STRING::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-		if (trace) {
-			htrc("Compute result=%s val=%s", Strp, p[0]);
+    if (trace) {
+      htrc("Compute result=%s val=%s", Strp, p[0]);
 
-			for (i = 1; i < np; i++)
-				htrc(",%s", p[i]);
+      for (i = 1; i < np; i++)
+        htrc(",%s", p[i]);
 
-			htrc(" op=%d\n", op);
-			} // endif trace
+      htrc(" op=%d\n", op);
+      } // endif trace
 
   } // endif op
 
@@ -1257,7 +1257,7 @@ void STRING::SetMax(PVBLK vbp, int j, int k)
   for (register int i = j; i < k; i++) {
     val = vbp->GetCharValue(i);
 
-	  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
+    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
       strcpy(Strp, val);
 
     } // endfor i
@@ -1274,7 +1274,7 @@ void STRING::SetMax(PVBLK vbp, int *x, int j, int k)
   for (register int i = j; i < k; i++) {
     val = vbp->GetCharValue(x[i]);
 
-	  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
+    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
       strcpy(Strp, val);
 
     } // endfor i
@@ -1391,8 +1391,8 @@ void SHVAL::SetValue_char(char *p, int n)
   char *p2;
   bool  minus;
 
-//	if (trace)		wrong because p can be not null terminated
-//		htrc("SHVAL_char: p='%s' n=%d\n", p, n);
+//  if (trace)    wrong because p can be not null terminated
+//    htrc("SHVAL_char: p='%s' n=%d\n", p, n);
 
   for (p2 = p + n; p < p2 && *p == ' '; p++) ;
 
@@ -1419,8 +1419,8 @@ void SHVAL::SetValue_char(char *p, int n)
   if (minus && Sval)
     Sval = - Sval;
 
-	if (trace)
-		htrc(" setting short to: %hd\n", Sval);
+  if (trace)
+    htrc(" setting short to: %hd\n", Sval);
 
   } // end of SetValue
 
@@ -1561,8 +1561,8 @@ int SHVAL::CompareValue(PVAL vp)
   // Process filtering on short integers.
   short n = vp->GetShortValue();
 
-	if (trace > 1)
-		htrc(" Comparing: val=%hd,%hd\n", Sval, n);
+  if (trace > 1)
+    htrc(" Comparing: val=%hd,%hd\n", Sval, n);
 
   return (Sval > n) ? 1 : (Sval < n) ? (-1) : 0;
   } // end of CompareValue
@@ -1621,14 +1621,14 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
     Sval = strlen(p);
 
-		if (trace)
-			htrc("Compute result=%hd val=%s op=%d\n", Sval, p, op);
+    if (trace)
+      htrc("Compute result=%hd val=%s op=%d\n", Sval, p, op);
 
   } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
     char *p, *tp = g->Message;
     char *p1, val1[32];
     char *p2, val2[32];
-		bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
+    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
 
     assert(np == 2);
 
@@ -1639,17 +1639,17 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       if (!strcmp(p2, "\\t"))
         p2 = "\t";
 
-			if (b) {		                    // Case insensitive
-				if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-	          !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
+      if (b) {                        // Case insensitive
+        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
+            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
           strcpy(g->Message, MSG(NEW_RETURN_NULL));
           return true;
-					} // endif p
-	  
-				// Make a lower case copy of p1 and p2
-		    p1 = strlwr(strcpy(tp, p1));     
-		    p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-				} // endif Ci
+          } // endif p
+    
+        // Make a lower case copy of p1 and p2
+        p1 = strlwr(strcpy(tp, p1));     
+        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
+        } // endif Ci
 
       if (op == OP_CNTIN) {
         size_t t2 = strlen(p2);
@@ -1659,15 +1659,15 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       } else                 // OP_INSTR
         Sval = (p = strstr(p1, p2)) ? 1 + (short)(p - p1) : 0;
 
-		  if (tp != g->Message)  // If working space was obtained
-		    delete [] tp;        // by the use of new, delete it.
+      if (tp != g->Message)  // If working space was obtained
+        delete [] tp;        // by the use of new, delete it.
 
     } else                   // OP_LIKE
       Sval = (PlugEvalLike(g, p1, p2, b)) ? 1 : 0;
 
 
-		if (trace)
-			htrc("Compute result=%hd val=%s,%s op=%d\n", Sval, p1, p2, op);
+    if (trace)
+      htrc("Compute result=%hd val=%s,%s op=%d\n", Sval, p1, p2, op);
 
   } else {
     short val[2];
@@ -1756,13 +1756,13 @@ bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-	if (trace) {
-		if (np = 1)
-			htrc(" result=%hd val=%hd op=%d\n", Sval, val[0], op);
-		else
-			htrc(" result=%hd val=%hd,%hd op=%d\n",
-						Sval, val[0], val[1], op);
-		} // endif trace
+  if (trace) {
+    if (np = 1)
+      htrc(" result=%hd val=%hd op=%d\n", Sval, val[0], op);
+    else
+      htrc(" result=%hd val=%hd,%hd op=%d\n",
+            Sval, val[0], val[1], op);
+    } // endif trace
 
   } // endif op
 
@@ -2139,8 +2139,8 @@ void INTVAL::SetValue_char(char *p, int n)
   if (minus && Ival)
     Ival = - Ival;
 
-	if (trace)
-		htrc(" setting int to: %d\n", Ival);
+  if (trace)
+    htrc(" setting int to: %d\n", Ival);
 
   } // end of SetValue
 
@@ -2281,8 +2281,8 @@ int INTVAL::CompareValue(PVAL vp)
   // Process filtering on int integers.
   int n = vp->GetIntValue();
 
-	if (trace > 1)
-		htrc(" Comparing: val=%d,%d\n", Ival, n);
+  if (trace > 1)
+    htrc(" Comparing: val=%d,%d\n", Ival, n);
 
   return (Ival > n) ? 1 : (Ival < n) ? (-1) : 0;
   } // end of CompareValue
@@ -2341,14 +2341,14 @@ bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
     Ival = strlen(p);
 
-		if (trace)
-			htrc("Compute result=%d val=%s op=%d\n", Ival, p, op);
+    if (trace)
+      htrc("Compute result=%d val=%s op=%d\n", Ival, p, op);
 
   } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
     char *p, *tp = g->Message;
     char *p1, val1[32];
     char *p2, val2[32];
-		bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
+    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
 
     assert(np == 2);
 
@@ -2359,17 +2359,17 @@ bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       if (!strcmp(p2, "\\t"))
         p2 = "\t";
 
-			if (b) {		                      // Case insensitive
-				if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-	          !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
+      if (b) {                          // Case insensitive
+        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
+            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
           strcpy(g->Message, MSG(NEW_RETURN_NULL));
           return true;
-					} // endif p
-	  
-				// Make a lower case copy of p1 and p2
-		    p1 = strlwr(strcpy(tp, p1));     
-		    p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-				} // endif b
+          } // endif p
+    
+        // Make a lower case copy of p1 and p2
+        p1 = strlwr(strcpy(tp, p1));     
+        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
+        } // endif b
 
       if (op == OP_CNTIN) {
         size_t t2 = strlen(p2);
@@ -2379,14 +2379,14 @@ bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       } else                 // OP_INSTR
         Ival = (p = strstr(p1, p2)) ? 1 + (int)(p - p1) : 0;
 
-		  if (tp != g->Message)  // If working space was obtained
-		    delete [] tp;        // by the use of new, delete it.
+      if (tp != g->Message)  // If working space was obtained
+        delete [] tp;        // by the use of new, delete it.
 
     } else                   // OP_LIKE
       Ival = (PlugEvalLike(g, p1, p2, b)) ? 1 : 0;
 
-		if (trace)
-			htrc("Compute result=%d val=%s,%s op=%d\n", Ival, p1, p2, op);
+    if (trace)
+      htrc("Compute result=%d val=%s,%s op=%d\n", Ival, p1, p2, op);
 
   } else if (op == OP_MDAY || op == OP_MONTH || op == OP_YEAR ||
              op == OP_WDAY || op == OP_QUART || op == OP_YDAY) {
@@ -2506,13 +2506,13 @@ bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-	if (trace) {
-		if (np = 1)
-			htrc(" result=%d val=%d op=%d\n", Ival, val[0], op);
-		else
-			htrc(" result=%d val=%d,%d op=%d\n",
-						 Ival, val[0], val[1], op);
-		} // endif trace
+  if (trace) {
+    if (np = 1)
+      htrc(" result=%d val=%d op=%d\n", Ival, val[0], op);
+    else
+      htrc(" result=%d val=%d,%d op=%d\n",
+             Ival, val[0], val[1], op);
+    } // endif trace
 
   } // endif op
 
@@ -2954,10 +2954,10 @@ bool DTVAL::MakeTime(struct tm *ptm)
   int    n, y = ptm->tm_year;
   time_t t = mktime(ptm);
 
-	if (trace)
-		htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
-					ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
-					ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+  if (trace)
+    htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
+          ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
+          ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
 
   if (t == -1) {
     if (y < 1 || y > 71)
@@ -2978,8 +2978,8 @@ bool DTVAL::MakeTime(struct tm *ptm)
   } else
     Ival = (int)t - Shift;
 
-	if (trace)
-		htrc("MakeTime Ival=%d\n", Ival); 
+  if (trace)
+    htrc("MakeTime Ival=%d\n", Ival); 
 
   return false;
   } // end of MakeTime
@@ -2996,7 +2996,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
   if (trace)
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
-	  val[0], val[1], val[2], val[3], val[4], val[5], nval);
+    val[0], val[1], val[2], val[3], val[4], val[5], nval);
 
   for (i = 0; i < nval; i++) {
     n = val[i];
@@ -3060,16 +3060,16 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
   if (trace)
     htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n", 
-	  datm.tm_year, datm.tm_mon, datm.tm_mday,
-	  datm.tm_hour, datm.tm_min, datm.tm_sec);
+    datm.tm_year, datm.tm_mon, datm.tm_mday,
+    datm.tm_hour, datm.tm_min, datm.tm_sec);
 
   // Pass g to have an error return or NULL to set invalid dates to 0
   if (MakeTime(&datm))
     if (g) {
       strcpy(g->Message, MSG(BAD_DATETIME));
       rc = true;
-		} else
-			Ival = 0;
+    } else
+      Ival = 0;
 
   return rc;
   } // end of MakeDate
@@ -3115,8 +3115,8 @@ void DTVAL::SetValue_char(char *p, int n)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-		if (trace)
-			htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
+    if (trace)
+      htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
 
   } else
     INTVAL::SetValue_char(p, n);
@@ -3138,8 +3138,8 @@ void DTVAL::SetValue_psz(PSZ p)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-		if (trace)
-			htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
+    if (trace)
+      htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
 
   } else
     INTVAL::SetValue_psz(p);
@@ -3264,9 +3264,9 @@ bool DTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       } // endif MakeTime
 
   } else if (op == OP_SYSDT) {
-		Ival = (int)time(NULL) - Shift;
+    Ival = (int)time(NULL) - Shift;
   } else if (op == OP_CURDT) {
-		Ival = (((int)time(NULL) - Shift) / 86400) * 86400;
+    Ival = (((int)time(NULL) - Shift) / 86400) * 86400;
   } else
     rc = INTVAL::Compute(g, vp, np, op);
 
@@ -3417,18 +3417,18 @@ bool DTVAL::FormatValue(PVAL vp, char *fmt)
   char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm *ptm = GetGmTime();
 
-	if (trace)
-		htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
+  if (trace)
+    htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
 
-	if (ptm) {
-		size_t n = strftime(buf, vp->GetValLen(), fmt, ptm);
+  if (ptm) {
+    size_t n = strftime(buf, vp->GetValLen(), fmt, ptm);
 
-		if (trace)
-			htrc("strftime: n=%d buf=%s\n", n, (n) ? buf : "???");
+    if (trace)
+      htrc("strftime: n=%d buf=%s\n", n, (n) ? buf : "???");
 
-		return (n == 0);
-	} else
-	  return true;
+    return (n == 0);
+  } else
+    return true;
 
   } // end of FormatValue
 
@@ -3535,8 +3535,8 @@ void BIGVAL::SetValue_char(char *p, int n)
   if (minus && Lval)
     Lval = - Lval;
 
-	if (trace)
-		htrc(" setting big int to: %lld\n", Lval);
+  if (trace)
+    htrc(" setting big int to: %lld\n", Lval);
 
   } // end of SetValue
 
@@ -3677,8 +3677,8 @@ int BIGVAL::CompareValue(PVAL vp)
   // Process filtering on big int integers.
   longlong n = vp->GetBigintValue();
 
-	if (trace > 1)
-		htrc(" Comparing: val=%lld,%lld\n", Lval, n);
+  if (trace > 1)
+    htrc(" Comparing: val=%lld,%lld\n", Lval, n);
 
   return (Lval > n) ? 1 : (Lval < n) ? (-1) : 0;
   } // end of CompareValue
@@ -3737,14 +3737,14 @@ bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
     Lval = strlen(p);
 
-		if (trace)
-			htrc("Compute result=%lld val=%s op=%d\n", Lval, p, op);
+    if (trace)
+      htrc("Compute result=%lld val=%s op=%d\n", Lval, p, op);
 
   } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
     char *p, *tp = g->Message;
     char *p1, val1[32];
     char *p2, val2[32];
-		bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
+    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
 
     assert(np == 2);
 
@@ -3755,17 +3755,17 @@ bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       if (!strcmp(p2, "\\t"))
         p2 = "\t";
 
-			if (b) {		                      // Case insensitive
-				if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-	          !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
+      if (b) {                          // Case insensitive
+        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
+            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
           strcpy(g->Message, MSG(NEW_RETURN_NULL));
           return true;
-					} // endif p
-	  
-				// Make a lower case copy of p1 and p2
-		    p1 = strlwr(strcpy(tp, p1));     
-		    p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-				} // endif b
+          } // endif p
+    
+        // Make a lower case copy of p1 and p2
+        p1 = strlwr(strcpy(tp, p1));     
+        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
+        } // endif b
 
       if (op == OP_CNTIN) {
         size_t t2 = strlen(p2);
@@ -3775,14 +3775,14 @@ bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       } else                 // OP_INSTR
         Lval = (p = strstr(p1, p2)) ? 1LL + (longlong)(p - p1) : 0LL;
 
-		  if (tp != g->Message)  // If working space was obtained
-		    delete [] tp;        // by the use of new, delete it.
+      if (tp != g->Message)  // If working space was obtained
+        delete [] tp;        // by the use of new, delete it.
 
     } else                   // OP_LIKE
       Lval = (PlugEvalLike(g, p1, p2, b)) ? 1LL : 0LL;
 
-		if (trace)
-			htrc("Compute result=%lld val=%s,%s op=%d\n", Lval, p1, p2, op);
+    if (trace)
+      htrc("Compute result=%lld val=%s,%s op=%d\n", Lval, p1, p2, op);
 
   } else {
     longlong val[2];
@@ -3871,12 +3871,12 @@ bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
         return true;
       } // endswitch op
 
-		if (trace)
-			if (np = 1)
-				htrc(" result=%lld val=%lld op=%d\n", Lval, val[0], op);
-			else
-				htrc(" result=%lld val=%lld,%lld op=%d\n",
-							 Lval, val[0], val[1], op);
+    if (trace)
+      if (np = 1)
+        htrc(" result=%lld val=%lld op=%d\n", Lval, val[0], op);
+      else
+        htrc(" result=%lld val=%lld,%lld op=%d\n",
+               Lval, val[0], val[1], op);
 
   } // endif op
 
@@ -4239,8 +4239,8 @@ void DFVAL::SetValue_char(char *p, int n)
   buf[n] = '\0';
   Fval = atof(buf);
 
-	if (trace)
-		htrc(" setting double: '%s' -> %lf\n", buf, Fval);
+  if (trace)
+    htrc(" setting double: '%s' -> %lf\n", buf, Fval);
 
   } // end of SetValue
 
@@ -4308,7 +4308,7 @@ void DFVAL::GetBinValue(void *buf, int buflen)
 /***********************************************************************/
 char *DFVAL::ShowValue(char *buf, int len)
   {
-	// TODO: use snprintf to avoid possible overflow
+  // TODO: use snprintf to avoid possible overflow
   sprintf(buf, "%*.*lf", len, Prec, Fval);
   return buf;
   } // end of ShowValue
@@ -4383,8 +4383,8 @@ int DFVAL::CompareValue(PVAL vp)
   // Process filtering on int integers.
   double d = vp->GetFloatValue();
 
-	if (trace)
-		htrc(" Comparing: val=%.2f,%.2f\n", Fval, d);
+  if (trace)
+    htrc(" Comparing: val=%.2f,%.2f\n", Fval, d);
 
   return (Fval > d) ? 1 : (Fval < d) ? (-1) : 0;
   } // end of CompareValue
@@ -4524,13 +4524,13 @@ bool DFVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
       return true;
     } // endswitch op
 
-	if (trace) {
-		if (np == 1)
-			htrc("Compute result=%lf val=%lf op=%d\n", Fval, val[0], op);
-		else
-			htrc("Compute result=%lf val=%lf,%lf op=%d\n",
-										Fval, val[0], val[1], op);
-		} // endif trace
+  if (trace) {
+    if (np == 1)
+      htrc("Compute result=%lf val=%lf op=%d\n", Fval, val[0], op);
+    else
+      htrc("Compute result=%lf val=%lf,%lf op=%d\n",
+                    Fval, val[0], val[1], op);
+    } // endif trace
 
   return false;
   } // end of Compute

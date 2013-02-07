@@ -6,7 +6,7 @@
 /*  This file contains the CATALOG PlugDB classes definitions.         */
 /***********************************************************************/
 #ifndef __CATALOG__H
-#define	__CATALOG__H
+#define  __CATALOG__H
 
 #include "block.h"
 
@@ -60,27 +60,27 @@ typedef struct _curtab {
 /*  Defines the structure used to get column catalog info.             */
 /***********************************************************************/
 typedef struct _colinfo {
-	char  *Name;
+  char  *Name;
   int    Type;
   int    Offset;
   int    Length;
-	int    Key;
-	int    Prec;
-	int    Opt;
-	char  *Remark;
-	char  *Datefmt;
+  int    Key;
+  int    Prec;
+  int    Opt;
+  char  *Remark;
+  char  *Datefmt;
   char  *Fieldfmt;
-	ushort Flags;				 // Used by MariaDB CONNECT handlers
+  ushort Flags;         // Used by MariaDB CONNECT handlers
   } COLINFO, *PCOLINFO;
 
 /***********************************************************************/
 /*  CATALOG: base class for catalog classes.                           */
 /***********************************************************************/
 class DllExport CATALOG {
-	friend class RELDEF;
-	friend class TABDEF;
+  friend class RELDEF;
+  friend class TABDEF;
   friend class DIRDEF;
-	friend class OEMDEF;
+  friend class OEMDEF;
  public:
   CATALOG(void);                       // Constructor
 
@@ -91,8 +91,8 @@ class DllExport CATALOG {
   int     GetCblen(void) {return Cblen;}
   bool    GetDefHuge(void) {return DefHuge;}
   void    SetDefHuge(bool b) {DefHuge = b;}
-	bool    GetSepIndex(void) {return SepIndex;}
-	void    SetSepIndex(bool b) {SepIndex = b;}
+  bool    GetSepIndex(void) {return SepIndex;}
+  void    SetSepIndex(bool b) {SepIndex = b;}
   char   *GetCbuf(void) {return Cbuf;}
   char   *GetDataPath(void) {return (char*)DataPath;}
 
@@ -104,17 +104,17 @@ class DllExport CATALOG {
   virtual int     GetIntCatInfo(LPCSTR name, PSZ what, int idef) {return idef;}
   virtual int     GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef) {return 0;}
   virtual int     GetCharCatInfo(LPCSTR name, PSZ what, PSZ sdef, char *buf, int size)
-																{strncpy(buf, sdef, size); return size;} 
+                                {strncpy(buf, sdef, size); return size;} 
   virtual char   *GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
-																{return sdef;}
-	virtual int     GetColCatInfo(PGLOBAL g, PTABDEF defp) {return -1;}
-	virtual bool		GetIndexInfo(PGLOBAL g, PTABDEF defp) {return true;}
+                                {return sdef;}
+  virtual int     GetColCatInfo(PGLOBAL g, PTABDEF defp) {return -1;}
+  virtual bool    GetIndexInfo(PGLOBAL g, PTABDEF defp) {return true;}
   virtual bool    CheckName(PGLOBAL g, char *name) {return true;}
   virtual bool    ClearName(PGLOBAL g, PSZ name) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
   virtual PRELDEF GetTableDescEx(PGLOBAL g, PTABLE tablep) {return NULL;}
   virtual PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am,
-																					PRELDEF *prp = NULL) {return NULL;}
+                                          PRELDEF *prp = NULL) {return NULL;}
   virtual PRELDEF GetFirstTable(PGLOBAL g) {return NULL;}
   virtual PRELDEF GetNextTable(PGLOBAL g) {return NULL;}
   virtual bool    TestCond(PGLOBAL g, const char *name, const char *type) {return true;}
@@ -142,7 +142,7 @@ class DllExport CATALOG {
   int     Cblen;                       /* Length of suballoc. buffer   */
   CURTAB  Ctb;                         /* Used to enumerate tables     */
   bool    DefHuge;                     /* true: tables default to huge */
-	bool    SepIndex;                    /* true: separate index files   */
+  bool    SepIndex;                    /* true: separate index files   */
 //char    DescFile[_MAX_PATH];         /* DB description filename      */
   LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
   }; // end of class CATALOG

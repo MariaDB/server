@@ -88,7 +88,7 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /*  Constructor.                                                       */
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
-	{
+  {
   Connect = Tabname = Tabowner = Tabqual = Qchar = NULL; 
   Catver = Options = 0; 
   Info = false;
@@ -352,7 +352,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
           } // endif Quote
 
-					} // endif !Special
+          } // endif !Special
 
     } else {
       // ncol == 0 can occur for queries such that sql count(*) from...
@@ -380,7 +380,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(buf) + 14);
-	len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
 
 //  if (tablep->GetQualifier())             This is used when using a table
 //    qualp = tablep->GetQualifier();       from anotherPlugDB database but
@@ -416,8 +416,8 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   strcat(sql, tabname);
 
-	if (To_Filter)
-	  strcat(strcat(sql, " WHERE "), To_Filter);
+  if (To_Filter)
+    strcat(strcat(sql, " WHERE "), To_Filter);
 
   return sql;
   } // end of MakeSQL
@@ -634,7 +634,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBODBC::WriteDB(PGLOBAL g)
   {
-	strcpy(g->Message, "ODBC tables are read only");
+  strcpy(g->Message, "ODBC tables are read only");
   return RC_FX;
   } // end of WriteDB
 
@@ -905,67 +905,67 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 TDBOIF::TDBOIF(PODEF tdp) : TDBASE(tdp)
   {
   Qrp = NULL;
-	Init = false;
-	N = -1;
+  Init = false;
+  N = -1;
   } // end of TDBOIF constructor
 
 /***********************************************************************/
 /*  Allocate OIF column description block.                             */
 /***********************************************************************/
 PCOL TDBOIF::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
-	{
-	POIFCOL colp;
+  {
+  POIFCOL colp;
 
-	colp = (POIFCOL)new(g) OIFCOL(cdp, this, n);
+  colp = (POIFCOL)new(g) OIFCOL(cdp, this, n);
 
-	if (cprec) {
-		colp->SetNext(cprec->GetNext());
-		cprec->SetNext(colp);
-	} else {
-		colp->SetNext(Columns);
-		Columns = colp;
-	} // endif cprec
+  if (cprec) {
+    colp->SetNext(cprec->GetNext());
+    cprec->SetNext(colp);
+  } else {
+    colp->SetNext(Columns);
+    Columns = colp;
+  } // endif cprec
 
-	if (!colp->Flag) {
-		if (!stricmp(colp->Name, "Name"))
-			colp->Flag = 1;
-		else if (!stricmp(colp->Name, "Description"))
-			colp->Flag = 2;
+  if (!colp->Flag) {
+    if (!stricmp(colp->Name, "Name"))
+      colp->Flag = 1;
+    else if (!stricmp(colp->Name, "Description"))
+      colp->Flag = 2;
 
-		} // endif Flag
+    } // endif Flag
 
-	return colp;
-	} // end of MakeCol
+  return colp;
+  } // end of MakeCol
 
 /***********************************************************************/
 /*  Initialize: Get the list of ODBC data sources.                     */
 /***********************************************************************/
 bool TDBOIF::Initialize(PGLOBAL g)
   {
-	if (Init)
-		return false;
+  if (Init)
+    return false;
 
   if (!(Qrp = ODBCDataSources(g)))
     return true;
 
-	Init = true;
-	return false;
-	} // end of Initialize
+  Init = true;
+  return false;
+  } // end of Initialize
 
 /***********************************************************************/
 /*  OIF: Get the number of properties.                                 */
 /***********************************************************************/
 int TDBOIF::GetMaxSize(PGLOBAL g)
   {
-	if (MaxSize < 0) {
-		if (Initialize(g))
-			return -1;
+  if (MaxSize < 0) {
+    if (Initialize(g))
+      return -1;
 
-		MaxSize = Qrp->Nblin;
-		} // endif MaxSize
+    MaxSize = Qrp->Nblin;
+    } // endif MaxSize
 
-	return MaxSize;
-	} // end of GetMaxSize
+  return MaxSize;
+  } // end of GetMaxSize
 
 /***********************************************************************/
 /*  OIF Access Method opening routine.                                 */
@@ -976,7 +976,7 @@ bool TDBOIF::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open.                                            */
     /*******************************************************************/
-		N = -1;
+    N = -1;
     return false;
     } // endif use
 
@@ -991,7 +991,7 @@ bool TDBOIF::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Initialize the ODBC processing.                                  */
   /*********************************************************************/
-	if (Initialize(g))
+  if (Initialize(g))
     return true;
 
   return InitCol(g);
@@ -1033,7 +1033,7 @@ int TDBOIF::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBOIF::WriteDB(PGLOBAL g)
   {
-	strcpy(g->Message, "OIF tables are read only");
+  strcpy(g->Message, "OIF tables are read only");
   return RC_FX;
   } // end of WriteDB
 
@@ -1060,11 +1060,11 @@ void TDBOIF::CloseDB(PGLOBAL g)
 /*  OIFCOL public constructor.                                         */
 /***********************************************************************/
 OIFCOL::OIFCOL(PCOLDEF cdp, PTDB tdbp, int n)
-			: COLBLK(cdp, tdbp, n)
+      : COLBLK(cdp, tdbp, n)
   {
-	Tdbp = (PTDBOIF)tdbp;
-	Crp = NULL;
-	Flag = cdp->GetOffset();
+  Tdbp = (PTDBOIF)tdbp;
+  Crp = NULL;
+  Flag = cdp->GetOffset();
   } // end of WMICOL constructor
 
 /***********************************************************************/
@@ -1073,7 +1073,7 @@ OIFCOL::OIFCOL(PCOLDEF cdp, PTDB tdbp, int n)
 void OIFCOL::ReadColumn(PGLOBAL g)
   {
   // Get the value of the Name or Description property
-	Value->SetValue_psz(Crp->Kdata->GetCharValue(Tdbp->N));
+  Value->SetValue_psz(Crp->Kdata->GetCharValue(Tdbp->N));
   } // end of ReadColumn
 
 /* ------------------------ End of Tabodbc --------------------------- */

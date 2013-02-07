@@ -86,7 +86,7 @@ typedef struct _conninfo *PCONN;
 #define TRACE4(X,A,B,C,D)      fprintf(debug,X,A,B,C,D);
 #define TRACE5(X,A,B,C,D,E)    fprintf(debug,X,A,B,C,D,E);
 #define TRACE6(X,A,B,C,D,E,F)  fprintf(debug,X,A,B,C,D,E,F);
-#else	  /* !DEBTRACE*/
+#else    /* !DEBTRACE*/
 #define TRACE0(X)          
 #define TRACE1(X,A)        
 #define TRACE2(X,A,B)      
@@ -190,8 +190,8 @@ typedef struct _ERRINFO {
 /***********************************************************************/
 typedef struct _env {
   ERRINFO Errinfo;                                       /* Error list */
-	UDWORD ODBCver;
-	UDWORD ODBCdateformat;
+  UDWORD ODBCver;
+  UDWORD ODBCdateformat;
   } ENV,  *PENV;
 
 /***********************************************************************/

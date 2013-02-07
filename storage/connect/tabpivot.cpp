@@ -35,7 +35,7 @@
 /*  plgdbsem.h  is header containing the DB application declarations.  */
 /***********************************************************************/
 #define FRM_VER 6
-#include "table.h"			 // MySQL table definitions
+#include "table.h"       // MySQL table definitions
 #include "sql_const.h"
 #include "field.h"
 #include "global.h"
@@ -48,7 +48,7 @@
 #include "tabpivot.h"
 #include "valblk.h"
 #include "ha_connect.h"
-#include "mycat.h"			 // For GetHandler
+#include "mycat.h"       // For GetHandler
 
 extern "C" int trace;
 
@@ -59,30 +59,30 @@ extern "C" int trace;
 /***********************************************************************/
 bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-	char *p1, *p2;
-	PHC		hc = ((MYCAT*)Cat)->GetHandler();
+  char *p1, *p2;
+  PHC    hc = ((MYCAT*)Cat)->GetHandler();
 
-	Host = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
-	User = Cat->GetStringCatInfo(g, Name, "User", "root");
-	Pwd = Cat->GetStringCatInfo(g, Name, "Password", NULL);
-	DB = Cat->GetStringCatInfo(g, Name, "Database", (PSZ)hc->GetDBName(NULL));
+  Host = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
+  User = Cat->GetStringCatInfo(g, Name, "User", "root");
+  Pwd = Cat->GetStringCatInfo(g, Name, "Password", NULL);
+  DB = Cat->GetStringCatInfo(g, Name, "Database", (PSZ)hc->GetDBName(NULL));
   Tabsrc = Cat->GetStringCatInfo(g, Name, "SrcDef", NULL);
   Tabname = Cat->GetStringCatInfo(g, Name, "Name", NULL);
   Picol = Cat->GetStringCatInfo(g, Name, "PivotCol", NULL);
   Fncol = Cat->GetStringCatInfo(g, Name, "FncCol", NULL);
-	
-	// If fncol is like avg(colname), separate Fncol and Function
-	if (Fncol && (p1 = strchr(Fncol, '(')) && (p2 = strchr(p1, ')')) &&
-			(*Fncol != '"') &&  (!*(p2+1))) {
-		*p1++ = '\0'; *p2 = '\0';
-		Function = Fncol;
-		Fncol = p1;
-	} else
-	  Function = Cat->GetStringCatInfo(g, Name, "Function", "SUM");
+  
+  // If fncol is like avg(colname), separate Fncol and Function
+  if (Fncol && (p1 = strchr(Fncol, '(')) && (p2 = strchr(p1, ')')) &&
+      (*Fncol != '"') &&  (!*(p2+1))) {
+    *p1++ = '\0'; *p2 = '\0';
+    Function = Fncol;
+    Fncol = p1;
+  } else
+    Function = Cat->GetStringCatInfo(g, Name, "Function", "SUM");
 
-	GBdone = Cat->GetIntCatInfo(Name, "Groupby", 0) ? TRUE : FALSE;
-	Port = Cat->GetIntCatInfo(Name, "Port", 3306);
-	Desc = (*Tabname) ? Tabname : Tabsrc;
+  GBdone = Cat->GetIntCatInfo(Name, "Groupby", 0) ? TRUE : FALSE;
+  Port = Cat->GetIntCatInfo(Name, "Port", 3306);
+  Desc = (*Tabname) ? Tabname : Tabsrc;
   return FALSE;
   } // end of DefineAM
 
@@ -91,7 +91,7 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE m)
   {
-	return new(g) TDBPIVOT(this);
+  return new(g) TDBPIVOT(this);
   } // end of GetTable
 
 /* ------------------------------------------------------------------- */
@@ -101,49 +101,49 @@ PTDB PIVOTDEF::GetTable(PGLOBAL g, MODE m)
 /***********************************************************************/
 TDBPIVOT::TDBPIVOT(PPIVOTDEF tdp) : TDBASE(tdp), CSORT(FALSE)
   {
-	Tqrp = NULL;
+  Tqrp = NULL;
   Host = tdp->Host;
   Database = tdp->DB;
   User = tdp->User;
   Pwd = tdp->Pwd;
   Port = tdp->Port;
-	Qryp = NULL;
-	Tabname = tdp->Tabname;		// Name of source table
-	Tabsrc = tdp->Tabsrc;			// SQL description of source table
-	Picol = tdp->Picol;				// Pivot column name
-	Fncol = tdp->Fncol;				// Function column name
-	Function = tdp->Function;	// Aggregate function name
-	Xcolp = NULL;							// To the FNCCOL column
-//Xresp = NULL;							// To the pivot result column
-//Rblkp = NULL;							// The value block of the pivot column
-	Fcolp = NULL;							// To the function column
-	GBdone = tdp->GBdone;
-	Mult = -1;      					// Estimated table size
-	N = 0;										// The current table index
-	M = 0;										// The occurence rank
-	FileStatus = 0;   				// Logical End-of-File
-	RowFlag = 0;    					// 0: Ok, 1: Same, 2: Skip
+  Qryp = NULL;
+  Tabname = tdp->Tabname;    // Name of source table
+  Tabsrc = tdp->Tabsrc;      // SQL description of source table
+  Picol = tdp->Picol;        // Pivot column name
+  Fncol = tdp->Fncol;        // Function column name
+  Function = tdp->Function;  // Aggregate function name
+  Xcolp = NULL;              // To the FNCCOL column
+//Xresp = NULL;              // To the pivot result column
+//Rblkp = NULL;              // The value block of the pivot column
+  Fcolp = NULL;              // To the function column
+  GBdone = tdp->GBdone;
+  Mult = -1;                // Estimated table size
+  N = 0;                    // The current table index
+  M = 0;                    // The occurence rank
+  FileStatus = 0;           // Logical End-of-File
+  RowFlag = 0;              // 0: Ok, 1: Same, 2: Skip
   } // end of TDBPIVOT constructor
 
 #if 0
 TDBPIVOT::TDBPIVOT(PTDBPIVOT tdbp) : TDBASE(tdbp), CSORT(FALSE)
   {
-	Tdbp = tdbp->Tdbp;
-	Sqlp = tdbp->Sqlp;
-	Qryp = tdbp->Qryp;
-	Tabname = tdbp->Tabname;
-	Tabsrc = tdbp->Tabsrc;
-	Picol = tdbp->Picol;
-	Fncol = tdbp->Fncol;
-	Function = tdbp->Function;
-	Xcolp = tdbp->Xcolp;
-	Xresp = tdbp->Xresp;
-	Rblkp = tdbp->Rblkp;
-	Fcolp = tdbp->Fcolp;
-	Mult = tdbp->Mult;
-	N = tdbp->N;
-	M = tdbp->M;
-	FileStatus = tdbp->FileStatus;
+  Tdbp = tdbp->Tdbp;
+  Sqlp = tdbp->Sqlp;
+  Qryp = tdbp->Qryp;
+  Tabname = tdbp->Tabname;
+  Tabsrc = tdbp->Tabsrc;
+  Picol = tdbp->Picol;
+  Fncol = tdbp->Fncol;
+  Function = tdbp->Function;
+  Xcolp = tdbp->Xcolp;
+  Xresp = tdbp->Xresp;
+  Rblkp = tdbp->Rblkp;
+  Fcolp = tdbp->Fcolp;
+  Mult = tdbp->Mult;
+  N = tdbp->N;
+  M = tdbp->M;
+  FileStatus = tdbp->FileStatus;
   RowFlag = tdbp->RowFlag;
   } // end of TDBPIVOT copy constructor
 
@@ -152,7 +152,7 @@ PTDB TDBPIVOT::CopyOne(PTABS t)
   {
   PTDB tp = new(t->G) TDBPIVOT(this);
 
-	tp->SetColumns(Columns);
+  tp->SetColumns(Columns);
   return tp;
   } // end of CopyOne
 #endif // 0
@@ -161,201 +161,201 @@ PTDB TDBPIVOT::CopyOne(PTABS t)
 /*  Prepare the source table Query.                                    */
 /***********************************************************************/
 PQRYRES TDBPIVOT::GetSourceTable(PGLOBAL g)
-	{
-	if (Qryp)
-		return Qryp;             // Already done
+  {
+  if (Qryp)
+    return Qryp;             // Already done
 
-	if (!Tabsrc && Tabname) {
-		char   *def, *colist;
-		size_t  len = 0;
-		PCOL    colp;
-	  PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+  if (!Tabsrc && Tabname) {
+    char   *def, *colist;
+    size_t  len = 0;
+    PCOL    colp;
+    PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
 
-		// Evaluate the length of the column list
-		for (colp = Columns; colp; colp = colp->GetNext())
-			len += (strlen(colp->GetName()) + 2);
+    // Evaluate the length of the column list
+    for (colp = Columns; colp; colp = colp->GetNext())
+      len += (strlen(colp->GetName()) + 2);
 
-		*(colist = (char*)PlugSubAlloc(g, NULL, len)) = 0;
+    *(colist = (char*)PlugSubAlloc(g, NULL, len)) = 0;
 
-		// Locate the suballocated string (size is not known yet)
-		def = (char*)PlugSubAlloc(g, NULL, 0);
-		strcpy(def, "SELECT ");
-		  
-		if (!Fncol) {
-			for (colp = Columns; colp; colp = colp->GetNext())
-				if (!Picol || stricmp(Picol, colp->GetName()))
-					Fncol = colp->GetName();
+    // Locate the suballocated string (size is not known yet)
+    def = (char*)PlugSubAlloc(g, NULL, 0);
+    strcpy(def, "SELECT ");
+      
+    if (!Fncol) {
+      for (colp = Columns; colp; colp = colp->GetNext())
+        if (!Picol || stricmp(Picol, colp->GetName()))
+          Fncol = colp->GetName();
 
-			if (!Fncol) {
-				strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-				return NULL;
-				} // endif Fncol
+      if (!Fncol) {
+        strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+        return NULL;
+        } // endif Fncol
 
-		}	else if (!(ColDB(g, Fncol, 0))) {
-			// Function column not found in table                                       
-			sprintf(g->Message, MSG(COL_ISNOT_TABLE), Fncol, Tabname);
-			return NULL;
-		} // endif Fcolp
+    }  else if (!(ColDB(g, Fncol, 0))) {
+      // Function column not found in table                                       
+      sprintf(g->Message, MSG(COL_ISNOT_TABLE), Fncol, Tabname);
+      return NULL;
+    } // endif Fcolp
 
-		if (!Picol) {
-			// Find default Picol as the last one not equal	to Fncol
-			for (colp = Columns; colp; colp = colp->GetNext())
-				if (!Fncol || stricmp(Fncol, colp->GetName()))
-					Picol = colp->GetName();
+    if (!Picol) {
+      // Find default Picol as the last one not equal  to Fncol
+      for (colp = Columns; colp; colp = colp->GetNext())
+        if (!Fncol || stricmp(Fncol, colp->GetName()))
+          Picol = colp->GetName();
 
-			if (!Picol) {
-				strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-				return NULL;
-				} // endif Picol
+      if (!Picol) {
+        strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+        return NULL;
+        } // endif Picol
 
-		} else if (!(ColDB(g, Picol, 0))) {
-		  // Pivot column not found in table                                       
-			sprintf(g->Message, MSG(COL_ISNOT_TABLE), Picol, Tabname);
-			return NULL;
-		} // endif Xcolp
+    } else if (!(ColDB(g, Picol, 0))) {
+      // Pivot column not found in table                                       
+      sprintf(g->Message, MSG(COL_ISNOT_TABLE), Picol, Tabname);
+      return NULL;
+    } // endif Xcolp
 
-		// Make the other column list
-		for (colp = Columns; colp; colp = colp->GetNext())
-			if (stricmp(Picol, colp->GetName()) &&
-					stricmp(Fncol, colp->GetName()))
-				strcat(strcat(colist, colp->GetName()), ", ");
+    // Make the other column list
+    for (colp = Columns; colp; colp = colp->GetNext())
+      if (stricmp(Picol, colp->GetName()) &&
+          stricmp(Fncol, colp->GetName()))
+        strcat(strcat(colist, colp->GetName()), ", ");
 
-		// Add the Pivot column at the end of the list
-		strcat(strcat(def, strcat(colist, Picol)), ", ");
+    // Add the Pivot column at the end of the list
+    strcat(strcat(def, strcat(colist, Picol)), ", ");
 
-		// Continue making the definition
-		if (!GBdone) {
-			// Make it suitable for Pivot by doing the group by
-			strcat(strcat(def, Function), "(");
-			strcat(strcat(strcat(def, Fncol), ") "), Fncol);
-			strcat(strcat(def, " FROM "), Tabname);
-			strcat(strcat(def, " GROUP BY "), colist);
-		} else   // Gbdone
-			strcat(strcat(strcat(def, Fncol), " FROM "), Tabname);
+    // Continue making the definition
+    if (!GBdone) {
+      // Make it suitable for Pivot by doing the group by
+      strcat(strcat(def, Function), "(");
+      strcat(strcat(strcat(def, Fncol), ") "), Fncol);
+      strcat(strcat(def, " FROM "), Tabname);
+      strcat(strcat(def, " GROUP BY "), colist);
+    } else   // Gbdone
+      strcat(strcat(strcat(def, Fncol), " FROM "), Tabname);
 
-		// Now we know how much was suballocated
-		Tabsrc = (char*)PlugSubAlloc(g, NULL, strlen(def));
-	} else {
-		strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
-		return NULL;
-	} // endif Tabsrc
+    // Now we know how much was suballocated
+    Tabsrc = (char*)PlugSubAlloc(g, NULL, strlen(def));
+  } else {
+    strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
+    return NULL;
+  } // endif Tabsrc
 
-	int w;
+  int w;
 
   // Open a MySQL connection for this table
   if (Myc.Open(g, Host, Database, User, Pwd, Port))
     return NULL;
 
-	// Send the source command to MySQL
-	if (Myc.ExecSQL(g, Tabsrc, &w) == RC_FX) {
+  // Send the source command to MySQL
+  if (Myc.ExecSQL(g, Tabsrc, &w) == RC_FX) {
     Myc.Close();
     return NULL;
     } // endif Exec
 
-	// We must have a storage query to get pivot column values
-	Qryp = Myc.GetResult(g);
+  // We must have a storage query to get pivot column values
+  Qryp = Myc.GetResult(g);
   Myc.Close();
-	Tqrp = new(g) TDBQRS(Qryp);
-	Tqrp->OpenDB(g);
+  Tqrp = new(g) TDBQRS(Qryp);
+  Tqrp->OpenDB(g);
 
-	if (MakePivotColumns(g) < 0)
-		return NULL;
+  if (MakePivotColumns(g) < 0)
+    return NULL;
 
-	return Qryp;
-	} // end of GetSourceTable
+  return Qryp;
+  } // end of GetSourceTable
 
 /***********************************************************************/
 /*  Allocate PIVOT columns description block.                          */
 /***********************************************************************/
 int TDBPIVOT::MakePivotColumns(PGLOBAL g)
-	{
-	if (Mult < 0) {
-		int     ndif, n = 0, nblin = Qryp->Nblin;
-		PVAL    valp;
-		PCOL    cp;
-		PSRCCOL colp;
-		PFNCCOL cfnp;
+  {
+  if (Mult < 0) {
+    int     ndif, n = 0, nblin = Qryp->Nblin;
+    PVAL    valp;
+    PCOL    cp;
+    PSRCCOL colp;
+    PFNCCOL cfnp;
 
-		// Allocate all the source columns
-		Tqrp->ColDB(g, NULL, 0);
-		Columns = NULL;				// Discard dummy columns blocks
+    // Allocate all the source columns
+    Tqrp->ColDB(g, NULL, 0);
+    Columns = NULL;        // Discard dummy columns blocks
 
-		for (cp = Tqrp->GetColumns(); cp; cp = cp->GetNext()) {
-			if (cp->InitValue(g))
-				return -1;
+    for (cp = Tqrp->GetColumns(); cp; cp = cp->GetNext()) {
+      if (cp->InitValue(g))
+        return -1;
 
-			if (!stricmp(cp->GetName(), Picol)) {
-				Xcolp = (PQRSCOL)cp;
-				Xresp = Xcolp->GetCrp();
-				Rblkp = Xresp->Kdata;
-			} else if (!stricmp(cp->GetName(), Fncol)) {
-				Fcolp = (PQRSCOL)cp;
-			} else
-				if ((colp = new(g) SRCCOL(cp, this, ++n))->Init(g, this))
-					return -1;
+      if (!stricmp(cp->GetName(), Picol)) {
+        Xcolp = (PQRSCOL)cp;
+        Xresp = Xcolp->GetCrp();
+        Rblkp = Xresp->Kdata;
+      } else if (!stricmp(cp->GetName(), Fncol)) {
+        Fcolp = (PQRSCOL)cp;
+      } else
+        if ((colp = new(g) SRCCOL(cp, this, ++n))->Init(g, this))
+          return -1;
 
-			} // endfor cp
+      } // endfor cp
 
-		if (!Xcolp) {
-			sprintf(g->Message, MSG(COL_ISNOT_TABLE), 
-							Picol, Tabname ? Tabname : "TabSrc");
-			return -1;
-		} else if (!Fcolp) {
-			sprintf(g->Message, MSG(COL_ISNOT_TABLE), 
-							Fncol, Tabname ? Tabname : "TabSrc");
-			return -1;
-		} // endif Fcolp
+    if (!Xcolp) {
+      sprintf(g->Message, MSG(COL_ISNOT_TABLE), 
+              Picol, Tabname ? Tabname : "TabSrc");
+      return -1;
+    } else if (!Fcolp) {
+      sprintf(g->Message, MSG(COL_ISNOT_TABLE), 
+              Fncol, Tabname ? Tabname : "TabSrc");
+      return -1;
+    } // endif Fcolp
 
     // Before calling sort, initialize all
     Index.Size = nblin * sizeof(int);
-    Index.Sub = TRUE;									 // Should be small enough
+    Index.Sub = TRUE;                   // Should be small enough
 
     if (!PlgDBalloc(g, NULL, Index))
       return -1;
 
     Offset.Size = (nblin + 1) * sizeof(int);
-    Offset.Sub = TRUE;								 // Should be small enough
+    Offset.Sub = TRUE;                 // Should be small enough
 
     if (!PlgDBalloc(g, NULL, Offset))
       return -2;
 
-		ndif = Qsort(g, nblin);
+    ndif = Qsort(g, nblin);
 
     if (ndif < 0) {           // error
-			return -3;
-		} else
-			Ncol = ndif;
+      return -3;
+    } else
+      Ncol = ndif;
 
-		// Now make the functional columns
-		for (int i = 0; i < Ncol; i++) {
-			// Allocate the Value used to retieve column names
-			if (!(valp = AllocateValue(g, Xcolp->GetResultType(),
-					Xcolp->GetLengthEx(),	Xcolp->GetPrecision(),
-					Xcolp->GetDomain(), Xcolp->GetTo_Tdb()->GetCat())))
-				return -4;
+    // Now make the functional columns
+    for (int i = 0; i < Ncol; i++) {
+      // Allocate the Value used to retieve column names
+      if (!(valp = AllocateValue(g, Xcolp->GetResultType(),
+          Xcolp->GetLengthEx(),  Xcolp->GetPrecision(),
+          Xcolp->GetDomain(), Xcolp->GetTo_Tdb()->GetCat())))
+        return -4;
 
-			// Get the value that will be the generated column name
-			valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+      // Get the value that will be the generated column name
+      valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
 
-			// Copy the functional column with new Name and new Value
-			cfnp = (PFNCCOL)new(g) FNCCOL(Fcolp, this);
+      // Copy the functional column with new Name and new Value
+      cfnp = (PFNCCOL)new(g) FNCCOL(Fcolp, this);
 
-			// Initialize the generated column
-			if (cfnp->InitColumn(g, valp))
-				return -5;
+      // Initialize the generated column
+      if (cfnp->InitColumn(g, valp))
+        return -5;
 
-			} // endfor i
+      } // endfor i
 
-		// Fields must be updated for ha_connect
-//	if (UpdateTableFields(g, n + Ncol))
-//		return -6;
+    // Fields must be updated for ha_connect
+//  if (UpdateTableFields(g, n + Ncol))
+//    return -6;
 
-		// This should be refined later
-		Mult = nblin;
-		} // endif Mult
+    // This should be refined later
+    Mult = nblin;
+    } // endif Mult
 
-	return Mult;
-	} // end of MakePivotColumns
+  return Mult;
+  } // end of MakePivotColumns
 
 #if 0
 /***********************************************************************/
@@ -368,19 +368,19 @@ int TDBPIVOT::MakePivotColumns(PGLOBAL g)
 /*  to the original table.                                             */
 /***********************************************************************/
 bool TDBPIVOT::UpdateTableFields(PGLOBAL g, int n)
-	{
-	uchar  *trec, *srec, *tptr, *sptr;
-	int     i = 0, k = 0;
-	uint    len;
-	uint32  nmp, lwm;
-	size_t  buffsize;
-	PCOL    colp;
-	PHC			hc = ((MYCAT*)((PIVOTDEF*)To_Def)->Cat)->GetHandler();
-	TABLE	 *table = hc->GetTable();
-	st_mem_root *tmr = &table->mem_root;
-	st_mem_root *smr = &table->s->mem_root;
+  {
+  uchar  *trec, *srec, *tptr, *sptr;
+  int     i = 0, k = 0;
+  uint    len;
+  uint32  nmp, lwm;
+  size_t  buffsize;
+  PCOL    colp;
+  PHC      hc = ((MYCAT*)((PIVOTDEF*)To_Def)->Cat)->GetHandler();
+  TABLE   *table = hc->GetTable();
+  st_mem_root *tmr = &table->mem_root;
+  st_mem_root *smr = &table->s->mem_root;
   Field* *field;
-	Field  *fp, *tfncp, *sfncp;
+  Field  *fp, *tfncp, *sfncp;
   Field* *ntf;
   Field* *nsf;
 //my_bitmap_map   *org_bitmap;
@@ -389,187 +389,187 @@ bool TDBPIVOT::UpdateTableFields(PGLOBAL g, int n)
   // When sorting read_set selects all columns, so we use def_read_set
   map= (const MY_BITMAP *)&table->def_read_set;
 
-	// Find the function field 
-	for (field= table->field; *field; field++) {
-		fp= *field;
+  // Find the function field 
+  for (field= table->field; *field; field++) {
+    fp= *field;
 
-	  if (bitmap_is_set(map, fp->field_index))
-			if (!stricmp(fp->field_name, Fncol)) {
-				tfncp = fp;
-				break;
-				} // endif Name
+    if (bitmap_is_set(map, fp->field_index))
+      if (!stricmp(fp->field_name, Fncol)) {
+        tfncp = fp;
+        break;
+        } // endif Name
 
-		} // endfor field
+    } // endfor field
 
-	for (field= table->s->field; *field; field++) {
-		fp= *field;
+  for (field= table->s->field; *field; field++) {
+    fp= *field;
 
-	  if (bitmap_is_set(map, fp->field_index))
-			if (!stricmp(fp->field_name, Fncol)) {
-				sfncp = fp;
-				break;
-				} // endif Name
+    if (bitmap_is_set(map, fp->field_index))
+      if (!stricmp(fp->field_name, Fncol)) {
+        sfncp = fp;
+        break;
+        } // endif Name
 
-		} // endfor field
+    } // endfor field
 
-	// Calculate the new buffer size
-	len = tfncp->max_data_length();
- 	buffsize = table->s->rec_buff_length + len * Ncol;
+  // Calculate the new buffer size
+  len = tfncp->max_data_length();
+   buffsize = table->s->rec_buff_length + len * Ncol;
 
-	// Allocate the new record space
-	if (!(tptr = trec = (uchar*)alloc_root(tmr, 2 * buffsize)))
+  // Allocate the new record space
+  if (!(tptr = trec = (uchar*)alloc_root(tmr, 2 * buffsize)))
     return TRUE;
 
-	if (!(sptr = srec = (uchar*)alloc_root(smr, 2 * buffsize)))
+  if (!(sptr = srec = (uchar*)alloc_root(smr, 2 * buffsize)))
     return TRUE;
 
 
-	// Allocate the array of all new table field pointers
-	if (!(ntf = (Field**)alloc_root(tmr, (uint)((n+1) * sizeof(Field*)))))
+  // Allocate the array of all new table field pointers
+  if (!(ntf = (Field**)alloc_root(tmr, (uint)((n+1) * sizeof(Field*)))))
     return TRUE;
 
-	// Allocate the array of all new table share field pointers
-	if (!(nsf = (Field**)alloc_root(smr, (uint)((n+1) * sizeof(Field*)))))
+  // Allocate the array of all new table share field pointers
+  if (!(nsf = (Field**)alloc_root(smr, (uint)((n+1) * sizeof(Field*)))))
     return TRUE;
 
-	// First fields are the the ones of the source columns
-	for (colp = Columns; colp; colp = colp->GetNext())
-		if (colp->GetAmType() == TYPE_AM_SRC) {
-			for (field= table->field; *field; field++) {
-				fp= *field;
+  // First fields are the the ones of the source columns
+  for (colp = Columns; colp; colp = colp->GetNext())
+    if (colp->GetAmType() == TYPE_AM_SRC) {
+      for (field= table->field; *field; field++) {
+        fp= *field;
 
-		    if (bitmap_is_set(map, fp->field_index))
-					if (!stricmp(colp->GetName(),	fp->field_name)) {
-						ntf[i] = fp;
-						fp->field_index =	i++;
-						fp->ptr = tptr;
-						tptr += fp->max_data_length();
-						break;
-						} // endif Name
+        if (bitmap_is_set(map, fp->field_index))
+          if (!stricmp(colp->GetName(),  fp->field_name)) {
+            ntf[i] = fp;
+            fp->field_index =  i++;
+            fp->ptr = tptr;
+            tptr += fp->max_data_length();
+            break;
+            } // endif Name
 
-				} // endfor field
+        } // endfor field
 
-			for (field= table->s->field; *field; field++) {
-				fp= *field;
+      for (field= table->s->field; *field; field++) {
+        fp= *field;
 
-		    if (bitmap_is_set(map, fp->field_index))
-					if (!stricmp(colp->GetName(),	fp->field_name)) {
-						nsf[k] = fp;
-						fp->field_index =	k++;
-						fp->ptr = srec;
-						srec += fp->max_data_length();
-						break;
-						} // endif Name
+        if (bitmap_is_set(map, fp->field_index))
+          if (!stricmp(colp->GetName(),  fp->field_name)) {
+            nsf[k] = fp;
+            fp->field_index =  k++;
+            fp->ptr = srec;
+            srec += fp->max_data_length();
+            break;
+            } // endif Name
 
-				} // endfor field
+        } // endfor field
 
-			} // endif  AmType
+      } // endif  AmType
 
-	// Now add the pivot generated columns
-	for (colp = Columns; colp; colp = colp->GetNext())
-		if (colp->GetAmType() == TYPE_AM_FNC) {
-			if ((fp = (Field*)memdup_root(tmr, (char*)tfncp, tfncp->size_of()))) {
-				ntf[i] = fp;
-				fp->ptr = tptr;
-				fp->field_name = colp->GetName();
-				fp->field_index = i++;
-				fp->vcol_info = NULL;
-				fp->stored_in_db = TRUE;
-				tptr += len;
-			} else
-	      return TRUE;
+  // Now add the pivot generated columns
+  for (colp = Columns; colp; colp = colp->GetNext())
+    if (colp->GetAmType() == TYPE_AM_FNC) {
+      if ((fp = (Field*)memdup_root(tmr, (char*)tfncp, tfncp->size_of()))) {
+        ntf[i] = fp;
+        fp->ptr = tptr;
+        fp->field_name = colp->GetName();
+        fp->field_index = i++;
+        fp->vcol_info = NULL;
+        fp->stored_in_db = TRUE;
+        tptr += len;
+      } else
+        return TRUE;
 
-			if ((fp = (Field*)memdup_root(smr, (char*)sfncp, sfncp->size_of()))) {
-				nsf[i] = fp;
-				fp->ptr = sptr;
-				fp->field_name = colp->GetName();
-				fp->field_index = k++;
-				fp->vcol_info = NULL;
-				fp->stored_in_db = TRUE;
-				sptr += len;
-			} else
-	      return TRUE;
+      if ((fp = (Field*)memdup_root(smr, (char*)sfncp, sfncp->size_of()))) {
+        nsf[i] = fp;
+        fp->ptr = sptr;
+        fp->field_name = colp->GetName();
+        fp->field_index = k++;
+        fp->vcol_info = NULL;
+        fp->stored_in_db = TRUE;
+        sptr += len;
+      } else
+        return TRUE;
 
-			} // endif AM_FNC
+      } // endif AM_FNC
 
-	// Mark end of the list
-	ntf[i] = NULL;
-	nsf[k] = NULL;
+  // Mark end of the list
+  ntf[i] = NULL;
+  nsf[k] = NULL;
 
-	// Update the table fields
-	nmp = (uint32)((1<<i) - 1);
-	lwm = (uint32)((-1)<<i);
-	table->field = ntf;
-	table->used_fields = i;
-	table->record[0] = trec;
-	table->record[1] = trec + buffsize;
-	*table->def_read_set.bitmap = nmp;
-	*table->def_read_set.last_word_ptr = nmp;
-	table->def_read_set.last_word_mask = lwm;
-	table->def_read_set.n_bits = i;
-	*table->read_set->bitmap = nmp;
-	*table->read_set->last_word_ptr = nmp;
-	table->read_set->last_word_mask = lwm;
-	table->read_set->n_bits = i;
-	table->write_set->n_bits = i;
-	*table->vcol_set->bitmap = 0;
-	table->vcol_set->n_bits = i;
+  // Update the table fields
+  nmp = (uint32)((1<<i) - 1);
+  lwm = (uint32)((-1)<<i);
+  table->field = ntf;
+  table->used_fields = i;
+  table->record[0] = trec;
+  table->record[1] = trec + buffsize;
+  *table->def_read_set.bitmap = nmp;
+  *table->def_read_set.last_word_ptr = nmp;
+  table->def_read_set.last_word_mask = lwm;
+  table->def_read_set.n_bits = i;
+  *table->read_set->bitmap = nmp;
+  *table->read_set->last_word_ptr = nmp;
+  table->read_set->last_word_mask = lwm;
+  table->read_set->n_bits = i;
+  table->write_set->n_bits = i;
+  *table->vcol_set->bitmap = 0;
+  table->vcol_set->n_bits = i;
 
-	// and the share fields
-	table->s->field = nsf;
-	table->s->reclength = sptr - srec;
-	table->s->stored_rec_length = sptr - srec;
-	table->s->fields = k;
-	table->s->stored_fields = k;
-	table->s->rec_buff_length = buffsize;
+  // and the share fields
+  table->s->field = nsf;
+  table->s->reclength = sptr - srec;
+  table->s->stored_rec_length = sptr - srec;
+  table->s->fields = k;
+  table->s->stored_fields = k;
+  table->s->rec_buff_length = buffsize;
 //table->s->varchar_fields = ???;
 //table->s->db_record_offset = ???;
 //table->s->null_field_first = ???;
-	return FALSE;
-	} // end of UpdateTableFields
+  return FALSE;
+  } // end of UpdateTableFields
 #endif // 0
 
 /***********************************************************************/
 /*  Allocate source column description block.                          */
 /***********************************************************************/
 PCOL TDBPIVOT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
-	{
-	PCOL colp = NULL;
+  {
+  PCOL colp = NULL;
 
 //if (stricmp(cdp->GetName(), Picol) && stricmp(cdp->GetName(), Fncol)) {
-		colp = new(g) COLBLK(cdp, this, n);
+    colp = new(g) COLBLK(cdp, this, n);
 
-//	if (((PSRCCOL)colp)->Init(g, this))
-//		return NULL;
+//  if (((PSRCCOL)colp)->Init(g, this))
+//    return NULL;
 
 //} else {
-//	sprintf(g->Message, MSG(NO_MORE_COL), cdp->GetName());
-//	return NULL;
+//  sprintf(g->Message, MSG(NO_MORE_COL), cdp->GetName());
+//  return NULL;
 //} // endif Name
 
-	if (cprec) {
-		colp->SetNext(cprec->GetNext());
-		cprec->SetNext(colp);
-	} else {
-		colp->SetNext(Columns);
-		Columns = colp;
-	} // endif cprec
+  if (cprec) {
+    colp->SetNext(cprec->GetNext());
+    cprec->SetNext(colp);
+  } else {
+    colp->SetNext(Columns);
+    Columns = colp;
+  } // endif cprec
 
-	return colp;
-	} // end of MakeCol
+  return colp;
+  } // end of MakeCol
 
 /***********************************************************************/
 /*  PIVOT GetMaxSize: returns the maximum number of rows in the table. */
 /***********************************************************************/
 int TDBPIVOT::GetMaxSize(PGLOBAL g)
-  {		 
-#if	0
+  {     
+#if  0
   if (MaxSize < 0)
-		MaxSize = MakePivotColumns(g);
+    MaxSize = MakePivotColumns(g);
 
   return MaxSize;
 #endif // 0
-	return 0;
+  return 0;
   } // end of GetMaxSize
 
 /***********************************************************************/
@@ -577,9 +577,9 @@ int TDBPIVOT::GetMaxSize(PGLOBAL g)
 /*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPIVOT::RowNumber(PGLOBAL g, bool b)
-	{
-	return (b) ? M : N;
-	} // end of RowNumber
+  {
+  return (b) ? M : N;
+  } // end of RowNumber
  
 /***********************************************************************/
 /*  PIVOT Access Method opening routine.                               */
@@ -592,9 +592,9 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-		N = M = 0;
-		RowFlag = 0;
-		FileStatus = 0;
+    N = M = 0;
+    RowFlag = 0;
+    FileStatus = 0;
     return FALSE;
     } // endif use
 
@@ -602,7 +602,7 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
   /*  Do it here if not done yet (should not be the case).             */
   /*********************************************************************/
 //if (MakePivotColumns(g) < 0)
-	if (!(Qryp = GetSourceTable(g)))
+  if (!(Qryp = GetSourceTable(g)))
     return TRUE;
 
   if (Mode != MODE_READ) {
@@ -621,7 +621,7 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
     return TRUE;
     } // endif To_Key_Col
 
-	return FALSE;
+  return FALSE;
   } // end of OpenDB
 
 /***********************************************************************/
@@ -629,83 +629,83 @@ bool TDBPIVOT::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPIVOT::ReadDB(PGLOBAL g)
   {
-	int  rc = RC_OK;
-	bool newrow = FALSE;
-	PCOL colp;
-	PVAL vp1, vp2;
+  int  rc = RC_OK;
+  bool newrow = FALSE;
+  PCOL colp;
+  PVAL vp1, vp2;
 
-	if (FileStatus == 2)
-		return RC_EF;
+  if (FileStatus == 2)
+    return RC_EF;
 
-	if (FileStatus)
-		for (colp = Columns; colp; colp = colp->GetNext())
-			if (colp->GetAmType() == TYPE_AM_SRC)
-				((PSRCCOL)colp)->SetColumn();
+  if (FileStatus)
+    for (colp = Columns; colp; colp = colp->GetNext())
+      if (colp->GetAmType() == TYPE_AM_SRC)
+        ((PSRCCOL)colp)->SetColumn();
 
-	// New row, reset all function column values
-	for (colp = Columns; colp; colp = colp->GetNext())
-		if (colp->GetAmType() == TYPE_AM_FNC)
-			colp->GetValue()->Reset();
+  // New row, reset all function column values
+  for (colp = Columns; colp; colp = colp->GetNext())
+    if (colp->GetAmType() == TYPE_AM_FNC)
+      colp->GetValue()->Reset();
 
   /*********************************************************************/
   /*  Now start the multi reading process.                             */
   /*********************************************************************/
-	do {
-		if (RowFlag != 1) {
-			if ((rc = Tqrp->ReadDB(g)) != RC_OK) {
-				if (FileStatus && rc == RC_EF) {
-					// A prepared row remains to be sent
-					FileStatus = 2;
-					rc = RC_OK;
-					} // endif FileStatus
+  do {
+    if (RowFlag != 1) {
+      if ((rc = Tqrp->ReadDB(g)) != RC_OK) {
+        if (FileStatus && rc == RC_EF) {
+          // A prepared row remains to be sent
+          FileStatus = 2;
+          rc = RC_OK;
+          } // endif FileStatus
 
-				break;
-				} // endif rc
+        break;
+        } // endif rc
 
-			for (colp = Tqrp->GetColumns(); colp; colp = colp->GetNext())
-				colp->ReadColumn(g);
+      for (colp = Tqrp->GetColumns(); colp; colp = colp->GetNext())
+        colp->ReadColumn(g);
 
-			for (colp = Columns; colp; colp = colp->GetNext())
-				if (colp->GetAmType() == TYPE_AM_SRC)
-					if (FileStatus) {
-						if (((PSRCCOL)colp)->CompareColumn())
-							newrow = (RowFlag) ? TRUE : FALSE;
+      for (colp = Columns; colp; colp = colp->GetNext())
+        if (colp->GetAmType() == TYPE_AM_SRC)
+          if (FileStatus) {
+            if (((PSRCCOL)colp)->CompareColumn())
+              newrow = (RowFlag) ? TRUE : FALSE;
 
-					} else
-						((PSRCCOL)colp)->SetColumn();
+          } else
+            ((PSRCCOL)colp)->SetColumn();
 
-			FileStatus = 1;
-			} // endif RowFlag
+      FileStatus = 1;
+      } // endif RowFlag
 
-		if (newrow) {
-			RowFlag = 1;
-			break;
-		} else
-			RowFlag = 2;
+    if (newrow) {
+      RowFlag = 1;
+      break;
+    } else
+      RowFlag = 2;
 
-		vp1 = Xcolp->GetValue();
+    vp1 = Xcolp->GetValue();
 
-		// Look for the column having this header
-		for (colp = Columns; colp; colp = colp->GetNext())
-			if (colp->GetAmType() == TYPE_AM_FNC) {
-				vp2 = ((PFNCCOL)colp)->Hval;
+    // Look for the column having this header
+    for (colp = Columns; colp; colp = colp->GetNext())
+      if (colp->GetAmType() == TYPE_AM_FNC) {
+        vp2 = ((PFNCCOL)colp)->Hval;
 
-				if (!vp1->CompareValue(vp2))
-					break;
+        if (!vp1->CompareValue(vp2))
+          break;
 
-				} // endif AmType
+        } // endif AmType
 
-		if (!colp) {
-			strcpy(g->Message, MSG(NO_MATCH_COL));
-			return RC_FX;
-			} // endif colp
+    if (!colp) {
+      strcpy(g->Message, MSG(NO_MATCH_COL));
+      return RC_FX;
+      } // endif colp
 
-		// Set the value of the matching column from the fonction value
-		colp->GetValue()->SetValue_pval(Fcolp->GetValue());
-		} while (RowFlag == 2);
+    // Set the value of the matching column from the fonction value
+    colp->GetValue()->SetValue_pval(Fcolp->GetValue());
+    } while (RowFlag == 2);
 
-	N++;
-	return rc;
+  N++;
+  return rc;
   } // end of ReadDB
 
 /***********************************************************************/
@@ -740,7 +740,7 @@ void TDBPIVOT::CloseDB(PGLOBAL g)
 int TDBPIVOT::Qcompare(int *i1, int *i2)
   {
   // TODO: the actual comparison between pivot column result values.
-	return Rblkp->CompVal(*i1, *i2);
+  return Rblkp->CompVal(*i1, *i2);
   } // end of Qcompare
 
 // ------------------------ FNCCOL functions ----------------------------
@@ -749,10 +749,10 @@ int TDBPIVOT::Qcompare(int *i1, int *i2)
 /*  FNCCOL public constructor.                                       */
 /***********************************************************************/
 FNCCOL::FNCCOL(PCOL col1, PTDBPIVOT tdbp)
-			: COLBLK(col1, tdbp)
+      : COLBLK(col1, tdbp)
   {
-	Value = NULL;		 // We'll get a new one later
-	Hval = NULL;		 // The unconverted header value
+  Value = NULL;     // We'll get a new one later
+  Hval = NULL;     // The unconverted header value
   } // end of FNCCOL constructor
 
 /***********************************************************************/
@@ -760,28 +760,28 @@ FNCCOL::FNCCOL(PCOL col1, PTDBPIVOT tdbp)
 /***********************************************************************/
 bool FNCCOL::InitColumn(PGLOBAL g, PVAL valp)
 {
-	char *p, buf[128];
-	int   len;
+  char *p, buf[128];
+  int   len;
 
-	// Must have its own value block
-	if (InitValue(g))
-		return TRUE;
+  // Must have its own value block
+  if (InitValue(g))
+    return TRUE;
 
-	// Convert header value to a null terminated character string
-	Hval = valp;
-	p = Hval->GetCharString(buf);
-	len = strlen(p) + 1;
+  // Convert header value to a null terminated character string
+  Hval = valp;
+  p = Hval->GetCharString(buf);
+  len = strlen(p) + 1;
 
-	if (len > (signed)sizeof(buf)) {
-		strcpy(g->Message, MSG(COLNAM_TOO_LONG));
-		return TRUE;
-		} // endif buf
+  if (len > (signed)sizeof(buf)) {
+    strcpy(g->Message, MSG(COLNAM_TOO_LONG));
+    return TRUE;
+    } // endif buf
 
-	// Set the name of the functional pivot column
-	Name = (PSZ)PlugSubAlloc(g, NULL, len);
-	strcpy(Name, p);
-	AddStatus(BUF_READ);			// All is done here
-	return FALSE;
+  // Set the name of the functional pivot column
+  Name = (PSZ)PlugSubAlloc(g, NULL, len);
+  strcpy(Name, p);
+  AddStatus(BUF_READ);      // All is done here
+  return FALSE;
 } // end of InitColumn
 
 // ------------------------ SRCCOL functions ----------------------------
@@ -791,11 +791,11 @@ bool FNCCOL::InitColumn(PGLOBAL g, PVAL valp)
 /*  SRCCOL public constructor.                                         */
 /***********************************************************************/
 SRCCOL::SRCCOL(PCOLDEF cdp, PTDBPIVOT tdbp, int n)
-			: COLBLK(cdp, tdbp, n)
+      : COLBLK(cdp, tdbp, n)
   {
   // Set additional SRC access method information for column.
-	Colp = NULL;
-	Cnval = NULL;
+  Colp = NULL;
+  Cnval = NULL;
   } // end of SRCCOL constructor
 #endif // 0
 
@@ -803,15 +803,15 @@ SRCCOL::SRCCOL(PCOLDEF cdp, PTDBPIVOT tdbp, int n)
 /*  SRCCOL public constructor.                                         */
 /***********************************************************************/
 SRCCOL::SRCCOL(PCOL cp, PTDBPIVOT tdbp, int n)
-			: COLBLK(cp, tdbp)
+      : COLBLK(cp, tdbp)
   {
-	Index = n;
+  Index = n;
 
   // Set additional SRC access method information for column.
-	Colp = (PQRSCOL)cp;
+  Colp = (PQRSCOL)cp;
 
-	// Don't share Value with the source column	so we can compare
-	Cnval = Value = NULL;
+  // Don't share Value with the source column  so we can compare
+  Cnval = Value = NULL;
   } // end of SRCCOL constructor
 
 #if 0
@@ -821,7 +821,7 @@ SRCCOL::SRCCOL(PCOL cp, PTDBPIVOT tdbp, int n)
 /***********************************************************************/
 SRCCOL::SRCCOL(SRCCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   {
-	Colp = col1->Colp;
+  Colp = col1->Colp;
   } // end of SRCCOL copy constructor
 #endif // 0
 
@@ -830,59 +830,59 @@ SRCCOL::SRCCOL(SRCCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
 /***********************************************************************/
 bool SRCCOL::Init(PGLOBAL g, PTDBPIVOT tdbp)
   {
-	// Currently we ignore the type of the create table column
-	bool conv = FALSE;
+  // Currently we ignore the type of the create table column
+  bool conv = FALSE;
 
 #if 0
-	if (!Colp) {
-		// Column was defined in the Create Table statement
-		if (!(Colp = tdbp->ColDB(g, Name, 0)))
-			return TRUE;
+  if (!Colp) {
+    // Column was defined in the Create Table statement
+    if (!(Colp = tdbp->ColDB(g, Name, 0)))
+      return TRUE;
 
-		// We can have a conversion problem converting from numeric to
-		// character because GetCharValue does not exist for numeric types.
-		conv = (IsTypeChar(Buf_Type) && IsTypeNum(Colp->GetResultType()));
-	} else
+    // We can have a conversion problem converting from numeric to
+    // character because GetCharValue does not exist for numeric types.
+    conv = (IsTypeChar(Buf_Type) && IsTypeNum(Colp->GetResultType()));
+  } else
 #endif // 0
-		conv = FALSE;
+    conv = FALSE;
 
-	if (InitValue(g))
-		return TRUE;
+  if (InitValue(g))
+    return TRUE;
 
 //if (conv)
-//	Cnval = AllocateValue(g, Colp->GetValue());
+//  Cnval = AllocateValue(g, Colp->GetValue());
 //else
-		Cnval = Value;
+    Cnval = Value;
 
-	AddStatus(BUF_READ);		 // All is done here
-	return FALSE;
+  AddStatus(BUF_READ);     // All is done here
+  return FALSE;
   } // end of SRCCOL constructor
 
 /***********************************************************************/
 /*  SetColumn: have the column value set from the source column.       */
 /***********************************************************************/
 void SRCCOL::SetColumn(void)
-	{
+  {
 #if defined(_DEBUG)
-	Cnval->SetValue_pval(Colp->GetValue(), TRUE);
+  Cnval->SetValue_pval(Colp->GetValue(), TRUE);
 #else
-	Cnval->SetValue_pval(Colp->GetValue());
+  Cnval->SetValue_pval(Colp->GetValue());
 #endif   // _DEBUG
 
-	if (Value != Cnval)
-		// Convert value
-		Value->SetValue_pval(Cnval);
+  if (Value != Cnval)
+    // Convert value
+    Value->SetValue_pval(Cnval);
 
-	} // end of SetColumn
+  } // end of SetColumn
 
 /***********************************************************************/
 /*  SetColumn: Compare column value with source column value.          */
 /***********************************************************************/
 bool SRCCOL::CompareColumn(void)
-	{
-	// Compare the unconverted values
-	return Cnval->CompareValue(Colp->GetValue());
-	} // end of CompareColumn
+  {
+  // Compare the unconverted values
+  return Cnval->CompareValue(Colp->GetValue());
+  } // end of CompareColumn
 
 
 /* ------------------------------------------------------------------- */
@@ -913,24 +913,24 @@ PTDB TDBQRS::CopyOne(PTABS t)
   return tp;
   } // end of CopyOne
 
-#if 0		// The TDBASE functions return NULL when To_Def is NULL
+#if 0    // The TDBASE functions return NULL when To_Def is NULL
 /***********************************************************************/
 /*  Return the pointer on the DB catalog this table belongs to.        */
 /***********************************************************************/
 PCATLG TDBQRS::GetCat(void)
-	{
-	// To_Def is null for QRYRES tables
-	return NULL;
-	}	// end of GetCat
+  {
+  // To_Def is null for QRYRES tables
+  return NULL;
+  }  // end of GetCat
 
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
 PSZ TDBQRS::GetPath(void)
-	{
-	// To_Def is null for QRYRES tables
-	return NULL;
-	}	// end of GetPath
+  {
+  // To_Def is null for QRYRES tables
+  return NULL;
+  }  // end of GetPath
 #endif // 0
 
 /***********************************************************************/
@@ -942,12 +942,12 @@ PSZ TDBQRS::GetPath(void)
 PCOL TDBQRS::ColDB(PGLOBAL g, PSZ name, int num)
   {
   int     i;
-	PCOLRES crp;
+  PCOLRES crp;
   PCOL    cp, colp = NULL, cprec = NULL;
 
-	if (trace)
-		htrc("QRS ColDB: colname=%s tabname=%s num=%d\n",
-										SVP(name), Name, num);
+  if (trace)
+    htrc("QRS ColDB: colname=%s tabname=%s num=%d\n",
+                    SVP(name), Name, num);
 
   for (crp = Qrp->Colresp, i = 1; crp; crp = crp->Next, i++)
     if ((!name && !num) ||
@@ -960,12 +960,12 @@ PCOL TDBQRS::ColDB(PGLOBAL g, PSZ name, int num)
         else if (cp->GetIndex() == i)
           break;
 
-			if (trace) {
-				if (cp)
-					htrc("cp(%d).Name=%s cp=%p\n", i, cp->GetName(), cp);
-				else
-					htrc("cp(%d) cp=%p\n", i, cp);
-				} // endif trace
+      if (trace) {
+        if (cp)
+          htrc("cp(%d).Name=%s cp=%p\n", i, cp->GetName(), cp);
+        else
+          htrc("cp(%d) cp=%p\n", i, cp);
+        } // endif trace
 
       // Now take care of Column Description Block
       if (cp)
@@ -1008,9 +1008,9 @@ int TDBQRS::RowNumber(PGLOBAL g, BOOL b)
 /***********************************************************************/
 bool TDBQRS::OpenDB(PGLOBAL g)
   {
-	if (trace)
-		htrc("QRS OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
-											this, Tdb_No, Use, To_Key_Col, Mode);
+  if (trace)
+    htrc("QRS OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
+                      this, Tdb_No, Use, To_Key_Col, Mode);
 
   if (Mode != MODE_READ) {
     sprintf(g->Message, MSG(BAD_QUERY_OPEN), Mode);
@@ -1037,7 +1037,7 @@ bool TDBQRS::OpenDB(PGLOBAL g)
   /*********************************************************************/
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
-	return FALSE;
+  return FALSE;
   } // end of OpenDB
 
 /***********************************************************************/
@@ -1055,9 +1055,9 @@ int TDBQRS::ReadDB(PGLOBAL g)
   {
   int rc = RC_OK;
 
-	if (trace)
-		htrc("QRS ReadDB: R%d CurPos=%d key=%p link=%p Kindex=%p\n",
-							GetTdb_No(), CurPos, To_Key_Col, To_Link, To_Kindex);
+  if (trace)
+    htrc("QRS ReadDB: R%d CurPos=%d key=%p link=%p Kindex=%p\n",
+              GetTdb_No(), CurPos, To_Key_Col, To_Link, To_Kindex);
 
   if (To_Kindex) {
     /*******************************************************************/
@@ -1071,7 +1071,7 @@ int TDBQRS::ReadDB(PGLOBAL g)
         break;
       case -2:           // No match for join
         rc = RC_NF;
-				break;
+        break;
       case -3:           // Same record as last non null one
         rc = RC_OK;
         break;
@@ -1082,8 +1082,8 @@ int TDBQRS::ReadDB(PGLOBAL g)
         CurPos = recpos;
       } // endswitch recpos
 
-		if (trace)
-			htrc("Position is now %d\n", CurPos);
+    if (trace)
+      htrc("Position is now %d\n", CurPos);
 
   } else
     /*******************************************************************/
@@ -1122,8 +1122,8 @@ void TDBQRS::CloseDB(PGLOBAL g)
     To_Kindex = NULL;
     } // endif
 
-	if (trace)
-		htrc("Qryres CloseDB");
+  if (trace)
+    htrc("Qryres CloseDB");
 
 //Qryp->Sqlp->CloseDB();
   } // end of CloseDB
@@ -1146,18 +1146,18 @@ QRSCOL::QRSCOL(PGLOBAL g, PCOLRES crp, PTDB tdbp, PCOL cprec, int i)
 
   // Set additional QRS access method information for column.
   Crp = crp;
-	Name = Crp->Name;
+  Name = Crp->Name;
   Long = Crp->Clen;
   Buf_Type = crp->Type;
-	strcpy(Format.Type, GetFormatType(Buf_Type));
-	Format.Length = (SHORT)Long;
-	Format.Prec = (SHORT)Crp->Prec;
+  strcpy(Format.Type, GetFormatType(Buf_Type));
+  Format.Length = (SHORT)Long;
+  Format.Prec = (SHORT)Crp->Prec;
 
-	if (trace) {
-		htrc("Making new QRSCOL C%d %s at %p\n", Index, Name, this);
-		htrc(" BufType=%d Long=%d length=%d clen=%d\n",
-					Buf_Type, Long, Format.Length, Crp->Clen);
-		} // endif trace
+  if (trace) {
+    htrc("Making new QRSCOL C%d %s at %p\n", Index, Name, this);
+    htrc(" BufType=%d Long=%d length=%d clen=%d\n",
+          Buf_Type, Long, Format.Length, Crp->Clen);
+    } // endif trace
 
   } // end of QRSCOL constructor
 
@@ -1178,14 +1178,14 @@ void QRSCOL::ReadColumn(PGLOBAL g)
   {
   PTDBQRS tdbp = (PTDBQRS)To_Tdb;
 
-	if (trace)
-		htrc("QRS RC: col %s R%d type=%d CurPos=%d Len=%d\n",
-					Name, tdbp->GetTdb_No(), Buf_Type, tdbp->CurPos, Crp->Clen);
+  if (trace)
+    htrc("QRS RC: col %s R%d type=%d CurPos=%d Len=%d\n",
+          Name, tdbp->GetTdb_No(), Buf_Type, tdbp->CurPos, Crp->Clen);
 
-	if (Crp->Kdata)
-		Value->SetValue_pvblk(Crp->Kdata, tdbp->CurPos);
-	else
-		Value->Reset();
+  if (Crp->Kdata)
+    Value->SetValue_pvblk(Crp->Kdata, tdbp->CurPos);
+  else
+    Value->Reset();
 
   } // end of ReadColumn
 
@@ -1196,7 +1196,7 @@ void QRSCOL::Print(PGLOBAL g, FILE *f, UINT n)
   {
   COLBLK::Print(g, f, n);
 
-	fprintf(f, " Crp=%p\n", Crp);
+  fprintf(f, " Crp=%p\n", Crp);
   } // end of Print
 
 /* --------------------- End of TabPivot/TabQrs ---------------------- */

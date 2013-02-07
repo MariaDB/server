@@ -23,14 +23,14 @@
 /*  Returns the file handle that can be used by caller.                */
 /***********************************************************************/
 HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
-										 MEMMAP *mm, MODE mode, bool del)
-	{
+                     MEMMAP *mm, MODE mode, bool del)
+  {
   HANDLE hFile;
   HANDLE hFileMap;
   DWORD  access, share, disposition;
 
   memset(mm, 0, sizeof(MEMMAP));
-	*g->Message = '\0';
+  *g->Message = '\0';
 
   switch (mode) {
     case MODE_READ:
@@ -40,8 +40,8 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
       break;
     case MODE_UPDATE:
     case MODE_DELETE:
-	    access = GENERIC_READ | GENERIC_WRITE;
-	    share = 0;
+      access = GENERIC_READ | GENERIC_WRITE;
+      share = 0;
       disposition = (del) ? TRUNCATE_EXISTING : OPEN_EXISTING;
       break;
     case MODE_INSERT:
@@ -49,56 +49,56 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
       share = 0;
       disposition = OPEN_ALWAYS;
       break;
-		default:
-			sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
-			return INVALID_HANDLE_VALUE;
+    default:
+      sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
+      return INVALID_HANDLE_VALUE;
     } // endswitch
 
-  hFile = CreateFile(filename, access, share, NULL,	disposition,
-										 FILE_ATTRIBUTE_NORMAL, NULL);
+  hFile = CreateFile(filename, access, share, NULL,  disposition,
+                     FILE_ATTRIBUTE_NORMAL, NULL);
   
   if (hFile != INVALID_HANDLE_VALUE)
-		if (mode != MODE_INSERT) {
+    if (mode != MODE_INSERT) {
       /*****************************************************************/
       /*  Create the file-mapping object.                              */
       /*****************************************************************/
       access = (mode == MODE_READ) ? PAGE_READONLY : PAGE_READWRITE;
-	    hFileMap = CreateFileMapping(hFile, NULL,	access, 0, 0, NULL);
-		  
+      hFileMap = CreateFileMapping(hFile, NULL,  access, 0, 0, NULL);
+      
       if (!hFileMap) {
-				DWORD ler = GetLastError();
-		  
-				if (ler && ler != 1006) {
-					sprintf(g->Message, MSG(FILE_MAP_ERROR), filename, ler);
-		      CloseHandle(hFile);
-				  return INVALID_HANDLE_VALUE;
-				} else {
-					sprintf(g->Message, MSG(FILE_IS_EMPTY), filename);
-				  return hFile;
-				} // endif ler
-		  
+        DWORD ler = GetLastError();
+      
+        if (ler && ler != 1006) {
+          sprintf(g->Message, MSG(FILE_MAP_ERROR), filename, ler);
+          CloseHandle(hFile);
+          return INVALID_HANDLE_VALUE;
+        } else {
+          sprintf(g->Message, MSG(FILE_IS_EMPTY), filename);
+          return hFile;
+        } // endif ler
+      
         } // endif hFileMap
-		  
+      
       access = (mode == MODE_READ) ? FILE_MAP_READ : FILE_MAP_WRITE;
       mm->memory = MapViewOfFile(hFileMap, access, 0, 0, 0);
-			// lenH is the high-order word of the file size
-			mm->lenL = GetFileSize(hFile, &mm->lenH);
+      // lenH is the high-order word of the file size
+      mm->lenL = GetFileSize(hFile, &mm->lenH);
       CloseHandle(hFileMap);                    // Not used anymore
-		}	else // MODE_INSERT
-	    /*****************************************************************/
-	    /*  The starting point must be the end of file as for append.    */
-			/*****************************************************************/
-	    SetFilePointer(hFile, 0, NULL, FILE_END);
+    }  else // MODE_INSERT
+      /*****************************************************************/
+      /*  The starting point must be the end of file as for append.    */
+      /*****************************************************************/
+      SetFilePointer(hFile, 0, NULL, FILE_END);
 
-  return hFile;	
-	}	// end of CreateFileMap
+  return hFile;  
+  }  // end of CreateFileMap
 
 bool CloseMemMap(LPVOID memory, size_t dwSize) 
-	{
-	return (memory) ? !UnmapViewOfFile(memory) : false;
-	} // end of CloseMemMap
+  {
+  return (memory) ? !UnmapViewOfFile(memory) : false;
+  } // end of CloseMemMap
 
-#else	/* UNIX */
+#else  /* UNIX */
 // Code to handle Linux and Solaris
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -114,59 +114,59 @@ bool CloseMemMap(LPVOID memory, size_t dwSize)
 /*  Returns the file handle that can be used by caller.                */
 /***********************************************************************/
 HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName, 
-										     MEMMAP *mm, MODE mode, bool del) 
-	{
-	unsigned int openMode;
-	HANDLE       fd;
-	size_t       filesize;
+                         MEMMAP *mm, MODE mode, bool del) 
+  {
+  unsigned int openMode;
+  HANDLE       fd;
+  size_t       filesize;
   struct stat  st; 
 
   memset(mm, 0, sizeof(MEMMAP));
-	*g->Message = '\0';
+  *g->Message = '\0';
 
   switch (mode) {
     case MODE_READ:
-			openMode = O_RDONLY;
+      openMode = O_RDONLY;
       break;
     case MODE_UPDATE:
     case MODE_DELETE:
-			openMode = (del) ? (O_RDWR | O_TRUNC) : O_RDWR;
+      openMode = (del) ? (O_RDWR | O_TRUNC) : O_RDWR;
       break;
     case MODE_INSERT:
-			openMode = (O_WRONLY | O_CREAT | O_APPEND);
+      openMode = (O_WRONLY | O_CREAT | O_APPEND);
       break;
- 		default:
-			sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
-			return INVALID_HANDLE_VALUE;
+     default:
+      sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
+      return INVALID_HANDLE_VALUE;
    } // endswitch
 
   // Try to open the addressed file.
    fd= global_open(g, MSGID_NONE, fileName, openMode);
 
-	if (fd != INVALID_HANDLE_VALUE && mode != MODE_INSERT) {
+  if (fd != INVALID_HANDLE_VALUE && mode != MODE_INSERT) {
     /* We must know about the size of the file. */
-		if (fstat(fd, &st)) {
-			sprintf(g->Message, MSG(FILE_MAP_ERROR), fileName, errno);
-			close(fd);
-			return INVALID_HANDLE_VALUE;
-			}	// endif fstat
-	  
-		filesize = st.st_size;
-		
+    if (fstat(fd, &st)) {
+      sprintf(g->Message, MSG(FILE_MAP_ERROR), fileName, errno);
+      close(fd);
+      return INVALID_HANDLE_VALUE;
+      }  // endif fstat
+    
+    filesize = st.st_size;
+    
     // Now we are ready to load the file.  If mmap() is available we try
     //   this first.  If not available or it failed we try to load it.
-		mm->memory = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
-		mm->lenL = (mm->memory != 0) ? filesize : 0;
-		mm->lenH = 0;
-		}	/* endif fd */
-	
+    mm->memory = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
+    mm->lenL = (mm->memory != 0) ? filesize : 0;
+    mm->lenH = 0;
+    }  /* endif fd */
+  
   // mmap() call was successful. ??????????
- 	return fd;
-	}	// end of CreateFileMap
+   return fd;
+  }  // end of CreateFileMap
 
 bool CloseMemMap(void *memory, size_t dwSize) 
-	{
-	return (memory) ? ((munmap(memory, dwSize)) ? true : false) : false;
-	}	// end of CloseMemMap
+  {
+  return (memory) ? ((munmap(memory, dwSize)) ? true : false) : false;
+  }  // end of CloseMemMap
 
 #endif   // UNIX

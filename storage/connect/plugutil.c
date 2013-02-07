@@ -80,7 +80,7 @@
 #include "global.h"
 
 #if defined(WIN32)
-extern HINSTANCE s_hModule;									 /* Saved module handle    */
+extern HINSTANCE s_hModule;                   /* Saved module handle    */
 #endif   // WIN32
 
 extern char plgini[];
@@ -103,8 +103,8 @@ ACTIVITY defActivity = {            /* Describes activity and language */
  "Unknown"};                        /* Application name                */
 
 #if defined(XMSG) || defined(NEWMSG)
-	static char stmsg[200];
-#endif   // XMSG	||				 NEWMSG
+  static char stmsg[200];
+#endif   // XMSG  ||         NEWMSG
 
 #if defined(UNIX) || defined(UNIV_LINUX)
 int GetRcString(int id, char *buf, int bufsize);
@@ -115,21 +115,21 @@ int GetRcString(int id, char *buf, int bufsize);
 /**************************************************************************/
 void htrc(char const *fmt, ...)
   {
-	va_list ap;
-	va_start (ap, fmt);
+  va_list ap;
+  va_start (ap, fmt);
 
 //if (trace == 0 || (trace == 1 && !debug) || !fmt) {
-//	printf("In %s wrong trace=%d debug=%p fmt=%p\n",
-//		__FILE__, trace, debug, fmt);
-//	trace = 0;
-//	} // endif trace
+//  printf("In %s wrong trace=%d debug=%p fmt=%p\n",
+//    __FILE__, trace, debug, fmt);
+//  trace = 0;
+//  } // endif trace
 
 //if (trace == 1)
-//	vfprintf(debug, fmt, ap);
+//  vfprintf(debug, fmt, ap);
 //else
-		vfprintf(stderr, fmt, ap);
+    vfprintf(stderr, fmt, ap);
 
-	va_end (ap);
+  va_end (ap);
   } // end of htrc
 
 /***********************************************************************/
@@ -141,9 +141,9 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
   {
   PGLOBAL g;
 
-	if (trace > 1)
-		htrc("PlugInit: Language='%s'\n", 
-				  ((!Language) ? "Null" : (char*)Language));
+  if (trace > 1)
+    htrc("PlugInit: Language='%s'\n", 
+          ((!Language) ? "Null" : (char*)Language));
 
   if (!(g = malloc(sizeof(GLOBAL)))) {
     fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
@@ -160,7 +160,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
       char errmsg[256];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
-			} /* endif Sarea */
+      } /* endif Sarea */
 
     } /* endif g */
 
@@ -203,16 +203,16 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
 
   _splitpath(FileName, drive, direc, fname, ftype);
 
-	if (trace > 1) {
-		htrc("after _splitpath: FileName=%s\n", FileName);
-		htrc("drive=%s dir=%s fname=%s ext=%s\n",
-				  SVP(drive), direc, fname, ftype);
-		} // endif trace
+  if (trace > 1) {
+    htrc("after _splitpath: FileName=%s\n", FileName);
+    htrc("drive=%s dir=%s fname=%s ext=%s\n",
+          SVP(drive), direc, fname, ftype);
+    } // endif trace
 
   _makepath(pBuff, drive, direc, fname, "");
 
-	if (trace > 1)
-		htrc("buff='%s'\n", pBuff);
+  if (trace > 1)
+    htrc("buff='%s'\n", pBuff);
 
   return pBuff;
   } // end of PlugRemoveType
@@ -233,23 +233,23 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR FileName, LPCSTR defpath)
   char *drive = NULL, *defdrv = NULL;
 #endif
 
-	if (!strncmp(FileName, "//", 2) || !strncmp(FileName, "\\\\", 2)) {
-		strcpy(pBuff, FileName);			 // Remote file
-		return pBuff;
-		} // endif
+  if (!strncmp(FileName, "//", 2) || !strncmp(FileName, "\\\\", 2)) {
+    strcpy(pBuff, FileName);       // Remote file
+    return pBuff;
+    } // endif
 
   _splitpath(FileName, drive, direc, fname, ftype);
   _splitpath(defpath, defdrv, defdir, NULL, NULL);
 
-	if (trace > 1) {
-		htrc("after _splitpath: FileName=%s\n", FileName);
+  if (trace > 1) {
+    htrc("after _splitpath: FileName=%s\n", FileName);
 #if defined(UNIX) || defined(UNIV_LINUX)
-		htrc("dir=%s fname=%s ext=%s\n", direc, fname, ftype);
+    htrc("dir=%s fname=%s ext=%s\n", direc, fname, ftype);
 #else
-		htrc("drive=%s dir=%s fname=%s ext=%s\n", drive, direc, fname, ftype);
-		htrc("defdrv=%s defdir=%s\n", defdrv, defdir);
+    htrc("drive=%s dir=%s fname=%s ext=%s\n", drive, direc, fname, ftype);
+    htrc("defdrv=%s defdir=%s\n", defdrv, defdir);
 #endif
-		} // endif trace
+    } // endif trace
 
   if (drive && !*drive)
     strcpy(drive, defdrv);
@@ -259,21 +259,21 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR FileName, LPCSTR defpath)
       strcpy(direc, defdir);
       break;
     case '\\':
-		case '/':
+    case '/':
       break;
     default:
-			// This supposes that defdir ends with a SLASH 
-			strcpy(direc, strcat(defdir, direc));
+      // This supposes that defdir ends with a SLASH 
+      strcpy(direc, strcat(defdir, direc));
     } // endswitch
 
   _makepath(newname, drive, direc, fname, ftype);
 
-	if (trace > 1)
-		htrc("newname='%s'\n", newname);
+  if (trace > 1)
+    htrc("newname='%s'\n", newname);
 
   if (_fullpath(pBuff, newname, _MAX_PATH)) {
-		if (trace > 1)
-			htrc("pbuff='%s'\n", pBuff);
+    if (trace > 1)
+      htrc("pbuff='%s'\n", pBuff);
 
     return pBuff;
   } else
@@ -287,52 +287,52 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR FileName, LPCSTR defpath)
 /***********************************************************************/
 char *PlugReadMessage(PGLOBAL g, int mid, char *m) 
   {
-	char  msgfile[_MAX_PATH], msgid[32], buff[256];
-	char *msg;
-	FILE *mfile = NULL;
+  char  msgfile[_MAX_PATH], msgid[32], buff[256];
+  char *msg;
+  FILE *mfile = NULL;
 
-	GetPrivateProfileString("Message", msglang, "Message\\english.msg", 
-																		 msgfile, _MAX_PATH, plgini);
+  GetPrivateProfileString("Message", msglang, "Message\\english.msg", 
+                                     msgfile, _MAX_PATH, plgini);
 
-	if (!(mfile = fopen(msgfile, "rt"))) {
-		sprintf(stmsg, "Fail to open message file %s for %s", msgfile, msglang);
-		goto err;
-		} // endif mfile
+  if (!(mfile = fopen(msgfile, "rt"))) {
+    sprintf(stmsg, "Fail to open message file %s for %s", msgfile, msglang);
+    goto err;
+    } // endif mfile
 
-	for (;;)
-		if (!fgets(buff, 256, mfile)) {
-			sprintf(stmsg, "Cannot get message %d %s", mid, SVP(m));
-			goto fin;
-		} else
-			if (atoi(buff) == mid)
-				break;
+  for (;;)
+    if (!fgets(buff, 256, mfile)) {
+      sprintf(stmsg, "Cannot get message %d %s", mid, SVP(m));
+      goto fin;
+    } else
+      if (atoi(buff) == mid)
+        break;
 
-	if (sscanf(buff, " %*d %s \"%[^\"]", msgid, stmsg) < 2) {
-		// Old message file
-		if (!sscanf(buff, " %*d \"%[^\"]", stmsg)) {
-			sprintf(stmsg, "Bad message file for %d %s", mid, SVP(m));
-			goto fin;
-		} else
-			m = NULL;
+  if (sscanf(buff, " %*d %s \"%[^\"]", msgid, stmsg) < 2) {
+    // Old message file
+    if (!sscanf(buff, " %*d \"%[^\"]", stmsg)) {
+      sprintf(stmsg, "Bad message file for %d %s", mid, SVP(m));
+      goto fin;
+    } else
+      m = NULL;
 
-		} // endif sscanf
+    } // endif sscanf
 
-	if (m && strcmp(m, msgid)) {
-		// Message file is out of date
-		strcpy(stmsg, m);
-		goto fin;
-		} // endif m
+  if (m && strcmp(m, msgid)) {
+    // Message file is out of date
+    strcpy(stmsg, m);
+    goto fin;
+    } // endif m
 
  fin:
-	fclose(mfile);
+  fclose(mfile);
 
  err:
-	if (g) {
-		// Called by STEP
-		msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
-		strcpy(msg, stmsg);
-	} else // Called by MSG or PlgGetErrorMsg
-		msg =	stmsg;
+  if (g) {
+    // Called by STEP
+    msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
+    strcpy(msg, stmsg);
+  } else // Called by MSG or PlgGetErrorMsg
+    msg =  stmsg;
 
   return msg;
   } // end of PlugReadMessage
@@ -346,29 +346,29 @@ char *PlugGetMessage(PGLOBAL g, int mid)
   char *msg;
 
 #if !defined(UNIX) && !defined(UNIV_LINUX)
-	int   n = LoadString(s_hModule, (uint)mid, (LPTSTR)stmsg, 200);
+  int   n = LoadString(s_hModule, (uint)mid, (LPTSTR)stmsg, 200);
 
-	if (n == 0) {
-		DWORD rc = GetLastError();
-	  msg = (char*)PlugSubAlloc(g, NULL, 512);	 // Extend buf allocation
-		n = sprintf(msg, "Message %d, rc=%d: ", mid, rc);
+  if (n == 0) {
+    DWORD rc = GetLastError();
+    msg = (char*)PlugSubAlloc(g, NULL, 512);   // Extend buf allocation
+    n = sprintf(msg, "Message %d, rc=%d: ", mid, rc);
     FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                   FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
                   (LPTSTR)(msg + n), 512 - n, NULL);
-		return msg;
-		} // endif n
+    return msg;
+    } // endif n
 
-#else	    // UNIX
-	if (!GetRcString(mid, stmsg, 200))
-		sprintf(stmsg, "Message %d not found", mid);
-#endif		// UNIX
+#else      // UNIX
+  if (!GetRcString(mid, stmsg, 200))
+    sprintf(stmsg, "Message %d not found", mid);
+#endif    // UNIX
 
-	if (g) {
-		// Called by STEP
-		msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
-		strcpy(msg, stmsg);
-	} else // Called by MSG or PlgGetErrorMsg
-		msg =	stmsg;
+  if (g) {
+    // Called by STEP
+    msg = (char *)PlugSubAlloc(g, NULL, strlen(stmsg) + 1);
+    strcpy(msg, stmsg);
+  } else // Called by MSG or PlgGetErrorMsg
+    msg =  stmsg;
 
   return msg;
   } // end of PlugGetMessage
@@ -379,13 +379,13 @@ char *PlugGetMessage(PGLOBAL g, int mid)
 /*  Return the line length of the console screen buffer.               */
 /***********************************************************************/
 short GetLineLength(PGLOBAL g)
-	{
-	CONSOLE_SCREEN_BUFFER_INFO coninfo;
-	HANDLE  hcons = GetStdHandle(STD_OUTPUT_HANDLE);
-	BOOL    b = GetConsoleScreenBufferInfo(hcons, &coninfo);
+  {
+  CONSOLE_SCREEN_BUFFER_INFO coninfo;
+  HANDLE  hcons = GetStdHandle(STD_OUTPUT_HANDLE);
+  BOOL    b = GetConsoleScreenBufferInfo(hcons, &coninfo);
 
-	return (b) ? coninfo.dwSize.X : 0;
-	} // end of GetLineLength
+  return (b) ? coninfo.dwSize.X : 0;
+  } // end of GetLineLength
 #endif   // WIN32
 
 /***********************************************************************/
@@ -401,13 +401,13 @@ void *PlugAllocMem(PGLOBAL g, uint size)
   if (!(areap = malloc(size)))
     sprintf(g->Message, MSG(MALLOC_ERROR), "malloc");
 
-	if (trace > 1) {
-		if (areap)
-		  htrc("Memory of %u allocated at %p\n", size, areap);
-		else
-		  htrc("PlugAllocMem: %s\n", g->Message);
-		  
-		} // endif trace
+  if (trace > 1) {
+    if (areap)
+      htrc("Memory of %u allocated at %p\n", size, areap);
+    else
+      htrc("PlugAllocMem: %s\n", g->Message);
+      
+    } // endif trace
 
   return (areap);
   } /* end of PlugAllocMem */
@@ -446,7 +446,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
     memp = g->Sarea;
 
 //size = ((size + 3) / 4) * 4;       /* Round up size to multiple of 4 */
-	size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
+  size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
 #if defined(DEBUG2) || defined(DEBUG3)
@@ -455,11 +455,11 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 #endif
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
-		char     *pname = "Work";
+    char     *pname = "Work";
 
-		sprintf(g->Message,
-			"Not enough memory in %s area for request of %u (used=%d free=%d)",
-		                      pname, size, pph->To_Free, pph->FreeBlk);
+    sprintf(g->Message,
+      "Not enough memory in %s area for request of %u (used=%d free=%d)",
+                          pname, size, pph->To_Free, pph->FreeBlk);
 
 #if defined(DEBUG2) || defined(DEBUG3)
  htrc("%s\n", g->Message);

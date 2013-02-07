@@ -14,7 +14,7 @@
 #define      CSORT_DEFINED
 
 #include <math.h>                   /* Required for log function       */
-#undef DOMAIN														// Was defined in math.h
+#undef DOMAIN                            // Was defined in math.h
 
 /***********************************************************************/
 /*  Constant and external definitions.                                 */
@@ -43,10 +43,10 @@ class DllExport CSORT {
   /*  qsortc/qstc ARE     conservative but use more storage space.     */
   /*********************************************************************/
   int  Qsortx(void);                        /* Index quick/insert sort */
-  void Qstx(int *base, int *max);						/* Preliminary quick sort  */
+  void Qstx(int *base, int *max);            /* Preliminary quick sort  */
   int  Qsortc(void);                        /* Conservative q/ins sort */
-  void Qstc(int *base, int *max);						/* Preliminary quick sort  */
-  void Istc(int *base, int *hi, int *max);	/* Insertion sort routine  */
+  void Qstc(int *base, int *max);            /* Preliminary quick sort  */
+  void Istc(int *base, int *hi, int *max);  /* Insertion sort routine  */
 
  public:
   // Methods
@@ -65,38 +65,38 @@ class DllExport CSORT {
 #endif
 
  public:
-	// Utility
-	static void SetCmpNum(void)		
-		{for (int i = 1; i < 1000; i++) Cpn[i] = Cmpnum(i); Limit = 1000;}
+  // Utility
+  static void SetCmpNum(void)    
+    {for (int i = 1; i < 1000; i++) Cpn[i] = Cmpnum(i); Limit = 1000;}
  protected:
-	static size_t Cmpnum(int n)
+  static size_t Cmpnum(int n)
 #if defined(AIX)
-		{return (n < Limit) ? Cpn[n]
-					: (size_t)round(1.0 + (double)n * (log2((double)n) - 1.0));}
+    {return (n < Limit) ? Cpn[n]
+          : (size_t)round(1.0 + (double)n * (log2((double)n) - 1.0));}
 #else   // !AIX
-		{return (n < Limit) ? Cpn[n] 
-					: (size_t)(1.5 + (double)n * (log((double)n)/Lg2 - 1.0));}
+    {return (n < Limit) ? Cpn[n] 
+          : (size_t)(1.5 + (double)n * (log((double)n)/Lg2 - 1.0));}
 #endif  // !AIX
 
 
   // Members
-	static int    Limit;									/* Size of precalculated array */
-	static size_t Cpn[1000]; 							/* Precalculated cmpnum values */
-	static double Lg2;										/* Precalculated log(2) value  */
-	PGLOBAL G;
-	PDBUSER Dup;													/* Used for progress info      */
+  static int    Limit;                  /* Size of precalculated array */
+  static size_t Cpn[1000];               /* Precalculated cmpnum values */
+  static double Lg2;                    /* Precalculated log(2) value  */
+  PGLOBAL G;
+  PDBUSER Dup;                          /* Used for progress info      */
   bool    Cons;                         /* true for conservative sort  */
   int     Thresh;                       /* Threshold for using qsort   */
   int     Mthresh;                      /* Threshold for median find   */
   int     Nitem;                        /* Number of items to sort     */
-  MBLOCK  Index;												/* Index  allocation block		 */
-  MBLOCK  Offset;												/* Offset allocation block		 */
-  CPINT  &Pex;												  /* Reference to sort index		 */
-  CPINT  &Pof;													/* Reference to offset array	 */
+  MBLOCK  Index;                        /* Index  allocation block     */
+  MBLOCK  Offset;                        /* Offset allocation block     */
+  CPINT  &Pex;                          /* Reference to sort index     */
+  CPINT  &Pof;                          /* Reference to offset array   */
   int    *Swix;                         /* Pointer on EQ/GT work area  */
-	int     Savmax;											  /* Saved ProgMax value         */
-	int     Savcur;											  /* Saved ProgCur value         */
-  LPCSTR  Savstep;											/* Saved progress step 				 */
+  int     Savmax;                        /* Saved ProgMax value         */
+  int     Savcur;                        /* Saved ProgCur value         */
+  LPCSTR  Savstep;                      /* Saved progress step          */
 #ifdef DEBTRACE
   int     num_comp;                     /* Number of quick sort calls  */
 #endif

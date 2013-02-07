@@ -28,7 +28,7 @@
 
 int TDB::Tnum = 0;
 
-extern "C" int trace;			 // The general trace value
+extern "C" int trace;       // The general trace value
 
 /***********************************************************************/
 /*  Utility routines.                                                  */
@@ -66,7 +66,7 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   {
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
-	To_Table = NULL;
+  To_Table = NULL;
   Columns = NULL;
   Degree = (tdp) ? tdp->GetDegree() : 0;
   Mode = MODE_READ;
@@ -76,7 +76,7 @@ TDB::TDB(PTDB tdbp) : TBX(tdbp), Tdb_No(++Tnum)
   {
   Next = NULL;
   Name = tdbp->Name;
-	To_Table = tdbp->To_Table;
+  To_Table = tdbp->To_Table;
   Columns = NULL;
   Degree = tdbp->Degree;
   Mode = tdbp->Mode;
@@ -88,18 +88,18 @@ TDB::TDB(PTDB tdbp) : TBX(tdbp), Tdb_No(++Tnum)
 bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
   {
   if (trace)
-		htrc("Open Tdb_No=%d use=%d type=%d tdb.Mode=%d mode=%d\n",
-						   Tdb_No, Use, GetAmType(), Mode, mode);
+    htrc("Open Tdb_No=%d use=%d type=%d tdb.Mode=%d mode=%d\n",
+               Tdb_No, Use, GetAmType(), Mode, mode);
 
   switch (Use) {
     case USE_LIN:
       /*****************************************************************/
       /*  If table is read/only, only MODE_READ is allowed.            */
       /*****************************************************************/
-			if (IsReadOnly() && mode != MODE_READ) {
-				strcpy(g->Message, MSG(READ_ONLY));
-				return true;
-				} // endif ReadOnly
+      if (IsReadOnly() && mode != MODE_READ) {
+        strcpy(g->Message, MSG(READ_ONLY));
+        return true;
+        } // endif ReadOnly
 
       /*****************************************************************/
       /*  This could be done in any order.                             */
@@ -122,7 +122,7 @@ bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
       /*****************************************************************/
       if (Next)
         if (Next->OpenTable(g, sqlp, mode))
-					return true;
+          return true;
 
       /*****************************************************************/
       /*  This was moved after filter conversion so filtering can be   */
@@ -131,7 +131,7 @@ bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
       /*  data can be pre-read during open to allow storage sorting.   */
       /*****************************************************************/
       if (OpenDB(g))                       // Do open the table file
-				return true;
+        return true;
 
       Use = USE_OPEN;
       break;
@@ -142,7 +142,7 @@ bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
       /*  Call open routine that will just "rewind" the files.         */
       /*****************************************************************/
       if (OpenDB(g))                       // Rewind the table file
-				return true;
+        return true;
 
       break;
 
@@ -151,7 +151,7 @@ bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
       return true;
     } // endswitch Use
 
-	return false;
+  return false;
   } // end of OpenTable
 
 /***********************************************************************/
@@ -160,8 +160,8 @@ bool TDB::OpenTable(PGLOBAL g, PSQL sqlp, MODE mode)
 void TDB::CloseTable(PGLOBAL g)
   {
   if (trace)
-		htrc("CloseTable: tdb_no %d use=%d amtype=%d am.Mode=%d\n",
-										  Tdb_No, Use, GetAmType(), Mode);
+    htrc("CloseTable: tdb_no %d use=%d amtype=%d am.Mode=%d\n",
+                      Tdb_No, Use, GetAmType(), Mode);
 
   CloseDB(g);
   Use = USE_READY;              // x'7FFD'
@@ -176,7 +176,7 @@ void TDB::CloseTable(PGLOBAL g)
 int TDB::RowNumber(PGLOBAL g, bool b)
   {
   sprintf(g->Message, MSG(ROWID_NOT_IMPL), GetAmName(g, GetAmType()));
-	return 0;
+  return 0;
   } // end of RowNumber
 
 PTBX TDB::Copy(PTABS t)
@@ -236,37 +236,37 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   {
   To_Def = tdp;
   To_Link = NULL;
-	To_Key_Col = NULL;
+  To_Key_Col = NULL;
   To_Kindex = NULL;
-	To_SetCols = NULL;
+  To_SetCols = NULL;
   MaxSize = -1;
-	Knum = 0;
-	Read_Only = (tdp) ? tdp->IsReadOnly() : false;
+  Knum = 0;
+  Read_Only = (tdp) ? tdp->IsReadOnly() : false;
   } // end of TDBASE constructor
 
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   {
   To_Def = tdbp->To_Def;
-  To_SetCols = tdbp->To_SetCols;				  // ???
+  To_SetCols = tdbp->To_SetCols;          // ???
   MaxSize = tdbp->MaxSize;
-	Read_Only = tdbp->Read_Only;
+  Read_Only = tdbp->Read_Only;
   } // end of TDBASE copy constructor
 
 /***********************************************************************/
 /*  Return the pointer on the DB catalog this table belongs to.        */
 /***********************************************************************/
 PCATLG TDBASE::GetCat(void)
-	{
-	return (To_Def) ? To_Def->GetCat() : NULL;
-	}	// end of GetCat
+  {
+  return (To_Def) ? To_Def->GetCat() : NULL;
+  }  // end of GetCat
 
 /***********************************************************************/
 /*  Return the datapath of the DB this table belongs to.               */
 /***********************************************************************/
 PSZ TDBASE::GetPath(void)
-	{
-	return To_Def->GetPath();
-	}	// end of GetPath
+  {
+  return To_Def->GetPath();
+  }  // end of GetPath
 
 /***********************************************************************/
 /*  Initialize TDBASE based column description block construction.     */
@@ -281,8 +281,8 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
   PCOL    cp, colp = NULL, cprec = NULL;
 
   if (trace)
-		htrc("ColDB: am=%d colname=%s tabname=%s num=%d\n",
-				  GetAmType(), SVP(name), Name, num);
+    htrc("ColDB: am=%d colname=%s tabname=%s num=%d\n",
+          GetAmType(), SVP(name), Name, num);
 
   for (cdp = To_Def->GetCols(), i = 1; cdp; cdp = cdp->GetNext(), i++)
     if ((!name && !num) ||
@@ -297,8 +297,8 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
         else if (cp->GetIndex() == i)
           break;
 
-		  if (trace)
-				htrc("cdp(%d).Name=%s cp=%p\n", i, cdp->GetName(), cp);
+      if (trace)
+        htrc("cdp(%d).Name=%s cp=%p\n", i, cdp->GetName(), cp);
 
       /*****************************************************************/
       /*  Now take care of Column Description Block.                   */
@@ -308,9 +308,9 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
       else
         colp = MakeCol(g, cdp, cprec, i);
 
-		  if (trace)
-				htrc("colp=%p\n", colp);
-			
+      if (trace)
+        htrc("colp=%p\n", colp);
+      
       if (name || num)
         break;
       else if (colp)
@@ -325,14 +325,14 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
 /*  InsertSpecialColumn: Put a special column ahead of the column list.*/
 /***********************************************************************/
 PCOL TDBASE::InsertSpecialColumn(PGLOBAL g, PCOL colp)
-	{
-	if (!colp->IsSpecial())
-		return NULL;
+  {
+  if (!colp->IsSpecial())
+    return NULL;
 
-	colp->SetNext(Columns);
-	Columns = colp;
-	return colp;
-	} // end of InsertSpecialColumn
+  colp->SetNext(Columns);
+  Columns = colp;
+  return colp;
+  } // end of InsertSpecialColumn
 
 /***********************************************************************/
 /*  Make a special COLBLK to insert in a table.                        */
@@ -342,7 +342,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLUMN cp)
   char *name = (char*)cp->GetName();
   PCOL  colp;
 
-	if (!strcmp(name, "FILEID")) {
+  if (!strcmp(name, "FILEID")) {
 //    !strcmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
       sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
@@ -358,11 +358,11 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLUMN cp)
     colp = new(g) TIDBLK(cp);
 //} else if (!strcmp(name, "CONID")) {
 //  colp = new(g) CIDBLK(cp);
-	} else if (!strcmp(name, "ROWID")) {
+  } else if (!strcmp(name, "ROWID")) {
     colp = new(g) RIDBLK(cp, false);
-	} else if (!strcmp(name, "ROWNUM")) {
+  } else if (!strcmp(name, "ROWNUM")) {
       colp = new(g) RIDBLK(cp, true);
-	} else {
+  } else {
     sprintf(g->Message, MSG(BAD_SPECIAL_COL), name);
     return NULL;
   } // endif's name
@@ -380,8 +380,8 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLUMN cp)
 /***********************************************************************/
 int TDBASE::ResetTableOpt(PGLOBAL g, bool dox)
 {
-	strcpy(g->Message, "This table is not indexable");
-	return RC_INFO;
+  strcpy(g->Message, "This table is not indexable");
+  return RC_INFO;
 } // end of ResetTableOpt
 
 /***********************************************************************/
@@ -399,10 +399,10 @@ void TDBASE::SetKindex(PKXBASE kxp)
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
 bool TDBASE::SetRecpos(PGLOBAL g, int recpos) 
-	{
-	strcpy(g->Message, MSG(SETRECPOS_NIY));
-	return true;
-	} // end of SetRecpos
+  {
+  strcpy(g->Message, MSG(SETRECPOS_NIY));
+  return true;
+  } // end of SetRecpos
 
 /***********************************************************************/
 /*  Methods                                                            */
@@ -422,6 +422,6 @@ void TDBASE::PrintAM(FILE *f, char *m)
 void TDBASE::MarkDB(PGLOBAL g, PTDB tdb2)
   {
   if (trace)
-		htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
+    htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
 
   } // end of MarkDB

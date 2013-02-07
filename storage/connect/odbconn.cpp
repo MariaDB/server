@@ -1104,7 +1104,7 @@ void ODBConn::VerifyConnect()
   {
 #if defined(NEWMSG) || defined(XMSG)
   PGLOBAL& g = m_G;
-#endif   // NEWMSG	||				 XMSG
+#endif   // NEWMSG  ||         XMSG
   RETCODE  rc;
   SWORD    result;
   SWORD    conformance;
@@ -1599,7 +1599,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   {
 #if defined(NEWMSG) || defined(XMSG)
   PGLOBAL& g = m_G;
-#endif   // NEWMSG	||				 XMSG
+#endif   // NEWMSG  ||         XMSG
   void    *buffer;
   int      i, irc;
   bool     b;

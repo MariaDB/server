@@ -10,7 +10,7 @@
 
 #if !defined(DOMDOC_SUPPORT)
 PXDOC GetDomDoc(PGLOBAL g, char *nsl, char *nsdf, 
-																			char *enc, PFBLOCK fp)
+                                      char *enc, PFBLOCK fp)
   {
   strcpy(g->Message, MSG(DOM_NOT_SUPP));
   return NULL;
@@ -19,7 +19,7 @@ PXDOC GetDomDoc(PGLOBAL g, char *nsl, char *nsdf,
 
 #ifndef LIBXML2_SUPPORT
 PXDOC GetLibxmlDoc(PGLOBAL g, char *nsl, char *nsdf, 
-															char *enc, PFBLOCK fp)
+                              char *enc, PFBLOCK fp)
   {
   strcpy(g->Message, "libxml2 not supported");
   return NULL;

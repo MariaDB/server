@@ -76,7 +76,7 @@ class DllItem MYSQLC {
   void    Rewind(void);
   void    FreeResult(void);
   void    Close(void);
-	void    DiscardResults(void);
+  void    DiscardResults(void);
 
  protected:
   // Members

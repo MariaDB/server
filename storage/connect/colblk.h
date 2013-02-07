@@ -23,7 +23,7 @@ class DllExport COLBLK : public XOBJECT {
   // Default constructors used by derived classes
   COLBLK(PCOLDEF cdp = NULL, PTDB tdbp = NULL, int i = 0);
   COLBLK(PCOL colp, PTDB tdbp = NULL);     // Used in copy process
-	COLBLK(int n) {}     // Used when changing a column class in TDBXML
+  COLBLK(int n) {}     // Used when changing a column class in TDBXML
 
  public:
   // Implementation
@@ -38,7 +38,7 @@ class DllExport COLBLK : public XOBJECT {
           PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}
-	        int     GetOpt(void) {return Opt;}
+          int     GetOpt(void) {return Opt;}
           ushort  GetColUse(void) {return ColUse;}
           ushort  GetColUse(ushort u) {return (ColUse & u);}
           ushort  GetStatus(void) {return Status;}
@@ -48,41 +48,41 @@ class DllExport COLBLK : public XOBJECT {
           void    AddColUse(ushort u) {ColUse |= u;}
           void    AddStatus(ushort u) {Status |= u;}
           void    SetNext(PCOL cp) {Next = cp;}
-	        void    SetKcol(PXCOL kcp) {To_Kcol = kcp;}
-					PCOLDEF GetCdp(void) {return Cdp;}
-	        PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}
+          void    SetKcol(PXCOL kcp) {To_Kcol = kcp;}
+          PCOLDEF GetCdp(void) {return Cdp;}
+          PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}
           PSZ     GetDesc(void) {return (Cdp) ? Cdp->Desc : NULL;}
           PSZ     GetFmt(void) {return (Cdp) ? Cdp->Fmt : NULL;}
-								  
-  // Methods		  
+                  
+  // Methods      
   virtual void    Reset(void);
   virtual bool    Compare(PXOB xp);
   virtual bool    SetFormat(PGLOBAL, FORMAT&);
   virtual int     CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
   virtual bool    IsSpecial(void) {return false;}
-  virtual int			CheckSpcCol(PTDB tdbp, int n) {return 2;}
+  virtual int      CheckSpcCol(PTDB tdbp, int n) {return 2;}
   virtual bool    CheckSort(PTDB tdbp);
   virtual void    MarkCol(ushort bits);
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-	virtual void    SetTo_Val(PVAL valp) {}
+  virtual void    SetTo_Val(PVAL valp) {}
   virtual void    ReadColumn(PGLOBAL g);
   virtual void    WriteColumn(PGLOBAL g);
   virtual void    Print(PGLOBAL g, FILE *, uint);
   virtual void    Print(PGLOBAL g, char *, uint);
-	virtual bool	  VarSize(void) {return false;}
-	virtual bool	  IsColInside(PCOL colp) {return this == colp;}
+  virtual bool    VarSize(void) {return false;}
+  virtual bool    IsColInside(PCOL colp) {return this == colp;}
           bool    InitValue(PGLOBAL g);
 
  protected:
   // Members
   PCOL    Next;                // Next column in table
   PSZ     Name;                // Column name
-	PCOLDEF Cdp;								 // To column definition block
+  PCOLDEF Cdp;                 // To column definition block
   PTDB    To_Tdb;              // Points to Table Descriptor Block
-	PXCOL   To_Kcol;             // Points to Xindex matching column
+  PXCOL   To_Kcol;             // Points to Xindex matching column
   int     Index;               // Column number in table
-	int     Opt;                 // Cluster/sort information
+  int     Opt;                 // Cluster/sort information
   int     Buf_Type;            // Data type
   int     Long;                // Internal length in table
   FORMAT  Format;              // Output format
@@ -100,7 +100,7 @@ class SPCBLK : public COLBLK {
 
   // Implementation
   virtual int  GetAmType(void) = 0;
-	virtual	bool GetRnm(void) {return false;}
+  virtual  bool GetRnm(void) {return false;}
 
   // Methods
   virtual bool IsSpecial(void) {return true;}
@@ -109,7 +109,7 @@ class SPCBLK : public COLBLK {
 
  protected:
   // Default constructor not to be used
-	SPCBLK(void) : COLBLK(1) {}
+  SPCBLK(void) : COLBLK(1) {}
   }; // end of class SPCBLK
 
 /***********************************************************************/
@@ -122,13 +122,13 @@ class RIDBLK : public SPCBLK {
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_ROWID;}
-	virtual	bool GetRnm(void) {return Rnm;}
+  virtual  bool GetRnm(void) {return Rnm;}
 
   // Methods
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-	bool Rnm;												 // False for RowID, True for RowNum
+  bool Rnm;                         // False for RowID, True for RowNum
   }; // end of class RIDBLK
 
 /***********************************************************************/
@@ -143,13 +143,13 @@ class FIDBLK : public SPCBLK {
   virtual int  GetAmType(void) {return TYPE_AM_FILID;}
 
   // Methods
-  virtual void Reset(void) {}		   // This is a pseudo constant column
+  virtual void Reset(void) {}       // This is a pseudo constant column
   virtual int  CheckSpcCol(PTDB tdbp, int n) 
-	{return (n == 2 && tdbp == To_Tdb) ? 1 : 2;}
+  {return (n == 2 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-	PSZ  Fn;												 // The current To_File of the table
+  PSZ  Fn;                         // The current To_File of the table
   }; // end of class FIDBLK
 
 /***********************************************************************/
@@ -164,17 +164,17 @@ class TIDBLK : public SPCBLK {
   virtual int  GetAmType(void) {return TYPE_AM_TABID;}
 
   // Methods
-  virtual void Reset(void) {}		   // This is a pseudo constant column
+  virtual void Reset(void) {}       // This is a pseudo constant column
   virtual int  CheckSpcCol(PTDB tdbp, int n)
-	{return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
+  {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
   // Default constructor not to be used
-	TIDBLK(void) {}
+  TIDBLK(void) {}
 
-	// Members
-	PSZ  Tname;											 // The current table name
+  // Members
+  PSZ  Tname;                       // The current table name
   }; // end of class TIDBLK
 
 #endif // __COLBLK__H
