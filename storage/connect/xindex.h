@@ -13,8 +13,8 @@
 #include "valblk.h"
 
 enum IDT {TYPE_IDX_ERROR = 0,         /* Type not defined              */
-					TYPE_IDX_INDX  = 4,         /* Permanent standard index      */
-					TYPE_IDX_XROW  = 5};        /* Permanent row index           */
+          TYPE_IDX_INDX  = 4,         /* Permanent standard index      */
+          TYPE_IDX_XROW  = 5};        /* Permanent row index           */
 
 typedef struct mem_map  *MMP;
 typedef class  INDEXDEF *PIXDEF;
@@ -132,7 +132,7 @@ typedef struct indx_used : public BLOCK {
 class DllExport KPARTDEF : public BLOCK { /* Index Key Part desc block */
   friend class INDEXDEF;
   friend class XINDEX;
-	friend class PLUGCAT;
+  friend class PLUGCAT;
   friend class DOSDEF;
   friend int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add);
  public:
@@ -165,58 +165,58 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   XXBASE(PTDBDOS tbxp, bool b);
 
   // Implementation
-	virtual IDT  GetType(void) = 0;
+  virtual IDT  GetType(void) = 0;
   virtual void Reset(void) = 0;
-	virtual bool IsMul(void) {return false;}
-	virtual bool IsRandom(void) {return true;}
-	virtual bool HaveSame(void) {return false;}
+  virtual bool IsMul(void) {return false;}
+  virtual bool IsRandom(void) {return true;}
+  virtual bool HaveSame(void) {return false;}
   virtual int  GetCurPos(void) {return Cur_K;}
   virtual void SetNval(int n) {assert(n == 1);}
   virtual void SetOp(OPVAL op) {Op = op;}
-	        int  GetNdif(void) {return Ndif;}
-	        int  GetNum_K(void) {return Num_K;}
-	        int  GetCur_K(void) {return Cur_K;}
+          int  GetNdif(void) {return Ndif;}
+          int  GetNum_K(void) {return Num_K;}
+          int  GetCur_K(void) {return Cur_K;}
           int  GetID(void) {return ID;}
           void SetID(int id) {ID = id;}
-					void SetNth(int n) {Nth = n;}
-	        int *GetPof(void) {return Pof;}
-	        int *GetPex(void) {return Pex;}
-	        void FreeIndex(void) {PlgDBfree(Index);}
+          void SetNth(int n) {Nth = n;}
+          int *GetPof(void) {return Pof;}
+          int *GetPex(void) {return Pex;}
+          void FreeIndex(void) {PlgDBfree(Index);}
 
   // Methods
   virtual void Print(PGLOBAL g, FILE *f, uint n);
   virtual void Print(PGLOBAL g, char *ps, uint z);
   virtual bool Init(PGLOBAL g) = 0;
-	virtual int  MaxRange(void) {return 1;}
+  virtual int  MaxRange(void) {return 1;}
   virtual int  Fetch(PGLOBAL g) = 0;
   virtual bool NextVal(bool eq) {return true;}
   virtual int  FastFind(int nk) = 0;
-	virtual bool Reorder(PGLOBAL g) {return true;}
-	virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true)
-								{return -1;}		// Means error
+  virtual bool Reorder(PGLOBAL g) {return true;}
+  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true)
+                {return -1;}    // Means error
   virtual int  Qcompare(int *, int *) = 0;
-	virtual int  GroupSize(void) {return 1;}
+  virtual int  GroupSize(void) {return 1;}
   virtual void Close(void) = 0;
 
  protected:
   // Members
   PTDBASE Tbxp;             // Points to calling table TDB
-  PXCOL	  To_KeyCol;        // To KeyCol class list
+  PXCOL    To_KeyCol;        // To KeyCol class list
   MBLOCK  Record;           // Record allocation block
   int*   &To_Rec;           // We are using ftell, fseek
   int     Cur_K;            // Index of current record
   int     Old_K;            // Index of last record
   int     Num_K;            // Size of Rec_K pointer array
-	int     Ndif;							// Number of distinct values
+  int     Ndif;              // Number of distinct values
   int     Bot;              // Bottom of research index
   int     Top;              // Top    of research index
   int     Inf, Sup;         // Used for block optimization
-	OPVAL   Op;								// Search operator
-	bool    Mul;							// true if multiple
-	bool    Srtd; 						// true for sorted column
+  OPVAL   Op;                // Search operator
+  bool    Mul;              // true if multiple
+  bool    Srtd;             // true for sorted column
   int     Val_K;            // Index of current value
-	int     Nblk;						  // Number of blocks
-	int     Sblk;						  // Block size
+  int     Nblk;              // Number of blocks
+  int     Sblk;              // Block size
   int     Thresh;           // Thresh for sorting join indexes
   int     ID;               // Index ID number
   int     Nth;              // Nth constant to fetch
@@ -234,7 +234,7 @@ class DllExport XINDEX : public XXBASE {
 
   // Implementation
   virtual IDT  GetType(void) {return TYPE_IDX_INDX;}
-	virtual bool IsMul(void) {return (Nval < Nk) ? true : Mul;}
+  virtual bool IsMul(void) {return (Nval < Nk) ? true : Mul;}
   virtual bool HaveSame(void) {return Op == OP_SAME;}
   virtual int  GetCurPos(void) {return (Pex) ? Pex[Cur_K] : Cur_K;}
   virtual void SetNval(int n) {Nval = n;}
@@ -250,7 +250,7 @@ class DllExport XINDEX : public XXBASE {
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual int  GroupSize(void);
-	virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
+  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  MaxRange(void) {return MaxSame;}
   virtual int  ColMaxSame(PXCOL kp);
   virtual void Close(void);
@@ -297,7 +297,7 @@ class DllExport XINDXS : public XINDEX {
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual bool NextVal(bool eq);
-	virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
+  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  GroupSize(void);
 
  protected:
@@ -408,8 +408,8 @@ class DllExport XXROW : public XXBASE {
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual int  MaxRange(void) {return 1;}
-	virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
-	virtual int  Qcompare(int *, int *) {assert(false); return 0;}
+  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
+  virtual int  Qcompare(int *, int *) {assert(false); return 0;}
   virtual void Close(void) {}
 
  protected:
@@ -444,10 +444,10 @@ class KXYCOL: public BLOCK {
   virtual void FreeData(void);
   virtual void FillValue(PVAL valp);
   virtual int  CompVal(int i);
-	        void InitBinFind(void *vp);
-					bool MakeBlockArray(PGLOBAL g, int nb, int size);
-				  int  Compare(int i1, int i2);
-					int  CompBval(int i);
+          void InitBinFind(void *vp);
+          bool MakeBlockArray(PGLOBAL g, int nb, int size);
+          int  Compare(int i1, int i2);
+          int  CompBval(int i);
           void Save(int i) {Valp->SetBinValue(Kblp->GetValPtr(i));}
           void Restore(int j) {Kblp->SetValue(Valp, j);}
           void Move(int j, int k) {Kblp->Move(k, j);}
@@ -460,10 +460,10 @@ class KXYCOL: public BLOCK {
 
  protected:
   // Members
-  PXCOL	  Next;            // To next in the key part list
+  PXCOL    Next;            // To next in the key part list
   PXCOL   Previous;        // To previous in the key part list
   PKXBASE Kxp;             // To the INDEX class block
-	PCOL    Colp;						 // To matching object if a column
+  PCOL    Colp;             // To matching object if a column
   bool    IsSorted;        // true if column is already sorted
   bool    Asc;             // true for ascending sort, false for Desc
   MBLOCK  Keys;            // Data array allocation block

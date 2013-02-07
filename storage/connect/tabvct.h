@@ -20,30 +20,30 @@ typedef class VCTCOL *PVCTCOL;
 /*  VCT table.                                                         */
 /***********************************************************************/
 class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
-	friend class VCTFAM;
-	friend class VECFAM;
-	friend class VMPFAM;
+  friend class VCTFAM;
+  friend class VECFAM;
+  friend class VMPFAM;
  public:
   // Constructor
-	VCTDEF(void) {Split = Estimate = Header = 0;}
+  VCTDEF(void) {Split = Estimate = Header = 0;}
 
   // Implementation
   virtual const char *GetType(void) {return "VCT";}
-	int  GetEstimate(void) {return Estimate;}
+  int  GetEstimate(void) {return Estimate;}
 
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
  protected:
-	// Specific file erase routine for vertical tables
+  // Specific file erase routine for vertical tables
   virtual bool Erase(char *filename);
-					int  MakeFnPattern(char *fpat);
+          int  MakeFnPattern(char *fpat);
 
   // Members
-	int     Split;							/* Columns in separate files             */
-	int     Estimate;           /* Estimated maximum size of table       */
-	int     Header;						  /* 0: no, 1: separate, 2: in data file   */
+  int     Split;              /* Columns in separate files             */
+  int     Estimate;           /* Estimated maximum size of table       */
+  int     Header;              /* 0: no, 1: separate, 2: in data file   */
   }; // end of VCTDEF
 
 /***********************************************************************/
@@ -53,10 +53,10 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
 /***********************************************************************/
 class DllExport TDBVCT : public TDBFIX {
   friend class VCTCOL;
-	friend class VCTFAM;
-	friend class VCMFAM;
-	friend class VECFAM;
-	friend class VMPFAM;
+  friend class VCTFAM;
+  friend class VCMFAM;
+  friend class VECFAM;
+  friend class VMPFAM;
  public:
   // Constructors
   TDBVCT(PVCTDEF tdp, PTXF txfp);
@@ -74,7 +74,7 @@ class DllExport TDBVCT : public TDBFIX {
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
-	virtual void CloseDB(PGLOBAL g);
+  virtual void CloseDB(PGLOBAL g);
 
  protected:
   // Members
@@ -86,11 +86,11 @@ class DllExport TDBVCT : public TDBFIX {
 /***********************************************************************/
 class DllExport VCTCOL : public DOSCOL {
   friend class TDBVCT;
-	friend class VCTFAM;
-	friend class VCMFAM;
-	friend class VECFAM;
-	friend class VMPFAM;
-	friend class BGVFAM;
+  friend class VCTFAM;
+  friend class VCMFAM;
+  friend class VECFAM;
+  friend class VMPFAM;
+  friend class BGVFAM;
  public:
   // Constructors
   VCTCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);

@@ -61,7 +61,7 @@ RELDEF::RELDEF(void)
   Next = NULL;
   To_Cols = NULL;
   Name = NULL;
-	Database = NULL;
+  Database = NULL;
   Cat = NULL;
   } // end of RELDEF constructor
 
@@ -88,9 +88,9 @@ TABDEF::TABDEF(void)
 /***********************************************************************/
 bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   {
-	char  buf[8];
-	int   poff = 0;
-	void *memp = cat->Descp;
+  char  buf[8];
+  int   poff = 0;
+  void *memp = cat->Descp;
 
   Name = (PSZ)PlugSubAlloc(g, memp, strlen(name) + 1);
   strcpy(Name, name);
@@ -101,9 +101,9 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   cat->GetCharCatInfo(name, "ReadOnly", "No", buf, sizeof(buf));
   Read_Only = (toupper(*buf) == 'Y');
 
-	// Get The column definitions
-	if ((poff = cat->GetColCatInfo(g, this)) < 0)
-		return true;
+  // Get The column definitions
+  if ((poff = cat->GetColCatInfo(g, this)) < 0)
+    return true;
 
   // Do the definition of AM specific fields
   return DefineAM(g, am, poff);
@@ -121,7 +121,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   PTABDEF xdefp;
   XGETDEF getdef = NULL;
   PCATLG  cat = Cat;
-	void   *memp = cat->Descp;
+  void   *memp = cat->Descp;
 
 #if defined(WIN32)
   // Is the DLL already loaded?
@@ -217,7 +217,7 @@ bool OEMDEF::DeleteTableFile(PGLOBAL g)
 /***********************************************************************/
 bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-	void *memp = Cat->Descp;
+  void *memp = Cat->Descp;
 
   Module = Cat->GetStringCatInfo(g, Name, "Module", "");
   Subtype = Cat->GetStringCatInfo(g, Name, "Subtype", Module);
@@ -283,14 +283,14 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (cmpr == 1)
         txfp = new(g) ZIPFAM(defp);
-			else {
-				strcpy(g->Message, "Compress 2 not supported yet");
+      else {
+        strcpy(g->Message, "Compress 2 not supported yet");
 //      txfp = new(g) ZLBFAM(defp);
-				return NULL;
-			} // endelse
+        return NULL;
+      } // endelse
 #else   // !ZIP_SUPPORT
-			strcpy(g->Message, "Compress not supported");
-			return NULL;
+      strcpy(g->Message, "Compress not supported");
+      return NULL;
 #endif  // !ZIP_SUPPORT
     } else if (rfm == RECFM_VAR) {
       if (map)
@@ -318,7 +318,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
     } // endif Txfp
 
   if (Multiple)
-	  tdbp = new(g) TDBMUL(tdbp);
+    tdbp = new(g) TDBMUL(tdbp);
 
   return tdbp;
   } // end of GetTable
@@ -371,14 +371,14 @@ COLDEF::COLDEF(void) : COLCRT()
   Clen = 0;
   Poff = 0;
   memset(&F, 0, sizeof(FORMAT));
-	Flags = 0;
+  Flags = 0;
   } // end of COLDEF constructor
 
 /***********************************************************************/
 /*  Define: initialize a column definition from a COLINFO structure.   */
 /***********************************************************************/
 int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
-	{
+  {
   Name = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Name) + 1);
   strcpy(Name, cfp->Name);
 
@@ -393,29 +393,29 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
   strcpy(F.Type, GetFormatType(Buf_Type));
   F.Length = cfp->Length;
   F.Prec = cfp->Prec;
-	Offset = (cfp->Offset < 0) ? poff : cfp->Offset;
+  Offset = (cfp->Offset < 0) ? poff : cfp->Offset;
   Long = cfp->Length;
   Opt = cfp->Opt;
   Key = cfp->Key;
 //Freq = cfp->Freq;
 
-	if (cfp->Remark && *cfp->Remark) {
-	  Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);
-		strcpy(Desc, cfp->Remark);
-		} // endif Remark
+  if (cfp->Remark && *cfp->Remark) {
+    Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);
+    strcpy(Desc, cfp->Remark);
+    } // endif Remark
 
-	if (cfp->Datefmt) {
-	  Decode = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Datefmt) + 1);
-		strcpy(Decode, cfp->Datefmt);
-		} // endif Datefmt
+  if (cfp->Datefmt) {
+    Decode = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Datefmt) + 1);
+    strcpy(Decode, cfp->Datefmt);
+    } // endif Datefmt
 
   if (cfp->Fieldfmt) {
     Fmt = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Fieldfmt) + 1);
     strcpy(Fmt, cfp->Fieldfmt);
     } // endif Fieldfmt
 
-	Flags = cfp->Flags;
-	return (Flags & U_VIRTUAL) ? 0 : Long;
-	} // end of Define
+  Flags = cfp->Flags;
+  return (Flags & U_VIRTUAL) ? 0 : Long;
+  } // end of Define
 
 /* ------------------------- End of RelDef --------------------------- */

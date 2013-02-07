@@ -37,14 +37,14 @@ class DllExport XOBJECT : public BLOCK {
 
   // Implementation
           PVAL   GetValue(void) {return Value;}
-					bool   IsConstant(void) {return Constant;}
+          bool   IsConstant(void) {return Constant;}
   virtual int    GetType(void) {return TYPE_XOBJECT;}
   virtual int    GetResultType(void) {return TYPE_VOID;}
   virtual int    GetKey(void) {return 0;}
 #if defined(_DEBUG)
   virtual void   SetKey(int k) {assert(false);}
-#else		// !_DEBUG
-  virtual void   SetKey(int k) {}	 // Only defined for COLBLK
+#else    // !_DEBUG
+  virtual void   SetKey(int k) {}   // Only defined for COLBLK
 #endif  // !_DEBUG
   virtual int    GetLength(void) = 0;
   virtual int    GetLengthEx(void) = 0;
@@ -57,7 +57,7 @@ class DllExport XOBJECT : public BLOCK {
   // Methods
   virtual void   Reset(void) {}
   virtual bool   Compare(PXOB) = 0;
-	virtual bool   Init(PGLOBAL) {return false;}
+  virtual bool   Init(PGLOBAL) {return false;}
   virtual bool   Eval(PGLOBAL) {return false;}
   virtual bool   SetFormat(PGLOBAL, FORMAT&) = 0;
   virtual int    CheckColumn(PGLOBAL, PSQL, PXOB &, int &) {return 0;}
@@ -69,13 +69,13 @@ class DllExport XOBJECT : public BLOCK {
   virtual int    CheckSpcCol(PTDB, int) {return 2;}
   virtual bool   CheckSort(PTDB) {return false;}
   virtual bool   VerifyColumn(PTBX txp) {return false;}
-	virtual bool	 VerifyTdb(PTDB& tdbp) {return false;}
-	virtual bool	 IsColInside(PCOL colp) {return false;}
+  virtual bool   VerifyTdb(PTDB& tdbp) {return false;}
+  virtual bool   IsColInside(PCOL colp) {return false;}
   virtual void   MarkCol(ushort) {}
 
  protected:
   PVAL Value;    // The current value of the object.
-	bool Constant; // true for an object having a constant value.
+  bool Constant; // true for an object having a constant value.
   }; // end of class XOBJECT
 
 /***********************************************************************/
@@ -117,7 +117,7 @@ class DllExport CONSTANT : public XOBJECT {
   virtual int    GetResultType(void) {return Value->Type;}
   virtual int    GetLength(void) {return Value->GetValLen();}
   virtual int    GetPrecision() {return Value->GetValPrec();}
-	virtual int    GetLengthEx(void);
+  virtual int    GetLengthEx(void);
 
   // Methods
   virtual bool   Compare(PXOB xp);
@@ -126,9 +126,9 @@ class DllExport CONSTANT : public XOBJECT {
   virtual int    CheckSpcCol(PTDB, int) {return 1;}
           void   Convert(PGLOBAL g, int newtype);
           bool   Rephrase(PGLOBAL g, PSZ work);
-					void   SetValue(PVAL vp) {Value = vp;}
+          void   SetValue(PVAL vp) {Value = vp;}
   virtual bool   VerifyColumn(PTBX txp) {return true;}
-	virtual bool	 VerifyTdb(PTDB& tdbp) {return true;}
+  virtual bool   VerifyTdb(PTDB& tdbp) {return true;}
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
   }; // end of class CONSTANT

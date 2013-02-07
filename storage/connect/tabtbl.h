@@ -56,7 +56,7 @@ class DllExport TBLDEF : public TABDEF {  /* Logical table description */
 class DllExport TDBTBL : public TDBASE {
   friend class TBLCOL;
   friend class TBTBLK;
-	friend class TDBPLG;
+  friend class TDBPLG;
  public:
   // Constructor
   TDBTBL(PTBLDEF tdp = NULL);
@@ -89,9 +89,9 @@ class DllExport TDBTBL : public TDBASE {
 
  protected:
   // Internal functions
-	PTDB  GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp);
+  PTDB  GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp);
   bool  InitTableList(PGLOBAL g);
-	bool  TestFil(PGLOBAL g, PFIL filp, PTBL tblp);
+  bool  TestFil(PGLOBAL g, PFIL filp, PTBL tblp);
 
   // Members
   PTABLE  Tablist;              // Points to the table list

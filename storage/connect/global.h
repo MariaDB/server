@@ -42,7 +42,7 @@
 
 #if defined(WIN32)
 #define CRLF  2
-#else		// !WIN32
+#else    // !WIN32
 #define CRLF  1
 #define BOOL my_bool
 #endif  // !WIN32
@@ -218,7 +218,7 @@ typedef struct _global {            /* Global structure                */
   uint      Sarea_Size;             /* Work area size                  */
   PACTIVITY Activityp, ActivityStart;
   char      Message[MAX_STR];
-	short     Trace;
+  short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

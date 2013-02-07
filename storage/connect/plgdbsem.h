@@ -86,8 +86,8 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_SRC   = 121,        /* PIVOT multiple column type no */
           TYPE_AM_FNC   = 122,        /* PIVOT source column type no   */
           TYPE_AM_XTB   = 130,        /* SYS table access method type  */
-					TYPE_AM_MAC   = 137,				/* MAC table access method type  */
-					TYPE_AM_WMI   = 139,				/* WMI table access method type  */
+          TYPE_AM_MAC   = 137,        /* MAC table access method type  */
+          TYPE_AM_WMI   = 139,        /* WMI table access method type  */
           TYPE_AM_XCL   = 140,        /* SYS column access method type */
           TYPE_AM_INI   = 150,        /* INI files access method       */
           TYPE_AM_TFC   = 155,        /* TFC (Circa) (Fuzzy compare)   */
@@ -120,7 +120,7 @@ enum MISC {DB_TABNO     =     1,      /* DB routines in Utility Table  */
 enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
              AMOD_SQL  =  1,          /* Use SQL algorithm             */
              AMOD_QRY  =  2};         /* Use QUERY algorithm           */
-#else	 // !0
+#else   // !0
 #define    NAM_LEN          128
 #endif // !0
 
@@ -291,8 +291,8 @@ enum COLUSE {U_P         = 0x01,      /* the projection list.          */
 /*-------------------- additional values used by CONNECT --------------*/
              U_VAR       = 0x10,      /* a VARCHAR column              */
              U_VIRTUAL   = 0x20,      /* a VIRTUAL column              */
-	           U_NULLS     = 0x40,      /* The column may have nulls     */
-						 U_IS_NULL   = 0x80};     /* The column has a null value   */
+             U_NULLS     = 0x40,      /* The column may have nulls     */
+             U_IS_NULL   = 0x80};     /* The column has a null value   */
 
 /***********************************************************************/
 /*  DB description class and block pointer definitions.                */
@@ -303,7 +303,7 @@ typedef class XOBJECT    *PXOB;
 typedef class COLBLK     *PCOL;
 typedef class TBX        *PTBX;
 typedef class TDB        *PTDB;
-typedef       void       *PSQL;					// Not used
+typedef       void       *PSQL;          // Not used
 typedef class TDBASE     *PTDBASE;
 typedef class TDBDOS     *PTDBDOS;
 typedef class TDBFIX     *PTDBFIX;
@@ -377,7 +377,7 @@ typedef struct {                       /* User application block       */
   NAME       Name;                     /* User application name        */
 //NAME       Password;                 /* User application password    */
 //PSZ        UserFile;                 /* User application filename    */
-	char       Server[17];               /* Server name                  */
+  char       Server[17];               /* Server name                  */
   char       DBName[17];               /* Current database name        */
 //char       Host[65];                 /* Caller's host name           */
 //char       User[17];                 /* Caller's user name           */
@@ -386,7 +386,7 @@ typedef struct {                       /* User application block       */
   PQRYRES    Result;                   /* To query result blocks       */
   PFBLOCK    Openlist;                 /* To file/map open list        */
   PMBLOCK    Memlist;                  /* To memory block list         */
-	PXUSED     Xlist;                    /* To used index list           */
+  PXUSED     Xlist;                    /* To used index list           */
 //int        Maxres;                   /* Result Max nb of lines       */
 //int        Maxtmp;                   /* Intermediate tables Maxres   */
 //int        Maxlin;                   /* Query Max nb of data lines   */
@@ -459,7 +459,7 @@ typedef  struct _qryres {
 
 typedef  struct _colres {
   PCOLRES Next;                    /* To next result column            */
-	PCOL    Colp;                    /* To matching column block         */
+  PCOL    Colp;                    /* To matching column block         */
   PSZ     Name;                    /* Column header                    */
   PVBLK   Kdata;                   /* Column block of values           */
   char   *Nulls;                   /* Column null value array          */

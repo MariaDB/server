@@ -149,15 +149,15 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       rc = GetLastError();
 
       if (rc != ERROR_FILE_NOT_FOUND) {
-	      FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-		                  FORMAT_MESSAGE_IGNORE_INSERTS,
-			                NULL, GetLastError(), 0,
-				              (LPTSTR)&filename, sizeof(filename), NULL);
-		    sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
-			  return true;
-				} // endif rc
+        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS,
+                      NULL, GetLastError(), 0,
+                      (LPTSTR)&filename, sizeof(filename), NULL);
+        sprintf(g->Message, MSG(BAD_FILE_HANDLE), filename);
+        return true;
+        } // endif rc
 
-			goto suite;
+      goto suite;
       } // endif hSearch
 
     while (n < PFNZ) {
@@ -267,7 +267,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
       // Suballocate the file name
       pfn[n] = (char*)PlugSubAlloc(g, NULL, strlen(filename) + 1);
       strcpy(pfn[n++], filename);
-		} // endfor n
+    } // endfor n
 
   } // endif Mul
 
@@ -426,7 +426,7 @@ bool TDBMUL::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, replace it at its beginning.               */
     /*******************************************************************/
-	  if (Filenames[iFile = 0]) {
+    if (Filenames[iFile = 0]) {
       Tdbp->CloseDB(g);
       Tdbp->SetUse(USE_READY);
       Tdbp->SetFile(g, Filenames[iFile = 0]);
@@ -434,8 +434,8 @@ bool TDBMUL::OpenDB(PGLOBAL g)
       Rows = 0;
       ResetDB();
       return Tdbp->OpenDB(g);  // Re-open with new file name
-		} else
-			return false;
+    } else
+      return false;
 
     } // endif use
 

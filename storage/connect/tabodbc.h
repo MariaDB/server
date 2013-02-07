@@ -27,7 +27,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ  GetTabname(void) {return Tabname;}
   PSZ  GetTabowner(void) {return Tabowner;}
   PSZ  GetTabqual(void) {return Tabqual;}
-	PSZ  GetQchar(void) {return (Qchar && *Qchar) ? Qchar : NULL;} 
+  PSZ  GetQchar(void) {return (Qchar && *Qchar) ? Qchar : NULL;} 
   int  GetCatver(void) {return Catver;}
   int  GetOptions(void) {return Options;}
 
@@ -56,7 +56,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
 /***********************************************************************/
 class TDBODBC : public TDBASE {
   friend class ODBCCOL;
-	friend class ODBConn;
+  friend class ODBConn;
  public:
   // Constructor
   TDBODBC(PODEF tdp = NULL);
@@ -70,10 +70,10 @@ class TDBODBC : public TDBASE {
   // Methods
   virtual PTDB CopyOne(PTABS t);
   virtual int  GetRecpos(void);
-	virtual PSZ	 GetFile(PGLOBAL g);
-	virtual void SetFile(PGLOBAL g, PSZ fn);
-	virtual void ResetSize(void);
-	virtual int  GetAffectedRows(void) {return AftRows;}
+  virtual PSZ   GetFile(PGLOBAL g);
+  virtual void SetFile(PGLOBAL g, PSZ fn);
+  virtual void ResetSize(void);
+  virtual int  GetAffectedRows(void) {return AftRows;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -97,7 +97,7 @@ class TDBODBC : public TDBASE {
 
   // Members
   ODBConn *Ocp;               // Points to an ODBC connection class
-  ODBCCOL *Cnp;								// Points to count(*) column
+  ODBCCOL *Cnp;                // Points to count(*) column
   char    *Connect;           // Points to connection string
   char    *TableName;         // Points to EOM table name
   char    *Owner;             // Points to EOM table Owner
@@ -106,17 +106,17 @@ class TDBODBC : public TDBASE {
   char    *Count;             // Points to count(*) SQL statement
 //char    *Where;             // Points to local where clause
   char    *Quote;             // The identifier quoting character
-	char  	*MulConn;						// Used for multiple ODBC tables
-	char    *DBQ;								// The address part of Connect string
+  char    *MulConn;            // Used for multiple ODBC tables
+  char    *DBQ;                // The address part of Connect string
   int      Options;           // Connect options
   int      Fpos;              // Position of last read record
-	int 		 AftRows;				    // The number of affected rows
+  int      AftRows;            // The number of affected rows
   int      Rows;              // Rowset size
-	int      Catver;						// Catalog ODBC version
+  int      Catver;            // Catalog ODBC version
   int      CurNum;            // Current buffer line number
   int      Rbuf;              // Number of lines read in buffer
-	int      BufSize;           // Size of connect string buffer
-	int  		 Nparm;					    // The number of statement parameters
+  int      BufSize;           // Size of connect string buffer
+  int       Nparm;              // The number of statement parameters
   }; // end of class TDBODBC
 
 /***********************************************************************/
@@ -133,17 +133,17 @@ class ODBCCOL : public COLBLK {
   // Implementation
   virtual int     GetAmType(void) {return TYPE_AM_ODBC;}
           SQLLEN *GetStrLen(void) {return StrLen;}
-					int     GetRank(void) {return Rank;}
-//				PVBLK   GetBlkp(void) {return Blkp;}
+          int     GetRank(void) {return Rank;}
+//        PVBLK   GetBlkp(void) {return Blkp;}
 
   // Methods
 //virtual bool   CheckLocal(PTDB tdbp);
-	virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
+  virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
-	virtual void   WriteColumn(PGLOBAL g);
-	        void   AllocateBuffers(PGLOBAL g, int rows);
-					void  *GetBuffer(DWORD rows);
-					SWORD  GetBuflen(void);
+  virtual void   WriteColumn(PGLOBAL g);
+          void   AllocateBuffers(PGLOBAL g, int rows);
+          void  *GetBuffer(DWORD rows);
+          SWORD  GetBuflen(void);
 //        void   Print(PGLOBAL g, FILE *, uint);
 
  protected:
@@ -151,14 +151,14 @@ class ODBCCOL : public COLBLK {
   ODBCCOL(void);
 
   // Members
-  TIMESTAMP_STRUCT *Sqlbuf;		 // To get SQL_TIMESTAMP's
-	void   *Bufp;								 // To extended buffer
-	PVBLK   Blkp;                // To Value Block
+  TIMESTAMP_STRUCT *Sqlbuf;     // To get SQL_TIMESTAMP's
+  void   *Bufp;                 // To extended buffer
+  PVBLK   Blkp;                // To Value Block
 //char    F_Date[12];          // Internal Date format
   PVAL    To_Val;              // To value used for Insert
   SQLLEN *StrLen;              // As returned by ODBC
-	SQLLEN  Slen;								 // Used with Fetch
-	int     Rank;						     // Rank (position) number in the query
+  SQLLEN  Slen;                 // Used with Fetch
+  int     Rank;                 // Rank (position) number in the query
   }; // end of class ODBCCOL
 
 /***********************************************************************/
@@ -174,35 +174,35 @@ class TDBOIF : public TDBASE {
   virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
 
   // Methods
-	virtual int  GetRecpos(void) {return N;}
+  virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgCur(void) {return N;}
-	virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+  virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
 
   // Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g);
+  virtual void CloseDB(PGLOBAL g);
 
  protected:
-	// Specific routines
-					bool Initialize(PGLOBAL g);
+  // Specific routines
+          bool Initialize(PGLOBAL g);
           bool InitCol(PGLOBAL g);
 
   // Members
   PQRYRES Qrp;           
-	int     N;	          			// Row number
-	bool    Init;          
+  int     N;                  // Row number
+  bool    Init;          
   }; // end of class TDBOIF
 
 /***********************************************************************/
 /*  Class OIFCOL: ODBC info column.                                    */
 /***********************************************************************/
 class OIFCOL : public COLBLK {
-	friend class TDBOIF;
+  friend class TDBOIF;
  public:
   // Constructors
   OIFCOL(PCOLDEF cdp, PTDB tdbp, int n);
@@ -214,10 +214,10 @@ class OIFCOL : public COLBLK {
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  OIFCOL(void) {}							// Default constructor not to be used
+  OIFCOL(void) {}              // Default constructor not to be used
 
   // Members
-	PTDBOIF Tdbp;								// Points to ODBC table block
+  PTDBOIF Tdbp;                // Points to ODBC table block
   PCOLRES Crp;                // The column data array
   int     Flag;
   }; // end of class OIFCOL

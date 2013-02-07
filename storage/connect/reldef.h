@@ -67,9 +67,9 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   void    SetNext(PTABDEF tdfp) {Next = tdfp;}
   int     GetMultiple(void) {return Multiple;}
   int     GetPseudo(void) {return Pseudo;}
-	PSZ     GetPath(void) 
-						{return (Database) ? (PSZ)Database : Cat->GetDataPath();}
-	bool    SepIndex(void) {return Cat->GetSepIndex();}
+  PSZ     GetPath(void) 
+            {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
+  bool    SepIndex(void) {return Cat->GetSepIndex();}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
@@ -97,7 +97,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
 /***********************************************************************/
 /*  Externally defined OEM tables.                                     */
 /***********************************************************************/
-class DllExport OEMDEF : public TABDEF {									/* OEM table */
+class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   friend class CATALOG;
   friend class PLUGCAT;
   friend class MYCAT;
@@ -141,7 +141,7 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ  GetName(void) {return Name;}
   PSZ  GetDecode(void) {return Decode;}
   PSZ  GetFmt(void) {return Fmt;}
-	int  GetOpt(void) {return Opt;}
+  int  GetOpt(void) {return Opt;}
   int  GetLong(void) {return Long;}
   int  GetOffset(void) {return Offset;}
   void SetOffset(int offset) {Offset = offset;}
@@ -154,9 +154,9 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ     Fmt;                /* Input format for formatted files      */
   int     Offset;             /* Offset of field within record         */
   int     Long;               /* Length of field in file record (!BIN) */
-	int     Key;                /* Key (greater than 1 if multiple)      */
+  int     Key;                /* Key (greater than 1 if multiple)      */
   int     Prec;               /* Precision for float values            */
-	int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
+  int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
   char    DataType;           /* Internal data type (C, N, F, T)       */
   }; // end of COLCRT
 
@@ -165,8 +165,8 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
 /***********************************************************************/
 class DllExport COLDEF : public COLCRT { /* Column description block             */
   friend class CATALOG;
-	friend class PLUGCAT;
-	friend class MYCAT;
+  friend class PLUGCAT;
+  friend class MYCAT;
   friend class COLBLK;
   friend class DBFFAM;
  public:

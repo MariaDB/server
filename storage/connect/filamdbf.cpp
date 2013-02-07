@@ -72,7 +72,7 @@ PQRYRES PlgAllocResult(PGLOBAL, int, int, int, int *, int *,
                 unsigned int *, bool blank = true, bool nonull = false);
 bool    PushWarning(PGLOBAL, PTDBASE);
 
-extern "C" int trace;	         		 // The general trace value  
+extern "C" int trace;                // The general trace value  
 
 /****************************************************************************/
 /*  First 32 bytes of a .dbf file.                                          */
@@ -202,8 +202,8 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   PQRYRES    qrp;
   PCOLRES    crp;
 
-	if (trace)
-		htrc("DBFColumns: File %s\n", SVP(fn));
+  if (trace)
+    htrc("DBFColumns: File %s\n", SVP(fn));
 
   if (!fn) {
     strcpy(g->Message, MSG(MISSING_FNAME));
@@ -235,17 +235,17 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
                                         dbtype, buftyp, length);
   qrp->Info = info || (rc == RC_INFO);
 
-	if (trace) {
-		htrc("Structure of %s\n", filename);
-		htrc("headlen=%hd reclen=%hd degree=%d\n",
-					mainhead.Headlen, mainhead.Reclen, fields);
-		htrc("flags(iem)=%d,%d,%d cp=%d\n", mainhead.Incompleteflag,
-					mainhead.Encryptflag, mainhead.Mdxflag, mainhead.Language);
-		htrc("%hd records, last changed %02d/%02d/%d\n",
-					mainhead.Records, mainhead.Filedate[1], mainhead.Filedate[2],
-					mainhead.Filedate[0] + (mainhead.Filedate[0] <= 30) ? 2000 : 1900);
-		htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
-		} // endif trace
+  if (trace) {
+    htrc("Structure of %s\n", filename);
+    htrc("headlen=%hd reclen=%hd degree=%d\n",
+          mainhead.Headlen, mainhead.Reclen, fields);
+    htrc("flags(iem)=%d,%d,%d cp=%d\n", mainhead.Incompleteflag,
+          mainhead.Encryptflag, mainhead.Mdxflag, mainhead.Language);
+    htrc("%hd records, last changed %02d/%02d/%d\n",
+          mainhead.Records, mainhead.Filedate[1], mainhead.Filedate[2],
+          mainhead.Filedate[0] + (mainhead.Filedate[0] <= 30) ? 2000 : 1900);
+    htrc("Field    Type  Offset  Len  Dec  Set  Mdx\n");
+    } // endif trace
 
   buf[1] = '\0';
 
@@ -261,10 +261,10 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
     } else
       len = thisfield.Length;
 
-		if (trace)
-			htrc("%-11s %c  %6ld  %3d   %2d  %3d  %3d\n",
-					 thisfield.Name, thisfield.Type, thisfield.Offset, len,
-					 thisfield.Decimals, thisfield.Setfield, thisfield.Mdxfield);
+    if (trace)
+      htrc("%-11s %c  %6ld  %3d   %2d  %3d  %3d\n",
+           thisfield.Name, thisfield.Type, thisfield.Offset, len,
+           thisfield.Decimals, thisfield.Setfield, thisfield.Mdxfield);
 
     /************************************************************************/
     /*  Now get the results into blocks.                                    */
@@ -486,7 +486,7 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
-		return (errno == ENOENT) ? PushWarning(g, Tdbp) : true;
+    return (errno == ENOENT) ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
 #ifdef DEBTRACE

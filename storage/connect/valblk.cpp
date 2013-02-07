@@ -161,7 +161,7 @@ bool VALBLK::Locate(PVAL vp, int& i)
   {
   CheckType(vp)
 
-	int n = 1;
+  int n = 1;
 
   for (i = 0; i < Nval; i++)
     if ((n = CompVal(vp, i)) <= 0)
@@ -181,7 +181,7 @@ CHRBLK::CHRBLK(void *mp, int nval, int len, int prec, bool blank)
   {
   Valp = NULL;
   Blanks = blank;
-	Ci = (prec != 0);
+  Ci = (prec != 0);
   Long = len;
   } // end of CHRBLK constructor
 
@@ -372,7 +372,7 @@ int CHRBLK::CompVal(PVAL vp, int n)
   {
   CheckParms(vp, n)
   char *xvp = vp->GetCharValue(); // Get Value zero ended string
-	bool ci = Ci || vp->IsCi(); 		// true if is case insensitive
+  bool ci = Ci || vp->IsCi();     // true if is case insensitive
 
   GetValPtrEx(n);                 // Get a zero ended string in Valp
   return (ci) ? stricmp(xvp, Valp) : strcmp(xvp, Valp);
@@ -384,7 +384,7 @@ int CHRBLK::CompVal(PVAL vp, int n)
 int CHRBLK::CompVal(int i1, int i2)
   {
   return (Ci) ? strnicmp(Chrp + i1 * Long, Chrp + i2 * Long, Long)
-							: strncmp(Chrp + i1 * Long, Chrp + i2 * Long, Long);
+              : strncmp(Chrp + i1 * Long, Chrp + i2 * Long, Long);
   } // end of CompVal
 
 /***********************************************************************/
@@ -426,7 +426,7 @@ int CHRBLK::Find(PVAL vp)
   {
   CheckType(vp)
   int  i;
-	bool ci = Ci || vp->IsCi();
+  bool ci = Ci || vp->IsCi();
   PSZ  s = vp->GetCharValue();
 
   for (i = 0; i < Nval; i++) {
@@ -1236,7 +1236,7 @@ int BIGBLK::GetMaxLength(void)
 DBLBLK::DBLBLK(void *mp, int nval, int prec)
       : VALBLK(mp, TYPE_FLOAT, nval), Dblp((double*&)Blkp)
   {
-	Prec = prec;
+  Prec = prec;
   } // end of DBLBLK constructor
 
 /***********************************************************************/

@@ -126,7 +126,7 @@ PCOL TDBFIX::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 int TDBFIX::ResetTableOpt(PGLOBAL g, bool dox)
   {
   RestoreNrec();                        // May have been modified
-	return TDBDOS::ResetTableOpt(g, dox);
+  return TDBDOS::ResetTableOpt(g, dox);
   } // end of ResetTableOpt
 
 /***********************************************************************/
@@ -174,8 +174,8 @@ int TDBFIX::GetMaxSize(PGLOBAL g)
 /***********************************************************************/
 void TDBFIX::ResetSize(void)
   {
-	if (Txfp->GetAmType() == TYPE_AM_DBF)
-	  Txfp->Headlen = 0;
+  if (Txfp->GetAmType() == TYPE_AM_DBF)
+    Txfp->Headlen = 0;
 
   MaxSize = Cardinal = -1;
   } // end of ResetSize
@@ -230,9 +230,9 @@ bool TDBFIX::IsUsingTemp(PGLOBAL g)
 /***********************************************************************/
 bool TDBFIX::OpenDB(PGLOBAL g)
   {
-	if (trace)
-		htrc("FIX OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d Ftype=%d\n",
-		  this, Tdb_No, Use, To_Key_Col, Mode, Ftype);
+  if (trace)
+    htrc("FIX OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d Ftype=%d\n",
+      this, Tdb_No, Use, To_Key_Col, Mode, Ftype);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -254,7 +254,7 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*  and also in the case of multiple tables.                         */
   /*********************************************************************/
   if (Cardinality(g) < 0)
-		return true;           
+    return true;           
 
   /*********************************************************************/
   /*  Open according to required logical input/output mode.            */
@@ -271,8 +271,8 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*********************************************************************/
   To_Line = Txfp->GetBuf();                       // For WriteDB
 
-	if (trace)
-		htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);
+  if (trace)
+    htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */
@@ -325,9 +325,9 @@ void BINCOL::ReadColumn(PGLOBAL g)
   int     rc;
   PTDBFIX tdbp = (PTDBFIX)To_Tdb;
 
-	if (trace)
-		htrc("BIN ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
-		  Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
+  if (trace)
+    htrc("BIN ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
+      Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
 
   /*********************************************************************/
   /*  If physical reading of the line was deferred, do it now.         */
@@ -389,13 +389,13 @@ void BINCOL::WriteColumn(PGLOBAL g)
   longlong n;
   PTDBFIX  tdbp = (PTDBFIX)To_Tdb;
 
-	if (trace) {
-		htrc("BIN WriteColumn: col %s R%d coluse=%.4X status=%.4X",
-					Name, tdbp->GetTdb_No(), ColUse, Status);
-		htrc(" Lrecl=%d\n", tdbp->Lrecl);
-		htrc("Long=%d deplac=%d coltype=%d ftype=%c\n",
-					Long, Deplac, Buf_Type, *Format.Type);
-		} // endif trace
+  if (trace) {
+    htrc("BIN WriteColumn: col %s R%d coluse=%.4X status=%.4X",
+          Name, tdbp->GetTdb_No(), ColUse, Status);
+    htrc(" Lrecl=%d\n", tdbp->Lrecl);
+    htrc("Long=%d deplac=%d coltype=%d ftype=%c\n",
+          Long, Deplac, Buf_Type, *Format.Type);
+    } // endif trace
 
   /*********************************************************************/
   /*  Check whether the new value has to be converted to Buf_Type.     */

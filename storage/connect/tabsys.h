@@ -17,15 +17,15 @@ typedef class XINCOL *PXINCOL;
 /***********************************************************************/
 /*  INI, XDB and XCL tables.                                           */
 /***********************************************************************/
-class DllExport INIDEF : public TABDEF {		  /* INI table description */
-	friend class TDBINI;
-	friend class TDBXIN;
-	friend class TDBXTB;
-	friend class TDBRTB;
-	friend class TDBXCL;
+class DllExport INIDEF : public TABDEF {      /* INI table description */
+  friend class TDBINI;
+  friend class TDBXIN;
+  friend class TDBXTB;
+  friend class TDBRTB;
+  friend class TDBXCL;
  public:
   // Constructor
-	INIDEF(void);
+  INIDEF(void);
 
   // Implementation
   virtual const char *GetType(void) {return "INI";}
@@ -39,9 +39,9 @@ class DllExport INIDEF : public TABDEF {		  /* INI table description */
   // Members
   char   *Fn;                 /* Path/Name of corresponding file       */
   char   *Xname;              /* The eventual table name               */
-	char    Subtype;						/* I: INI, T: Table, C: Column           */
-	char    Layout;							/* R: Row, C: Column                     */
-	int     Ln;     						/* Length of section list buffer         */
+  char    Subtype;            /* I: INI, T: Table, C: Column           */
+  char    Layout;              /* R: Row, C: Column                     */
+  int     Ln;                 /* Length of section list buffer         */
   }; // end of INIDEF
 
 /***********************************************************************/
@@ -61,18 +61,18 @@ class TDBINI : public TDBASE {
 
   // Methods
   virtual PTDB  CopyOne(PTABS t);
-	virtual int   GetRecpos(void) {return (int)Section;}
+  virtual int   GetRecpos(void) {return (int)Section;}
   virtual int   GetProgCur(void) {return N;}
   virtual int   GetAffectedRows(void) {return 0;}
-	virtual PSZ	  GetFile(PGLOBAL g) {return Ifile;}
-	virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
-	virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
-	virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
-	virtual int   RowNumber(PGLOBAL g, bool b = false) {return N;}
-					char *GetSeclist(PGLOBAL g);
+  virtual PSZ    GetFile(PGLOBAL g) {return Ifile;}
+  virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
+  virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
+  virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
+  virtual int   RowNumber(PGLOBAL g, bool b = false) {return N;}
+          char *GetSeclist(PGLOBAL g);
 
   // Database routines
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -82,11 +82,11 @@ class TDBINI : public TDBASE {
 
  protected:
   // Members
-	char *Ifile;															 // The INI file
-	char *Seclist;														 // The section list
-	char *Section; 														 // The current section
-	int   Seclen;															 // Length of seclist buffer
-	int   N;																	 // The current section index
+  char *Ifile;                               // The INI file
+  char *Seclist;                             // The section list
+  char *Section;                              // The current section
+  int   Seclen;                               // Length of seclist buffer
+  int   N;                                   // The current section index
   }; // end of class TDBINI
 
 /***********************************************************************/
@@ -106,16 +106,16 @@ class INICOL : public COLBLK {
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-	virtual void AllocBuf(PGLOBAL g);
+  virtual void AllocBuf(PGLOBAL g);
 
  protected:
   // Default constructor not to be used
   INICOL(void) {}
 
   // Members
-	char *Valbuf;									 // To the key value buffer
-	int   Flag;										 // Tells what set in value
-	int   Long;										 // Buffer length
+  char *Valbuf;                   // To the key value buffer
+  int   Flag;                     // Tells what set in value
+  int   Long;                     // Buffer length
   PVAL  To_Val;                  // To value used for Update/Insert
   }; // end of class INICOL
 
@@ -139,14 +139,14 @@ class TDBXIN : public TDBINI {
 
   // Methods
   virtual PTDB  CopyOne(PTABS t);
-	virtual int   GetRecpos(void);
-	virtual bool  SetRecpos(PGLOBAL g, int recpos);
-	virtual void  ResetDB(void)
-								{Seclist = Section = Keycur = NULL; N = 0; Oldsec = -1;}
-					char *GetKeylist(PGLOBAL g, char *sec);
+  virtual int   GetRecpos(void);
+  virtual bool  SetRecpos(PGLOBAL g, int recpos);
+  virtual void  ResetDB(void)
+                {Seclist = Section = Keycur = NULL; N = 0; Oldsec = -1;}
+          char *GetKeylist(PGLOBAL g, char *sec);
 
   // Database routines
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -155,10 +155,10 @@ class TDBXIN : public TDBINI {
 
  protected:
   // Members
-	char *Keylist;														 // The key list
-	char *Keycur; 														 // The current key
-	int   Keylen;															 // Length of keylist buffer
-	short Oldsec;															 // Last current section
+  char *Keylist;                             // The key list
+  char *Keycur;                              // The current key
+  int   Keylen;                               // Length of keylist buffer
+  short Oldsec;                               // Last current section
   }; // end of class TDBXIN
 
 /***********************************************************************/
