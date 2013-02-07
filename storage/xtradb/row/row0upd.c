@@ -2302,12 +2302,12 @@ row_upd_del_mark_clust_rec(
 	if (err == DB_SUCCESS && referenced) {
 		/* NOTE that the following call loses the position of pcur ! */
 
-		err = wsrep_row_upd_check_foreign_constraints(
+		err = row_upd_check_references_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 	}
 #ifdef WITH_WSREP
 	if (err == DB_SUCCESS && !referenced) {
-		uint werr = row_upd_check_references_constraints(
+		uint werr = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 		if (wsrep_debug && werr != DB_SUCCESS)
 			fprintf (stderr,  "WSREP: FK check fail: %u",  werr);
