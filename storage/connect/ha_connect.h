@@ -241,7 +241,7 @@ public:
  */ 
 virtual const COND *cond_push(const COND *cond);
 PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
-char *GetValStr(OPVAL vop, bool neg);
+const char *GetValStr(OPVAL vop, bool neg);
 
  /**
    Number of rows in table. It will only be called if
@@ -346,7 +346,7 @@ char *GetValStr(OPVAL vop, bool neg);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-  char *GetListOption(char *opname, const char *oplist, char *def= NULL);
+  char *GetListOption(const char *opname, const char *oplist, const char *def= NULL);
   char *encode(PGLOBAL g, char *cnm);
   bool  add_fields(THD *thd, void *alter_info, 
            LEX_STRING *field_name,

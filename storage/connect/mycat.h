@@ -24,6 +24,8 @@
 #include "block.h"
 #include "catalog.h"
 
+char GetTypeID(const char *type);
+
 /***********************************************************************/
 /*  MYCAT: class for managing the CONNECT plugin DB items.             */
 /***********************************************************************/
@@ -61,4 +63,4 @@ class MYCAT : public CATALOG {
   ha_connect *Hc;                          // The Connect handler
   }; // end of class MYCAT
 
-#endif __MYCAT__H
+#endif /* __MYCAT__H */

@@ -46,8 +46,6 @@
 #include "filamap.h"
 #include "tabdos.h"
 
-bool PushWarning(PGLOBAL, PTDBASE);
-
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/

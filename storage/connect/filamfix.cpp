@@ -52,7 +52,6 @@
 #endif
 
 extern int num_read, num_there, num_eq[2];               // Statistics
-bool PushWarning(PGLOBAL g, PTDBASE tdbp);
 
 /* --------------------------- Class FIXFAM -------------------------- */
 
