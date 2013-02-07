@@ -36,9 +36,6 @@
 // The types and variables used locally
 //typedef int bool;
 typedef unsigned int uint;
-#define DWORD int
-#define TRUE  1
-#define FALSE 0
 #define SVP(S)  ((S) ? S : "<null>")
 #define _strlwr(P)  strlwr(P)  //OB: changed this line
 #define MAX_PATHNAME_LEN  256
@@ -81,7 +78,7 @@ typedef struct tagPROFILESECTION {
   } PROFILESECTION;
 
 typedef struct {
-  bool             changed;
+  BOOL             changed;
   PROFILESECTION  *section;
 //char            *dos_name;
 //char            *unix_name;
@@ -116,7 +113,7 @@ static char PROFILE_WineIniUsed[MAX_PATHNAME_LEN] = "";
 
 static const char hex[16] = "0123456789ABCDEF";
 
-bool  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
+BOOL  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
                                 LPCSTR string, LPCSTR filename );
 /***********************************************************************
  *           PROFILE_CopyEntry
@@ -350,7 +347,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
  *
  * Flush the current profile to disk if changed.
  ***********************************************************************/
-static bool PROFILE_FlushFile(void)
+static BOOL PROFILE_FlushFile(void)
 {
 //char       *p, buffer[MAX_PATHNAME_LEN];
 //const char *unix_name;
@@ -436,7 +433,7 @@ static void PROFILE_ReleaseFile(void)
  *
  * Open a profile file, checking the cached file first.
  ***********************************************************************/
-static bool PROFILE_Open(LPCSTR filename)
+static BOOL PROFILE_Open(LPCSTR filename)
 {
 //char        buffer[MAX_PATHNAME_LEN];
 //char       *p;
@@ -565,7 +562,7 @@ static bool PROFILE_Open(LPCSTR filename)
  *
  * Delete a section from a profile tree.
  ***********************************************************************/
-static bool PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
+static BOOL PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
 {
   while (*section) {
     if ((*section)->name[0] && !stricmp((*section)->name, name)) {
@@ -589,7 +586,7 @@ static bool PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
  *
  * Delete a key from a profile tree.
  ***********************************************************************/
-static bool PROFILE_DeleteKey(PROFILESECTION* *section,
+static BOOL PROFILE_DeleteKey(PROFILESECTION* *section,
                               LPCSTR section_name, LPCSTR key_name)
 {
   while (*section) {
@@ -656,7 +653,7 @@ void PROFILE_DeleteAllKeys(LPCSTR section_name)
 static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section, 
                                 const char *section_name,
                                 const char *key_name, 
-                                bool create, bool create_always)
+                                BOOL create, BOOL create_always)
 {
   const char *p;
   int seclen, keylen;
@@ -747,8 +744,8 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
  * If return_values is TRUE, also include the corresponding values.
  ***********************************************************************/
 static int PROFILE_GetSection(PROFILESECTION *section, LPCSTR section_name,
-                              LPSTR buffer, uint len, bool handle_env,
-                              bool return_values)
+                              LPSTR buffer, uint len,
+                              BOOL handle_env, BOOL return_values)
 {
   PROFILEKEY *key;
 
@@ -927,8 +924,8 @@ static int PROFILE_GetString(LPCSTR section, LPCSTR key_name,
  *
  * Set a profile string.
  ***********************************************************************/
-static bool PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
-                              LPCSTR value, bool create_always)
+static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
+                              LPCSTR value, BOOL create_always)
 {
   if (!key_name) {       /* Delete a whole section */
     if (trace > 1)
@@ -1026,7 +1023,7 @@ char *PROFILE_GetStringItem(char* start)
 static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
                                            LPCSTR def_val, LPSTR buffer,
                                            uint len, LPCSTR filename,
-                                           bool allow_section_name_copy)
+                                           BOOL allow_section_name_copy)
 {
   int   ret;
   LPSTR pDefVal = NULL;
@@ -1143,10 +1140,10 @@ int GetPrivateProfileSection(LPCSTR section, LPSTR buffer,
 /***********************************************************************
  *           WritePrivateProfileStringA   (KERNEL32.@)
  ***********************************************************************/
-bool WritePrivateProfileString(LPCSTR section, LPCSTR entry,
+BOOL WritePrivateProfileString(LPCSTR section, LPCSTR entry,
                                LPCSTR string, LPCSTR filename)
 {
-  bool ret = FALSE;
+  BOOL ret = FALSE;
 
   EnterCriticalSection( &PROFILE_CritSect );
 
@@ -1176,10 +1173,10 @@ bool WritePrivateProfileString(LPCSTR section, LPCSTR entry,
 /***********************************************************************
  *           WritePrivateProfileSectionA   (KERNEL32.@)
  ***********************************************************************/
-bool WritePrivateProfileSection(LPCSTR section,
+BOOL WritePrivateProfileSection(LPCSTR section,
                                 LPCSTR string, LPCSTR filename )
 {
-  bool  ret = FALSE;
+  BOOL  ret = FALSE;
   LPSTR p ;
 
   EnterCriticalSection(&PROFILE_CritSect);

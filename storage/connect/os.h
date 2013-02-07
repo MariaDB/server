@@ -26,6 +26,7 @@ typedef unsigned char BYTE;
 typedef char *LPSTR;
 typedef char *LPTSTR;
 typedef char *PSZ;
+typedef long BOOL;
 typedef int INT;
 #if !defined(NODW)
 /*
@@ -38,13 +39,6 @@ typedef unsigned long DWORD;
 #endif   /* !NODW */
 #undef  HANDLE     
 typedef int   HANDLE;
-
-/* TODO-BAR: remove this */
-#ifdef __cplusplus
-typedef int   bool;
-#else
-#define bool  my_bool
-#endif
 
 #define stricmp     strcasecmp
 #define _stricmp    strcasecmp

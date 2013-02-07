@@ -44,7 +44,6 @@
 #define CRLF  2
 #else    // !WIN32
 #define CRLF  1
-#define BOOL my_bool
 #endif  // !WIN32
 
 /***********************************************************************/
