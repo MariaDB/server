@@ -29,7 +29,7 @@ int   GetLastError();
 void  _splitpath(const char*, char*, char*, char*, char*);
 void  _makepath(char*, const char*, const char*, const char*, const char*);
 char *_fullpath(char *absPath, const char *relPath, size_t maxLength);
-bool  MessageBeep(uint);
+BOOL  MessageBeep(uint);
 unsigned long _filelength(int fd);
 
 int GetPrivateProfileString(
@@ -48,7 +48,7 @@ uint GetPrivateProfileInt(
   LPCTSTR lpFileName        // initialization file name
   );
 
-bool WritePrivateProfileString(
+BOOL WritePrivateProfileString(
   LPCTSTR lpAppName,        // section name
   LPCTSTR lpKeyName,        // key name
   LPCTSTR lpString,         // string to add
@@ -62,7 +62,7 @@ int GetPrivateProfileSection(
   LPCTSTR lpFileName        // initialization file name
   );
 
-bool WritePrivateProfileSection(
+BOOL WritePrivateProfileSection(
   LPCTSTR lpAppName,        // section name
   LPCTSTR lpString,         // data
   LPCTSTR lpFileName        // file name

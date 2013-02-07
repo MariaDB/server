@@ -17,7 +17,6 @@ my_bool CloseFileHandle(HANDLE h)
 //#include <ctype.h>
 #include <fcntl.h>
 
-#define DWORD int
 extern FILE *debug;
 
 /***********************************************************************/
@@ -195,7 +194,7 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   return absPath;
   }  /* end of _fullpath */
 
-bool MessageBeep(uint i)
+BOOL MessageBeep(uint i)
   {
   // Fixme
   return TRUE;
