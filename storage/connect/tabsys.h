@@ -61,7 +61,7 @@ class TDBINI : public TDBASE {
 
   // Methods
   virtual PTDB  CopyOne(PTABS t);
-	virtual int   GetRecpos(void) {return (int)Section;}
+	virtual int   GetRecpos(void) {return N;}
   virtual int   GetProgCur(void) {return N;}
   virtual int   GetAffectedRows(void) {return 0;}
 	virtual PSZ	  GetFile(PGLOBAL g) {return Ifile;}

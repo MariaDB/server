@@ -216,7 +216,7 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 /***********************************************************************/
 PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   {
-	char        *db, key[128];
+	char        *db, key[256];
 	uint				 k, flags;
 	PTDB         tdbp = NULL;
 	TABLE_LIST   table_list;
@@ -236,9 +236,11 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
 	table_list.init_one_table(db, strlen(db),
                             tblp->Name, strlen(tblp->Name),
                             NULL, TL_IGNORE);
-	k = sprintf(key, "%s\0%s\0", db, tblp->Name);
+	k = sprintf(key, "%s", db);
+	k += sprintf(key + ++k, "%s", tblp->Name);
+  key[++k] = 0;
 
-	if (!(s = alloc_table_share(&table_list, key, k))) {
+	if (!(s = alloc_table_share(&table_list, key, ++k))) {
 		strcpy(g->Message, "Error allocating share\n");
 		return NULL;
 		} // endif s

@@ -118,11 +118,11 @@
 #define IDS_PLG_07                      1286
 #define IDS_PLG_08                      1287
 #define IDS_PLG_09                      1288
-#define IDS_DSC                         1295
+#define IDS_DSRC                        1295
 #define IDS_DSC_01                      1296
 #define IDS_DSC_02                      1297
-#define IDS_DSC_03                      1298
-#define IDS_DSC_04                      1299
+//#define IDS_DSC_03                      1298
+//#define IDS_DSC_04                      1299
 
 // Next default values for new objects
 //

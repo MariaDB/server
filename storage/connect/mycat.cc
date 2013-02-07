@@ -99,9 +99,9 @@ extern int xtrace;
 /*  General DB routines.                                                  */
 /**************************************************************************/
 //bool  PlugCheckPattern(PGLOBAL, LPCSTR, LPCSTR);
-#if !defined(WIN32)
+//#if !defined(WIN32)
 extern "C" int GetRcString(int id, char *buf, int bufsize);
-#endif  // !WIN32
+//#endif  // !WIN32
 //void  ptrc(char const *fmt, ...);
 
 /**************************************************************************/
@@ -149,9 +149,9 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
       // Get header from message file
 			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
 			cname[NAM_LEN] = 0;					// for truncated long names
-#elif defined(WIN32)
+//#elif defined(WIN32)
       // Get header from ressource file
-      LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
+//    LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
 #else   // !WIN32
       GetRcString(ids + crp->Ncol, cname, sizeof(cname));
 #endif  // !WIN32

@@ -1365,7 +1365,8 @@ void CSVCOL::WriteColumn(PGLOBAL g)
 		htrc("new length(%p)=%d\n", p, strlen(p));
 
   if ((signed)strlen(p) > flen) {
-    sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen);
+    sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
+                        tdbp->RowNumber(g), tdbp->GetFile(g));
     longjmp(g->jumper[g->jump_level], 34);
     } // endif
 

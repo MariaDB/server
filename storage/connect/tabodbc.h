@@ -6,12 +6,14 @@
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
 #include "colblk.h"
+#include "resource.h"
 
 typedef class ODBCDEF *PODEF;
 typedef class TDBODBC *PTDBODBC;
 typedef class ODBCCOL *PODBCCOL;
 typedef class TDBOIF  *PTDBOIF;
 typedef class OIFCOL  *POIFCOL;
+typedef class TDBSRC  *PTDBSRC;
 
 /***********************************************************************/
 /*  ODBC table.                                                        */
@@ -42,9 +44,9 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Tabowner;           /* External table owner                  */
   PSZ     Tabqual;            /* External table qualifier              */
   PSZ     Qchar;              /* Identifier quoting character          */
+  PSZ     Info;               /* Information value                     */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
-  bool    Info;               /* true if getting data sources          */
   }; // end of ODBCDEF
 
 #if !defined(NODBC)
@@ -99,9 +101,9 @@ class TDBODBC : public TDBASE {
   ODBConn *Ocp;               // Points to an ODBC connection class
   ODBCCOL *Cnp;								// Points to count(*) column
   char    *Connect;           // Points to connection string
-  char    *TableName;         // Points to EOM table name
-  char    *Owner;             // Points to EOM table Owner
-  char    *Qualifier;         // Points to EOM table Qualifier
+  char    *TableName;         // Points to ODBC table name
+  char    *Owner;             // Points to ODBC table Owner
+  char    *Qualifier;         // Points to ODBC table Qualifier
   char    *Query;             // Points to SQL statement
   char    *Count;             // Points to count(*) SQL statement
 //char    *Where;             // Points to local where clause
@@ -162,7 +164,7 @@ class ODBCCOL : public COLBLK {
   }; // end of class ODBCCOL
 
 /***********************************************************************/
-/*  This is the class declaration for the ODBC info table.             */
+/*  This is the base class declaration for the ODBC info tables.       */
 /***********************************************************************/
 class TDBOIF : public TDBASE {
   friend class OIFCOL;
@@ -189,11 +191,13 @@ class TDBOIF : public TDBASE {
 
  protected:
 	// Specific routines
-					bool Initialize(PGLOBAL g);
+	virtual bool Initialize(PGLOBAL g) = 0;
           bool InitCol(PGLOBAL g);
 
   // Members
-  PQRYRES Qrp;           
+  PQRYRES Qrp;                // Result set
+  int     ID;                 // Base of Column names
+  int     NC;                 // Number of valid flags
 	int     N;	          			// Row number
 	bool    Init;          
   }; // end of class TDBOIF
@@ -221,5 +225,36 @@ class OIFCOL : public COLBLK {
   PCOLRES Crp;                // The column data array
   int     Flag;
   }; // end of class OIFCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the Data Sources info table.     */
+/***********************************************************************/
+class TDBSRC : public TDBOIF {
+ public:
+  // Constructor
+  TDBSRC(PODEF tdp) : TDBOIF(tdp) {ID = IDS_DSRC; NC = 2;}
+
+ protected:
+	// Specific routines
+	virtual bool Initialize(PGLOBAL g);
+
+  }; // end of class TDBSRC
+
+/***********************************************************************/
+/*  This is the class declaration for the columns info table.          */
+/***********************************************************************/
+class TDBOCL : public TDBOIF {
+ public:
+  // Constructor
+  TDBOCL(PODEF tdp);
+
+ protected:
+	// Specific routines
+	virtual bool Initialize(PGLOBAL g);
+
+  // Members
+  char    *Dsn;               // Points to connection string
+  char    *Tabn;              // Points to ODBC table name
+  }; // end of class TDBOCL
 #endif  // !NODBC
 

@@ -15,11 +15,9 @@
 #include <stdio.h>
 #include "resource.h"
 
-int GetRcString(int id, char *buf, int bufsize)
+char *GetMsgid(int id)
   {
-  char *p = NULL, msg[32];
-
-//printf("In GetRcString id=%d\n", id);
+  char *p = NULL;
 
   switch (id) {
     case IDS_00:     p = "%s";                break;
@@ -111,6 +109,8 @@ int GetRcString(int id, char *buf, int bufsize)
     case IDS_SPC_06: p = "Longueur";          break;
     case IDS_SPC_07: p = "Echelle";           break;
     case IDS_SPC_08: p = "Pseudo_Colonne";    break;
+    case IDS_DSC_01: p = "Nom";               break;
+    case IDS_DSC_02: p = "Description";       break;
 #else    // English
     case IDS_01:     p = "%s: error allocating communication buffer of %d bytes";        break;
     case IDS_02:     p = "%s: error allocating parser memory for %d columns";            break;
@@ -199,11 +199,22 @@ int GetRcString(int id, char *buf, int bufsize)
     case IDS_SPC_06: p = "Length";             break;
     case IDS_SPC_07: p = "Scale";              break;
     case IDS_SPC_08: p = "Pseudo_Column";      break;
+    case IDS_DSC_01: p = "Name";               break;
+    case IDS_DSC_02: p = "Description";        break;
 #endif   // English
-    default:
-      sprintf(msg, "ID=%d unknown", id);
-      p = msg;
     } // endswitch(id)
+
+  return p;
+  } // end of GetMsgid
+
+int GetRcString(int id, char *buf, int bufsize)
+  {
+  char *p = NULL, msg[32];
+
+  if (!(p = GetMsgid(id))) {
+    sprintf(msg, "ID=%d unknown", id);
+    p = msg;
+    } // endif p
 
   return sprintf(buf, "%.*s", bufsize-1, p);
   } // end of GetRcString
