@@ -70,7 +70,6 @@
 /****************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL, int, int, int, int *, int *,
                 unsigned int *, bool blank = true, bool nonull = false);
-bool    PushWarning(PGLOBAL, PTDBASE);
 
 extern "C" int trace;                // The general trace value  
 

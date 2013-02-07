@@ -94,7 +94,9 @@ int MYSQLC::GetResultSize(PGLOBAL g, PSZ sql)
 /***********************************************************************/
 /*  Open a MySQL (remote) connection.                                  */
 /***********************************************************************/
-int MYSQLC::Open(PGLOBAL g, PSZ host, PSZ db, PSZ user, PSZ pwd, int pt)
+int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
+                            const char *user, const char *pwd,
+                            int pt)
   {
   m_DB = mysql_init(NULL);
 
@@ -182,7 +184,7 @@ int MYSQLC::KillQuery(ulong id)
   {
   char kill[20];
 
-  sprintf(kill, "KILL QUERY %u", id);
+  sprintf(kill, "KILL QUERY %u", (unsigned int) id);
   return (m_DB) ? mysql_query(m_DB, kill) : 1;
   } // end of KillQuery
 
@@ -477,7 +479,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       } // endif m_Row
 
     for (crp = qrp->Colresp; crp; crp = crp->Next) {
-      if (row = m_Row + (crp->Ncol - 1))
+      if ((row = m_Row + (crp->Ncol - 1))) {
         if (*row)
           crp->Kdata->SetValue((PSZ)*row, n);
         else {
@@ -486,10 +488,11 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     
           crp->Kdata->Reset(n);
         } // endelse *row
+      }
 
-      } // endfor crp
+    } // endfor crp
 
-    } // endfor n
+  } // endfor n
 
   qrp->Nblin = n;
   return qrp;

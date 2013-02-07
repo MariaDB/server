@@ -78,8 +78,10 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 /*  of a MySQL table that will be retrieved by GetData commands.        */
 /*  key = TRUE when called from Create Table to get key informations.   */
 /************************************************************************/
-PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
-                  char *table, char *colpat, int port, bool key)
+PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat,
+                  int port, bool key)
   {
   static int dbtype[] = {DB_CHAR, DB_SHORT, DB_CHAR, DB_INT,
                          DB_INT, DB_SHORT, DB_CHAR, DB_CHAR};

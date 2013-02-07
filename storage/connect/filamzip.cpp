@@ -62,7 +62,6 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[];                 // Statistics
-bool PushWarning(PGLOBAL g, PTDBASE tdbp);
 
 /* ------------------------------------------------------------------- */
 

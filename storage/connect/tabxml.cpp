@@ -59,8 +59,6 @@ extern int  trace;
 #define XMLSUP "libxml2"
 #endif  // !WIN32
 
-bool PushWarning(PGLOBAL g, PTDBASE tdbp);
-
 /* -------------- Implementation of the XMLDEF class  ---------------- */
 
 /***********************************************************************/

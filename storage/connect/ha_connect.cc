@@ -160,14 +160,13 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
 PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn);
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
-PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
-                  char *table, char *colpat, int port, bool key);
+#include "tabmysql.h"
 #endif   // MYSQL_SUPPORT
+
 enum enum_field_types PLGtoMYSQL(int type, bool gdf);
 #if defined(WIN32)
 PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp= NULL);
 #endif   // WIN32
-char GetTypeID(char *type);
 bool check_string_char_length(LEX_STRING *str, const char *err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
@@ -630,7 +629,9 @@ PGLOBAL ha_connect::GetPlug(THD *thd)
 /****************************************************************************/
 /*  Return the value of an option specified in the option list.             */
 /****************************************************************************/
-char *ha_connect::GetListOption(char *opname, const char *oplist, char *def)
+char *ha_connect::GetListOption(const char *opname,
+                                const char *oplist,
+                                const char *def)
 {
   char key[16], val[256];
   char *pk, *pv, *pn;
@@ -1382,7 +1383,7 @@ int ha_connect::MakeRecord(char *buf)
 
   if (xtrace > 1)
 #if defined(MARIADB)
-    printf("Maps: read=%p write=%p vcol=%p defr=%p defw=%p\n",
+    printf("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
             *table->vcol_set->bitmap,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
@@ -1577,9 +1578,9 @@ int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
 /***********************************************************************/
 /*  Return the string representing an operator.                        */
 /***********************************************************************/
-char *ha_connect::GetValStr(OPVAL vop, bool neg)
+const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 {
-  char *val;
+  const char *val;
 
   switch (vop) {
     case OP_EQ:
@@ -3171,7 +3172,6 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
            engine_option_value *create_options)
 {
   register Create_field *new_field;
-  LEX  *lex= thd->lex;
   Alter_info *alter_info= (Alter_info*)alt_info;
   Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
 
@@ -3271,14 +3271,16 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 */
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char    ttp= '?', spc= ',', qch= 0, *typn= "DOS";
-  char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep, *inf;
+  char    ttp= '?', spc= ',', qch= 0;
+  const char *typn= "DOS";
+  const char *user;
+  char *host, *db, *pwd, *tab, *dsn;
+  char *fn, *prt, *sep, *inf;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int     port= MYSQL_PORT, hdr= 0, mxr= 0;
   bool    b= false, ok= false, info= false;
-  LEX    *lex= thd->lex;
   LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   engine_option_value *pov;
@@ -3286,7 +3288,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   PCOLRES crp;
   PGLOBAL g= GetPlug(thd);
 
-  fn= dsn= tab= db= host= user= pwd= prt= sep= inf= NULL;
+  fn= dsn= tab= db= host= pwd= prt= sep= inf= NULL;
+  user= NULL;
 
   if (g) {
     // Set default values

@@ -39,7 +39,7 @@ add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
 #
 IF(UNIX)
   if(WITH_WARNINGS)
-    add_definitions(-Wall -Wfatal-errors -Wextra)
+    add_definitions(-Wall -Wfatal-errors -Wextra -Wmissing-declarations)
     message(STATUS "CONNECT: GCC: All warnings enabled")
   else()
     add_definitions(--no-warnings)

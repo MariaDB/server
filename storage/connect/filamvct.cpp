@@ -92,7 +92,6 @@ typedef struct _vecheader {
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
                     bool check = true, bool blank = true);
-bool  PushWarning(PGLOBAL, PTDBASE);
 
 /* -------------------------- Class VCTFAM --------------------------- */
 

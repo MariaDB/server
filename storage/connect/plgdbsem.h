@@ -521,3 +521,5 @@ DllExport void    NewPointer(PTABS, void *, void *);
 FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);
+
+bool PushWarning(PGLOBAL, PTDBASE);

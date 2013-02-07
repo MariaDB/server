@@ -137,3 +137,7 @@ class MYSQLCOL : public COLBLK {
   int           Rank;            // Rank (position) number in the query
   }; // end of class MYSQLCOL
 
+
+PQRYRES MyColumns(PGLOBAL g, const char *host,  const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat, int port, bool key);
