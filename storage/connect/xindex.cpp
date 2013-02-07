@@ -2830,7 +2830,7 @@ int XXROW::FastFind(int nk)
 /*  KXYCOL public constructor.                                         */
 /***********************************************************************/
 KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp), 
-        Kof((CPINT&)Koff.Memp), To_Bkeys(Bkeys.Memp)
+        To_Bkeys(Bkeys.Memp), Kof((CPINT&)Koff.Memp)
   {
   Next = NULL;
   Previous = NULL;
