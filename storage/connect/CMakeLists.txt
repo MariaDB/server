@@ -51,11 +51,15 @@ IF(UNIX)
     add_definitions(-Wno-unused-label)
     add_definitions(-Wno-parentheses)
     add_definitions(-Wno-missing-declarations)
-    add_definitions(-Wno-implicit-function-declaration)
     add_definitions(-Wno-int-to-pointer-cast)
     add_definitions(-Wno-narrowing)
-    add_definitions(-Wno-reorder)
-    add_definitions(-Wno-delete-non-virtual-dtor)
+
+# This switch is for pure C only:
+#   add_definitions(-Wno-implicit-function-declaration)
+# These switches are for C++ only
+#   add_definitions(-Wno-reorder)
+#   add_definitions(-Wno-delete-non-virtual-dtor)
+
     message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
 
