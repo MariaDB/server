@@ -59,6 +59,7 @@ class DllExport CATALOG {
   friend class OEMDEF;
  public:
   CATALOG(void);                       // Constructor
+  virtual ~CATALOG() { }               // Make -Wdelete-non-virtual-dtor happy
 
   // Implementation
   void   *GetDescp(void) {return Descp;}
