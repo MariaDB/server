@@ -232,8 +232,8 @@ void ResetNullValues(CATPARM *cap)
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /*  Note: The first two columns (Qualifier, Owner) are ignored.        */
 /***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
-                                                       char *colpat)
+PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
+                                                        char *colpat)
   {
   static int dbtype[] = {DB_CHAR,  DB_CHAR,
                          DB_CHAR,  DB_SHORT, DB_CHAR,
@@ -248,30 +248,25 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
   int      maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp = op;
-
-  if (!op) {
-    /**********************************************************************/
-    /*  Open the connection with the ODBC data source.                    */
-    /**********************************************************************/
-    ocp = new(g) ODBConn(g, NULL);
-
-    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-      return NULL;
-
-    } // endif op
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
   /************************************************************************/
-  n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-  maxres = (n) ? (int)n : 250;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-  length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-  length[1] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
-  length[2] = (n) ? (n + 1) : 128;
+  if (ocp) {
+    n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
+    maxres = (n) ? (int)n : 250;
+    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+    length[0] = (n) ? (n + 1) : 128;
+    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+    length[1] = (n) ? (n + 1) : 128;
+    n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+    length[2] = (n) ? (n + 1) : 128;
+  } else {                 // Info table
+    maxres = 0;
+    length[0] = 128;
+    length[1] = 128;
+    length[2] = 128;
+  } // endif ocp
 
 #ifdef DEBTRACE
  htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
@@ -283,6 +278,9 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS + 1,
                                         dbtype, buftyp, length);
+
+  if (!ocp)                      // Info table
+    return qrp;
 
 #ifdef DEBTRACE
  htrc("Getting col results ncol=%d\n", qrp->Nbcol);
@@ -305,12 +303,6 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
     qrp = NULL;
 
   /************************************************************************/
-  /*  Close any local connection.                                         */
-  /************************************************************************/
-  if (!op)
-    ocp->Close();
-
-  /************************************************************************/
   /*  Return the result pointer for use by GetData routines.              */
   /************************************************************************/
   return qrp;
@@ -319,31 +311,39 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *op, char *dsn, char *table,
 /**************************************************************************/
 /* MyODBCCols: returns column info as required by ha_connect::pre_create. */
 /**************************************************************************/
-PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
+PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
   {
   int      type, len, prec;
   PCOLRES  crpt, crpl, crpp;
   PQRYRES  qrp;
-  ODBConn *ocp = new(g) ODBConn(g, NULL);
+  ODBConn *ocp;
 
   /**********************************************************************/
   /*  Open the connection with the ODBC data source.                    */
   /**********************************************************************/
-  if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-    return NULL;
+  if (!info) {
+    ocp = new(g) ODBConn(g, NULL);
+
+    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+      return NULL;
+
+  } else
+    ocp = NULL;
 
   /**********************************************************************/
   /*  Get the information about the ODBC table columns.                 */
   /**********************************************************************/
-  if ((qrp = ODBCColumns(g, ocp, dsn, tab, NULL)))
+  if ((qrp = ODBCColumns(g, ocp, dsn, tab, NULL)) && ocp)
     dsn = ocp->GetConnect();        // Complete connect string
-  else
-    return NULL;
 
   /************************************************************************/
   /*  Close the local connection.                                         */
   /************************************************************************/
-  ocp->Close();
+  if (ocp)
+    ocp->Close();
+
+  if (!qrp)
+    return NULL;             // Error in ODBCColumns
 
   /************************************************************************/
   /*  Keep only the info used by ha_connect::pre_create.                  */
@@ -378,23 +378,30 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn)
 /*************************************************************************/
 /*  ODBCDataSources: constructs the result blocks containing all ODBC    */
 /*  data sources available on the local host.                            */
+/*  Called with info=true to have result column names.                   */
 /*************************************************************************/
-PQRYRES ODBCDataSources(PGLOBAL g)
+PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   {
   static int dbtype[] = {DB_CHAR, DB_CHAR};
   static int buftyp[] = {TYPE_STRING, TYPE_STRING};
   static unsigned int length[] = {0, 256};
-  int      n, ncol = 2;
+  int      n = 0, ncol = 2;
   int      maxres;
   PQRYRES  qrp;
-  ODBConn *ocp = new(g) ODBConn(g, NULL);
+  ODBConn *ocp;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
   /************************************************************************/
-  maxres = 512;                       // This is completely arbitrary
-  n = ocp->GetMaxValue(SQL_MAX_DSN_LENGTH);
-  length[0] = (n) ? (n + 1) : 256;
+  if (!info) {
+    ocp = new(g) ODBConn(g, NULL);
+    n = ocp->GetMaxValue(SQL_MAX_DSN_LENGTH);
+    length[0] = (n) ? (n + 1) : 256;
+    maxres = 512;           // Estimated max number of data sources
+  } else {
+    length[0] = 256;
+    maxres = 0;
+  } // endif info
 
 #ifdef DEBTRACE
  htrc("ODBCDataSources: max=%d len=%d\n", maxres, length[0]);
@@ -403,14 +410,12 @@ PQRYRES ODBCDataSources(PGLOBAL g)
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, 0, dbtype, buftyp, length);
-  qrp->Colresp->Name = "Name";
-  qrp->Colresp->Next->Name = "Description";
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, dbtype, buftyp, length);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
   /************************************************************************/
-  if (ocp->GetDataSources(qrp))
+  if (!info && ocp->GetDataSources(qrp))
     qrp = NULL;
 
   /************************************************************************/

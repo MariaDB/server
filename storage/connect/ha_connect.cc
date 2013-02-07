@@ -157,9 +157,10 @@ void XmlCleanupParserLib(void);
 PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info);
 PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
 #if defined(ODBC_SUPPORT)
-PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn);
+PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
+PQRYRES ODBCDataSources(PGLOBAL g, bool info = true);
 PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
                   char *table, char *colpat, int port, bool key);
 #endif   // MYSQL_SUPPORT
@@ -233,6 +234,7 @@ struct ha_table_option_struct {
   const char *qchar;
   const char *module;
   const char *subtype;
+  const char *info;
   const char *oplist;
   int lrecl;
   int elements;
@@ -263,6 +265,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("QCHAR", qchar),
   HA_TOPTION_STRING("MODULE", module),
   HA_TOPTION_STRING("SUBTYPE", subtype),
+  HA_TOPTION_STRING("INFO", info),
   HA_TOPTION_STRING("OPTION_LIST", oplist),
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
@@ -808,6 +811,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->module;
   else if (!stricmp(opname, "Subtype"))
     opval= (char*)options->subtype;
+  else if (!stricmp(opname, "Info"))
+    opval= (char*)options->info;
 
   if (!opval && options->oplist)
     opval= GetListOption(opname, options->oplist);
@@ -3306,6 +3311,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       tab= pov->value.str;
     } else if (!stricmp(pov->name.str, "db_name")) {
       db= pov->value.str;
+    } else if (!stricmp(pov->name.str, "info")) {
+      inf= pov->value.str;
     } else if (!stricmp(pov->name.str, "sep_char")) {
       sep= pov->value.str;
       spc= (!strcmp(sep, "\\t")) ? '\t' : *sep;
@@ -3334,12 +3341,12 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case 'O':       // ODBC
-      info= !!strchr("1yYoO", *inf);
+      info= inf && !!strchr("1yYoO", *inf);
 
       if (!(dsn= create_info->connect_string.str) && !info)
         sprintf(g->Message, "Missing %s connection string", typn);
       else
-        ok= !info;
+        ok= true;
 
       break;
 #endif   // ODBC_SUPPORT
@@ -3386,7 +3393,11 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
         break;
 #if defined(ODBC_SUPPORT)
       case 'O':
-        qrp= MyODBCCols(g, tab, dsn);
+        if (dsn)
+          qrp= MyODBCCols(g, tab, dsn, info);
+        else
+          qrp= ODBCDataSources(g);
+
         break;
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
@@ -3409,50 +3420,56 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;
       } // endif qrp
 
-    for (i= 0; !b && i < qrp->Nblin; i++) {
-      crp= qrp->Colresp;                    // Column Name
-      cnm= encode(g, crp->Kdata->GetCharValue(i));
-      name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
-      crp= crp->Next;                       // Data Type
-      type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
-      crp= crp->Next;                       // Type Name
-      crp= crp->Next;                       // Precision (length)
-      len= crp->Kdata->GetIntValue(i);
-      length= (char*)PlugSubAlloc(g, NULL, 8);
-      sprintf(length, "%d", len);
-      crp= crp->Next;                       // Length
-      crp= crp->Next;                       // Scale (precision)
-
-      if ((dec= crp->Kdata->GetIntValue(i))) {
-        decimals= (char*)PlugSubAlloc(g, NULL, 8);
-        sprintf(decimals, "%d", dec);
-      } else
+    if (info) {
+      for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
+        cnm= encode(g, crp->Name);
+        name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
+        type= PLGtoMYSQL(crp->Type, true);
+        len= crp->Length;
+        length= (char*)PlugSubAlloc(g, NULL, 8);
+        sprintf(length, "%d", len);
         decimals= NULL;
-
-      if ((crp= crp->Next) &&               // Remark (comment)
-          (rem= crp->Kdata->GetCharValue(i)))
-        comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
-      else
         comment= thd->make_lex_string(NULL, "", 0, true);
-
-      // Now add the field
-//    b= add_field_to_list(thd, &name, type, length, decimals,
-//          0, NULL, NULL, comment, NULL, NULL, NULL, 0, NULL, NULL);
-      b= add_fields(thd, alt_info, name, type, length, decimals,
+     
+        // Now add the field
+        b= add_fields(thd, alt_info, name, type, length, decimals,
                     0, comment, NULL, NULL, NULL);
-      } // endfor i
+        } // endfor crp
+
+    } else 
+      for (i= 0; !b && i < qrp->Nblin; i++) {
+        crp= qrp->Colresp;                    // Column Name
+        cnm= encode(g, crp->Kdata->GetCharValue(i));
+        name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
+        crp= crp->Next;                       // Data Type
+        type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
+        crp= crp->Next;                       // Type Name
+        crp= crp->Next;                       // Precision (length)
+        len= crp->Kdata->GetIntValue(i);
+        length= (char*)PlugSubAlloc(g, NULL, 8);
+        sprintf(length, "%d", len);
+        crp= crp->Next;                       // Length
+        crp= crp->Next;                       // Scale (precision)
+     
+        if ((dec= crp->Kdata->GetIntValue(i))) {
+          decimals= (char*)PlugSubAlloc(g, NULL, 8);
+          sprintf(decimals, "%d", dec);
+        } else
+          decimals= NULL;
+     
+        if ((crp= crp->Next) &&               // Remark (comment)
+            (rem= crp->Kdata->GetCharValue(i)))
+          comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
+        else
+          comment= thd->make_lex_string(NULL, "", 0, true);
+     
+        // Now add the field
+        b= add_fields(thd, alt_info, name, type, length, decimals,
+                      0, comment, NULL, NULL, NULL);
+        } // endfor i
 
     return b;
-  } else if (info) {       // ODBC Data Sources
-    comment= thd->make_lex_string(NULL, "", 0, true);
-    name= thd->make_lex_string(NULL, "Name", 4, true);
-    b= add_fields(thd, alt_info, name, MYSQL_TYPE_VARCHAR, "256", 0,
-                  0, comment, NULL, NULL, NULL);
-    name= thd->make_lex_string(NULL, "Description", 11, true);
-    b= add_fields(thd, alt_info, name, MYSQL_TYPE_VARCHAR, "256", 0,
-                  0, comment, NULL, NULL, NULL);
-    return b;
-  } // endif info
+    } // endif ok
 
   push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
   return true;

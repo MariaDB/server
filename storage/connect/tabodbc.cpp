@@ -1,7 +1,7 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.4                                                        */
+/*  Version 2.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -64,7 +64,6 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-//#include "sqry.h"
 #include "xtable.h"
 #include "tabodbc.h"
 #include "tabmul.h"
@@ -74,7 +73,9 @@
 
 #include "sql_string.h"
 
-PQRYRES ODBCDataSources(PGLOBAL g);
+extern "C" char *GetMsgid(int id);
+PQRYRES ODBCDataSources(PGLOBAL g, bool info = false);
+PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -89,9 +90,8 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
 	{
-  Connect = Tabname = Tabowner = Tabqual = Qchar = NULL; 
+  Connect = Tabname = Tabowner = Tabqual = Qchar = Info = NULL; 
   Catver = Options = 0; 
-  Info = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -109,11 +109,11 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabowner = Cat->GetStringCatInfo(g, Name, "Owner", "");
   Tabqual = Cat->GetStringCatInfo(g, Name, "Qualifier", "");
   Qchar = Cat->GetStringCatInfo(g, Name, "Qchar", "");
+  Info = Cat->GetStringCatInfo(g, Name, "Info", NULL);
   Catver = Cat->GetIntCatInfo(Name, "Catver", 2);
   Options = Cat->GetIntCatInfo(Name, "Options", dop);
 //Options = Cat->GetIntCatInfo(Name, "Options", 0);
   Pseudo = 2;    // FILID is Ok but not ROWID
-  Info = Cat->GetBoolCatInfo(Name, "Info", false);
   return false;
   } // end of DefineAM
 
@@ -128,7 +128,7 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
   /*  Allocate a TDB of the proper type.                               */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-  if (!Info) {
+  if (!Info || !strchr("1yYoO", *Info)) {
     tdbp = new(g) TDBODBC(this);
 
     if (Multiple == 1)
@@ -136,8 +136,10 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
     else if (Multiple == 2)
       strcpy(g->Message, MSG(NO_ODBC_MUL));
 
-  } else
-    tdbp = new(g) TDBOIF(this);
+  } else if (*Connect)
+    tdbp = new(g) TDBOCL(this);
+  else
+    tdbp = new(g) TDBSRC(this);
 
   return tdbp;
   } // end of GetTable
@@ -905,6 +907,8 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 TDBOIF::TDBOIF(PODEF tdp) : TDBASE(tdp)
   {
   Qrp = NULL;
+  ID = 0;
+  NC = 0;
 	Init = false;
 	N = -1;
   } // end of TDBOIF constructor
@@ -926,31 +930,12 @@ PCOL TDBOIF::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 		Columns = colp;
 	} // endif cprec
 
-	if (!colp->Flag) {
-		if (!stricmp(colp->Name, "Name"))
-			colp->Flag = 1;
-		else if (!stricmp(colp->Name, "Description"))
-			colp->Flag = 2;
-
-		} // endif Flag
+  for (int i = 1; !colp->Flag && i <= NC; i++)
+		if (!stricmp(colp->Name, GetMsgid(ID + i)))
+ 			colp->Flag = i;
 
 	return colp;
 	} // end of MakeCol
-
-/***********************************************************************/
-/*  Initialize: Get the list of ODBC data sources.                     */
-/***********************************************************************/
-bool TDBOIF::Initialize(PGLOBAL g)
-  {
-	if (Init)
-		return false;
-
-  if (!(Qrp = ODBCDataSources(g)))
-    return true;
-
-	Init = true;
-	return false;
-	} // end of Initialize
 
 /***********************************************************************/
 /*  OIF: Get the number of properties.                                 */
@@ -1003,19 +988,22 @@ bool TDBOIF::OpenDB(PGLOBAL g)
 bool TDBOIF::InitCol(PGLOBAL g)
   {
   POIFCOL colp;
+  PCOLRES crp;
 
-  for (colp = (POIFCOL)Columns; colp; colp = (POIFCOL)colp->GetNext())
-    switch (colp->Flag) {
-      case 1:
-        colp->Crp = Qrp->Colresp;
+  for (colp = (POIFCOL)Columns; colp; colp = (POIFCOL)colp->GetNext()) {
+    for (crp = Qrp->Colresp; crp; crp = crp->Next)
+      if (colp->Flag == crp->Ncol) {
+        colp->Crp = crp;
         break;
-      case 2:
-        colp->Crp = Qrp->Colresp->Next;
-        break;
-      default:
-        strcpy(g->Message, "Invalid column name or flag");
-        return true;
-      } // endswitch Flag
+        } // endif Flag
+
+    if (!colp->Crp) {
+      sprintf(g->Message, "Invalid flag %d for column %s",
+                          colp->Flag, colp->Name);
+      return true;
+      } // endif Crp
+
+    } // endfor colp
 
   return false;
   } // end of InitCol
@@ -1073,7 +1061,52 @@ OIFCOL::OIFCOL(PCOLDEF cdp, PTDB tdbp, int n)
 void OIFCOL::ReadColumn(PGLOBAL g)
   {
   // Get the value of the Name or Description property
-	Value->SetValue_psz(Crp->Kdata->GetCharValue(Tdbp->N));
+	Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
   } // end of ReadColumn
+
+/* ---------------------------TDBSRC class --------------------------- */
+
+/***********************************************************************/
+/*  Initialize: Get the list of ODBC data sources.                     */
+/***********************************************************************/
+bool TDBSRC::Initialize(PGLOBAL g)
+  {
+	if (Init)
+		return false;
+
+  if (!(Qrp = ODBCDataSources(g)))
+    return true;
+
+	Init = true;
+	return false;
+	} // end of Initialize
+
+/* ---------------------------TDBOCL class --------------------------- */
+
+/***********************************************************************/
+/*  TDBOCL class constructor.                                          */
+/***********************************************************************/
+TDBOCL::TDBOCL(PODEF tdp) : TDBOIF(tdp)
+  {
+  ID = IDS_COLUMNS + 1; 
+  NC = 11; 
+  Dsn = tdp->GetConnect(); 
+  Tabn = tdp->GetTabname();
+  } // end of TDBOCL constructor
+
+/***********************************************************************/
+/*  Initialize: Get the list of ODBC table columns.                    */
+/***********************************************************************/
+bool TDBOCL::Initialize(PGLOBAL g)
+  {
+	if (Init)
+		return false;
+
+  if (!(Qrp = MyODBCCols(g, Tabn, Dsn, false)))
+    return true;
+
+	Init = true;
+	return false;
+	} // end of Initialize
 
 /* ------------------------ End of Tabodbc --------------------------- */
