@@ -46,12 +46,15 @@ typedef int   bool;
 #define bool  my_bool
 #endif
 
-#define _MAX_PATH   PATH_MAX
 #define stricmp     strcasecmp
 #define _stricmp    strcasecmp
 #define strnicmp    strncasecmp
 #define _strnicmp   strncasecmp
+#ifdef PATH_MAX
+#define _MAX_PATH   PATH_MAX
+#else
 #define _MAX_PATH   260
+#endif
 #define _MAX_DRIVE    3
 #define _MAX_DIR    256
 #define _MAX_FNAME  256

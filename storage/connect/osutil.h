@@ -74,10 +74,6 @@ PSZ strlwr(PSZ s);
 typedef size_t FILEPOS;
 //pedef int    FILEHANDLE; // UNIX
 
-#ifndef _MAX_PATH
-#define MAX_PATH 256
-#endif
-
 #ifdef __cplusplus
 }
 #endif
