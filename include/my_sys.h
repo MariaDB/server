@@ -199,7 +199,7 @@ extern void my_large_free(uchar *ptr);
 #define my_alloca(SZ) alloca((size_t) (SZ))
 #define my_afree(PTR) ((void)0)
 #else
-#define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE|MY_THREAD_SPECIFIC))
+#define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
 #endif /* HAVE_ALLOCA */
 
