@@ -16,30 +16,6 @@
 #define PLG_MAX_PATH    144   /* Must be the same across systems       */
 #define PLG_BUFF_LEN    100   /* Number of lines in binary file buffer */
 
-#if !defined(WIN32)
-/**************************************************************************/
-/*  Defines specific to Windows and ODBC.                                 */
-/**************************************************************************/
-#define SQL_CHAR              1
-#define SQL_NUMERIC           2
-#define SQL_DECIMAL           3
-#define SQL_INTEGER           4
-#define SQL_SMALLINT          5
-#define SQL_FLOAT             6
-#define SQL_REAL              7
-#define SQL_DOUBLE            8
-#define SQL_TIMESTAMP        11
-#define SQL_VARCHAR          12
-#define SQL_NULLABLE_UNKNOWN  2
-#define SQL_ALL_EXCEPT_LIKE   2
-#define SQL_SEARCHABLE        3
-#define SQL_ALL_TYPES         0
-#define SQL_TABLE_STAT        0
-#define SQL_BEST_ROWID        1
-#define SQL_PC_NOT_PSEUDO     1
-#define SQL_PC_PSEUDO         2
-#define SQL_SCOPE_CURROW      0
-#endif   // !WIN32
 
 //typedef class INDEXDEF *PIXDEF;
 
