@@ -899,7 +899,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 #endif
 
       if (len != req) {
-        sprintf(g->Message, MSG(DEL_READ_ERROR), req, len);
+        sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
         return true;
         } // endif len
 
@@ -1179,7 +1179,7 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
 
   if (n != (size_t)Nrec) {
     if (errno == NO_ERROR)
-      sprintf(g->Message, MSG(BAD_READ_NUMBER), n, To_File);
+      sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, To_File);
     else
       sprintf(g->Message, MSG(READ_ERROR),
               To_File, strerror(errno));
@@ -1362,7 +1362,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
 
       if (!(*g->Message))
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                "map", rc, filename);
+                "map", (int) rc, filename);
 
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
@@ -2348,7 +2348,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
 #endif
 
       if (len != req) {
-        sprintf(g->Message, MSG(DEL_READ_ERROR), req, len);
+        sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
         return true;
         } // endif len
 
@@ -2533,7 +2533,7 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
 #else   // !WIN32
     if (errno == NO_ERROR)
 #endif  // !WIN32
-      sprintf(g->Message, MSG(BAD_READ_NUMBER), n, fn);
+      sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, fn);
     else
       sprintf(g->Message, MSG(READ_ERROR),
               fn, strerror(errno));
@@ -2759,7 +2759,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
 
       if (!(*g->Message))
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                "map", rc, filename);
+                "map", (int) rc, filename);
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif

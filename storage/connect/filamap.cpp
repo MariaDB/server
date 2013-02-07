@@ -164,7 +164,7 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
 
       if (!(*g->Message))
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
-                "map", rc, filename);
+                "map", (int) rc, filename);
 
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);

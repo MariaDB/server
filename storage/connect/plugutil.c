@@ -459,7 +459,7 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
 
     sprintf(g->Message,
       "Not enough memory in %s area for request of %u (used=%d free=%d)",
-                          pname, size, pph->To_Free, pph->FreeBlk);
+                          pname, (uint) size, pph->To_Free, pph->FreeBlk);
 
 #if defined(DEBUG2) || defined(DEBUG3)
  htrc("%s\n", g->Message);

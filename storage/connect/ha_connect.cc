@@ -2547,7 +2547,8 @@ int ha_connect::rnd_next(uchar *buf)
     ulonglong tb2= my_interval_timer();
     double elapsed= (double) (tb2 - xp->tb1) / 1000000000ULL;
     DBUG_PRINT("rnd_next", ("rc=%d nrd=%u fnd=%u nfd=%u sec=%.3lf\n",
-                             rc, xp->nrd, xp->fnd, xp->nfd, elapsed));
+                             rc, (uint) xp->nrd, (uint) xp->fnd,
+                             (uint) xp->nfd, elapsed));
     xp->tb1= tb2;
     xp->fnd= xp->nfd= 0;
     } // endif nrd
@@ -2887,7 +2888,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (xtrace) {
     printf("%p external_lock: cmdtype=%d\n", this, thd->lex->sql_command);
-    printf("Cmd=%s\n", thd->query_string);
+    printf("Cmd=%.*s\n", (int) thd->query_string.length(),
+                         thd->query_string.str());
     } // endif xtrace
 
   // Next code is temporarily replaced until sql_command is set

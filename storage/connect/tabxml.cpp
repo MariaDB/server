@@ -1199,7 +1199,7 @@ void XMLCOL::ReadColumn(PGLOBAL g)
   if (ValNode) {
     if (ValNode->GetType() != XML_ELEMENT_NODE &&
         ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-      sprintf(g->Message, MSG(BAD_VALNODE), Name, ValNode->GetType());
+      sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
       longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
       } // endif type
 
@@ -1392,7 +1392,7 @@ void XMULCOL::ReadColumn(PGLOBAL g)
 
     if (ValNode->GetType() != XML_ELEMENT_NODE &&
         ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-      sprintf(g->Message, MSG(BAD_VALNODE), Name, ValNode->GetType());
+      sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
       longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
       } // endif type
 

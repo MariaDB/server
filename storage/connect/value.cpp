@@ -705,7 +705,7 @@ char *STRING::GetShortString(char *p, int n)
 /***********************************************************************/
 char *STRING::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*d", n, atol(Strp));
+  sprintf(p, "%*ld", n, atol(Strp));
   return p;
   } // end of GetIntString
 
@@ -4336,7 +4336,7 @@ char *DFVAL::GetShortString(char *p, int n)
 /***********************************************************************/
 char *DFVAL::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, (int)Fval);
+  sprintf(p, "%*ld", n, (long) Fval);
   return p;
   } // end of GetIntString
 

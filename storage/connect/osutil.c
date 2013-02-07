@@ -14,7 +14,7 @@ my_bool CloseFileHandle(HANDLE h)
 /* code to handle Linux and Solaris */
 #include <unistd.h>
 #include <sys/stat.h>
-//#include <ctype.h>
+#include <ctype.h>
 #include <fcntl.h>
 
 extern FILE *debug;
@@ -223,7 +223,7 @@ DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
 //if (dwFlags & FORMAT_MESSAGE_ALLOCATE_BUFFER)
 //  return 0;                         /* means error */
 
-  n = sprintf(buff, "Error code: %d", dwMessageId);
+  n = sprintf(buff, "Error code: %d", (int) dwMessageId);
   strncpy(lpBuffer, buff, nSize);
   return min(n, nSize);
   }  /* end of FormatMessage */

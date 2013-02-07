@@ -2109,7 +2109,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
     if (fseek(Xfile, 0, SEEK_END)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), "Xseek", errno);
+      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
 
@@ -2140,7 +2140,7 @@ bool XFILE::Seek(PGLOBAL g, int low, int high, int origin)
 #endif  // !_DEBUG
 
   if (fseek(Xfile, low, origin)) {
-    sprintf(g->Message, MSG(FUNC_ERRNO), "Xseek", errno);
+    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
     return true;
     } // endif
 
