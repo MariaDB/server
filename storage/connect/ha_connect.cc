@@ -635,7 +635,7 @@ char *ha_connect::GetListOption(const char *opname,
 {
   char key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= def;
+  char *opval= (char *) def;
   int n;
 
   for (pk= (char*)oplist; ; pk= ++pn) {
