@@ -1,0 +1,67 @@
+#
+# Testing errors
+#
+CREATE TABLE t1
+(
+ID INT
+) Engine=CONNECT TABLE_TYPE=CSV FILE_NAME='nonexistent.txt';
+SELECT * FROM t1;
+ID
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/nonexistent.txt: No such file or directory
+DROP TABLE t1;
+#
+# Testing examples from the manual
+#
+CREATE TABLE t1 
+(
+name CHAR(12),
+birth DATE DATE_FORMAT='DD/MM/YY',
+children SMALLINT(2)
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1;
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+RONALD	1980-02-26	4
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/people.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/people.csv'),'\r\n','\n')
+Name;birth;children
+"Archibald";17/05/01;3
+"Nabucho";12/08/03;2
+"RONALD";26/02/80;4
+
+#
+# Testing that the underlying file is created
+#
+CREATE TABLE t1
+(
+c1 CHAR(12) NOT NULL,
+c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='tmp.csv'
+  HEADER=1 SEP_CHAR=',' QUOTED=1;
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+c1	c2
+10	10
+20	20
+300	300
+4000	4000
+a b	c d
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/tmp.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/tmp.csv'),'\r\n','\n')
+"c1","c2"
+"10","10"
+"20","20"
+"300","300"
+"4000","4000"
+"a b","c d"
+
