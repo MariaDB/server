@@ -74,7 +74,7 @@
 #include "sql_string.h"
 
 extern "C" char *GetMsgid(int id);
-PQRYRES ODBCDataSources(PGLOBAL g);
+PQRYRES ODBCDataSources(PGLOBAL g, bool info = false);
 PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
 
 /***********************************************************************/
@@ -933,8 +933,6 @@ PCOL TDBOIF::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   for (int i = 1; !colp->Flag && i <= NC; i++)
 		if (!stricmp(colp->Name, GetMsgid(ID + i)))
  			colp->Flag = i;
-
-    } // endif Flag
 
   return colp;
   } // end of MakeCol

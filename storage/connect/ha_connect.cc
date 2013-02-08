@@ -161,8 +161,10 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info = true);
 PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
-PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
-                  char *table, char *colpat, int port, bool key);
+PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat,
+                  int port, bool key);
 #endif   // MYSQL_SUPPORT
 
 enum enum_field_types PLGtoMYSQL(int type, bool gdf);
@@ -3283,7 +3285,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   char    ttp= '?', spc= ',', qch= 0;
   const char *typn= "DOS";
   const char *user;
-  char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep, *inf;
+  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep, *inf;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32

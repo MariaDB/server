@@ -339,7 +339,8 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
   /************************************************************************/
   /*  Close the local connection.                                         */
   /************************************************************************/
-  ocp->Close();
+  if (ocp)
+    ocp->Close();
 
   if (!qrp)
     return NULL;             // Error in ODBCColumns
@@ -379,7 +380,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
 /*  data sources available on the local host.                            */
 /*  Called with info=true to have result column names.                   */
 /*************************************************************************/
-PQRYRES ODBCDataSources(PGLOBAL g)
+PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   {
   static int dbtype[] = {DB_CHAR, DB_CHAR};
   static int buftyp[] = {TYPE_STRING, TYPE_STRING};
