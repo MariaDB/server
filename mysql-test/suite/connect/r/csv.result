@@ -1,0 +1,24 @@
+#
+# Testing errors
+#
+CREATE TABLE t1
+(
+ID INT
+) Engine=CONNECT TABLE_TYPE=CSV FILE_NAME='nonexistent.txt';
+SELECT * FROM t1;
+ID
+Warnings:
+Warning	1105	Open(rb) error 2 on DATADIR/test/nonexistent.txt: No such file or directory
+DROP TABLE t1;
+CREATE TABLE t1 
+(
+name CHAR(12),
+birth DATE DATE_FORMAT='DD/MM/YY',
+children SMALLINT(2)
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1;
+SELECT * FROM t1;
+name	birth	children
+Archibald	2001-05-17	3
+Nabucho	2003-08-12	2
+DROP TABLE t1;
