@@ -106,7 +106,7 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   Name = name;
   Unique = uniq;
   Invalid = false;
-	AutoInc = false;
+  AutoInc = false;
   Nparts = 0;
   ID = n;
   Offset = 0;
@@ -148,21 +148,21 @@ KPARTDEF::KPARTDEF(PSZ name, int n)
 /*  XXBASE public constructor.                                         */
 /***********************************************************************/
 XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
-			  To_Rec((int*&)Record.Memp)
+        To_Rec((int*&)Record.Memp)
   {
   Tbxp = tbxp;
   Record = Nmblk;
   Cur_K = -1;
   Old_K = -1;
   Num_K = 0;
-	Ndif = 0;
+  Ndif = 0;
   Bot = Top = Inf = Sup = 0;
-	Op = OP_EQ;
-	To_KeyCol = NULL;
-	Mul = false;
-	Val_K = -1;
+  Op = OP_EQ;
+  To_KeyCol = NULL;
+  Mul = false;
+  Val_K = -1;
   Nblk = Sblk = 0;
-	Thresh = 7;
+  Thresh = 7;
   ID = -1;
   Nth = 0;
   } // end of XXBASE constructor
@@ -205,7 +205,7 @@ XINDEX::XINDEX(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp, int k)
   To_Cols = cp;
   To_Vals = xp;
   Mul = !xdp->IsUnique();
-	Srtd = false;
+  Srtd = false;
   Nk = xdp->GetNparts();
   Nval = (k) ? k : Nk;
   Incr = 0;
@@ -914,8 +914,8 @@ bool XINDEX::Init(PGLOBAL g)
     nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 #endif   // TRACE
 
-	// The test on ID was suppressed because MariaDB can change an index ID
-	// when other indexes are added or deleted 
+  // The test on ID was suppressed because MariaDB can change an index ID
+  // when other indexes are added or deleted 
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 #if defined(TRACE)
@@ -1156,8 +1156,8 @@ bool XINDEX::Init(PGLOBAL g)
     nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 #endif   // TRACE
 
-	// The test on ID was suppressed because MariaDB can change an index ID
-	// when other indexes are added or deleted 
+  // The test on ID was suppressed because MariaDB can change an index ID
+  // when other indexes are added or deleted 
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
@@ -1350,8 +1350,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
   printf("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
 #endif   // TRACE
 
-	// The test on ID was suppressed because MariaDB can change an index ID
-	// when other indexes are added or deleted 
+  // The test on ID was suppressed because MariaDB can change an index ID
+  // when other indexes are added or deleted 
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
 #if defined(TRACE)
@@ -1422,35 +1422,35 @@ int XINDEX::Range(PGLOBAL g, int limit, bool incl)
   PXCOL kp = To_KeyCol;
   OPVAL op = Op;
 
-	switch (limit) {
-		case 1: Op = (incl) ? OP_GE : OP_GT; break;
-		case 2: Op = (incl) ? OP_GT : OP_GE; break;
-		default: return 0;
-		} // endswitch limit
+  switch (limit) {
+    case 1: Op = (incl) ? OP_GE : OP_GT; break;
+    case 2: Op = (incl) ? OP_GT : OP_GE; break;
+    default: return 0;
+    } // endswitch limit
 
   /*********************************************************************/
   /*  Currently only range of constant values with an EQ operator is   */
   /*  implemented.  Find the number of rows for each given values.     */
   /*********************************************************************/
   if (xp[0]->GetType() == TYPE_CONST) {
-		for (i = 0; kp; kp = kp->Next) {
-	    kp->Valp->SetValue_pval(xp[i]->GetValue(), !kp->Prefix);
-			if (++i == Nval) break;
-			} // endfor kp
+    for (i = 0; kp; kp = kp->Next) {
+      kp->Valp->SetValue_pval(xp[i]->GetValue(), !kp->Prefix);
+      if (++i == Nval) break;
+      } // endfor kp
 
     if ((k = FastFind(Nval)) < Num_K)
-			n = k;
-//			if (limit)
-//  			n = (Mul) ? k : kp->Val_K;
-//			else 
-//				n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
+      n = k;
+//      if (limit)
+//        n = (Mul) ? k : kp->Val_K;
+//      else 
+//        n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
     strcpy(g->Message, MSG(RANGE_NO_JOIN));
     n = -1;                        // Logical error
   } // endif'f Type
 
-	Op = op;
+  Op = op;
   return n;
   } // end of Range
 
@@ -1812,11 +1812,11 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
   PXCOL kp = To_KeyCol;
   OPVAL op = Op;
 
-	switch (limit) {
-		case 1: Op = (incl) ? OP_GE : OP_GT; break;
-		case 2: Op = (incl) ? OP_GT : OP_GE; break;
-		default: Op = OP_EQ;
-		} // endswitch limit
+  switch (limit) {
+    case 1: Op = (incl) ? OP_GE : OP_GT; break;
+    case 2: Op = (incl) ? OP_GT : OP_GE; break;
+    default: Op = OP_EQ;
+    } // endswitch limit
 
   /*********************************************************************/
   /*  Currently only range of constant values with an EQ operator is   */
@@ -1826,17 +1826,17 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     kp->Valp->SetValue_pval(xp->GetValue(), !kp->Prefix);
 
     if ((k = FastFind(Nval)) < Num_K)
-			if (limit)
-				n = (Mul) ? k : kp->Val_K;
-			else 
-				n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
+      if (limit)
+        n = (Mul) ? k : kp->Val_K;
+      else 
+        n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
     strcpy(g->Message, MSG(RANGE_NO_JOIN));
     n = -1;                        // Logical error
   } // endif'f Type
 
-	Op = op;
+  Op = op;
   return n;
   } // end of Range
 
@@ -1931,18 +1931,18 @@ int XINDXS::Fetch(PGLOBAL g)
       /*  Look for the first key equal to the link column values       */
       /*  and return its rank whithin the index table.                 */
       /*****************************************************************/
-      if (To_KeyCol->InitFind(g, To_Vals[0]))											 
-        return -1;                 // No more constant values		 
-      else																												 
-        Nth++;																										 
-																																	 
-#if defined(TRACE)																								 
-        printf("Fetch: Looking for new value\n");									 
-#endif   // TRACE																									 
-																																	 
-      Cur_K = FastFind(1);																				 
-																																	 
-      if (Cur_K >= Num_K)																					 
+      if (To_KeyCol->InitFind(g, To_Vals[0]))                       
+        return -1;                 // No more constant values     
+      else                                                         
+        Nth++;                                                     
+                                                                   
+#if defined(TRACE)                                                 
+        printf("Fetch: Looking for new value\n");                   
+#endif   // TRACE                                                   
+                                                                   
+      Cur_K = FastFind(1);                                         
+                                                                   
+      if (Cur_K >= Num_K)                                           
         // Rank not whithin index table, signal record not found
         return -2;
       else if (Mul)
@@ -2109,7 +2109,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
     if (fseek(Xfile, 0, SEEK_END)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), "Xseek", errno);
+      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
 
@@ -2140,7 +2140,7 @@ bool XFILE::Seek(PGLOBAL g, int low, int high, int origin)
 #endif  // !_DEBUG
 
   if (fseek(Xfile, low, origin)) {
-    sprintf(g->Message, MSG(FUNC_ERRNO), "Xseek", errno);
+    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
     return true;
     } // endif
 
@@ -2768,11 +2768,11 @@ int XXROW::Range(PGLOBAL g, int limit, bool incl)
   {
   int  n = Valp->GetIntValue();
 
-	switch (limit) {
-		case 1: n += ((incl) ? 0 : 1); break;
-		case 2: n += ((incl) ? 1 : 0); break;
-		default: n = 1;
-		} // endswitch limit
+  switch (limit) {
+    case 1: n += ((incl) ? 0 : 1); break;
+    case 2: n += ((incl) ? 1 : 0); break;
+    default: n = 1;
+    } // endswitch limit
 
   return n;
   } // end of Range
@@ -2830,21 +2830,21 @@ int XXROW::FastFind(int nk)
 /*  KXYCOL public constructor.                                         */
 /***********************************************************************/
 KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp), 
-				Kof((CPINT&)Koff.Memp), To_Bkeys(Bkeys.Memp)
+        To_Bkeys(Bkeys.Memp), Kof((CPINT&)Koff.Memp)
   {
-	Next = NULL;
-	Previous = NULL;
-	Kxp = kp;
-	Colp = NULL;
-	IsSorted = false;
-	Asc = true;
+  Next = NULL;
+  Previous = NULL;
+  Kxp = kp;
+  Colp = NULL;
+  IsSorted = false;
+  Asc = true;
   Keys = Nmblk;
   Kblp = NULL;
   Bkeys = Nmblk;
   Blkp = NULL;
-	Valp = NULL;
+  Valp = NULL;
   Klen = 0;
-	Kprec = 0;
+  Kprec = 0;
   Type = TYPE_ERROR;
   Prefix = false;
   Koff = Nmblk;
@@ -2991,7 +2991,7 @@ bool KXYCOL::MakeBlockArray(PGLOBAL g, int nb, int size)
   {
   int i, k;
 
-	// Calculate the size of the block array in the index
+  // Calculate the size of the block array in the index
   Bkeys.Size = nb * Klen;
 
   // Allocate the required memory

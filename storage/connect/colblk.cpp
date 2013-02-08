@@ -39,7 +39,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Opt = cdp->Opt;
     Long = cdp->Long;
     Buf_Type = cdp->Buf_Type;
-		ColUse |= cdp->Flags;			 // Used by CONNECT
+    ColUse |= cdp->Flags;       // Used by CONNECT
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
@@ -110,7 +110,7 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
 
 #ifdef DEBTRACE
  htrc("COLBLK: %p format=%c(%d,%d)\n", 
-	 this, *fmt.Type, fmt.Length, fmt.Prec);
+   this, *fmt.Type, fmt.Length, fmt.Prec);
 #endif
 
   return false;
@@ -140,7 +140,7 @@ bool COLBLK::Eval(PGLOBAL g)
     if (To_Kcol)
       To_Kcol->FillValue(Value);
     else
-	    ReadColumn(g);
+      ReadColumn(g);
 
     AddStatus(BUF_READ);
     } // endif
@@ -325,10 +325,10 @@ FIDBLK::FIDBLK(PCOLUMN cp) : SPCBLK(cp)
   *Format.Type = 'C';
   Format.Length = Long;
 #if defined(WIN32)
-	Format.Prec = 1;          // Case insensitive
+  Format.Prec = 1;          // Case insensitive
 #endif   // WIN32
   Constant = (!((PTDBASE)To_Tdb)->GetDef()->GetMultiple() &&
-							To_Tdb->GetAmType() != TYPE_AM_PLG &&
+              To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);
   Fn = NULL;
   } // end of FIDBLK constructor
@@ -359,7 +359,7 @@ TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
-	Format.Prec = 1;          // Case insensitive
+  Format.Prec = 1;          // Case insensitive
   Constant = (To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);
   Tname = NULL;

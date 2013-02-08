@@ -24,6 +24,8 @@
 #include "block.h"
 #include "catalog.h"
 
+char GetTypeID(const char *type);
+
 /***********************************************************************/
 /*  MYCAT: class for managing the CONNECT plugin DB items.             */
 /***********************************************************************/
@@ -32,33 +34,33 @@ class MYCAT : public CATALOG {
   MYCAT(PHC hc);                       // Constructor
 
   // Implementation
-	PHC     GetHandler(void) {return Hc;}
-	void    SetHandler(PHC hc) {Hc= hc;}
+  PHC     GetHandler(void) {return Hc;}
+  void    SetHandler(PHC hc) {Hc= hc;}
 
   // Methods
   void    Reset(void);
-	void    SetDataPath(PGLOBAL g, const char *path) 
-							{SetPath(g, &DataPath, path);}
+  void    SetDataPath(PGLOBAL g, const char *path) 
+              {SetPath(g, &DataPath, path);}
   bool    GetBoolCatInfo(LPCSTR name, PSZ what, bool bdef);
   bool    SetIntCatInfo(LPCSTR name, PSZ what, int ival);
   int     GetIntCatInfo(LPCSTR name, PSZ what, int idef);
   int     GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef);
   int     GetCharCatInfo(LPCSTR name, PSZ what, PSZ sdef, char *buf, int size);
   char   *GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef);
-	int     GetColCatInfo(PGLOBAL g, PTABDEF defp); 
-	bool		GetIndexInfo(PGLOBAL g, PTABDEF defp);
-	bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}	// Temporary
-	PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
-	                                LPCSTR am, PRELDEF *prp = NULL);
+  int     GetColCatInfo(PGLOBAL g, PTABDEF defp); 
+  bool    GetIndexInfo(PGLOBAL g, PTABDEF defp);
+  bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}  // Temporary
+  PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
+                                  LPCSTR am, PRELDEF *prp = NULL);
   PTDB    GetTable(PGLOBAL g, PTABLE tablep, MODE mode = MODE_READ);
   void    ClearDB(PGLOBAL g);
 
  protected:
   PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am);
-	void    SetPath(PGLOBAL g, LPCSTR *datapath, const char *path);
+  void    SetPath(PGLOBAL g, LPCSTR *datapath, const char *path);
 
   // Members
-	ha_connect *Hc;													// The Connect handler
+  ha_connect *Hc;                          // The Connect handler
   }; // end of class MYCAT
 
-#endif __MYCAT__H
+#endif /* __MYCAT__H */

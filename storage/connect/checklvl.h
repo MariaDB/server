@@ -7,7 +7,7 @@
 /***********************************************************************/
 
 #if !defined(_CHKLVL_DEFINED_)
-#define 		 _CHKLVL_DEFINED_
+#define      _CHKLVL_DEFINED_
 /***********************************************************************/
 /*  Following definitions are used to indicate the level of checking.  */
 /***********************************************************************/
@@ -28,7 +28,7 @@ enum CHKLVL {CHK_NO      = 0x00,      /* No checking                   */
 /***********************************************************************/
 enum XMOD {XMOD_EXECUTE =  0,         /* DOS execution mode            */
            XMOD_PREPARE =  1,         /* Prepare mode                  */
-					 XMOD_TEST    =  2,         /* Test mode                     */
+           XMOD_TEST    =  2,         /* Test mode                     */
            XMOD_CONVERT =  3};        /* HQL conversion mode           */
 
 /***********************************************************************/

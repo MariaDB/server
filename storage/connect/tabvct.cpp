@@ -95,12 +95,12 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   DOSDEF::DefineAM(g, "BIN", poff);
 
   Estimate = Cat->GetIntCatInfo(Name, "Estimate", 0);
-	Split = Cat->GetIntCatInfo(Name, "Split", (Estimate) ? 0 : 1);
+  Split = Cat->GetIntCatInfo(Name, "Split", (Estimate) ? 0 : 1);
   Header = Cat->GetIntCatInfo(Name, "Header", 0);
 
-	// CONNECT must have Block/Last info for VEC tables
-	if (Estimate && !Split && !Header)
-		Header = 2;
+  // CONNECT must have Block/Last info for VEC tables
+  if (Estimate && !Split && !Header)
+    Header = 2;
 
   Recfm = RECFM_VCT;
 
@@ -141,16 +141,16 @@ bool VCTDEF::Erase(char *filename)
 //#endif   // UNIX
       } // endfor cdp
 
-	} else {
+  } else {
     rc = DOSDEF::Erase(filename);
 
-		if (Estimate && Header == 2) {
-		  PlugSetPath(filename, Fn, GetPath());
+    if (Estimate && Header == 2) {
+      PlugSetPath(filename, Fn, GetPath());
       strcat(PlugRemoveType(filename, filename), ".blk");
       rc |= remove(filename);
-			} // endif Header
+      } // endif Header
 
-	} // endif Split
+  } // endif Split
 
   return rc;                                  // Return true if error
   } // end of Erase
@@ -196,7 +196,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
   // Mapping not used for insert (except for true VEC not split tables)
-	// or when UseTemp is forced
+  // or when UseTemp is forced
   bool map = Mapped && (Estimate || mode != MODE_INSERT) &&
              !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
              (mode == MODE_UPDATE || mode == MODE_DELETE));
@@ -216,7 +216,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
 
   } else if (Huge)
     txfp = new(g) BGVFAM(this);
-	else if (map)
+  else if (map)
     txfp = new(g) VCMFAM(this);
   else
     txfp = new(g) VCTFAM(this);
@@ -226,9 +226,9 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   /*  For block tables, get eventually saved optimization values.      */
   /*********************************************************************/
-	if (mode != MODE_INSERT)
-	  if (tdbp->GetBlockValues(g))
-		  return NULL;
+  if (mode != MODE_INSERT)
+    if (tdbp->GetBlockValues(g))
+      return NULL;
 
   return tdbp;
   } // end of GetTable
@@ -302,7 +302,7 @@ bool TDBVCT::OpenDB(PGLOBAL g)
   /*  Insert is not handled using file mapping.                        */
   /*********************************************************************/
   if (Mode == MODE_INSERT && !((PVCTDEF)To_Def)->GetEstimate() && 
-							Txfp->GetAmType() == TYPE_AM_VMP) {
+              Txfp->GetAmType() == TYPE_AM_VMP) {
     if (!((PVCTFAM)Txfp)->Split) {
       Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
       Txfp->SetTdbp(this);

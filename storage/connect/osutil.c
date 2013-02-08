@@ -6,18 +6,17 @@
 
 #ifdef WIN32
 my_bool CloseFileHandle(HANDLE h) 
-	{
-	return !CloseHandle(h);
-	} /* end of CloseFileHandle */
+  {
+  return !CloseHandle(h);
+  } /* end of CloseFileHandle */
 
-#else	/* UNIX */
+#else  /* UNIX */
 /* code to handle Linux and Solaris */
 #include <unistd.h>
 #include <sys/stat.h>
-//#include <ctype.h>
+#include <ctype.h>
 #include <fcntl.h>
 
-#define DWORD int
 extern FILE *debug;
 
 /***********************************************************************/
@@ -80,7 +79,7 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
 
 #ifdef DEBTRACE
  fprintf(debug,"SplitPath: name=%s [%s (%d)]\n",
-	XSTR(name), XSTR(__FILE__), __LINE__);
+  XSTR(name), XSTR(__FILE__), __LINE__);
 #endif
 
   if (drive) *drive = '\0';
@@ -102,7 +101,7 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
 
 #ifdef DEBTRACE
  fprintf(debug,"SplitPath: name=%s drive=%s dir=%s filename=%s type=%s [%s(%d)]\n",
-	XSTR(name), XSTR(drive), XSTR(dir), XSTR(fn), XSTR(ft), __FILE__, __LINE__);
+  XSTR(name), XSTR(drive), XSTR(dir), XSTR(fn), XSTR(ft), __FILE__, __LINE__);
 #endif
   } /* end of _splitpath */
 
@@ -110,123 +109,123 @@ void _splitpath(LPCSTR name, LPSTR drive, LPSTR dir, LPSTR fn, LPSTR ft)
 /*  Define the makepath function not existing in the UNIX library.     */
 /***********************************************************************/
 void _makepath(LPSTR name, LPCSTR drive, LPCSTR dir, LPCSTR fn, LPCSTR ft)
-	{
-	int n;
+  {
+  int n;
 
-	if (!name)
-		return;
-	else
-		*name = '\0';
+  if (!name)
+    return;
+  else
+    *name = '\0';
 
-	if (dir && (n = strlen(dir)) > 0) {
-		strcpy(name, dir);
+  if (dir && (n = strlen(dir)) > 0) {
+    strcpy(name, dir);
 
-		if (name[n-1] != '/')
-		  strcat(name, "/");
+    if (name[n-1] != '/')
+      strcat(name, "/");
 
-		}	/* endif dir */
+    }  /* endif dir */
 
-	if (fn)
-		strcat(name, fn);
+  if (fn)
+    strcat(name, fn);
 
-	if (ft && strlen(ft)) {
-		if (*ft != '.')
-			strcat(name, ".");
+  if (ft && strlen(ft)) {
+    if (*ft != '.')
+      strcat(name, ".");
 
-		strcat(name, ft);
-		} /* endif ft */
+    strcat(name, ft);
+    } /* endif ft */
 
-	} /* end of _makepath */
+  } /* end of _makepath */
 
 my_bool CloseFileHandle(HANDLE h) 
-	{
-	return (close(h)) ? TRUE : FALSE;
-	}	/* end of CloseFileHandle */
+  {
+  return (close(h)) ? TRUE : FALSE;
+  }  /* end of CloseFileHandle */
 
 void Sleep(DWORD time) 
-	{
-	//FIXME: TODO
-	}	/* end of Sleep */
+  {
+  //FIXME: TODO
+  }  /* end of Sleep */
 
 int GetLastError() 
-	{
-	return errno;
-	}	/* end of GetLastError */
+  {
+  return errno;
+  }  /* end of GetLastError */
 
 unsigned long _filelength(int fd) 
-	{
-	struct stat st;
+  {
+  struct stat st;
 
-	if (fd == -1)
-		return 0;
+  if (fd == -1)
+    return 0;
 
-	if (fstat(fd, &st) != 0)
-		return 0;
+  if (fstat(fd, &st) != 0)
+    return 0;
 
-	return st.st_size;
-	}	/* end of _filelength */
+  return st.st_size;
+  }  /* end of _filelength */
 
 char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
-	{
-	// Fixme
-	char *p;
+  {
+  // Fixme
+  char *p;
 
-	if( *relPath == '\\' || *relPath == '/' ) {
-		strncpy(absPath, relPath, maxLength);
-	} else if(*relPath == '~') {
-		// get the path to the home directory
-		// Fixme
-		strncpy(absPath, relPath, maxLength);
-	}	else {
-		char buff[2*_MAX_PATH];
+  if( *relPath == '\\' || *relPath == '/' ) {
+    strncpy(absPath, relPath, maxLength);
+  } else if(*relPath == '~') {
+    // get the path to the home directory
+    // Fixme
+    strncpy(absPath, relPath, maxLength);
+  }  else {
+    char buff[2*_MAX_PATH];
 
-		getcwd(buff, _MAX_PATH);
-		strcat(buff,"/");
-		strcat(buff, relPath);
-		strncpy(absPath, buff, maxLength);
-	}	/* endif's relPath */
+    getcwd(buff, _MAX_PATH);
+    strcat(buff,"/");
+    strcat(buff, relPath);
+    strncpy(absPath, buff, maxLength);
+  }  /* endif's relPath */
 
-	p = absPath;
+  p = absPath;
 
-	for(; *p; p++)
-		if (*p == '\\')
-			*p = '/';
+  for(; *p; p++)
+    if (*p == '\\')
+      *p = '/';
 
-	return absPath;
-	}	/* end of _fullpath */
+  return absPath;
+  }  /* end of _fullpath */
 
-bool MessageBeep(uint i)
-	{
-	// Fixme
-	return TRUE;
-	} /* end of MessageBeep */
+BOOL MessageBeep(uint i)
+  {
+  // Fixme
+  return TRUE;
+  } /* end of MessageBeep */
 
 LPSTR _strerror(int errn) 
-	{
+  {
   static char buff[256];
 
   sprintf(buff,"error: %d", errn);
   return buff;
-	}	/* end of _strerror */
+  }  /* end of _strerror */
 
 int _isatty(int fileNo) 
-	{
-	return isatty(fileNo);
-	}	/* end of _isatty */
+  {
+  return isatty(fileNo);
+  }  /* end of _isatty */
 
 /* This function is ridiculous and should be revisited */
 DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
-	                  DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize, ...)
-	{
-	char buff[32];
-	int n;
+                    DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize, ...)
+  {
+  char buff[32];
+  int n;
 
 //if (dwFlags & FORMAT_MESSAGE_ALLOCATE_BUFFER)
-//	return 0;												 /* means error */
+//  return 0;                         /* means error */
 
-	n = sprintf(buff, "Error code: %d", dwMessageId);
-	strncpy(lpBuffer, buff, nSize);
-	return min(n, nSize);
-	}	/* end of FormatMessage */
+  n = sprintf(buff, "Error code: %d", (int) dwMessageId);
+  strncpy(lpBuffer, buff, nSize);
+  return min(n, nSize);
+  }  /* end of FormatMessage */
 
-#endif	// UNIX
+#endif  // UNIX

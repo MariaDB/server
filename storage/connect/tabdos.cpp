@@ -92,10 +92,10 @@ DOSDEF::DOSDEF(void)
   To_Indx = NULL;
   Recfm = RECFM_VAR;
   Mapped = false;
-	Padded = false;
+  Padded = false;
   Huge = false;
-	Accept = false;
-	Eof = false;
+  Accept = false;
+  Eof = false;
   To_Pos = NULL;
   Compressed = 0;
   Lrecl = 0;
@@ -103,9 +103,9 @@ DOSDEF::DOSDEF(void)
   Block = 0;
   Last = 0;
   Blksize = 0;
-	Maxerr = 0;
+  Maxerr = 0;
   ReadMode = 0;
-	Ending = 0;
+  Ending = 0;
 //Mtime = 0;
   } // end of DOSDEF constructor
 
@@ -240,12 +240,12 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Lrecl = Cat->GetIntCatInfo(Name, "Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
-	  Compressed = Cat->GetIntCatInfo(Name, "Compressed", 0);
+    Compressed = Cat->GetIntCatInfo(Name, "Compressed", 0);
 
   Mapped = Cat->GetBoolCatInfo(Name, "Mapped", map);
   Block = Cat->GetIntCatInfo(Name, "Blocks", 0);
   Last = Cat->GetIntCatInfo(Name, "Last", 0);
-	Ending = Cat->GetIntCatInfo(Name, "Ending", CRLF);
+  Ending = Cat->GetIntCatInfo(Name, "Ending", CRLF);
 
   if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
     int defhuge = (Cat->GetDefHuge()) ? 1 : 0;
@@ -283,10 +283,10 @@ bool DOSDEF::InvalidateIndex(PGLOBAL g)
 PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   {
   // Mapping not used for insert
-	USETEMP tmp = PlgGetUser(g)->UseTemp;
+  USETEMP tmp = PlgGetUser(g)->UseTemp;
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && Recfm == RECFM_VAR
-											 && mode == MODE_UPDATE) &&
+                       && mode == MODE_UPDATE) &&
                 !(tmp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
   PTXF    txfp;
@@ -321,15 +321,15 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
     if (Compressed) {
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
-			else {
-				strcpy(g->Message, "Compress 2 not supported yet");
+      else {
+        strcpy(g->Message, "Compress 2 not supported yet");
 //      txfp = new(g) ZLBFAM(defp);
-				return NULL;
-			} // endelse
+        return NULL;
+      } // endelse
 
-		} else
+    } else
 #endif   // ZIP_SUPPORT
-		if (map)
+    if (map)
       txfp = new(g) MAPFAM(this);
     else
       txfp = new(g) DOSFAM(this);
@@ -459,7 +459,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   Mode = MODE_READ;
   Use = USE_READY;
   dfp = (PDOSDEF)To_Def;
-	fixed = Cardinality(g) >= 0;
+  fixed = Cardinality(g) >= 0;
 
   // Are we are called from CreateTable or CreateIndex?
   if (pxdf) {
@@ -506,9 +506,9 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   /*********************************************************************/
   for (xdp = pxdf; xdp; xdp = xdp->GetNext())
     if (!OpenDB(g)) {
-			if (xdp->IsAuto() && fixed)
-				// Auto increment key and fixed file: use an XXROW index
-				continue;      // XXROW index doesn't need to be made
+      if (xdp->IsAuto() && fixed)
+        // Auto increment key and fixed file: use an XXROW index
+        continue;      // XXROW index doesn't need to be made
 
       n = 0;
 
@@ -522,14 +522,14 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 
       // Make the index and save it
       if (dfp->Huge)
-	      pxp = new(g) XHUGE;
-		  else
-			  pxp = new(g) XFILE;
+        pxp = new(g) XHUGE;
+      else
+        pxp = new(g) XFILE;
 
       if (k == 1)            // Simple index
-	      x = new(g) XINDXS(this, xdp, pxp, keycols);
-		  else                   // Multi-Column index
-			  x = new(g) XINDEX(this, xdp, pxp, keycols);
+        x = new(g) XINDXS(this, xdp, pxp, keycols);
+      else                   // Multi-Column index
+        x = new(g) XINDEX(this, xdp, pxp, keycols);
 
       if (!x->Make(g, sxp)) {
         // Retreive define values from the index
@@ -631,9 +631,9 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
     int len = GetFileLength(g);
 
     if (len >= 0) {
-			if (trace)
-				htrc("Estimating lines len=%d ending=%d\n",
-							len, ((PDOSDEF)To_Def)->Ending);
+      if (trace)
+        htrc("Estimating lines len=%d ending=%d\n",
+              len, ((PDOSDEF)To_Def)->Ending);
 
       /*****************************************************************/
       /*  Estimate the number of lines in the table (if not known) by  */
@@ -648,13 +648,13 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       else   // A lower estimate was given for the average record length
         rec += (int)AvgLen;
 
-			if (trace)
-				htrc(" Filen=%d min_rec=%d\n", len, rec);
-							
+      if (trace)
+        htrc(" Filen=%d min_rec=%d\n", len, rec);
+              
       MaxSize = (len + rec - 1) / rec;
 
-			if (trace)
-				htrc(" Estimated max_K=%d\n", MaxSize);
+      if (trace)
+        htrc(" Estimated max_K=%d\n", MaxSize);
 
       } // endif len
 
@@ -701,9 +701,9 @@ bool TDBDOS::IsUsingTemp(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::OpenDB(PGLOBAL g)
   {
-	if (trace)
-		htrc("DOS OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
-					this, Tdb_No, Use, Mode);
+  if (trace)
+    htrc("DOS OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
+          this, Tdb_No, Use, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -729,8 +729,8 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     else if (Txfp->GetAmType() == TYPE_AM_ZIP)
       Txfp = new(g) ZIPFAM((PDOSDEF)To_Def);
 #endif   // ZIP_SUPPORT
-	  else if (Txfp->GetAmType() != TYPE_AM_DOS)
-	    Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
+    else if (Txfp->GetAmType() != TYPE_AM_DOS)
+      Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
 
     Txfp->SetTdbp(this);
     } // endif Mode
@@ -757,8 +757,8 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   } else
     memset(To_Line, 0, Lrecl + 1);
 
-	if (trace)
-		htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
+  if (trace)
+    htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
 
   if (SkipHeader(g))         // When called from CSV/FMT files
     return true;
@@ -775,9 +775,9 @@ bool TDBDOS::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::ReadDB(PGLOBAL g)
   {
-	if (trace > 1)
-		htrc("DOS ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p To_Line=%p\n",
-					GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex, To_Line);
+  if (trace > 1)
+    htrc("DOS ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p To_Line=%p\n",
+          GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex, To_Line);
 
   if (To_Kindex) {
     /*******************************************************************/
@@ -800,8 +800,8 @@ int TDBDOS::ReadDB(PGLOBAL g)
         if (SetRecpos(g, recpos))
           return RC_FX;
 
-				if (trace > 1)
-					htrc("File position is now %d\n", GetRecpos());
+        if (trace > 1)
+          htrc("File position is now %d\n", GetRecpos());
 
         if (Mode == MODE_READ)
           /*************************************************************/
@@ -816,8 +816,8 @@ int TDBDOS::ReadDB(PGLOBAL g)
 
     } // endif To_Kindex
 
-	if (trace > 1)
-		htrc(" ReadDB: this=%p To_Line=%p\n", this, To_Line);
+  if (trace > 1)
+    htrc(" ReadDB: this=%p To_Line=%p\n", this, To_Line);
 
   /*********************************************************************/
   /*  Now start the reading process.                                   */
@@ -830,8 +830,8 @@ int TDBDOS::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::WriteDB(PGLOBAL g)
   {
-	if (trace > 1)
-		htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
+  if (trace > 1)
+    htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
 
   if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;
@@ -847,8 +847,8 @@ int TDBDOS::WriteDB(PGLOBAL g)
     *(++p) = '\0';
     } // endif Mode
 
-	if (trace > 1)
-		htrc("Write: line is='%s'\n", To_Line);
+  if (trace > 1)
+    htrc("Write: line is='%s'\n", To_Line);
 
   // Now start the writing process
   return Txfp->WriteBuffer(g);
@@ -860,7 +860,7 @@ int TDBDOS::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::DeleteDB(PGLOBAL g, int irc)
   {
-		return (irc == RC_FX) ? RC_OK : Txfp->DeleteRecords(g, irc);
+    return (irc == RC_FX) ? RC_OK : Txfp->DeleteRecords(g, irc);
   } // end of DeleteDB
 
 /***********************************************************************/
@@ -885,7 +885,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   : COLBLK(cdp, tp, i)
   {
   char *p;
-	int   prec = Format.Prec;
+  int   prec = Format.Prec;
   PTXF  txfp = ((PTDBDOS)tp)->Txfp;
 
   assert(cdp);
@@ -925,8 +925,8 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
     Dcm = (*p) ? atoi(p) : GetPrecision();
     } // endif fmt
 
-	if (trace)
-		htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of DOSCOL constructor
 
@@ -1030,10 +1030,10 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   int    field;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-	if (trace > 1)
-		htrc(
-			"DOS ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
-				 Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
+  if (trace > 1)
+    htrc(
+      "DOS ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
+         Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
 
   /*********************************************************************/
   /*  If physical reading of the line was deferred, do it now.         */
@@ -1054,8 +1054,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       /*****************************************************************/
       /*  For a variable length file, check if the field exists.       */
       /*****************************************************************/
-			if (strlen(tdbp->To_Line) < (unsigned)Deplac)
-				field = 0;
+      if (strlen(tdbp->To_Line) < (unsigned)Deplac)
+        field = 0;
 
     case RECFM_FIX:            // Fixed length text file
     case RECFM_DBF:            // Fixed length DBase file
@@ -1098,32 +1098,32 @@ void DOSCOL::WriteColumn(PGLOBAL g)
   int     i, k, len, field;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-	if (trace > 1)
-		htrc("DOS WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
-					Name, tdbp->GetTdb_No(), ColUse, Status);
+  if (trace > 1)
+    htrc("DOS WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
+          Name, tdbp->GetTdb_No(), ColUse, Status);
 
   p = tdbp->To_Line + Deplac;
 
-	if (trace > 1)
-		htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
+  if (trace > 1)
+    htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
 
-	if (tdbp->Ftype == RECFM_VAR && tdbp->Mode == MODE_UPDATE) {
-		len = (signed)strlen(tdbp->To_Line);
+  if (tdbp->Ftype == RECFM_VAR && tdbp->Mode == MODE_UPDATE) {
+    len = (signed)strlen(tdbp->To_Line);
 
-		if (tdbp->IsUsingTemp(g))
-			// Because of eventual missing field(s) the buffer must be reset
-			memset(tdbp->To_Line + len, ' ', tdbp->Lrecl - len);
-		else
-			// The size actually available must be recalculated
-	    field = min(len - Deplac, Long);
+    if (tdbp->IsUsingTemp(g))
+      // Because of eventual missing field(s) the buffer must be reset
+      memset(tdbp->To_Line + len, ' ', tdbp->Lrecl - len);
+    else
+      // The size actually available must be recalculated
+      field = min(len - Deplac, Long);
 
-		} // endif Ftype
+    } // endif Ftype
 
-	if (trace > 1)
-		htrc("Long=%d field=%d coltype=%d colval=%p\n",
-					Long, field, Buf_Type, Value);
+  if (trace > 1)
+    htrc("Long=%d field=%d coltype=%d colval=%p\n",
+          Long, field, Buf_Type, Value);
 
   /*********************************************************************/
   /*  Get the string representation of Value according to column type. */
@@ -1180,16 +1180,16 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     } else                 // Standard PlugDB format
       p2 = Value->ShowValue(Buf, field);
 
-		if (trace)
-			htrc("new length(%p)=%d\n", p2, strlen(p2));
+    if (trace)
+      htrc("new length(%p)=%d\n", p2, strlen(p2));
 
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
       longjmp(g->jumper[g->jump_level], 31);
       } // endif
 
-		if (trace > 1)
-			htrc("buffer=%s\n", p2);
+    if (trace > 1)
+      htrc("buffer=%s\n", p2);
 
     /*******************************************************************/
     /*  Updating must be done only when not in checking pass.          */
@@ -1198,8 +1198,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       memset(p, ' ', field);
       memcpy(p, p2, len);
 
-			if (trace > 1)
-				htrc(" col write: '%.*s'\n", len, p);
+      if (trace > 1)
+        htrc(" col write: '%.*s'\n", len, p);
 
       } // endif Use
 

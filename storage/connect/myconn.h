@@ -59,8 +59,9 @@ class DllItem MYSQLC {
 //  int     GetCurPos(void) {return (m_Res) ? N : 0;}
 //  int     GetProgCur(void) {return N;}
   int     GetResultSize(PGLOBAL g, PSZ sql);
-  int     Open(PGLOBAL g, PSZ host, PSZ db, PSZ user = "root",
-                          PSZ pwd = "*", int pt = 0);
+  int     Open(PGLOBAL g, const char *host, const char *db,
+                          const char *user= "root", const char *pwd= "*",
+                          int pt= 0);
   ulong   GetThreadID(void);
   ulong   ServerVersion(void);
   const char *ServerInfo(void);
@@ -76,7 +77,7 @@ class DllItem MYSQLC {
   void    Rewind(void);
   void    FreeResult(void);
   void    Close(void);
-	void    DiscardResults(void);
+  void    DiscardResults(void);
 
  protected:
   // Members

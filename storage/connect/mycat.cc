@@ -182,7 +182,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 /*  Get a unique char identifier for types. The letter used are:       */
 /*  ABCDEF..I.KLM.O..R.T.VWXY..                                        */
 /***********************************************************************/
-char GetTypeID(char *type)
+char GetTypeID(const char *type)
   {
   return (!type) ? 'D'                               // DOS (default)
                  : (!stricmp(type, "FMT"))   ? 'T'	 // CSV
@@ -569,7 +569,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   /*  Get a unique char identifier for types. The letter used are:     */
   /*  ABCDEF..IJKLM.OPQRSTUVWXYZ and Allocate table definition class   */
   /*********************************************************************/
-  tc= GetTypeID((char*)am);
+  tc= GetTypeID(am);
 
   switch (tc) {
     case 'F':

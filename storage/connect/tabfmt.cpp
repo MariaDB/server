@@ -106,9 +106,9 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
   dechar = '.';
 #endif  // !WIN32
 
-	if (trace)
-		htrc("File %s sep=%c q=%c hdr=%d mxr=%d\n",
-					SVP(fn), sep, q, hdr, mxr);
+  if (trace)
+    htrc("File %s sep=%c q=%c hdr=%d mxr=%d\n",
+          SVP(fn), sep, q, hdr, mxr);
 
   if (!fn) {
     strcpy(g->Message, MSG(MISSING_FNAME));
@@ -317,20 +317,20 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
    skip: ;                  // Skip erroneous line
     } // endfor num_read
 
-	if (trace) {
-		htrc("imax=%d Lengths:", imax);
+  if (trace) {
+    htrc("imax=%d Lengths:", imax);
 
-		for (i = 0; i < imax; i++)
-			htrc(" %d", len[i]);
+    for (i = 0; i < imax; i++)
+      htrc(" %d", len[i]);
 
-		htrc("\n");
-	} // endif trace
+    htrc("\n");
+  } // endif trace
 
   fclose(infile);
 
-	if (trace)
-		htrc("CSVColumns: imax=%d hmax=%d len=%d\n",
-											imax, hmax, length[0]);
+  if (trace)
+    htrc("CSVColumns: imax=%d hmax=%d len=%d\n",
+                      imax, hmax, length[0]);
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
@@ -382,13 +382,13 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
 /*  CSVDEF constructor.                                                */
 /***********************************************************************/
 CSVDEF::CSVDEF(void)
-	{
-	Fmtd = Accept = Header = false;
-	Maxerr = 0;
-	Quoted = -1;
-	Sep = ','; 
-	Qot = '\0';
-	}	// end of CSVDEF constructor
+  {
+  Fmtd = Accept = Header = false;
+  Maxerr = 0;
+  Quoted = -1;
+  Sep = ','; 
+  Qot = '\0';
+  }  // end of CSVDEF constructor
 
 /***********************************************************************/
 /*  DefineAM: define specific AM block values from XDB file.           */
@@ -414,10 +414,10 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Cat->GetCharCatInfo(Name, "Qchar", "", buf, sizeof(buf));
   Qot = *buf;
 
-	if (Qot && Quoted < 0)
-		Quoted = 0;
-	else if (!Qot && Quoted >= 0)
-		Qot = '"';
+  if (Qot && Quoted < 0)
+    Quoted = 0;
+  else if (!Qot && Quoted >= 0)
+    Qot = '"';
 
   Fmtd = (!Sep || (am && (*am == 'F' || *am == 'f')));
   Header = (Cat->GetIntCatInfo(Name, "Header", 0) != 0);
@@ -431,7 +431,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   {
-	USETEMP tmp = PlgGetUser(g)->UseTemp;
+  USETEMP tmp = PlgGetUser(g)->UseTemp;
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                 !(tmp == TMP_FORCE &&
@@ -449,16 +449,16 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
     if (Compressed == 1)
       txfp = new(g) ZIPFAM(this);
-		else {
-			strcpy(g->Message, "Compress 2 not supported yet");
+    else {
+      strcpy(g->Message, "Compress 2 not supported yet");
 //    txfp = new(g) ZLBFAM(defp);
-			return NULL;
-			} // endelse
+      return NULL;
+      } // endelse
 #else   // !ZIP_SUPPORT
-			strcpy(g->Message, "Compress not supported");
-			return NULL;
+      strcpy(g->Message, "Compress not supported");
+      return NULL;
 #endif  // !ZIP_SUPPORT
-	} else
+  } else
     txfp = new(g) DOSFAM(this);
 
   /*********************************************************************/
@@ -491,7 +491,7 @@ TDBCSV::TDBCSV(PCSVDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   Fldlen = NULL;
   Fields = 0;
   Nerr = 0;
-	Quoted = tdp->Quoted;
+  Quoted = tdp->Quoted;
   Maxerr = tdp->Maxerr;
   Accept = tdp->Accept;
   Header = tdp->Header;
@@ -535,7 +535,7 @@ TDBCSV::TDBCSV(PGLOBAL g, PTDBCSV tdbp) : TDBDOS(g, tdbp)
 
   Nerr = tdbp->Nerr;
   Maxerr = tdbp->Maxerr;
-	Quoted = tdbp->Quoted;
+  Quoted = tdbp->Quoted;
   Accept = tdbp->Accept;
   Header = tdbp->Header;
   Sep = tdbp->Sep;
@@ -581,10 +581,10 @@ bool TDBCSV::CheckErr(void)
 int TDBCSV::EstimatedLength(PGLOBAL g)
   {
   if (trace)
-  	htrc("EstimatedLength: Fields=%d Columns=%p\n", Fields, Columns);
-  	 
-	if (!Fields) {
-		PCSVCOL colp;
+    htrc("EstimatedLength: Fields=%d Columns=%p\n", Fields, Columns);
+     
+  if (!Fields) {
+    PCSVCOL colp;
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
       if (!colp->IsSpecial())  // Not a pseudo column
@@ -593,7 +593,7 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
     if (Columns)
       Fields++;           // Fldnum was 0 based
 
-		} // endif Fields
+    } // endif Fields
 
   return (int)Fields;   // Number of separators if all fields are null
   } // end of Estimated Length
@@ -643,19 +643,19 @@ bool TDBCSV::OpenDB(PGLOBAL g)
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
     Fldlen = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
 
-		if (Mode == MODE_INSERT || Mode == MODE_UPDATE) {
+    if (Mode == MODE_INSERT || Mode == MODE_UPDATE) {
       Field = (PSZ*)PlugSubAlloc(g, NULL, sizeof(PSZ) * Fields);
       Fldtyp = (bool*)PlugSubAlloc(g, NULL, sizeof(bool) * Fields);
-			} // endif Mode
+      } // endif Mode
 
     for (i = 0; i < Fields; i++) {
       Offset[i] = 0;
       Fldlen[i] = 0;
 
-			if (Field) {
+      if (Field) {
         Field[i] = NULL;
-				Fldtyp[i] = false;
-				} // endif Field
+        Fldtyp[i] = false;
+        } // endif Field
 
       } // endfor i
 
@@ -668,7 +668,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
           Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
           Field[i][len] = '\0';
           Fldlen[i] = len;
-					Fldtyp[i] = IsTypeNum(colp->GetResultType());
+          Fldtyp[i] = IsTypeNum(colp->GetResultType());
           } // endfor colp
 
       else     // MODE_UPDATE
@@ -678,7 +678,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
           Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
           Field[i][len] = '\0';
           Fldlen[i] = len;
-					Fldtyp[i] = IsTypeNum(cdp->GetType());
+          Fldtyp[i] = IsTypeNum(cdp->GetType());
           } // endfor colp
 
     } // endif Use
@@ -730,17 +730,17 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
     if (Mode == MODE_INSERT) {
       if (!len) {
         // New file, the header line must be constructed and written
-				int     i, n = 0;
+        int     i, n = 0;
         int    hlen = 0;
-				bool    q = Qot && Quoted > 0;
+        bool    q = Qot && Quoted > 0;
         PCOLDEF cdp;
 
         // Estimate the length of the header list
-				for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext()) {
+        for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext()) {
           hlen += (1 + strlen(cdp->GetName()));
-					hlen += ((q) ? 2 : 0);
-					n++;						// Calculate the number of columns
-					} // endfor cdp
+          hlen += ((q) ? 2 : 0);
+          n++;            // Calculate the number of columns
+          } // endfor cdp
 
         if (hlen > Lrecl) {
           sprintf(g->Message, MSG(LRECL_TOO_SMALL), hlen);
@@ -750,22 +750,22 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
         // File is empty, write a header record
         memset(To_Line, 0, Lrecl);
 
-				// The column order in the file is given by the offset value
-				for (i = 1; i <= n; i++)
-	        for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
-						if (cdp->GetOffset() == i) {
-							if (q)
-							  To_Line[strlen(To_Line)] = Qot;
+        // The column order in the file is given by the offset value
+        for (i = 1; i <= n; i++)
+          for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
+            if (cdp->GetOffset() == i) {
+              if (q)
+                To_Line[strlen(To_Line)] = Qot;
 
-		          strcat(To_Line, cdp->GetName());
+              strcat(To_Line, cdp->GetName());
 
-							if (q)
-							  To_Line[strlen(To_Line)] = Qot;
+              if (q)
+                To_Line[strlen(To_Line)] = Qot;
 
-						  if (i < n)
-							  To_Line[strlen(To_Line)] = Sep;
+              if (i < n)
+                To_Line[strlen(To_Line)] = Sep;
 
-						  } // endif Offset
+              } // endif Offset
 
         rc = (Txfp->WriteBuffer(g) == RC_FX);
         } // endif !FileLength
@@ -791,8 +791,8 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
   int   i, n, len, rc = Txfp->ReadBuffer(g);
   bool  bad = false;
 
-	if (trace > 1)
-		htrc("CSV: Row is '%s' rc=%d\n", To_Line, rc);
+  if (trace > 1)
+    htrc("CSV: Row is '%s' rc=%d\n", To_Line, rc);
 
   if (rc != RC_OK || !Fields)
     return rc;
@@ -855,10 +855,10 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
         len = p - p2;
       else if (i == Fields - 1)
         len = strlen(p2);
-			else if (Accept && Maxerr == 0) {
+      else if (Accept && Maxerr == 0) {
         len = strlen(p2);
         bad = true;
-			} else if (CheckErr()) {
+      } else if (CheckErr()) {
         sprintf(g->Message, MSG(MISSING_FIELD), i+1, Name, RowNumber(g));
         return RC_FX;
       } else if (Accept) {
@@ -898,9 +898,9 @@ int TDBCSV::WriteDB(PGLOBAL g)
   char sep[2], qot[2];
   int  i, nlen, oldlen = strlen(To_Line);
 
-	if (trace > 1)
-		htrc("CSV WriteDB: R%d Mode=%d key=%p link=%p\n",
-  				Tdb_No, Mode, To_Key_Col, To_Link);
+  if (trace > 1)
+    htrc("CSV WriteDB: R%d Mode=%d key=%p link=%p\n",
+          Tdb_No, Mode, To_Key_Col, To_Link);
 
   // Before writing the line we must check its length
   if ((nlen = CheckWrite(g)) < 0)
@@ -918,14 +918,14 @@ int TDBCSV::WriteDB(PGLOBAL g)
       strcat(To_Line, sep);
 
     if (Field[i])
-			if (!strlen(Field[i])) {
-				// Generally null fields are not quoted
-				if (Quoted > 2)
-					// Except if explicitely required
+      if (!strlen(Field[i])) {
+        // Generally null fields are not quoted
+        if (Quoted > 2)
+          // Except if explicitely required
           strcat(strcat(To_Line, qot), qot);
 
-			} else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
-							|| Quoted > 1 || (Quoted == 1 && !Fldtyp[i])))
+      } else if (Qot && (strchr(Field[i], Sep) || *Field[i] == Qot
+              || Quoted > 1 || (Quoted == 1 && !Fldtyp[i])))
         if (strchr(Field[i], Qot)) {
           // Field contains quotes that must be doubled
           int j, k = strlen(To_Line), n = strlen(Field[i]);
@@ -964,8 +964,8 @@ int TDBCSV::WriteDB(PGLOBAL g)
     To_Line[nlen] = '\0';
     } // endif
 
-	if (trace > 1)
-		htrc("Write: line is=%s", To_Line);
+  if (trace > 1)
+    htrc("Write: line is=%s", To_Line);
 
   /*********************************************************************/
   /*  Now start the writing process.                                   */
@@ -980,8 +980,8 @@ int TDBCSV::CheckWrite(PGLOBAL g)
   {
   int maxlen, n, nlen = (Fields - 1);
 
-	if (trace > 1)
-		htrc("CheckWrite: R%d Mode=%d\n", Tdb_No, Mode);
+  if (trace > 1)
+    htrc("CheckWrite: R%d Mode=%d\n", Tdb_No, Mode);
 
   // Before writing the line we must check its length
   maxlen = (Mode == MODE_UPDATE && !Txfp->GetUseTemp())
@@ -991,9 +991,9 @@ int TDBCSV::CheckWrite(PGLOBAL g)
   for (int i = 0; i < Fields; i++)
     if (Field[i]) {
       if (!(n = strlen(Field[i])))
-				n += (Quoted > 2 ? 2 : 0);
+        n += (Quoted > 2 ? 2 : 0);
       else if (strchr(Field[i], Sep) || (Qot && *Field[i] == Qot)
-				  || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))
+          || Quoted > 1 || (Quoted == 1 && !Fldtyp[i]))
         if (!Qot) {
           sprintf(g->Message, MSG(SEP_IN_FIELD), i + 1);
           return -1;
@@ -1065,7 +1065,7 @@ PCOL TDBFMT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 int TDBFMT::EstimatedLength(PGLOBAL g)
   {
-	// This is rather stupid !!!
+  // This is rather stupid !!!
   return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);   
   } // end of EstimatedLength
 
@@ -1151,8 +1151,8 @@ int TDBFMT::ReadBuffer(PGLOBAL g)
   else
     ++Linenum;
 
-	if (trace > 1)
-		htrc("FMT: Row %d is '%s' rc=%d\n", Linenum, To_Line, rc);
+  if (trace > 1)
+    htrc("FMT: Row %d is '%s' rc=%d\n", Linenum, To_Line, rc);
 
   // Find the offsets and lengths of the columns for this row
   for (i = 0; i < Fields; i++) {
@@ -1306,12 +1306,12 @@ void CSVCOL::ReadColumn(PGLOBAL g)
     Deplac = tdbp->Offset[Fldnum];       // Field offset
     Long   = tdbp->Fldlen[Fldnum];       // Field length
 
-		if (trace > 1)
-			htrc("CSV ReadColumn %s Fldnum=%d offset=%d fldlen=%d\n",
-  					Name, Fldnum, Deplac, Long);
+    if (trace > 1)
+      htrc("CSV ReadColumn %s Fldnum=%d offset=%d fldlen=%d\n",
+            Name, Fldnum, Deplac, Long);
 
     if (Long > colen && tdbp->CheckErr()) {
-	    Long = colen;											 // Restore column length
+      Long = colen;                       // Restore column length
       sprintf(g->Message, MSG(FLD_TOO_LNG_FOR),
               Fldnum + 1, Name, To_Tdb->RowNumber(g), tdbp->GetFile(g));
       longjmp(g->jumper[g->jump_level], 34);
@@ -1340,15 +1340,15 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   int     flen;
   PTDBCSV tdbp = (PTDBCSV)To_Tdb;
 
-	if (trace > 1)
-		htrc("CSV WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
-  				Name, tdbp->GetTdb_No(), ColUse, Status);
+  if (trace > 1)
+    htrc("CSV WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
+          Name, tdbp->GetTdb_No(), ColUse, Status);
 
   flen = GetLength();
 
-	if (trace > 1)
-		htrc("Lrecl=%d Long=%d field=%d coltype=%d colval=%p\n",
-				  tdbp->Lrecl, Long, flen, Buf_Type, Value);
+  if (trace > 1)
+    htrc("Lrecl=%d Long=%d field=%d coltype=%d colval=%p\n",
+          tdbp->Lrecl, Long, flen, Buf_Type, Value);
 
   /*********************************************************************/
   /*  Check whether the new value has to be converted to Buf_Type.     */
@@ -1361,8 +1361,8 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   p = Value->ShowValue(buf);
 
-	if (trace > 1)
-		htrc("new length(%p)=%d\n", p, strlen(p));
+  if (trace > 1)
+    htrc("new length(%p)=%d\n", p, strlen(p));
 
   if ((signed)strlen(p) > flen) {
     sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
@@ -1370,8 +1370,8 @@ void CSVCOL::WriteColumn(PGLOBAL g)
     longjmp(g->jumper[g->jump_level], 34);
     } // endif
 
-	if (trace > 1)
-		htrc("buffer=%s\n", p);
+  if (trace > 1)
+    htrc("buffer=%s\n", p);
 
   /*********************************************************************/
   /*  Updating must be done also during the first pass so writing the  */
@@ -1384,8 +1384,8 @@ void CSVCOL::WriteColumn(PGLOBAL g)
   } else
     strncpy(tdbp->Field[Fldnum], p, flen);
 
-	if (trace > 1)
-		htrc(" col written: '%s'\n", p);
+  if (trace > 1)
+    htrc(" col written: '%s'\n", p);
 
   } // end of WriteColumn
 

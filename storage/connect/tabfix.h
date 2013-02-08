@@ -28,18 +28,18 @@ class DllExport TDBFIX : public TDBDOS {
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_FIX;}
-	virtual void RestoreNrec(void);
+  virtual void RestoreNrec(void);
   virtual PTDB Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBFIX(g, this);}
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
-	virtual void ResetDB(void);
+  virtual void ResetDB(void);
   virtual bool IsUsingTemp(PGLOBAL g);
-	virtual int  RowNumber(PGLOBAL g, bool b = false);
-	virtual int  ResetTableOpt(PGLOBAL g, bool dox);
-	virtual void ResetSize(void);
-	virtual int  GetBadLines(void) {return Txfp->GetNerr();}
+  virtual int  RowNumber(PGLOBAL g, bool b = false);
+  virtual int  ResetTableOpt(PGLOBAL g, bool dox);
+  virtual void ResetSize(void);
+  virtual int  GetBadLines(void) {return Txfp->GetNerr();}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -68,7 +68,7 @@ class DllExport BINCOL : public DOSCOL {
   virtual int    GetAmType(void) {return TYPE_AM_BIN;}
 
   // Methods
-	virtual void   ReadColumn(PGLOBAL g);
+  virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
 
  protected:

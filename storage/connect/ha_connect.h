@@ -31,21 +31,21 @@
 /****************************************************************************/
 typedef struct _create_xinfo {
   char *Type;                               /* Retrieved from table comment */
-  char *Filename;			                      /* Set if not standard          */
-  char *IndexFN;			                      /* Set if not standard          */
+  char *Filename;                            /* Set if not standard          */
+  char *IndexFN;                            /* Set if not standard          */
   ulonglong Maxrows;                        /* Estimated max nb of rows     */
-  ulong Lrecl;				                      /* Set if not default           */
-  ulong Elements;			                      /* Number of lines in blocks    */
-  bool  Fixed;				                      /* False for DOS type           */
-	void *Pcf;			  												/* To list of columns           */
-	void *Pxdf;                               /* To list of indexes           */
+  ulong Lrecl;                              /* Set if not default           */
+  ulong Elements;                            /* Number of lines in blocks    */
+  bool  Fixed;                              /* False for DOS type           */
+  void *Pcf;                                /* To list of columns           */
+  void *Pxdf;                               /* To list of indexes           */
 } CRXINFO, *PCXF;
 
 typedef struct _xinfo {
-  ulonglong data_file_length;								/* Length of data file          */
-  ha_rows   records;												/* Records in table             */
-  ulong     mean_rec_length;								/* Physical record length       */
-  char     *data_file_name;									/* Physical file name           */
+  ulonglong data_file_length;                /* Length of data file          */
+  ha_rows   records;                        /* Records in table             */
+  ulong     mean_rec_length;                /* Physical record length       */
+  char     *data_file_name;                  /* Physical file name           */
 } XINFO, *PXF;
 
 typedef class user_connect *PCONNECT;
@@ -62,8 +62,8 @@ typedef struct st_connect_share {
   mysql_mutex_t mutex;
   THR_LOCK lock;
 #if !defined(MARIADB)
-	PTOS table_options;
-	PFOS field_options;
+  PTOS table_options;
+  PFOS field_options;
 #endif   // !MARIADB
 } CONNECT_SHARE;
 
@@ -84,32 +84,32 @@ public:
   // CONNECT Implementation
   static   bool connect_init(void);
   static   bool connect_end(void);
-	char    *GetStringOption(char *opname, char *sdef= NULL);
-	PTOS     GetTableOptionStruct(TABLE *table_arg);
-	bool		 GetBooleanOption(char *opname, bool bdef);
-	int      GetIntegerOption(char *opname);
-	bool		 SetIntegerOption(char *opname, int n);
-	PFOS     GetFieldOptionStruct(Field *fp);
-	void    *GetColumnOption(void *field, PCOLINFO pcf);
-	PIXDEF	 GetIndexInfo(int n);
-	const char *GetDBName(const char *name);
-	const char *GetTableName(void);
-	int			 GetColNameLen(Field *fp);
-	char		*GetColName(Field *fp);
-	void		 AddColName(char *cp, Field *fp);
-	TABLE		*GetTable(void) {return table;}
+  char    *GetStringOption(char *opname, char *sdef= NULL);
+  PTOS     GetTableOptionStruct(TABLE *table_arg);
+  bool     GetBooleanOption(char *opname, bool bdef);
+  int      GetIntegerOption(char *opname);
+  bool     SetIntegerOption(char *opname, int n);
+  PFOS     GetFieldOptionStruct(Field *fp);
+  void    *GetColumnOption(void *field, PCOLINFO pcf);
+  PIXDEF   GetIndexInfo(int n);
+  const char *GetDBName(const char *name);
+  const char *GetTableName(void);
+  int       GetColNameLen(Field *fp);
+  char    *GetColName(Field *fp);
+  void     AddColName(char *cp, Field *fp);
+  TABLE    *GetTable(void) {return table;}
 
   PCONNECT GetUser(THD *thd);
   PGLOBAL  GetPlug(THD *thd);
-	PTDB		 GetTDB(PGLOBAL g);
-	bool     OpenTable(PGLOBAL g, bool del= false);
-	bool     IsOpened(void); 
-	int      CloseTable(PGLOBAL g);
-	int      MakeRecord(char *buf);
-	int      ScanRecord(PGLOBAL g, uchar *buf);
-	int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
-	int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
-	                                           uint key_len= 0);
+  PTDB     GetTDB(PGLOBAL g);
+  bool     OpenTable(PGLOBAL g, bool del= false);
+  bool     IsOpened(void); 
+  int      CloseTable(PGLOBAL g);
+  int      MakeRecord(char *buf);
+  int      ScanRecord(PGLOBAL g, uchar *buf);
+  int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
+  int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
+                                             uint key_len= 0);
 
   /** @brief
     The name that will be used for display purposes.
@@ -120,7 +120,7 @@ public:
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-	const char *index_type(uint inx) { return "XPLUG"; }
+  const char *index_type(uint inx) { return "XPLUG"; }
 
   /** @brief
     The file extensions.
@@ -134,9 +134,9 @@ public:
   ulonglong table_flags() const
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
-					  /*HA_NO_AUTO_INCREMENT |*/ HA_NO_PREFIX_CHAR_KEYS |
+            /*HA_NO_AUTO_INCREMENT |*/ HA_NO_PREFIX_CHAR_KEYS |
 #if defined(MARIADB)
-						HA_CAN_VIRTUAL_COLUMNS |
+            HA_CAN_VIRTUAL_COLUMNS |
 #endif   // MARIADB
             HA_NULL_IN_KEY | HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
   }
@@ -174,7 +174,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-	uint max_supported_keys()          const { return 10; }
+  uint max_supported_keys()          const { return 10; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -185,7 +185,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-	uint max_supported_key_parts()     const { return 10; }
+  uint max_supported_key_parts()     const { return 10; }
 
   /** @brief
     unireg.cc will call this to make sure that the storage engine can handle
@@ -196,7 +196,7 @@ public:
     There is no need to implement ..._key_... methods if your engine doesn't
     support indexes.
    */
-	uint max_supported_key_length()    const { return 255; }
+  uint max_supported_key_length()    const { return 255; }
 
   /** @brief
     Called in test_quick_select to determine if indexes should be used.
@@ -206,8 +206,8 @@ public:
   /** @brief
     This method will never be called if you do not implement indexes.
   */
-	virtual double read_time(uint, uint, ha_rows rows)
-	  { return (double) rows /  20.0+1; }
+  virtual double read_time(uint, uint, ha_rows rows)
+    { return (double) rows /  20.0+1; }
 
   /*
     Everything below are methods that we implement in ha_connect.cc.
@@ -241,7 +241,7 @@ public:
  */ 
 virtual const COND *cond_push(const COND *cond);
 PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
-char *GetValStr(OPVAL vop, bool neg);
+const char *GetValStr(OPVAL vop, bool neg);
 
  /**
    Number of rows in table. It will only be called if
@@ -277,12 +277,12 @@ char *GetValStr(OPVAL vop, bool neg);
   */
   int delete_row(const uchar *buf);
 
-	// Added to the connect handler
-	int index_init(uint idx, bool sorted);
-	int index_end();
-	int index_read(uchar * buf, const uchar * key, uint key_len,
-															enum ha_rkey_function find_flag);
-	int index_next_same(uchar *buf, const uchar *key, uint keylen);
+  // Added to the connect handler
+  int index_init(uint idx, bool sorted);
+  int index_end();
+  int index_read(uchar * buf, const uchar * key, uint key_len,
+                              enum ha_rkey_function find_flag);
+  int index_next_same(uchar *buf, const uchar *key, uint keylen);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
@@ -295,7 +295,7 @@ char *GetValStr(OPVAL vop, bool neg);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-	int index_next(uchar *buf);
+  int index_next(uchar *buf);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
@@ -307,7 +307,7 @@ char *GetValStr(OPVAL vop, bool neg);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-	int index_first(uchar *buf);
+  int index_first(uchar *buf);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
@@ -332,8 +332,8 @@ char *GetValStr(OPVAL vop, bool neg);
   int extra(enum ha_extra_function operation);
   int external_lock(THD *thd, int lock_type);                   ///< required
   int delete_all_rows(void);
-	ha_rows records_in_range(uint inx, key_range *min_key,
-	                         key_range *max_key);
+  ha_rows records_in_range(uint inx, key_range *min_key,
+                           key_range *max_key);
   int delete_table(const char *from);
   bool pre_create(THD *thd, void *crt_info, void *alt_info);
   int create(const char *name, TABLE *form,
@@ -343,51 +343,51 @@ char *GetValStr(OPVAL vop, bool neg);
 
   THR_LOCK_DATA **store_lock(THD *thd, THR_LOCK_DATA **to,
                              enum thr_lock_type lock_type);     ///< required
-	int optimize(THD* thd, HA_CHECK_OPT* check_opt);
+  int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-	char *GetListOption(char *opname, const char *oplist, char *def= NULL);
+  char *GetListOption(const char *opname, const char *oplist, const char *def= NULL);
   char *encode(PGLOBAL g, char *cnm);
   bool  add_fields(THD *thd, void *alter_info, 
            LEX_STRING *field_name,
            enum_field_types type,
-		       char *length, char *decimals,
-		       uint type_modifier,
-//	       Item *default_value, Item *on_update_value,
+           char *length, char *decimals,
+           uint type_modifier,
+//         Item *default_value, Item *on_update_value,
            LEX_STRING *comment,
-//	       char *change,
+//         char *change,
 //         List<String> *interval_list, 
            CHARSET_INFO *cs,
-//	       uint uint_geom_type,
-		       void *vcol_info,
+//         uint uint_geom_type,
+           void *vcol_info,
            engine_option_value *create_options);
 
   // Members
-  static ulong  num;			            // Tracable handler number
-  PCONNECT      xp;			              // To user_connect associated class
-  ulong         hnum;			            // The number of this handler
-  query_id_t    valid_query_id;	   	  // The one when tdbp was allocated
-  query_id_t    creat_query_id;	   	  // The one when handler was allocated
-  PTDB          tdbp;			            // To table class object
-	PVAL          sdval;								// Used to convert date values
-  bool          istable;		          // True for table handler
+  static ulong  num;                  // Tracable handler number
+  PCONNECT      xp;                    // To user_connect associated class
+  ulong         hnum;                  // The number of this handler
+  query_id_t    valid_query_id;         // The one when tdbp was allocated
+  query_id_t    creat_query_id;         // The one when handler was allocated
+  PTDB          tdbp;                  // To table class object
+  PVAL          sdval;                // Used to convert date values
+  bool          istable;              // True for table handler
 //char          tname[64];            // The table name
-  MODE          xmod; 		            // Table mode
-  XINFO         xinfo;		            // The table info structure
-  bool          valid_info;		        // True if xinfo is valid
-	bool          stop;									// Used when creating index
-//bool          hascond;							// Too late for Delete
-	int           indexing;             // Type of indexing for CONNECT
+  MODE          xmod;                 // Table mode
+  XINFO         xinfo;                // The table info structure
+  bool          valid_info;            // True if xinfo is valid
+  bool          stop;                  // Used when creating index
+//bool          hascond;              // Too late for Delete
+  int           indexing;             // Type of indexing for CONNECT
 #if !defined(MARIADB)
-	PTOS          table_options;
-	PFOS          field_options;
+  PTOS          table_options;
+  PFOS          field_options;
 #endif   // !MARIADB
   THR_LOCK_DATA lock_data;
 
 public:
-	TABLE_SHARE  *tshp;                 // Used by called tables 
+  TABLE_SHARE  *tshp;                 // Used by called tables 
   char   *data_file_name;
-	char   *index_file_name;
-  uint    int_table_flags;		        // Inherited from MyISAM
-  bool    enable_activate_all_index;	// Inherited from MyISAM
+  char   *index_file_name;
+  uint    int_table_flags;            // Inherited from MyISAM
+  bool    enable_activate_all_index;  // Inherited from MyISAM
 };  // end of ha_connect class definition

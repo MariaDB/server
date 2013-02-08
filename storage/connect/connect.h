@@ -31,47 +31,47 @@ typedef class TDBDOX         *PTDBDOX;
 /*  These classes purpose is chiefly to access protected items!        */
 /***********************************************************************/
 class XCOLCRT: public COLCRT {
-	friend class ha_connect;
-	friend bool CntCreateTable(PGLOBAL, char *, PCXF);
+  friend class ha_connect;
+  friend bool CntCreateTable(PGLOBAL, char *, PCXF);
  public:
-	XCOLCRT(PSZ name) : COLCRT(name) {Nulls= -1;}        // Constructor
-	bool HasNulls(void) {return (Nulls != 0);}
+  XCOLCRT(PSZ name) : COLCRT(name) {Nulls= -1;}        // Constructor
+  bool HasNulls(void) {return (Nulls != 0);}
 
 private:
-	int Nulls;
-	}; // end of class XCOLCRT
+  int Nulls;
+  }; // end of class XCOLCRT
 
 class DOXDEF: public DOSDEF {
 //friend class TDBDOX;
 //friend int MakeIndex(PGLOBAL, PTDB, PIXDEF);
-	friend int CntIndexInit(PGLOBAL, PTDB, int);
-	}; // end of class DOXDEF
+  friend int CntIndexInit(PGLOBAL, PTDB, int);
+  }; // end of class DOXDEF
 
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method base class declaration.         */
 /***********************************************************************/
 class TDBDOX: public TDBDOS {
-	friend int   MakeIndex(PGLOBAL, PTDB, PIXDEF);
-	friend int   CntCloseTable(PGLOBAL, PTDB);
-	friend int   CntIndexInit(PGLOBAL, PTDB, int);
-	friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const void*, int);
-	friend RCODE CntDeleteRow(PGLOBAL, PTDB, bool);
-	friend int   CntIndexRange(PGLOBAL, PTDB, const uchar**, uint*,
-														 bool*, key_part_map*);
-	friend class ha_connect;
+  friend int   MakeIndex(PGLOBAL, PTDB, PIXDEF);
+  friend int   CntCloseTable(PGLOBAL, PTDB);
+  friend int   CntIndexInit(PGLOBAL, PTDB, int);
+  friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const void*, int);
+  friend RCODE CntDeleteRow(PGLOBAL, PTDB, bool);
+  friend int   CntIndexRange(PGLOBAL, PTDB, const uchar**, uint*,
+                             bool*, key_part_map*);
+  friend class ha_connect;
   }; // end of class TDBDOX
 
 class XKPDEF: public KPARTDEF {
-	friend class TDBDOX;
-	friend class ha_connect;
+  friend class TDBDOX;
+  friend class ha_connect;
 //friend int CntMakeIndex(PGLOBAL, const char *, PIXDEF);
-	friend int CntIndexInit(PGLOBAL, PTDB, int);
+  friend int CntIndexInit(PGLOBAL, PTDB, int);
  public:
-	XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {HasNulls= false;}
-	void   SetNulls(bool b) {HasNulls= b;}
+  XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {HasNulls= false;}
+  void   SetNulls(bool b) {HasNulls= b;}
 
  protected:
-	bool   HasNulls;            /* Can have null values                  */
-	}; // end of class XKPDEF
+  bool   HasNulls;            /* Can have null values                  */
+  }; // end of class XKPDEF
 
 RCODE CheckRecord(PGLOBAL g, PTDB tdbp, char *oldbuf, char *newbuf);

@@ -1,5 +1,5 @@
 // TDBMYSQL.H     Olivier Bertrand    2007-2012
-#include "myconn.h"							 // MySQL connection declares
+#include "myconn.h"               // MySQL connection declares
 
 typedef class MYSQLDEF *PMYDEF;
 typedef class TDBMYSQL *PTDBMY;
@@ -17,10 +17,10 @@ typedef class MYSQLCOL *PMYCOL;
 /*  MYSQL table.                                                       */
 /***********************************************************************/
 class MYSQLDEF : public TABDEF           {/* Logical table description */
-	friend class TDBMYSQL;
+  friend class TDBMYSQL;
  public:
   // Constructor
-	MYSQLDEF(void);
+  MYSQLDEF(void);
 
 
   // Implementation
@@ -42,10 +42,10 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Database;           /* Database to be used by server         */
   PSZ     Tabname;            /* External table name                   */
   PSZ     Username;           /* User logon name                       */
-  PSZ     Password;           /* Password logon info									 */
-	int     Portnumber;         /* MySQL port number (0 = default) 			 */
-	bool    Bind;               /* Use prepared statement on insert			 */
-	bool    Delayed;            /* Delayed insert			                   */
+  PSZ     Password;           /* Password logon info                   */
+  int     Portnumber;         /* MySQL port number (0 = default)        */
+  bool    Bind;               /* Use prepared statement on insert       */
+  bool    Delayed;            /* Delayed insert                         */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
@@ -56,70 +56,70 @@ class TDBMYSQL : public TDBASE {
  public:
   // Constructor
   TDBMYSQL(PMYDEF tdp);
-	TDBMYSQL(PGLOBAL g, PTDBMY tdbp);
+  TDBMYSQL(PGLOBAL g, PTDBMY tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_MYSQL;}
-	virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(g, this);}
+  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(g, this);}
 
   // Methods
-	virtual PTDB CopyOne(PTABS t);
-	virtual int  GetAffectedRows(void) {return AftRows;}
-	virtual int  GetRecpos(void) {return N;}
+  virtual PTDB CopyOne(PTABS t);
+  virtual int  GetAffectedRows(void) {return AftRows;}
+  virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
-	virtual void ResetDB(void) {N = 0;}
-	virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual void ResetDB(void) {N = 0;}
+  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
 
   // Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
-	virtual int  WriteDB(PGLOBAL g);
-	virtual int  DeleteDB(PGLOBAL g, int irc);
+  virtual int  WriteDB(PGLOBAL g);
+  virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
 
  protected:
   // Internal functions
   bool MakeSelect(PGLOBAL g);
-	bool MakeInsert(PGLOBAL g);
-//bool MakeUpdate(PGLOBAL g);	
+  bool MakeInsert(PGLOBAL g);
+//bool MakeUpdate(PGLOBAL g);  
 //bool MakeDelete(PGLOBAL g);
-	int  BindColumns(PGLOBAL g);
+  int  BindColumns(PGLOBAL g);
 
   // Members
   MYSQLC      Myc;            // MySQL connection class
-	MYSQL_BIND *Bind;						// To the MySQL bind structure array
+  MYSQL_BIND *Bind;            // To the MySQL bind structure array
   char       *Host;           // Host machine to use
   char       *User;           // User logon info
   char       *Pwd;            // Password logon info
   char       *Database;       // Database to be used by server
   char       *Tabname;        // External table name
   char       *Query;          // Points to SQL query
-	char       *Qbuf;						// Used for not prepared insert
-	bool        Fetched;				// True when fetch was done
-	bool        Prep;           // Use prepared statement on insert
-	bool        Delayed;        // Use delayed insert
+  char       *Qbuf;            // Used for not prepared insert
+  bool        Fetched;        // True when fetch was done
+  bool        Prep;           // Use prepared statement on insert
+  bool        Delayed;        // Use delayed insert
   int         m_Rc;           // Return code from command
-	int 			  AftRows;				// The number of affected rows
-	int 			  N;							// The current table index
-	int         Port;           // MySQL port number (0 = default) 
-	int  			  Nparm;					// The number of statement parameters
+  int         AftRows;        // The number of affected rows
+  int         N;              // The current table index
+  int         Port;           // MySQL port number (0 = default) 
+  int          Nparm;          // The number of statement parameters
   }; // end of class TDBMYSQL
 
 /***********************************************************************/
 /*  Class MYSQLCOL: MySQL table column.                                */
 /***********************************************************************/
 class MYSQLCOL : public COLBLK {
-	friend class TDBMYSQL;
+  friend class TDBMYSQL;
  public:
   // Constructors
-  MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,	PSZ am = "MYSQL");
-	MYSQLCOL(MYSQLCOL *colp, PTDB tdbp); // Constructor used in copy process
+  MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PSZ am = "MYSQL");
+  MYSQLCOL(MYSQLCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_MYSQL;}
-	        void InitBind(PGLOBAL g);
+          void InitBind(PGLOBAL g);
 
   // Methods
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -131,9 +131,13 @@ class MYSQLCOL : public COLBLK {
   MYSQLCOL(void) {}
 
   // Members
-	MYSQL_BIND   *Bind;						// This column bind structure pointer
+  MYSQL_BIND   *Bind;            // This column bind structure pointer
   PVAL          To_Val;         // To value used for Update/Insert
-	unsigned long Slen;						// Bind string lengh
-	int           Rank;						// Rank (position) number in the query
+  unsigned long Slen;            // Bind string lengh
+  int           Rank;            // Rank (position) number in the query
   }; // end of class MYSQLCOL
 
+
+PQRYRES MyColumns(PGLOBAL g, const char *host,  const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat, int port, bool key);

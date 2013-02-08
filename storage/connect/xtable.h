@@ -16,8 +16,8 @@
 #include "assert.h"
 #include "block.h"
 
-//pedef class  INDEXDEF	*PIXDEF;
-typedef char *PFIL;								// Specific to CONNECT
+//pedef class  INDEXDEF  *PIXDEF;
+typedef char *PFIL;                // Specific to CONNECT
 
 /***********************************************************************/
 /*  Definition of class TBX (pure virtual class for TDB and OPJOIN)    */
@@ -32,16 +32,16 @@ class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
   inline  PTBX  GetOrig(void) {return To_Orig;}
   inline  TUSE  GetUse(void) {return Use;}
   inline  void  SetUse(TUSE n) {Use = n;}
-	inline  PFIL  GetFilter(void) {return To_Filter;}
+  inline  PFIL  GetFilter(void) {return To_Filter;}
   inline  void  SetOrig(PTBX txp) {To_Orig = txp;}
-	inline  void  SetFilter(PFIL fp) {To_Filter = fp;}
+  inline  void  SetFilter(PFIL fp) {To_Filter = fp;}
 //inline  JTYPE GetJtype(void) {return Jtype;}
 //inline  void  SetJtype(JTYPE jt) {Jtype = jt;}
 //inline  PFIL  GetNoleft(void) {return To_Noleft;}
 //inline  void  SetNoleft(PFIL fp) {To_Noleft = fp;}
 
   // Methods
-	virtual bool IsSame(PTBX tp) {return tp == this;}
+  virtual bool IsSame(PTBX tp) {return tp == this;}
 //virtual bool Include(PTBX tbxp) = 0;
 //virtual bool CheckFilter(void) = 0;
   virtual int  GetTdb_No(void) = 0;   // Convenience during conversion
@@ -51,7 +51,7 @@ class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
   virtual int  GetMaxSize(PGLOBAL) = 0;
   virtual int  GetProgMax(PGLOBAL) = 0;
   virtual int  GetProgCur(void) = 0;
-	virtual int  GetBadLines(void) {return 0;}
+  virtual int  GetBadLines(void) {return 0;}
 //virtual bool IsJoin(void) = 0;
   virtual PTBX Copy(PTABS t) = 0;
 
@@ -61,8 +61,8 @@ class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
  protected:
   // Members
   PTBX  To_Orig;      // Pointer to original if it is a copy
-	PFIL  To_Filter;
-//PFIL  To_Noleft;		 // To filter not involved in LEFT JOIN
+  PFIL  To_Filter;
+//PFIL  To_Noleft;     // To filter not involved in LEFT JOIN
 //JTYPE Jtype;
   TUSE  Use;
   }; // end of class TBX
@@ -79,33 +79,33 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
   // Implementation
   static  void   SetTnum(int n) {Tnum = n;}
   inline  LPCSTR GetName(void) {return Name;}
-	inline  PTABLE GetTable(void) {return To_Table;}
+  inline  PTABLE GetTable(void) {return To_Table;}
   inline  PCOL   GetColumns(void) {return Columns;}
   inline  int    GetDegree(void) {return Degree;}
   inline  MODE   GetMode(void) {return Mode;}
   inline  void   SetNext(PTDB tdbp) {Next = tdbp;}
   inline  void   SetName(LPCSTR name) {Name = name;}
-	inline  void   SetTable(PTABLE tablep) {To_Table = tablep;}
+  inline  void   SetTable(PTABLE tablep) {To_Table = tablep;}
   inline  void   SetColumns(PCOL colp) {Columns = colp;}
   inline  void   SetDegree(int degree) {Degree = degree;}
   inline  void   SetMode(MODE mode) {Mode = mode;}
 
-	//Properties
+  //Properties
   virtual int    GetTdb_No(void) {return Tdb_No;}
-	virtual PTDB   GetNext(void) {return Next;}
-	virtual PCATLG GetCat(void) {return NULL;}
+  virtual PTDB   GetNext(void) {return Next;}
+  virtual PCATLG GetCat(void) {return NULL;}
 
   // Methods
   virtual AMT    GetAmType(void) {return TYPE_AM_ERROR;}
   virtual bool   GetBlockValues(PGLOBAL g) {return false;}
   virtual int    Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
-	virtual int    RowNumber(PGLOBAL g, bool b = false);
+  virtual int    RowNumber(PGLOBAL g, bool b = false);
   virtual bool   IsReadOnly(void) {return true;}
   virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
   virtual PTDB   CopyOne(PTABS t) {return this;}
   virtual PTBX   Copy(PTABS t);
   virtual void   PrintAM(FILE *f, char *m) 
-									{fprintf(f, "%s AM(%d)\n",	m, GetAmType());}
+                  {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
 
@@ -128,7 +128,7 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
   static int Tnum;     // Used to generate Tdb_no's
   const  int Tdb_No;   // GetTdb_No() is always 0 for OPJOIN
   PTDB   Next;         // Next in linearized queries
-	PTABLE To_Table;		 // Points to the XTAB object
+  PTABLE To_Table;     // Points to the XTAB object
   LPCSTR Name;         // Table name
   PCOL   Columns;      // Points to the first column of the table
   MODE   Mode;         // 10 Read, 30 Update, 40 Insert, 50 Delete
@@ -139,62 +139,62 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
 /*  This is the base class for all query tables (except decode).       */
 /***********************************************************************/
 class DllExport TDBASE : public TDB {
-	friend class INDEXDEF;
-	friend class XINDEX;
-	friend class XINDXS;
+  friend class INDEXDEF;
+  friend class XINDEX;
+  friend class XINDXS;
  public:
   // Constructor
   TDBASE(PTABDEF tdp = NULL);
   TDBASE(PTDBASE tdbp);
 
   // Implementation
-	inline  int     GetKnum(void) {return Knum;}
+  inline  int     GetKnum(void) {return Knum;}
   inline  PTABDEF GetDef(void) {return To_Def;}
-	inline  PKXBASE GetKindex(void) {return To_Kindex;}
-	inline  PCOL    GetSetCols(void) {return To_SetCols;}
-	inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
+  inline  PKXBASE GetKindex(void) {return To_Kindex;}
+  inline  PCOL    GetSetCols(void) {return To_SetCols;}
+  inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
 
-	// Properties
-	void    SetKindex(PKXBASE kxp);
-	PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
+  // Properties
+  void    SetKindex(PKXBASE kxp);
+  PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
 
   // Methods
-	virtual bool   IsUsingTemp(PGLOBAL g) {return false;}
-	virtual PCATLG GetCat(void);
+  virtual bool   IsUsingTemp(PGLOBAL g) {return false;}
+  virtual PCATLG GetCat(void);
   virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);
-	virtual RECFM  GetFtype(void) {return RECFM_NAF;}
+  virtual RECFM  GetFtype(void) {return RECFM_NAF;}
   virtual int    GetAffectedRows(void) {return -1;}
   virtual int    GetRecpos(void) = 0;
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
-	virtual PSZ	   GetFile(PGLOBAL g) {return "Not a file";}
-	virtual int	   GetRemote(void) {return 0;}
-	virtual void   SetFile(PGLOBAL g, PSZ fn) {}
-	virtual void   ResetDB(void) {}
-	virtual void   ResetSize(void) {MaxSize = -1;}
-	virtual void   RestoreNrec(void) {}
-	virtual int    ResetTableOpt(PGLOBAL g, bool dox);
+  virtual PSZ     GetFile(PGLOBAL g) {return "Not a file";}
+  virtual int     GetRemote(void) {return 0;}
+  virtual void   SetFile(PGLOBAL g, PSZ fn) {}
+  virtual void   ResetDB(void) {}
+  virtual void   ResetSize(void) {MaxSize = -1;}
+  virtual void   RestoreNrec(void) {}
+  virtual int    ResetTableOpt(PGLOBAL g, bool dox);
 
   // Database routines
   virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
   virtual PCOL MakeCol(PGLOBAL, PCOLDEF, PCOL, int)
                       {assert(false); return NULL;}
-	virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
-	virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLUMN cp);
+  virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
+  virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLUMN cp);
   virtual void MarkDB(PGLOBAL g, PTDB tdb2);
 
  protected:
   // Members
   PTABDEF  To_Def;            // Points to catalog description block
-	PXOB    *To_Link;           // Points to column of previous relations
-	PCOL    *To_Key_Col;        // Points to key columns in current file
-	PKXBASE  To_Kindex;         // Points to table key index
+  PXOB    *To_Link;           // Points to column of previous relations
+  PCOL    *To_Key_Col;        // Points to key columns in current file
+  PKXBASE  To_Kindex;         // Points to table key index
   PCOL     To_SetCols;        // Points to updated columns
-	int      MaxSize;						// Max size in number of lines
-	int      Knum;              // Size of key arrays
+  int      MaxSize;            // Max size in number of lines
+  int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
   }; // end of class TDBASE
 

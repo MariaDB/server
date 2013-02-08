@@ -85,7 +85,7 @@ extern pthread_mutex_t parmut;
 /*  DB static variables.                                               */
 /***********************************************************************/
 bool  Initdone = false;
-bool  plugin = false;	// True when called by the XDB plugin handler 
+bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
        char  plgxini[_MAX_PATH] = PLGXINI;
@@ -97,11 +97,11 @@ extern "C" {
        HINSTANCE s_hModule;           // Saved module handle
 #else   // !WIN32
        char  nmfile[_MAX_PATH] = "./Log/plugdb.out";
-			 char  pdebug[_MAX_PATH] = "./Log/plgthread.out";
+       char  pdebug[_MAX_PATH] = "./Log/plgthread.out";
 #endif  // !WIN32
 
 #if defined(XMSG)
-       char  msglang[16] = "ENGLISH";			// Default language
+       char  msglang[16] = "ENGLISH";      // Default language
 #endif
 } // extern "C"
 
@@ -164,7 +164,9 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
 
     case MSGID_OPEN_ERROR_AND_STRERROR:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
-                    MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
+                    //OPEN_ERROR does not work, as it wants mode %d (not %s)
+                    //MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
+                    "Open error %d in mode %s on %s: %s",
                     errno, mode, path, strerror(errno));
       break;
 
@@ -217,26 +219,26 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
 /*  Utility for external callers (such as XDB)                            */
 /**************************************************************************/
 DllExport char *GetIni(int n = 0)
-	{
-	switch (n) {
-		case 1: return plgxini; break;
-		case 2: return nmfile;  break;
-		case 3: return pdebug;  break;
-		case 4: return version; break;
+  {
+  switch (n) {
+    case 1: return plgxini; break;
+    case 2: return nmfile;  break;
+    case 3: return pdebug;  break;
+    case 4: return version; break;
 #if defined(XMSG)
-		case 5: return msglang; break;
+    case 5: return msglang; break;
 #endif   // XMSG
-//	default: return plgini;
-		} // endswitch GetIni
+//  default: return plgini;
+    } // endswitch GetIni
 
-	return plgini;
-	} // end of GetIni
+  return plgini;
+  } // end of GetIni
 
 DllExport void SetTrc(void)
-	{
-	// If tracing is on, debug must be initialized.
-	debug = pfile;
-	} // end of SetTrc
+  {
+  // If tracing is on, debug must be initialized.
+  debug = pfile;
+  } // end of SetTrc
 
 #if 0
 /**************************************************************************/
@@ -244,19 +246,19 @@ DllExport void SetTrc(void)
 /**************************************************************************/
 void ptrc(char const *fmt, ...)
   {
-	va_list ap;
-	va_start (ap, fmt);
+  va_list ap;
+  va_start (ap, fmt);
 
-//	if (trace == 0 || (trace == 1 && !pfile) || !fmt)
-//		printf("In %s wrong trace=%d pfile=%p fmt=%p\n", 
-//			__FILE__, trace, pfile, fmt);
+//  if (trace == 0 || (trace == 1 && !pfile) || !fmt)
+//    printf("In %s wrong trace=%d pfile=%p fmt=%p\n", 
+//      __FILE__, trace, pfile, fmt);
 
-	if (trace == 1)
-		vfprintf(pfile, fmt, ap);
-	else
-		vprintf(fmt, ap);
+  if (trace == 1)
+    vfprintf(pfile, fmt, ap);
+  else
+    vprintf(fmt, ap);
 
-	va_end (ap);
+  va_end (ap);
   } // end of ptrc
 #endif // 0
 
@@ -285,7 +287,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
 //dbuserp->AlgChoice = AMOD_AUTO;
   dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;
-	strcpy(dbuserp->Server, "CONNECT");
+  strcpy(dbuserp->Server, "CONNECT");
   return dbuserp;
   } // end of PlgMakeUser
 
@@ -294,7 +296,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
 /***********************************************************************/
 PDBUSER PlgGetUser(PGLOBAL g)
   {
-	PDBUSER dup = (PDBUSER)((g->Activityp) ? g->Activityp->Aptr : NULL);
+  PDBUSER dup = (PDBUSER)((g->Activityp) ? g->Activityp->Aptr : NULL);
 
   if (!dup)
     strcpy(g->Message, MSG(APPL_NOT_INIT));
@@ -358,8 +360,8 @@ bool PlgSetXdbPath(PGLOBAL g, PSZ dbname, PSZ dbpath,
 
   GetPrivateProfileString("DataBase", "DataPath", "", dp, n, plgini);
 
-	if (trace)
-		htrc("PlgSetXdbPath: path=%s\n", dp);
+  if (trace)
+    htrc("PlgSetXdbPath: path=%s\n", dp);
 
   if (dbpath) {
     char fn[_MAX_FNAME];
@@ -423,8 +425,8 @@ bool PlgSetXdbPath(PGLOBAL g, PSZ dbname, PSZ dbpath,
     PlugSetPath(lgn, lgn, dp);
   } // endif lgn
 
-	if (trace)
-		htrc("PlgSetXdbPath: new DB description file=%s\n", lgn);
+  if (trace)
+    htrc("PlgSetXdbPath: new DB description file=%s\n", lgn);
 
   return false;
   } // end of PlgSetXdbPath
@@ -482,31 +484,31 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
   char *tp, *sp;
   bool  b;
 
-	if (trace)
-		htrc("LIKE: strg='%s' pattern='%s'\n", strg, pat);
+  if (trace)
+    htrc("LIKE: strg='%s' pattern='%s'\n", strg, pat);
 
-	if (ci) {												/* Case insensitive test             */
-		if (strlen(pat) + strlen(strg) + 1 < MAX_STR)
-			tp = g->Message;
+  if (ci) {                        /* Case insensitive test             */
+    if (strlen(pat) + strlen(strg) + 1 < MAX_STR)
+      tp = g->Message;
     else if (!(tp = new char[strlen(pat) + strlen(strg) + 2])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
       longjmp(g->jumper[g->jump_level], OP_LIKE);
       } /* endif tp */
-	  
-		sp = tp + strlen(pat) + 1;
+    
+    sp = tp + strlen(pat) + 1;
     strlwr(strcpy(tp, pat));      /* Make a lower case copy of pat     */
     strlwr(strcpy(sp, strg));     /* Make a lower case copy of strg    */
-	} else {												/* Case sensitive test               */
+  } else {                        /* Case sensitive test               */
     if (strlen(pat) < MAX_STR)    /* In most of the case for small pat */
       tp = g->Message;            /* Use this as temporary work space. */
     else if (!(tp = new char[strlen(pat) + 1])) {
       strcpy(g->Message, MSG(NEW_RETURN_NULL));
       longjmp(g->jumper[g->jump_level], OP_LIKE);
       } /* endif tp */
-	  
+    
     strcpy(tp, pat);                  /* Make a copy to be worked into */
-		sp = (char*)strg;
-	} /* endif ci */
+    sp = (char*)strg;
+  } /* endif ci */
 
   b = EvalLikePattern(sp, tp);
 
@@ -551,9 +553,9 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   int   n;
   bool  b, t = false;
 
-	if (trace)
-		htrc("Eval Like: sp=%s tp=%s\n", 
-		     (sp) ? sp : "Null", (tp) ? tp : "Null");
+  if (trace)
+    htrc("Eval Like: sp=%s tp=%s\n", 
+         (sp) ? sp : "Null", (tp) ? tp : "Null");
 
   /********************************************************************/
   /*  If pattern is void, Like is true only if string is also void.   */
@@ -589,8 +591,8 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   else
     n = strlen(tp);                   /* Get length of pattern head    */
 
-	if (trace)
-		htrc(" testing: t=%d sp=%s tp=%s p=%p\n", t, sp, tp, p);
+  if (trace)
+    htrc(" testing: t=%d sp=%s tp=%s p=%p\n", t, sp, tp, p);
 
   if (n > (signed)strlen(sp))         /* If head is longer than strg   */
     b = false;                        /* Like condition is not met     */
@@ -635,9 +637,9 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
       b = !strcmp(sp, tp);
     } /* endif p */
 
-	if (trace)
-		htrc(" done: b=%d n=%d sp=%s tp=%s\n",
-					b, n, (sp) ? sp : "Null", tp);
+  if (trace)
+    htrc(" done: b=%d n=%d sp=%s tp=%s\n",
+          b, n, (sp) ? sp : "Null", tp);
 
   return (b);
   } /* end of EvalLikePattern */
@@ -647,8 +649,8 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
 /***********************************************************************/
 void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
   {
-	if (trace)
-		htrc("PlugConvertConstant: value=%p type=%hd\n", value, type);
+  if (trace)
+    htrc("PlugConvertConstant: value=%p type=%hd\n", value, type);
 
   if (type != TYPE_XOBJECT) {
     value = new(g) CONSTANT(g, value, type);
@@ -666,8 +668,8 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
   {
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
 
-	if (trace)
-		htrc("MakeDateFormat: dfmt=%s\n", dfmt);
+  if (trace)
+    htrc("MakeDateFormat: dfmt=%s\n", dfmt);
 
   memset(pdp, 0, sizeof(DATPAR));
   pdp->Format = pdp->Curp = dfmt;
@@ -701,8 +703,8 @@ PDTP MakeDateFormat(PGLOBAL g, PSZ dfmt, bool in, bool out, int flag)
 #endif  // !WIN32
 #endif  //  THREAD
 
-	if (trace)
-		htrc("Done:	in=%s out=%s\n", SVP(pdp->InFmt), SVP(pdp->OutFmt));					 
+  if (trace)
+    htrc("Done:  in=%s out=%s\n", SVP(pdp->InFmt), SVP(pdp->OutFmt));           
   return pdp;
   } // end of MakeDateFormat
 
@@ -715,13 +717,13 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   int   i, k, m, numval;
   int   n, y = 30;
 
-	if (pdp)
-		fmt = pdp->InFmt;
-	else						// assume standard MySQL date format
-		fmt = "%4d-%2d-%2d %2d:%2d:%2d";
+  if (pdp)
+    fmt = pdp->InFmt;
+  else            // assume standard MySQL date format
+    fmt = "%4d-%2d-%2d %2d:%2d:%2d";
 
-	if (trace)
-		htrc("ExtractDate: dts=%s fmt=%s defy=%d\n", dts, fmt, defy);
+  if (trace)
+    htrc("ExtractDate: dts=%s fmt=%s defy=%d\n", dts, fmt, defy);
 
   // Set default values for time only use
   if (defy) {
@@ -802,9 +804,9 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
 
     } // endfor i
 
-	if (trace)
-		htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
-					numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
+  if (trace)
+    htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
+          numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
 
   return numval;
   } // end of ExtractDate
@@ -819,19 +821,19 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
   PFBLOCK   fp;
   PDBUSER   dbuserp = (PDBUSER)g->Activityp->Aptr;
 
-	if (trace) {
-		htrc("PlugOpenFile: fname=%s ftype=%s\n", fname, ftype);
-		htrc("dbuserp=%p\n", dbuserp);
-		} // endif trace
+  if (trace) {
+    htrc("PlugOpenFile: fname=%s ftype=%s\n", fname, ftype);
+    htrc("dbuserp=%p\n", dbuserp);
+    } // endif trace
 
   if ((fop= global_fopen(g, MSGID_OPEN_MODE_STRERROR, fname, ftype)) != NULL) {
-		if (trace)
-			htrc(" fop=%p\n", fop);
+    if (trace)
+      htrc(" fop=%p\n", fop);
 
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
 
-		if (trace)
-			htrc(" fp=%p\n", fp);
+    if (trace)
+      htrc(" fp=%p\n", fp);
 
     // fname may be in volatile memory such as stack
     fp->Fname = (char*)PlugSubAlloc(g, NULL, strlen(fname) + 1);
@@ -844,8 +846,8 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
     dbuserp->Openlist = fp;
     } /* endif fop */
 
-	if (trace)
-		htrc(" returning fop=%p\n", fop);
+  if (trace)
+    htrc(" returning fop=%p\n", fop);
 
   return (fop);
   } // end of PlugOpenFile
@@ -858,9 +860,9 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
   {
   int rc = 0;
 
-	if (trace)
-		htrc("PlugCloseFile: fp=%p count=%hd type=%hd\n",
-					fp, ((fp) ? fp->Count : 0), ((fp) ? fp->Type : 0));
+  if (trace)
+    htrc("PlugCloseFile: fp=%p count=%hd type=%hd\n",
+          fp, ((fp) ? fp->Count : 0), ((fp) ? fp->Type : 0));
 
   if (!fp || !fp->Count)
     return rc;
@@ -985,8 +987,8 @@ int GetIniSize(char *section, char *key, char *def, char *ini)
         n *= 1024;
       } // endswitch c
 
-	if (trace)
-		htrc("GetIniSize: key=%s buff=%s i=%d n=%d\n", key, buff, i, n);
+  if (trace)
+    htrc("GetIniSize: key=%s buff=%s i=%d n=%d\n", key, buff, i, n);
 
   return n;
   } // end of GetIniSize
@@ -1021,8 +1023,8 @@ DllExport PSZ GetIniString(PGLOBAL g, void *mp, LPCSTR sec, LPCSTR key,
 
   p = (PSZ)PlugSubAlloc(g, mp, n + 1);
 
-	if (trace)
-		htrc("GetIniString: sec=%s key=%s buf=%s\n", sec, key, buf);
+  if (trace)
+    htrc("GetIniString: sec=%s key=%s buf=%s\n", sec, key, buf);
 
   strcpy(p, buf);
 
@@ -1196,9 +1198,9 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   maxsub = (pph->FreeBlk < minsub) ? 0 : pph->FreeBlk - minsub;
   mp.Sub = mp.Size <= ((mp.Sub) ? maxsub : (maxsub >> 2));
 
-	if (trace)
-		htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
-					arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
+  if (trace)
+    htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
+          arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
 
   if (!mp.Sub) {
     // For allocations greater than one fourth of remaining storage
@@ -1239,8 +1241,8 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 //  assert (mp.Memp != NULL);
 #endif
 
-	if (trace)
-		htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
+  if (trace)
+    htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
 
   if (newsize == mp.Size)
     return mp.Memp;      // Nothing to do
@@ -1285,8 +1287,8 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 
   } // endif's
 
-	if (trace)
-		htrc(" newsize=%d newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
+  if (trace)
+    htrc(" newsize=%d newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
 
   return mp.Memp;
   } // end of PlgDBrealloc
@@ -1296,8 +1298,8 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 /***********************************************************************/
 void PlgDBfree(MBLOCK& mp)
   {
-	if (trace)
-		htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
+  if (trace)
+    htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
 
   if (!mp.Sub && mp.Memp)
 #if defined(WIN32)
@@ -1397,8 +1399,8 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
   {
   char  m[64];
 
-	if (trace)
-		htrc("PUTOUT: f=%p t=%d v=%p n=%d\n", f, t, v, n);
+  if (trace)
+    htrc("PUTOUT: f=%p t=%d v=%p n=%d\n", f, t, v, n);
 
   if (!v)
     return;
@@ -1472,8 +1474,9 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
     return;
 
   if (!t->P1 || t->P1->Num == 50)
+  {
     if (!(tp = new TABPTR)) {
-		  PGLOBAL g = t->G;
+      PGLOBAL g = t->G;
 
       sprintf(g->Message, "NewPointer: %s", MSG(MEM_ALLOC_ERROR));
       longjmp(g->jumper[g->jump_level], 3);
@@ -1482,6 +1485,7 @@ DllExport void NewPointer(PTABS t, void *oldv, void *newv)
       tp->Num = 0;
       t->P1 = tp;
     } /* endif tp */
+  }
 
   t->P1->Old[t->P1->Num] = oldv;
   t->P1->New[t->P1->Num++] = newv;
@@ -1512,14 +1516,14 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "rb", (int)errno, fn[i]);
         strcat(strcat(g->Message, ": "), strerror(errno));
-			  longjmp(g->jumper[g->jump_level], 666);
+        longjmp(g->jumper[g->jump_level], 666);
 //      } else
 //        len[i] = 0;          // File does not exist yet
 
     } else {
       if ((len[i] = _filelength(h[i])) < 0) {
         sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", fn[i]);
-			  longjmp(g->jumper[g->jump_level], 666);
+        longjmp(g->jumper[g->jump_level], 666);
         } // endif len
 
     } // endif h

@@ -20,10 +20,10 @@ typedef class MACCOL *PMACCOL;
 /*  MAC: virtual table to get the list of MAC addresses.               */
 /***********************************************************************/
 class DllExport MACDEF : public TABDEF {  /* Logical table description */
-	friend class TDBMAC;
+  friend class TDBMAC;
  public:
   // Constructor
-	MACDEF(void) {Pseudo = 3;}
+  MACDEF(void) {Pseudo = 3;}
 
   // Implementation
   virtual const char *GetType(void) {return "MAC";}
@@ -53,40 +53,40 @@ class TDBMAC : public TDBASE {
 
   // Methods
 //virtual PTDB CopyOne(PTABS t);
-	virtual int GetRecpos(void) {return N;}
-	virtual int RowNumber(PGLOBAL g, bool b = false) {return N;}
+  virtual int GetRecpos(void) {return N;}
+  virtual int RowNumber(PGLOBAL g, bool b = false) {return N;}
 
   // Database routines
-	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
-	virtual void CloseDB(PGLOBAL g) {}
+  virtual void CloseDB(PGLOBAL g) {}
 
  protected:
-	// Specific routines
-	bool GetMacInfo(PGLOBAL g);
-	bool GetFixedInfo(PGLOBAL g);
-	void MakeErrorMsg(PGLOBAL g, DWORD drc);
+  // Specific routines
+  bool GetMacInfo(PGLOBAL g);
+  bool GetFixedInfo(PGLOBAL g);
+  void MakeErrorMsg(PGLOBAL g, DWORD drc);
 
   // Members
-	FIXED_INFO      *FixedInfo;		 // Points to fixed info structure
-	PIP_ADAPTER_INFO Piaf;				 // Points on Adapter info array
-	PIP_ADAPTER_INFO Curp;				 // Points on current Adapt info
-	PIP_ADAPTER_INFO Next;				 // Points on next Adapt info
-	ULONG            Buflen;			 // Buffer length
-	bool             Fix;					 // true if FixedInfo is needed
-	bool             Adap;				 // true if Piaf is needed
-	int              N;						 // Row number
+  FIXED_INFO      *FixedInfo;     // Points to fixed info structure
+  PIP_ADAPTER_INFO Piaf;         // Points on Adapter info array
+  PIP_ADAPTER_INFO Curp;         // Points on current Adapt info
+  PIP_ADAPTER_INFO Next;         // Points on next Adapt info
+  ULONG            Buflen;       // Buffer length
+  bool             Fix;           // true if FixedInfo is needed
+  bool             Adap;         // true if Piaf is needed
+  int              N;             // Row number
   }; // end of class TDBMAC
 
 /***********************************************************************/
 /*  Class MACCOL: MAC Address column.                                  */
 /***********************************************************************/
 class MACCOL : public COLBLK {
-	friend class TDBMAC;
+  friend class TDBMAC;
  public:
   // Constructors
   MACCOL(PCOLDEF cdp, PTDB tdbp, int n);
@@ -99,9 +99,9 @@ class MACCOL : public COLBLK {
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  MACCOL(void) {}							// Default constructor not to be used
+  MACCOL(void) {}              // Default constructor not to be used
 
   // Members
-	PTDBMAC Tdbp;								// Points to MAC table block
-	int     Flag;               // Indicates what to display
+  PTDBMAC Tdbp;                // Points to MAC table block
+  int     Flag;               // Indicates what to display
   }; // end of class MACCOL

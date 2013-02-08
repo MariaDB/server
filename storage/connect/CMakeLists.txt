@@ -39,11 +39,27 @@ add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
 #
 IF(UNIX)
   if(WITH_WARNINGS)
-    add_definitions(-Wall -Wfatal-errors -Wextra)
+    add_definitions(-Wall -Wfatal-errors -Wextra -Wmissing-declarations)
     message(STATUS "CONNECT: GCC: All warnings enabled")
   else()
-    add_definitions(--no-warnings)
-    message(STATUS "CONNECT: GCC: All warnings disabled")
+    add_definitions(-Wall -Wfatal-errors -Wmissing-declarations)
+    add_definitions(-Wno-write-strings)
+    add_definitions(-Wno-unused-variable)
+    add_definitions(-Wno-unused-but-set-variable)
+    add_definitions(-Wno-unused-value)
+    add_definitions(-Wno-unused-function)
+    add_definitions(-Wno-parentheses)
+    add_definitions(-Wno-missing-declarations)
+    add_definitions(-Wno-int-to-pointer-cast)
+    add_definitions(-Wno-narrowing)
+
+# This switch is for pure C only:
+#   add_definitions(-Wno-implicit-function-declaration)
+# These switches are for C++ only
+#   add_definitions(-Wno-reorder)
+#   add_definitions(-Wno-delete-non-virtual-dtor)
+
+    message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
 
   add_definitions( -DUNIX -DLINUX -DUBUNTU )

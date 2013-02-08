@@ -76,7 +76,7 @@ INIDEF::INIDEF(void)
 bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char   buf[8], ds[2];
-	void  *memp = Cat->GetDescp();
+  void  *memp = Cat->GetDescp();
 
   if (!stricmp(am, "SYS"))
     strcpy(ds, "T");                 // SYS tables default to T(able)
@@ -230,8 +230,8 @@ PTDB TDBINI::CopyOne(PTABS t)
 char *TDBINI::GetSeclist(PGLOBAL g)
   {
   if (trace)
-  	htrc("GetSeclist: Seclist=%p\n", Seclist);
-  	
+    htrc("GetSeclist: Seclist=%p\n", Seclist);
+    
   if (!Seclist) {
     // Result will be retrieved from the INI file
     Seclist = (char*)PlugSubAlloc(g, NULL, Seclen);
@@ -298,9 +298,9 @@ bool TDBINI::OpenDB(PGLOBAL g)
     if (!colp->IsSpecial())            // Not a pseudo column
       colp->AllocBuf(g);
 
-	if (trace)
-		htrc("INI OpenDB: seclist=%s seclen=%d ifile=%s\n", 
-					Seclist, Seclen, Ifile);
+  if (trace)
+    htrc("INI OpenDB: seclist=%s seclen=%d ifile=%s\n", 
+          Seclist, Seclen, Ifile);
 
   return false;
   } // end of OpenDB
@@ -336,8 +336,8 @@ int TDBINI::ReadDB(PGLOBAL g)
     else
       Section += (strlen(Section) + 1);
 
-		if (trace > 1)
-			htrc("INI ReadDB: section=%s N=%d\n", Section, N);
+    if (trace > 1)
+      htrc("INI ReadDB: section=%s N=%d\n", Section, N);
 
     N++;
   } // endif To_Kindex
@@ -363,22 +363,22 @@ int TDBINI::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBINI::DeleteDB(PGLOBAL g, int irc)
   {
-	switch (irc) {
-		case RC_EF:
-			break;
-		case RC_FX:
-			while (ReadDB(g) == RC_OK)
-		    WritePrivateProfileString(Section, NULL, NULL, Ifile);
+  switch (irc) {
+    case RC_EF:
+      break;
+    case RC_FX:
+      while (ReadDB(g) == RC_OK)
+        WritePrivateProfileString(Section, NULL, NULL, Ifile);
 
-			break;
-		default:
-			if (!Section) {
-		    strcpy(g->Message, MSG(NO_SECTION_NAME));
-				return RC_FX;
-			} else
-		    WritePrivateProfileString(Section, NULL, NULL, Ifile);
+      break;
+    default:
+      if (!Section) {
+        strcpy(g->Message, MSG(NO_SECTION_NAME));
+        return RC_FX;
+      } else
+        WritePrivateProfileString(Section, NULL, NULL, Ifile);
 
-	  } // endswitch irc
+    } // endswitch irc
 
   return RC_OK;
   } // end of DeleteDB
@@ -494,9 +494,9 @@ void INICOL::ReadColumn(PGLOBAL g)
   {
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
-	if (trace > 1)
-		htrc("INI ReadColumn: col %s R%d flag=%d\n",
-					Name, tdbp->GetTdb_No(), Flag);
+  if (trace > 1)
+    htrc("INI ReadColumn: col %s R%d flag=%d\n",
+          Name, tdbp->GetTdb_No(), Flag);
 
   /*********************************************************************/
   /*  Get the key value from the INI file.                             */
@@ -525,9 +525,9 @@ void INICOL::WriteColumn(PGLOBAL g)
   char   *p;
   PTDBINI tdbp = (PTDBINI)To_Tdb;
 
-	if (trace > 1)
-		htrc("INI WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
-					Name, tdbp->GetTdb_No(), ColUse, Status);
+  if (trace > 1)
+    htrc("INI WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
+          Name, tdbp->GetTdb_No(), ColUse, Status);
 
   /*********************************************************************/
   /*  Get the string representation of Value according to column type. */
@@ -680,7 +680,7 @@ bool TDBXIN::SetRecpos(PGLOBAL g, int recpos)
 /***********************************************************************/
 bool TDBXIN::OpenDB(PGLOBAL g)
   {
-  Oldsec = -1;			 // To replace the table at its beginning
+  Oldsec = -1;       // To replace the table at its beginning
   return TDBINI::OpenDB(g);
   } // end of OpenDB
 
@@ -753,12 +753,12 @@ int TDBXIN::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBXIN::DeleteDB(PGLOBAL g, int irc)
   {
-	if (irc == RC_EF) {
-	} else if (irc == RC_FX) {
+  if (irc == RC_EF) {
+  } else if (irc == RC_FX) {
     for (Section = Seclist; *Section; Section += (strlen(Section) + 1))
-	    WritePrivateProfileString(Section, NULL, NULL, Ifile);
+      WritePrivateProfileString(Section, NULL, NULL, Ifile);
 
-	} else if (Section) {
+  } else if (Section) {
     WritePrivateProfileString(Section, Keycur, NULL, Ifile);
   } else {
     strcpy(g->Message, MSG(NO_SECTION_NAME));
@@ -826,9 +826,9 @@ void XINCOL::WriteColumn(PGLOBAL g)
   char   *p;
   PTDBXIN tdbp = (PTDBXIN)To_Tdb;
 
-	if (trace > 1)
-		htrc("XIN WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
-					Name, tdbp->GetTdb_No(), ColUse, Status);
+  if (trace > 1)
+    htrc("XIN WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
+          Name, tdbp->GetTdb_No(), ColUse, Status);
 
   /*********************************************************************/
   /*  Get the string representation of Value according to column type. */

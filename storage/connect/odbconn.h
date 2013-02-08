@@ -58,19 +58,19 @@ enum CATINFO {CAT_TAB   =     1,      /* SQLTables                     */
 typedef struct tagCATPARM { 
   CATINFO  Id;                 // Id to indicate function 
   PQRYRES  Qrp;                // Result set pointer
-	PUCHAR   Tab;								 // Table name or pattern
-	PUCHAR   Pat;  							 // Table type or column pattern
-	SQLLEN* *Vlen;							 // To array of indicator values
-	UWORD   *Status;						 // To status block
-	// For SQLStatistics
-	UWORD    Unique; 					   // Index type
-  UWORD    Accuracy;					 // For Cardinality and Pages
-	// For SQLSpecialColumns 
+  PUCHAR   Tab;                 // Table name or pattern
+  PUCHAR   Pat;                 // Table type or column pattern
+  SQLLEN* *Vlen;               // To array of indicator values
+  UWORD   *Status;             // To status block
+  // For SQLStatistics
+  UWORD    Unique;              // Index type
+  UWORD    Accuracy;           // For Cardinality and Pages
+  // For SQLSpecialColumns 
   UWORD    ColType;
   UWORD    Scope; 
   UWORD    Nullable;
   } CATPARM; 
-	 
+   
 // ODBC connection to a data source
 class TDBODBC;
 class ODBCCOL;
@@ -90,9 +90,8 @@ class DBX : public BLOCK {
 
   // Implementation (use ThrowDBX to create)
   RETCODE GetRC(void) {return m_RC;}
-  PSZ     GetErrorMessage(int i)
-          {return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i]
-					                                      : "No ODBC error";}
+  const char *GetErrorMessage(int i)
+  { return (i >=0 && i < MAX_NUM_OF_MSG) ? m_ErrMsg[i] : "No ODBC error"; }
  protected:
   void    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
 
@@ -106,7 +105,7 @@ class DBX : public BLOCK {
 /***********************************************************************/
 class ODBConn : public BLOCK {
   friend class DBX;
-	friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
+  friend PQRYRES GetColumnInfo(PGLOBAL, char*&, char *, int, PVBLK&);
  private:
   ODBConn();                      // Standard (unused) constructor
 
@@ -139,10 +138,10 @@ class ODBConn : public BLOCK {
   int  GetResultSize(char *sql, ODBCCOL *colp);
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
   int  Fetch(void);
-	int  PrepareSQL(char *sql);
-	bool ExecuteSQL(void);
-	bool BindParam(ODBCCOL *colp);
-	int  GetCatInfo(CATPARM *cap);
+  int  PrepareSQL(char *sql);
+  bool ExecuteSQL(void);
+  bool BindParam(ODBCCOL *colp);
+  int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
 
  public:
@@ -178,7 +177,7 @@ class ODBConn : public BLOCK {
   DWORD    m_QueryTimeout;
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
-	int      m_Catver;
+  int      m_Catver;
   PSZ      m_Connect;
   bool     m_Updatable;
   char     m_IDQuoteChar;

@@ -24,7 +24,7 @@ class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
   // Implementation
   virtual const char *GetType(void) {return "CSV";}
   char    GetSep(void) {return Sep;}
-	char    GetQot(void) {return Qot;}
+  char    GetQot(void) {return Qot;}
 
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
@@ -36,7 +36,7 @@ class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
 //bool    Accept;             /* true if wrong lines are accepted      */
   bool    Header;             /* true if first line contains headers   */
 //int     Maxerr;             /* Maximum number of bad records         */
-	int     Quoted;             /* Quoting level for quoted fields       */
+  int     Quoted;             /* Quoting level for quoted fields       */
   char    Sep;                /* Separator for standard CSV files      */
   char    Qot;                /* Character for quoted strings          */
   }; // end of CSVDEF
@@ -60,7 +60,7 @@ class TDBCSV : public TDBDOS {
   // Methods
   virtual PTDB CopyOne(PTABS t);
 //virtual bool IsUsingTemp(PGLOBAL g);
-	virtual int  GetBadLines(void) {return (int)Nerr;}
+  virtual int  GetBadLines(void) {return (int)Nerr;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -69,10 +69,10 @@ class TDBCSV : public TDBDOS {
   virtual int  CheckWrite(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);        // Physical file read
 
-	// Specific routines
-	virtual int  EstimatedLength(PGLOBAL g);
-	virtual bool SkipHeader(PGLOBAL g);
-	virtual bool CheckErr(void);
+  // Specific routines
+  virtual int  EstimatedLength(PGLOBAL g);
+  virtual bool SkipHeader(PGLOBAL g);
+  virtual bool CheckErr(void);
 
  protected:
   // Members
@@ -83,11 +83,11 @@ class TDBCSV : public TDBDOS {
   int   Fields;            // Number of fields to handle
   int   Nerr;              // Number of bad records
   int   Maxerr;            // Maximum number of bad records
-	int   Quoted;            // Quoting level for quoted fields
-	bool  Accept;						 // true if bad lines are accepted
-	bool  Header;						 // true if first line contains column headers
+  int   Quoted;            // Quoting level for quoted fields
+  bool  Accept;             // true if bad lines are accepted
+  bool  Header;             // true if first line contains column headers
   char  Sep;               // Separator
-	char  Qot;               // Quoting character
+  char  Qot;               // Quoting character
   }; // end of class TDBCSV
 
 /***********************************************************************/
@@ -106,7 +106,7 @@ class CSVCOL : public DOSCOL {
   virtual int    GetAmType() {return TYPE_AM_CSV;}
 
   // Methods
-	virtual bool	 VarSize(void);
+  virtual bool   VarSize(void);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
 //        void   Print(FILE *, uint);
@@ -127,11 +127,11 @@ class TDBFMT : public TDBCSV {
   friend class CSVCOL;
 //friend class FMTCOL;
  public:
-	// Standard constructor
-	TDBFMT(PCSVDEF tdp, PTXF txfp) : TDBCSV(tdp, txfp)
-		  {FldFormat = NULL; To_Fld = NULL; FmtTest = NULL; Linenum = 0;}
+  // Standard constructor
+  TDBFMT(PCSVDEF tdp, PTXF txfp) : TDBCSV(tdp, txfp)
+      {FldFormat = NULL; To_Fld = NULL; FmtTest = NULL; Linenum = 0;}
 
-	// Copy constructor
+  // Copy constructor
   TDBFMT(PGLOBAL g, PTDBFMT tdbp);
 
   // Implementation
@@ -150,14 +150,14 @@ class TDBFMT : public TDBCSV {
 //virtual int  CheckWrite(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);        // Physical file read
 
-	// Specific routines
-	virtual int  EstimatedLength(PGLOBAL g);
+  // Specific routines
+  virtual int  EstimatedLength(PGLOBAL g);
 
  protected:
   // Members
   PSZ  *FldFormat;                           // Field read format
   void *To_Fld;                              // To field test buffer
-	int  *FmtTest;														 // Test on ending by %n or %m
+  int  *FmtTest;                             // Test on ending by %n or %m
   int   Linenum;                             // Last read line
   }; // end of class TDBFMT
 

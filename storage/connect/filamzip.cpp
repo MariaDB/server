@@ -62,7 +62,6 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[];                 // Statistics
-bool PushWarning(PGLOBAL g, PTDBASE tdbp);
 
 /* ------------------------------------------------------------------- */
 
@@ -178,8 +177,8 @@ bool ZIPFAM::OpenTableFile(PGLOBAL g)
     sprintf(g->Message, MSG(GZOPEN_ERROR),
             opmode, (int)errno, filename);
     strcat(strcat(g->Message, ": "), strerror(errno));
-		return (mode == MODE_READ && errno == ENOENT)
-						? PushWarning(g, Tdbp) : true;
+    return (mode == MODE_READ && errno == ENOENT)
+            ? PushWarning(g, Tdbp) : true;
     } // endif Zfile
 
   /*********************************************************************/
@@ -300,8 +299,8 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
   char *p;
   int   rc;
 
-	if (!Zfile)
-		return RC_EF;
+  if (!Zfile)
+    return RC_EF;
 
   if (!Placed) {
     /*******************************************************************/
@@ -438,8 +437,8 @@ int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
 /***********************************************************************/
 int ZBKFAM::Cardinality(PGLOBAL g)
   {
-	// Should not be called in this version
-	return (g) ? -1 : 0;
+  // Should not be called in this version
+  return (g) ? -1 : 0;
 //return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
@@ -703,10 +702,10 @@ ZIXFAM::ZIXFAM(PDOSDEF tdp) : ZBKFAM(tdp)
 /***********************************************************************/
 int ZIXFAM::Cardinality(PGLOBAL g)
   {
-	if (Last)
-		return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
-	else	// Last and Block not defined, cannot do it yet
-		return 0;
+  if (Last)
+    return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  else  // Last and Block not defined, cannot do it yet
+    return 0;
 
   } // end of Cardinality
 

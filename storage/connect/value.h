@@ -216,7 +216,7 @@ class STRING : public VALUE {
   // Members
   PSZ     Strp;
   int     Len;
-	bool    Ci;												// true if case insensitive
+  bool    Ci;                        // true if case insensitive
   }; // end of class STRING
 
 /***********************************************************************/

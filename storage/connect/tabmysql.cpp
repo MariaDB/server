@@ -78,8 +78,10 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 /*  of a MySQL table that will be retrieved by GetData commands.        */
 /*  key = TRUE when called from Create Table to get key informations.   */
 /************************************************************************/
-PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
-                  char *table, char *colpat, int port, bool key)
+PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat,
+                  int port, bool key)
   {
   static int dbtype[] = {DB_CHAR, DB_SHORT, DB_CHAR, DB_INT,
                          DB_INT, DB_SHORT, DB_CHAR, DB_CHAR};
@@ -108,8 +110,8 @@ PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
   if (colpat)
     strcat(strcat(cmd, " LIKE "), colpat);
 
-	if (trace)
-		htrc("MyColumns: cmd='%s'\n", cmd);
+  if (trace)
+    htrc("MyColumns: cmd='%s'\n", cmd);
 
   if ((n = myc.GetResultSize(g, cmd)) < 0) {
     myc.Close();
@@ -322,8 +324,8 @@ MYSQLDEF::MYSQLDEF(void)
   Username = NULL;
   Password = NULL;
   Portnumber = 0;
-	Bind = FALSE;
-	Delayed = FALSE;
+  Bind = FALSE;
+  Delayed = FALSE;
   } // end of MYSQLDEF constructor
 
 /***********************************************************************/
@@ -334,7 +336,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Desc = "MySQL Table";
   Hostname = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
   Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
-  Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name);	// Deprecated
+  Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name);  // Deprecated
   Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
   Username = Cat->GetStringCatInfo(g, Name, "User", "root");
   Password = Cat->GetStringCatInfo(g, Name, "Password", NULL);
@@ -366,8 +368,8 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     User = tdp->GetUsername();
     Pwd = tdp->GetPassword();
     Port = tdp->GetPortnumber();
-		Prep = tdp->Bind;
-		Delayed = tdp->Delayed;
+    Prep = tdp->Bind;
+    Delayed = tdp->Delayed;
   } else {
     Host = NULL;
     Database = NULL;
@@ -375,13 +377,13 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     User = NULL;
     Pwd = NULL;
     Port = 0;
-		Prep = FALSE;
-		Delayed = FALSE;
+    Prep = FALSE;
+    Delayed = FALSE;
   } // endif tdp
 
   Bind = NULL;
   Query = NULL;
-	Qbuf = NULL;
+  Qbuf = NULL;
   Fetched = FALSE;
   m_Rc = RC_FX;
   AftRows = 0;
@@ -395,13 +397,13 @@ TDBMYSQL::TDBMYSQL(PGLOBAL g, PTDBMY tdbp) : TDBASE(tdbp)
   Database = tdbp->Database;
   Tabname = tdbp->Tabname;
   User = tdbp->User;
-  Pwd =	tdbp->Pwd; 
+  Pwd =  tdbp->Pwd; 
   Port = tdbp->Port;
-	Prep = tdbp->Prep;
-	Delayed = tdbp->Delayed;
-	Bind = NULL;
+  Prep = tdbp->Prep;
+  Delayed = tdbp->Delayed;
+  Bind = NULL;
   Query = tdbp->Query;
-	Qbuf = NULL;
+  Qbuf = NULL;
   Fetched = tdbp->Fetched;
   m_Rc = tdbp->m_Rc;
   AftRows = tdbp->AftRows;
@@ -483,13 +485,13 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   // Below 32 is space to contain extra stuff
   len += (strlen(colist) + strlen(Tabname) + 32);
-	len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
   Query = (char*)PlugSubAlloc(g, NULL, len);
   strcat(strcpy(Query, "SELECT "), colist);
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
-	if (To_Filter)
-	  strcat(strcat(Query, " WHERE "), To_Filter);
+  if (To_Filter)
+    strcat(strcat(Query, " WHERE "), To_Filter);
 
   return FALSE;
   } // end of MakeSelect
@@ -520,10 +522,10 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   colist = (char*)PlugSubAlloc(g, NULL, len);
   *colist = '\0';
 
-	if (Prep) {
-		valist = (char*)PlugSubAlloc(g, NULL, 2 * Nparm);
-		*valist = '\0';
-		} // endif Prep
+  if (Prep) {
+    valist = (char*)PlugSubAlloc(g, NULL, 2 * Nparm);
+    *valist = '\0';
+    } // endif Prep
 
   for (colp = Columns; colp; colp = colp->GetNext()) {
     if (b) {
@@ -534,39 +536,39 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 
     strcat(strcat(strcat(colist, tk), colp->GetName()), tk);
 
-		// Parameter marker
-		if (!Prep) {
-			if (colp->GetResultType() == TYPE_DATE)
-				qlen += 20;
-			else
-				qlen += colp->GetLength();
+    // Parameter marker
+    if (!Prep) {
+      if (colp->GetResultType() == TYPE_DATE)
+        qlen += 20;
+      else
+        qlen += colp->GetLength();
 
-		} // endif Prep
+    } // endif Prep
 
-		if (Prep)
-			strcat(valist, "?");
+    if (Prep)
+      strcat(valist, "?");
 
     } // endfor colp
 
   // Below 40 is enough to contain the fixed part of the query
   len = (strlen(Tabname) + strlen(colist)
-												 + ((Prep) ? strlen(valist) : 0) + 40);
+                         + ((Prep) ? strlen(valist) : 0) + 40);
   Query = (char*)PlugSubAlloc(g, NULL, len);
 
-	if (Delayed)
-	  strcpy(Query, "INSERT DELAYED INTO ");
-	else
-		strcpy(Query, "INSERT INTO ");
+  if (Delayed)
+    strcpy(Query, "INSERT DELAYED INTO ");
+  else
+    strcpy(Query, "INSERT INTO ");
 
   strcat(strcat(strcat(Query, tk), Tabname), tk);
   strcat(strcat(strcat(Query, " ("), colist), ") VALUES (");
 
-	if (Prep)
-	  strcat(strcat(Query, valist), ")");
-	else {
-		qlen += (strlen(Query) + Nparm);
-		Qbuf = (char *)PlugSubAlloc(g, NULL, qlen);
-		} // endelse Prep
+  if (Prep)
+    strcat(strcat(Query, valist), ")");
+  else {
+    qlen += (strlen(Query) + Nparm);
+    Qbuf = (char *)PlugSubAlloc(g, NULL, qlen);
+    } // endelse Prep
 
   return FALSE;
   } // end of MakeInsert
@@ -674,13 +676,13 @@ bool TDBMYSQL::MakeDelete(PGLOBAL g)
 
   // Below 16 is more than length of 'delete from ' + 3
   len += (strlen(Tabname) + 16);
-	len += (To_Filter ? strlen(To_Filter) + 7 : 0);
+  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
   Query = (char*)PlugSubAlloc(g, NULL, len);
   strcpy(Query, (To_Filter) ? "DELETE FROM " : "TRUNCATE ");
   strcat(strcat(strcat(Query, tk), Tabname), tk);
 
-	if (To_Filter)
-	  strcat(strcat(Query, " WHERE "), To_Filter);
+  if (To_Filter)
+    strcat(strcat(Query, " WHERE "), To_Filter);
 
   return FALSE;
   } // end of MakeDelete
@@ -707,12 +709,12 @@ int TDBMYSQL::GetMaxSize(PGLOBAL g)
       return -3;
       } // endif MaxSize
 
-		// FIXME: Columns should be known when Info calls GetMaxSize
-		if (!Columns)
-			Query = NULL;		 // Must be remade when columns are known
+    // FIXME: Columns should be known when Info calls GetMaxSize
+    if (!Columns)
+      Query = NULL;     // Must be remade when columns are known
 #endif // 0
 
-		MaxSize = 0;
+    MaxSize = 0;
     } // endif MaxSize
 
   return MaxSize;
@@ -740,21 +742,21 @@ int TDBMYSQL::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 int TDBMYSQL::BindColumns(PGLOBAL g)
   {
-	if (Prep) {
-	  Bind = (MYSQL_BIND*)PlugSubAlloc(g, NULL, Nparm * sizeof(MYSQL_BIND));
+  if (Prep) {
+    Bind = (MYSQL_BIND*)PlugSubAlloc(g, NULL, Nparm * sizeof(MYSQL_BIND));
 
-		for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
-			colp->InitBind(g);
+    for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
+      colp->InitBind(g);
 
-		return Myc.BindParams(g, Bind);
-	} else {
-		for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
-		  if (colp->Buf_Type == TYPE_DATE)
-			  // Format must match DATETIME MySQL type
-				((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
+    return Myc.BindParams(g, Bind);
+  } else {
+    for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
+      if (colp->Buf_Type == TYPE_DATE)
+        // Format must match DATETIME MySQL type
+        ((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
 
-		return RC_OK;
-	} // endif Prep
+    return RC_OK;
+  } // endif Prep
 
   } // end of BindColumns
 
@@ -792,17 +794,17 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       m_Rc = Myc.ExecSQL(g, Query);
 
   } else if (Mode == MODE_INSERT) {
-		if (!MakeInsert(g)) {
-			int n = (Prep) ? Myc.PrepareSQL(g, Query) : Nparm;
+    if (!MakeInsert(g)) {
+      int n = (Prep) ? Myc.PrepareSQL(g, Query) : Nparm;
 
-			if (Nparm != n) {
-				if (n >= 0)          // Other errors return negative values
-			    strcpy(g->Message, MSG(BAD_PARM_COUNT));
+      if (Nparm != n) {
+        if (n >= 0)          // Other errors return negative values
+          strcpy(g->Message, MSG(BAD_PARM_COUNT));
 
-			} else
-		    m_Rc = BindColumns(g);
+      } else
+        m_Rc = BindColumns(g);
 
-			} // endif MakeInsert
+      } // endif MakeInsert
 
     if (m_Rc != RC_FX) {
       char cmd[64];
@@ -816,7 +818,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   } else if (Next) {
     strcpy(g->Message, MSG(NO_JOIN_UPDEL));
   } else  if (Mode == MODE_DELETE) {
-		strcpy(g->Message, "MySQL table delete not implemented yet\n");
+    strcpy(g->Message, "MySQL table delete not implemented yet\n");
     bool rc = MakeDelete(g);
 
     if (!rc && Myc.ExecSQL(g, Query) == RC_NF) {
@@ -827,9 +829,9 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif ExecSQL
 #endif // 0
 
-	} else {
+  } else {
 //  bool rc = MakeUpdate(g, sqlp->GetProj());
-		strcpy(g->Message, "MySQL table delete/update not implemented yet\n");
+    strcpy(g->Message, "MySQL table delete/update not implemented yet\n");
   } // endelse
 
   if (m_Rc == RC_FX) {
@@ -848,9 +850,9 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   {
   int rc;
 
-	if (trace > 1)
-		htrc("MySQL ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p\n",
-					GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
+  if (trace > 1)
+    htrc("MySQL ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p\n",
+          GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
 
   /*********************************************************************/
   /*  Now start the reading process.                                   */
@@ -859,8 +861,8 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   N++;
   Fetched = ((rc = Myc.Fetch(g, -1)) == RC_OK);
 
-	if (trace > 1)
-		htrc(" Read: rc=%d\n", rc);
+  if (trace > 1)
+    htrc(" Read: rc=%d\n", rc);
 
   return rc;
   } // end of ReadDB
@@ -870,34 +872,34 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMYSQL::WriteDB(PGLOBAL g)
   {
-	if (Prep)
-	  return Myc.ExecStmt(g);
+  if (Prep)
+    return Myc.ExecStmt(g);
 
-	// Statement was not prepared, we must construct and execute
-	// an insert query for each line to insert
-	int  rc;
-	char buf[32];
+  // Statement was not prepared, we must construct and execute
+  // an insert query for each line to insert
+  int  rc;
+  char buf[32];
 
-	strcpy(Qbuf, Query);
+  strcpy(Qbuf, Query);
 
-	// Make the Insert command value list
-	for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
-		if (colp->GetResultType() == TYPE_STRING || 
-				colp->GetResultType() == TYPE_DATE)
-			strcat(Qbuf, "'");
+  // Make the Insert command value list
+  for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
+    if (colp->GetResultType() == TYPE_STRING || 
+        colp->GetResultType() == TYPE_DATE)
+      strcat(Qbuf, "'");
 
-		strcat(Qbuf, colp->GetValue()->GetCharString(buf));
+    strcat(Qbuf, colp->GetValue()->GetCharString(buf));
 
-		if (colp->GetResultType() == TYPE_STRING || 
-				colp->GetResultType() == TYPE_DATE)
-			strcat(Qbuf, "'");
+    if (colp->GetResultType() == TYPE_STRING || 
+        colp->GetResultType() == TYPE_DATE)
+      strcat(Qbuf, "'");
 
-		strcat(Qbuf, (colp->GetNext()) ? "," : ")");
-		} // endfor colp
+    strcat(Qbuf, (colp->GetNext()) ? "," : ")");
+    } // endfor colp
 
   Myc.m_Rows = -1;      // To execute the query
-	rc = Myc.ExecSQL(g, Qbuf);
-	return (rc == RC_NF) ? RC_OK : rc;			// RC_NF is Ok
+  rc = Myc.ExecSQL(g, Qbuf);
+  return (rc == RC_NF) ? RC_OK : rc;      // RC_NF is Ok
   } // end of WriteDB
 
 /***********************************************************************/
@@ -927,8 +929,8 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
 
   Myc.Close();
 
-	if (trace)
-		htrc("MySQL CloseDB: closing %s rc=%d\n", Name, m_Rc);
+  if (trace)
+    htrc("MySQL CloseDB: closing %s rc=%d\n", Name, m_Rc);
 
   } // end of CloseDB
 
@@ -955,8 +957,8 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   Slen = 0;
   Rank = -1;            // Not known yet
 
-	if (trace)
-		htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor
 
@@ -1058,8 +1060,8 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
   int    rc;
   PTDBMY tdbp = (PTDBMY)To_Tdb;
 
-	if (trace)
-		htrc("MySQL ReadColumn: name=%s\n", Name);
+  if (trace)
+    htrc("MySQL ReadColumn: name=%s\n", Name);
 
   assert (Rank >= 0);
 
@@ -1093,13 +1095,13 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, FALSE);   // Convert the inserted value
 
-	if (((PTDBMY)To_Tdb)->Prep) {
-	  if (Buf_Type == TYPE_DATE) {
-		  Value->ShowValue((char *)Bind->buffer, (int)*Bind->length);
-			Slen = strlen((char *)Bind->buffer);
-		} else if (IsTypeChar(Buf_Type))
-			Slen = strlen(Value->GetCharValue());
+  if (((PTDBMY)To_Tdb)->Prep) {
+    if (Buf_Type == TYPE_DATE) {
+      Value->ShowValue((char *)Bind->buffer, (int)*Bind->length);
+      Slen = strlen((char *)Bind->buffer);
+    } else if (IsTypeChar(Buf_Type))
+      Slen = strlen(Value->GetCharValue());
 
-		} // endif Prep
+    } // endif Prep
 
   } // end of WriteColumn
