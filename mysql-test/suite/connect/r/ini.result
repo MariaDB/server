@@ -40,9 +40,8 @@ SELECT * FROM t1 WHERE contact='UK2';
 contact	name	forename	hired	address	city	zipcode	tel
 UK2		John	1970-01-01				
 DROP TABLE t1;
-SELECT REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n');;
-REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n')
-
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
 [BER]
 name=Bertrand
 forename=Olivier
@@ -51,7 +50,6 @@ city=Issy-les-Mlx
 zipcode=92130
 tel=09.54.36.29.60
 cell=06.70.06.04.16
-
 [WEL]
 name=Schmitt
 forename=Bernard
@@ -60,7 +58,6 @@ address=64 tiergarten strasse
 city=Berlin
 zipcode=95013
 tel=03.43.377.360
-
 [UK1]
 name=Smith
 forename=Harrison
@@ -68,7 +65,6 @@ hired=08/11/2003
 address=143 Blum Rd.
 city=London
 zipcode=NW1 2BP
-
 [UK2]
 forename=John
 
@@ -104,9 +100,8 @@ UK1	city	London
 UK1	zipcode	NW1 2BP
 UK2	forename	Paul
 DROP TABLE t1;
-SELECT REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n');;
-REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n')
-
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
 [BER]
 name=Bertrand
 forename=Olivier
@@ -115,7 +110,6 @@ city=Issy-les-Mlx
 zipcode=92130
 tel=09.54.36.29.60
 cell=06.70.06.04.16
-
 [WEL]
 name=Schmitt
 forename=Bernard
@@ -124,7 +118,6 @@ address=64 tiergarten strasse
 city=Berlin
 zipcode=95013
 tel=03.43.377.360
-
 [UK1]
 name=Smith
 forename=Harrison
@@ -132,7 +125,6 @@ hired=08/11/2003
 address=143 Blum Rd.
 city=London
 zipcode=NW1 2BP
-
 [UK2]
 forename=Paul
 
@@ -153,21 +145,16 @@ contact	c2
 4000	4000
 a b	c d
 DROP TABLE t1;
-SELECT REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n');;
-REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n')
-
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n')
 [10]
 c2=10
-
 [20]
 c2=20
-
 [300]
 c2=300
-
 [4000]
 c2=4000
-
 [a b]
 c2=c d
 

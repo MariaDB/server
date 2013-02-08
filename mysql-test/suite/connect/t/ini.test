@@ -40,7 +40,7 @@ SELECT * FROM t1 WHERE contact='UK2';
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/contact.ini
 --replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n');
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
 
 CREATE TABLE t1
 (
@@ -54,7 +54,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/contact.ini
 --replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n');
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
 
 
 --echo #
@@ -70,7 +70,7 @@ SELECT * FROM t1;
 DROP TABLE t1;
 --chmod 0777 $MYSQLD_DATADIR/test/tmp.ini
 --replace_result $MYSQLD_DATADIR DATADIR
---eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.ini'),'\r\n','\n');
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');
 
 #
 # Clean up
