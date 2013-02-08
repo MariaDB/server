@@ -20,7 +20,7 @@
 
     @note
 
-		@see
+    @see
   /sql/handler.h and /storage/connect/user_connect.cc
 */
 
@@ -48,7 +48,7 @@ static int connect_done_func(void *);
 class user_connect
 {
   friend class ha_connect;
-	friend int connect_done_func(void *);
+  friend int connect_done_func(void *);
 public:
   // Constructor
   user_connect(THD *thd, const char *dbn);
@@ -64,15 +64,15 @@ public:
 
 protected:
   // Members
-  static PCONNECT  to_users;		        // To the chain of users
-  THD         *thdp;										// To the user thread
-  PCONNECT     next;										// Next user in chain
-  PCONNECT     previous;								// Previous user in chain
-  PGLOBAL      g;											  // The common handle to CONNECT
+  static PCONNECT  to_users;            // To the chain of users
+  THD         *thdp;                    // To the user thread
+  PCONNECT     next;                    // Next user in chain
+  PCONNECT     previous;                // Previous user in chain
+  PGLOBAL      g;                        // The common handle to CONNECT
 //char         dbname[32];              // The DBCONNECT database
-	PTDBDOS      tabp;										// The table used on create
+  PTDBDOS      tabp;                    // The table used on create
   query_id_t   last_query_id;           // the latest user query id
-	int          count;										// if used by several handlers
+  int          count;                    // if used by several handlers
   // Statistics
   ulong        nrd, fnd, nfd;
   ulonglong tb1;

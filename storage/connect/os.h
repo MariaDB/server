@@ -26,6 +26,7 @@ typedef unsigned char BYTE;
 typedef char *LPSTR;
 typedef char *LPTSTR;
 typedef char *PSZ;
+typedef long BOOL;
 typedef int INT;
 #if !defined(NODW)
 /*
@@ -39,19 +40,15 @@ typedef unsigned long DWORD;
 #undef  HANDLE     
 typedef int   HANDLE;
 
-/* TODO-BAR: remove this */
-#ifdef __cplusplus
-typedef int   bool;
-#else
-#define bool  my_bool
-#endif
-
-#define _MAX_PATH   PATH_MAX
 #define stricmp     strcasecmp
 #define _stricmp    strcasecmp
 #define strnicmp    strncasecmp
 #define _strnicmp   strncasecmp
+#ifdef PATH_MAX
+#define _MAX_PATH   PATH_MAX
+#else
 #define _MAX_PATH   260
+#endif
 #define _MAX_DRIVE    3
 #define _MAX_DIR    256
 #define _MAX_FNAME  256

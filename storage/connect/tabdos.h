@@ -24,17 +24,17 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TDBDOS;
   friend class TDBFIX;
   friend class TXTFAM;
-	friend class DBFBASE;
+  friend class DBFBASE;
  public:
   // Constructor
   DOSDEF(void);
 
   // Implementation
-	virtual AMT         GetDefType(void) {return TYPE_AM_DOS;}
+  virtual AMT         GetDefType(void) {return TYPE_AM_DOS;}
   virtual const char *GetType(void) {return "DOS";}
-	virtual PIXDEF      GetIndx(void) {return To_Indx;}
-	virtual void        SetIndx(PIXDEF xdp) {To_Indx = xdp;}
-	PSZ     GetOfn(void) {return Ofn;}
+  virtual PIXDEF      GetIndx(void) {return To_Indx;}
+  virtual void        SetIndx(PIXDEF xdp) {To_Indx = xdp;}
+  PSZ     GetOfn(void) {return Ofn;}
   void    SetBlock(int block) {Block = block;}
   int     GetBlock(void) {return Block;}
   int     GetLast(void) {return Last;}
@@ -45,16 +45,16 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   bool    GetEof(void) {return Eof;}
   int     GetBlksize(void) {return Blksize;}
   int     GetEnding(void) {return Ending;}
-	int    *GetTo_Pos(void) {return To_Pos;}
-	virtual bool IsHuge(void) {return Huge;}
+  int    *GetTo_Pos(void) {return To_Pos;}
+  virtual bool IsHuge(void) {return Huge;}
 
   // Methods
   virtual bool DeleteTableFile(PGLOBAL g);
-	virtual bool Indexable(void) {return Compressed != 1;}
-	virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
+  virtual bool Indexable(void) {return Compressed != 1;}
+  virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
-					bool InvalidateIndex(PGLOBAL g);
+          bool InvalidateIndex(PGLOBAL g);
 
  protected:
   virtual bool Erase(char *filename);
@@ -62,14 +62,14 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   // Members
   PSZ     Fn;                 /* Path/Name of corresponding file       */
   PSZ     Ofn;                /* Base Path/Name of matching index files*/
-	PIXDEF  To_Indx;						/* To index definitions blocks           */
+  PIXDEF  To_Indx;            /* To index definitions blocks           */
   RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
   bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
   bool    Accept;             /* true if wrong lines are accepted (DBF)*/
-  bool    Eof;								/* true if an EOF (0xA) character exists */
-	int    *To_Pos;							/* To array of block starting positions  */
+  bool    Eof;                /* true if an EOF (0xA) character exists */
+  int    *To_Pos;              /* To array of block starting positions  */
   int     Compressed;         /* 0: No, 1: gz, 2:zlib compressed file  */
   int     Lrecl;              /* Size of biggest record                */
   int     AvgLen;             /* Average size of records               */
@@ -88,12 +88,12 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
 /***********************************************************************/
 class DllExport TDBDOS : public TDBASE {
 //friend class KINDEX;
-	friend class XINDEX;
+  friend class XINDEX;
   friend class DOSCOL;
   friend class MAPCOL;
   friend class TXTFAM;
   friend class DOSFAM;
-	friend class VCTCOL;
+  friend class VCTCOL;
 //friend class TDBMUL;
   friend RCODE CntDeleteRow(PGLOBAL, PTDB, bool);
  public:
@@ -101,24 +101,24 @@ class DllExport TDBDOS : public TDBASE {
   TDBDOS(PDOSDEF tdp, PTXF txfp);
   TDBDOS(PGLOBAL g, PTDBDOS tdbp);
 
-	// Inline functions
-	inline  void  SetTxfp(PTXF txfp) {Txfp = txfp; Txfp->SetTdbp(this);}
-	inline  PTXF  GetTxfp(void) {return Txfp;}
-	inline  char *GetLine(void) {return To_Line;}
+  // Inline functions
+  inline  void  SetTxfp(PTXF txfp) {Txfp = txfp; Txfp->SetTdbp(this);}
+  inline  PTXF  GetTxfp(void) {return Txfp;}
+  inline  char *GetLine(void) {return To_Line;}
   inline  int   GetCurBlk(void) {return Txfp->GetCurBlk();}
   inline  void  SetLine(char *toline) {To_Line = toline;}
   inline  void  IncLine(int inc) {To_Line += inc;}
-	inline  bool  IsRead(void) {return Txfp->IsRead;}
-	inline  PXOB *GetLink(void) {return To_Link;}
+  inline  bool  IsRead(void) {return Txfp->IsRead;}
+  inline  PXOB *GetLink(void) {return To_Link;}
 //inline  PCOL *GetKeyCol(void) {return To_Key_Col;}
 
   // Implementation
   virtual AMT   GetAmType(void) {return Txfp->GetAmType();}
   virtual PSZ   GetFile(PGLOBAL g) {return Txfp->To_File;}
-	virtual void  SetFile(PGLOBAL g, PSZ fn) {Txfp->To_File = fn;}
-	virtual RECFM GetFtype(void) {return Ftype;}
+  virtual void  SetFile(PGLOBAL g, PSZ fn) {Txfp->To_File = fn;}
+  virtual RECFM GetFtype(void) {return Ftype;}
   virtual bool  SkipHeader(PGLOBAL g) {return false;}
-	virtual void  RestoreNrec(void) {Txfp->SetNrec(1);}
+  virtual void  RestoreNrec(void) {Txfp->SetNrec(1);}
   virtual PTDB  Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBDOS(g, this);}
 
@@ -127,8 +127,8 @@ class DllExport TDBDOS : public TDBASE {
   virtual void  ResetDB(void) {Txfp->Reset();}
   virtual bool  IsUsingTemp(PGLOBAL g);
 //virtual bool  NeedIndexing(PGLOBAL g);
-	virtual void  ResetSize(void) {MaxSize = Cardinal = -1;}
-	virtual int   ResetTableOpt(PGLOBAL g, bool dox);
+  virtual void  ResetSize(void) {MaxSize = Cardinal = -1;}
+  virtual int   ResetTableOpt(PGLOBAL g, bool dox);
 //virtual int   MakeBlockValues(PGLOBAL g);
 //virtual bool  SaveBlockValues(PGLOBAL g);
 //virtual bool  GetBlockValues(PGLOBAL g);
@@ -143,10 +143,10 @@ class DllExport TDBDOS : public TDBASE {
   virtual int   GetFileLength(PGLOBAL g) {return Txfp->GetFileLength(g);}
   virtual int   GetProgMax(PGLOBAL g);
   virtual int   GetProgCur(void);
-	virtual int   GetAffectedRows(void) {return Txfp->GetDelRows();}
-	virtual int   GetRecpos(void) {return Txfp->GetPos();}
+  virtual int   GetAffectedRows(void) {return Txfp->GetDelRows();}
+  virtual int   GetRecpos(void) {return Txfp->GetPos();}
   virtual bool  SetRecpos(PGLOBAL g, int recpos)
-								{return Txfp->SetPos(g, recpos);}
+                {return Txfp->SetPos(g, recpos);}
   virtual int   RowNumber(PGLOBAL g, bool b = false);
   virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
@@ -157,16 +157,16 @@ class DllExport TDBDOS : public TDBASE {
   virtual void  CloseDB(PGLOBAL g);
   virtual int   ReadBuffer(PGLOBAL g) {return Txfp->ReadBuffer(g);}
 
-	// Specific routine
-	virtual int  EstimatedLength(PGLOBAL g);
+  // Specific routine
+  virtual int  EstimatedLength(PGLOBAL g);
 
-	// Optimization routines
-//				void  ResetBlockFilter(PGLOBAL g);
-					int		MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
-//				bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
+  // Optimization routines
+//        void  ResetBlockFilter(PGLOBAL g);
+          int    MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
+//        bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
 
  protected:
-//				PBF		CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
+//        PBF    CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
 
   // Members
   PTXF    Txfp;              // To the File access method class
@@ -174,8 +174,8 @@ class DllExport TDBDOS : public TDBASE {
 //PBF     To_BlkFil;         // To evaluation block filter
 //PFIL    SavFil;            // Saved hidden filter
   char   *To_Line;           // Points to current processed line
-	int     Cardinal;					 // Table Cardinality
-	RECFM   Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
+  int     Cardinal;           // Table Cardinality
+  RECFM   Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
   int     Lrecl;             // Logical Record Length
   int     AvgLen;            // Logical Record Average Length
 //int     Xeval;             // BlockTest return value
@@ -188,7 +188,7 @@ class DllExport TDBDOS : public TDBASE {
 /*  DOS, OS2, UNIX, WIN16 and WIN32.                                   */
 /***********************************************************************/
 class DllExport DOSCOL : public COLBLK {
-	friend class TDBDOS;
+  friend class TDBDOS;
   friend class TDBFIX;
  public:
   // Constructors
@@ -210,7 +210,7 @@ class DllExport DOSCOL : public COLBLK {
 //virtual PVBLK  GetDval(void) {return Dval;}
 
   // Methods
-	virtual bool	 VarSize(void);
+  virtual bool   VarSize(void);
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
@@ -218,9 +218,9 @@ class DllExport DOSCOL : public COLBLK {
 
  protected:
 //virtual bool   SetMinMax(PGLOBAL g);
-//virtual	bool   SetBitMap(PGLOBAL g);
-//				bool	 CheckSorted(PGLOBAL g);
-//				bool	 AddDistinctValue(PGLOBAL g);
+//virtual  bool   SetBitMap(PGLOBAL g);
+//        bool   CheckSorted(PGLOBAL g);
+//        bool   AddDistinctValue(PGLOBAL g);
 
   // Default constructor not to be used
   DOSCOL(void) {}
@@ -232,15 +232,15 @@ class DllExport DOSCOL : public COLBLK {
 //PVBLK Dval;         // Array of column distinct values
   PVAL  To_Val;       // To value used for Update/Insert
   PVAL  OldVal;       // The previous value of the object.
-	char *Buf;          // Buffer used in write operations
-	bool  Ldz;					// True if field contains leading zeros
-	bool  Nod;					// True if no decimal point
-	int   Dcm;					// Last Dcm digits are decimals
+  char *Buf;          // Buffer used in write operations
+  bool  Ldz;          // True if field contains leading zeros
+  bool  Nod;          // True if no decimal point
+  int   Dcm;          // Last Dcm digits are decimals
 //int   Clustered;    // 0:No 1:Yes
 //int   Sorted;       // 0:No 1:Asc (2:Desc - NIY)
   int   Deplac;       // Offset in dos_buf
-//int		Ndv;					// Number of distinct values
-//int   Nbm;					// Number of uint in bitmap
+//int    Ndv;          // Number of distinct values
+//int   Nbm;          // Number of uint in bitmap
   }; // end of class DOSCOL
 
 #endif // __TABDOS_H

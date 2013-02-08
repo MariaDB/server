@@ -31,7 +31,7 @@ XTAB::XTAB(LPCSTR name, LPCSTR correl) : Name(name)
   To_Tdb = NULL;
   Correl = (correl) ? correl : name;
   Creator = NULL;
-	Qualifier = NULL;
+  Qualifier = NULL;
 
 #ifdef DEBTRACE
  htrc(" making new TABLE %s %s\n", Name, Correl);
@@ -47,7 +47,7 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   To_Tdb = NULL;
   Correl = tp->Correl;
   Creator = tp->Creator;
-	Qualifier = tp->Qualifier;
+  Qualifier = tp->Qualifier;
 
 #ifdef DEBTRACE
  htrc(" making copy TABLE %s %s\n", Name, Correl);

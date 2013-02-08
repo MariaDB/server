@@ -22,23 +22,23 @@ typedef class DBMFAM  *PDBMFAM;
 class DllExport DBFBASE {
  public:
   // Constructors
-	DBFBASE(PDOSDEF tdp);
-	DBFBASE(PDBF txfp);
+  DBFBASE(PDOSDEF tdp);
+  DBFBASE(PDBF txfp);
 
   // Implementation
   int  ScanHeader(PGLOBAL g, PSZ fname, int lrecl, char *defpath);
 
  protected:
-	// Default constructor, not to be used
-	DBFBASE(void) {}
+  // Default constructor, not to be used
+  DBFBASE(void) {}
 
   // Members
   int  Records;                     /*  records in the file                 */
-	bool Accept;						          /*  true if bad lines are accepted			*/
-  int  Nerr;                        /*  Number of bad records								*/
-  int  Maxerr;                      /*  Maximum number of bad records				*/
-  int  ReadMode;                    /*  1: ALL 2: DEL 0: NOT DEL      			*/
-//PSZ  Defpath;											/*  Default data path                   */
+  bool Accept;                      /*  true if bad lines are accepted      */
+  int  Nerr;                        /*  Number of bad records                */
+  int  Maxerr;                      /*  Maximum number of bad records        */
+  int  ReadMode;                    /*  1: ALL 2: DEL 0: NOT DEL            */
+//PSZ  Defpath;                      /*  Default data path                   */
   }; // end of class DBFBASE
 
 /****************************************************************************/
@@ -47,30 +47,30 @@ class DllExport DBFBASE {
 class DllExport DBFFAM : public FIXFAM, public DBFBASE {
  public:
   // Constructors
-	DBFFAM(PDOSDEF tdp) : FIXFAM(tdp), DBFBASE(tdp) {}
+  DBFFAM(PDOSDEF tdp) : FIXFAM(tdp), DBFBASE(tdp) {}
   DBFFAM(PDBFFAM txfp) : FIXFAM(txfp), DBFBASE((PDBF)txfp) {}
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_DBF;}
   virtual PTXF Duplicate(PGLOBAL g)
-								{return (PTXF)new(g) DBFFAM(this);}
+                {return (PTXF)new(g) DBFFAM(this);}
 
   // Methods
-	virtual int  GetNerr(void) {return Nerr;}
+  virtual int  GetNerr(void) {return Nerr;}
   virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetRowID(void);							// Temporarily suppressed
-	virtual bool OpenTableFile(PGLOBAL g);
-	virtual bool AllocateBuffer(PGLOBAL g);
-	virtual void ResetBuffer(PGLOBAL g);
+//virtual int  GetRowID(void);              // Temporarily suppressed
+  virtual bool OpenTableFile(PGLOBAL g);
+  virtual bool AllocateBuffer(PGLOBAL g);
+  virtual void ResetBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
 //virtual int  WriteBuffer(PGLOBAL g);
-	virtual int  DeleteRecords(PGLOBAL g, int irc);
-	virtual void CloseTableFile(PGLOBAL g);
-	virtual void Rewind(void);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void CloseTableFile(PGLOBAL g);
+  virtual void Rewind(void);
 
  protected:
   // Members
-	virtual bool CopyHeader(PGLOBAL g);
+  virtual bool CopyHeader(PGLOBAL g);
 
 //int  Records;                       in TXTFAM
 //int  Headlen;                       in TXTFAM
@@ -83,24 +83,24 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
 class DllExport DBMFAM : public MPXFAM, public DBFBASE {
  public:
   // Constructors
-	DBMFAM(PDOSDEF tdp) : MPXFAM(tdp), DBFBASE(tdp) {}
+  DBMFAM(PDOSDEF tdp) : MPXFAM(tdp), DBFBASE(tdp) {}
   DBMFAM(PDBMFAM txfp) : MPXFAM(txfp), DBFBASE((PDBF)txfp) {}
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_DBF;}
   virtual PTXF Duplicate(PGLOBAL g)
-								{return (PTXF)new(g) DBMFAM(this);}
-	virtual	int  GetDelRows(void);
+                {return (PTXF)new(g) DBMFAM(this);}
+  virtual  int  GetDelRows(void);
 
   // Methods
-	virtual int  GetNerr(void) {return Nerr;}
+  virtual int  GetNerr(void) {return Nerr;}
   virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetRowID(void);							// Temporarily suppressed
-	virtual bool AllocateBuffer(PGLOBAL g);
+//virtual int  GetRowID(void);              // Temporarily suppressed
+  virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
 //virtual int  WriteBuffer(PGLOBAL g);
-	virtual int  DeleteRecords(PGLOBAL g, int irc);
-	virtual void Rewind(void);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void Rewind(void);
 
  protected:
   // Members

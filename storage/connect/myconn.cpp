@@ -94,7 +94,9 @@ int MYSQLC::GetResultSize(PGLOBAL g, PSZ sql)
 /***********************************************************************/
 /*  Open a MySQL (remote) connection.                                  */
 /***********************************************************************/
-int MYSQLC::Open(PGLOBAL g, PSZ host, PSZ db, PSZ user, PSZ pwd, int pt)
+int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
+                            const char *user, const char *pwd,
+                            int pt)
   {
   m_DB = mysql_init(NULL);
 
@@ -166,9 +168,9 @@ const char *MYSQLC::ServerInfo(void)
   } // end of ServerInfo
 
 /***********************************************************************/
-/*  Returns the version number of the server as a number that					 */
-/*	represents the MySQL server version in this format:	               */
-/*  major_version*10000 + minor_version *100 + sub_version						 */
+/*  Returns the version number of the server as a number that           */
+/*  represents the MySQL server version in this format:                 */
+/*  major_version*10000 + minor_version *100 + sub_version             */
 /***********************************************************************/
 ulong MYSQLC::ServerVersion(void)
   {
@@ -182,7 +184,7 @@ int MYSQLC::KillQuery(ulong id)
   {
   char kill[20];
 
-  sprintf(kill, "KILL QUERY %u", id);
+  sprintf(kill, "KILL QUERY %u", (unsigned int) id);
   return (m_DB) ? mysql_query(m_DB, kill) : 1;
   } // end of KillQuery
 
@@ -455,12 +457,12 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       crp->Kdata->SetFormat(g, fmt, strlen(fmt));
     } // endif's
 
-		if (fld->flags & NOT_NULL_FLAG)
-			crp->Nulls = NULL;
-		else {
-			crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
-			memset(crp->Nulls, ' ', m_Rows);
-		} // endelse fld->flags
+    if (fld->flags & NOT_NULL_FLAG)
+      crp->Nulls = NULL;
+    else {
+      crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
+      memset(crp->Nulls, ' ', m_Rows);
+    } // endelse fld->flags
 
     } // endfor fld
 
@@ -477,19 +479,20 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       } // endif m_Row
 
     for (crp = qrp->Colresp; crp; crp = crp->Next) {
-      if (row = m_Row + (crp->Ncol - 1))
+      if ((row = m_Row + (crp->Ncol - 1))) {
         if (*row)
           crp->Kdata->SetValue((PSZ)*row, n);
-				else {
-					if (!*row && crp->Nulls)
-						crp->Nulls[n] = '*';					 // Null value
-		
+        else {
+          if (!*row && crp->Nulls)
+            crp->Nulls[n] = '*';           // Null value
+    
           crp->Kdata->Reset(n);
-				} // endelse *row
+        } // endelse *row
+      }
 
-      } // endfor crp
+    } // endfor crp
 
-    } // endfor n
+  } // endfor n
 
   qrp->Nblin = n;
   return qrp;
@@ -537,11 +540,11 @@ void MYSQLC::Close(void)
 /***********************************************************************/
 void MYSQLC::DiscardResults(void)
   {
-	MYSQL_RES *res;
+  MYSQL_RES *res;
 
-	while(!mysql_next_result(m_DB)) {
-		res = mysql_store_result(m_DB);
-		mysql_free_result(res);
-		} // endwhile next result 
+  while(!mysql_next_result(m_DB)) {
+    res = mysql_store_result(m_DB);
+    mysql_free_result(res);
+    } // endwhile next result 
 
-	} // end of DiscardResults 
+  } // end of DiscardResults 

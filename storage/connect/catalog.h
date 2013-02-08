@@ -6,7 +6,7 @@
 /*  This file contains the CATALOG PlugDB classes definitions.         */
 /***********************************************************************/
 #ifndef __CATALOG__H
-#define	__CATALOG__H
+#define  __CATALOG__H
 
 #include "block.h"
 
@@ -16,30 +16,6 @@
 #define PLG_MAX_PATH    144   /* Must be the same across systems       */
 #define PLG_BUFF_LEN    100   /* Number of lines in binary file buffer */
 
-#if !defined(WIN32)
-/**************************************************************************/
-/*  Defines specific to Windows and ODBC.                                 */
-/**************************************************************************/
-#define SQL_CHAR              1
-#define SQL_NUMERIC           2
-#define SQL_DECIMAL           3
-#define SQL_INTEGER           4
-#define SQL_SMALLINT          5
-#define SQL_FLOAT             6
-#define SQL_REAL              7
-#define SQL_DOUBLE            8
-#define SQL_TIMESTAMP        11
-#define SQL_VARCHAR          12
-#define SQL_NULLABLE_UNKNOWN  2
-#define SQL_ALL_EXCEPT_LIKE   2
-#define SQL_SEARCHABLE        3
-#define SQL_ALL_TYPES         0
-#define SQL_TABLE_STAT        0
-#define SQL_BEST_ROWID        1
-#define SQL_PC_NOT_PSEUDO     1
-#define SQL_PC_PSEUDO         2
-#define SQL_SCOPE_CURROW      0
-#endif   // !WIN32
 
 //typedef class INDEXDEF *PIXDEF;
 
@@ -60,29 +36,30 @@ typedef struct _curtab {
 /*  Defines the structure used to get column catalog info.             */
 /***********************************************************************/
 typedef struct _colinfo {
-	char  *Name;
+  char  *Name;
   int    Type;
   int    Offset;
   int    Length;
-	int    Key;
-	int    Prec;
-	int    Opt;
-	char  *Remark;
-	char  *Datefmt;
+  int    Key;
+  int    Prec;
+  int    Opt;
+  char  *Remark;
+  char  *Datefmt;
   char  *Fieldfmt;
-	ushort Flags;				 // Used by MariaDB CONNECT handlers
+  ushort Flags;         // Used by MariaDB CONNECT handlers
   } COLINFO, *PCOLINFO;
 
 /***********************************************************************/
 /*  CATALOG: base class for catalog classes.                           */
 /***********************************************************************/
 class DllExport CATALOG {
-	friend class RELDEF;
-	friend class TABDEF;
+  friend class RELDEF;
+  friend class TABDEF;
   friend class DIRDEF;
-	friend class OEMDEF;
+  friend class OEMDEF;
  public:
   CATALOG(void);                       // Constructor
+  virtual ~CATALOG() { }               // Make -Wdelete-non-virtual-dtor happy
 
   // Implementation
   void   *GetDescp(void) {return Descp;}
@@ -91,8 +68,8 @@ class DllExport CATALOG {
   int     GetCblen(void) {return Cblen;}
   bool    GetDefHuge(void) {return DefHuge;}
   void    SetDefHuge(bool b) {DefHuge = b;}
-	bool    GetSepIndex(void) {return SepIndex;}
-	void    SetSepIndex(bool b) {SepIndex = b;}
+  bool    GetSepIndex(void) {return SepIndex;}
+  void    SetSepIndex(bool b) {SepIndex = b;}
   char   *GetCbuf(void) {return Cbuf;}
   char   *GetDataPath(void) {return (char*)DataPath;}
 
@@ -104,17 +81,17 @@ class DllExport CATALOG {
   virtual int     GetIntCatInfo(LPCSTR name, PSZ what, int idef) {return idef;}
   virtual int     GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef) {return 0;}
   virtual int     GetCharCatInfo(LPCSTR name, PSZ what, PSZ sdef, char *buf, int size)
-																{strncpy(buf, sdef, size); return size;} 
+                                {strncpy(buf, sdef, size); return size;} 
   virtual char   *GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
-																{return sdef;}
-	virtual int     GetColCatInfo(PGLOBAL g, PTABDEF defp) {return -1;}
-	virtual bool		GetIndexInfo(PGLOBAL g, PTABDEF defp) {return true;}
+                                {return sdef;}
+  virtual int     GetColCatInfo(PGLOBAL g, PTABDEF defp) {return -1;}
+  virtual bool    GetIndexInfo(PGLOBAL g, PTABDEF defp) {return true;}
   virtual bool    CheckName(PGLOBAL g, char *name) {return true;}
   virtual bool    ClearName(PGLOBAL g, PSZ name) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
   virtual PRELDEF GetTableDescEx(PGLOBAL g, PTABLE tablep) {return NULL;}
   virtual PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am,
-																					PRELDEF *prp = NULL) {return NULL;}
+                                          PRELDEF *prp = NULL) {return NULL;}
   virtual PRELDEF GetFirstTable(PGLOBAL g) {return NULL;}
   virtual PRELDEF GetNextTable(PGLOBAL g) {return NULL;}
   virtual bool    TestCond(PGLOBAL g, const char *name, const char *type) {return true;}
@@ -142,7 +119,7 @@ class DllExport CATALOG {
   int     Cblen;                       /* Length of suballoc. buffer   */
   CURTAB  Ctb;                         /* Used to enumerate tables     */
   bool    DefHuge;                     /* true: tables default to huge */
-	bool    SepIndex;                    /* true: separate index files   */
+  bool    SepIndex;                    /* true: separate index files   */
 //char    DescFile[_MAX_PATH];         /* DB description filename      */
   LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
   }; // end of class CATALOG

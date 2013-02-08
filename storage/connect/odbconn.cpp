@@ -339,8 +339,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
   /************************************************************************/
   /*  Close the local connection.                                         */
   /************************************************************************/
-  if (ocp)
-    ocp->Close();
+  ocp->Close();
 
   if (!qrp)
     return NULL;             // Error in ODBCColumns
@@ -380,7 +379,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
 /*  data sources available on the local host.                            */
 /*  Called with info=true to have result column names.                   */
 /*************************************************************************/
-PQRYRES ODBCDataSources(PGLOBAL g, bool info)
+PQRYRES ODBCDataSources(PGLOBAL g)
   {
   static int dbtype[] = {DB_CHAR, DB_CHAR};
   static int buftyp[] = {TYPE_STRING, TYPE_STRING};
@@ -1109,7 +1108,7 @@ void ODBConn::VerifyConnect()
   {
 #if defined(NEWMSG) || defined(XMSG)
   PGLOBAL& g = m_G;
-#endif   // NEWMSG	||				 XMSG
+#endif   // NEWMSG  ||         XMSG
   RETCODE  rc;
   SWORD    result;
   SWORD    conformance;
@@ -1604,7 +1603,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   {
 #if defined(NEWMSG) || defined(XMSG)
   PGLOBAL& g = m_G;
-#endif   // NEWMSG	||				 XMSG
+#endif   // NEWMSG  ||         XMSG
   void    *buffer;
   int      i, irc;
   bool     b;
@@ -2041,4 +2040,3 @@ void RECSET::Close(SWORD option)
 #endif // 0
   } // end of Close
 #endif // 0
-

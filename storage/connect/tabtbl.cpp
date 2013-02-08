@@ -1,11 +1,11 @@
 /************* TabTbl C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABTBL                                                */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2008-2012    */
+/*  (C) Copyright to PlugDB Software Development          2008-2013    */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
@@ -62,7 +62,7 @@
 /***********************************************************************/
 /*  Include application header files:                                  */
 /***********************************************************************/
-#include "table.h"			 // MySQL table definitions
+#include "table.h"       // MySQL table definitions
 #include "global.h"      // global declarations
 #include "plgdbsem.h"    // DB application declarations
 #include "reldef.h"      // DB definition declares
@@ -72,7 +72,7 @@
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabtbl.h"      // TDBTBL and TBLCOL classes dcls
 #include "ha_connect.h"
-#include "mycat.h"			 // For GetHandler
+#include "mycat.h"       // For GetHandler
 
 extern "C" int trace;
 
@@ -100,7 +100,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Desc = "Table list table";
   tablist = Cat->GetStringCatInfo(g, Name, "Tablist", "");
   dbname = Cat->GetStringCatInfo(g, Name, "Database", NULL);
-	Ntables = 0;
+  Ntables = 0;
 
   if (*tablist) {
     char *p, *pn, *pdb;
@@ -108,7 +108,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
     for (pdb = tablist; ;) {
       if ((p = strchr(pdb, ',')))
-				*p = 0;
+        *p = 0;
 
       // Analyze the table name, it has the format:
       // [dbname.]tabname
@@ -126,17 +126,17 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       tbl->DB = pdb;
       
       if (trace)
-				htrc("TBL: Name=%s db=%s\n", tbl->Name, SVP(tbl->DB));
+        htrc("TBL: Name=%s db=%s\n", tbl->Name, SVP(tbl->DB));
 
       // Link the blocks
       *ptbl = tbl;
       ptbl = &tbl->Next;
-			Ntables++;
+      Ntables++;
 
-			if (p)
-				pdb = pn + strlen(pn) + 1;
-			else
-				break;
+      if (p)
+        pdb = pn + strlen(pn) + 1;
+      else
+        break;
 
       } // endfor pdb
 
@@ -216,24 +216,24 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 /***********************************************************************/
 PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   {
-	char        *db, key[256];
-	uint				 k, flags;
-	PTDB         tdbp = NULL;
-	TABLE_LIST   table_list;
-	TABLE_SHARE *s;
+  char        *db, key[256];
+  uint         k, flags;
+  PTDB         tdbp = NULL;
+  TABLE_LIST   table_list;
+  TABLE_SHARE *s;
   PCATLG       cat = To_Def->GetCat();
-	PHC					 hc = ((MYCAT*)cat)->GetHandler();
-	THD					*thd = (hc->GetTable())->in_use;
+  PHC           hc = ((MYCAT*)cat)->GetHandler();
+  THD          *thd = (hc->GetTable())->in_use;
 
-	if (!thd)
-		return NULL;				 // Should not happen anymore
+  if (!thd)
+    return NULL;         // Should not happen anymore
 
-	if (tblp->DB)
-		db = tblp->DB;
-	else
-		db = (char*)hc->GetDBName(NULL);
+  if (tblp->DB)
+    db = tblp->DB;
+  else
+    db = (char*)hc->GetDBName(NULL);
 
-	table_list.init_one_table(db, strlen(db),
+  table_list.init_one_table(db, strlen(db),
                             tblp->Name, strlen(tblp->Name),
                             NULL, TL_IGNORE);
 	k = sprintf(key, "%s", db);
@@ -241,28 +241,28 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(&table_list, key, ++k))) {
-		strcpy(g->Message, "Error allocating share\n");
-		return NULL;
-		} // endif s
+    strcpy(g->Message, "Error allocating share\n");
+    return NULL;
+    } // endif s
 
 //        1          8                  16
 //flags = READ_ALL | DONT_OPEN_TABLES | DONT_OPEN_MASTER_REG;
 //flags = 25;
-	flags = 24;
+  flags = 24;
 
-	if (!open_table_def(thd, s, flags)) {
-		hc->tshp = s;
-		tdbp = cat->GetTable(g, tabp);
-		hc->tshp = NULL;
-	} else
-		sprintf(g->Message, "Error %d opening share\n", s->error);
+  if (!open_table_def(thd, s, flags)) {
+    hc->tshp = s;
+    tdbp = cat->GetTable(g, tabp);
+    hc->tshp = NULL;
+  } else
+    sprintf(g->Message, "Error %d opening share\n", s->error);
 
-	if (trace && tdbp)
-		htrc("Subtable %s in %s\n", 
-					tblp->Name, SVP(((PTDBASE)tdbp)->GetDef()->GetDB()));
-		
-	free_table_share(s);
-	return tdbp;
+  if (trace && tdbp)
+    htrc("Subtable %s in %s\n", 
+          tblp->Name, SVP(((PTDBASE)tdbp)->GetDef()->GetDB()));
+    
+  free_table_share(s);
+  return tdbp;
   } // end of GetSubTable
 
 /***********************************************************************/
@@ -270,7 +270,7 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
 /***********************************************************************/
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
-	char   *colname;
+  char   *colname;
   int     n, colpos;
   PTBL    tblp;
   PTABLE  tabp;
@@ -280,8 +280,8 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
-	for (n = 0, tblp = tdp->GetTables(); tblp; tblp = tblp->Next) {
-	  if (TestFil(g, To_Filter, tblp)) {
+  for (n = 0, tblp = tdp->GetTables(); tblp; tblp = tblp->Next) {
+    if (TestFil(g, To_Filter, tblp)) {
       // Table or named view
       tabp = new(g) XTAB(tblp->Name);
       tabp->SetQualifier(tblp->DB);
@@ -299,27 +299,27 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       // because some (PLG, ODBC?) need to have their columns attached.
       // Real initialization will be done later.
       for (PCOL cp = Columns; cp; cp = cp->GetNext())
-				if (!cp->IsSpecial()) {
-					colname = cp->GetName();
-					colpos = ((PTBLCOL)cp)->Colnum;
+        if (!cp->IsSpecial()) {
+          colname = cp->GetName();
+          colpos = ((PTBLCOL)cp)->Colnum;
 
-					// We try first to get the column by name
-					if (!(colp = tdbp->ColDB(g, colname, 0)) && colpos)
-						// When unsuccessful, if a column number was specified
-						// try to get the column by its position in the table
-						colp = tdbp->ColDB(g, NULL, colpos);
+          // We try first to get the column by name
+          if (!(colp = tdbp->ColDB(g, colname, 0)) && colpos)
+            // When unsuccessful, if a column number was specified
+            // try to get the column by its position in the table
+            colp = tdbp->ColDB(g, NULL, colpos);
 
-					if (!colp) {
+          if (!colp) {
             if (!Accept) {
-	            sprintf(g->Message, MSG(NO_MATCHING_COL),
-					            colname, tdbp->GetName());
-				      return TRUE;               // Error return
-							} // endif !Accept
+              sprintf(g->Message, MSG(NO_MATCHING_COL),
+                      colname, tdbp->GetName());
+              return TRUE;               // Error return
+              } // endif !Accept
 
           } else // this is needed in particular by PLG tables
-						colp->SetColUse(cp->GetColUse());
+            colp->SetColUse(cp->GetColUse());
 
-					} // endif !special
+          } // endif !special
 
       if (Tablist)
         Tablist->Link(tabp);
@@ -327,12 +327,12 @@ bool TDBTBL::InitTableList(PGLOBAL g)
         Tablist = tabp;
 
       n++;
-	    } // endif filp
+      } // endif filp
 
-		} // endfor tblp
+    } // endfor tblp
 
 //NumTables = n;
-	To_Filter = NULL;				// To avoid doing it several times
+  To_Filter = NULL;        // To avoid doing it several times
   return FALSE;
   } // end of InitTableList
 
@@ -341,56 +341,56 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 /***********************************************************************/
 bool TDBTBL::TestFil(PGLOBAL g, PFIL filp, PTBL tblp)
   {
-	char *fil, op[8], tn[NAME_LEN];
-	bool  neg;
+  char *fil, op[8], tn[NAME_LEN];
+  bool  neg;
 
   if (!filp)
     return TRUE;
-	else if (strstr(filp, " OR ") || strstr(filp, " AND "))
-		return TRUE;							 // Not handled yet
-	else
-		fil = filp + (*filp == '(' ? 1 : 0);
+  else if (strstr(filp, " OR ") || strstr(filp, " AND "))
+    return TRUE;               // Not handled yet
+  else
+    fil = filp + (*filp == '(' ? 1 : 0);
 
-	if (sscanf(fil, "TABID %s", op) != 1)
-		return TRUE;               // ignore invalid filter
+  if (sscanf(fil, "TABID %s", op) != 1)
+    return TRUE;               // ignore invalid filter
 
-	if ((neg = !strcmp(op, "NOT")))
-		strcpy(op, "IN");
+  if ((neg = !strcmp(op, "NOT")))
+    strcpy(op, "IN");
 
-	if (!strcmp(op, "=")) {
-		// Temporarily, filter must be "TABID = 'value'" only
-		if (sscanf(fil, "TABID = '%[^']'", tn) != 1)
-			return TRUE;             // ignore invalid filter
+  if (!strcmp(op, "=")) {
+    // Temporarily, filter must be "TABID = 'value'" only
+    if (sscanf(fil, "TABID = '%[^']'", tn) != 1)
+      return TRUE;             // ignore invalid filter
 
-	  return !stricmp(tn, tblp->Name);
-	} else if (!strcmp(op, "IN")) {
-		char *p, *tnl = (char*)PlugSubAlloc(g, NULL, strlen(fil) - 10);
-		int   n;
+    return !stricmp(tn, tblp->Name);
+  } else if (!strcmp(op, "IN")) {
+    char *p, *tnl = (char*)PlugSubAlloc(g, NULL, strlen(fil) - 10);
+    int   n;
 
-		if (neg)
-			n = sscanf(fil, "TABID NOT IN (%[^)])", tnl);
-		else
-			n = sscanf(fil, "TABID IN (%[^)])", tnl);
+    if (neg)
+      n = sscanf(fil, "TABID NOT IN (%[^)])", tnl);
+    else
+      n = sscanf(fil, "TABID IN (%[^)])", tnl);
 
-		if (n != 1)
-			return TRUE;             // ignore invalid filter
+    if (n != 1)
+      return TRUE;             // ignore invalid filter
 
-		while (tnl) {
-			if ((p = strchr(tnl, ',')))
-				*p++ = 0;
+    while (tnl) {
+      if ((p = strchr(tnl, ',')))
+        *p++ = 0;
 
-			if (sscanf(tnl, "'%[^']'", tn) != 1)
-				return TRUE;           // ignore invalid filter
-			else if (!stricmp(tn, tblp->Name))
-				return !neg;				   // Found
+      if (sscanf(tnl, "'%[^']'", tn) != 1)
+        return TRUE;           // ignore invalid filter
+      else if (!stricmp(tn, tblp->Name))
+        return !neg;           // Found
 
-			tnl = p;
-			} // endwhile
+      tnl = p;
+      } // endwhile
 
-		return neg;                // Not found
-	} // endif op
+    return neg;                // Not found
+  } // endif op
 
-	return TRUE;							   // invalid operator
+  return TRUE;                 // invalid operator
   } // end of TestFil
 
 /***********************************************************************/
@@ -462,7 +462,7 @@ int TDBTBL::GetMaxSize(PGLOBAL g)
     int    mxsz;
 
     if (!Tablist && InitTableList(g))
-      return 0;			         // Cannot be calculated at this stage
+      return 0;               // Cannot be calculated at this stage
 
 //  if (Use == USE_OPEN) {
 //    strcpy(g->Message, MSG(MAXSIZE_ERROR));
@@ -514,9 +514,9 @@ int TDBTBL::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBTBL::OpenDB(PGLOBAL g)
   {
-	if (trace)
-		htrc("TBL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
-											this, Tdb_No, Use, To_Key_Col, Mode);
+  if (trace)
+    htrc("TBL OpenDB: tdbp=%p tdb=R%d use=%d key=%p mode=%d\n",
+                      this, Tdb_No, Use, To_Key_Col, Mode);
 
   if (Use == USE_OPEN) {
     /*******************************************************************/
@@ -540,10 +540,10 @@ bool TDBTBL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  When GetMaxsize was called, To_Filter was not set yet.           */
   /*********************************************************************/
-	if (To_Filter && Tablist) {
-		Tablist = NULL;
-		Nbf = 0;
-		} // endif To_Filter
+  if (To_Filter && Tablist) {
+    Tablist = NULL;
+    Nbf = 0;
+    } // endif To_Filter
 
   /*********************************************************************/
   /*  Open the first table of the list.                                */
@@ -565,7 +565,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
         return TRUE;
         
     if (trace)
-    	htrc("Opening subtable %s\n", Tdbp->GetName());
+      htrc("Opening subtable %s\n", Tdbp->GetName());
 
     // Now we can safely open the table
     if (Tdbp->OpenDB(g))
@@ -618,8 +618,8 @@ int TDBTBL::ReadDB(PGLOBAL g)
           else if (((PTBLCOL)cp)->Init(g))
             return RC_FX;
 
-		    if (trace)
-		    	htrc("Opening subtable %s\n", Tdbp->GetName());
+        if (trace)
+          htrc("Opening subtable %s\n", Tdbp->GetName());
 
         // Now we can safely open the table
         if (Tdbp->OpenDB(g))     // Open next table
@@ -688,8 +688,8 @@ TBLCOL::TBLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   Pseudo = FALSE;
   Colnum = cdp->GetOffset();       // If columns are retrieved by number
 
-	if (trace)
-		htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of TBLCOL constructor
 
@@ -733,8 +733,8 @@ bool TBLCOL::Init(PGLOBAL g)
 
   To_Val = NULL;
 
-	if (!(Colp = tdbp->Tdbp->ColDB(g, Name, 0)) && Colnum)
-	  Colp = tdbp->Tdbp->ColDB(g, NULL, Colnum);
+  if (!(Colp = tdbp->Tdbp->ColDB(g, Name, 0)) && Colnum)
+    Colp = tdbp->Tdbp->ColDB(g, NULL, Colnum);
 
   if (Colp) {
     Colp->InitValue(g);        // May not have been done elsewhere
@@ -753,8 +753,8 @@ bool TBLCOL::Init(PGLOBAL g)
 /***********************************************************************/
 void TBLCOL::ReadColumn(PGLOBAL g)
   {
-	if (trace)
-		htrc("TBL ReadColumn: name=%s\n", Name);
+  if (trace)
+    htrc("TBL ReadColumn: name=%s\n", Name);
 
   if (Colp) {
     Colp->ReadColumn(g);
@@ -770,8 +770,8 @@ void TBLCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void TBTBLK::ReadColumn(PGLOBAL g)
   {
-	if (trace)
-		htrc("TBT ReadColumn: name=%s\n", Name);
+  if (trace)
+    htrc("TBT ReadColumn: name=%s\n", Name);
 
   Value->SetValue_psz((char*)((PTDBTBL)To_Tdb)->Tdbp->GetName());
   } // end of ReadColumn

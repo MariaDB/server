@@ -72,7 +72,7 @@ class VALBLK : public BLOCK {
 
  protected:
 #if defined(_DEBUG) || defined(DEBTRACE)
-	void ChkIndx(int n);
+  void ChkIndx(int n);
   void ChkPrm(PVAL v, int n);
   void ChkTyp(PVAL v);
   void ChkTyp(PVBLK vb);
@@ -126,7 +126,7 @@ class CHRBLK : public VALBLK {
   char* const &Chrp;             // Pointer to char buffer
   PSZ   Valp;                    // Used to make a zero ended value
   bool  Blanks;                  // True for right filling with blanks
-  bool  Ci;											 // True if case insensitive
+  bool  Ci;                       // True if case insensitive
   int   Long;                    // Length of each string
   }; // end of class CHRBLK
 
@@ -352,7 +352,7 @@ class DBLBLK : public VALBLK {
  protected:
   // Members
   double* const &Dblp;
-	int    	Prec;
+  int      Prec;
   }; // end of class DBLBLK
 
 #endif // __VALBLK__H__

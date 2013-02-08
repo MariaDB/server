@@ -157,13 +157,14 @@ void XmlCleanupParserLib(void);
 PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info);
 PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
 #if defined(ODBC_SUPPORT)
+PQRYRES ODBCDataSources(PGLOBAL g, bool info = true);
 PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
-PQRYRES ODBCDataSources(PGLOBAL g, bool info = true);
 PQRYRES MyColumns(PGLOBAL g, char *host,  char *db, char *user, char *pwd,
                   char *table, char *colpat, int port, bool key);
 #endif   // MYSQL_SUPPORT
+
 enum enum_field_types PLGtoMYSQL(int type, bool gdf);
 #if defined(WIN32)
 PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp= NULL);
@@ -633,11 +634,13 @@ PGLOBAL ha_connect::GetPlug(THD *thd)
 /****************************************************************************/
 /*  Return the value of an option specified in the option list.             */
 /****************************************************************************/
-char *ha_connect::GetListOption(char *opname, const char *oplist, char *def)
+char *ha_connect::GetListOption(const char *opname,
+                                const char *oplist,
+                                const char *def)
 {
   char key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= def;
+  char *opval= (char *) def;
   int n;
 
   for (pk= (char*)oplist; ; pk= ++pn) {
@@ -1387,7 +1390,7 @@ int ha_connect::MakeRecord(char *buf)
 
   if (xtrace > 1)
 #if defined(MARIADB)
-    printf("Maps: read=%p write=%p vcol=%p defr=%p defw=%p\n",
+    printf("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
             *table->vcol_set->bitmap,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
@@ -1582,9 +1585,9 @@ int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
 /***********************************************************************/
 /*  Return the string representing an operator.                        */
 /***********************************************************************/
-char *ha_connect::GetValStr(OPVAL vop, bool neg)
+const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 {
-  char *val;
+  const char *val;
 
   switch (vop) {
     case OP_EQ:
@@ -2551,7 +2554,8 @@ int ha_connect::rnd_next(uchar *buf)
     ulonglong tb2= my_interval_timer();
     double elapsed= (double) (tb2 - xp->tb1) / 1000000000ULL;
     DBUG_PRINT("rnd_next", ("rc=%d nrd=%u fnd=%u nfd=%u sec=%.3lf\n",
-                             rc, xp->nrd, xp->fnd, xp->nfd, elapsed));
+                             rc, (uint)xp->nrd, (uint)xp->fnd,
+                             (uint)xp->nfd, elapsed));
     xp->tb1= tb2;
     xp->fnd= xp->nfd= 0;
     } // endif nrd
@@ -2891,7 +2895,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (xtrace) {
     printf("%p external_lock: cmdtype=%d\n", this, thd->lex->sql_command);
-    printf("Cmd=%s\n", thd->query_string);
+    printf("Cmd=%.*s\n", (int) thd->query_string.length(),
+                         thd->query_string.str());
     } // endif xtrace
 
   // Next code is temporarily replaced until sql_command is set
@@ -3176,7 +3181,6 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
            engine_option_value *create_options)
 {
   register Create_field *new_field;
-  LEX  *lex= thd->lex;
   Alter_info *alter_info= (Alter_info*)alt_info;
   Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
 
@@ -3276,14 +3280,15 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 */
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char    ttp= '?', spc= ',', qch= 0, *typn= "DOS";
+  char    ttp= '?', spc= ',', qch= 0;
+  const char *typn= "DOS";
+  const char *user;
   char   *fn, *dsn, *tab, *db, *host, *user, *pwd, *prt, *sep, *inf;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int     port= MYSQL_PORT, hdr= 0, mxr= 0;
   bool    b= false, ok= false, info= false;
-  LEX    *lex= thd->lex;
   LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   engine_option_value *pov;
@@ -3291,7 +3296,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   PCOLRES crp;
   PGLOBAL g= GetPlug(thd);
 
-  fn= dsn= tab= db= host= user= pwd= prt= sep= inf= NULL;
+  fn= dsn= tab= db= host= pwd= prt= sep= inf= NULL;
+  user= NULL;
 
   if (g) {
     // Set default values
@@ -3791,4 +3797,3 @@ void __attribute__((destructor)) fini()
 #endif   // LIBXML2_SUPPORT
   } // end of fini
 #endif  // !WIN32
-

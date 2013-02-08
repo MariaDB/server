@@ -36,9 +36,6 @@
 // The types and variables used locally
 //typedef int bool;
 typedef unsigned int uint;
-#define DWORD int
-#define TRUE  1
-#define FALSE 0
 #define SVP(S)  ((S) ? S : "<null>")
 #define _strlwr(P)  strlwr(P)  //OB: changed this line
 #define MAX_PATHNAME_LEN  256
@@ -56,10 +53,10 @@ typedef unsigned int uint;
         int trace = 0;
 void    htrc(char const *fmt, ...)
 {
-	va_list ap;
-	va_start (ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end (ap);
+  va_list ap;
+  va_start (ap, fmt);
+  vfprintf(stderr, fmt, ap);
+  va_end (ap);
 } /* end of htrc */
 #else   // !TEST_MODULE
 // Normal included functions
@@ -72,22 +69,22 @@ typedef struct tagPROFILEKEY {
   char                 *value;
   struct tagPROFILEKEY *next;
   char                  name[1];
-	} PROFILEKEY;
+  } PROFILEKEY;
 
 typedef struct tagPROFILESECTION {
   struct tagPROFILEKEY     *key;
   struct tagPROFILESECTION *next;
   char                      name[1];
-	} PROFILESECTION;
+  } PROFILESECTION;
 
 typedef struct {
-  bool             changed;
+  BOOL             changed;
   PROFILESECTION  *section;
 //char            *dos_name;
 //char            *unix_name;
   char            *filename;
   time_t           mtime;
-	} PROFILE;
+  } PROFILE;
 
 #define memfree(P)   if (P) free(P)
 
@@ -116,7 +113,7 @@ static char PROFILE_WineIniUsed[MAX_PATHNAME_LEN] = "";
 
 static const char hex[16] = "0123456789ABCDEF";
 
-bool  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
+BOOL  WritePrivateProfileString(LPCSTR section, LPCSTR entry,
                                 LPCSTR string, LPCSTR filename );
 /***********************************************************************
  *           PROFILE_CopyEntry
@@ -131,20 +128,20 @@ static void PROFILE_CopyEntry( char *buffer, const char *value, uint len,
   char quote = '\0';
 
   if (!buffer)
-		return;
+    return;
 
   if ((*value == '\'') || (*value == '\"'))
     if (value[1] && (value[strlen(value)-1] == *value))
-			quote = *value++;
+      quote = *value++;
 
   if (!handle_env) {
     strncpy(buffer, value, len);
 
     if (quote && (len >= strlen(value)))
-			buffer[strlen(buffer)-1] = '\0';
+      buffer[strlen(buffer)-1] = '\0';
 
     return;
-	  } // endif handle
+    } // endif handle
 
   for (p = value; (*p && (len > 1)); *buffer++ = *p++, len--) {
     if ((*p == '$') && (p[1] == '{')) {
@@ -153,7 +150,7 @@ static void PROFILE_CopyEntry( char *buffer, const char *value, uint len,
       const char *p2 = strchr(p, '}');
 
       if (!p2)
-				continue;  /* ignore it */
+        continue;  /* ignore it */
 
       strncpy(env_val, p + 2, min(sizeof(env_val), (int)(p2-p)-1));
 
@@ -164,18 +161,18 @@ static void PROFILE_CopyEntry( char *buffer, const char *value, uint len,
         buffer_len = strlen( buffer );
         buffer += buffer_len;
         len -= buffer_len;
-	      } // endif env_p
+        } // endif env_p
 
       p = p2 + 1;
       } // endif p
 
-		} // endfor p
+    } // endfor p
 
   if (quote && (len > 1))
-		buffer--;
+    buffer--;
 
   *buffer = '\0';
-}	// end of PROFILE_CopyEntry
+}  // end of PROFILE_CopyEntry
 
 
 /***********************************************************************
@@ -189,19 +186,19 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
 
   for (; section; section = section->next) {
     if (section->name[0])
-			fprintf(file, "\n[%s]\n", SVP(section->name));
+      fprintf(file, "\n[%s]\n", SVP(section->name));
 
     for (key = section->key; key; key = key->next)
-			if (key->name && key->name[0]) {
+      if (key->name && key->name[0]) {
         fprintf(file, "%s", SVP(key->name));
 
         if (key->value)
-					fprintf(file, "=%s", SVP(key->value));
+          fprintf(file, "=%s", SVP(key->value));
 
         fprintf(file, "\n");
         } // endif key->name
 
-		}	// endfor section
+    }  // endfor section
 
 } // end of PROFILE_Save
 
@@ -219,13 +216,13 @@ static void PROFILE_Free( PROFILESECTION *section )
   for (; section; section = next_section) {
     for (key = section->key; key; key = next_key) {
       next_key = key->next;
-			memfree(key->value);
+      memfree(key->value);
       free(key);
-	    }	// endfor key
+      }  // endfor key
 
     next_section = section->next;
     free(section);
-		} // endfor section
+    } // endfor section
 
 } // end of PROFILE_Free
 
@@ -233,7 +230,7 @@ static int PROFILE_isspace(char c)
 {
   /* CR and ^Z (DOS EOF) are spaces too  (found on CD-ROMs) */
   if (isspace(c) || c=='\r' || c==0x1a)
-		return 1;
+    return 1;
 
   return 0;
 } // end of PROFILE_isspace
@@ -256,7 +253,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
   first_section = malloc(sizeof(*section));
 
   if (first_section == NULL)
-		return NULL;
+    return NULL;
 
   first_section->name[0] = 0;
   first_section->key  = NULL;
@@ -270,13 +267,13 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
     p = buffer;
 
     while (*p && PROFILE_isspace(*p))
-			p++;
+      p++;
 
-		if (*p == '[') {  /* section start */
+    if (*p == '[') {  /* section start */
       if (!(p2 = strrchr( p, ']'))) {
         fprintf(stderr, "Invalid section header at line %d: '%s'\n",
                 line, p);
-      }	else {
+      }  else {
         *p2 = '\0';
         p++;
 
@@ -291,56 +288,56 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
         next_key      = &section->key;
         prev_key      = NULL;
 
-				if (trace > 1)
-	        htrc("New section: '%s'\n",section->name);
+        if (trace > 1)
+          htrc("New section: '%s'\n",section->name);
 
         continue;
-      }	// endif p2
+      }  // endif p2
 
-	    }	// endif p
+      }  // endif p
 
     p2 = p + strlen(p) - 1;
 
     while ((p2 > p) && ((*p2 == '\n') || PROFILE_isspace(*p2)))
-			*p2-- = '\0';
+      *p2-- = '\0';
 
     if ((p2 = strchr(p, '=')) != NULL) {
       char *p3 = p2 - 1;
 
       while ((p3 > p) && PROFILE_isspace(*p3))
-				*p3-- = '\0';
+        *p3-- = '\0';
 
       *p2++ = '\0';
 
       while (*p2 && PROFILE_isspace(*p2))
-				p2++;
+        p2++;
 
-	    } // endif p2
+      } // endif p2
 
     if (*p || !prev_key || *prev_key->name) {
       if (!(key = malloc(sizeof(*key) + strlen(p))))
-				break;
+        break;
 
       strcpy(key->name, p);
 
       if (p2) {
         key->value = malloc(strlen(p2)+1);
         strcpy(key->value, p2);
-			} else
-				key->value = NULL;
+      } else
+        key->value = NULL;
 
       key->next = NULL;
       *next_key = key;
       next_key  = &key->next;
       prev_key  = key;
 
-			if (trace > 1)
-	      htrc("New key: name='%s', value='%s'\n",
+      if (trace > 1)
+        htrc("New key: name='%s', value='%s'\n",
               key->name,key->value?key->value:"(none)");
 
-	    } // endif p || prev_key
+      } // endif p || prev_key
 
-		} // endif *p
+    } // endif *p
 
   return first_section;
 } // end of PROFILE_Load
@@ -350,7 +347,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
  *
  * Flush the current profile to disk if changed.
  ***********************************************************************/
-static bool PROFILE_FlushFile(void)
+static BOOL PROFILE_FlushFile(void)
 {
 //char       *p, buffer[MAX_PATHNAME_LEN];
 //const char *unix_name;
@@ -358,15 +355,15 @@ static bool PROFILE_FlushFile(void)
   struct stat buf;
   
   if (trace > 1)
-  	htrc("PROFILE_FlushFile: CurProfile=%p\n", CurProfile);
+    htrc("PROFILE_FlushFile: CurProfile=%p\n", CurProfile);
 
   if (!CurProfile) {
     fprintf(stderr, "No current profile!\n");
     return FALSE;
-		} // endif !CurProfile
+    } // endif !CurProfile
 
   if (!CurProfile->changed || !CurProfile->filename)
-		return TRUE;
+    return TRUE;
 
 #if 0
   if (!(file = fopen(unix_name, "w"))) {
@@ -375,29 +372,29 @@ static bool PROFILE_FlushFile(void)
     //strcpy( buffer, get_config_dir() );
     //p = buffer + strlen(buffer);
     //*p++ = '/';
-		char *p1 = strrchr(CurProfile->filename, '\\');
+    char *p1 = strrchr(CurProfile->filename, '\\');
 
-		p = buffer;							// OB: To be elaborate
+    p = buffer;              // OB: To be elaborate
 
-		if (p1) 
-			p1++;
-		else
-			p1 = CurProfile->dos_name;
+    if (p1) 
+      p1++;
+    else
+      p1 = CurProfile->dos_name;
 
     strcpy(p, p1);
     _strlwr(p);
     file = fopen(buffer, "w");
     unix_name = buffer;
-		}	// endif !unix_name
+    }  // endif !unix_name
 #endif // 0
 
   if (!(file = fopen(CurProfile->filename, "w"))) {
     fprintf(stderr, "could not save profile file %s\n", CurProfile->filename);
     return FALSE;
-		} // endif !file
+    } // endif !file
 
-	if (trace > 1)
-	  htrc("Saving '%s'\n", CurProfile->filename);
+  if (trace > 1)
+    htrc("Saving '%s'\n", CurProfile->filename);
 
   PROFILE_Save(file, CurProfile->section);
   fclose(file);
@@ -407,7 +404,7 @@ static bool PROFILE_FlushFile(void)
     CurProfile->mtime = buf.st_mtime;
 
   return TRUE;
-}	// end of PROFILE_FlushFile
+}  // end of PROFILE_FlushFile
 
 
 /***********************************************************************
@@ -421,14 +418,14 @@ static void PROFILE_ReleaseFile(void)
   PROFILE_Free(CurProfile->section);
 //memfree(CurProfile->dos_name);
 //memfree(CurProfile->unix_name);
-	memfree(CurProfile->filename);
+  memfree(CurProfile->filename);
   CurProfile->changed   = FALSE;
   CurProfile->section   = NULL;
 //CurProfile->dos_name  = NULL;
 //CurProfile->unix_name = NULL;
   CurProfile->filename  = NULL;
   CurProfile->mtime     = 0;
-}	// end of PROFILE_ReleaseFile
+}  // end of PROFILE_ReleaseFile
 
 
 /***********************************************************************
@@ -436,7 +433,7 @@ static void PROFILE_ReleaseFile(void)
  *
  * Open a profile file, checking the cached file first.
  ***********************************************************************/
-static bool PROFILE_Open(LPCSTR filename)
+static BOOL PROFILE_Open(LPCSTR filename)
 {
 //char        buffer[MAX_PATHNAME_LEN];
 //char       *p;
@@ -446,7 +443,7 @@ static bool PROFILE_Open(LPCSTR filename)
   PROFILE    *tempProfile;
   
   if (trace > 1)
-  	htrc("PROFILE_Open: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
+    htrc("PROFILE_Open: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
 
   /* First time around */
   if (!CurProfile)
@@ -454,8 +451,8 @@ static bool PROFILE_Open(LPCSTR filename)
       MRUProfile[i] = malloc(sizeof(PROFILE));
       
       if (MRUProfile[i] == NULL)
-      	break;
-      	
+        break;
+        
       MRUProfile[i]->changed=FALSE;
       MRUProfile[i]->section=NULL;
 //    MRUProfile[i]->dos_name=NULL;
@@ -466,9 +463,9 @@ static bool PROFILE_Open(LPCSTR filename)
 
   /* Check for a match */
   for (i = 0; i < N_CACHED_PROFILES; i++) {
-  	if (trace > 1)
-  		htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
-  		
+    if (trace > 1)
+      htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
+      
     if (MRUProfile[i]->filename && !strcmp(filename, MRUProfile[i]->filename)) {
       if (i) {
         PROFILE_FlushFile();
@@ -481,12 +478,12 @@ static bool PROFILE_Open(LPCSTR filename)
         } // endif i
         
       if (!stat(CurProfile->filename, &buf) && CurProfile->mtime == buf.st_mtime) {
-				if (trace > 1)
-					htrc("(%s): already opened (mru=%d)\n", filename, i);
-					
+        if (trace > 1)
+          htrc("(%s): already opened (mru=%d)\n", filename, i);
+          
       } else {
-				if (trace > 1)
-					htrc("(%s): already opened, needs refreshing (mru=%d)\n",	filename, i);
+        if (trace > 1)
+          htrc("(%s): already opened, needs refreshing (mru=%d)\n",  filename, i);
 
       } // endif stat
       
@@ -509,7 +506,7 @@ static bool PROFILE_Open(LPCSTR filename)
     } // endif i
     
   if (CurProfile->filename)
-  	PROFILE_ReleaseFile();
+    PROFILE_ReleaseFile();
 
   /* OK, now that CurProfile is definitely free we assign it our new file */
 //  newdos_name = HeapAlloc( GetProcessHeap(), 0, strlen(full_name.short_name)+1 );
@@ -534,15 +531,15 @@ static bool PROFILE_Open(LPCSTR filename)
 //  _strlwr(p);
   
   if (trace > 1)
-  	htrc("Opening %s\n", filename);
-  	
+    htrc("Opening %s\n", filename);
+    
   if ((file = fopen(filename, "r"))) {
-		if (trace > 1)
+    if (trace > 1)
       htrc("(%s): found it\n", filename);
 
 //    CurProfile->unix_name = malloc(strlen(buffer)+1);
 //    strcpy(CurProfile->unix_name, buffer);
-		} /* endif file */
+    } /* endif file */
 
   if (file) {
     CurProfile->section = PROFILE_Load(file);
@@ -565,10 +562,10 @@ static bool PROFILE_Open(LPCSTR filename)
  *
  * Delete a section from a profile tree.
  ***********************************************************************/
-static bool PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
+static BOOL PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
 {
-	while (*section) {
-		if ((*section)->name[0] && !stricmp((*section)->name, name)) {
+  while (*section) {
+    if ((*section)->name[0] && !stricmp((*section)->name, name)) {
       PROFILESECTION *to_del = *section;
 
       *section = to_del->next;
@@ -581,7 +578,7 @@ static bool PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
     } // endwhile section
 
   return FALSE;
-}	// end of PROFILE_DeleteSection
+}  // end of PROFILE_DeleteSection
 
 
 /***********************************************************************
@@ -589,7 +586,7 @@ static bool PROFILE_DeleteSection(PROFILESECTION* *section, LPCSTR name)
  *
  * Delete a key from a profile tree.
  ***********************************************************************/
-static bool PROFILE_DeleteKey(PROFILESECTION* *section,
+static BOOL PROFILE_DeleteKey(PROFILESECTION* *section,
                               LPCSTR section_name, LPCSTR key_name)
 {
   while (*section) {
@@ -597,25 +594,25 @@ static bool PROFILE_DeleteKey(PROFILESECTION* *section,
       PROFILEKEY* *key = &(*section)->key;
 
       while (*key) {
-        if (!stricmp((*key)->name, key_name))	{
+        if (!stricmp((*key)->name, key_name))  {
           PROFILEKEY *to_del = *key;
 
           *key = to_del->next;
           memfree(to_del->value);
           free(to_del);
           return TRUE;
-	        } // endif name
+          } // endif name
 
         key = &(*key)->next;
-	      } // endwhile *key
+        } // endwhile *key
 
-			} // endif section->name
+      } // endif section->name
 
     section = &(*section)->next;
-		} // endwhile *section
+    } // endwhile *section
 
   return FALSE;
-}	// end of PROFILE_DeleteKey
+}  // end of PROFILE_DeleteKey
 
 
 /***********************************************************************
@@ -638,12 +635,12 @@ void PROFILE_DeleteAllKeys(LPCSTR section_name)
         memfree(to_del->value);
         free(to_del);
         CurProfile->changed = TRUE;
-				} // endwhile *key
+        } // endwhile *key
 
-			} // endif section->name
+      } // endif section->name
 
     section = &(*section)->next;
-		}	// endwhile *section
+    }  // endwhile *section
 
 } // end of PROFILE_DeleteAllKeys
 
@@ -654,30 +651,30 @@ void PROFILE_DeleteAllKeys(LPCSTR section_name)
  * Find a key in a profile tree, optionally creating it.
  ***********************************************************************/
 static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section, 
-																const char *section_name,
+                                const char *section_name,
                                 const char *key_name, 
-																bool create, bool create_always)
+                                BOOL create, BOOL create_always)
 {
   const char *p;
   int seclen, keylen;
 
   while (PROFILE_isspace(*section_name))
-		section_name++;
+    section_name++;
 
   p = section_name + strlen(section_name) - 1;
 
   while ((p > section_name) && PROFILE_isspace(*p))
-		p--;
+    p--;
 
   seclen = p - section_name + 1;
 
   while (PROFILE_isspace(*key_name))
-		key_name++;
+    key_name++;
 
   p = key_name + strlen(key_name) - 1;
 
   while ((p > key_name) && PROFILE_isspace(*p))
-		p--;
+    p--;
 
   keylen = p - key_name + 1;
 
@@ -697,13 +694,13 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
                && (((*key)->name)[keylen] == '\0'))
             return *key;
 
-					}	// endif !create_always
+          }  // endif !create_always
 
         key = &(*key)->next;
-				} // endwhile *key
+        } // endwhile *key
 
       if (!create)
-				return NULL;
+        return NULL;
 
       if (!(*key = malloc(sizeof(PROFILEKEY) + strlen(key_name))))
         return NULL;
@@ -712,18 +709,18 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
       (*key)->value = NULL;
       (*key)->next  = NULL;
       return *key;
-			} // endifsection->name
+      } // endifsection->name
 
     section = &(*section)->next;
-		} // endwhile *section
+    } // endwhile *section
 
   if (!create)
-		return NULL;
+    return NULL;
 
   *section = malloc(sizeof(PROFILESECTION) + strlen(section_name));
 
   if (*section == NULL)
-		return NULL;
+    return NULL;
 
   strcpy((*section)->name, section_name);
   (*section)->next = NULL;
@@ -731,13 +728,13 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
   if (!((*section)->key = malloc(sizeof(PROFILEKEY) + strlen(key_name)))) {
     free(*section);
     return NULL;
-	  }	// endif malloc
+    }  // endif malloc
 
   strcpy((*section)->key->name, key_name);
   (*section)->key->value = NULL;
   (*section)->key->next  = NULL;
   return (*section)->key;
-}	// end of PROFILE_Find
+}  // end of PROFILE_Find
 
 
 /***********************************************************************
@@ -747,13 +744,13 @@ static PROFILEKEY *PROFILE_Find(PROFILESECTION* *section,
  * If return_values is TRUE, also include the corresponding values.
  ***********************************************************************/
 static int PROFILE_GetSection(PROFILESECTION *section, LPCSTR section_name,
-                              LPSTR buffer, uint len, bool handle_env,
-                              bool return_values)
+                              LPSTR buffer, uint len,
+                              BOOL handle_env, BOOL return_values)
 {
   PROFILEKEY *key;
 
   if(!buffer) 
-		return 0;
+    return 0;
 
   while (section) {
     if (section->name[0] && !stricmp(section->name, section_name)) {
@@ -761,13 +758,13 @@ static int PROFILE_GetSection(PROFILESECTION *section, LPCSTR section_name,
 
       for (key = section->key; key; key = key->next) {
         if (len <= 2)
-					break;
+          break;
 
         if (!*key->name)
-					continue;  /* Skip empty lines */
+          continue;  /* Skip empty lines */
 
         if (IS_ENTRY_COMMENT(key->name))
-					continue;  /* Skip comments */
+          continue;  /* Skip comments */
 
         PROFILE_CopyEntry(buffer, key->name, len - 1, handle_env);
         len -= strlen(buffer) + 1;
@@ -781,13 +778,13 @@ static int PROFILE_GetSection(PROFILESECTION *section, LPCSTR section_name,
           PROFILE_CopyEntry(buffer, key->value, len - 1, handle_env);
           len -= strlen(buffer) + 1;
           buffer += strlen(buffer) + 1;
-	        } // endif return_values
+          } // endif return_values
 
-				} // endfor key
+        } // endfor key
 
       *buffer = '\0';
 
-			if (len <= 1) {
+      if (len <= 1) {
         /*If either lpszSection or lpszKey is NULL and the supplied
           destination buffer is too small to hold all the strings,
           the last string is truncated and followed by two null characters.
@@ -795,17 +792,17 @@ static int PROFILE_GetSection(PROFILESECTION *section, LPCSTR section_name,
           minus two. */
         buffer[-1] = '\0';
         return oldlen - 2;
-				} // endif len
+        } // endif len
 
       return oldlen - len;
-			} // endif section->name
+      } // endif section->name
 
     section = section->next;
-	  } // endwhile section
+    } // endwhile section
 
   buffer[0] = buffer[1] = '\0';
   return 0;
-}	// end of PROFILE_GetSection
+}  // end of PROFILE_GetSection
 
 
 /* See GetPrivateProfileSectionNamesA for documentation */
@@ -815,8 +812,8 @@ static int PROFILE_GetSectionNames(LPSTR buffer, uint len)
   uint            f,l;
   PROFILESECTION *section;
 
-	if (trace > 1)
-		htrc("GetSectionNames: buffer=%p len=%u\n", buffer, len);
+  if (trace > 1)
+    htrc("GetSectionNames: buffer=%p len=%u\n", buffer, len);
 
   if (!buffer || !len)
     return 0;
@@ -824,47 +821,47 @@ static int PROFILE_GetSectionNames(LPSTR buffer, uint len)
   if (len == 1) {
     *buffer='\0';
     return 0;
-	  } // endif len
+    } // endif len
 
   f = len - 1;
   buf = buffer;
   section = CurProfile->section;
 
-	if (trace > 1)
-		htrc("GetSectionNames: section=%p\n", section);
+  if (trace > 1)
+    htrc("GetSectionNames: section=%p\n", section);
 
   while (section != NULL) {
-		if (trace > 1)
-			htrc("section=%s\n", section->name);
+    if (trace > 1)
+      htrc("section=%s\n", section->name);
 
     if (section->name[0]) {
       l = strlen(section->name) + 1;
 
-			if (trace > 1)
-				htrc("l=%u f=%u\n", l, f);
+      if (trace > 1)
+        htrc("l=%u f=%u\n", l, f);
 
       if (l > f) {
         if (f > 0) {
           strncpy(buf, section->name, f-1);
           buf += f-1;
           *buf++='\0';
-					} // endif f
+          } // endif f
 
         *buf = '\0';
         return len - 2;
-				} // endif l
+        } // endif l
 
       strcpy(buf, section->name);
       buf += l;
       f -= l;
-			} // endif section->name
+      } // endif section->name
 
     section = section->next;
-		} // endwhile section
+    } // endwhile section
 
   *buf='\0';
   return buf-buffer;
-}	// end of	PROFILE_GetSectionNames
+}  // end of  PROFILE_GetSectionNames
 
 
 /***********************************************************************
@@ -894,21 +891,21 @@ static int PROFILE_GetString(LPCSTR section, LPCSTR key_name,
   PROFILEKEY *key = NULL;
 
   if(!buffer)
-		return 0;
+    return 0;
 
   if (!def_val)
-		def_val = "";
+    def_val = "";
 
   if (key_name && key_name[0]) {
     key = PROFILE_Find(&CurProfile->section, section, key_name, FALSE, FALSE);
     PROFILE_CopyEntry(buffer, (key && key->value) ? key->value : def_val, len, FALSE);
-		
-		if (trace > 1)
+    
+    if (trace > 1)
       htrc("('%s','%s','%s'): returning '%s'\n", 
-						section, key_name, def_val, buffer );
+            section, key_name, def_val, buffer );
 
     return strlen(buffer);
-		} // endif key_name
+    } // endif key_name
 
   if (key_name && !(key_name[0]))
     /* Win95 returns 0 on keyname "". Tested with Likse32 bon 000227 */
@@ -919,7 +916,7 @@ static int PROFILE_GetString(LPCSTR section, LPCSTR key_name,
                               FALSE, FALSE);
   buffer[0] = '\0';
   return 0;
-}	// end of PROFILE_GetString
+}  // end of PROFILE_GetString
 
 
 /***********************************************************************
@@ -927,60 +924,60 @@ static int PROFILE_GetString(LPCSTR section, LPCSTR key_name,
  *
  * Set a profile string.
  ***********************************************************************/
-static bool PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
-                              LPCSTR value, bool create_always)
+static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
+                              LPCSTR value, BOOL create_always)
 {
-	if (!key_name) {       /* Delete a whole section */
-		if (trace > 1)
+  if (!key_name) {       /* Delete a whole section */
+    if (trace > 1)
       htrc("Deleting('%s')\n", section_name);
 
     CurProfile->changed |= PROFILE_DeleteSection(&CurProfile->section,
                                                  section_name);
     return TRUE;         /* Even if PROFILE_DeleteSection() has failed,
                             this is not an error on application's level.*/
-	} else if (!value) {   /* Delete a key */
-		if (trace > 1)
+  } else if (!value) {   /* Delete a key */
+    if (trace > 1)
       htrc("Deleting('%s','%s')\n", section_name, key_name);
 
     CurProfile->changed |= PROFILE_DeleteKey(&CurProfile->section,
                                              section_name, key_name);
     return TRUE;         /* same error handling as above */
-	} else {               /* Set the key value */
+  } else {               /* Set the key value */
     PROFILEKEY *key = PROFILE_Find(&CurProfile->section, section_name,
                                     key_name, TRUE, create_always);
-		if (trace > 1)
-	    htrc("Setting('%s','%s','%s')\n", section_name, key_name, value);
+    if (trace > 1)
+      htrc("Setting('%s','%s','%s')\n", section_name, key_name, value);
 
     if (!key)
-			return FALSE;
+      return FALSE;
 
     if (key->value) {
       /* strip the leading spaces. We can safely strip \n\r and
        * friends too, they should not happen here anyway. */
       while (PROFILE_isspace(*value))
-				value++;
+        value++;
 
       if (!strcmp(key->value, value)) {
-				if (trace > 1)
+        if (trace > 1)
           htrc("  no change needed\n" );
 
         return TRUE;     /* No change needed */
-				}	// endif value
+        }  // endif value
 
-			if (trace > 1)
-	      htrc("  replacing '%s'\n", key->value);
+      if (trace > 1)
+        htrc("  replacing '%s'\n", key->value);
 
       free(key->value);
-    }	else if (trace > 1)
-	    htrc("  creating key\n" );
+    }  else if (trace > 1)
+      htrc("  creating key\n" );
 
     key->value = malloc(strlen(value) + 1);
     strcpy(key->value, value);
     CurProfile->changed = TRUE;
-	} // endelse
+  } // endelse
 
   return TRUE;
-}	// end of PROFILE_SetString
+}  // end of PROFILE_SetString
 
 
 /***********************************************************************
@@ -996,26 +993,26 @@ char *PROFILE_GetStringItem(char* start)
   for (lpchX = start, lpch = NULL; *lpchX != '\0'; lpchX++) {
     if (*lpchX == ',') {
       if (lpch)
-				*lpch = '\0';
-			else
-				*lpchX = '\0';
+        *lpch = '\0';
+      else
+        *lpchX = '\0';
 
       while(*(++lpchX))
         if (!PROFILE_isspace(*lpchX))
-					return lpchX;
+          return lpchX;
 
-		} else if (PROFILE_isspace(*lpchX) && !lpch) {
-			lpch = lpchX;
-		} else
-			lpch = NULL;
+    } else if (PROFILE_isspace(*lpchX) && !lpch) {
+      lpch = lpchX;
+    } else
+      lpch = NULL;
 
-		} // endfor lpchX
+    } // endfor lpchX
 
   if (lpch)
-		*lpch = '\0';
+    *lpch = '\0';
 
   return NULL;
-}	// end of PROFILE_GetStringItem
+}  // end of PROFILE_GetStringItem
 
 /**********************************************************************
  * if allow_section_name_copy is TRUE, allow the copying :
@@ -1026,7 +1023,7 @@ char *PROFILE_GetStringItem(char* start)
 static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
                                            LPCSTR def_val, LPSTR buffer,
                                            uint len, LPCSTR filename,
-                                           bool allow_section_name_copy)
+                                           BOOL allow_section_name_copy)
 {
   int   ret;
   LPSTR pDefVal = NULL;
@@ -1042,15 +1039,15 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
       if ((*(--p)) != ' ')
         break;
 
-		if (*p == ' ') {        /* ouch, contained trailing ' ' */
+    if (*p == ' ') {        /* ouch, contained trailing ' ' */
       int len = p - (LPSTR)def_val;
 
       pDefVal = malloc(len + 1);
       strncpy(pDefVal, def_val, len);
       pDefVal[len] = '\0';
-	    } // endif *p
+      } // endif *p
 
-	  } // endif def_val
+    } // endif def_val
 
   if (!pDefVal)
     pDefVal = (LPSTR)def_val;
@@ -1067,7 +1064,7 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
   } else {
     strncpy(buffer, pDefVal, len);
     ret = strlen(buffer);
-  }	// endif Open
+  }  // endif Open
 
   LeaveCriticalSection(&PROFILE_CritSect);
 
@@ -1075,7 +1072,7 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
     memfree(pDefVal);
 
   return ret;
-}	// end of PROFILE_GetPrivateProfileString
+}  // end of PROFILE_GetPrivateProfileString
 
 /********************** API functions **********************************/
 
@@ -1083,7 +1080,7 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
  *           GetPrivateProfileStringA   (KERNEL32.@)
  ***********************************************************************/
 int GetPrivateProfileString(LPCSTR section, LPCSTR entry, LPCSTR def_val,
-														LPSTR buffer, uint len, LPCSTR filename)
+                            LPSTR buffer, uint len, LPCSTR filename)
 {
   return PROFILE_GetPrivateProfileString(section, entry, def_val,
                                          buffer, len, filename, TRUE);
@@ -1109,16 +1106,16 @@ uint GetPrivateProfileInt(LPCSTR section, LPCSTR entry,
    * thus wait until testing framework avail for making sure nothing
    * else gets broken that way. */
   if (!buffer[0])
-		return (uint)def_val;
+    return (uint)def_val;
 
   /* Don't use strtol() here !
    * (returns LONG_MAX/MIN on overflow instead of "proper" overflow)
    YES, scan for unsigned format ! (otherwise compatibility error) */
   if (!sscanf(buffer, "%u", &result))
-		return 0;
+    return 0;
 
   return (uint)result;
-}	// end of GetPrivateProfileInt
+}  // end of GetPrivateProfileInt
 
 
 /***********************************************************************
@@ -1137,16 +1134,16 @@ int GetPrivateProfileSection(LPCSTR section, LPSTR buffer,
 
   LeaveCriticalSection( &PROFILE_CritSect );
   return ret;
-}	// end of GetPrivateProfileSection
+}  // end of GetPrivateProfileSection
 
 
 /***********************************************************************
  *           WritePrivateProfileStringA   (KERNEL32.@)
  ***********************************************************************/
-bool WritePrivateProfileString(LPCSTR section, LPCSTR entry,
+BOOL WritePrivateProfileString(LPCSTR section, LPCSTR entry,
                                LPCSTR string, LPCSTR filename)
 {
-  bool ret = FALSE;
+  BOOL ret = FALSE;
 
   EnterCriticalSection( &PROFILE_CritSect );
 
@@ -1166,20 +1163,20 @@ bool WritePrivateProfileString(LPCSTR section, LPCSTR entry,
 
     } // endif section || entry|| string
 
-		} // endif Open
+    } // endif Open
 
   LeaveCriticalSection( &PROFILE_CritSect );
   return ret;
-}	// end of WritePrivateProfileString
+}  // end of WritePrivateProfileString
 
 
 /***********************************************************************
  *           WritePrivateProfileSectionA   (KERNEL32.@)
  ***********************************************************************/
-bool WritePrivateProfileSection(LPCSTR section,
+BOOL WritePrivateProfileSection(LPCSTR section,
                                 LPCSTR string, LPCSTR filename )
 {
-  bool  ret = FALSE;
+  BOOL  ret = FALSE;
   LPSTR p ;
 
   EnterCriticalSection(&PROFILE_CritSect);
@@ -1187,12 +1184,12 @@ bool WritePrivateProfileSection(LPCSTR section,
   if (PROFILE_Open(filename)) {
     if (!section && !string)
       PROFILE_ReleaseFile();  /* always return FALSE in this case */
-		else if (!string) {       /* delete the named section*/
+    else if (!string) {       /* delete the named section*/
       ret = PROFILE_SetString(section, NULL, NULL, FALSE);
 
       if (ret)
         ret = PROFILE_FlushFile();
-    }	else {
+    }  else {
       PROFILE_DeleteAllKeys(section);
       ret = TRUE;
 
@@ -1203,23 +1200,23 @@ bool WritePrivateProfileSection(LPCSTR section,
         if ((p = strchr(buf, '='))) {
           *p='\0';
           ret = PROFILE_SetString(section, buf, p+1, TRUE);
-					} // endif p
+          } // endif p
 
         free(buf);
         string += strlen(string) + 1;
 
-		    if (ret)
-		      ret = PROFILE_FlushFile();
+        if (ret)
+          ret = PROFILE_FlushFile();
 
         } // endwhile *string
 
-    }	// endelse
+    }  // endelse
 
-		}	// endif Open
+    }  // endif Open
 
   LeaveCriticalSection(&PROFILE_CritSect);
   return ret;
-}	// end of WritePrivateProfileSection
+}  // end of WritePrivateProfileSection
 
 
 /***********************************************************************
@@ -1259,7 +1256,7 @@ bool WritePrivateProfileSection(LPCSTR section,
  * Note that when the buffer is big enough then the return value may be any
  * value between 1 and len-1 (or len in Win95), including len-2.
  */
-DWORD GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,	LPCSTR filename)
+DWORD GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
 {
   DWORD ret = 0;
   
@@ -1273,7 +1270,7 @@ DWORD GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,	LPCSTR filename)
 
   LeaveCriticalSection(&PROFILE_CritSect);
   return ret;
-}	// end of GetPrivateProfileSectionNames
+}  // end of GetPrivateProfileSectionNames
 
 
 /************************************************************************
@@ -1282,14 +1279,14 @@ DWORD GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,	LPCSTR filename)
 #ifdef TEST_MODULE
 int main(int argc, char**argv) {
   char  buff[128];
-	char *p, *inifile = "D:\\Plug\\Data\\contact.ini";
-	DWORD n;
+  char *p, *inifile = "D:\\Plug\\Data\\contact.ini";
+  DWORD n;
 
-	n = GetPrivateProfileSectionNames(buff, 128, inifile);
-	printf("Sections: n=%d\n", n);
+  n = GetPrivateProfileSectionNames(buff, 128, inifile);
+  printf("Sections: n=%d\n", n);
 
-	for (p = buff; *p; p += (strlen(p) + 1))
-		printf("section=[%s]\n", p);
+  for (p = buff; *p; p += (strlen(p) + 1))
+    printf("section=[%s]\n", p);
 
   GetPrivateProfileString("BER", "name", "?", buff, 128, inifile);
   printf("[BER](name) = %s\n", buff);
@@ -1298,28 +1295,28 @@ int main(int argc, char**argv) {
   GetPrivateProfileString("FOO", "city", "?", buff, 128, inifile);
   printf("[FOO](city) = %s\n", buff);
 
-	printf("FOO city: "); 
-	fgets(buff, sizeof(buff), stdin);
-	if (buff[strlen(buff) - 1] == '\n') 
-	    buff[strlen(buff) - 1] = '\0'; 
+  printf("FOO city: "); 
+  fgets(buff, sizeof(buff), stdin);
+  if (buff[strlen(buff) - 1] == '\n') 
+      buff[strlen(buff) - 1] = '\0'; 
   WritePrivateProfileString("FOO", "city", buff, inifile);
   GetPrivateProfileString("FOO", "city", "???", buff, 128, inifile);
   printf("After write, [FOO](City) = %s\n", buff);
 
-	printf("New city: "); 
-	fgets(buff, sizeof(buff), stdin);
-	if (buff[strlen(buff) - 1] == '\n') 
-	    buff[strlen(buff) - 1] = '\0'; 
+  printf("New city: "); 
+  fgets(buff, sizeof(buff), stdin);
+  if (buff[strlen(buff) - 1] == '\n') 
+      buff[strlen(buff) - 1] = '\0'; 
   WritePrivateProfileString("FOO", "city", buff, inifile);
   GetPrivateProfileString("FOO", "city", "???", buff, 128, inifile);
   printf("After update, [FOO](City) = %s\n", buff);
 
-	printf("FOO name: "); 
-	fgets(buff, sizeof(buff), stdin);
-	if (buff[strlen(buff) - 1] == '\n') 
-	    buff[strlen(buff) - 1] = '\0'; 
+  printf("FOO name: "); 
+  fgets(buff, sizeof(buff), stdin);
+  if (buff[strlen(buff) - 1] == '\n') 
+      buff[strlen(buff) - 1] = '\0'; 
   WritePrivateProfileString("FOO", "name", buff, inifile);
-	GetPrivateProfileString("FOO", "name", "X", buff, 128, inifile);
+  GetPrivateProfileString("FOO", "name", "X", buff, 128, inifile);
   printf("[FOO](name) = %s\n", buff);
-}	// end of main
+}  // end of main
 #endif // TEST_MODULE

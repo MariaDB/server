@@ -18,19 +18,19 @@ class DllExport MACINFO : public BLOCK {
   MACINFO(bool adap, bool fix);
 
   // Implementation
-	int  GetNadap(PGLOBAL g);
-	bool GetMacInfo(PGLOBAL g);
-	bool GetFixedInfo(PGLOBAL g);
-	void MakeErrorMsg(PGLOBAL g, DWORD drc);
-	bool NextMac(void);
-	bool GetOneInfo(PGLOBAL g, int flag, void *v, int lv);
+  int  GetNadap(PGLOBAL g);
+  bool GetMacInfo(PGLOBAL g);
+  bool GetFixedInfo(PGLOBAL g);
+  void MakeErrorMsg(PGLOBAL g, DWORD drc);
+  bool NextMac(void);
+  bool GetOneInfo(PGLOBAL g, int flag, void *v, int lv);
 
   // Members
-	FIXED_INFO      *Fip;     		 // Points to fixed info structure
-	PIP_ADAPTER_INFO Piaf;				 // Points on Adapter info array
-	PIP_ADAPTER_INFO Curp;				 // Points on current Adapt info
-	ULONG            Buflen;			 // Buffer length
-	bool             Fix;					 // true if FixedInfo is needed
-	bool             Adap;				 // true if Piaf is needed
-	int              N;						 // Number of adapters
+  FIXED_INFO      *Fip;          // Points to fixed info structure
+  PIP_ADAPTER_INFO Piaf;         // Points on Adapter info array
+  PIP_ADAPTER_INFO Curp;         // Points on current Adapt info
+  ULONG            Buflen;       // Buffer length
+  bool             Fix;           // true if FixedInfo is needed
+  bool             Adap;         // true if Piaf is needed
+  int              N;             // Number of adapters
   }; // end of class MACINFO

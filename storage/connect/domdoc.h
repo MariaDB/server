@@ -52,7 +52,7 @@ class DOMDOC : public XMLDOCUMENT {
 
  protected:
   // Members
-	MSXML2::IXMLDOMDocumentPtr Docp;
+  MSXML2::IXMLDOMDocumentPtr Docp;
   MSXML2::IXMLDOMNodeListPtr Nlist;
   HRESULT            Hr;
 }; // end of class DOMDOC

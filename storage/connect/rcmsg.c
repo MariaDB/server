@@ -1,11 +1,11 @@
 /**************** RCMsg C Program Source Code File (.C) ****************/
 /* PROGRAM NAME: RCMSG                                                 */
 /* -------------                                                       */
-/*  Version 1.0                                                        */
+/*  Version 1.1                                                        */
 /*                                                                     */
 /* COPYRIGHT                                                           */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND:  2005                */
+/*  (C) Copyright to the author Olivier BERTRAND:  2005 - 2013         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES                                              */
 /* -----------------------                                             */

@@ -54,7 +54,7 @@
 /*  Include CSort class header file                                    */
 /***********************************************************************/
 #include "global.h"
-#include "plgdbsem.h"								/* For MBLOCK type definition      */
+#include "plgdbsem.h"                /* For MBLOCK type definition      */
 #include "csort.h"                  /* CSort class definition          */
 
 #if !defined(BIGSORT)
@@ -64,23 +64,23 @@
 /***********************************************************************/
 /*  DB static external variables.                                      */
 /***********************************************************************/
-extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's		 */
+extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 
 /***********************************************************************/
 /*  Initialize the CSORT static members.                               */
 /***********************************************************************/
 int    CSORT::Limit = 0;
 double CSORT::Lg2 = log(2.0);
-size_t CSORT::Cpn[1000] = {0};				  /* Precalculated cmpnum values */
+size_t CSORT::Cpn[1000] = {0};          /* Precalculated cmpnum values */
 
 /***********************************************************************/
 /*  CSORT constructor.                                                 */
 /***********************************************************************/
 CSORT::CSORT(bool cns, int th, int mth)
-		 : Pex((int*&)Index.Memp), Pof((int*&)Offset.Memp)
+     : Pex((int*&)Index.Memp), Pof((int*&)Offset.Memp)
   {
-	G = NULL;
-	Dup =NULL;
+  G = NULL;
+  Dup =NULL;
   Cons = cns;
   Thresh = th;
   Mthresh = mth;
@@ -88,8 +88,8 @@ CSORT::CSORT(bool cns, int th, int mth)
   Index = Nmblk;
   Offset = Nmblk;
   Swix = NULL;
-	Savmax = 0;	
-	Savcur = 0;	
+  Savmax = 0;  
+  Savcur = 0;  
   Savstep = NULL;
   } // end of CSORT constructor
 
@@ -98,31 +98,31 @@ CSORT::CSORT(bool cns, int th, int mth)
 /***********************************************************************/
 int CSORT::Qsort(PGLOBAL g, int nb)
   {
-	int rc;
+  int rc;
 
 #if defined(_DEBUG)
-	assert(Index.Size >= nb * sizeof(int));
+  assert(Index.Size >= nb * sizeof(int));
 #endif
 
-	if (nb > BIGSORT) {
-		G = g;
-		Dup = (PDBUSER)g->Activityp->Aptr;
+  if (nb > BIGSORT) {
+    G = g;
+    Dup = (PDBUSER)g->Activityp->Aptr;
 
-		if (Dup->Proginfo) {
-	    Savstep = Dup->Step;
-	    Savmax  = Dup->ProgMax;
-	    Savcur  = Dup->ProgCur;
+    if (Dup->Proginfo) {
+      Savstep = Dup->Step;
+      Savmax  = Dup->ProgMax;
+      Savcur  = Dup->ProgCur;
 
-			// Evaluate the number of comparisons that we will do
-			Dup->ProgMax = Cmpnum(nb);
-			Dup->ProgCur = 0;
-			Dup->Step = (char*)PlugSubAlloc(g, NULL, 32);
-			sprintf((char*)Dup->Step, MSG(SORTING_VAL), nb);
-		} else
-			Dup = NULL;
+      // Evaluate the number of comparisons that we will do
+      Dup->ProgMax = Cmpnum(nb);
+      Dup->ProgCur = 0;
+      Dup->Step = (char*)PlugSubAlloc(g, NULL, 32);
+      sprintf((char*)Dup->Step, MSG(SORTING_VAL), nb);
+    } else
+      Dup = NULL;
 
-	} else
-		Dup = NULL;
+  } else
+    Dup = NULL;
 
   Nitem = nb;
 
@@ -132,15 +132,15 @@ int CSORT::Qsort(PGLOBAL g, int nb)
   rc = (Cons) ? Qsortc() : Qsortx();
 
   if (Dup) {
-	  // Restore any change in progress info settings
-//	printf("Progcur=%u\n", Dup->ProgCur);
+    // Restore any change in progress info settings
+//  printf("Progcur=%u\n", Dup->ProgCur);
 
     Dup->Step    = Savstep;
     Dup->ProgMax = Savmax;
     Dup->ProgCur = Savcur;
     } // endif Subcor
 
-	return rc;
+  return rc;
   } // end of QSort
 
 #if defined(DEBTRACE)
@@ -180,7 +180,7 @@ int CSORT::Qsortx(void)
   register int  c;
   register int  lo, hi, min;
   register int  i, j, rc = 0;
-	// To do: rc should be checked for being used uninitialized
+  // To do: rc should be checked for being used uninitialized
   int          *top;
 #ifdef DEBTRACE
   int           ncp;
@@ -346,14 +346,14 @@ void CSORT::Qstx(int *base, int *max)
   register int *i, *j, *jj, *mid, *him, c;
   int          *tmp;
   int           lo, hi, rc;
-	size_t        zlo, zhi, cnm;
+  size_t        zlo, zhi, cnm;
 
-	zlo = zhi = cnm = 0;									// Avoid warning message
+  zlo = zhi = cnm = 0;                  // Avoid warning message
 
   lo = max - base;                      // Number of elements as longs
 
-	if (Dup)
-		cnm = Cmpnum(lo);
+  if (Dup)
+    cnm = Cmpnum(lo);
 
   do {
     /*******************************************************************/
@@ -480,14 +480,14 @@ void CSORT::Qstx(int *base, int *max)
     /* But only repeat (recursively or by branching) if the partition  */
     /* is of at least size THRESH.                                     */
     /*******************************************************************/
-		lo = j - base;
-		hi = max - i;
+    lo = j - base;
+    hi = max - i;
 
-		if (Dup) {									       // Update progress information
-			zlo = Cmpnum(lo);
-			zhi = Cmpnum(hi);
-			Dup->ProgCur += cnm - (zlo + zhi);
-			} // endif Dup
+    if (Dup) {                         // Update progress information
+      zlo = Cmpnum(lo);
+      zhi = Cmpnum(hi);
+      Dup->ProgCur += cnm - (zlo + zhi);
+      } // endif Dup
 
 #ifdef DEBTRACE
  htrc(" done lo=%d sep=%d hi=%d\n", lo, i - j, hi);
@@ -501,7 +501,7 @@ void CSORT::Qstx(int *base, int *max)
 
       base = i;
       lo = hi;
-			cnm = zhi;
+      cnm = zhi;
     } else {
       if (hi >= Thresh)
         Qstx(i, max);
@@ -509,7 +509,7 @@ void CSORT::Qstx(int *base, int *max)
         Pof[i - Pex] = 1;
 
       max = j;
-			cnm = zlo;
+      cnm = zlo;
     } // endif
 
     if (lo == 1 && Pof)
@@ -545,7 +545,7 @@ int CSORT::Qsortc(void)
   register int  c;
   register int  lo, hi, min;
   register int  i, j, k, m, rc = 0;
-	// To do: rc should be checked for being used uninitialized
+  // To do: rc should be checked for being used uninitialized
   int          *max;
 #ifdef DEBTRACE
   int           ncp;
@@ -721,14 +721,14 @@ void CSORT::Qstc(int *base, int *max)
   {
   register int *i, *j, *jj, *lt, *eq, *gt, *mid;
   int           c, lo, hi, rc;
-	size_t         zlo, zhi, cnm;
+  size_t         zlo, zhi, cnm;
 
-	zlo = zhi = cnm = 0;									// Avoid warning message
+  zlo = zhi = cnm = 0;                  // Avoid warning message
 
   lo = max - base;                      // Number of elements as longs
 
-	if (Dup)
-		cnm = Cmpnum(lo);
+  if (Dup)
+    cnm = Cmpnum(lo);
 
   do {
     /*******************************************************************/
@@ -858,18 +858,18 @@ void CSORT::Qstc(int *base, int *max)
     /* But only repeat (recursively or by branching) if the partition  */
     /* is of at least size THRESH.                                     */
     /*******************************************************************/
-		lo = lt - base;
-		hi = gt - Swix;
+    lo = lt - base;
+    hi = gt - Swix;
 
-		if (Dup) {									       // Update progress information
-			zlo = Cmpnum(lo);
-			zhi = Cmpnum(hi);
-			Dup->ProgCur += cnm - (zlo + zhi);
-			} // endif Dup
+    if (Dup) {                         // Update progress information
+      zlo = Cmpnum(lo);
+      zhi = Cmpnum(hi);
+      Dup->ProgCur += cnm - (zlo + zhi);
+      } // endif Dup
 
 #ifdef DEBTRACE
  htrc(" done lo=%d hi=%d\n",
-	 lo, /*Swix + lt - base - eq,*/ hi);
+   lo, /*Swix + lt - base - eq,*/ hi);
 #endif
 
     if (lo <= hi) {
@@ -880,7 +880,7 @@ void CSORT::Qstc(int *base, int *max)
 
       base = jj;
       lo = hi;
-			cnm = zhi;
+      cnm = zhi;
     } else {
       if (hi >= Thresh)
         Qstc(jj, max);
@@ -888,7 +888,7 @@ void CSORT::Qstc(int *base, int *max)
         Pof[jj - Pex] = 1;
 
       max = lt;
-			cnm = zlo;
+      cnm = zlo;
     } // endif
 
     if (lo == 1 && Pof)

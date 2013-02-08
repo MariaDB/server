@@ -85,7 +85,7 @@ CONSTANT::CONSTANT(PGLOBAL g, void *value, short type)
   if (!(Value = AllocateValue(g, value, (int)type)))
     longjmp(g->jumper[g->jump_level], TYPE_CONST);
 
-	Constant = true;
+  Constant = true;
   } // end of CONSTANT constructor
 
 /***********************************************************************/
@@ -96,17 +96,17 @@ CONSTANT::CONSTANT(PGLOBAL g, int n)
   if (!(Value = AllocateValue(g, &n, TYPE_INT)))
     longjmp(g->jumper[g->jump_level], TYPE_CONST);
 
-	Constant = true;
+  Constant = true;
   } // end of CONSTANT constructor
 
 /***********************************************************************/
 /*  GetLengthEx: returns an evaluation of the constant string length.  */
-/*  Note: When converting from token to string, length has to be			 */
-/*    specified but we need the domain length, not the value length.	 */
+/*  Note: When converting from token to string, length has to be       */
+/*    specified but we need the domain length, not the value length.   */
 /***********************************************************************/
 int CONSTANT::GetLengthEx(void)
   {
-	return Value->GetValLen();
+  return Value->GetValLen();
   } // end of GetLengthEx
 
 /***********************************************************************/

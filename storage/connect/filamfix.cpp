@@ -52,7 +52,6 @@
 #endif
 
 extern int num_read, num_there, num_eq[2];               // Statistics
-bool PushWarning(PGLOBAL g, PTDBASE tdbp);
 
 /* --------------------------- Class FIXFAM -------------------------- */
 
@@ -103,8 +102,8 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
 
     if (/*Tdbp->GetFtype() < 2 &&*/ !Padded)
       // If not binary, the file is physically a text file.
-			// We do it also for binary table because the lrecl can have been
-			// specified with additional space to include line ending.
+      // We do it also for binary table because the lrecl can have been
+      // specified with additional space to include line ending.
       for (int len = Lrecl; len <= Buflen; len += Lrecl) {
 #if defined(WIN32)
         To_Buf[len - 2] = '\r';
@@ -131,14 +130,14 @@ void FIXFAM::ResetBuffer(PGLOBAL g)
   /*  bitmap filter as for Update or Delete reading will be sequential */
   /*  and we better keep block reading.                                */
   /*********************************************************************/
-	if (Tdbp->GetMode() == MODE_READ && ReadBlks != 1 && !Padded &&
-	    Tdbp->GetKindex() /*&& Tdbp->GetKindex()->IsRandom()*/) {
-	  Nrec = 1;                       // Better for random access
-	  Rbuf = 0;
-	  Blksize = Lrecl;
-	  OldBlk = -2;                    // Has no meaning anymore
-	  Block = Tdbp->Cardinality(g);   // Blocks are one line now
-	  } // endif Mode
+  if (Tdbp->GetMode() == MODE_READ && ReadBlks != 1 && !Padded &&
+      Tdbp->GetKindex() /*&& Tdbp->GetKindex()->IsRandom()*/) {
+    Nrec = 1;                       // Better for random access
+    Rbuf = 0;
+    Blksize = Lrecl;
+    OldBlk = -2;                    // Has no meaning anymore
+    Block = Tdbp->Cardinality(g);   // Blocks are one line now
+    } // endif Mode
 
   } // end of ResetBuffer
 
@@ -309,6 +308,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
   } else {                           // Mode == MODE_UPDATE
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream)
+    {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
@@ -318,7 +318,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
 
       } else
         T_Stream = Stream;
-
+    }
     Modif++;                         // Modified line in Update mode
   } // endif Mode
 
@@ -489,7 +489,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 #endif
 
     if (len != req) {
-      sprintf(g->Message, MSG(DEL_READ_ERROR), req, len);
+      sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
       return true;
       } // endif len
 
@@ -883,8 +883,8 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
     /*******************************************************************/
     return AllocateBuffer(g);
   } else
-		return (mode == MODE_READ && rc == ENOENT)
-						? PushWarning(g, Tdbp) : true;
+    return (mode == MODE_READ && rc == ENOENT)
+            ? PushWarning(g, Tdbp) : true;
 
   } // end of OpenTableFile
 
@@ -1136,13 +1136,14 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
   } else {                           // Mode == MODE_UPDATE
     // Tfile is the temporary file or the table file handle itself
     if (Tfile == INVALID_HANDLE_VALUE)
+    {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
 
       } else
         Tfile = Hfile;
-
+    }
     Modif++;                         // Modified line in Update mode
   } // endif Mode
 
