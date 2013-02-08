@@ -1,0 +1,56 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/people.csv $MYSQLD_DATADIR/test/people.csv
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT
+) Engine=CONNECT TABLE_TYPE=CSV FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing examples from the manual
+--echo #
+CREATE TABLE t1 
+(
+  name CHAR(12),
+  birth DATE DATE_FORMAT='DD/MM/YY',
+  children SMALLINT(2)
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1;
+SELECT * FROM t1;
+INSERT INTO t1 VALUES ('RONALD','1980-02-26',4);
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/people.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT LOAD_FILE('$MYSQLD_DATADIR/test/people.csv');
+
+
+--echo #
+--echo # Testing that the underlying file is created
+--echo #
+CREATE TABLE t1
+(
+  c1 CHAR(12) NOT NULL,
+  c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='tmp.csv'
+  HEADER=1 SEP_CHAR=',' QUOTED=1;
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/tmp.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv');
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/people.csv
+--remove_file $MYSQLD_DATADIR/test/tmp.csv
