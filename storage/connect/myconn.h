@@ -14,6 +14,7 @@
 #endif  // !WIN32
 #include <mysql.h>
 #include <errmsg.h>
+#include "myutil.h"
 
 #if defined(WIN32) && defined(MYCONN_EXPORTS)
 #if defined(DLL_EXPORT)
@@ -32,13 +33,12 @@
 typedef class MYSQLC *PMYC;
 
 /***********************************************************************/
-/*  Exported/Imported functions.                                       */
+/*  Prototypes of info functions.                                      */
 /***********************************************************************/
-DllItem int  MYSQLtoPLG(char *);
-DllItem int  MYSQLtoPLG(int);
-DllItem enum enum_field_types PLGtoMYSQL(int, bool gdf = FALSE);
-DllItem char *MyDateFmt(int);
-DllItem char *MyDateFmt(char *);
+PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+                  const char *user, const char *pwd,
+                  const char *table, const char *colpat,
+                  int port, bool key);
 
 /* -------------------------- MYCONN class --------------------------- */
 

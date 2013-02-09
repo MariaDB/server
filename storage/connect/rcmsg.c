@@ -109,6 +109,8 @@ char *GetMsgid(int id)
     case IDS_SPC_06: p = "Longueur";          break;
     case IDS_SPC_07: p = "Echelle";           break;
     case IDS_SPC_08: p = "Pseudo_Colonne";    break;
+    case IDS_DRV_01: p = "Description";       break;
+    case IDS_DRV_02: p = "Attributs";         break;
     case IDS_DSC_01: p = "Nom";               break;
     case IDS_DSC_02: p = "Description";       break;
 #else    // English
@@ -199,6 +201,8 @@ char *GetMsgid(int id)
     case IDS_SPC_06: p = "Length";             break;
     case IDS_SPC_07: p = "Scale";              break;
     case IDS_SPC_08: p = "Pseudo_Column";      break;
+    case IDS_DRV_01: p = "Description";        break;
+    case IDS_DRV_02: p = "Attributes";         break;
     case IDS_DSC_01: p = "Name";               break;
     case IDS_DSC_02: p = "Description";        break;
 #endif   // English

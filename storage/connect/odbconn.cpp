@@ -311,7 +311,7 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
 /**************************************************************************/
 /* MyODBCCols: returns column info as required by ha_connect::pre_create. */
 /**************************************************************************/
-PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info)
+PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   {
   int      type, len, prec;
   PCOLRES  crpt, crpl, crpp;
@@ -388,7 +388,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   int      n = 0, ncol = 2;
   int      maxres;
   PQRYRES  qrp;
-  ODBConn *ocp;
+  ODBConn *ocp = NULL;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
@@ -424,14 +424,57 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   return qrp;
   } // end of ODBCDataSources
 
-#if 0                           // Currently not used by CONNECT
+/*************************************************************************/
+/*  ODBCDrivers: constructs the result blocks containing all ODBC        */
+/*  drivers available on the local host.                                 */
+/*  Called with info=true to have result column names.                   */
+/*************************************************************************/
+PQRYRES ODBCDrivers(PGLOBAL g, bool info)
+  {
+  static int dbtype[] = {DB_CHAR, DB_CHAR};
+  static int buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static unsigned int length[] = {128, 256};
+  int      ncol = 2;
+  int      maxres;
+  PQRYRES  qrp;
+  ODBConn *ocp = NULL;
+
+  /************************************************************************/
+  /*  Do an evaluation of the result size.                                */
+  /************************************************************************/
+  if (!info) {
+    ocp = new(g) ODBConn(g, NULL);
+    maxres = 256;           // Estimated max number of drivers
+  } else
+    maxres = 0;
+
+#ifdef DEBTRACE
+ htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
+#endif
+
+  /************************************************************************/
+  /*  Allocate the structures used to refer to the result set.            */
+  /************************************************************************/
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, dbtype, buftyp, length);
+
+  /************************************************************************/
+  /*  Now get the results into blocks.                                    */
+  /************************************************************************/
+  if (!info && ocp->GetDrivers(qrp))
+    qrp = NULL;
+
+  /************************************************************************/
+  /*  Return the result pointer for use by GetData routines.              */
+  /************************************************************************/
+  return qrp;
+  } // end of ODBCDrivers
+
 /***********************************************************************/
 /*  ODBCTables: constructs the result blocks containing all tables in  */
 /*  an ODBC database that will be retrieved by GetData commands.       */
 /*  Note: The first two columns (Qualifier, Owner) are ignored.        */
 /***********************************************************************/
-PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
-                                                      char *tabtyp)
+PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   {
   static int dbtype[] = {DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR};
   static int buftyp[] = {TYPE_STRING, TYPE_STRING,
@@ -441,9 +484,9 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
   int     maxres;
   PQRYRES  qrp;
   CATPARM *cap;
-  ODBConn *ocp = op;
+  ODBConn *ocp;
 
-  if (!op) {
+  if (!info) {
     /**********************************************************************/
     /*  Open the connection with the ODBC data source.                    */
     /**********************************************************************/
@@ -452,16 +495,22 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
-    } // endif op
+    } // endif info
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
   /************************************************************************/
-  maxres = 512;                       // This is completely arbitrary
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-  length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-  length[1] = (n) ? (n + 1) : 128;
+  if (!info) {
+    maxres = 512;                       // This is completely arbitrary
+    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+    length[0] = (n) ? (n + 1) : 128;
+    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+    length[1] = (n) ? (n + 1) : 128;
+  } else {
+    maxres = 0;
+    length[0] = 128;
+    length[1] = 128;
+  } // endif info
 
 #ifdef DEBTRACE
  htrc("ODBCTables: max=%d len=%d,%d\n",
@@ -474,8 +523,11 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES + 1,
                                         dbtype, buftyp, length);
 
+  if (info)
+    return qrp;
+
   cap = AllocCatInfo(g, CAT_TAB, tabpat, qrp);
-  cap->Pat = (PUCHAR)tabtyp;
+//cap->Pat = (PUCHAR)tabtyp;
 
 #ifdef DEBTRACE
  htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
@@ -497,8 +549,7 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
   /************************************************************************/
   /*  Close any local connection.                                         */
   /************************************************************************/
-  if (!op)
-    ocp->Close();
+  ocp->Close();
 
   /************************************************************************/
   /*  Return the result pointer for use by GetData routines.              */
@@ -506,6 +557,7 @@ PQRYRES ODBCTables(PGLOBAL g, ODBConn *op, char *dsn, char *tabpat,
   return qrp;
   } // end of ODBCTables
 
+#if 0                           // Currently not used by CONNECT
 /**************************************************************************/
 /*  PrimaryKeys: constructs the result blocks containing all the          */
 /*  ODBC catalog information concerning primary keys.                     */
@@ -1558,6 +1610,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
 /***********************************************************************/
 bool ODBConn::GetDataSources(PQRYRES qrp)
   {
+  bool    rv = false;
   UCHAR  *dsn, *des;
   UWORD   dir = SQL_FETCH_FIRST;
   SWORD   n1, n2, p1, p2;
@@ -1589,13 +1642,64 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
-    SQLFreeEnv(m_henv);
-    return true;
+    rv = true;
   } // end try/catch
 
   SQLFreeEnv(m_henv);
-  return false;
+  Close();
+  return rv;
   } // end of GetDataSources
+
+/***********************************************************************/
+/*  Get the list of Drivers and set it in qrp.                         */
+/***********************************************************************/
+bool ODBConn::GetDrivers(PQRYRES qrp)
+  {
+  int     i, n;
+  bool    rv = false;
+  UCHAR  *des, *att;
+  UWORD   dir = SQL_FETCH_FIRST;
+  SWORD   n1, n2, p1, p2;
+  PCOLRES crp1 = qrp->Colresp, crp2 = qrp->Colresp->Next;
+  RETCODE rc;
+
+  n1 = crp1->Clen;
+  n2 = crp2->Clen;
+
+  try {
+    rc = SQLAllocEnv(&m_henv);
+
+    if (!Check(rc))
+      ThrowDBX(rc);  // Fatal
+
+    for (n = 0; n < qrp->Maxres; n++) {
+      des = (UCHAR*)crp1->Kdata->GetValPtr(n);
+      att = (UCHAR*)crp2->Kdata->GetValPtr(n);
+      rc = SQLDrivers(m_henv, dir, des, n1, &p1, att, n2, &p2);
+
+      if (rc == SQL_NO_DATA_FOUND)
+        break;
+      else if (!Check(rc))
+        ThrowDBX(rc);  // Fatal
+
+      // The attributes being separated by '\0', set them to ';'
+      for (i = 0; i < p2; i++)
+        if (!att[i])
+          att[i] = ';';
+
+      qrp->Nblin++;
+      dir = SQL_FETCH_NEXT;
+      } // endfor n
+
+  } catch(DBX *x) {
+    strcpy(m_G->Message, x->GetErrorMessage(0));
+    rv = true;
+  } // end try/catch
+
+  SQLFreeEnv(m_henv);
+  Close();
+  return rv;
+  } // end of GetDrivers
 
 /***********************************************************************/
 /*  Allocate recset and call SQLTables, SQLColumns or SQLPrimaryKeys.  */

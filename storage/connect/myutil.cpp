@@ -59,7 +59,7 @@ int MYSQLtoPLG(char *typname)
 /************************************************************************/
 /*  Convert from PlugDB type to MySQL type number                       */
 /************************************************************************/
-enum enum_field_types PLGtoMYSQL(int type, bool gdf)
+enum enum_field_types PLGtoMYSQL(int type, bool dbf)
   {
   enum enum_field_types mytype;
 
@@ -74,7 +74,7 @@ enum enum_field_types PLGtoMYSQL(int type, bool gdf)
       mytype = MYSQL_TYPE_DOUBLE;
       break;
     case TYPE_DATE:
-      mytype = (gdf) ? MYSQL_TYPE_DATE : MYSQL_TYPE_DATETIME;
+      mytype = (dbf) ? MYSQL_TYPE_DATE : MYSQL_TYPE_DATETIME;
       break;
     case TYPE_STRING:
       mytype = MYSQL_TYPE_VARCHAR;

@@ -44,7 +44,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Tabowner;           /* External table owner                  */
   PSZ     Tabqual;            /* External table qualifier              */
   PSZ     Qchar;              /* Identifier quoting character          */
-  PSZ     Info;               /* Information value                     */
+  char    Catfunc;            /* Catalog function                      */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
   }; // end of ODBCDEF
@@ -118,7 +118,7 @@ class TDBODBC : public TDBASE {
   int      CurNum;            // Current buffer line number
   int      Rbuf;              // Number of lines read in buffer
   int      BufSize;           // Size of connect string buffer
-  int       Nparm;              // The number of statement parameters
+  int      Nparm;             // The number of statement parameters
   }; // end of class TDBODBC
 
 /***********************************************************************/
@@ -227,7 +227,7 @@ class OIFCOL : public COLBLK {
   }; // end of class OIFCOL
 
 /***********************************************************************/
-/*  This is the class declaration for the Data Sources info table.     */
+/*  This is the class declaration for the Data Sources catalog table.  */
 /***********************************************************************/
 class TDBSRC : public TDBOIF {
  public:
@@ -241,7 +241,21 @@ class TDBSRC : public TDBOIF {
   }; // end of class TDBSRC
 
 /***********************************************************************/
-/*  This is the class declaration for the columns info table.          */
+/*  This is the class declaration for the Drivers catalog table.       */
+/***********************************************************************/
+class TDBDRV : public TDBOIF {
+ public:
+  // Constructor
+  TDBDRV(PODEF tdp) : TDBOIF(tdp) {ID = IDS_DRIVER; NC = 2;}
+
+ protected:
+	// Specific routines
+	virtual bool Initialize(PGLOBAL g);
+
+  }; // end of class TDBDRV
+
+/***********************************************************************/
+/*  This is the class declaration for the columns catalog table.       */
 /***********************************************************************/
 class TDBOCL : public TDBOIF {
  public:
@@ -256,4 +270,21 @@ class TDBOCL : public TDBOIF {
   char    *Dsn;               // Points to connection string
   char    *Tabn;              // Points to ODBC table name
   }; // end of class TDBOCL
+
+/***********************************************************************/
+/*  This is the class declaration for the tables catalog table.        */
+/***********************************************************************/
+class TDBOTB : public TDBOIF {
+ public:
+  // Constructor
+  TDBOTB(PODEF tdp);
+
+ protected:
+	// Specific routines
+	virtual bool Initialize(PGLOBAL g);
+
+  // Members
+  char    *Dsn;               // Points to connection string
+  char    *Tabpat;            // Points to ODBC table pattern
+  }; // end of class TDBOTB
 #endif  // !NODBC

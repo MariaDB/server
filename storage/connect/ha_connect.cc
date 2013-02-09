@@ -104,6 +104,7 @@
 #include "create_options.h"
 #include "mysql_com.h"
 #include "field.h"
+#include "sql_parse.h"
 #undef  OFFSET
 
 #define NOPARSE
@@ -112,69 +113,39 @@
 #endif   // UNIX
 #include "global.h"
 #include "plgdbsem.h"
+#if defined(ODBC_SUPPORT)
+#include "odbconn.h"
+#endif   // ODBC_SUPPORT
+#if defined(MYSQL_SUPPORT)
+#include "myconn.h"
+#endif   // MYSQL_SUPPORT
+#include "filamdbf.h"
+#include "tabfmt.h"
 #include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
+#if defined(WIN32)
+#include "tabwmi.h"
+#endif   // WIN32
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
 #include "mycat.h"
+#include "myutil.h"
 
-#define PLGINI      "plugdb.ini"       /* Configuration settings file  */
 #define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
-#define my_strupr(p) my_caseup_str(default_charset_info, (p));
-#define my_strlwr(p) my_casedn_str(default_charset_info, (p));
-#define my_stricmp(a, b) my_strcasecmp(default_charset_info, (a), (b))
+#define my_strupr(p)    my_caseup_str(default_charset_info, (p));
+#define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
+#define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
 #if defined (WIN32)
-typedef struct _WMIutil *PWMIUT;       /* Used to call WMIColumns      */
+typedef struct _WMIutil *PWMIUT;            /* Used to call WMIColumns      */
 #endif
-/****************************************************************************/
-/*  CONNECT functions called externally.                                    */
-/****************************************************************************/
-bool  CntCheckDB(PGLOBAL g, PHC handler, const char *pathname);
-PTDB  CntGetTDB(PGLOBAL g, const char *name, MODE xmod, PHC);
-bool  CntOpenTable(PGLOBAL g, PTDB tdbp, MODE, char *, char *, bool, PHC);
-bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
-int   CntCloseTable(PGLOBAL g, PTDB tdbp);
-int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id);
-RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
-RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n);
-RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
-RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
-RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
-bool  CntInfo(PGLOBAL g, PTDB tdbp, PXF info);
-int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
-                    bool *incl, key_part_map *kmap);
+
 #ifdef LIBXML2_SUPPORT
 void XmlInitParserLib(void);
 void XmlCleanupParserLib(void);
 #endif   // LIBXML2_SUPPORT
-
-/****************************************************************************/
-/*  Functions called externally by pre_parser.                              */
-/****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info);
-PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
-#if defined(ODBC_SUPPORT)
-PQRYRES ODBCDataSources(PGLOBAL g, bool info = true);
-PQRYRES MyODBCCols(PGLOBAL g, char *tab, char *dsn, bool info);
-#endif   // ODBC_SUPPORT
-#if defined(MYSQL_SUPPORT)
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
-                  const char *user, const char *pwd,
-                  const char *table, const char *colpat,
-                  int port, bool key);
-#endif   // MYSQL_SUPPORT
-
-enum enum_field_types PLGtoMYSQL(int type, bool gdf);
-#if defined(WIN32)
-PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp= NULL);
-#endif   // WIN32
-char GetTypeID(char *type);
-bool check_string_char_length(LEX_STRING *str, const char *err_msg,
-                              uint max_char_length, CHARSET_INFO *cs,
-                              bool no_error);
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -185,7 +156,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.00.0005 October 03, 2012";
+       char  version[]= "Version 1.01.0001 February 08, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -237,7 +208,7 @@ struct ha_table_option_struct {
   const char *qchar;
   const char *module;
   const char *subtype;
-  const char *info;
+  const char *catfunc;
   const char *oplist;
   int lrecl;
   int elements;
@@ -268,7 +239,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("QCHAR", qchar),
   HA_TOPTION_STRING("MODULE", module),
   HA_TOPTION_STRING("SUBTYPE", subtype),
-  HA_TOPTION_STRING("INFO", info),
+  HA_TOPTION_STRING("CATFUNC", catfunc),
   HA_TOPTION_STRING("OPTION_LIST", oplist),
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
@@ -816,8 +787,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->module;
   else if (!stricmp(opname, "Subtype"))
     opval= (char*)options->subtype;
-  else if (!stricmp(opname, "Info"))
-    opval= (char*)options->info;
+  else if (!stricmp(opname, "Catfunc"))
+    opval= (char*)options->catfunc;
 
   if (!opval && options->oplist)
     opval= GetListOption(opname, options->oplist);
@@ -3282,15 +3253,15 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 */
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char    ttp= '?', spc= ',', qch= 0;
+  char    ttp= '?', spc= ',', qch= 0, fnc= 0;
   const char *typn= "DOS";
   const char *user;
-  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep, *inf;
+  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32
   int     port= MYSQL_PORT, hdr= 0, mxr= 0;
-  bool    b= false, ok= false, info= false;
+  bool    b= false, ok= false, dbf= false;
   LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   engine_option_value *pov;
@@ -3298,15 +3269,12 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   PCOLRES crp;
   PGLOBAL g= GetPlug(thd);
 
-  fn= dsn= tab= db= host= pwd= prt= sep= inf= NULL;
-  user= NULL;
-
-  if (g) {
-    // Set default values
-    tab= (char*)create_info->alias;
-    db= thd->db;
-  } else
+  if (!g)
     return true;
+
+  fn= dsn= tab= host= pwd= prt= sep= NULL;
+  user= NULL;
+  db= thd->db;                     // Default value
 
   // Get the useful create options
   for (pov= create_info->option_list; pov; pov= pov->next)
@@ -3319,8 +3287,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       tab= pov->value.str;
     } else if (!stricmp(pov->name.str, "db_name")) {
       db= pov->value.str;
-    } else if (!stricmp(pov->name.str, "info")) {
-      inf= pov->value.str;
+    } else if (!stricmp(pov->name.str, "catfunc")) {
+      fnc= toupper(*pov->value.str);
     } else if (!stricmp(pov->name.str, "sep_char")) {
       sep= pov->value.str;
       spc= (!strcmp(sep, "\\t")) ? '\t' : *sep;
@@ -3343,15 +3311,16 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       cls= GetListOption("class", pov->value.str);
 #endif   // WIN32
       mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
-      inf= GetListOption("info", pov->value.str);
     } // endelse option_list
+
+  if (!tab && fnc != 'T')
+    tab= (char*)create_info->alias;
 
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case 'O':       // ODBC
-      info= inf && !!strchr("1yYoO", *inf);
-
-      if (!(dsn= create_info->connect_string.str) && !info)
+      if (!(dsn= create_info->connect_string.str)
+                 && fnc != 'S'&& fnc != 'D')
         sprintf(g->Message, "Missing %s connection string", typn);
       else
         ok= true;
@@ -3359,6 +3328,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       break;
 #endif   // ODBC_SUPPORT
     case 'A':       // DBF
+      dbf= true;
+      // Passthru
     case 'C':       // CSV
       if (!fn)
         sprintf(g->Message, "Missing %s file name", typn);
@@ -3401,10 +3372,23 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
         break;
 #if defined(ODBC_SUPPORT)
       case 'O':
-        if (dsn)
-          qrp= MyODBCCols(g, tab, dsn, info);
-        else
-          qrp= ODBCDataSources(g);
+        switch (fnc) {
+          case 'C':
+          case '\0':
+            qrp= MyODBCCols(g, dsn, tab, fnc == 'C');
+            break;
+          case 'T':
+            qrp= ODBCTables(g, dsn, tab, true);
+            break;
+          case 'S':
+            qrp= ODBCDataSources(g, true);
+            break;
+          case 'D':
+            qrp= ODBCDrivers(g, true);
+            break;
+          default:
+            sprintf(g->Message, "invalid catfunc %c", fnc);
+        } // endswitch info
 
         break;
 #endif   // ODBC_SUPPORT
@@ -3418,7 +3402,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
         break;
 #if defined(WIN32)
       case 'W':
-        qrp= WMIColumns(g, nsp, cls);
+        qrp= WMIColumns(g, nsp, cls, NULL);
         break;
 #endif   // WIN32
       } // endswitch ttp
@@ -3428,11 +3412,11 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;
       } // endif qrp
 
-    if (info) {
+    if (fnc) {
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
         name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
-        type= PLGtoMYSQL(crp->Type, true);
+        type= PLGtoMYSQL(crp->Type, dbf);
         len= crp->Length;
         length= (char*)PlugSubAlloc(g, NULL, 8);
         sprintf(length, "%d", len);
