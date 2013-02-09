@@ -118,6 +118,9 @@
 #define IDS_PLG_07                      1286
 #define IDS_PLG_08                      1287
 #define IDS_PLG_09                      1288
+#define IDS_DRIVER                      1290
+#define IDS_DRV_01                      1291
+#define IDS_DRV_02                      1292
 #define IDS_DSRC                        1295
 #define IDS_DSC_01                      1296
 #define IDS_DSC_02                      1297

@@ -36,8 +36,6 @@
 #include "handler.h"
 #undef  OFFSET
 
-typedef class ha_connect *PHC;
-
 #include "global.h"
 #include "plgdbsem.h"
 #include "xobject.h"
@@ -60,7 +58,7 @@ extern int xtrace;
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
-RCODE  EvalColumns(PGLOBAL g, PTDB tdbp);
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp);
 
 /***********************************************************************/
 /*  MySQL routines called externally by semantic routines.             */

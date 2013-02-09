@@ -16,6 +16,19 @@ typedef class WMICOL *PWMICOL;
 typedef class TDBWCL *PTDBWCL;
 typedef class WCLCOL *PWCLCOL;
 
+/***********************************************************************/
+/*  Structure used by WMI column info functions.                       */
+/***********************************************************************/
+typedef struct _WMIutil {
+  IWbemServices    *Svc;
+  IWbemClassObject *Cobj;
+} WMIUTIL, *PWMIUT;
+
+/***********************************************************************/
+/*  Functions used externally.                                         */
+/***********************************************************************/
+PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp);
+
 /* -------------------------- WMI classes ---------------------------- */
 
 /***********************************************************************/

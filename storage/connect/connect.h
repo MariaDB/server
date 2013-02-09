@@ -24,7 +24,26 @@
 //typedef struct _tabdesc  *PTABD;        // For friend setting
 typedef struct _xinfo        *PXF;
 typedef struct _create_xinfo *PCXF;
+typedef class ha_connect     *PHC;
 typedef class TDBDOX         *PTDBDOX;
+
+/****************************************************************************/
+/*  CONNECT functions called externally.                                    */
+/****************************************************************************/
+bool  CntCheckDB(PGLOBAL g, PHC handler, const char *pathname);
+PTDB  CntGetTDB(PGLOBAL g, const char *name, MODE xmod, PHC);
+bool  CntOpenTable(PGLOBAL g, PTDB tdbp, MODE, char *, char *, bool, PHC);
+bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
+int   CntCloseTable(PGLOBAL g, PTDB tdbp);
+int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id);
+RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
+RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n);
+RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
+RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
+RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
+bool  CntInfo(PGLOBAL g, PTDB tdbp, PXF info);
+int   CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
+                    bool *incl, key_part_map *kmap);
 
 /***********************************************************************/
 /*  Definition of classes XCOLCRT, XIXDEF, XKPDEF, DOXDEF, TDBDOX      */
@@ -74,4 +93,4 @@ class XKPDEF: public KPARTDEF {
   bool   HasNulls;            /* Can have null values                  */
   }; // end of class XKPDEF
 
-RCODE CheckRecord(PGLOBAL g, PTDB tdbp, char *oldbuf, char *newbuf);
+//RCODE CheckRecord(PGLOBAL g, PTDB tdbp, char *oldbuf, char *newbuf);

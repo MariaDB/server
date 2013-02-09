@@ -12,6 +12,11 @@
 typedef class  TDBFMT    *PTDBFMT;
 
 /***********************************************************************/
+/*  Functions used externally.                                         */
+/***********************************************************************/
+PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
+
+/***********************************************************************/
 /*  CSV table.                                                         */
 /***********************************************************************/
 class DllExport CSVDEF : public DOSDEF { /* Logical table description  */

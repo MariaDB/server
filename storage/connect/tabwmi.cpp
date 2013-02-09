@@ -33,14 +33,6 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 /* ------------------- Functions WMI Column info --------------------- */
 
 /***********************************************************************/
-/*  Structure used by WMI column info functions.                       */
-/***********************************************************************/
-typedef struct _WMIutil {
-  IWbemServices    *Svc;
-  IWbemClassObject *Cobj;
-} WMIUTIL, *PWMIUT;
-
-/***********************************************************************/
 /*  Initialize WMI operations.                                         */
 /***********************************************************************/
 PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)

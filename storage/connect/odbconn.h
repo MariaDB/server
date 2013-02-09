@@ -5,6 +5,14 @@
 //nclude <windowsx.h>                          /* Message crackers     */
 
 /***********************************************************************/
+/*  Catalog function prototypes.                                       */
+/***********************************************************************/
+PQRYRES ODBCDataSources(PGLOBAL g, bool info);
+PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info);
+PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info);
+PQRYRES ODBCDrivers(PGLOBAL g, bool info);
+
+/***********************************************************************/
 /*  Included C-definition files required by the interface.             */
 /***********************************************************************/
 #include "block.h"
@@ -143,6 +151,7 @@ class ODBConn : public BLOCK {
   bool BindParam(ODBCCOL *colp);
   int  GetCatInfo(CATPARM *cap);
   bool GetDataSources(PQRYRES qrp);
+  bool GetDrivers(PQRYRES qrp);
 
  public:
   // Set special options
