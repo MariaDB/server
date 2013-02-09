@@ -1,0 +1,79 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MYSQL_TEST_DIR/suite/connect/std_data/contact.ini $MYSQLD_DATADIR/test/contact.ini
+
+--echo #
+--echo # Testing errors
+--echo #
+CREATE TABLE t1
+(
+  ID INT
+) Engine=CONNECT TABLE_TYPE=INI FILE_NAME='nonexistent.txt';
+--replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
+# TODO: check why this is needed for Windows
+--replace_result Open(rt) Open(rb)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Testing examples from the manual
+--echo #
+
+CREATE TABLE t1
+(
+  contact CHAR(16) flag=1,
+  name CHAR(20),
+  forename CHAR(32),
+  hired date date_format='DD/MM/YYYY',
+  address CHAR(64),
+  city CHAR(20),
+  zipcode CHAR(8),
+  tel CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini';
+SELECT contact, name, hired, city, tel FROM t1;
+
+UPDATE t1 SET forename= 'Harry' where contact='UK1';
+SELECT * FROM t1 WHERE contact='UK1';
+INSERT INTO t1 (contact,forename) VALUES ('UK1','Harrison');
+SELECT * FROM t1 WHERE contact='UK1';
+INSERT INTO t1 (contact,forename) VALUES ('UK2','John');
+SELECT * FROM t1 WHERE contact='UK2';
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/contact.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+
+CREATE TABLE t1
+(
+  section CHAR(16) flag=1,
+  keyname CHAR(16) flag=2,
+  value CHAR(32)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini'
+  OPTION_LIST='Layout=Row';
+UPDATE t1 SET value='Paul' WHERE section='UK2' AND keyname='forename';
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/contact.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');
+
+
+--echo #
+--echo # Testing that the underlying file is created
+--echo #
+CREATE TABLE t1
+(
+  contact CHAR(12) NOT NULL flag=1,
+  c2 CHAR(12) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='tmp.ini';
+INSERT INTO t1 VALUES (10,10),(20,20),(300,300),(4000,4000), ('a b','c d');
+SELECT * FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/tmp.ini
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.ini'),'\r\n','\n'),'\n\n','\n');
+
+#
+# Clean up
+#
+--remove_file $MYSQLD_DATADIR/test/contact.ini
+--remove_file $MYSQLD_DATADIR/test/tmp.ini
