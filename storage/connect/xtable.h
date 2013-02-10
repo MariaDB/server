@@ -15,9 +15,12 @@
 /***********************************************************************/
 #include "assert.h"
 #include "block.h"
+#include "colblk.h"
 
 //pedef class  INDEXDEF  *PIXDEF;
-typedef char *PFIL;                // Specific to CONNECT
+typedef char         *PFIL;                // Specific to CONNECT
+typedef class TDBCAT *PTDBCAT;
+typedef class CATCOL *PCATCOL;
 
 /***********************************************************************/
 /*  Definition of class TBX (pure virtual class for TDB and OPJOIN)    */
@@ -170,8 +173,8 @@ class DllExport TDBASE : public TDB {
   virtual bool   IsReadOnly(void) {return Read_Only;}
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
-  virtual PSZ     GetFile(PGLOBAL g) {return "Not a file";}
-  virtual int     GetRemote(void) {return 0;}
+  virtual PSZ    GetFile(PGLOBAL g) {return "Not a file";}
+  virtual int    GetRemote(void) {return 0;}
   virtual void   SetFile(PGLOBAL g, PSZ fn) {}
   virtual void   ResetDB(void) {}
   virtual void   ResetSize(void) {MaxSize = -1;}
@@ -197,5 +200,67 @@ class DllExport TDBASE : public TDB {
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
   }; // end of class TDBASE
+
+/***********************************************************************/
+/*  The abstract base class declaration for the catalog tables.        */
+/***********************************************************************/
+class TDBCAT : public TDBASE {
+  friend class CATCOL;
+ public:
+  // Constructor
+  TDBCAT(PTABDEF tdp);
+
+  // Implementation
+  virtual AMT  GetAmType(void) {return TYPE_AM_CAT;}
+
+  // Methods
+  virtual int  GetRecpos(void) {return N;}
+  virtual int  GetProgCur(void) {return N;}
+  virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+
+  // Database routines
+  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  GetMaxSize(PGLOBAL g);
+  virtual bool OpenDB(PGLOBAL g);
+  virtual int  ReadDB(PGLOBAL g);
+  virtual int  WriteDB(PGLOBAL g);
+  virtual int  DeleteDB(PGLOBAL g, int irc);
+  virtual void CloseDB(PGLOBAL g);
+
+ protected:
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g) = 0;
+          bool Initialize(PGLOBAL g);
+          bool InitCol(PGLOBAL g);
+
+  // Members
+  PQRYRES Qrp;           
+  int     N;                  // Row number
+  bool    Init;          
+  }; // end of class TDBCAT
+
+/***********************************************************************/
+/*  Class CATCOL: ODBC info column.                                    */
+/***********************************************************************/
+class CATCOL : public COLBLK {
+  friend class TDBCAT;
+ public:
+  // Constructors
+  CATCOL(PCOLDEF cdp, PTDB tdbp, int n);
+
+  // Implementation
+  virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
+
+  // Methods
+  virtual void ReadColumn(PGLOBAL g);
+
+ protected:
+  CATCOL(void) {}              // Default constructor not to be used
+
+  // Members
+  PTDBCAT Tdbp;                // Points to ODBC table block
+  PCOLRES Crp;                // The column data array
+  int     Flag;
+  }; // end of class CATCOL
 
 #endif  // TABLE_DEFINED

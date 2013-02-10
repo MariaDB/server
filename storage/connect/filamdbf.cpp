@@ -48,8 +48,6 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
-//#include "catalog.h"
-//#include "kindex.h"
 #include "filamdbf.h"
 #include "tabdos.h"
 #include "valblk.h"
@@ -64,12 +62,6 @@
 //efine MEMOLEN       10            /* length of memo field in .dbf         */
 #define DBFTYPE        3            /* value of bits 0 and 1 if .dbf        */
 #define EOH         0x0D            /* end-of-header marker in .dbf file    */
-
-/****************************************************************************/
-/*  Catalog utility function.                                               */
-/****************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL, int, int, int, int *, int *,
-                unsigned int *, bool blank = true, bool nonull = false);
 
 extern "C" int trace;                // The general trace value  
 
@@ -186,10 +178,12 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /****************************************************************************/
 PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   {
-  static int dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_INT,  DB_INT,  DB_SHORT};
-  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                         TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static int  dbtype[] = {DB_CHAR, DB_SHORT, DB_CHAR,
+                          DB_INT,  DB_INT,   DB_SHORT};
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                          TYPE_INT,    TYPE_INT,   TYPE_SHORT};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
+                          FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int length[] = {11, 6, 8, 10, 10, 6};
   char       buf[2], filename[_MAX_PATH];
   int        ncol = sizeof(dbtype) / sizeof(int);
@@ -204,35 +198,41 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   if (trace)
     htrc("DBFColumns: File %s\n", SVP(fn));
 
-  if (!fn) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
-    return NULL;
-    } // endif fn
+  if (!info) {
+    if (!fn) {
+      strcpy(g->Message, MSG(MISSING_FNAME));
+      return NULL;
+      } // endif fn
 
-  /**************************************************************************/
-  /*  Open the input file.                                                  */
-  /**************************************************************************/
-  PlugSetPath(filename, fn, PlgGetDataPath(g));
+    /************************************************************************/
+    /*  Open the input file.                                                */
+    /************************************************************************/
+    PlugSetPath(filename, fn, PlgGetDataPath(g));
 
-  if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
-    return NULL;
+    if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
+      return NULL;
 
-  /**************************************************************************/
-  /*  Get the first 32 bytes of the header.                                 */
-  /**************************************************************************/
-  if ((rc = dbfhead(g, infile, filename, &mainhead)) == RC_FX) {
-    fclose(infile);
-    return NULL;
-    } // endif dbfhead
+    /************************************************************************/
+    /*  Get the first 32 bytes of the header.                               */
+    /************************************************************************/
+    if ((rc = dbfhead(g, infile, filename, &mainhead)) == RC_FX) {
+      fclose(infile);
+      return NULL;
+      } // endif dbfhead
 
-  /**************************************************************************/
-  /*  Allocate the structures used to refer to the result set.              */
-  /**************************************************************************/
-//fields = (mainhead.Headlen - 33) / 32;
-  fields = mainhead.Fields;
+    /************************************************************************/
+    /*  Allocate the structures used to refer to the result set.            */
+    /************************************************************************/
+    fields = mainhead.Fields;
+  } else
+    fields = 0;
+
   qrp = PlgAllocResult(g, ncol, fields, IDS_COLUMNS + 3,
-                                        dbtype, buftyp, length);
-  qrp->Info = info || (rc == RC_INFO);
+                          dbtype, buftyp, fldtyp, length, true, false);
+//qrp->Info = info || (rc == RC_INFO);
+
+  if (info)
+    return qrp;
 
   if (trace) {
     htrc("Structure of %s\n", filename);
@@ -316,6 +316,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
   qrp->Nblin = field;
   fclose(infile);
 
+#if 0
   if (info) {
     /************************************************************************/
     /*  Prepare return message for dbfinfo command.                         */
@@ -330,6 +331,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *fn, BOOL info)
 
     strcat(g->Message, buf);
     } // endif info
+#endif // 0
 
   /**************************************************************************/
   /*  Return the result pointer for use by GetData routines.                */

@@ -100,83 +100,8 @@ extern int xtrace;
 /**************************************************************************/
 //bool  PlugCheckPattern(PGLOBAL, LPCSTR, LPCSTR);
 //#if !defined(WIN32)
-extern "C" int GetRcString(int id, char *buf, int bufsize);
 //#endif  // !WIN32
 //void  ptrc(char const *fmt, ...);
-
-/**************************************************************************/
-/*  Allocate the result structure that will contain result data.          */
-/**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, unsigned int *length,
-                       bool blank = false, bool nonull = false)
-  {
-  char     cname[NAM_LEN+1];
-  int      i;
-  PCOLRES *pcrp, crp;
-  PQRYRES  qrp;
-
-  /************************************************************************/
-  /*  Allocate the structure used to contain the result set.              */
-  /************************************************************************/
-  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
-  pcrp = &qrp->Colresp;
-  qrp->Continued = false;
-  qrp->Truncated = false;
-  qrp->Info = false;
-  qrp->Suball = true;
-  qrp->Maxres = maxres;
-  qrp->Maxsize = 0;
-  qrp->Nblin = 0;
-  qrp->Nbcol = 0;                                     // will be ncol
-  qrp->Cursor = 0;
-  qrp->BadLines = 0;
-
-  for (i = 0; i < ncol; i++) {
-    *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-    crp = *pcrp;
-    pcrp = &crp->Next;
-    crp->Colp = NULL;
-    crp->Ncol = ++qrp->Nbcol;
-    crp->Type = buftyp[i];
-    crp->Length = length[i];
-    crp->Clen = GetTypeSize(crp->Type, length[i]);
-    crp->Prec = 0;
-    crp->DBtype = dbtype[i];
-
-    if (ids > 0) {
-#if defined(XMSG)
-      // Get header from message file
-			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
-			cname[NAM_LEN] = 0;					// for truncated long names
-//#elif defined(WIN32)
-      // Get header from ressource file
-//    LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
-#else   // !WIN32
-      GetRcString(ids + crp->Ncol, cname, sizeof(cname));
-#endif  // !WIN32
-      crp->Name = (PSZ)PlugSubAlloc(g, NULL, strlen(cname) + 1);
-      strcpy(crp->Name, cname);
-    } else
-      crp->Name = NULL;           // Will be set by caller
-
-    // Allocate the Value Block that will contain data
-    if (crp->Length || nonull)
-      crp->Kdata = AllocValBlock(g, NULL, crp->Type, maxres,
-                                          crp->Length, 0, true, blank);
-    else
-      crp->Kdata = NULL;
-
-    if (g->Trace)
-      htrc("Column(%d) %s type=%d len=%d value=%p\n",
-              crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
-
-    } // endfor i
-
-  *pcrp = NULL;
-
-  return qrp;
-  } // end of PlgAllocResult
 
 /***********************************************************************/
 /*  Get a unique char identifier for types. The letter used are:       */
@@ -345,14 +270,14 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
 /***********************************************************************/
 int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	{
-	char		*type= GetStringCatInfo(g, NULL, "Type", "DOS");
+	char		 tc, *type= GetStringCatInfo(g, NULL, "Type", "DOS");
 	int      i, loff, poff, nof, nlg;
 	void    *field= NULL;
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   // Get a unique char identifier for type
-  char tc= GetTypeID(type);
+  tc= (!defp->Catfunc) ? GetTypeID(type) : 0;
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;

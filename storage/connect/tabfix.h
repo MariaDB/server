@@ -8,6 +8,7 @@
 #ifndef __TABFIX__
 #define __TABFIX__
 #include "tabdos.h"             /* Base class declares                 */
+#include "filamdbf.h"
 
 typedef class FIXCOL *PFIXCOL;
 typedef class BINCOL *PBINCOL;
@@ -77,4 +78,22 @@ class DllExport BINCOL : public DOSCOL {
   // Members
   char Fmt;                   // The column numeric format
   }; // end of class BINCOL
+
+/***********************************************************************/
+/*  This is the class declaration for the DBF columns catalog table.   */
+/***********************************************************************/
+class TDBDCL : public TDBCAT {
+ public:
+  // Constructor
+   TDBDCL(PDOSDEF tdp) : TDBCAT(tdp) {Fn = tdp->GetFn();}
+
+ protected:
+	// Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g) {return DBFColumns(g, Fn, false);}
+
+  // Members
+  char *Fn;                       // The DBF file (path) name
+  }; // end of class TDBOCL
+
+
 #endif // __TABFIX__

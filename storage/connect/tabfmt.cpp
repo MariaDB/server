@@ -1,7 +1,7 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.7                                                        */
+/*  Version 3.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -68,24 +68,21 @@
 extern "C" int trace;
 
 /***********************************************************************/
-/*  CSV Catalog utility functions.                                     */
-/***********************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL, int, int, int, int *, int *,
-                unsigned int *, bool blank = true, bool nonull = false);
-
-/***********************************************************************/
 /* CSVColumns: constructs the result blocks containing the description */
 /* of all the columns of a CSV file that will be retrieved by #GetData.*/
 /* Note: the algorithm to set the type is based on the internal values */
 /* of types (TYPE_STRING < TYPE_FLOAT < TYPE_INT) (1 < 2 < 7).         */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
+PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q,
+                   int hdr, int mxr, bool info)
   {
-  static int dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_INT,  DB_INT,  DB_SHORT};
-  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                         TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static int  dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
+                          DB_INT,  DB_INT,  DB_SHORT};
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                          TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
+                          FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int length[] = {6, 6, 8, 10, 10, 6};
   char   *p, *colname[MAXCOL], dechar, filename[_MAX_PATH], buf[4096];
   int     i, imax, hmax, n, nerr, phase, blank, digit, dec, type;
@@ -96,9 +93,15 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
   PQRYRES qrp;
   PCOLRES crp;
 
+  if (info) {
+    imax = 0;
+    length[0] = 128;
+    goto skipit;
+    } // endif info
+
 //      num_max = atoi(p+1);             // Max num of record to test
 #if defined(WIN32)
-  if (strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
+  if (sep == ',' || strnicmp(setlocale(LC_NUMERIC, NULL), "French", 6))
     dechar = '.';
   else
     dechar = ',';
@@ -328,6 +331,7 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
 
   fclose(infile);
 
+ skipit:
   if (trace)
     htrc("CSVColumns: imax=%d hmax=%d len=%d\n",
                       imax, hmax, length[0]);
@@ -336,8 +340,11 @@ PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr)
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
-                                      dbtype, buftyp, length);
+                          dbtype, buftyp, fldtyp, length, true, false);
   qrp->Nblin = imax;
+
+  if (info)
+    return qrp;
 
   /*********************************************************************/
   /*  Now get the results into blocks.                                 */
@@ -398,11 +405,12 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   char   buf[8];
 
   // Double check correctness of offset values
-  for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
-    if (cdp->GetOffset() < 1) {
-      strcpy(g->Message, MSG(BAD_OFFSET_VAL));
-      return true;
-      } // endif Offset
+  if (!Catfunc)
+    for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
+      if (cdp->GetOffset() < 1) {
+        strcpy(g->Message, MSG(BAD_OFFSET_VAL));
+        return true;
+        } // endif Offset
 
   // Call DOSDEF DefineAM with am=CSV so FMT is not confused with FIX
   if (DOSDEF::DefineAM(g, "CSV", poff))
@@ -431,47 +439,52 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   {
-  USETEMP tmp = PlgGetUser(g)->UseTemp;
-  bool    map = Mapped && mode != MODE_INSERT &&
-                !(tmp != TMP_NO && mode == MODE_UPDATE) &&
-                !(tmp == TMP_FORCE &&
-                (mode == MODE_UPDATE || mode == MODE_DELETE));
-  PTXF    txfp;
   PTDBASE tdbp;
 
-  /*********************************************************************/
-  /*  Allocate a file processing class of the proper type.             */
-  /*********************************************************************/
-  if (map) {
-    // Should be now compatible with UNIX
-    txfp = new(g) MAPFAM(this);
-  } else if (Compressed) {
+  if (Catfunc != 'C') {
+    USETEMP tmp = PlgGetUser(g)->UseTemp;
+    bool    map = Mapped && mode != MODE_INSERT &&
+                  !(tmp != TMP_NO && mode == MODE_UPDATE) &&
+                  !(tmp == TMP_FORCE &&
+                  (mode == MODE_UPDATE || mode == MODE_DELETE));
+    PTXF    txfp;
+
+    /*******************************************************************/
+    /*  Allocate a file processing class of the proper type.           */
+    /*******************************************************************/
+    if (map) {
+      // Should be now compatible with UNIX
+      txfp = new(g) MAPFAM(this);
+    } else if (Compressed) {
 #if defined(ZIP_SUPPORT)
-    if (Compressed == 1)
-      txfp = new(g) ZIPFAM(this);
-    else {
-      strcpy(g->Message, "Compress 2 not supported yet");
-//    txfp = new(g) ZLBFAM(defp);
-      return NULL;
-      } // endelse
+      if (Compressed == 1)
+        txfp = new(g) ZIPFAM(this);
+      else {
+        strcpy(g->Message, "Compress 2 not supported yet");
+//      txfp = new(g) ZLBFAM(defp);
+        return NULL;
+        } // endelse
 #else   // !ZIP_SUPPORT
-      strcpy(g->Message, "Compress not supported");
-      return NULL;
+        strcpy(g->Message, "Compress not supported");
+        return NULL;
 #endif  // !ZIP_SUPPORT
+    } else
+      txfp = new(g) DOSFAM(this);
+
+    /*******************************************************************/
+    /*  Allocate a TDB of the proper type.                             */
+    /*  Column blocks will be allocated only when needed.              */
+    /*******************************************************************/
+    if (!Fmtd)
+      tdbp = new(g) TDBCSV(this, txfp);
+    else
+      tdbp = new(g) TDBFMT(this, txfp);
+
+    if (Multiple)
+      tdbp = new(g) TDBMUL(tdbp);
+
   } else
-    txfp = new(g) DOSFAM(this);
-
-  /*********************************************************************/
-  /*  Allocate a TDB of the proper type.                               */
-  /*  Column blocks will be allocated only when needed.                */
-  /*********************************************************************/
-  if (!Fmtd)
-    tdbp = new(g) TDBCSV(this, txfp);
-  else
-    tdbp = new(g) TDBFMT(this, txfp);
-
-  if (Multiple)
-    tdbp = new(g) TDBMUL(tdbp);
+    tdbp = new(g)TDBCCL(this);
 
   return tdbp;
   } // end of GetTable
@@ -1388,5 +1401,27 @@ void CSVCOL::WriteColumn(PGLOBAL g)
     htrc(" col written: '%s'\n", p);
 
   } // end of WriteColumn
+
+/* ---------------------------TDBCCL class --------------------------- */
+
+/***********************************************************************/
+/*  TDBCCL class constructor.                                          */
+/***********************************************************************/
+TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
+  {
+  Fn  = tdp->GetFn();
+  Hdr = tdp->Header;
+  Mxr = tdp->Maxerr;
+  Qtd = tdp->Quoted;
+  Sep = tdp->Sep;     
+  } // end of TDBCCL constructor
+
+/***********************************************************************/
+/*  GetResult: Get the list the CSV file columns.                      */
+/***********************************************************************/
+PQRYRES TDBCCL::GetResult(PGLOBAL g)
+  {
+  return CSVColumns(g, Fn, Sep, Qtd, Hdr, Mxr, false);
+	} // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

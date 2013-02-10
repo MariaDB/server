@@ -1,7 +1,7 @@
 /************* TabMySQL C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABMYSQL                                               */
 /* -------------                                                        */
-/*  Version 1.5                                                         */
+/*  Version 1.6                                                         */
 /*                                                                      */
 /* AUTHOR:                                                              */
 /* -------                                                              */
@@ -105,7 +105,11 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB MYSQLDEF::GetTable(PGLOBAL g, MODE m)
   {
-  return new(g) TDBMYSQL(this);
+  if (Catfunc == 'C')
+    return new(g) TDBMCL(this);
+  else
+    return new(g) TDBMYSQL(this);
+
   } // end of GetTable
 
 /* ------------------------------------------------------------------- */
@@ -859,3 +863,26 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
     } // endif Prep
 
   } // end of WriteColumn
+
+/* ---------------------------TDBMCL class --------------------------- */
+
+/***********************************************************************/
+/*  TDBMCL class constructor.                                          */
+/***********************************************************************/
+TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
+  {
+  Host = tdp->Hostname;  
+  Db   = tdp->Database;    
+  Tab  = tdp->Tabname;    
+  User = tdp->Username;  
+  Pwd  = tdp->Password;   
+  Port = tdp->Portnumber;
+  } // end of TDBMCL constructor
+
+/***********************************************************************/
+/*  GetResult: Get the list the MYSQL table columns.                   */
+/***********************************************************************/
+PQRYRES TDBMCL::GetResult(PGLOBAL g)
+  {
+  return MyColumns(g, Host, Db, User, Pwd, Tab, NULL, Port, false, false);
+	} // end of GetResult

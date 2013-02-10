@@ -44,7 +44,6 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Tabowner;           /* External table owner                  */
   PSZ     Tabqual;            /* External table qualifier              */
   PSZ     Qchar;              /* Identifier quoting character          */
-  char    Catfunc;            /* Catalog function                      */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
   }; // end of ODBCDEF
@@ -164,127 +163,63 @@ class ODBCCOL : public COLBLK {
   }; // end of class ODBCCOL
 
 /***********************************************************************/
-/*  This is the base class declaration for the ODBC info tables.       */
-/***********************************************************************/
-class TDBOIF : public TDBASE {
-  friend class OIFCOL;
- public:
-  // Constructor
-  TDBOIF(PODEF tdp);
-
-  // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_ODBC;}
-
-  // Methods
-  virtual int  GetRecpos(void) {return N;}
-  virtual int  GetProgCur(void) {return N;}
-  virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
-
-  // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
-
- protected:
-  // Specific routines
-  virtual bool Initialize(PGLOBAL g) = 0;
-          bool InitCol(PGLOBAL g);
-
-  // Members
-  PQRYRES Qrp;           
-  int     ID;                 // Base of Column names
-  int     NC;                 // Number of valid flags
-  int     N;                  // Row number
-  bool    Init;          
-  }; // end of class TDBOIF
-
-/***********************************************************************/
-/*  Class OIFCOL: ODBC info column.                                    */
-/***********************************************************************/
-class OIFCOL : public COLBLK {
-  friend class TDBOIF;
- public:
-  // Constructors
-  OIFCOL(PCOLDEF cdp, PTDB tdbp, int n);
-
-  // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_ODBC;}
-
-  // Methods
-  virtual void ReadColumn(PGLOBAL g);
-
- protected:
-  OIFCOL(void) {}              // Default constructor not to be used
-
-  // Members
-  PTDBOIF Tdbp;                // Points to ODBC table block
-  PCOLRES Crp;                // The column data array
-  int     Flag;
-  }; // end of class OIFCOL
-
-/***********************************************************************/
 /*  This is the class declaration for the Data Sources catalog table.  */
 /***********************************************************************/
-class TDBSRC : public TDBOIF {
+class TDBSRC : public TDBCAT {
  public:
   // Constructor
-  TDBSRC(PODEF tdp) : TDBOIF(tdp) {ID = IDS_DSRC; NC = 2;}
+  TDBSRC(PODEF tdp) : TDBCAT(tdp) {}
 
  protected:
 	// Specific routines
-	virtual bool Initialize(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g);
 
   }; // end of class TDBSRC
 
 /***********************************************************************/
 /*  This is the class declaration for the Drivers catalog table.       */
 /***********************************************************************/
-class TDBDRV : public TDBOIF {
+class TDBDRV : public TDBCAT {
  public:
   // Constructor
-  TDBDRV(PODEF tdp) : TDBOIF(tdp) {ID = IDS_DRIVER; NC = 2;}
+  TDBDRV(PODEF tdp) : TDBCAT(tdp) {}
 
  protected:
 	// Specific routines
-	virtual bool Initialize(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g);
 
   }; // end of class TDBDRV
 
 /***********************************************************************/
-/*  This is the class declaration for the columns catalog table.       */
-/***********************************************************************/
-class TDBOCL : public TDBOIF {
- public:
-  // Constructor
-  TDBOCL(PODEF tdp);
-
- protected:
-	// Specific routines
-	virtual bool Initialize(PGLOBAL g);
-
-  // Members
-  char    *Dsn;               // Points to connection string
-  char    *Tabn;              // Points to ODBC table name
-  }; // end of class TDBOCL
-
-/***********************************************************************/
 /*  This is the class declaration for the tables catalog table.        */
 /***********************************************************************/
-class TDBOTB : public TDBOIF {
+class TDBOTB : public TDBCAT {
  public:
   // Constructor
   TDBOTB(PODEF tdp);
 
  protected:
 	// Specific routines
-	virtual bool Initialize(PGLOBAL g);
+	virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
   char    *Dsn;               // Points to connection string
-  char    *Tabpat;            // Points to ODBC table pattern
+  char    *Tab;               // Points to ODBC table name or pattern
   }; // end of class TDBOTB
+
+/***********************************************************************/
+/*  This is the class declaration for the columns catalog table.       */
+/***********************************************************************/
+class TDBOCL : public TDBOTB {
+ public:
+  // Constructor
+   TDBOCL(PODEF tdp) : TDBOTB(tdp) {}
+
+ protected:
+	// Specific routines
+	virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  }; // end of class TDBOCL
+
 #endif  // !NODBC

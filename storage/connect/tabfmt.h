@@ -1,7 +1,7 @@
 /*************** TabFmt H Declares Source Code File (.H) ***************/
-/*  Name: TABFMT.H    Version 2.2                                      */
+/*  Name: TABFMT.H    Version 2.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
 /*  This file contains the CSV and FMT classes declares.               */
 /***********************************************************************/
@@ -14,14 +14,15 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q, int hdr, int mxr);
+PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q,
+                   int hdr, int mxr, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */
 /***********************************************************************/
 class DllExport CSVDEF : public DOSDEF { /* Logical table description  */
   friend class TDBCSV;
-//friend class TDBMCV;
+  friend class TDBCCL;
  public:
   // Constructor
   CSVDEF(void);
@@ -160,10 +161,30 @@ class TDBFMT : public TDBCSV {
 
  protected:
   // Members
-  PSZ  *FldFormat;                           // Field read format
-  void *To_Fld;                              // To field test buffer
-  int  *FmtTest;                             // Test on ending by %n or %m
-  int   Linenum;                             // Last read line
+  PSZ  *FldFormat;                      // Field read format
+  void *To_Fld;                         // To field test buffer
+  int  *FmtTest;                        // Test on ending by %n or %m
+  int   Linenum;                        // Last read line
   }; // end of class TDBFMT
+
+/***********************************************************************/
+/*  This is the class declaration for the CSV catalog table.           */
+/***********************************************************************/
+class TDBCCL : public TDBCAT {
+ public:
+  // Constructor
+  TDBCCL(PCSVDEF tdp);
+
+ protected:
+	// Specific routines
+	virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  char   *Fn;                     // The CSV file (path) name
+  bool    Hdr;                    // true if first line contains headers
+  int     Mxr;                    // Maximum number of bad records
+  int     Qtd;                    // Quoting level for quoted fields
+  char    Sep;                    // Separator for standard CSV files 
+  }; // end of class TDBCCL
 
 /* ------------------------- End of TabFmt.H ------------------------- */

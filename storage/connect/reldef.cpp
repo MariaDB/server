@@ -74,6 +74,7 @@ TABDEF::TABDEF(void)
   {
   Owner = NULL;
   Desc = NULL;
+  Catfunc = 0;
   Card = 0;
   Elemt = 0;
   Sort = 0;
@@ -95,6 +96,7 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   Name = (PSZ)PlugSubAlloc(g, memp, strlen(name) + 1);
   strcpy(Name, name);
   Cat = cat;
+  Catfunc = toupper(*Cat->GetStringCatInfo(g, Name, "Catfunc", ""));
   Elemt = cat->GetIntCatInfo(name, "Elements", 0);
   Multiple = cat->GetIntCatInfo(name, "Multiple", 0);
   Degree = cat->GetIntCatInfo(name, "Degree", 0);

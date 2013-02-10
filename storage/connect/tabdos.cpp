@@ -297,12 +297,16 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
   if (Recfm == RECFM_DBF) {
-    if (map)
-      txfp = new(g) DBMFAM(this);
-    else
-      txfp = new(g) DBFFAM(this);
+    if (!Catfunc) {
+      if (map)
+        txfp = new(g) DBMFAM(this);
+      else
+        txfp = new(g) DBFFAM(this);
 
-    tdbp = new(g) TDBFIX(this, txfp);
+      tdbp = new(g) TDBFIX(this, txfp);
+    } else                   // Catfunc should be 'C'
+      tdbp = new(g) TDBDCL(this);
+
   } else if (Recfm != RECFM_VAR && Compressed < 2) {
     if (Huge)
       txfp = new(g) BGXFAM(this);
