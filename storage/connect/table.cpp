@@ -1,7 +1,7 @@
 /************** Table C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABLE.CPP  Version 2.5                                       */
+/*  Name: TABLE.CPP  Version 2.6                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2013    */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -425,3 +425,180 @@ void TDBASE::MarkDB(PGLOBAL g, PTDB tdb2)
     htrc("DOS MarkDB: tdbp=%p tdb2=%p\n", this, tdb2);
 
   } // end of MarkDB
+
+/* ---------------------------TDBCAT class --------------------------- */
+
+/***********************************************************************/
+/*  Implementation of the TDBCAT class.                                */
+/***********************************************************************/
+TDBCAT::TDBCAT(PTABDEF tdp) : TDBASE(tdp)
+  {
+  Qrp = NULL;
+  Init = false;
+  N = -1;
+  } // end of TDBCAT constructor
+
+/***********************************************************************/
+/*  Allocate CAT column description block.                             */
+/***********************************************************************/
+PCOL TDBCAT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+  {
+  PCATCOL colp;
+
+  colp = (PCATCOL)new(g) CATCOL(cdp, this, n);
+
+  if (cprec) {
+    colp->SetNext(cprec->GetNext());
+    cprec->SetNext(colp);
+  } else {
+    colp->SetNext(Columns);
+    Columns = colp;
+  } // endif cprec
+
+  return colp;
+  } // end of MakeCol
+
+/***********************************************************************/
+/*  Initialize: Get the result query block.                            */
+/***********************************************************************/
+bool TDBCAT::Initialize(PGLOBAL g)
+  {
+	if (Init)
+		return false;
+
+  if (!(Qrp = GetResult(g)))
+    return true;
+
+	Init = true;
+	return false;
+	} // end of Initialize
+
+/***********************************************************************/
+/*  CAT: Get the number of properties.                                 */
+/***********************************************************************/
+int TDBCAT::GetMaxSize(PGLOBAL g)
+  {
+  if (MaxSize < 0) {
+    if (Initialize(g))
+      return -1;
+
+    MaxSize = Qrp->Nblin;
+    } // endif MaxSize
+
+  return MaxSize;
+  } // end of GetMaxSize
+
+/***********************************************************************/
+/*  CAT Access Method opening routine.                                 */
+/***********************************************************************/
+bool TDBCAT::OpenDB(PGLOBAL g)
+  {
+  if (Use == USE_OPEN) {
+    /*******************************************************************/
+    /*  Table already open.                                            */
+    /*******************************************************************/
+    N = -1;
+    return false;
+    } // endif use
+
+  if (Mode != MODE_READ) {
+    /*******************************************************************/
+    /* ODBC Info tables cannot be modified.                            */
+    /*******************************************************************/
+    strcpy(g->Message, "CAT tables are read only");
+    return true;
+    } // endif Mode
+
+  /*********************************************************************/
+  /*  Initialize the ODBC processing.                                  */
+  /*********************************************************************/
+  if (Initialize(g))
+    return true;
+
+  return InitCol(g);
+  } // end of OpenDB
+
+/***********************************************************************/
+/*  Initialize columns.                                                */
+/***********************************************************************/
+bool TDBCAT::InitCol(PGLOBAL g)
+  {
+  PCATCOL colp;
+  PCOLRES crp;
+
+  for (colp = (PCATCOL)Columns; colp; colp = (PCATCOL)colp->GetNext()) {
+    for (crp = Qrp->Colresp; crp; crp = crp->Next)
+      if ((colp->Flag == crp->Ncol) ||
+         (!colp->Flag && !stricmp(colp->Name, crp->Name))) {
+        colp->Crp = crp;
+        break;
+        } // endif Flag
+
+
+    if (!colp->Crp /*&& !colp->GetValue()->IsConstant()*/) {
+      sprintf(g->Message, "Invalid flag %d for column %s",
+                          colp->Flag, colp->Name);
+      return true;
+      } // endif Crp
+
+    } // endfor colp
+
+  return false;
+  } // end of InitCol
+
+/***********************************************************************/
+/*  Data Base read routine for CAT access method.                      */
+/***********************************************************************/
+int TDBCAT::ReadDB(PGLOBAL g)
+  {
+  return (++N < Qrp->Nblin) ? RC_OK : RC_EF;
+  } // end of ReadDB
+
+/***********************************************************************/
+/*  WriteDB: Data Base write routine for CAT access methods.           */
+/***********************************************************************/
+int TDBCAT::WriteDB(PGLOBAL g)
+  {
+  strcpy(g->Message, "CAT tables are read only");
+  return RC_FX;
+  } // end of WriteDB
+
+/***********************************************************************/
+/*  Data Base delete line routine for CAT access methods.              */
+/***********************************************************************/
+int TDBCAT::DeleteDB(PGLOBAL g, int irc)
+  {
+  strcpy(g->Message, "Delete not enabled for CAT tables");
+  return RC_FX;
+  } // end of DeleteDB
+
+/***********************************************************************/
+/*  Data Base close routine for WMI access method.                     */
+/***********************************************************************/
+void TDBCAT::CloseDB(PGLOBAL g)
+  {
+  // Nothing to do
+  } // end of CloseDB
+
+// ------------------------ CATCOL functions ----------------------------
+
+/***********************************************************************/
+/*  CATCOL public constructor.                                         */
+/***********************************************************************/
+CATCOL::CATCOL(PCOLDEF cdp, PTDB tdbp, int n)
+      : COLBLK(cdp, tdbp, n)
+  {
+  Tdbp = (PTDBCAT)tdbp;
+  Crp = NULL;
+  Flag = cdp->GetOffset();
+  } // end of WMICOL constructor
+
+/***********************************************************************/
+/*  Read the next Data Source elements.                                */
+/***********************************************************************/
+void CATCOL::ReadColumn(PGLOBAL g)
+  {
+  // Get the value of the Name or Description property
+  Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
+  } // end of ReadColumn
+

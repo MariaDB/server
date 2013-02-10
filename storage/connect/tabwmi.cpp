@@ -23,13 +23,6 @@
 
 extern "C" int trace;
 
-/**************************************************************************/
-/*  Allocate the result structure that will contain result data.          */
-/**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, unsigned int *length,
-                       bool blank = true, bool nonull = true);
-
 /* ------------------- Functions WMI Column info --------------------- */
 
 /***********************************************************************/
@@ -140,82 +133,90 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
 /* WMIColumns: constructs the result blocks containing the description */
 /* of all the columns of a WMI table of a specified class.             */
 /***********************************************************************/
-PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp)
+PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   {
-  static int dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_INT,  DB_INT,  DB_SHORT};
-  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                         TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static int  dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
+                          DB_INT,  DB_INT,  DB_SHORT};
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                          TYPE_INT,   TYPE_INT, TYPE_SHORT};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
+                          FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int len, length[] = {0, 6, 8, 10, 10, 6};
   int     i = 0, n = 0, ncol = sizeof(dbtype) / sizeof(int);
   int     lng, typ, prec;
   LONG    low, upp;
-  BOOL    b1, b2 = TRUE;
   BSTR    propname;
   VARIANT val;
   CIMTYPE type;
   HRESULT res;
+  PWMIUT  wp; 
   SAFEARRAY *prnlist = NULL;
   PQRYRES qrp = NULL;
   PCOLRES crp;
 
-  /*********************************************************************/
-  /*  Initialize WMI if not done yet.                                  */
-  /*********************************************************************/
-  if ((b1 = !wp) && !(wp = InitWMI(g, nsp, classname)))
-    return NULL;
+  if (!info) {
+    /*******************************************************************/
+    /*  Initialize WMI if not done yet.                                */
+    /*******************************************************************/
+    if (!(wp = InitWMI(g, nsp, cls)))
+      return NULL;
 
-  /*********************************************************************/
-  /*  Get the number of properties to return.                           */
-  /*********************************************************************/
-  res = wp->Cobj->Get(bstr_t("__Property_Count"), 0, &val, NULL, NULL);
-
-  if (FAILED(res)) {
-    sprintf(g->Message, "failed Get(__Property_Count) res=%d\n", res);
-    goto err;
-    }  // endif res
-
-  if (!(n = val.lVal)) {
-    sprintf(g->Message, "Class %s in %s has no properties\n",
-                        classname, nsp);
-    goto err;
-    }  // endif res
-
-  /*********************************************************************/
-  /*  Get max property name length.                                     */
-  /*********************************************************************/
-  res = wp->Cobj->GetNames(NULL, 
-        WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY, 
-        NULL, &prnlist);
-
-  if (FAILED(res)) {
-    sprintf(g->Message, "failed GetNames res=%d\n", res);
-    goto err;
-    }  // endif res
-
-  res = SafeArrayGetLBound(prnlist, 1, &low);
-  res = SafeArrayGetUBound(prnlist, 1, &upp);
-
-  for (long i = low; i <= upp; i++) {
-    // Get this property name.
-    res = SafeArrayGetElement(prnlist, &i, &propname);
+    /*******************************************************************/
+    /*  Get the number of properties to return.                        */
+    /*******************************************************************/
+    res = wp->Cobj->Get(bstr_t("__Property_Count"), 0, &val, NULL, NULL);
 
     if (FAILED(res)) {
-      sprintf(g->Message, "failed GetArrayElement res=%d\n", res);
+      sprintf(g->Message, "failed Get(__Property_Count) res=%d\n", res);
       goto err;
       }  // endif res
 
-    len = (unsigned)SysStringLen(propname);
-    length[0] = max(length[0], len);
-    } // enfor i
+    if (!(n = val.lVal)) {
+      sprintf(g->Message, "Class %s in %s has no properties\n",
+                          cls, nsp);
+      goto err;
+      }  // endif res
 
-  res = SafeArrayDestroy(prnlist);
+    /*******************************************************************/
+    /*  Get max property name length.                                  */
+    /*******************************************************************/
+    res = wp->Cobj->GetNames(NULL, 
+          WBEM_FLAG_ALWAYS | WBEM_FLAG_NONSYSTEM_ONLY, 
+          NULL, &prnlist);
+
+    if (FAILED(res)) {
+      sprintf(g->Message, "failed GetNames res=%d\n", res);
+      goto err;
+      }  // endif res
+
+    res = SafeArrayGetLBound(prnlist, 1, &low);
+    res = SafeArrayGetUBound(prnlist, 1, &upp);
+
+    for (long i = low; i <= upp; i++) {
+      // Get this property name.
+      res = SafeArrayGetElement(prnlist, &i, &propname);
+
+      if (FAILED(res)) {
+        sprintf(g->Message, "failed GetArrayElement res=%d\n", res);
+        goto err;
+        }  // endif res
+
+      len = (unsigned)SysStringLen(propname);
+      length[0] = max(length[0], len);
+      } // enfor i
+
+    res = SafeArrayDestroy(prnlist);
+  } else
+    length[0] = 128;
 
   /*********************************************************************/
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                                   dbtype, buftyp, length);
+                          dbtype, buftyp, fldtyp, length, true, true);
+
+  if (info)
+    return qrp;
 
   /*********************************************************************/
   /*  Now get the results into blocks.                                 */
@@ -309,16 +310,13 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *classname, PWMIUT wp)
     } // endfor i
 
   qrp->Nblin = i;
-  b2 = b1;
 
  err:
-  if (b2) {
-    // Cleanup
-    wp->Cobj->Release();
-    wp->Svc->Release();
-    wp->Svc = NULL;    // MUST be set to NULL  (why?)
-    CoUninitialize();
-    } // endif b
+  // Cleanup
+  wp->Cobj->Release();
+  wp->Svc->Release();
+  wp->Svc = NULL;    // MUST be set to NULL  (why?)
+  CoUninitialize();
 
   /*********************************************************************/
   /*  Return the result pointer for use by GetData routines.           */
@@ -346,7 +344,7 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Wclass = strcat(strcpy(p, "Win32_"), Wclass);
   } // endif Wclass
 
-  if (!(Info = Cat->GetBoolCatInfo(Name, "Info", false)))
+  if (!Catfunc)
     Ems = Cat->GetIntCatInfo(Name, "Estimate", 100);
 
   return false;
@@ -357,17 +355,19 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB WMIDEF::GetTable(PGLOBAL g, MODE m)
   {
-  if (Info)
-    return new(g) TDBWCL(this);
-  else
+  if (!Catfunc)
     return new(g) TDBWMI(this);
+  else if (Catfunc == 'C')
+    return new(g) TDBWCL(this);
 
+  sprintf(g->Message, "Bad catfunc %c for WMI", Catfunc);
+  return NULL;
   } // end of GetTable
 
 /* ------------------------------------------------------------------- */
 
 /***********************************************************************/
-/*  Implementation of the TDBWMI class.                               */
+/*  Implementation of the TDBWMI class.                                */
 /***********************************************************************/
 TDBWMI::TDBWMI(PWMIDEF tdp) : TDBASE(tdp)
   {
@@ -826,320 +826,20 @@ void WMICOL::ReadColumn(PGLOBAL g)
 /* ---------------------------TDBWCL class --------------------------- */
 
 /***********************************************************************/
-/*  Implementation of the TDBWCL class.                                */
+/*  TDBWCL class constructor.                                          */
 /***********************************************************************/
-TDBWCL::TDBWCL(PWMIDEF tdp) : TDBASE(tdp)
+TDBWCL::TDBWCL(PWMIDEF tdp) : TDBCAT(tdp)
   {
-  Svc = NULL;
-  ClsObj = NULL;
-  Propname = NULL;
-  Nspace = tdp->Nspace;
-  Wclass = tdp->Wclass;
-  Init = false;
-  Done = false;
-  Res = 0;
-  N = -1;
-  Lng = 0;
-  Typ = 0;
-  Prec = 0;
+  Nsp = tdp->Nspace; 
+  Cls = tdp->Wclass;
   } // end of TDBWCL constructor
 
 /***********************************************************************/
-/*  Allocate WCL column description block.                             */
+/*  GetResult: Get the list of the WMI class properties.               */
 /***********************************************************************/
-PCOL TDBWCL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+PQRYRES TDBWCL::GetResult(PGLOBAL g)
   {
-  PWCLCOL colp;
+  return WMIColumns(g, Nsp, Cls, false);
+	} // end of GetResult
 
-  colp = (PWCLCOL)new(g) WCLCOL(cdp, this, n);
 
-  if (cprec) {
-    colp->SetNext(cprec->GetNext());
-    cprec->SetNext(colp);
-  } else {
-    colp->SetNext(Columns);
-    Columns = colp;
-  } // endif cprec
-
-  if (!colp->Flag) {
-    if (!stricmp(colp->Name, "Column_Name"))
-      colp->Flag = 1;
-    else if (!stricmp(colp->Name, "Data_Type"))
-      colp->Flag = 2;
-    else if (!stricmp(colp->Name, "Type_Name"))
-      colp->Flag = 3;
-    else if (!stricmp(colp->Name, "Precision"))
-      colp->Flag = 4;
-    else if (!stricmp(colp->Name, "Length"))
-      colp->Flag = 5;
-    else if (!stricmp(colp->Name, "Scale"))
-      colp->Flag = 6;
-
-    } // endif Flag
-
-  return colp;
-  } // end of MakeCol
-
-/***********************************************************************/
-/*  Initialize: Initialize WMI operations.                             */
-/***********************************************************************/
-bool TDBWCL::Initialize(PGLOBAL g)
-  {
-  if (Init)
-    return false;
-
-  // Initialize COM.
-  Res = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-
-  if (FAILED(Res)) {
-    sprintf(g->Message, "Failed to initialize COM library. " 
-            "Error code = %p", Res);
-    return true;              // Program has failed.
-    } // endif Res
-
-  // Obtain the initial locator to Windows Management
-  // on a particular host computer.
-  IWbemLocator *loc;        // Initial Windows Management locator
-
-  Res = CoCreateInstance(CLSID_WbemLocator, 0,  CLSCTX_INPROC_SERVER, 
-                         IID_IWbemLocator, (LPVOID*) &loc);
- 
-  if (FAILED(Res)) {
-    sprintf(g->Message, "Failed to create Locator. " 
-                        "Error code = %p", Res);
-    CoUninitialize();
-    return true;       // Program has failed.
-    }  // endif Res
-
-  // Connect to the specified namespace with the
-  // current user and obtain pointer to Svc
-  // to make IWbemServices calls.
-  Res = loc->ConnectServer(_bstr_t(Nspace),
-                             NULL, NULL,0, NULL, 0, 0, &Svc);
-  
-  if (FAILED(Res)) {
-    sprintf(g->Message, "Could not connect. Error code = %p", Res); 
-    loc->Release();     
-    CoUninitialize();
-    return true;                // Program has failed.
-    }  // endif hres
-
-  loc->Release();                // Not used anymore
-
-  // Perform a full class object retrieval
-  Res = Svc->GetObject(bstr_t(Wclass), 0, 0, &ClsObj, 0);
-
-  if (FAILED(Res)) {
-    sprintf(g->Message, "failed GetObject %s in %s\n", Wclass, Nspace);
-    Svc->Release();
-    Svc = NULL;    // MUST be set to NULL  (why?)
-    return true;
-    }  // endif res
-
-  Init = true;
-  return false;
-  } // end of Initialize
-
-/***********************************************************************/
-/*  WCL: Get the number of properties.                                 */
-/***********************************************************************/
-int TDBWCL::GetMaxSize(PGLOBAL g)
-  {
-  if (MaxSize < 0) {
-    VARIANT val;
-
-    if (Initialize(g))
-      return -1;
-
-    Res = ClsObj->Get(bstr_t("__Property_Count"), 0, &val, NULL, NULL);
-
-    if (FAILED(Res)) {
-      sprintf(g->Message, "failed Get(Property_Count) res=%d\n", Res);
-      return -1;
-      }  // endif Res
-
-    MaxSize = val.lVal;
-    } // endif MaxSize
-
-  return MaxSize;
-  } // end of GetMaxSize
-
-/***********************************************************************/
-/*  WCL Access Method opening routine.                                 */
-/***********************************************************************/
-bool TDBWCL::OpenDB(PGLOBAL g)
-  {
-  if (Use == USE_OPEN) {
-    /*******************************************************************/
-    /*  Table already open.                                            */
-    /*******************************************************************/
-    ClsObj->BeginEnumeration(WBEM_FLAG_NONSYSTEM_ONLY);
-    N = 0;
-    return false;
-    } // endif use
-
-  if (Mode != MODE_READ) {
-    /*******************************************************************/
-    /* WMI tables cannot be modified.                                  */
-    /*******************************************************************/
-    strcpy(g->Message, "WCL tables are read only");
-    return true;
-    } // endif Mode
-
-  /*********************************************************************/
-  /*  Initialize the WMI processing.                                   */
-  /*********************************************************************/
-  if (Initialize(g))
-    return true;
-
-  Res = ClsObj->BeginEnumeration(WBEM_FLAG_NONSYSTEM_ONLY);
-
-  if (FAILED(Res)) {
-    sprintf(g->Message, "failed BeginEnumeration hr=%d\n", Res);
-    return NULL;
-    }  // endif hr
-
-  return false;
-  } // end of OpenDB
-
-/***********************************************************************/
-/*  Data Base read routine for WCL access method.                      */
-/***********************************************************************/
-int TDBWCL::ReadDB(PGLOBAL g)
-  {
-  VARIANT val;
-  CIMTYPE type;
-
-  Res = ClsObj->Next(0, &Propname, &val, &type, NULL);
-
-  if (FAILED(Res)) {
-    sprintf(g->Message, "failed getting Next hr=%d\n", Res);
-    return RC_FX;
-  }  else if (Res == WBEM_S_NO_MORE_DATA) {
-    VariantClear(&val);
-    return RC_EF;
-  } // endif res
-
-  Prec = 0;
-
-  switch (type) {
-    case CIM_STRING:
-      Typ = TYPE_STRING;
-      Lng = 255;
-      Prec = 1;   // Case insensitive
-      break;
-    case CIM_SINT32:                          
-    case CIM_UINT32:
-    case CIM_BOOLEAN:
-      Typ = TYPE_INT;
-      Lng = 9;
-      break;
-    case CIM_SINT8:
-    case CIM_UINT8:
-    case CIM_SINT16:
-    case CIM_UINT16:
-      Typ = TYPE_SHORT;
-      Lng = 6;
-      break;
-    case CIM_REAL64:
-    case CIM_REAL32:
-      Prec = 2;
-    case CIM_SINT64:
-    case CIM_UINT64:
-      Typ = TYPE_FLOAT;
-      Lng = 15;
-      break;
-    case CIM_DATETIME:
-      Typ = TYPE_DATE;
-      Lng = 19;
-      break;
-    case CIM_CHAR16:
-      Typ = TYPE_STRING;
-      Lng = 16;
-      break;
-    case CIM_EMPTY:
-      Typ = TYPE_STRING;
-      Lng = 24;             // ???
-      break;
-    default:
-      return RC_NF;
-    } // endswitch type
-
-  N++;
-  return RC_OK;
-  } // end of ReadDB
-
-/***********************************************************************/
-/*  WriteDB: Data Base write routine for WCL access methods.           */
-/***********************************************************************/
-int TDBWCL::WriteDB(PGLOBAL g)
-  {
-  strcpy(g->Message, "WCL tables are read only");
-  return RC_FX;
-  } // end of WriteDB
-
-/***********************************************************************/
-/*  Data Base delete line routine for WCL access methods.              */
-/***********************************************************************/
-int TDBWCL::DeleteDB(PGLOBAL g, int irc)
-  {
-  strcpy(g->Message, "Delete not enabled for WCL tables");
-  return RC_FX;
-  } // end of DeleteDB
-
-/***********************************************************************/
-/*  Data Base close routine for WMI access method.                     */
-/***********************************************************************/
-void TDBWCL::CloseDB(PGLOBAL g)
-  {
-  // Cleanup
-  if (ClsObj)
-    ClsObj->Release();
-
-  if (Svc)
-    Svc->Release();
-
-  CoUninitialize();
-  } // end of CloseDB
-
-// ------------------------ WCLCOL functions ----------------------------
-
-/***********************************************************************/
-/*  WCLCOL public constructor.                                         */
-/***********************************************************************/
-WCLCOL::WCLCOL(PCOLDEF cdp, PTDB tdbp, int n)
-      : COLBLK(cdp, tdbp, n)
-  {
-  Tdbp = (PTDBWCL)tdbp;
-  Flag = cdp->GetOffset();
-  Res = 0;
-  } // end of WMICOL constructor
-
-/***********************************************************************/
-/*  Read the next WCL elements.                                        */
-/***********************************************************************/
-void WCLCOL::ReadColumn(PGLOBAL g)
-  {
-  // Get the value of the Name property
-  switch (Flag) {
-    case 1:
-      Value->SetValue_psz(_com_util::ConvertBSTRToString(Tdbp->Propname));
-      break;
-    case 2:
-      Value->SetValue(Tdbp->Typ);
-      break;
-    case 3:
-      Value->SetValue_psz(GetTypeName(Tdbp->Typ));
-      break;
-    case 4:
-    case 5:
-      Value->SetValue(Tdbp->Lng);
-      break;
-    case 6:
-      Value->SetValue(Tdbp->Prec);
-      break;
-    default:
-      Value->Reset();
-    } // endswitch Flag
-
-  } // end of ReadColumn

@@ -89,7 +89,6 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 ODBCDEF::ODBCDEF(void)
   {
   Connect = Tabname = Tabowner = Tabqual = Qchar = NULL;
-  Catfunc = 0;
   Catver = Options = 0; 
   }  // end of ODBCDEF constructor
 
@@ -101,7 +100,6 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   int    dop = ODBConn::noOdbcDialog;    // Default for options
 
   Desc = Connect = Cat->GetStringCatInfo(g, Name, "Connect", "");
-  Catfunc = toupper(*Cat->GetStringCatInfo(g, Name, "Catfunc", ""));
   Tabname = Cat->GetStringCatInfo(g, Name, "Name",
                                   Catfunc == 'T' ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
@@ -905,259 +903,53 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
 
   } // end of WriteColumn
 
-/* ---------------------------TDBOIF class --------------------------- */
-
-/***********************************************************************/
-/*  Implementation of the TDBOIF class.                                */
-/***********************************************************************/
-TDBOIF::TDBOIF(PODEF tdp) : TDBASE(tdp)
-  {
-  Qrp = NULL;
-  ID = 0;
-  NC = 0;
-  Init = false;
-  N = -1;
-  } // end of TDBOIF constructor
-
-/***********************************************************************/
-/*  Allocate OIF column description block.                             */
-/***********************************************************************/
-PCOL TDBOIF::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
-  {
-  POIFCOL colp;
-
-  colp = (POIFCOL)new(g) OIFCOL(cdp, this, n);
-
-  if (cprec) {
-    colp->SetNext(cprec->GetNext());
-    cprec->SetNext(colp);
-  } else {
-    colp->SetNext(Columns);
-    Columns = colp;
-  } // endif cprec
-
-  for (int i = 1; !colp->Flag && i <= NC; i++)
-		if (!stricmp(colp->Name, GetMsgid(ID + i)))
- 			colp->Flag = i;
-
-  return colp;
-  } // end of MakeCol
-
-/***********************************************************************/
-/*  OIF: Get the number of properties.                                 */
-/***********************************************************************/
-int TDBOIF::GetMaxSize(PGLOBAL g)
-  {
-  if (MaxSize < 0) {
-    if (Initialize(g))
-      return -1;
-
-    MaxSize = Qrp->Nblin;
-    } // endif MaxSize
-
-  return MaxSize;
-  } // end of GetMaxSize
-
-/***********************************************************************/
-/*  OIF Access Method opening routine.                                 */
-/***********************************************************************/
-bool TDBOIF::OpenDB(PGLOBAL g)
-  {
-  if (Use == USE_OPEN) {
-    /*******************************************************************/
-    /*  Table already open.                                            */
-    /*******************************************************************/
-    N = -1;
-    return false;
-    } // endif use
-
-  if (Mode != MODE_READ) {
-    /*******************************************************************/
-    /* ODBC Info tables cannot be modified.                            */
-    /*******************************************************************/
-    strcpy(g->Message, "OIF tables are read only");
-    return true;
-    } // endif Mode
-
-  /*********************************************************************/
-  /*  Initialize the ODBC processing.                                  */
-  /*********************************************************************/
-  if (Initialize(g))
-    return true;
-
-  return InitCol(g);
-  } // end of OpenDB
-
-/***********************************************************************/
-/*  Initialize columns.                                                */
-/***********************************************************************/
-bool TDBOIF::InitCol(PGLOBAL g)
-  {
-  POIFCOL colp;
-  PCOLRES crp;
-
-  for (colp = (POIFCOL)Columns; colp; colp = (POIFCOL)colp->GetNext()) {
-    for (crp = Qrp->Colresp; crp; crp = crp->Next)
-      if (colp->Flag == crp->Ncol) {
-        colp->Crp = crp;
-        break;
-        } // endif Flag
-
-    if (!colp->Crp) {
-      sprintf(g->Message, "Invalid flag %d for column %s",
-                          colp->Flag, colp->Name);
-      return true;
-      } // endif Crp
-
-    } // endfor colp
-
-  return false;
-  } // end of InitCol
-
-/***********************************************************************/
-/*  Data Base read routine for OIF access method.                      */
-/***********************************************************************/
-int TDBOIF::ReadDB(PGLOBAL g)
-  {
-  return (++N < Qrp->Nblin) ? RC_OK : RC_EF;
-  } // end of ReadDB
-
-/***********************************************************************/
-/*  WriteDB: Data Base write routine for OIF access methods.           */
-/***********************************************************************/
-int TDBOIF::WriteDB(PGLOBAL g)
-  {
-  strcpy(g->Message, "OIF tables are read only");
-  return RC_FX;
-  } // end of WriteDB
-
-/***********************************************************************/
-/*  Data Base delete line routine for OIF access methods.              */
-/***********************************************************************/
-int TDBOIF::DeleteDB(PGLOBAL g, int irc)
-  {
-  strcpy(g->Message, "Delete not enabled for OIF tables");
-  return RC_FX;
-  } // end of DeleteDB
-
-/***********************************************************************/
-/*  Data Base close routine for WMI access method.                     */
-/***********************************************************************/
-void TDBOIF::CloseDB(PGLOBAL g)
-  {
-  // Nothing to do
-  } // end of CloseDB
-
-// ------------------------ OIFCOL functions ----------------------------
-
-/***********************************************************************/
-/*  OIFCOL public constructor.                                         */
-/***********************************************************************/
-OIFCOL::OIFCOL(PCOLDEF cdp, PTDB tdbp, int n)
-      : COLBLK(cdp, tdbp, n)
-  {
-  Tdbp = (PTDBOIF)tdbp;
-  Crp = NULL;
-  Flag = cdp->GetOffset();
-  } // end of WMICOL constructor
-
-/***********************************************************************/
-/*  Read the next Data Source elements.                                */
-/***********************************************************************/
-void OIFCOL::ReadColumn(PGLOBAL g)
-  {
-  // Get the value of the Name or Description property
-  Value->SetValue_pvblk(Crp->Kdata, Tdbp->N);
-  } // end of ReadColumn
-
 /* ---------------------------TDBSRC class --------------------------- */
 
 /***********************************************************************/
-/*  Initialize: Get the list of ODBC data sources.                     */
+/*  GetResult: Get the list of ODBC data sources.                      */
 /***********************************************************************/
-bool TDBSRC::Initialize(PGLOBAL g)
+PQRYRES TDBSRC::GetResult(PGLOBAL g)
   {
-	if (Init)
-		return false;
-
-  if (!(Qrp = ODBCDataSources(g, false)))
-    return true;
-
-	Init = true;
-	return false;
-	} // end of Initialize
+  return ODBCDataSources(g, false);
+	} // end of GetResult
 
 /* ---------------------------TDBDRV class --------------------------- */
 
 /***********************************************************************/
-/*  Initialize: Get the list of ODBC drivers.                          */
+/*  GetResult: Get the list of ODBC drivers.                           */
 /***********************************************************************/
-bool TDBDRV::Initialize(PGLOBAL g)
+PQRYRES TDBDRV::GetResult(PGLOBAL g)
   {
-	if (Init)
-		return false;
-
-  if (!(Qrp = ODBCDrivers(g, false)))
-    return true;
-
-	Init = true;
-	return false;
-	} // end of Initialize
-
-/* ---------------------------TDBOCL class --------------------------- */
-
-/***********************************************************************/
-/*  TDBOCL class constructor.                                          */
-/***********************************************************************/
-TDBOCL::TDBOCL(PODEF tdp) : TDBOIF(tdp)
-  {
-  ID = IDS_COLUMNS + 1; 
-  NC = 11; 
-  Dsn = tdp->GetConnect(); 
-  Tabn = tdp->GetTabname();
-  } // end of TDBOCL constructor
-
-/***********************************************************************/
-/*  Initialize: Get the list of ODBC table columns.                    */
-/***********************************************************************/
-bool TDBOCL::Initialize(PGLOBAL g)
-  {
-	if (Init)
-		return false;
-
-  if (!(Qrp = MyODBCCols(g, Dsn, Tabn, false)))
-    return true;
-
-	Init = true;
-	return false;
-	} // end of Initialize
+  return ODBCDrivers(g, false);
+	} // end of GetResult
 
 /* ---------------------------TDBOTB class --------------------------- */
 
 /***********************************************************************/
-/*  TDBOCL class constructor.                                          */
+/*  TDBOTB class constructor.                                          */
 /***********************************************************************/
-TDBOTB::TDBOTB(PODEF tdp) : TDBOIF(tdp)
+TDBOTB::TDBOTB(PODEF tdp) : TDBCAT(tdp)
   {
-  ID = IDS_TABLES + 1; 
-  NC = 4; 
   Dsn = tdp->GetConnect(); 
-  Tabpat = tdp->GetTabname();
-  } // end of TDBOCL constructor
+  Tab = tdp->GetTabname();
+  } // end of TDBOTB constructor
 
 /***********************************************************************/
-/*  Initialize: Get the list of ODBC tables.                           */
+/*  GetResult: Get the list of ODBC tables.                            */
 /***********************************************************************/
-bool TDBOTB::Initialize(PGLOBAL g)
+PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-	if (Init)
-		return false;
+  return ODBCTables(g, Dsn, Tab, false);
+	} // end of GetResult
 
-  if (!(Qrp = ODBCTables(g, Dsn, Tabpat, false)))
-    return true;
+/* ---------------------------TDBOCL class --------------------------- */
 
-	Init = true;
-	return false;
-	} // end of Initialize
+/***********************************************************************/
+/*  GetResult: Get the list of ODBC table columns.                     */
+/***********************************************************************/
+PQRYRES TDBOCL::GetResult(PGLOBAL g)
+  {
+  return MyODBCCols(g, Dsn, Tab, false);
+	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */

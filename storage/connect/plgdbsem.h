@@ -96,6 +96,7 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_DMY   = 172,        /* DMY Dummy tables am type no   */
           TYPE_AM_SET   = 180,        /* SET Set tables am type no     */
           TYPE_AM_MYSQL = 192,        /* MYSQL access method type no   */
+          TYPE_AM_CAT   = 193,        /* Catalog access method type no */
           TYPE_AM_OUT   = 200};       /* Output relations (storage)    */
 
 enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
@@ -441,6 +442,25 @@ typedef struct _tabs {
   } TABS;
 
 /***********************************************************************/
+/*  Following definitions are used to define table fields (columns).   */
+/***********************************************************************/
+enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
+           FLD_NAME     =  1,         /* Field name                    */
+           FLD_TYPE     =  2,         /* Field type                    */
+           FLD_TYPENAME =  3,         /* Field type name               */
+           FLD_PREC     =  4,         /* Field precision (length?)     */
+           FLD_LENGTH   =  5,         /* Field length (?)              */
+           FLD_SCALE    =  6,         /* Field scale (precision)       */
+           FLD_RADIX    =  7,         /* Field radix                   */
+           FLD_NULL     =  8,         /* Field nullable property       */
+           FLD_REM      =  9,         /* Field comment (remark)        */
+           FLD_CHARSET  = 10,         /* Field collation               */
+           FLD_KEY      = 11,         /* Field key property            */
+           FLD_DEFAULT  = 12,         /* Field default value           */
+           FLD_PRIV     = 13,         /* Field priviledges             */
+           FLD_DATEFMT  = 14};        /* Field date format             */
+
+/***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
 /***********************************************************************/
 typedef  struct _qryres {
@@ -470,6 +490,7 @@ typedef  struct _colres {
   int     Clen;                    /* Data individual internal size    */
   int     Length;                  /* Data individual print length     */
   int     Prec;                    /* Precision                        */
+  XFLD    Fld;                     /* Type of field info               */
   } COLRES;
 
 #if defined(WIN32) && !defined(NOEX)
@@ -490,6 +511,13 @@ void    *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
+
+/**************************************************************************/
+/*  Allocate the result structure that will contain result data.          */
+/**************************************************************************/
+PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                       int *dbtype, int *buftyp, XFLD *fldtyp, 
+                       unsigned int *length, bool blank, bool nonull);
 
 /***********************************************************************/
 /*  Exported utility routines.                                         */

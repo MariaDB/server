@@ -38,7 +38,7 @@ typedef class MYSQLC *PMYC;
 PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
-                  int port, bool key);
+                  int port, bool key, bool info);
 
 /* -------------------------- MYCONN class --------------------------- */
 

@@ -171,13 +171,6 @@ int TranslateSQLType(int stp, int prec, int& len)
   HENV ODBConn::m_henv = SQL_NULL_HENV;
   int  ODBConn::m_nAlloc = 0;        // per-Appl reference to HENV above
 
-/**************************************************************************/
-/*  Allocate the result structure that will contain result data.          */
-/**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, unsigned int *length,
-                       bool blank = true, bool nonull = true);
-
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
@@ -235,14 +228,18 @@ void ResetNullValues(CATPARM *cap)
 PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
                                                         char *colpat)
   {
-  static int dbtype[] = {DB_CHAR,  DB_CHAR,
-                         DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_INT,  DB_INT,  DB_SHORT,
-                         DB_SHORT, DB_SHORT, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING,
-                         TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                         TYPE_INT,   TYPE_INT,  TYPE_SHORT,
-                         TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
+  static int dbtype[]  = {DB_CHAR,  DB_CHAR,
+                          DB_CHAR,  DB_SHORT, DB_CHAR,
+                          DB_INT,   DB_INT,   DB_SHORT,
+                          DB_SHORT, DB_SHORT, DB_CHAR};
+  static int buftyp[]  = {TYPE_STRING, TYPE_STRING,
+                          TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                          TYPE_INT,    TYPE_INT,   TYPE_SHORT,
+                          TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NO,    FLD_NO, 
+                          FLD_NAME,  FLD_TYPE,   FLD_TYPENAME,
+                          FLD_PREC,  FLD_LENGTH, FLD_SCALE,
+                          FLD_RADIX, FLD_NULL,   FLD_REM};
   static unsigned int length[] = {0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
   int      n, ncol = 11;
   int      maxres;
@@ -277,7 +274,7 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS + 1,
-                                        dbtype, buftyp, length);
+                          dbtype, buftyp, NULL, length, true, true);
 
   if (!ocp)                      // Info table
     return qrp;
@@ -313,8 +310,8 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
 /**************************************************************************/
 PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   {
-  int      type, len, prec;
-  PCOLRES  crpt, crpl, crpp;
+//  int      i, type, len, prec;
+//  PCOLRES  crp, crpt, crpl, crpp;
   PQRYRES  qrp;
   ODBConn *ocp;
 
@@ -342,6 +339,7 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   if (ocp)
     ocp->Close();
 
+#if 0
   if (!qrp)
     return NULL;             // Error in ODBCColumns
 
@@ -371,7 +369,13 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     } // endfor i
 
   crpp->Next = crpp->Next->Next->Next;      // Should be Remark
-  qrp->Nbcol = 7;                           // Was 11, skipped 4
+
+  // Renumber crp's for flag comparison
+  for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
+    crp->Ncol = ++i;
+
+  qrp->Nbcol = i;             // Should be 7; was 11, skipped 4
+#endif // 0
   return qrp;
   } // end of MyODBCCols
 
@@ -410,7 +414,8 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, dbtype, buftyp, length);
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, 
+                          dbtype, buftyp, NULL, length, true, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -455,7 +460,8 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, dbtype, buftyp, length);
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
+                          dbtype, buftyp, NULL, length, true, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -521,7 +527,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES + 1,
-                                        dbtype, buftyp, length);
+                          dbtype, buftyp, NULL, length, true, true);
 
   if (info)
     return qrp;
@@ -606,7 +612,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY + 1,
-                                        dbtype, buftyp, length);
+                          dbtype, buftyp, NULL, length, true, true);
 
 #ifdef DEBTRACE
  htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
@@ -693,7 +699,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT + 1,
-                                        dbtype, buftyp, length);
+                          dbtype, buftyp, NULL, length, true, true);
 
 #ifdef DEBTRACE
  htrc("Getting stat results ncol=%d\n", qrp->Nbcol);

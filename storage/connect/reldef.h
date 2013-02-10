@@ -85,6 +85,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   // Members
   PSZ     Owner;                /* Table owner (for ODBC)              */
   PSZ     Desc;                 /* Table description                   */
+  char    Catfunc;              /* Catalog function                    */
   int     Card;                 /* (max) number of rows in table       */
   int     Elemt;                /* Number of rows in blocks or rowset  */
   int     Sort;                 /* Table already sorted ???            */

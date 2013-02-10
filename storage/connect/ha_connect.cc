@@ -138,10 +138,6 @@
 #define my_strlwr(p)    my_casedn_str(default_charset_info, (p));
 #define my_stricmp(a,b) my_strcasecmp(default_charset_info, (a), (b))
 
-#if defined (WIN32)
-typedef struct _WMIutil *PWMIUT;            /* Used to call WMIColumns      */
-#endif
-
 #ifdef LIBXML2_SUPPORT
 void XmlInitParserLib(void);
 void XmlCleanupParserLib(void);
@@ -1379,15 +1375,15 @@ int ha_connect::MakeRecord(char *buf)
   // This is for variable_length rows
   memset(buf, 0, table->s->null_bytes);
 
-  // store needs a charset, why not this one?
-  charset= table->s->table_charset;
-
   // When sorting read_set selects all columns, so we use def_read_set
   map= (const MY_BITMAP *)&table->def_read_set;
 
   // Make the pseudo record from field values
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
+
+    // Default charset
+    charset= table->s->table_charset;
 
 #if defined(MARIADB)
     if (fp->vcol_info && !fp->stored_in_db)
@@ -1409,28 +1405,35 @@ int ha_connect::MakeRecord(char *buf)
       value= colp->GetValue();
 
       // All this could be better optimized
-      if (value->GetType() == TYPE_DATE) {
-        if (!sdval)
-          sdval= AllocateValue(xp->g, TYPE_STRING, 20);
+      switch (value->GetType()) {
+        case TYPE_DATE:
+          if (!sdval)
+            sdval= AllocateValue(xp->g, TYPE_STRING, 20);
 
-        switch (fp->type()) {
-          case MYSQL_TYPE_DATE:
-            fmt= "%Y-%m-%d";
-            break;
-          case MYSQL_TYPE_TIME:
-            fmt= "%H:%M:%S";
-            break;
-          default:
-            fmt= "%Y-%m-%d %H:%M:%S";
-          } // endswitch type
+          switch (fp->type()) {
+            case MYSQL_TYPE_DATE:
+              fmt= "%Y-%m-%d";
+              break;
+            case MYSQL_TYPE_TIME:
+              fmt= "%H:%M:%S";
+              break;
+            default:
+              fmt= "%Y-%m-%d %H:%M:%S";
+            } // endswitch type
 
-        // Get date in the format required by MySQL fields
-        value->FormatValue(sdval, fmt);
-        p= sdval->GetCharValue();
-      } else if (value->GetType() == TYPE_FLOAT)
-        p= NULL;
-      else
-        p= value->GetCharString(val);
+          // Get date in the format required by MySQL fields
+          value->FormatValue(sdval, fmt);
+          p= sdval->GetCharValue();
+          break;
+        case TYPE_FLOAT:
+          p= NULL;
+          break;
+        case TYPE_STRING:
+          charset= fp->charset();
+          // Passthru
+        default:
+          p= value->GetCharString(val);
+        } // endswitch Type
 
       if (p) {
         if (fp->store(p, strlen(p), charset, CHECK_FIELD_WARN)) {
@@ -3253,17 +3256,20 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 */
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char    ttp= '?', spc= ',', qch= 0, fnc= 0;
-  const char *typn= "DOS";
+  char    ttp= '?', spc= ',', qch= 0, fnc= '*';
+  const char *typn= "?";
   const char *user;
-  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep;
+  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep, *csn;
 #if defined(WIN32)
   char   *nsp= NULL, *cls= NULL;
 #endif   // WIN32
+  char   *supfnc = "*C";
   int     port= MYSQL_PORT, hdr= 0, mxr= 0;
+  uint    tm;
   bool    b= false, ok= false, dbf= false;
   LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
+  CHARSET_INFO *cs;
   engine_option_value *pov;
   PQRYRES qrp;
   PCOLRES crp;
@@ -3325,6 +3331,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       else
         ok= true;
 
+      supfnc = "*CTSD";
       break;
 #endif   // ODBC_SUPPORT
     case 'A':       // DBF
@@ -3354,6 +3361,13 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       sprintf(g->Message, "Cannot get column info for table type %s", typn);
     } // endif ttp
 
+  // Check for supported catalog function
+  if (ok && !strchr(supfnc, fnc)) {
+    sprintf(g->Message, "Unsupported catalog function %c for table type %s",
+                        fnc, typn);
+    ok= false;
+    } // endif supfnc
+
   if (ok) {
     char *length, *decimals, *cnm, *rem;
     int   i, len, dec;
@@ -3368,7 +3382,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 
     switch (ttp) {
       case 'A':
-        qrp= DBFColumns(g, fn, false);
+        qrp= DBFColumns(g, fn, fnc == 'C');
         break;
 #if defined(ODBC_SUPPORT)
       case 'O':
@@ -3394,15 +3408,16 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
       case 'Y':
-        qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
+        qrp= MyColumns(g, host, db, user, pwd, tab, 
+                       NULL, port, false, fnc == 'C');
         break;
 #endif   // MYSQL_SUPPORT
       case 'C':
-        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr);
+        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr, fnc == 'C');
         break;
 #if defined(WIN32)
       case 'W':
-        qrp= WMIColumns(g, nsp, cls, NULL);
+        qrp= WMIColumns(g, nsp, cls, fnc == 'C');
         break;
 #endif   // WIN32
       } // endswitch ttp
@@ -3412,7 +3427,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;
       } // endif qrp
 
-    if (fnc) {
+    if (fnc && fnc != '*') {
+      // Catalog table
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
         name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
@@ -3425,39 +3441,60 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
      
         // Now add the field
         b= add_fields(thd, alt_info, name, type, length, decimals,
-                    0, comment, NULL, NULL, NULL);
+                      NOT_NULL_FLAG, comment, NULL, NULL, NULL);
         } // endfor crp
 
-    } else 
+    } else              // Not a catalog table
       for (i= 0; !b && i < qrp->Nblin; i++) {
-        crp= qrp->Colresp;                    // Column Name
-        cnm= encode(g, crp->Kdata->GetCharValue(i));
-        name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
-        crp= crp->Next;                       // Data Type
-        type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
-        crp= crp->Next;                       // Type Name
-        crp= crp->Next;                       // Precision (length)
-        len= crp->Kdata->GetIntValue(i);
-        length= (char*)PlugSubAlloc(g, NULL, 8);
-        sprintf(length, "%d", len);
-        crp= crp->Next;                       // Length
-        crp= crp->Next;                       // Scale (precision)
-     
-        if ((dec= crp->Kdata->GetIntValue(i))) {
-          decimals= (char*)PlugSubAlloc(g, NULL, 8);
-          sprintf(decimals, "%d", dec);
-        } else
-          decimals= NULL;
-     
-        if ((crp= crp->Next) &&               // Remark (comment)
-            (rem= crp->Kdata->GetCharValue(i)))
-          comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
-        else
-          comment= thd->make_lex_string(NULL, "", 0, true);
+        rem= "";
+        length= "";
+        decimals= NULL;
+        tm= NOT_NULL_FLAG;
+        cs= NULL;
+
+        for (crp= qrp->Colresp; crp; crp= crp->Next)
+          switch (crp->Fld) {
+            case FLD_NAME:
+              cnm= encode(g, crp->Kdata->GetCharValue(i));
+              name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
+              break;
+            case FLD_TYPE:
+              type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
+              break;
+            case FLD_PREC:
+              len= crp->Kdata->GetIntValue(i);
+              length= (char*)PlugSubAlloc(g, NULL, 8);
+              sprintf(length, "%d", len);
+              break;
+            case FLD_SCALE:
+              if ((dec= crp->Kdata->GetIntValue(i))) {
+                decimals= (char*)PlugSubAlloc(g, NULL, 8);
+                 sprintf(decimals, "%d", dec);
+              } else
+                decimals= NULL;
+
+              break;
+            case FLD_NULL:
+              if (crp->Kdata->GetIntValue(i))
+                tm= 0;               // Nullable
+
+              break;
+            case FLD_REM:
+              rem= crp->Kdata->GetCharValue(i);
+              break;
+//          case FLD_CHARSET:    
+              // No good because remote table is already translated
+//            if (*(csn= crp->Kdata->GetCharValue(i)))
+//              cs= get_charset_by_name(csn, 0);
+
+//            break;
+            } // endswitch Fld
+
+        comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
      
         // Now add the field
         b= add_fields(thd, alt_info, name, type, length, decimals,
-                      0, comment, NULL, NULL, NULL);
+                      tm, comment, cs, NULL, NULL);
         } // endfor i
 
     return b;

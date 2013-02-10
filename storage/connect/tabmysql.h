@@ -1,4 +1,4 @@
-// TDBMYSQL.H     Olivier Bertrand    2007-2012
+// TDBMYSQL.H     Olivier Bertrand    2007-2013
 #include "myconn.h"               // MySQL connection declares
 
 typedef class MYSQLDEF *PMYDEF;
@@ -18,6 +18,7 @@ typedef class MYSQLCOL *PMYCOL;
 /***********************************************************************/
 class MYSQLDEF : public TABDEF           {/* Logical table description */
   friend class TDBMYSQL;
+  friend class TDBMCL;
  public:
   // Constructor
   MYSQLDEF(void);
@@ -104,7 +105,7 @@ class TDBMYSQL : public TDBASE {
   int         AftRows;        // The number of affected rows
   int         N;              // The current table index
   int         Port;           // MySQL port number (0 = default) 
-  int          Nparm;          // The number of statement parameters
+  int         Nparm;          // The number of statement parameters
   }; // end of class TDBMYSQL
 
 /***********************************************************************/
@@ -132,12 +133,28 @@ class MYSQLCOL : public COLBLK {
 
   // Members
   MYSQL_BIND   *Bind;            // This column bind structure pointer
-  PVAL          To_Val;         // To value used for Update/Insert
+  PVAL          To_Val;          // To value used for Update/Insert
   unsigned long Slen;            // Bind string lengh
   int           Rank;            // Rank (position) number in the query
   }; // end of class MYSQLCOL
 
+/***********************************************************************/
+/*  This is the class declaration for the MYSQL column catalog table.  */
+/***********************************************************************/
+class TDBMCL : public TDBCAT {
+ public:
+  // Constructor
+  TDBMCL(PMYDEF tdp);
 
-PQRYRES MyColumns(PGLOBAL g, const char *host,  const char *db,
-                  const char *user, const char *pwd,
-                  const char *table, const char *colpat, int port, bool key);
+ protected:
+	// Specific routines
+	virtual PQRYRES GetResult(PGLOBAL g);
+
+  // Members
+  PSZ     Host;                  // Host machine to use            
+  PSZ     Db;                    // Database to be used by server  
+  PSZ     Tab;                   // External table name            
+  PSZ     User;                  // User logon name                
+  PSZ     Pwd;                   // Password logon info            
+  int     Port;                  // MySQL port number (0 = default)
+  }; // end of class TDBMCL

@@ -1,11 +1,11 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.5                                                         */
+/*  Version 1.6                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2012     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2013     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -63,13 +63,6 @@ static char *server_groups[] = {
 
 extern "C" int   trace;
 
-/**************************************************************************/
-/*  Allocate the result structure that will contain result data.          */
-/**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, unsigned int *length,
-                       bool blank = true, bool nonull = true);
-
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table that will be retrieved by GetData commands.        */
@@ -78,13 +71,18 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
-                  int port, bool key)
+                  int port, bool key, bool info)
   {
-  static int dbtype[] = {DB_CHAR, DB_SHORT, DB_CHAR, DB_INT,
-                         DB_INT, DB_SHORT, DB_CHAR, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,  TYPE_INT,
-                         TYPE_INT, TYPE_SHORT, TYPE_STRING, TYPE_STRING};
-  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 0, 0};
+  static int dbtype[]  = {DB_CHAR, DB_SHORT, DB_CHAR,  DB_INT,
+                          DB_CHAR, DB_SHORT, DB_SHORT, DB_SHORT,
+                          DB_CHAR, DB_CHAR,  DB_CHAR};
+  static int buftyp[]  = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+                          TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
+                          TYPE_STRING, TYPE_STRING, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
+                          FLD_KEY,  FLD_SCALE, FLD_RADIX,    FLD_NULL,
+                          FLD_REM,  FLD_NO,    FLD_CHARSET};
+  static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char   *fld, *fmt, cmd[128];
   int     i, n, nf, ncol = sizeof(dbtype) / sizeof(int);
   int    len, type, prec, rc, k = 0;
@@ -92,44 +90,59 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   PCOLRES crp;
   MYSQLC  myc;
 
-  /**********************************************************************/
-  /*  Open the connection with the MySQL server.                        */
-  /**********************************************************************/
-  if (myc.Open(g, host, db, user, pwd, port))
-    return NULL;
+  if (!info) {
+    /********************************************************************/
+    /*  Open the connection with the MySQL server.                      */
+    /********************************************************************/
+    if (myc.Open(g, host, db, user, pwd, port))
+      return NULL;
 
-  /**********************************************************************/
-  /*  Do an evaluation of the result size.                              */
-  /**********************************************************************/
-  sprintf(cmd, "SHOW FULL COLUMNS FROM %s", table);
-  strcat(strcat(cmd, " FROM "), (db) ? db : PlgGetUser(g)->DBName);
+    /********************************************************************/
+    /*  Do an evaluation of the result size.                            */
+    /********************************************************************/
+    sprintf(cmd, "SHOW FULL COLUMNS FROM %s", table);
+    strcat(strcat(cmd, " FROM "), (db) ? db : PlgGetUser(g)->DBName);
 
-  if (colpat)
-    strcat(strcat(cmd, " LIKE "), colpat);
+    if (colpat)
+      strcat(strcat(cmd, " LIKE "), colpat);
 
-  if (trace)
-    htrc("MyColumns: cmd='%s'\n", cmd);
+    if (trace)
+      htrc("MyColumns: cmd='%s'\n", cmd);
 
-  if ((n = myc.GetResultSize(g, cmd)) < 0) {
-    myc.Close();
-    return NULL;
-    } // endif n
+    if ((n = myc.GetResultSize(g, cmd)) < 0) {
+      myc.Close();
+      return NULL;
+      } // endif n
 
-  /**********************************************************************/
-  /*  Get the size of the name columns.                                 */
-  /*  Note that because the length is 0 for the last 2 columns (comment */
-  /*  and date format) they will be STRBLK instead of CHRBLK.           */
-  /**********************************************************************/
-  length[0] = myc.GetFieldLength(0);
+    /********************************************************************/
+    /*  Get the size of the name columns.                               */
+    /********************************************************************/
+    length[0] = myc.GetFieldLength(0);
+  } else {
+    n = 0;
+    length[0] = 128;
+  } // endif info
 
-  if (!key)                           // We are not called from Create table
-    ncol--;                           // No date format column
+//if (!key)                       // We are not called from Create table
+//  ncol--;                       // No date format column yet
 
   /**********************************************************************/
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                                   dbtype, buftyp, length);
+                          dbtype, buftyp, fldtyp, length, true, true);
+
+  // Some columns must be renamed
+  for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
+    switch (++i) {
+      case  4: crp->Name = "Length";    break;
+      case  5: crp->Name = "Key";       break;
+      case 10: crp->Name = "Date_fmt";  break;
+      case 11: crp->Name = "Collation"; break;
+      } // endswitch i
+
+  if (info)
+    return qrp;
 
   /**********************************************************************/
   /*  Now get the results into blocks.                                  */
@@ -142,7 +155,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
 
     // Get column name
     fld = myc.GetCharField(0);
-    crp = qrp->Colresp;
+    crp = qrp->Colresp;                    // Column_Name
     crp->Kdata->SetValue(fld, i);
 
     // Get type, type name, and precision
@@ -161,56 +174,45 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
       return NULL;
       } // endif type
 
-    crp = crp->Next;
+    crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);
-    crp = crp->Next;
+    crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(cmd, i);
 
-    if (key && type == TYPE_DATE) {
+    if (type == TYPE_DATE) {
       // When creating tables we do need info about date columns
       fmt = MyDateFmt(cmd);
       len = strlen(fmt);
     } else
       fmt = NULL;
 
-    crp = crp->Next;
-    crp->Name = "Length";
+    crp = crp->Next;                       // Precision
     crp->Kdata->SetValue(len, i);
-    crp = crp->Next;
-    crp->Name = "Key";
 
-    if (key) {
-      // Creating a table, we need key info
-      fld = myc.GetCharField(4);
-      crp->Kdata->SetValue((stricmp(fld, "PRI")) ? 0 : ++k, i);
-    } else
-      crp->Kdata->SetValue(len, i);
+    crp = crp->Next;                       // was Length
+    fld = myc.GetCharField(4);
+    crp->Kdata->SetValue(fld, i);
 
-    crp = crp->Next;
-    crp->Name = "Prec";
+    crp = crp->Next;                       // Scale
     crp->Kdata->SetValue(prec, i);
 
-    // Get comment field
-    crp = crp->Next;
-    crp->Name = "Comment";
+    crp = crp->Next;                       // Radix
+    crp->Kdata->SetValue(0, i);
+
+    crp = crp->Next;                       // Nullable
+    fld = myc.GetCharField(3);
+    crp->Kdata->SetValue((toupper(*fld) == 'Y') ? 1 : 0, i);
+
+    crp = crp->Next;                       // Remark
     fld = myc.GetCharField(8);
+    crp->Kdata->SetValue(fld, i);
 
-    if (fld && strlen(fld))
-      crp->Kdata->SetValue(fld, i);
-    else
-      crp->Kdata->Reset(i);
+    crp = crp->Next;                       // New
+    crp->Kdata->SetValue((fmt) ? fmt : "", i);
 
-    if (key) {
-      crp = crp->Next;
-      crp->Name = "Date_Fmt";
-
-      if (fmt)
-        crp->Kdata->SetValue(fmt, i);
-      else
-        crp->Kdata->Reset(i);
-
-      } // endif key
-
+    crp = crp->Next;                       // New (charset)
+    fld = myc.GetCharField(2);
+    crp->Kdata->SetValue(fld, i);
     } // endfor i
 
   if (k > 1) {
@@ -233,79 +235,6 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /**********************************************************************/
   return qrp;
   } // end of MyColumns
-
-#if 0
-/**************************************************************************/
-/*  SemMySQLColumns: analyze a MySQL table for column format.             */
-/**************************************************************************/
-void SemMySQLColumns(PGLOBAL g, PSEM semp)
-  {
-  PQRYRES qrp;
-  PPARM   pp, parmp = semp->Parmp;
-
-  /*********************************************************************/
-  /*  Test passed parameters.                                          */
-  /*********************************************************************/
-  sprintf(g->Message, MSG(BAD_PARAMETERS), semp->Name);
-  semp->Value = g->Message;
-  semp->Type = TYPE_ERROR;
-
-  if (!parmp || parmp->Type != TYPE_LIST)
-    return;
-
-  /*********************************************************************/
-  /*  Analyze the table specifications.                                */
-  /*********************************************************************/
-  PSZ host, db, user, pwd, table;
-  int port = 0;
-
-  host = db = user = pwd = table = NULL;
-
-  for (pp = (PPARM)parmp->Value; pp; pp = pp->Next)
-    switch (pp->Type) {
-      case TYPE_STRING:
-        switch (pp->Domain) {
-          case  5: table = (PSZ)pp->Value; break;
-          case  7: db    = (PSZ)pp->Value; break;
-          case 30: host  = (PSZ)pp->Value; break;
-          case 31: user  = (PSZ)pp->Value; break;
-          case 32: pwd   = (PSZ)pp->Value; break;
-          default:
-            return;
-          } // endswitch Domain
-
-        break;
-      case TYPE_INT:
-        if (pp->Domain == 33)
-          port = (int)*(int*)pp->Value;
-        else
-          return;
-
-        break;
-      default:
-        return;
-      } // endswitch Type
-
-  /************************************************************************/
-  /*  Get and store the result pointer for use by GetData routines.       */
-  /************************************************************************/
-  if (!(qrp = MyColumns(g, host, db, user, pwd, table, NULL, port, TRUE)))
-    return;                    // Error in MyColumns
-
-  PlgGetUser(g)->Result = qrp;
-
-#if defined(_CONSOLE)
-  PrintResult(g, semp, qrp);
-#else
-  /************************************************************************/
-  /*  Make as result the qryresult description block.                     */
-  /************************************************************************/
-  semp->Type = TYPE_QRYRES;
-  semp->Domain = 0;
-  semp->Value = qrp;
-#endif   // _CONSOLE
-  } // end of SemMySQLColumns
-#endif // 0
 
 /* -------------------------- Class MYSQLC --------------------------- */
 

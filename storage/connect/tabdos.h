@@ -34,6 +34,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   virtual const char *GetType(void) {return "DOS";}
   virtual PIXDEF      GetIndx(void) {return To_Indx;}
   virtual void        SetIndx(PIXDEF xdp) {To_Indx = xdp;}
+  PSZ     GetFn(void) {return Fn;}
   PSZ     GetOfn(void) {return Ofn;}
   void    SetBlock(int block) {Block = block;}
   int     GetBlock(void) {return Block;}
