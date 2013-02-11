@@ -520,7 +520,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
   if (!groups)
     groups= (char**) fake_groups;
 
-  my_progname= (char *)"mysql_embedded";
+  if (!my_progname)
+    my_progname= (char *)"mysql_embedded";
 
   /*
     Perform basic logger initialization logger. Should be called after
@@ -634,7 +635,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
   //mysql->server_capabilities= client_flag;
-  init_alloc_root(&mysql->field_alloc, 8192, 0);
+  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(0));
 }
 
 /**
@@ -666,7 +667,7 @@ void *create_embedded_thd(int client_flag)
   if (thd->variables.max_join_size == HA_POS_ERROR)
     thd->variables.option_bits |= OPTION_BIG_SELECTS;
   thd->proc_info=0;				// Remove 'login'
-  thd->command=COM_SLEEP;
+  thd->set_command(COM_SLEEP);
   thd->set_time();
   thd->init_for_queries();
   thd->client_capabilities= client_flag;
@@ -906,8 +907,9 @@ int Protocol::begin_dataset()
   if (!data)
     return 1;
   alloc= &data->alloc;
-  init_alloc_root(alloc,8192,0);	/* Assume rowlength < 8192 */
-  alloc->min_malloc=sizeof(MYSQL_ROWS);
+  /* Assume rowlength < 8192 */
+  init_alloc_root(alloc, 8192, 0, MYF(0));
+  alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }
 
@@ -1004,7 +1006,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
                                                      thd_cs->mbmaxlen);
     }
     client_field->type=   server_field.type;
-    client_field->flags= server_field.flags;
+    client_field->flags= (uint16) server_field.flags;
     client_field->decimals= server_field.decimals;
     client_field->db_length=		strlen(client_field->db);
     client_field->table_length=		strlen(client_field->table);

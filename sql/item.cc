@@ -3475,7 +3475,7 @@ double Item_param::val_real()
       This works for example when user says SELECT ?+0.0 and supplies
       time value for the placeholder.
     */
-    return ulonglong2double(TIME_to_ulonglong(&value.time));
+    return TIME_to_double(&value.time);
   case NULL_VALUE:
     return 0.0;
   default:
@@ -3533,9 +3533,7 @@ my_decimal *Item_param::val_decimal(my_decimal *dec)
     return dec;
   case TIME_VALUE:
   {
-    longlong i= (longlong) TIME_to_ulonglong(&value.time);
-    int2my_decimal(E_DEC_FATAL_ERROR, i, 0, dec);
-    return dec;
+    return TIME_to_my_decimal(&value.time, dec);
   }
   case NULL_VALUE:
     return 0; 
@@ -5516,8 +5514,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
                cs->csname,  hexbuf);
       return 0;
     }
-    if ((thd->variables.sql_mode &
-         (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
+    if (thd->is_strict_mode())
     {
       null_value= 1;
       str= 0;
@@ -9663,14 +9660,3 @@ const char *dbug_print_item(Item *item)
 
 #endif /*DBUG_OFF*/
 
-/*****************************************************************************
-** Instantiate templates
-*****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<Item>;
-template class List_iterator<Item>;
-template class List_iterator_fast<Item>;
-template class List_iterator_fast<Item_field>;
-template class List<List_item>;
-#endif

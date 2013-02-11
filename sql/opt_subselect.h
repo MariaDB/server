@@ -371,8 +371,8 @@ public:
     These are the members we got from temptable creation code. We'll need
     them if we'll need to convert table from HEAP to MyISAM/Maria.
   */
-  ENGINE_COLUMNDEF *start_recinfo;
-  ENGINE_COLUMNDEF *recinfo;
+  TMP_ENGINE_COLUMNDEF *start_recinfo;
+  TMP_ENGINE_COLUMNDEF *recinfo;
 
   SJ_TMP_TABLE *next_flush_table; 
 

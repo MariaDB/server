@@ -1883,6 +1883,14 @@ public:
   Item *neg_transformer(THD *thd);
 };
 
+class Item_func_dyncol_check :public Item_bool_func
+{
+public:
+  Item_func_dyncol_check(Item *str) :Item_bool_func(str) {}
+  longlong val_int();
+  const char *func_name() const { return "column_check"; }
+};
+
 class Item_func_dyncol_exists :public Item_bool_func
 {
 public:

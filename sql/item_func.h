@@ -60,7 +60,7 @@ public:
                   NOW_FUNC, TRIG_COND_FUNC,
                   SUSERVAR_FUNC, GUSERVAR_FUNC, COLLATE_FUNC,
                   EXTRACT_FUNC, CHAR_TYPECAST_FUNC, FUNC_SP, UDF_FUNC,
-                  NEG_FUNC, GSYSVAR_FUNC };
+                  NEG_FUNC, GSYSVAR_FUNC, DYNCOL_FUNC };
   enum optimize_type { OPTIMIZE_NONE,OPTIMIZE_KEY,OPTIMIZE_OP, OPTIMIZE_NULL,
                        OPTIMIZE_EQUAL };
   enum Type type() const { return FUNC_ITEM; }
@@ -514,6 +514,8 @@ public:
   Item_int_func(Item *a,Item *b) :Item_func(a,b)
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(Item *a,Item *b,Item *c) :Item_func(a,b,c)
+  { collation.set_numeric(); fix_char_length(21); }
+  Item_int_func(Item *a,Item *b,Item *c, Item *d) :Item_func(a,b,c,d)
   { collation.set_numeric(); fix_char_length(21); }
   Item_int_func(List<Item> &list) :Item_func(list)
   { collation.set_numeric(); fix_char_length(21); }
@@ -1510,6 +1512,7 @@ class Item_master_pos_wait :public Item_int_func
 public:
   Item_master_pos_wait(Item *a,Item *b) :Item_int_func(a,b) {}
   Item_master_pos_wait(Item *a,Item *b,Item *c) :Item_int_func(a,b,c) {}
+  Item_master_pos_wait(Item *a,Item *b, Item *c, Item *d) :Item_int_func(a,b,c,d) {}
   longlong val_int();
   const char *func_name() const { return "master_pos_wait"; }
   void fix_length_and_dec() { max_length=21; set_persist_maybe_null(1);}
@@ -1875,7 +1878,8 @@ private:
   bool init_result_field(THD *thd);
 
 protected:
-  bool is_expensive_processor(uchar *arg) { return TRUE; }
+  bool is_expensive_processor(uchar *arg)
+  { return is_expensive(); }
   
 public:
 
@@ -1954,7 +1958,7 @@ public:
 
   bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec(void);
-  bool is_expensive() { return 1; }
+  bool is_expensive();
 
   inline Field *get_sp_result_field()
   {
@@ -2021,6 +2025,11 @@ public:
   enum_field_types field_type() const { return last_value->field_type(); }
   bool const_item() const { return 0; }
   void evaluate_sideeffects();
+  void update_used_tables()
+  {
+    Item_func::update_used_tables();
+    maybe_null= last_value->maybe_null;
+  }
 };
 
 

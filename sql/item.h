@@ -523,7 +523,7 @@ public:
 
 struct st_dyncall_create_def
 {
-  Item  *num, *value;
+  Item  *key, *value;
   CHARSET_INFO *cs;
   uint len, frac;
   DYNAMIC_COLUMN_TYPE type;
@@ -1445,7 +1445,6 @@ public:
   */
   virtual bool is_outer_field() const { DBUG_ASSERT(fixed); return FALSE; }
   Item* set_expr_cache(THD *thd);
-  virtual Item *get_cached_item() { return NULL; }
 
   virtual Item_equal *get_item_equal() { return NULL; }
   virtual void set_item_equal(Item_equal *item_eq) {};
@@ -2231,7 +2230,6 @@ public:
   Item_param(uint pos_in_query_arg);
 
   enum Item_result result_type () const { return item_result_type; }
-  enum Item_result cast_to_int_type() const { return item_result_type; }
   enum Type type() const { return item_type; }
   enum_field_types field_type() const { return param_type; }
 

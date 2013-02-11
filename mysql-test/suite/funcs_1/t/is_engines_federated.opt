@@ -1,2 +1,2 @@
 --loose-federated
---plugin-load=$HA_FEDERATEDX_SO
+--plugin-load-add=$HA_FEDERATEDX_SO

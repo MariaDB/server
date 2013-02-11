@@ -29,6 +29,9 @@
 uint trnman_active_transactions, trnman_committed_transactions,
   trnman_allocated_transactions;
 
+#ifdef WORKAROUND_GCC_4_3_2_BUG
+volatile
+#endif
 /* list of active transactions in the trid order */
 static TRN active_list_min, active_list_max;
 /* list of committed transactions in the trid order */

@@ -70,7 +70,7 @@ static uint plugin_version[MYSQL_CLIENT_MAX_PLUGINS]=
   loading the same plugin twice in parallel.
 */
 struct st_client_plugin_int *plugin_list[MYSQL_CLIENT_MAX_PLUGINS];
-static pthread_mutex_t LOCK_load_client_plugin;
+static mysql_mutex_t LOCK_load_client_plugin;
 
 static int is_not_initialized(MYSQL *mysql, const char *name)
 {
@@ -170,7 +170,7 @@ add_plugin(MYSQL *mysql, struct st_mysql_client_plugin *plugin, void *dlhandle,
     goto err2;
   }
 
-  safe_mutex_assert_owner(&LOCK_load_client_plugin);
+  mysql_mutex_assert_owner(&LOCK_load_client_plugin);
 
   p->next= plugin_list[plugin->type];
   plugin_list[plugin->type]= p;
@@ -250,19 +250,19 @@ int mysql_client_plugin_init()
 
   bzero(&mysql, sizeof(mysql)); /* dummy mysql for set_mysql_extended_error */
 
-  pthread_mutex_init(&LOCK_load_client_plugin, MY_MUTEX_INIT_SLOW);
-  init_alloc_root(&mem_root, 128, 128);
+  mysql_mutex_init(0, &LOCK_load_client_plugin, MY_MUTEX_INIT_SLOW);
+  init_alloc_root(&mem_root, 128, 128, MYF(0));
 
   bzero(&plugin_list, sizeof(plugin_list));
 
   initialized= 1;
 
-  pthread_mutex_lock(&LOCK_load_client_plugin);
+  mysql_mutex_lock(&LOCK_load_client_plugin);
 
   for (builtin= mysql_client_builtins; *builtin; builtin++)
     add_plugin(&mysql, *builtin, 0, 0, unused);
 
-  pthread_mutex_unlock(&LOCK_load_client_plugin);
+  mysql_mutex_unlock(&LOCK_load_client_plugin);
 
   load_env_plugins(&mysql);
 
@@ -295,7 +295,7 @@ void mysql_client_plugin_deinit()
   bzero(&plugin_list, sizeof(plugin_list));
   initialized= 0;
   free_root(&mem_root, MYF(0));
-  pthread_mutex_destroy(&LOCK_load_client_plugin);
+  mysql_mutex_destroy(&LOCK_load_client_plugin);
   DBUG_VOID_RETURN;
 }
 
@@ -313,7 +313,7 @@ mysql_client_register_plugin(MYSQL *mysql,
   if (is_not_initialized(mysql, plugin->name))
     DBUG_RETURN(NULL);
 
-  pthread_mutex_lock(&LOCK_load_client_plugin);
+  mysql_mutex_lock(&LOCK_load_client_plugin);
 
   /* make sure the plugin wasn't loaded meanwhile */
   if (find_plugin(plugin->name, plugin->type))
@@ -326,7 +326,7 @@ mysql_client_register_plugin(MYSQL *mysql,
   else
     plugin= add_plugin(mysql, plugin, 0, 0, unused);
 
-  pthread_mutex_unlock(&LOCK_load_client_plugin);
+  mysql_mutex_unlock(&LOCK_load_client_plugin);
   DBUG_RETURN(plugin);
 }
 
@@ -348,7 +348,7 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
     DBUG_RETURN (NULL);
   }
 
-  pthread_mutex_lock(&LOCK_load_client_plugin);
+  mysql_mutex_lock(&LOCK_load_client_plugin);
 
   /* make sure the plugin wasn't loaded meanwhile */
   if (type >= 0 && find_plugin(name, type))
@@ -401,13 +401,13 @@ mysql_load_plugin_v(MYSQL *mysql, const char *name, int type,
 
   plugin= add_plugin(mysql, plugin, dlhandle, argc, args);
 
-  pthread_mutex_unlock(&LOCK_load_client_plugin);
+  mysql_mutex_unlock(&LOCK_load_client_plugin);
 
   DBUG_PRINT ("leave", ("plugin loaded ok"));
   DBUG_RETURN (plugin);
 
 err:
-  pthread_mutex_unlock(&LOCK_load_client_plugin);
+  mysql_mutex_unlock(&LOCK_load_client_plugin);
   DBUG_PRINT ("leave", ("plugin load error : %s", errmsg));
   set_mysql_extended_error(mysql, CR_AUTH_PLUGIN_CANNOT_LOAD, unknown_sqlstate,
                            ER(CR_AUTH_PLUGIN_CANNOT_LOAD), name, errmsg);

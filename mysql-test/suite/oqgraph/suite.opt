@@ -1,1 +1,1 @@
---plugin-load=$HA_OQGRAPH_SO --enable-oqgraph
+--plugin-load-add=$HA_OQGRAPH_SO --enable-oqgraph

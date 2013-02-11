@@ -23,7 +23,7 @@
 #        - Can't create/write to file
 #          '.../var/master-data/information_schema/tables.frm~
 --source include/not_embedded.inc
-
+--source include/have_innodb.inc
 --source suite/funcs_1/datadict/datadict.pre
 
 # $engine_type must point to storage engine which is all time available.

@@ -32,6 +32,7 @@
 #include "sql_view.h"                           // check_key_in_view
 #include "sp_head.h"
 #include "sql_trigger.h"
+#include "sql_statistics.h"
 #include "probes_mysql.h"
 #include "debug_sync.h"
 #include "key.h"                                // is_key_used
@@ -301,7 +302,7 @@ int mysql_update(THD *thd,
   if (table_list->handle_derived(thd->lex, DT_PREPARE))
     DBUG_RETURN(1);
 
-  thd_proc_info(thd, "init");
+  THD_STAGE_INFO(thd, stage_init);
   table= table_list->table;
 
   if (!table_list->single_table_updatable())
@@ -342,19 +343,8 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  if (table->timestamp_field)
-  {
-    // Don't set timestamp column if this is modified
-    if (bitmap_is_set(table->write_set,
-                      table->timestamp_field->field_index))
-      table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
-    else
-    {
-      if (((uint) table->timestamp_field_type) & TIMESTAMP_AUTO_SET_ON_UPDATE)
-        bitmap_set_bit(table->write_set,
-                       table->timestamp_field->field_index);
-    }
-  }
+  if (table->default_field)
+    table->mark_default_fields_for_write();
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
@@ -389,7 +379,7 @@ int mysql_update(THD *thd,
     to compare records and detect data change.
   */
   if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-      (((uint) table->timestamp_field_type) & TIMESTAMP_AUTO_SET_ON_UPDATE))
+      table->default_field && table->has_default_function(true))
     bitmap_union(table->read_set, table->write_set);
   // Don't count on usage of 'only index' when calculating which key to use
   table->covering_keys.clear_all();
@@ -404,6 +394,7 @@ int mysql_update(THD *thd,
 #endif
   /* Update the table->file->stats.records number */
   table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
+  set_statistics_for_table(thd, table);
 
   select= make_select(table, 0, 0, conds, 0, &error);
   if (error || !limit || thd->is_error() ||
@@ -429,7 +420,7 @@ int mysql_update(THD *thd,
   /* If running in safe sql mode, don't allow updates without keys */
   if (table->quick_keys.is_clear_all())
   {
-    thd->server_status|=SERVER_QUERY_NO_INDEX_USED;
+    thd->set_status_no_index_used();
     if (safe_update && !using_limit)
     {
       my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
@@ -480,12 +471,13 @@ int mysql_update(THD *thd,
       We can't update table directly;  We must first search after all
       matching rows before updating the table!
     */
+    MY_BITMAP *save_read_set= table->read_set;
+    MY_BITMAP *save_write_set= table->write_set;
+
     if (used_index < MAX_KEY && old_covering_keys.is_set(used_index))
       table->add_read_columns_used_by_index(used_index);
     else
-    {
       table->use_all_columns();
-    }
 
     /* note: We avoid sorting if we sort on the used index */
     if (order && (need_sort || used_key_is_modified))
@@ -498,18 +490,21 @@ int mysql_update(THD *thd,
       uint         length= 0;
       SORT_FIELD  *sortorder;
       ha_rows examined_rows;
+      ha_rows found_rows;
 
       table->sort.io_cache = (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
-						    MYF(MY_FAE | MY_ZEROFILL));
+						    MYF(MY_FAE | MY_ZEROFILL |
+                                                        MY_THREAD_SPECIFIC));
       if (!(sortorder=make_unireg_sortorder(order, &length, NULL)) ||
           (table->sort.found_records= filesort(thd, table, sortorder, length,
-                                               select, limit, 1,
-                                               &examined_rows))
+                                               select, limit,
+                                               true,
+                                               &examined_rows, &found_rows))
           == HA_POS_ERROR)
       {
 	goto err;
       }
-      thd->examined_row_count+= examined_rows;
+      thd->inc_examined_row_count(examined_rows);
       /*
 	Filesort has already found and selected the rows we want to update,
 	so we don't need the where clause
@@ -554,7 +549,7 @@ int mysql_update(THD *thd,
       else
         init_read_record_idx(&info, thd, table, 1, used_index, reverse);
 
-      thd_proc_info(thd, "Searching rows for update");
+      THD_STAGE_INFO(thd, stage_searching_rows_for_update);
       ha_rows tmp_limit= limit;
 
       while (!(error=info.read_record(&info)) && !thd->killed)
@@ -563,7 +558,7 @@ int mysql_update(THD *thd,
           update_virtual_fields(thd, table,
                                 table->triggers ? VCOL_UPDATE_ALL :
                                                   VCOL_UPDATE_FOR_READ);
-        thd->examined_row_count++;
+        thd->inc_examined_row_count(1);
 	if (!select || (error= select->skip_record(thd)) > 0)
 	{
           if (table->file->was_semi_consistent_read())
@@ -619,8 +614,8 @@ int mysql_update(THD *thd,
       if (error >= 0)
 	goto err;
     }
-    if (table->key_read)
-      table->restore_column_maps_after_mark_index();
+    table->disable_keyread();
+    table->column_bitmaps_set(save_read_set, save_write_set);
   }
 
   if (ignore)
@@ -639,13 +634,10 @@ int mysql_update(THD *thd,
   */
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-  thd_proc_info(thd, "Updating");
+  THD_STAGE_INFO(thd, stage_updating);
 
   transactional_table= table->file->has_transactions();
-  thd->abort_on_warning= test(!ignore &&
-                              (thd->variables.sql_mode &
-                               (MODE_STRICT_TRANS_TABLES |
-                                MODE_STRICT_ALL_TABLES)));
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
   if (table->triggers &&
       table->triggers->has_triggers(TRG_EVENT_UPDATE,
                                     TRG_ACTION_AFTER))
@@ -681,15 +673,14 @@ int mysql_update(THD *thd,
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
                                               VCOL_UPDATE_FOR_READ);
-    thd->examined_row_count++;
+    thd->inc_examined_row_count(1);
     if (!select || select->skip_record(thd) > 0)
     {
       if (table->file->was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
       store_record(table,record[1]);
-      if (fill_record_n_invoke_before_triggers(thd, fields, values, 0,
-                                               table->triggers,
+      if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
         break; /* purecov: inspected */
 
@@ -697,6 +688,11 @@ int mysql_update(THD *thd,
 
       if (!can_compare_record || compare_record(table))
       {
+        if (table->default_field && table->update_default_fields())
+        {
+          error= 1;
+          break;
+        }
         if ((res= table_list->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -882,7 +878,7 @@ int mysql_update(THD *thd,
 
   end_read_record(&info);
   delete select;
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
   /*
@@ -1243,11 +1239,6 @@ int mysql_multi_update_prepare(THD *thd)
   while ((tl= ti++))
   {
     TABLE *table= tl->table;
-    /* Only set timestamp column if this is not modified */
-    if (table->timestamp_field &&
-        bitmap_is_set(table->write_set,
-                      table->timestamp_field->field_index))
-      table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
 
     /* if table will be updated then check that it is unique */
     if (table->map & tables_for_update)
@@ -1392,9 +1383,7 @@ bool mysql_multi_update(THD *thd,
     DBUG_RETURN(TRUE);
   }
 
-  thd->abort_on_warning= test(thd->variables.sql_mode &
-                              (MODE_STRICT_TRANS_TABLES |
-                               MODE_STRICT_ALL_TABLES));
+  thd->abort_on_warning= thd->is_strict_mode();
 
   List<Item> total_list;
 
@@ -1450,7 +1439,7 @@ int multi_update::prepare(List<Item> &not_used_values,
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;
   thd->cuted_fields=0L;
-  thd_proc_info(thd, "updating main table");
+  THD_STAGE_INFO(thd, stage_updating_main_table);
 
   tables_to_update= get_table_map(fields);
 
@@ -1497,8 +1486,7 @@ int multi_update::prepare(List<Item> &not_used_values,
         to compare records and detect data change.
         */
       if ((table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ) &&
-          (((uint) table->timestamp_field_type) &
-           TIMESTAMP_AUTO_SET_ON_UPDATE))
+          table->default_field && table->has_default_function(true))
         bitmap_union(table->read_set, table->write_set);
     }
   }
@@ -1877,10 +1865,10 @@ int multi_update::send_data(List<Item> &not_used_values)
 
       table->status|= STATUS_UPDATED;
       store_record(table,record[1]);
-      if (fill_record_n_invoke_before_triggers(thd, *fields_for_table[offset],
+      if (fill_record_n_invoke_before_triggers(thd, table, *fields_for_table[offset],
                                                *values_for_table[offset], 0,
-                                               table->triggers,
-                                               TRG_EVENT_UPDATE))
+                                               TRG_EVENT_UPDATE) ||
+          (table->default_field && table->update_default_fields()))
 	DBUG_RETURN(1);
 
       /*
@@ -1981,7 +1969,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       } while ((tbl= tbl_it++));
 
       /* Store regular updated fields in the row. */
-      fill_record(thd,
+      fill_record(thd, tmp_table,
                   tmp_table->field + 1 + unupdated_check_opt_tables.elements,
                   *values_for_table[offset], TRUE, FALSE);
 
@@ -2171,7 +2159,10 @@ int multi_update::do_updates()
       for (copy_field_ptr=copy_field;
 	   copy_field_ptr != copy_field_end;
 	   copy_field_ptr++)
+      {
 	(*copy_field_ptr->do_copy)(copy_field_ptr);
+        copy_field_ptr->to_field->set_has_explicit_value();
+      }
 
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
@@ -2181,6 +2172,8 @@ int multi_update::do_updates()
       if (!can_compare_record || compare_record(table))
       {
         int error;
+        if (table->default_field && (error= table->update_default_fields()))
+          goto err2;
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {
@@ -2274,7 +2267,7 @@ bool multi_update::send_eof()
   ulonglong id;
   killed_state killed_status= NOT_KILLED;
   DBUG_ENTER("multi_update::send_eof");
-  thd_proc_info(thd, "updating reference tables");
+  THD_STAGE_INFO(thd, stage_updating_reference_tables);
 
   /* 
      Does updates for the last n - 1 tables, returns 0 if ok;
@@ -2288,7 +2281,7 @@ bool multi_update::send_eof()
     later carried out killing should not affect binlogging.
   */
   killed_status= (local_error == 0) ? NOT_KILLED : thd->killed;
-  thd_proc_info(thd, "end");
+  THD_STAGE_INFO(thd, stage_end);
 
   /* We must invalidate the query cache before binlog writing and
   ha_autocommit_... */

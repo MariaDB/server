@@ -55,9 +55,9 @@ ERROR 42000: Incorrect table name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 create table a (`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` int);
 ERROR 42000: Identifier name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' is too long
 create table t1 (a datetime default now());
-ERROR 42000: Invalid default value for 'a'
+drop table t1;
 create table t1 (a datetime on update now());
-ERROR HY000: Invalid ON UPDATE clause for 'a' column
+drop table t1;
 create table t1 (a int default 100 auto_increment);
 ERROR 42000: Invalid default value for 'a'
 create table t1 (a tinyint default 1000);
@@ -1762,7 +1762,9 @@ t1	CREATE TABLE `t1` (
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000'
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
+  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create temporary table t1 like information_schema.processlist;
@@ -1780,7 +1782,9 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `TIME_MS` decimal(22,3) NOT NULL DEFAULT '0.000',
   `STAGE` tinyint(2) NOT NULL DEFAULT '0',
   `MAX_STAGE` tinyint(2) NOT NULL DEFAULT '0',
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000'
+  `PROGRESS` decimal(7,3) NOT NULL DEFAULT '0.000',
+  `MEMORY_USED` int(7) NOT NULL DEFAULT '0',
+  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT '0'
 )  DEFAULT CHARSET=utf8
 drop table t1;
 create table t1 like information_schema.character_sets;

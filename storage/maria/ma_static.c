@@ -19,7 +19,7 @@
   a shared library
 */
 
-#ifndef _global_h
+#ifndef MY_GLOBAL_INCLUDED
 #include "maria_def.h"
 #include "trnman.h"
 #endif
@@ -145,5 +145,7 @@ PSI_thread_key key_thread_checkpoint, key_thread_find_all_keys,
 
 PSI_file_key key_file_translog, key_file_kfile, key_file_dfile,
              key_file_control, key_file_tmp;
+
+PSI_stage_info stage_waiting_for_a_resource= { 0, "Waiting for a resource", 0};
 
 #endif /* HAVE_PSI_INTERFACE */

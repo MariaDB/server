@@ -11,8 +11,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 
 /**
@@ -304,7 +304,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 
   DBUG_ENTER("mysql_lock_tables(sql_lock)");
 
-  thd_proc_info(thd, "System lock");
+  THD_STAGE_INFO(thd, stage_system_lock);
   if (sql_lock->table_count && lock_external(thd, sql_lock->table,
                                              sql_lock->table_count))
     goto end;
@@ -323,8 +323,6 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
     (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
 
 end:
-  thd_proc_info(thd, 0);
-
   if (thd->killed)
   {
     thd->send_kill_message();
@@ -759,6 +757,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
       for ( ; locks_start != locks ; locks_start++)
       {
 	(*locks_start)->debug_print_param= (void *) table;
+        (*locks_start)->m_psi= table->file->m_psi;
 	(*locks_start)->lock->name=         table->alias.c_ptr();
 	(*locks_start)->org_type=           (*locks_start)->type;
       }

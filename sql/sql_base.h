@@ -170,15 +170,15 @@ TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 TABLE *find_temporary_table(THD *thd, const char *table_key,
                             uint table_key_length);
 void close_thread_tables(THD *thd);
-bool fill_record_n_invoke_before_triggers(THD *thd, List<Item> &fields,
+bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
+                                          List<Item> &fields,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          Table_triggers_list *triggers,
                                           enum trg_event_type event);
-bool fill_record_n_invoke_before_triggers(THD *thd, Field **field,
+bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
+                                          Field **field,
                                           List<Item> &values,
                                           bool ignore_errors,
-                                          Table_triggers_list *triggers,
                                           enum trg_event_type event);
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
@@ -191,7 +191,7 @@ bool setup_fields(THD *thd, Item** ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, bool allow_sum_func);
 void unfix_fields(List<Item> &items);
-bool fill_record(THD *thd, Field **field, List<Item> &values,
+bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
                  bool ignore_errors, bool use_value);
 
 Field *
@@ -272,6 +272,7 @@ bool rename_temporary_table(THD* thd, TABLE *table, const char *new_db,
 			    const char *table_name);
 bool is_equal(const LEX_STRING *a, const LEX_STRING *b);
 
+class Open_tables_backup;
 /* Functions to work with system tables. */
 bool open_system_tables_for_read(THD *thd, TABLE_LIST *table_list,
                                  Open_tables_backup *backup);
@@ -307,6 +308,14 @@ bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool fast_check,
 int update_virtual_fields(THD *thd, TABLE *table,
       enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
+
+/* open_and_lock_tables with optional derived handling */
+int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
+
+extern "C" int simple_raw_key_cmp(void* arg, const void* key1,
+                                  const void* key2);
+extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2);
 
 extern TABLE *unused_tables;
 extern Item **not_found_item;
@@ -473,7 +482,6 @@ open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
 
   return open_tables(thd, tables, counter, flags, &prelocking_strategy);
 }
-
 
 inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,
                                        thr_lock_type lock_type, uint flags)

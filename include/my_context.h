@@ -182,8 +182,8 @@ struct mysql_async_context {
     my_bool r_my_bool;
   } ret_result;
   /*
-    The timeout value, for suspended calls that need to wake up on a timeout
-    (eg. mysql_real_connect_start().
+    The timeout value (in millisecods), for suspended calls that need to wake
+    up on a timeout (eg. mysql_real_connect_start().
   */
   unsigned int timeout_value;
   /*

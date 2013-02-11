@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -65,10 +65,6 @@ public:
   Table_flags table_flags() const;
 #endif
   ~ha_oqgraph();
-  const char *table_type() const
-  {
-    return "OQGRAPH";
-  }
   const char *index_type(uint inx)
   {
     return "HASH";

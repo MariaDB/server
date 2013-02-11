@@ -1194,7 +1194,7 @@ DROP TABLE t2;
 --exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mwl136.sql
 
 --replace_regex /\/\* xid=.* \*\//\/* XID *\// /Server ver: .*, Binlog ver: .*/Server ver: #, Binlog ver: #/ /table_id: [0-9]+/table_id: #/
-SHOW BINLOG EVENTS LIMIT 6,3;
+SHOW BINLOG EVENTS LIMIT 7,3;
 --perl
 my $f= "$ENV{MYSQLTEST_VARDIR}/tmp/mwl136.sql";
 open F, '<', $f or die "Failed to open $f: $!\n";

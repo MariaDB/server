@@ -232,7 +232,7 @@ mysqltest: At line 2: Spurious text after `query` expression
 mysqltest: At line 1: Missing argument(s) to 'error'
 mysqltest: At line 1: Missing argument(s) to 'error'
 mysqltest: At line 1: The sqlstate definition must start with an uppercase S
-mysqltest: At line 1: The error name definition must start with an uppercase E
+mysqltest: At line 1: The error name definition must start with an uppercase E or W
 mysqltest: At line 1: Invalid argument to error: '9eeeee' - the errno may only consist of digits[0-9]
 mysqltest: At line 1: Invalid argument to error: '1sssss' - the errno may only consist of digits[0-9]
 mysqltest: At line 1: The sqlstate must be exactly 5 chars long
@@ -935,9 +935,9 @@ a	int(11)	YES		NULL
 b	varchar(255)	YES		NULL	
 c	datetime	YES		NULL	
 drop table t1;
-mysqltest: At line 1: change user failed: Unknown database 'inexistent'
-mysqltest: At line 1: change user failed: Access denied for user 'inexistent'@'localhost' (using password: NO)
-mysqltest: At line 1: change user failed: Access denied for user 'root'@'localhost' (using password: YES)
+mysqltest: At line 1: query 'change_user root,,inexistent' failed: 1049: Unknown database 'inexistent'
+mysqltest: At line 1: query 'change_user inexistent,,test' failed: 1045: Access denied for user 'inexistent'@'localhost' (using password: NO)
+mysqltest: At line 1: query 'change_user root,inexistent,test' failed: 1045: Access denied for user 'root'@'localhost' (using password: YES)
 REPLACED_FILE1.txt
 file1.txt
 file2.txt

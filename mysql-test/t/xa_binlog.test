@@ -27,6 +27,6 @@ SELECT * FROM t1 ORDER BY a;
 
 --replace_column 2 # 5 #
 --replace_regex /xid=[0-9]+/xid=XX/
-SHOW BINLOG EVENTS LIMIT 1,9;
+SHOW BINLOG EVENTS LIMIT 2,9;
 
 DROP TABLE t1;

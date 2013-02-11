@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 1995, 2012 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -334,6 +335,12 @@ enum ha_base_keytype {
 #define HA_CREATE_DELAY_KEY_WRITE 64
 #define HA_CREATE_RELIES_ON_SQL_LAYER 128
 
+
+/* Flags used by start_bulk_insert */
+
+#define HA_CREATE_UNIQUE_INDEX_BY_SORT   1
+
+
 /*
   The following flags (OR-ed) are passed to handler::info() method.
   The method copies misc handler information out of the storage engine
@@ -459,14 +466,16 @@ enum ha_base_keytype {
 #define HA_ERR_FILE_TOO_SHORT	  175	 /* File too short */
 #define HA_ERR_WRONG_CRC	  176	 /* Wrong CRC on page */
 #define HA_ERR_TOO_MANY_CONCURRENT_TRXS 177 /*Too many active concurrent transactions */
-#define HA_ERR_INDEX_COL_TOO_LONG 178    /* Index column length exceeds limit */
-#define HA_ERR_INDEX_CORRUPT      179        /* Index corrupted */
-#define HA_ERR_UNDO_REC_TOO_BIG   180    /* Undo log record too big */
-#define HA_ERR_TABLE_IN_FK_CHECK  181    /* Table being used in foreign key check */
-#define HA_ERR_ROW_NOT_VISIBLE    182
-#define HA_ERR_ABORTED_BY_USER    183
-#define HA_ERR_DISK_FULL          184
-#define HA_ERR_LAST               184    /* Copy of last error nr */
+#define HA_ERR_NOT_IN_LOCK_PARTITIONS 178
+#define HA_ERR_INDEX_COL_TOO_LONG 179    /* Index column length exceeds limit */
+#define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
+#define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
+#define HA_ERR_TABLE_IN_FK_CHECK  182    /* Table being used in foreign key check */
+#define HA_FTS_INVALID_DOCID      183	 /* Invalid InnoDB Doc ID */
+#define HA_ERR_ROW_NOT_VISIBLE    184
+#define HA_ERR_ABORTED_BY_USER    185
+#define HA_ERR_DISK_FULL          186
+#define HA_ERR_LAST               186    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)

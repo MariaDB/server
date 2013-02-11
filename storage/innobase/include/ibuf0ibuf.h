@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2009, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,6 +34,10 @@ Created 7/19/1997 Heikki Tuuri
 
 #ifndef UNIV_HOTBACKUP
 # include "ibuf0types.h"
+
+/** Default value for maximum on-disk size of change buffer in terms
+of percentage of the buffer pool. */
+#define CHANGE_BUFFER_DEFAULT_SIZE	(25)
 
 /* Possible operations buffered in the insert/whatever buffer. See
 ibuf_insert(). DO NOT CHANGE THE VALUES OF THESE, THEY ARE STORED ON DISK. */
@@ -97,6 +101,14 @@ UNIV_INTERN
 void
 ibuf_init_at_db_start(void);
 /*=======================*/
+/*********************************************************************//**
+Updates the max_size value for ibuf. */
+UNIV_INTERN
+void
+ibuf_max_size_update(
+/*=================*/
+	ulint	new_val);	/*!< in: new value in terms of
+				percentage of the buffer pool size */
 /*********************************************************************//**
 Reads the biggest tablespace id from the high end of the insert buffer
 tree and updates the counter in fil_system. */
@@ -376,14 +388,12 @@ will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 UNIV_INTERN
 ulint
-ibuf_contract_for_n_pages(
-/*======================*/
-	ibool	sync,	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
-	ulint	n_pages);/*!< in: try to read at least this many pages to
-			the buffer pool and merge the ibuf contents to
-			them */
+ibuf_contract_in_background(
+/*========================*/
+	ibool	full);	/*!< in: TRUE if the caller wants to do a full
+			contract based on PCT_IO(100). If FALSE then
+			the size of contract batch is determined based
+			on the current size of the ibuf tree. */
 #endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Parses a redo log record of an ibuf bitmap page init.
@@ -451,6 +461,36 @@ for the file segment from which the pages for the ibuf tree are allocated */
 
 /* The insert buffer tree itself is always located in space 0. */
 #define IBUF_SPACE_ID		0
+
+/** Insert buffer struct */
+struct ibuf_struct{
+	ulint		size;		/*!< current size of the ibuf index
+					tree, in pages */
+	ulint		max_size;	/*!< recommended maximum size of the
+					ibuf index tree, in pages */
+	ulint		seg_size;	/*!< allocated pages of the file
+					segment containing ibuf header and
+					tree */
+	ibool		empty;		/*!< Protected by the page
+					latch of the root page of the
+					insert buffer tree
+					(FSP_IBUF_TREE_ROOT_PAGE_NO). TRUE
+					if and only if the insert
+					buffer tree is empty. */
+	ulint		free_list_len;	/*!< length of the free list */
+	ulint		height;		/*!< tree height */
+	dict_index_t*	index;		/*!< insert buffer index */
+
+	ulint		n_merges;	/*!< number of pages merged */
+	ulint		n_merged_ops[IBUF_OP_COUNT];
+					/*!< number of operations of each type
+					merged to index pages */
+	ulint		n_discarded_ops[IBUF_OP_COUNT];
+					/*!< number of operations of each type
+					discarded without merging due to the
+					tablespace being deleted or the
+					index being dropped */
+};
 
 #ifndef UNIV_NONINL
 #include "ibuf0ibuf.ic"

@@ -604,7 +604,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     struct timespec start_ts;
     struct timespec abstime;
     int wait_result;
-    const char *old_msg= 0;
+    PSI_stage_info old_stage;
 
     set_timespec(start_ts, 0);
 
@@ -613,8 +613,9 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
     lock();
 
     /* This must be called after acquired the lock */
-    old_msg= thd_enter_cond(NULL, &COND_binlog_send_, &LOCK_binlog_,
-                            "Waiting for semi-sync ACK from slave");
+    THD_ENTER_COND(NULL, &COND_binlog_send_, &LOCK_binlog_,
+                   & stage_waiting_for_semi_sync_ack_from_slave,
+                   & old_stage);
 
     /* This is the real check inside the mutex. */
     if (!getMasterEnabled() || !is_on())
@@ -627,7 +628,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
                             (int)is_on());
     }
 
-    while (is_on() && !thd_killed(NULL))
+    while (is_on())
     {
       if (reply_file_name_inited_)
       {
@@ -684,7 +685,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
         abstime.tv_sec++;
         diff_nsecs -= TIME_BILLION;
       }
-      abstime.tv_nsec = (long)diff_nsecs;
+      abstime.tv_nsec = diff_nsecs;
       
       /* In semi-synchronous replication, we wait until the binlog-dump
        * thread has received the reply on the relevant binlog segment from the
@@ -743,9 +744,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
       At this point, the binlog file and position of this transaction
       must have been removed from ActiveTranx.
     */
-    assert(thd_killed(NULL) ||
-           !getMasterEnabled() ||
-           !active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
+    assert(!active_tranxs_->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
     
   l_end:
@@ -757,7 +756,7 @@ int ReplSemiSyncMaster::commitTrx(const char* trx_wait_binlog_name,
 
     /* The lock held will be released by thd_exit_cond, so no need to
        call unlock() here */
-    thd_exit_cond(NULL, old_msg);
+    THD_EXIT_COND(NULL, & old_stage);
   }
 
   return function_exit(kWho, 0);
@@ -1051,6 +1050,7 @@ int ReplSemiSyncMaster::readSlaveReply(NET *net, uint32 server_id,
   int      result = -1;
   struct timespec start_ts;
   ulong trc_level = trace_level_;
+  LINT_INIT_STRUCT(start_ts);
 
   LINT_INIT_STRUCT(start_ts);
 

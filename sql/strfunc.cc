@@ -15,6 +15,7 @@
 
 /* Some useful string utility functions used by the MySQL server */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "strfunc.h"

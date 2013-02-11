@@ -51,8 +51,8 @@ static TYPELIB global_plugin_typelib=
   { array_elements(global_plugin_typelib_names)-1,
     "", global_plugin_typelib_names, NULL };
 
-
-char *opt_plugin_load= NULL;
+static I_List<i_string> opt_plugin_load_list;
+I_List<i_string> *opt_plugin_load_list_ptr= &opt_plugin_load_list;
 char *opt_plugin_dir_ptr;
 char opt_plugin_dir[FN_REFLEN];
 ulong plugin_maturity;
@@ -1040,8 +1040,10 @@ static bool plugin_add(MEM_ROOT *tmp_root,
 {
   struct st_plugin_int tmp;
   struct st_maria_plugin *plugin;
-  uint oks= 0, errs= 0;
+  uint oks= 0, errs= 0, dupes= 0;
   DBUG_ENTER("plugin_add");
+  DBUG_PRINT("enter", ("name: %s  dl: %s", name->str, dl->str));
+
   if (name->str && plugin_find_internal(name, MYSQL_ANY_PLUGIN))
   {
     report_error(report, ER_UDF_EXISTS, name->str);
@@ -1067,51 +1069,54 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       continue; // plugin name doesn't match
 
     if (!name->str && plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN))
+    {
+      dupes++;
       continue; // already installed
+    }
 
-      struct st_plugin_int *tmp_plugin_ptr;
-      if (*(int*)plugin->info <
-          min_plugin_info_interface_version[plugin->type] ||
-          ((*(int*)plugin->info) >> 8) >
-          (cur_plugin_info_interface_version[plugin->type] >> 8))
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "API version for ",
-                 plugin_type_names[plugin->type].str,
-                 " plugin ", tmp.name.str,
-                 " not supported by this version of the server", NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
-        goto err;
-      }
-      if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
-      {
-        char buf[256];
-        strxnmov(buf, sizeof(buf) - 1, "Loading of ",
-                 plugin_maturity_names[plugin->maturity],
-                 " plugin ", tmp.name.str,
-                 " is prohibited by --plugin-maturity=",
-                 plugin_maturity_names[plugin_maturity],
-                 NullS);
-        report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
-        goto err;
-      }
-      tmp.plugin= plugin;
-      tmp.ref_count= 0;
-      tmp.state= PLUGIN_IS_UNINITIALIZED;
-      tmp.load_option= PLUGIN_ON;
-      if (test_plugin_options(tmp_root, &tmp, argc, argv))
-        tmp.state= PLUGIN_IS_DISABLED;
+    struct st_plugin_int *tmp_plugin_ptr;
+    if (*(int*)plugin->info <
+        min_plugin_info_interface_version[plugin->type] ||
+        ((*(int*)plugin->info) >> 8) >
+        (cur_plugin_info_interface_version[plugin->type] >> 8))
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "API version for ",
+               plugin_type_names[plugin->type].str,
+               " plugin ", tmp.name.str,
+               " not supported by this version of the server", NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
+      goto err;
+    }
+    if (plugin_maturity_map[plugin->maturity] < plugin_maturity)
+    {
+      char buf[256];
+      strxnmov(buf, sizeof(buf) - 1, "Loading of ",
+               plugin_maturity_names[plugin->maturity],
+               " plugin ", tmp.name.str,
+               " is prohibited by --plugin-maturity=",
+               plugin_maturity_names[plugin_maturity],
+               NullS);
+      report_error(report, ER_CANT_OPEN_LIBRARY, dl->str, 0, buf);
+      goto err;
+    }
+    tmp.plugin= plugin;
+    tmp.ref_count= 0;
+    tmp.state= PLUGIN_IS_UNINITIALIZED;
+    tmp.load_option= PLUGIN_ON;
+    if (test_plugin_options(tmp_root, &tmp, argc, argv))
+      tmp.state= PLUGIN_IS_DISABLED;
 
-      if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
-      {
-        mysql_del_sys_var_chain(tmp.system_vars);
-        restore_pluginvar_names(tmp.system_vars);
-        goto err;
-      }
-      plugin_array_version++;
-      if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
-        tmp_plugin_ptr->state= PLUGIN_IS_FREED;
-      init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096);
+    if (!(tmp_plugin_ptr= plugin_insert_or_reuse(&tmp)))
+    {
+      mysql_del_sys_var_chain(tmp.system_vars);
+      restore_pluginvar_names(tmp.system_vars);
+      goto err;
+    }
+    plugin_array_version++;
+    if (my_hash_insert(&plugin_hash[plugin->type], (uchar*)tmp_plugin_ptr))
+      tmp_plugin_ptr->state= PLUGIN_IS_FREED;
+    init_alloc_root(&tmp_plugin_ptr->mem_root, 4096, 4096, MYF(0));
 
     if (name->str)
       DBUG_RETURN(FALSE); // all done
@@ -1126,11 +1131,13 @@ err:
       break;
   }
 
-  if (errs == 0 && oks == 0) // no plugin was found
+  DBUG_ASSERT(!name->str || !dupes); // dupes is ONLY for name->str == 0
+
+  if (errs == 0 && oks == 0 && !dupes) // no plugin was found
     report_error(report, ER_CANT_FIND_DL_ENTRY, name->str);
 
   plugin_dl_del(dl);
-  DBUG_RETURN(errs > 0 || oks == 0);
+  DBUG_RETURN(errs > 0 || oks + dupes == 0);
 }
 
 
@@ -1504,8 +1511,8 @@ int plugin_init(int *argc, char **argv, int flags)
   init_plugin_psi_keys();
 #endif
 
-  init_alloc_root(&plugin_mem_root, 4096, 4096);
-  init_alloc_root(&tmp_root, 4096, 4096);
+  init_alloc_root(&plugin_mem_root, 4096, 4096, MYF(0));
+  init_alloc_root(&tmp_root, 4096, 4096, MYF(0));
 
   if (my_hash_init(&bookmark_hash, &my_charset_bin, 16, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))
@@ -1515,9 +1522,9 @@ int plugin_init(int *argc, char **argv, int flags)
   mysql_mutex_init(key_LOCK_plugin, &LOCK_plugin, MY_MUTEX_INIT_FAST);
 
   if (my_init_dynamic_array(&plugin_dl_array,
-                            sizeof(struct st_plugin_dl *),16,16) ||
+                            sizeof(struct st_plugin_dl *), 16, 16, MYF(0)) ||
       my_init_dynamic_array(&plugin_array,
-                            sizeof(struct st_plugin_int *),16,16))
+                            sizeof(struct st_plugin_int *), 16, 16, MYF(0)))
     goto err;
 
   for (i= 0; i < MYSQL_MAX_PLUGIN_TYPE_NUM; i++)
@@ -1623,8 +1630,11 @@ int plugin_init(int *argc, char **argv, int flags)
   /* Register all dynamic plugins */
   if (!(flags & PLUGIN_INIT_SKIP_DYNAMIC_LOADING))
   {
-    if (opt_plugin_load)
-      plugin_load_list(&tmp_root, argc, argv, opt_plugin_load);
+    I_List_iterator<i_string> iter(opt_plugin_load_list);
+    i_string *item;
+    while (NULL != (item= iter++))
+      plugin_load_list(&tmp_root, argc, argv, item->ptr);
+
     if (!(flags & PLUGIN_INIT_SKIP_PLUGIN_TABLE))
       plugin_load(&tmp_root, argc, argv);
   }
@@ -1713,12 +1723,11 @@ static bool register_builtin(struct st_maria_plugin *plugin,
 */
 static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
 {
-  THD thd;
   TABLE_LIST tables;
   TABLE *table;
   READ_RECORD read_record_info;
   int error;
-  THD *new_thd= &thd;
+  THD *new_thd= new THD;
   bool result;
 #ifdef EMBEDDED_LIBRARY
   No_such_table_error_handler error_handler;
@@ -1729,7 +1738,7 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   new_thd->store_globals();
   new_thd->db= my_strdup("mysql", MYF(0));
   new_thd->db_length= 5;
-  bzero((char*) &thd.net, sizeof(thd.net));
+  bzero((char*) &new_thd->net, sizeof(new_thd->net));
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_READ);
 
 #ifdef EMBEDDED_LIBRARY
@@ -1796,7 +1805,8 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   close_mysql_tables(new_thd);
 end:
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD, 0);
+  delete new_thd;
+  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 
@@ -1872,8 +1882,11 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, int *argc, char **argv,
   DBUG_RETURN(FALSE);
 error:
   mysql_mutex_unlock(&LOCK_plugin);
-  sql_print_error("Couldn't load plugin named '%s' with soname '%s'.",
-                  name.str, dl.str);
+  if (name.str)
+    sql_print_error("Couldn't load plugin '%s' from '%s'.",
+                    name.str, dl.str);
+  else
+    sql_print_error("Couldn't load plugins from '%s'.", dl.str);
   DBUG_RETURN(TRUE);
 }
 

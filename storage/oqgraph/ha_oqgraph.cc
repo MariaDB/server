@@ -1,4 +1,4 @@
-/* Copyright (C) 2007-2009 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -551,7 +551,6 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   int res;
   open_query::row row;
   DBUG_ASSERT(inited==INDEX);
-  STATISTIC_INCREMENT(ha_read_key_count);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND : 0;
@@ -569,7 +568,6 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   VertexID *orig_idp=0, *dest_idp=0;
   int *latchp=0;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_key_count);
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
   key_restore(buf, (byte*) key, key_info, key_len);
@@ -579,9 +577,9 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   if (ptrdiff)
   {
-    field[0]->MOVE(ptrdiff);
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
+    field[0]->move_field_offset(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
   }
 
   if (!field[0]->is_null())
@@ -604,9 +602,9 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   if (ptrdiff)
   {
-    field[0]->MOVE(-ptrdiff);
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
+    field[0]->move_field_offset(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
 
@@ -629,12 +627,12 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   if (ptrdiff)
   {
-    field[0]->MOVE(ptrdiff);
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
-    field[3]->MOVE(ptrdiff);
-    field[4]->MOVE(ptrdiff);
-    field[5]->MOVE(ptrdiff);
+    field[0]->move_field_offset(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
+    field[3]->move_field_offset(ptrdiff);
+    field[4]->move_field_offset(ptrdiff);
+    field[5]->move_field_offset(ptrdiff);
   }
 
   // just each field specifically, no sense iterating
@@ -676,12 +674,12 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   if (ptrdiff)
   {
-    field[0]->MOVE(-ptrdiff);
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
-    field[3]->MOVE(-ptrdiff);
-    field[4]->MOVE(-ptrdiff);
-    field[5]->MOVE(-ptrdiff);
+    field[0]->move_field_offset(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
+    field[3]->move_field_offset(-ptrdiff);
+    field[4]->move_field_offset(-ptrdiff);
+    field[5]->move_field_offset(-ptrdiff);
   }
   dbug_tmp_restore_column_map(table->write_set, old_map);
 
@@ -698,7 +696,6 @@ int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_rnd_next_count);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;
@@ -709,7 +706,6 @@ int ha_oqgraph::rnd_pos(byte * buf, byte *pos)
 {
   int res;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_rnd_count);
   if (!(res= graph->fetch_row(row, pos)))
     res= fill_record(buf, row);
   table->status=res ? STATUS_NOT_FOUND: 0;
@@ -783,8 +779,6 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
                                   key_range *max_key)
 {
   KEY *key=table->key_info+inx;
-  //if (key->algorithm == HA_KEY_ALG_BTREE)
-  //  return btree_records_in_range(file, inx, min_key, max_key);
 
   if (!min_key || !max_key ||
       min_key->length != max_key->length ||
@@ -803,8 +797,8 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
     return HA_POS_ERROR;			// Can only use exact keys
   }
 
-  if (RECORDS <= 1)
-    return RECORDS;
+  if (stats.records <= 1)
+    return stats.records;
 
   /* Assert that info() did run. We need current statistics here. */
   //DBUG_ASSERT(key_stat_version == share->key_stat_version);
@@ -832,8 +826,6 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
 void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 {
   table->file->info(HA_STATUS_AUTO);
-  //if (!(create_info->used_fields & HA_CREATE_USED_AUTO))
-  //  create_info->auto_increment_value= auto_increment_value;
 }
 
 struct st_mysql_storage_engine oqgraph_storage_engine=
@@ -852,7 +844,7 @@ maria_declare_plugin(oqgraph)
   0x0300,                     /* Version: 3s.0                    */
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
-  "2.0",
+  "3.0",
   MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;

@@ -748,6 +748,7 @@ const char* Log_event::get_type_str(Log_event_type type)
   case EXECUTE_LOAD_QUERY_EVENT: return "Execute_load_query";
   case INCIDENT_EVENT: return "Incident";
   case ANNOTATE_ROWS_EVENT: return "Annotate_rows";
+  case BINLOG_CHECKPOINT_EVENT: return "Binlog_checkpoint";
   default: return "Unknown";				/* impossible */
   }
 }
@@ -922,9 +923,9 @@ int Log_event::do_update_pos(Relay_log_info *rli)
 Log_event::enum_skip_reason
 Log_event::do_shall_skip(Relay_log_info *rli)
 {
-  DBUG_PRINT("info", ("ev->server_id=%lu, ::server_id=%lu,"
-                      " rli->replicate_same_server_id=%d,"
-                      " rli->slave_skip_counter=%d",
+  DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
+                      " rli->replicate_same_server_id: %d,"
+                      " rli->slave_skip_counter: %lu",
                       (ulong) server_id, (ulong) ::server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
@@ -1407,7 +1408,7 @@ err:
     DBUG_ASSERT(error != 0);
     sql_print_error("Error in Log_event::read_log_event(): "
                     "'%s', data_len: %d, event_type: %d",
-		    error,data_len,head[EVENT_TYPE_OFFSET]);
+		    error,data_len,(uchar)(head[EVENT_TYPE_OFFSET]));
     my_free(buf);
     /*
       The SQL slave thread will check if file->error<0 to know
@@ -1555,6 +1556,9 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
     case ROTATE_EVENT:
       ev = new Rotate_log_event(buf, event_len, description_event);
+      break;
+    case BINLOG_CHECKPOINT_EVENT:
+      ev = new Binlog_checkpoint_log_event(buf, event_len, description_event);
       break;
 #ifdef HAVE_REPLICATION
     case SLAVE_EVENT: /* can never happen (unused event) */
@@ -3320,6 +3324,115 @@ Query_log_event::Query_log_event(const char* buf, uint event_len,
 }
 
 
+/*
+  Replace a binlog event read into a packet with a dummy event. Either a
+  Query_log_event that has just a comment, or if that will not fit in the
+  space used for the event to be replaced, then a NULL user_var event.
+
+  This is used when sending binlog data to a slave which does not understand
+  this particular event and which is too old to support informational events
+  or holes in the event stream.
+
+  This allows to write such events into the binlog on the master and still be
+  able to replicate against old slaves without them breaking.
+
+  Clears the flag LOG_EVENT_THREAD_SPECIFIC_F and set LOG_EVENT_SUPPRESS_USE_F.
+  Overwrites the type with QUERY_EVENT (or USER_VAR_EVENT), and replaces the
+  body with a minimal query / NULL user var.
+
+  Returns zero on success, -1 if error due to too little space in original
+  event. A minimum of 25 bytes (19 bytes fixed header + 6 bytes in the body)
+  is needed in any event to be replaced with a dummy event.
+*/
+int
+Query_log_event::dummy_event(String *packet, ulong ev_offset,
+                             uint8 checksum_alg)
+{
+  uchar *p= (uchar *)packet->ptr() + ev_offset;
+  size_t data_len= packet->length() - ev_offset;
+  uint16 flags;
+  static const size_t min_user_var_event_len=
+    LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE + 1 + UV_VAL_IS_NULL; // 25
+  static const size_t min_query_event_len=
+    LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN + 1 + 1; // 34
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+    data_len-= BINLOG_CHECKSUM_LEN;
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  if (data_len < min_user_var_event_len)
+    /* Cannot replace with dummy, event too short. */
+    return -1;
+
+  flags= uint2korr(p + FLAGS_OFFSET);
+  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+  flags|= LOG_EVENT_SUPPRESS_USE_F;
+  int2store(p + FLAGS_OFFSET, flags);
+
+  if (data_len < min_query_event_len)
+  {
+    /*
+      Have to use dummy user_var event for such a short packet.
+
+      This works, but the event will be considered part of an event group with
+      the following event. So for example @@global.sql_slave_skip_counter=1
+      will skip not only the dummy event, but also the immediately following
+      event.
+
+      We write a NULL user var with the name @`!dummyvar` (or as much
+      as that as will fit within the size of the original event - so
+      possibly just @`!`).
+    */
+    static const char var_name[]= "!dummyvar";
+    uint name_len= data_len - (min_user_var_event_len - 1);
+
+    p[EVENT_TYPE_OFFSET]= USER_VAR_EVENT;
+    int4store(p + LOG_EVENT_HEADER_LEN, name_len);
+    memcpy(p + LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE, var_name, name_len);
+    p[LOG_EVENT_HEADER_LEN + UV_NAME_LEN_SIZE + name_len]= 1; // indicates NULL
+  }
+  else
+  {
+    /*
+      Use a dummy query event, just a comment.
+    */
+    static const char message[]=
+      "# Dummy event replacing event type %u that slave cannot handle.";
+    char buf[sizeof(message)+1];  /* +1, as %u can expand to 3 digits. */
+    uchar old_type= p[EVENT_TYPE_OFFSET];
+    uchar *q= p + LOG_EVENT_HEADER_LEN;
+    size_t comment_len, len;
+
+    p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
+    int4store(q + Q_THREAD_ID_OFFSET, 0);
+    int4store(q + Q_EXEC_TIME_OFFSET, 0);
+    q[Q_DB_LEN_OFFSET]= 0;
+    int2store(q + Q_ERR_CODE_OFFSET, 0);
+    int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+    q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+    q+= Q_DATA_OFFSET + 1;
+    len= my_snprintf(buf, sizeof(buf), message, old_type);
+    comment_len= data_len - (min_query_event_len - 1);
+    if (comment_len <= len)
+      memcpy(q, buf, comment_len);
+    else
+    {
+      memcpy(q, buf, len);
+      memset(q+len, ' ', comment_len - len);
+    }
+  }
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    ha_checksum crc= my_checksum(0L, p, data_len);
+    int4store(p + data_len, crc);
+  }
+  return 0;
+}
+
+
 #ifdef MYSQL_CLIENT
 /**
   Query_log_event::print().
@@ -4339,6 +4452,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
 
       // Set header lengths of Maria events
       post_header_len[ANNOTATE_ROWS_EVENT-1]= ANNOTATE_ROWS_HEADER_LEN;
+      post_header_len[BINLOG_CHECKPOINT_EVENT-1]=
+        BINLOG_CHECKPOINT_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -5798,6 +5913,86 @@ Rotate_log_event::do_shall_skip(Relay_log_info *rli)
 
 
 /**************************************************************************
+  Binlog_checkpoint_log_event methods
+**************************************************************************/
+
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
+void Binlog_checkpoint_log_event::pack_info(THD *thd, Protocol *protocol)
+{
+  protocol->store(binlog_file_name, binlog_file_len, &my_charset_bin);
+}
+#endif
+
+
+#ifdef MYSQL_CLIENT
+void Binlog_checkpoint_log_event::print(FILE *file,
+                                        PRINT_EVENT_INFO *print_event_info)
+{
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F);
+
+  if (print_event_info->short_form)
+    return;
+  print_header(&cache, print_event_info, FALSE);
+  my_b_printf(&cache, "\tBinlog checkpoint ");
+  my_b_write(&cache, (uchar*)binlog_file_name, binlog_file_len);
+  my_b_printf(&cache, "\n");
+}
+#endif  /* MYSQL_CLIENT */
+
+
+#ifdef MYSQL_SERVER
+Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
+        const char *binlog_file_name_arg,
+        uint binlog_file_len_arg)
+  :Log_event(),
+   binlog_file_name(my_strndup(binlog_file_name_arg, binlog_file_len_arg,
+                               MYF(MY_WME))),
+   binlog_file_len(binlog_file_len_arg)
+{
+  cache_type= EVENT_NO_CACHE;
+}
+#endif  /* MYSQL_SERVER */
+
+
+Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
+       const char *buf, uint event_len,
+       const Format_description_log_event *description_event)
+  :Log_event(buf, description_event), binlog_file_name(0)
+{
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len=
+    description_event->post_header_len[BINLOG_CHECKPOINT_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < BINLOG_CHECKPOINT_HEADER_LEN)
+    return;
+  buf+= header_size;
+  /* See uint4korr and int4store below */
+  compile_time_assert(BINLOG_CHECKPOINT_HEADER_LEN == 4);
+  binlog_file_len= uint4korr(buf);
+  if (event_len - (header_size + post_header_len) < binlog_file_len)
+    return;
+  binlog_file_name= my_strndup(buf + post_header_len, binlog_file_len,
+                               MYF(MY_WME));
+  return;
+}
+
+
+#ifndef MYSQL_CLIENT
+bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
+{
+  uchar buf[BINLOG_CHECKPOINT_HEADER_LEN];
+  int4store(buf, binlog_file_len);
+  return write_header(file, BINLOG_CHECKPOINT_HEADER_LEN + binlog_file_len) ||
+    wrapper_my_b_safe_write(file, buf, BINLOG_CHECKPOINT_HEADER_LEN) ||
+    wrapper_my_b_safe_write(file, (const uchar *)binlog_file_name,
+                            binlog_file_len) ||
+    write_footer(file);
+}
+#endif  /* MYSQL_CLIENT */
+
+
+/**************************************************************************
 	Intvar_log_event methods
 **************************************************************************/
 
@@ -7121,16 +7316,15 @@ void Create_file_log_event::pack_info(THD *thd, Protocol *protocol)
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 int Create_file_log_event::do_apply_event(Relay_log_info const *rli)
 {
-  char proc_info[17+FN_REFLEN+10], *fname_buf;
+  char fname_buf[FN_REFLEN];
   char *ext;
   int fd = -1;
   IO_CACHE file;
   int error = 1;
 
+  THD_STAGE_INFO(thd, stage_making_temp_file_create_before_load_data);
   bzero((char*)&file, sizeof(file));
-  fname_buf= strmov(proc_info, "Making temp file ");
   ext= slave_load_file_stem(fname_buf, file_id, server_id, ".info");
-  thd_proc_info(thd, proc_info);
   /* old copy may exist already */
   mysql_file_delete(key_file_log_event_info, fname_buf, MYF(0));
   if ((fd= mysql_file_create(key_file_log_event_info,
@@ -7187,7 +7381,6 @@ err:
     end_io_cache(&file);
   if (fd >= 0)
     mysql_file_close(fd, MYF(0));
-  thd_proc_info(thd, 0);
   return error != 0;
 }
 #endif /* defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT) */
@@ -7301,14 +7494,13 @@ int Append_block_log_event::get_create_or_append() const
 
 int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
 {
-  char proc_info[17+FN_REFLEN+10], *fname= proc_info+17;
+  char fname[FN_REFLEN];
   int fd;
   int error = 1;
   DBUG_ENTER("Append_block_log_event::do_apply_event");
 
-  fname= strmov(proc_info, "Making temp file ");
+  THD_STAGE_INFO(thd, stage_making_temp_file_append_before_load_data);
   slave_load_file_stem(fname, file_id, server_id, ".data");
-  thd_proc_info(thd, proc_info);
   if (get_create_or_append())
   {
     /*
@@ -7358,7 +7550,6 @@ int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
 err:
   if (fd >= 0)
     mysql_file_close(fd, MYF(0));
-  thd_proc_info(thd, 0);
   DBUG_RETURN(error);
 }
 #endif
@@ -9736,23 +9927,6 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     */
   }
 
-  /*
-    We need TIMESTAMP_NO_AUTO_SET otherwise ha_write_row() will not use fill
-    any TIMESTAMP column with data from the row but instead will use
-    the event's current time.
-    As we replicate from TIMESTAMP to TIMESTAMP and slave has no extra
-    columns, we know that all TIMESTAMP columns on slave will receive explicit
-    data from the row, so TIMESTAMP_NO_AUTO_SET is ok.
-    When we allow a table without TIMESTAMP to be replicated to a table having
-    more columns including a TIMESTAMP column, or when we allow a TIMESTAMP
-    column to be replicated into a BIGINT column and the slave's table has a
-    TIMESTAMP column, then the slave's TIMESTAMP column will take its value
-    from set_time() which we called earlier (consistent with SBR). And then in
-    some cases we won't want TIMESTAMP_NO_AUTO_SET (will require some code to
-    analyze if explicit data is provided for slave's TIMESTAMP columns).
-  */
-  m_table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
-  
   /* Honor next number column if present */
   m_table->next_number_field= m_table->found_next_number_field;
   /*
@@ -10422,8 +10596,14 @@ int Rows_log_event::find_row(const Relay_log_info *rli)
                                  table->s->reclength) == 0);
 
     */
+    int error;
     DBUG_PRINT("info",("locating record using primary key (position)"));
-    int error= table->file->ha_rnd_pos_by_record(table->record[0]);
+
+    if (!table->file->inited &&
+        (error= table->file->ha_rnd_init_with_error(0)))
+      DBUG_RETURN(error);
+
+    error= table->file->ha_rnd_pos_by_record(table->record[0]);
     if (error)
     {
       DBUG_PRINT("info",("rnd_pos returns error %d",error));
@@ -10835,8 +11015,6 @@ Update_rows_log_event::do_before_row_operations(const Slave_reporting_capability
   if ((err= find_key()))
     return err;
 
-  m_table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
-
   return 0;
 }
 
@@ -11098,6 +11276,9 @@ Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
   There is a dummy replacement for this in the embedded library that returns
   FALSE; this is used by XtraDB to allow it to access replication stuff while
   still being able to use the same plugin in both stand-alone and embedded.
+
+  In this function it's ok to use active_mi, as this is only called for
+  the main replication server.
 */
 bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
                            const char **group_relay_log_name,

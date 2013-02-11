@@ -191,6 +191,9 @@ functions).  The page number parameter was originally written as 0. @{ */
 					MLOG_FILE_CREATE, MLOG_FILE_CREATE2 */
 /* @} */
 
+/* included here because it needs MLOG_LSN defined */
+#include "log0log.h"
+
 /***************************************************************//**
 Starts a mini-transaction. */
 UNIV_INLINE
@@ -355,7 +358,6 @@ mtr_memo_push(
 	void*	object,	/*!< in: object */
 	ulint	type);	/*!< in: object type: MTR_MEMO_S_LOCK, ... */
 
-
 /* Type definition of a mini-transaction memo stack slot. */
 typedef	struct mtr_memo_slot_struct	mtr_memo_slot_t;
 struct mtr_memo_slot_struct{
@@ -370,11 +372,14 @@ struct mtr_struct{
 #endif
 	dyn_array_t	memo;	/*!< memo stack for locks etc. */
 	dyn_array_t	log;	/*!< mini-transaction log */
-	ibool		inside_ibuf;
+	unsigned	inside_ibuf:1;
 				/*!< TRUE if inside ibuf changes */
-	ibool		modifications;
-				/* TRUE if the mtr made modifications to
-				buffer pool pages */
+	unsigned	modifications:1;
+				/*!< TRUE if the mini-transaction
+				modified buffer pool pages */
+	unsigned	made_dirty:1;
+				/*!< TRUE if mtr has made at least
+				one buffer pool page dirty */
 	ulint		n_log_recs;
 				/* count of how many page initial log records
 				have been written to the mtr log */
@@ -383,9 +388,9 @@ struct mtr_struct{
 				this mini-transaction */
 	ulint		log_mode; /* specifies which operations should be
 				logged; default value MTR_LOG_ALL */
-	ib_uint64_t	start_lsn;/* start lsn of the possible log entry for
+	lsn_t		start_lsn;/* start lsn of the possible log entry for
 				this mtr */
-	ib_uint64_t	end_lsn;/* end lsn of the possible log entry for
+	lsn_t		end_lsn;/* end lsn of the possible log entry for
 				this mtr */
 #ifdef UNIV_DEBUG
 	ulint		magic_n;

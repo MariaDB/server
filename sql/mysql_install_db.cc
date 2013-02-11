@@ -37,7 +37,7 @@
 "Usage: mysql_install_db.exe [OPTIONS]\n" \
 "OPTIONS:"
 
-extern "C" const char mysql_bootstrap_sql[];
+extern "C" const char* mysql_bootstrap_sql[];
 
 char default_os_user[]= "NT AUTHORITY\\NetworkService";
 static int create_db_instance();
@@ -247,7 +247,7 @@ static char *init_bootstrap_command_line(char *cmdline, size_t size)
     "\"\"%s\" --no-defaults --bootstrap"
     " \"--language=%s\\share\\english\""
     " --basedir=. --datadir=. --default-storage-engine=myisam"
-    " --max_allowed_packet=9M --loose-skip-innodb"
+    " --max_allowed_packet=9M "
     " --net-buffer-length=16k\"", mysqld_path, basedir);
   return cmdline;
 }
@@ -565,12 +565,16 @@ static int create_db_instance()
     goto end;
   }
 
-  /* Write the bootstrap script to stdin. */
-  if (fwrite(mysql_bootstrap_sql, strlen(mysql_bootstrap_sql), 1, in) != 1)
+  int i;
+  for (i=0; mysql_bootstrap_sql[i]; i++)
   {
-    verbose("ERROR: Cannot write to mysqld's stdin");
-    ret= 1;
-    goto end;
+    /* Write the bootstrap script to stdin. */
+    if (fwrite(mysql_bootstrap_sql[i], strlen(mysql_bootstrap_sql[i]), 1, in) != 1)
+    {
+      verbose("ERROR: Cannot write to mysqld's stdin");
+      ret= 1;
+      goto end;
+    }
   }
 
   /* Remove default user, if requested. */
@@ -620,6 +624,14 @@ static int create_db_instance()
     verbose("mysqld returned error %d in pclose",ret);
     goto end;
   }
+
+  /* 
+    Remove innodb log files if they exist (this works around "different size logs" 
+    error in MSI installation). TODO : remove this with the next Innodb, where
+    different size is handled gracefully.
+  */
+  DeleteFile("ib_logfile0");
+  DeleteFile("ib_logfile1");
 
   /* Create my.ini file in data directory.*/
   ret= create_myini();

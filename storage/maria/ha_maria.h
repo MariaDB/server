@@ -59,8 +59,6 @@ public:
   ha_maria(handlerton *hton, TABLE_SHARE * table_arg);
   ~ha_maria() {}
   handler *clone(const char *name, MEM_ROOT *mem_root);
-  const char *table_type() const
-  { return "Aria"; }
   const char *index_type(uint key_number);
   const char **bas_ext() const;
   ulonglong table_flags() const
@@ -127,7 +125,7 @@ public:
   int disable_indexes(uint mode);
   int enable_indexes(uint mode);
   int indexes_are_disabled(void);
-  void start_bulk_insert(ha_rows rows);
+  void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
   ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key);
   void update_create_info(HA_CREATE_INFO * create_info);
@@ -186,10 +184,10 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param, 
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, COST_VECT *cost);
+                                      uint *flags, Cost_estimate *cost);
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz, 
-                                uint *flags, COST_VECT *cost);
+                                uint *flags, Cost_estimate *cost);
   int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
   
   /* Index condition pushdown implementation */

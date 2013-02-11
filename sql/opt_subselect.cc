@@ -1656,6 +1656,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       parent_lex->ftfunc_list->push_front(ifm);
   }
 
+  parent_lex->have_merged_subqueries= TRUE;
   DBUG_RETURN(FALSE);
 }
 
@@ -1766,6 +1767,8 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
   create_subquery_temptable_name(tbl_alias, hash_sj_engine->materialize_join->
                                               select_lex->select_number);
   jtbm->alias= tbl_alias;
+
+  parent_lex->have_merged_subqueries= TRUE;
 #if 0
   /* Inject sj_on_expr into the parent's WHERE or ON */
   if (emb_tbl_nest)
@@ -2197,7 +2200,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           Set the cost to do a full scan of the temptable (will need this to 
           consider doing sjm-scan):
         */ 
-        sjm->scan_cost.zero();
+        sjm->scan_cost.reset();
         sjm->scan_cost.add_io(sjm->rows, lookup_cost);
 
         sjm->lookup_cost.convert_from_cost(lookup_cost);
@@ -2632,12 +2635,12 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
     else
     {
       /* This is SJ-Materialization with lookups */
-      COST_VECT prefix_cost; 
+      Cost_estimate prefix_cost; 
       signed int first_tab= (int)idx - mat_info->tables;
       double prefix_rec_count;
       if (first_tab < (int)join->const_tables)
       {
-        prefix_cost.zero();
+        prefix_cost.reset();
         prefix_rec_count= 1.0;
       }
       else
@@ -3848,7 +3851,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   /*
     STEP 1: Get temporary table name
   */
-  statistic_increment(thd->status_var.created_tmp_tables, &LOCK_status);
+  thd->inc_status_created_tmp_tables();
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
     temp_pool_slot = bitmap_lock_set_next(&temp_pool);
 
@@ -3869,7 +3872,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     using_unique_constraint= TRUE;
 
   /* STEP 3: Allocate memory for temptable description */
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
                         &share, sizeof(*share),

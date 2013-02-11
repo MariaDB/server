@@ -23,7 +23,7 @@ insert into t1 values(null, "b");
 set timestamp=@a+2;
 --let $binlog_pos_760=query_get_value(SHOW MASTER STATUS, Position, 1)
 insert into t1 values(null, "c");
---let $binlog_pos_951=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000001' from $binlog_pos_760, Pos, 4)
+--let $binlog_pos_951=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000001' from $binlog_pos_760, Pos, 5)
 set timestamp=@a+4;
 insert into t1 values(null, "d");
 insert into t1 values(null, "e");
@@ -31,8 +31,8 @@ insert into t1 values(null, "e");
 flush logs;
 set timestamp=@a+1; # this could happen on a slave
 insert into t1 values(null, "f");
---let $binlog_pos_135=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000002', Pos, 3)
---let $binlog_pos_203=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000002', Pos, 4)
+--let $binlog_pos_135=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000002', Pos, 4)
+--let $binlog_pos_203=query_get_value(SHOW BINLOG EVENTS in 'master-bin.000002', Pos, 5)
 
 # delimiters are for easier debugging in future
 
@@ -50,22 +50,22 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form --offset=2 $MYSQLD_DATADIR/master-bin.000001 
+--exec $MYSQL_BINLOG --short-form --offset=3 $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
+let $start_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
-let $stop_pos= `select @binlog_start_pos + 653`;
+let $stop_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start and stop positions ---" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
-let $stop_pos= `select @binlog_start_pos + 770`;
+let $start_pos= `select @binlog_start_pos + 693`;
+let $stop_pos= `select @binlog_start_pos + 810`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --stop-position=$stop_pos  $MYSQLD_DATADIR/master-bin.000001 
 --disable_query_log
 select "--- start-datetime --" as "";
@@ -88,16 +88,16 @@ flush logs;
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form --offset=2 $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
+--exec $MYSQL_BINLOG --short-form --offset=3 $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
+let $start_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
-let $stop_pos= `select @binlog_start_pos + 69`;
+let $stop_pos= `select @binlog_start_pos + 109`;
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.000002
 --disable_query_log
 select "--- start-datetime --" as "";
@@ -117,22 +117,22 @@ select "--- Remote --" as "";
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form --offset=2 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
+--exec $MYSQL_BINLOG --short-form --offset=3 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
+let $start_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
-let $stop_pos= `select @binlog_start_pos + 653`;
+let $stop_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 
 --disable_query_log
 select "--- start and stop positions ---" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
-let $stop_pos= `select @binlog_start_pos + 770`;
+let $start_pos= `select @binlog_start_pos + 693`;
+let $stop_pos= `select @binlog_start_pos + 810`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --stop-position $stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001
 --disable_query_log
 select "--- start-datetime --" as "";
@@ -152,16 +152,16 @@ select "--- Remote with 2 binlogs on command line --" as "";
 --disable_query_log
 select "--- offset --" as "";
 --enable_query_log
---exec $MYSQL_BINLOG --short-form --offset=2 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
+--exec $MYSQL_BINLOG --short-form --offset=3 --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- start-position --" as "";
 --enable_query_log
-let $start_pos= `select @binlog_start_pos + 653`;
+let $start_pos= `select @binlog_start_pos + 693`;
 --exec $MYSQL_BINLOG --short-form --start-position=$start_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- stop-position --" as "";
 --enable_query_log
-let $stop_pos= `select @binlog_start_pos + 28`;
+let $stop_pos= `select @binlog_start_pos + 68`;
 --exec $MYSQL_BINLOG --short-form --stop-position=$stop_pos --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001  master-bin.000002
 --disable_query_log
 select "--- start-datetime --" as "";

@@ -903,8 +903,12 @@ static int dbConnect(char *host, char *user, char *passwd)
     mysql_options(&mysql_connection, MYSQL_OPT_COMPRESS, NullS);
 #ifdef HAVE_OPENSSL
   if (opt_use_ssl)
+  {
     mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
+  }
 #endif
   if (opt_protocol)
     mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
@@ -994,8 +998,10 @@ int main(int argc, char **argv)
   }
 
   if (opt_auto_repair &&
-      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,64) ||
-       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,64)))
+      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0)) ||
+       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
+                             64, MYF(0))))
     goto end;
 
   if (opt_alldbs)

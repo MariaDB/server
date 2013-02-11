@@ -162,7 +162,7 @@ static uchar *next_free_record_pos(HP_SHARE *info)
       my_errno=HA_ERR_RECORD_FILE_FULL;
       DBUG_RETURN(NULL);
     }
-    if (hp_get_new_block(&info->block,&length))
+    if (hp_get_new_block(info, &info->block,&length))
       DBUG_RETURN(NULL);
     info->data_length+=length;
   }
@@ -407,7 +407,7 @@ static HASH_INFO *hp_find_free_hash(HP_SHARE *info,
     return hp_find_hash(block,records);
   if (!(block_pos=(records % block->records_in_block)))
   {
-    if (hp_get_new_block(block,&length))
+    if (hp_get_new_block(info, block, &length))
       return(NULL);
     info->index_length+=length;
   }

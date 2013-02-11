@@ -18,10 +18,13 @@
 #include <pfs_instr.h>
 #include <pfs_stat.h>
 #include <pfs_global.h>
+#include <pfs_instr_class.h>
 #include <tap.h>
 
 #include "stub_pfs_global.h"
 #include "stub_server_misc.h"
+
+#include <string.h> /* memset */
 
 void test_oom()
 {
@@ -30,6 +33,7 @@ void test_oom()
 
   stub_alloc_always_fails= true;
 
+  memset(& param, 0xFF, sizeof(param));
   param.m_enabled= true;
   param.m_mutex_class_sizing= 10;
   param.m_rwlock_class_sizing= 0;
@@ -37,6 +41,7 @@ void test_oom()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 1000;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -44,11 +49,25 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (mutex)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
@@ -57,6 +76,7 @@ void test_oom()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 1000;
   param.m_cond_sizing= 0;
@@ -64,11 +84,25 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (rwlock)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
@@ -77,6 +111,7 @@ void test_oom()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 1000;
@@ -84,11 +119,25 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (cond)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
@@ -97,6 +146,7 @@ void test_oom()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 10;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -104,11 +154,58 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 1000;
   param.m_file_handle_sizing= 1000;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (file)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 0;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 1000;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (file handle)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
@@ -117,6 +214,7 @@ void test_oom()
   param.m_thread_class_sizing= 0;
   param.m_table_share_sizing= 10;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -124,11 +222,25 @@ void test_oom()
   param.m_table_sizing= 1000;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (table)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 0;
@@ -137,6 +249,7 @@ void test_oom()
   param.m_thread_class_sizing= 10;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -144,11 +257,25 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
   ok(rc == 1, "oom (thread)");
+  cleanup_instruments();
 
   stub_alloc_always_fails= false;
 
@@ -159,6 +286,7 @@ void test_oom()
   param.m_thread_class_sizing= 10;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -166,12 +294,26 @@ void test_oom()
   param.m_table_sizing= 0;
   param.m_file_sizing= 0;
   param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
   param.m_events_waits_history_sizing= 10;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
   stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
-  ok(rc == 1, "oom (thread history sizing)");
+  ok(rc == 1, "oom (thread waits history sizing)");
+  cleanup_instruments();
 
   param.m_enabled= true;
   param.m_mutex_class_sizing= 50;
@@ -180,6 +322,81 @@ void test_oom()
   param.m_thread_class_sizing= 10;
   param.m_table_share_sizing= 0;
   param.m_file_class_sizing= 50;
+  param.m_socket_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 1000;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (per thread wait)");
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 0;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_socket_class_sizing= 10;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_socket_sizing= 1000;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (socket)");
+
+  cleanup_instruments();
+
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (per thread waits)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 10;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
   param.m_mutex_sizing= 0;
   param.m_rwlock_sizing= 0;
   param.m_cond_sizing= 0;
@@ -189,12 +406,233 @@ void test_oom()
   param.m_file_handle_sizing= 0;
   param.m_events_waits_history_sizing= 0;
   param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 10;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 3;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (thread stages history sizing)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 10;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 1000;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 50;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
 
   stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
   rc= init_instruments(& param);
-  ok(rc == 1, "oom (per thread wait)");
-
+  ok(rc == 1, "oom (per thread stages)");
   cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 10;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 1000;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 10;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (thread statements history sizing)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 0;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 10;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 1000;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 50;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 2;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (per thread statements)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 10;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 0;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 1;
+  init_event_name_sizing(& param);
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (global waits)");
+  cleanup_instruments();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 10;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 0;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 20;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 0;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 3;
+  init_event_name_sizing(& param);
+  rc= init_stage_class(param.m_stage_class_sizing);
+  ok(rc == 0, "init stage class");
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (global stages)");
+  cleanup_instruments();
+  cleanup_stage_class();
+
+  param.m_enabled= true;
+  param.m_mutex_class_sizing= 10;
+  param.m_rwlock_class_sizing= 0;
+  param.m_cond_class_sizing= 0;
+  param.m_thread_class_sizing= 0;
+  param.m_table_share_sizing= 0;
+  param.m_file_class_sizing= 0;
+  param.m_mutex_sizing= 0;
+  param.m_rwlock_sizing= 0;
+  param.m_cond_sizing= 0;
+  param.m_thread_sizing= 0;
+  param.m_table_sizing= 0;
+  param.m_file_sizing= 0;
+  param.m_file_handle_sizing= 0;
+  param.m_events_waits_history_sizing= 0;
+  param.m_events_waits_history_long_sizing= 0;
+  param.m_setup_actor_sizing= 0;
+  param.m_setup_object_sizing= 0;
+  param.m_host_sizing= 0;
+  param.m_user_sizing= 0;
+  param.m_account_sizing= 0;
+  param.m_stage_class_sizing= 0;
+  param.m_events_stages_history_sizing= 0;
+  param.m_events_stages_history_long_sizing= 0;
+  param.m_statement_class_sizing= 20;
+  param.m_events_statements_history_sizing= 0;
+  param.m_events_statements_history_long_sizing= 0;
+
+  stub_alloc_fails_after_count= 3;
+  init_event_name_sizing(& param);
+  rc= init_statement_class(param.m_statement_class_sizing);
+  ok(rc == 0, "init statement class");
+  rc= init_instruments(& param);
+  ok(rc == 1, "oom (global statements)");
+  cleanup_instruments();
+  cleanup_statement_class();
 }
 
 void do_all_tests()
@@ -208,7 +646,7 @@ void do_all_tests()
 
 int main(int argc, char **argv)
 {
-  plan(8);
+  plan(20);
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);

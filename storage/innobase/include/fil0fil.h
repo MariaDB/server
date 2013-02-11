@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2010, Innobase Oy. All Rights Reserved.
+Copyright (c) 1995, 2010, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,16 @@ Created 10/25/1995 Heikki Tuuri
 #define fil0fil_h
 
 #include "univ.i"
+
+#ifndef UNIV_INNOCHECKSUM
+
 #include "dict0types.h"
 #include "ut0byte.h"
 #include "os0file.h"
 #ifndef UNIV_HOTBACKUP
 #include "sync0rw.h"
 #include "ibuf0types.h"
+#include "log0log.h"
 #endif /* !UNIV_HOTBACKUP */
 
 /** When mysqld is run, the default directory "." is the mysqld datadir,
@@ -69,6 +73,8 @@ struct fil_addr_struct{
 
 /** The null file address */
 extern fil_addr_t	fil_addr_null;
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 /** The byte offsets on a file page for various variables @{ */
 #define FIL_PAGE_SPACE_OR_CHKSUM 0	/*!< in < MySQL-4.0.14 space id the
@@ -127,6 +133,8 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_DATA_END	8	/*!< size of the page trailer */
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
+
 /** File page types (values of FIL_PAGE_TYPE) @{ */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
@@ -159,6 +167,8 @@ extern ulint	fil_n_pending_log_flushes;
 /** Number of pending tablespace flushes */
 extern ulint	fil_n_pending_tablespace_flushes;
 
+/** Number of files currently open */
+extern ulint	fil_n_file_opened;
 
 #ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
@@ -215,8 +225,8 @@ fil_space_truncate_start(
 				some initial files in the space */
 #endif /* UNIV_LOG_ARCHIVE */
 /*******************************************************************//**
-Creates a space memory object and puts it to the 'fil system' hash table. If
-there is an error, prints an error message to the .err log.
+Creates a space memory object and puts it to the 'fil system' hash table.
+If there is an error, prints an error message to the .err log.
 @return	TRUE if success */
 UNIV_INTERN
 ibool
@@ -322,12 +332,11 @@ UNIV_INTERN
 ulint
 fil_write_flushed_lsn_to_data_files(
 /*================================*/
-	ib_uint64_t	lsn,		/*!< in: lsn to write */
-	ulint		arch_log_no);	/*!< in: latest archived log
-					file number */
+	lsn_t	lsn,		/*!< in: lsn to write */
+	ulint	arch_log_no);	/*!< in: latest archived log file number */
 /*******************************************************************//**
-Reads the flushed lsn and arch no fields from a data file at database
-startup. */
+Reads the flushed lsn, arch no, and tablespace flag fields from a data
+file at database startup. */
 UNIV_INTERN
 void
 fil_read_first_page(
@@ -343,9 +352,9 @@ fil_read_first_page(
 	ulint*		max_arch_log_no,	/*!< out: max of archived
 						log numbers in data files */
 #endif /* UNIV_LOG_ARCHIVE */
-	ib_uint64_t*	min_flushed_lsn,	/*!< out: min of flushed
+	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
 						lsn values in data files */
-	ib_uint64_t*	max_flushed_lsn);	/*!< out: max of flushed
+	lsn_t*		max_flushed_lsn);	/*!< out: max of flushed
 						lsn values in data files */
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.
@@ -399,9 +408,7 @@ UNIV_INTERN
 ibool
 fil_delete_tablespace(
 /*==================*/
-	ulint	id,		/*!< in: space id */
-	ibool	evict_all);	/*!< in: TRUE if we want all pages
-				evicted from LRU. */
+	ulint	id);	/*!< in: space id */
 #ifndef UNIV_HOTBACKUP
 /*******************************************************************//**
 Discards a single-table tablespace. The tablespace must be cached in the
@@ -426,7 +433,7 @@ UNIV_INTERN
 ibool
 fil_rename_tablespace(
 /*==================*/
-	const char*	old_name,	/*!< in: old table name in the standard
+	const char*	old_name_in,	/*!< in: old table name in the standard
 					databasename/tablename format of
 					InnoDB, or NULL if we do the rename
 					based on the space id only */
@@ -454,6 +461,7 @@ fil_create_new_single_table_tablespace(
 	ibool		is_temp,	/*!< in: TRUE if a table created with
 					CREATE TEMPORARY TABLE */
 	ulint		flags,		/*!< in: tablespace flags */
+	ulint		flags2,		/*!< in: table flags2 */
 	ulint		size);		/*!< in: the initial size of the
 					tablespace file in pages,
 					must be >= FIL_IBD_FILE_INITIAL_SIZE */
@@ -499,7 +507,7 @@ fil_reset_too_high_lsns(
 /*====================*/
 	const char*	name,		/*!< in: table name in the
 					databasename/tablename format */
-	ib_uint64_t	current_lsn);	/*!< in: reset lsn's if the lsn stamped
+	lsn_t		current_lsn);	/*!< in: reset lsn's if the lsn stamped
 					to FIL_PAGE_FILE_FLUSH_LSN in the
 					first page is too high */
 #endif /* !UNIV_HOTBACKUP */
@@ -518,7 +526,7 @@ fil_load_single_table_tablespaces(void);
 /*******************************************************************//**
 Returns TRUE if a single-table tablespace does not exist in the memory cache,
 or is being deleted there.
-@return	TRUE if does not exist or is being\ deleted */
+@return	TRUE if does not exist or is being deleted */
 UNIV_INTERN
 ibool
 fil_tablespace_deleted_or_being_deleted_in_mem(
@@ -547,10 +555,7 @@ fil_space_for_table_exists_in_mem(
 /*==============================*/
 	ulint		id,		/*!< in: space id */
 	const char*	name,		/*!< in: table name in the standard
-					'databasename/tablename' format or
-					the dir path to a temp table */
-	ibool		is_temp,	/*!< in: TRUE if created with CREATE
-					TEMPORARY TABLE */
+					'databasename/tablename' format */
 	ibool		mark_space,	/*!< in: in crash recovery, at database
 					startup we mark all spaces which have
 					an associated table in the InnoDB
@@ -651,7 +656,7 @@ fil_io(
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
 handler for completed requests. The aio array of pending requests is divided
-into segments (see os0file.c for more info). The thread specifies which
+into segments (see os0file.cc for more info). The thread specifies which
 segment it wants to wait for. */
 UNIV_INTERN
 void
@@ -735,5 +740,7 @@ fil_tablespace_is_being_deleted(
 	ulint		id);	/*!< in: space id */
 
 typedef	struct fil_space_struct	fil_space_t;
+
+#endif /* !UNIV_INNOCHECKSUM */
 
 #endif

@@ -1316,7 +1316,7 @@ FOREIGN KEY (c1) REFERENCES t1 (c1) ON UPDATE CASCADE
 INSERT INTO t1 VALUES ('old', 'somevalu'), ('other', 'anyvalue');
 INSERT INTO t2 VALUES (10, 'old'), (20, 'other');
 UPDATE t1 SET c1 = 'other' WHERE c1 = 'old';
-ERROR 23000: Upholding foreign key constraints for table 't1', entry 'other-somevalu', key 2 would lead to a duplicate entry
+ERROR 23000: Foreign key constraint for table 't1', record 'other-somevalu' would lead to a duplicate entry in table 't2', key 'c1'
 DROP TABLE t2,t1;
 create table t1(
 id int primary key,
@@ -1600,7 +1600,7 @@ concat(a, b)
 drop table t1;
 CREATE TABLE t1 ( a char(10) ) ENGINE=InnoDB;
 SELECT a FROM t1 WHERE MATCH (a) AGAINST ('test' IN BOOLEAN MODE);
-ERROR HY000: The used table type doesn't support FULLTEXT indexes
+ERROR HY000: The table does not have FULLTEXT index to support this query
 DROP TABLE t1;
 CREATE TABLE t1 (a_id tinyint(4) NOT NULL default '0', PRIMARY KEY  (a_id)) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO t1 VALUES (1),(2),(3);
@@ -2261,7 +2261,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
 Warnings:
-Warning	1478	InnoDB: assuming ROW_FORMAT=COMPACT.
+Warning	140	InnoDB: assuming ROW_FORMAT=COMPACT.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2525,13 +2525,13 @@ drop table t1;
 set foreign_key_checks=0;
 create table t2 (a int primary key, b int, foreign key (b) references t1(a)) engine = innodb;
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
-ERROR HY000: Can't create table 'test.t1' (errno: 150)
+ERROR HY000: Can't create table 'test.t1' (errno: 150 "Foreign key constraint is incorrectly formed")
 set foreign_key_checks=1;
 drop table t2;
 set foreign_key_checks=0;
 create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin1;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=utf8;
-ERROR HY000: Can't create table 'test.t2' (errno: 150)
+ERROR HY000: Can't create table 'test.t2' (errno: 150 "Foreign key constraint is incorrectly formed")
 set foreign_key_checks=1;
 drop table t1;
 set foreign_key_checks=0;
@@ -2551,7 +2551,7 @@ set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
 create table t3(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=utf8;
 rename table t3 to t1;
-ERROR HY000: Error on rename of './test/t3' to './test/t1' (errno: 150)
+ERROR HY000: Error on rename of './test/t3' to './test/t1' (errno: 150 "Foreign key constraint is incorrectly formed")
 set foreign_key_checks=1;
 drop table t2,t3;
 create table t1(a int primary key) row_format=redundant engine=innodb;
@@ -2728,7 +2728,7 @@ INSERT INTO t1 VALUES ('other', 'anyvalue');
 INSERT INTO t2 VALUES ('old');
 INSERT INTO t2 VALUES ('other');
 UPDATE t1 SET field1 = 'other' WHERE field2 = 'somevalu';
-ERROR 23000: Upholding foreign key constraints for table 't1', entry 'other-somevalu', key 1 would lead to a duplicate entry
+ERROR 23000: Foreign key constraint for table 't1', record 'other-somevalu' would lead to a duplicate entry in table 't2', key 'PRIMARY'
 DROP TABLE t2;
 DROP TABLE t1;
 create table t1 (
@@ -2978,7 +2978,7 @@ INSERT INTO t1 VALUES (1);
 INSERT INTO t2 VALUES (1);
 ALTER TABLE t2 ADD FOREIGN KEY (a) REFERENCES t1 (a) ON DELETE SET NULL;
 ALTER TABLE t2 MODIFY a INT NOT NULL;
-ERROR HY000: Error on rename of '#sql-temporary' to './test/t2' (errno: 150)
+ERROR HY000: Error on rename of '#sql-temporary' to './test/t2' (errno: 150 "Foreign key constraint is incorrectly formed")
 DELETE FROM t1;
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a VARCHAR(5) COLLATE utf8_unicode_ci PRIMARY KEY)

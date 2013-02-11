@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2005, 2011, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -52,11 +52,33 @@
 #endif // _WIN32
 
 
+namespace {
+
+
+extern "C" long system_recv(void *ptr, void *buf, size_t count, int flags)
+{
+  yaSSL::socket_t *socket = (yaSSL::socket_t *) ptr;
+  return ::recv(*socket, reinterpret_cast<char *>(buf), count, flags);
+}
+
+
+extern "C" long system_send(void *ptr, const void *buf, size_t count,
+                            int flags)
+{
+  yaSSL::socket_t *socket = (yaSSL::socket_t *) ptr;
+  return ::send(*socket, reinterpret_cast<const char *>(buf), count, flags);
+}
+
+
+}
+
+
 namespace yaSSL {
 
 
 Socket::Socket(socket_t s) 
-    : socket_(s), wouldBlock_(false), nonBlocking_(false)
+    : socket_(s), wouldBlock_(false), nonBlocking_(false),
+      ptr_(&socket_), send_func_(system_send), recv_func_(system_recv)
 {}
 
 
@@ -108,8 +130,25 @@ uint Socket::get_ready() const
     return ready;
 }
 
+void Socket::set_transport_ptr(void *ptr)
+{
+  ptr_ = ptr;
+}
 
-uint Socket::send(const byte* buf, unsigned int sz, unsigned int& written,
+
+void Socket::set_transport_recv_function(yaSSL_recv_func_t recv_func)
+{
+  recv_func_ = recv_func;
+}
+
+
+void Socket::set_transport_send_function(yaSSL_send_func_t send_func)
+{
+  send_func_ = send_func;
+}
+
+
+uint Socket::send(const byte* buf, unsigned int sz, unsigned int &written,
                   int flags)
 {
     const byte* pos = buf;
@@ -117,22 +156,23 @@ uint Socket::send(const byte* buf, unsigned int sz, unsigned int& written,
 
     wouldBlock_ = false;
 
-    while (pos != end) {
-        int sent = ::send(socket_, reinterpret_cast<const char *>(pos),
-                          static_cast<int>(end - pos), flags);
-        if (sent == -1) {
-            if (get_lastError() == SOCKET_EWOULDBLOCK || 
-                get_lastError() == SOCKET_EAGAIN) {
-                wouldBlock_  = true; // would have blocked this time only
-                nonBlocking_ = true; // nonblocking, win32 only way to tell 
-                return 0;
-            }
-            return static_cast<uint>(-1);
+    while (pos != end)
+    {
+      int sent = send_func_(ptr_, pos, static_cast<int>(end - pos), flags);
+      if (sent == -1)
+      {
+        if (get_lastError() == SOCKET_EWOULDBLOCK || 
+            get_lastError() == SOCKET_EAGAIN)
+        {
+          wouldBlock_  = true; // would have blocked this time only
+          nonBlocking_ = true; // nonblocking, win32 only way to tell 
+          return 0;
         }
-        pos += sent;
-        written += sent;
+        return static_cast<uint>(-1);
+      }
+      pos += sent;
+      written += sent;
     }
-
     return sz;
 }
 
@@ -141,7 +181,7 @@ uint Socket::receive(byte* buf, unsigned int sz, int flags)
 {
     wouldBlock_ = false;
 
-    int recvd = ::recv(socket_, reinterpret_cast<char *>(buf), sz, flags);
+    int recvd = recv_func_(ptr_, buf, sz, flags);
 
     // idea to seperate error from would block by arnetheduck@gmail.com
     if (recvd == -1) {
@@ -162,8 +202,22 @@ uint Socket::receive(byte* buf, unsigned int sz, int flags)
 // wait if blocking for input, return false for error
 bool Socket::wait()
 {
-    byte b;
-    return receive(&b, 1, MSG_PEEK) != static_cast<uint>(-1);
+    char b;
+    int recvd = ::recv(socket_, &b, 1, MSG_PEEK);
+
+    if (recvd == -1) {
+        if (get_lastError() == SOCKET_EWOULDBLOCK || 
+            get_lastError() == SOCKET_EAGAIN) {
+            wouldBlock_  = true; // would have blocked this time only
+            nonBlocking_ = true; // socket nonblocking, win32 only way to tell
+            return 1;
+        }
+    }
+    else if (recvd == 0)
+      return 0;                                 // Non blocking & no data
+
+    return 1;                                   // Data can be read
+
 }
 
 

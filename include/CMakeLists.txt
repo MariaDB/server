@@ -24,6 +24,7 @@ SET(HEADERS_GEN_CONFIGURE
 SET(HEADERS 
   mysql.h 
   mysql_com.h
+  mysql_com_server.h
   mysql_time.h 
   ma_dyncol.h
   my_list.h

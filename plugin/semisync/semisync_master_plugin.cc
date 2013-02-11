@@ -297,10 +297,10 @@ DEF_SHOW_FUNC(avg_trx_wait_time, SHOW_LONG)
 static SHOW_VAR semi_sync_master_status_vars[]= {
   {"Rpl_semi_sync_master_status",
    (char*) &SHOW_FNAME(status),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_clients",
    (char*) &SHOW_FNAME(clients),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_yes_tx",
    (char*) &rpl_semi_sync_master_yes_transactions,
    SHOW_LONG},
@@ -309,7 +309,7 @@ static SHOW_VAR semi_sync_master_status_vars[]= {
    SHOW_LONG},
   {"Rpl_semi_sync_master_wait_sessions",
    (char*) &SHOW_FNAME(wait_sessions),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_no_times",
    (char*) &rpl_semi_sync_master_off_times,
    SHOW_LONG},
@@ -321,22 +321,22 @@ static SHOW_VAR semi_sync_master_status_vars[]= {
    SHOW_LONG},
   {"Rpl_semi_sync_master_tx_wait_time",
    (char*) &SHOW_FNAME(trx_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_tx_waits",
    (char*) &SHOW_FNAME(trx_wait_num),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_tx_avg_wait_time",
    (char*) &SHOW_FNAME(avg_trx_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_wait_time",
    (char*) &SHOW_FNAME(net_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_waits",
    (char*) &SHOW_FNAME(net_wait_num),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {"Rpl_semi_sync_master_net_avg_wait_time",
    (char*) &SHOW_FNAME(avg_net_wait_time),
-   SHOW_FUNC},
+   SHOW_SIMPLE_FUNC},
   {NULL, NULL, SHOW_LONG},
 };
 
@@ -354,20 +354,30 @@ static PSI_cond_info all_semisync_conds[]=
 {
   { &key_ss_cond_COND_binlog_send_, "COND_binlog_send_", 0}
 };
+#endif /* HAVE_PSI_INTERFACE */
+
+PSI_stage_info stage_waiting_for_semi_sync_ack_from_slave=
+{ 0, "Waiting for semi-sync ACK from slave", 0};
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_stage_info *all_semisync_stages[]=
+{
+  & stage_waiting_for_semi_sync_ack_from_slave
+};
 
 static void init_semisync_psi_keys(void)
 {
   const char* category= "semisync";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_semisync_mutexes);
-  PSI_server->register_mutex(category, all_semisync_mutexes, count);
+  mysql_mutex_register(category, all_semisync_mutexes, count);
 
   count= array_elements(all_semisync_conds);
-  PSI_server->register_cond(category, all_semisync_conds, count);
+  mysql_cond_register(category, all_semisync_conds, count);
+
+  count= array_elements(all_semisync_stages);
+  mysql_stage_register(category, all_semisync_stages, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 

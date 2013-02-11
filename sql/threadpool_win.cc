@@ -255,7 +255,7 @@ int init_io(connection_t *connection, THD *thd)
   {
     case VIO_TYPE_SSL:
     case VIO_TYPE_TCPIP:
-      connection->handle= (HANDLE)vio->sd;
+      connection->handle= (HANDLE)mysql_socket_getfd(connection->thd->net.vio->mysql_socket);
       break;
     case VIO_TYPE_NAMEDPIPE:
       connection->handle= (HANDLE)vio->hPipe;
@@ -342,7 +342,7 @@ int start_io(connection_t *connection, PTP_CALLBACK_INSTANCE instance)
   if (vio->type == VIO_TYPE_TCPIP || vio->type == VIO_TYPE_SSL)
   {
     /* Start async io (sockets). */
-    if (WSARecv(vio->sd , &buf, 1, &num_bytes, &flags,
+    if (WSARecv(mysql_socket_getfd(vio->mysql_socket) , &buf, 1, &num_bytes, &flags,
           overlapped,  NULL) == 0)
     {
         retval= last_error= 0;

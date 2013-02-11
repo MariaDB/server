@@ -573,7 +573,7 @@ void
 Rpl_filter::init_table_rule_array(DYNAMIC_ARRAY* a, bool* a_inited)
 {
   my_init_dynamic_array(a, sizeof(TABLE_RULE_ENT*), TABLE_RULE_ARR_SIZE,
-			TABLE_RULE_ARR_SIZE);
+			TABLE_RULE_ARR_SIZE, MYF(0));
   *a_inited = 1;
 }
 

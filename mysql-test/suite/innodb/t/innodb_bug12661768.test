@@ -44,7 +44,7 @@ SET SESSION foreign_key_checks=1;
 
 -- enable_result_log
 
--- error ER_FOREIGN_DUPLICATE_KEY
+-- error ER_FOREIGN_DUPLICATE_KEY_WITH_CHILD_INFO
 eval UPDATE IGNORE `$t1_name` SET a = 3;
 
 eval DROP TABLE `$t2_name`, `$t1_name`;

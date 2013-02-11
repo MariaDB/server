@@ -1,1 +1,1 @@
---plugin-load=$HA_SPHINX_SO --sphinx
+--plugin-load-add=$HA_SPHINX_SO --sphinx

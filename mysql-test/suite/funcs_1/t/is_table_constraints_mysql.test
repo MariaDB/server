@@ -13,5 +13,6 @@
 #
 
 --source include/not_embedded.inc
+--source include/have_innodb.inc
 let $table_schema = mysql;
 --source suite/funcs_1/datadict/table_constraints.inc

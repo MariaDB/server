@@ -39,6 +39,7 @@ ENDIF()
 SET (SQL_SOURCE
               ../sql-common/client.c derror.cc des_key_file.cc
                discover.cc ../libmysql/errmsg.c field.cc  field_conv.cc 
+               filesort_utils.cc
                filesort.cc gstream.cc sha2.cc
                signal_handler.cc
                handler.cc hash_filo.h sql_plugin_services.h
@@ -59,10 +60,12 @@ SET (SQL_SOURCE
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc sql_crypt.h 
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc sql_do.cc 
                sql_error.cc sql_handler.cc sql_help.cc sql_insert.cc sql_lex.cc 
-               sql_list.cc sql_load.cc sql_manager.cc sql_parse.cc
+               sql_list.cc sql_load.cc sql_manager.cc
+               sql_parse.cc sql_bootstrap.cc sql_bootstrap.h
                sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
                debug_sync.cc debug_sync.h
-               sql_repl.cc sql_select.cc sql_show.cc sql_state.c sql_string.cc
+               sql_repl.cc sql_select.cc sql_show.cc sql_state.c
+               sql_statistics.cc sql_string.cc 
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
                sql_time.cc tztime.cc uniques.cc unireg.cc item_xmlfunc.cc 
@@ -75,7 +78,7 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc
+               sql_reload.cc sql_cmd.h
 
                # added in MariaDB:
                sql_lifo_buffer.h sql_join_cache.h sql_join_cache.cc
@@ -85,6 +88,7 @@ SET (SQL_SOURCE
                gcalc_slicescan.cc gcalc_tools.cc
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
+               my_apc.cc my_apc.h
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )

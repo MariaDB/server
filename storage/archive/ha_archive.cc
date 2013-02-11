@@ -904,9 +904,6 @@ int ha_archive::write_row(uchar *buf)
   if (share->crashed)
     DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  ha_statistic_increment(&SSV::ha_write_count);
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
   mysql_mutex_lock(&share->mutex);
 
   if (!share->archive_write_open)
@@ -1330,7 +1327,6 @@ int ha_archive::rnd_next(uchar *buf)
   }
   scan_rows--;
 
-  ha_statistic_increment(&SSV::ha_read_rnd_next_count);
   current_position= aztell(&archive);
   rc= get_row(&archive, buf);
 
@@ -1366,7 +1362,6 @@ int ha_archive::rnd_pos(uchar * buf, uchar *pos)
 {
   int rc;
   DBUG_ENTER("ha_archive::rnd_pos");
-  ha_statistic_increment(&SSV::ha_read_rnd_next_count);
   current_position= (my_off_t)my_get_ptr(pos, ref_length);
   if (azseek(&archive, current_position, SEEK_SET) == (my_off_t)(-1L))
   {
@@ -1671,7 +1666,7 @@ int ha_archive::info(uint flag)
   turn will keep selects from causing a sync to occur.
   Basically, yet another optimizations to keep compression working well.
 */
-void ha_archive::start_bulk_insert(ha_rows rows)
+void ha_archive::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_archive::start_bulk_insert");
   if (!rows || rows >= ARCHIVE_MIN_ROWS_TO_USE_BULK_INSERT)

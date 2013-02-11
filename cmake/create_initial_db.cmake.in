@@ -40,10 +40,11 @@ FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_perf
   ENDFOREACH()
 ENDFOREACH()
 FILE(READ ${CMAKE_SOURCE_DIR}/scripts/fill_help_tables.sql CONTENTS)
-FILE(APPEND bootstrap.sql ${CONTENTS})
+FILE(APPEND bootstrap.sql "${CONTENTS}")
 
+FILE(REMOVE_RECURSE mysql performance_schema)
+FILE(REMOVE ibdata1 ib_logfile0 ib_logfile1)
 
-FILE(REMOVE_RECURSE mysql)
 MAKE_DIRECTORY(mysql)
 IF(WIN32)
   SET(CONSOLE --console)
@@ -58,8 +59,6 @@ SET(BOOTSTRAP_COMMAND
   --basedir=.
   --datadir=.
   --default-storage-engine=MyISAM
-  --loose-skip-innodb
-  --loose-skip-ndbcluster
   --max_allowed_packet=8M
   --net_buffer_length=16K
 )

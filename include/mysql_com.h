@@ -125,6 +125,8 @@ enum enum_server_command
                                            reserved by MySQL Cluster */
 #define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25,
                                            reserved by MySQL Cluster */
+#define HAS_EXPLICIT_VALUE (1 << 26)    /* An INSERT/UPDATE operation supplied
+                                          an explicit default value */
 
 #define REFRESH_GRANT           (1UL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1UL << 1)  /* Start on new log file */
@@ -274,6 +276,16 @@ enum enum_server_command
 #define SERVER_PS_OUT_PARAMS            4096
 
 /**
+  Set at the same time as SERVER_STATUS_IN_TRANS if the started
+  multi-statement transaction is a read-only transaction. Cleared
+  when the transaction commits or aborts. Since this flag is sent
+  to clients in OK and EOF packets, the flag indicates the
+  transaction status at the end of command execution.
+*/
+#define SERVER_STATUS_IN_TRANS_READONLY 8192
+
+
+/**
   Server status flags that must be cleared when starting
   execution of a new SQL statement.
   Flags from this set are only added to the
@@ -328,7 +340,7 @@ typedef struct st_net {
   unsigned char reading_or_writing;
   char save_char;
   char net_skip_rest_factor;
-  my_bool unused1; /* Please remove with the next incompatible ABI change */
+  my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3; /* Please remove with the next incompatible ABI change. */
   /*
@@ -463,10 +475,10 @@ enum enum_mysql_set_option
 extern "C" {
 #endif
 
-my_bool	my_net_init(NET *net, Vio* vio);
+my_bool	my_net_init(NET *net, Vio* vio, unsigned int my_flags);
 void	my_net_local_init(NET *net);
 void	net_end(NET *net);
-  void	net_clear(NET *net, my_bool clear_buffer);
+void	net_clear(NET *net, my_bool clear_buffer);
 my_bool net_realloc(NET *net, size_t length);
 my_bool	net_flush(NET *net);
 my_bool	my_net_write(NET *net,const unsigned char *packet, size_t len);
@@ -476,7 +488,7 @@ my_bool	net_write_command(NET *net,unsigned char command,
 int	net_real_write(NET *net,const unsigned char *packet, size_t len);
 unsigned long my_net_read(NET *net);
 
-#ifdef _global_h
+#ifdef MY_GLOBAL_INCLUDED
 void my_net_set_write_timeout(NET *net, uint timeout);
 void my_net_set_read_timeout(NET *net, uint timeout);
 #endif
@@ -571,7 +583,7 @@ const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
 
-#ifdef _global_h
+#ifdef MY_GLOBAL_INCLUDED
 ulong STDCALL net_field_length(uchar **packet);
 my_ulonglong net_field_length_ll(uchar **packet);
 uchar *net_store_length(uchar *pkg, ulonglong length);

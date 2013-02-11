@@ -14,6 +14,7 @@ if (`SELECT VERSION() NOT LIKE '%embedded%'`)
 {
    --skip Test requires: embedded server
 }
+--source include/have_innodb.inc
 let $database = mysql;
 let $my_where = WHERE table_schema = 'mysql';
 --source suite/funcs_1/datadict/statistics.inc

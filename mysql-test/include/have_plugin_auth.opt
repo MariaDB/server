@@ -1,1 +1,1 @@
---plugin-load=$AUTH_TEST_PLUGIN_SO
+--plugin-load-add=$AUTH_TEST_PLUGIN_SO

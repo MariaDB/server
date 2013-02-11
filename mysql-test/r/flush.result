@@ -489,3 +489,10 @@ UNLOCK TABLES;
 # Switching to connection 'default'.
 COMMIT;
 DROP TABLE t1;
+#
+# Test flushing slave or relay logs twice
+#
+flush relay logs,relay logs;
+ERROR HY000: Incorrect usage of FLUSH and RELAY LOGS
+flush slave,slave;
+ERROR HY000: Incorrect usage of FLUSH and SLAVE

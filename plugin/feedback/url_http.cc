@@ -195,7 +195,7 @@ int Url_http::send(const char* data, size_t data_length)
   {
     enum enum_ssl_init_error ssl_init_error= SSL_INITERR_NOERROR;
     ulong ssl_error= 0;
-    if (!(ssl_fd= new_VioSSLConnectorFd(0, 0, 0, 0, 0, &ssl_init_error)) ||
+    if (!(ssl_fd= new_VioSSLConnectorFd(0, 0, 0, 0, 0, &ssl_init_error, 0, 0)) ||
         sslconnect(ssl_fd, vio, send_timeout, &ssl_error))
     {
       const char *err;

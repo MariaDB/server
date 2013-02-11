@@ -1,0 +1,3 @@
+
+MY_ADD_TESTS(my_apc LINK_LIBRARIES mysys EXT cc)
+

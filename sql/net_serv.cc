@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2012, Monty Program Ab
+   Copyright (c) 2010, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA */
 
 /**
   @file
@@ -112,22 +112,27 @@ extern void query_cache_insert(const char *packet, ulong length,
 #define update_statistics(A)
 #endif
 
+#ifdef MYSQL_SERVER
+/* Additional instrumentation hooks for the server */
+#include "mysql_com_server.h"
+#endif
+
 #define TEST_BLOCKING		8
 #define MAX_PACKET_LENGTH (256L*256L*256L-1)
 
-static my_bool net_write_buff(NET *net,const uchar *packet,ulong len);
-
+static my_bool net_write_buff(NET *, const uchar *, ulong);
 
 /** Init with packet info. */
 
-my_bool my_net_init(NET *net, Vio* vio)
+my_bool my_net_init(NET *net, Vio* vio, uint my_flags)
 {
   DBUG_ENTER("my_net_init");
+  DBUG_PRINT("enter", ("my_flags: %u", my_flags));
   net->vio = vio;
   my_net_local_init(net);			/* Set some limits */
   if (!(net->buff=(uchar*) my_malloc((size_t) net->max_packet+
 				     NET_HEADER_SIZE + COMP_HEADER_SIZE +1,
-				     MYF(MY_WME))))
+				     MYF(MY_WME | my_flags))))
     DBUG_RETURN(1);
   net->buff_end=net->buff+net->max_packet;
   net->error=0; net->return_status=0;
@@ -139,10 +144,15 @@ my_bool my_net_init(NET *net, Vio* vio)
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
   net->unused= 0;
+  net->thread_specific_malloc= test(my_flags & MY_THREAD_SPECIFIC);
+#ifdef MYSQL_SERVER
+  net->extension= NULL;
+#endif
 
-  if (vio != 0)					/* If real connection */
+  if (vio)
   {
-    net->fd  = vio_fd(vio);			/* For perl DBI/DBD */
+    /* For perl DBI/DBD. */
+    net->fd= vio_fd(vio);
 #if defined(MYSQL_SERVER) && !defined(__WIN__)
     if (!(test_flags & TEST_BLOCKING))
     {
@@ -193,7 +203,9 @@ my_bool net_realloc(NET *net, size_t length)
   */
   if (!(buff= (uchar*) my_realloc((char*) net->buff, pkt_length +
                                   NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
-                                  MYF(MY_WME))))
+                                  MYF(MY_WME |
+                                      (net->thread_specific_malloc ?
+                                       MY_THREAD_SPECIFIC : 0)))))
   {
     /* @todo: 1 and 2 codes are identical. */
     net->error= 1;
@@ -262,7 +274,10 @@ static int net_data_is_ready(my_socket sd)
 #endif /* EMBEDDED_LIBRARY */
 
 /**
-   Intialize NET handler for new reads:
+  Clear (reinitialize) the NET structure for a new command.
+
+  @remark Performs debug checking of the socket buffer to
+          ensure that the protocol sequence is correct.
 
    - Read from socket until there is nothing more to read. Discard
      what is read.
@@ -295,7 +310,7 @@ void net_clear(NET *net, my_bool clear_buffer __attribute__((unused)))
   {
     size_t count;
     int ready;
-    while ((ready= net_data_is_ready(net->vio->sd)) > 0)
+    while ((ready= net_data_is_ready(vio_fd(net->vio))) > 0)
     {
       /* The socket is ready */
       if ((long) (count= vio_read(net->vio, net->buff,
@@ -347,7 +362,7 @@ my_bool net_flush(NET *net)
   {
     error=test(net_real_write(net, net->buff,
 			      (size_t) (net->write_pos - net->buff)));
-    net->write_pos=net->buff;
+    net->write_pos= net->buff;
   }
   /* Sync packet number if using compression */
   if (net->compress)
@@ -363,15 +378,13 @@ my_bool net_flush(NET *net)
 /**
   Write a logical packet with packet header.
 
-  Format: Packet length (3 bytes), packet number(1 byte)
-  When compression is used a 3 byte compression length is added
+  Format: Packet length (3 bytes), packet number (1 byte)
+  When compression is used, a 3 byte compression length is added.
 
-  @note
-    If compression is used the original package is modified!
+  @note If compression is used, the original packet is modified!
 */
 
-my_bool
-my_net_write(NET *net,const uchar *packet,size_t len)
+my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 {
   uchar buff[NET_HEADER_SIZE];
   int rc;
@@ -415,6 +428,7 @@ my_net_write(NET *net,const uchar *packet,size_t len)
   MYSQL_NET_WRITE_DONE(rc);
   return rc;
 }
+
 
 /**
   Send a command to the server.
@@ -603,7 +617,10 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     uchar *b;
     uint header_length=NET_HEADER_SIZE+COMP_HEADER_SIZE;
     if (!(b= (uchar*) my_malloc(len + NET_HEADER_SIZE +
-                                COMP_HEADER_SIZE + 1, MYF(MY_WME))))
+                                COMP_HEADER_SIZE + 1,
+                                MYF(MY_WME |
+                                    (net->thread_specific_malloc ?
+                                     MY_THREAD_SPECIFIC : 0)))))
     {
       net->error= 2;
       net->last_errno= ER_OUT_OF_RESOURCES;
@@ -820,6 +837,19 @@ my_real_read(NET *net, size_t *complen)
   my_bool net_blocking=vio_is_blocking(net->vio);
   uint32 remain= (net->compress ? NET_HEADER_SIZE+COMP_HEADER_SIZE :
 		  NET_HEADER_SIZE);
+#ifdef MYSQL_SERVER
+  size_t count= remain;
+  struct st_net_server *server_extension;
+  server_extension= static_cast<st_net_server*> (net->extension);
+  if (server_extension != NULL)
+  {
+    void *user_data= server_extension->m_user_data;
+    DBUG_ASSERT(server_extension->m_before_header != NULL);
+    DBUG_ASSERT(server_extension->m_after_header != NULL);
+    server_extension->m_before_header(net, user_data, count);
+  }
+#endif
+
   *complen = 0;
 
   net->reading_or_writing=1;
@@ -895,7 +925,7 @@ my_real_read(NET *net, size_t *complen)
 			      remain, vio_errno(net->vio), (long) length));
 	  len= packet_error;
 	  net->error= 2;				/* Close socket */
-          net->last_errno= (vio_was_interrupted(net->vio) ?
+          net->last_errno= (vio_was_timeout(net->vio) ?
                                    ER_NET_READ_INTERRUPTED :
                                    ER_NET_READ_ERROR);
           MYSQL_SERVER_my_error(net->last_errno, MYF(0));
@@ -976,6 +1006,14 @@ my_real_read(NET *net, size_t *complen)
 	}
 	pos=net->buff + net->where_b;
 	remain = (uint32) len;
+#ifdef MYSQL_SERVER
+        if (server_extension != NULL)
+        {
+          void *user_data= server_extension->m_user_data;
+          server_extension->m_after_header(net, user_data, count, 0);
+          server_extension=  NULL;
+        }
+#endif
       }
     }
 
@@ -991,6 +1029,14 @@ end:
 #ifdef DEBUG_DATA_PACKETS
   if (len != packet_error)
     DBUG_DUMP("data", net->buff+net->where_b, len);
+#endif
+#ifdef MYSQL_SERVER
+  if (server_extension != NULL)
+  {
+    void *user_data= server_extension->m_user_data;
+    server_extension->m_after_header(net, user_data, count, 1);
+    DBUG_ASSERT(len == packet_error || len == 0);
+  }
 #endif
   return(len);
 }
@@ -1160,13 +1206,12 @@ void my_net_set_read_timeout(NET *net, uint timeout)
 {
   DBUG_ENTER("my_net_set_read_timeout");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
-  if (net->read_timeout == timeout)
-    DBUG_VOID_RETURN;
-  net->read_timeout= timeout;
-#ifdef NO_ALARM
-  if (net->vio)
-    vio_timeout(net->vio, 0, timeout);
-#endif
+  if (net->read_timeout != timeout)
+  {
+    net->read_timeout= timeout;
+    if (net->vio)
+      vio_timeout(net->vio, 0, timeout);
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -1175,12 +1220,11 @@ void my_net_set_write_timeout(NET *net, uint timeout)
 {
   DBUG_ENTER("my_net_set_write_timeout");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
-  if (net->write_timeout == timeout)
-    DBUG_VOID_RETURN;
-  net->write_timeout= timeout;
-#ifdef NO_ALARM
-  if (net->vio)
-    vio_timeout(net->vio, 1, timeout);
-#endif
+  if (net->write_timeout != timeout)
+  {
+    net->write_timeout= timeout;
+    if (net->vio)
+      vio_timeout(net->vio, 1, timeout);
+  }
   DBUG_VOID_RETURN;
 }

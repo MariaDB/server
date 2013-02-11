@@ -309,6 +309,8 @@ public:
     If the object was opened it will also be closed before being deleted.
   */
   virtual int open(const char *name, int mode, uint test_if_locked);
+  virtual void unbind_psi();
+  virtual void rebind_psi();
   virtual int close(void);
 
   /*
@@ -375,7 +377,7 @@ public:
   virtual int delete_row(const uchar * buf);
   virtual int delete_all_rows(void);
   virtual int truncate();
-  virtual void start_bulk_insert(ha_rows rows);
+  virtual void start_bulk_insert(ha_rows rows, uint flags);
   virtual int end_bulk_insert();
 private:
   ha_rows guess_bulk_insert_rows();
@@ -638,9 +640,6 @@ public:
     for each index created.
   */
   virtual const char *index_type(uint inx);
-
-  /* The name of the table type that will be used for display purposes */
-  virtual const char *table_type() const;
 
   /* The name of the row type used for the underlying tables. */
   virtual enum row_type get_row_type() const;

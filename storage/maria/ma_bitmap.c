@@ -239,7 +239,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
 
   if (((bitmap->map= (uchar*) my_malloc(size, MYF(MY_WME))) == NULL) ||
       my_init_dynamic_array(&bitmap->pinned_pages,
-                            sizeof(MARIA_PINNED_PAGE), 1, 1))
+                            sizeof(MARIA_PINNED_PAGE), 1, 1, MYF(0)))
     return 1;
 
   bitmap->block_size= share->block_size;

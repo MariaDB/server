@@ -52,6 +52,7 @@ typedef struct my_aio_result {
   area, and we would like to avoid unexpected truncation.
 */
 #define MYSYS_ERRMSG_SIZE   (512)
+#define MYSYS_STRERROR_SIZE (128)
 
 #define MY_FILE_ERROR	((size_t) -1)
 
@@ -85,6 +86,10 @@ typedef struct my_aio_result {
 #define MY_SYNC       4096      /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768     /* my_create/delete/rename: sync directory */
 #define MY_SYNC_FILESIZE 65536  /* my_sync(): safe sync when file is extended */
+#define MY_THREAD_SPECIFIC 0x10000  /* my_malloc(): thread specific */
+#define MY_THREAD_MOVE     0x20000  /* realloc(); Memory can move */
+/* Tree that should delete things automaticly */ 
+#define MY_TREE_WITH_DELETE 0x40000
 
 #define MY_CHECK_ERROR	1	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2	/* Give time info about process*/
@@ -147,6 +152,18 @@ typedef struct my_aio_result {
 /* Extra length needed for filename if one calls my_create_backup_name */
 #define MY_BACKUP_NAME_EXTRA_LENGTH 17
 
+/* If we have our own safemalloc (for debugging) */
+#if defined(SAFEMALLOC)
+void sf_report_leaked_memory(my_thread_id id);
+extern my_thread_id (*sf_malloc_dbug_id)(void);
+#define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
+#else
+#define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
+#endif
+
+typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
+extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
+
 	/* defines when allocating data */
 extern void *my_malloc(size_t Size,myf MyFlags);
 extern void *my_multi_malloc(myf MyFlags, ...);
@@ -206,8 +223,8 @@ extern void (*fatal_error_handler_hook)(uint my_err, const char *str,
 extern uint my_file_limit;
 extern ulonglong my_thread_stack_size;
 
-extern const char *(*proc_info_hook)(MYSQL_THD, const char *, const char *,
-                                     const char *, const unsigned int);
+extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
+                              const char *, const char *, const unsigned int);
 
 #ifdef HAVE_LARGE_PAGES
 extern my_bool my_use_large_pages;
@@ -322,6 +339,7 @@ typedef struct st_dynamic_array
   uint elements,max_element;
   uint alloc_increment;
   uint size_of_element;
+  myf malloc_flags;
 } DYNAMIC_ARRAY;
 
 typedef struct st_my_tmpdir
@@ -488,6 +506,11 @@ typedef struct st_io_cache		/* Used when cacheing files */
 
 typedef int (*qsort2_cmp)(const void *, const void *, const void *);
 
+typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
+  ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);
+
+extern my_error_reporter my_charset_error_reporter;
+
 	/* defines for mf_iocache */
 
 	/* Test if buffer is inited */
@@ -628,6 +651,7 @@ extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
 extern FILE *my_freopen(const char *path, const char *mode, FILE *stream);
 extern int my_fclose(FILE *fd,myf MyFlags);
 extern int my_vfprintf(FILE *stream, const char* format, va_list args);
+extern void my_strerror(char *buf, size_t len, int nr);
 extern int my_fprintf(FILE *stream, const char* format, ...);
 extern File my_fileno(FILE *fd);
 extern int my_chsize(File fd,my_off_t newlength, int filler, myf MyFlags);
@@ -677,6 +701,7 @@ extern my_bool has_path(const char *name);
 extern char *convert_dirname(char *to, const char *from, const char *from_end);
 extern void to_unix_path(char * name);
 extern char * fn_ext(const char *name);
+extern char * fn_ext2(const char *name);
 extern char * fn_same(char * toname,const char *name,int flag);
 extern char * fn_format(char * to,const char *name,const char *dir,
 			   const char *form, uint flag);
@@ -712,6 +737,7 @@ extern int flush_write_cache(RECORD_CACHE *info);
 extern void handle_recived_signals(void);
 
 extern sig_handler my_set_alarm_variable(int signo);
+extern my_bool radixsort_is_appliccable(uint n_items, size_t size_of_element);
 extern void my_string_ptr_sort(uchar *base,uint items,size_t size);
 extern void radixsort_for_str_ptr(uchar* base[], uint number_of_elements,
 				  size_t size_of_element,uchar *buffer[]);
@@ -764,26 +790,21 @@ extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
 File create_temp_file(char *to, const char *dir, const char *pfx,
 		      int mode, myf MyFlags);
-#define my_init_dynamic_array(A,B,C,D) init_dynamic_array2(A,B,NULL,C,D)
-#define my_init_dynamic_array_ci(A,B,C,D) init_dynamic_array2(A,B,NULL,C,D)
-#define my_init_dynamic_array2(A,B,C,D,E) init_dynamic_array2(A,B,C,D,E)
-#define my_init_dynamic_array2_ci(A,B,C,D,E) init_dynamic_array2(A,B,C,D,E)
-extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
+#define my_init_dynamic_array(A,B,C,D,E) my_init_dynamic_array2(A,B,NULL,C,D,E)
+extern my_bool my_init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
                                    void *init_buffer, uint init_alloc,
-                                   uint alloc_increment);
-/* init_dynamic_array() function is deprecated */
-extern my_bool init_dynamic_array(DYNAMIC_ARRAY *array, uint element_size,
-                                  uint init_alloc, uint alloc_increment);
-extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const uchar * element);
-extern uchar *alloc_dynamic(DYNAMIC_ARRAY *array);
-extern uchar *pop_dynamic(DYNAMIC_ARRAY*);
-extern my_bool set_dynamic(DYNAMIC_ARRAY *array,uchar * element,uint array_index);
+                                   uint alloc_increment, myf my_flags);
+extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
+extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
+extern void *pop_dynamic(DYNAMIC_ARRAY*);
+extern my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element,
+                           uint array_index);
 extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
-extern void get_dynamic(DYNAMIC_ARRAY *array,uchar * element,uint array_index);
+extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
 extern void freeze_size(DYNAMIC_ARRAY *array);
-extern int  get_index_dynamic(DYNAMIC_ARRAY *array, uchar * element);
+extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
 #define dynamic_element(array,array_index,type) ((type)((array)->buffer) +(array_index))
 #define push_dynamic(A,B) insert_dynamic((A),(B))
@@ -797,12 +818,23 @@ my_bool dynstr_append_mem(DYNAMIC_STRING *str, const char *append,
 			  size_t length);
 extern my_bool dynstr_append_os_quoted(DYNAMIC_STRING *str, const char *append,
                                        ...);
+extern my_bool dynstr_append_quoted(DYNAMIC_STRING *str,
+                                    const char *append, size_t len,
+                                    char quote);
 extern my_bool dynstr_set(DYNAMIC_STRING *str, const char *init_str);
 extern my_bool dynstr_realloc(DYNAMIC_STRING *str, size_t additional_size);
 extern my_bool dynstr_trunc(DYNAMIC_STRING *str, size_t n);
 extern void dynstr_free(DYNAMIC_STRING *str);
+extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
+                                        CHARSET_INFO *to_cs,
+                                        const char *from, uint32 from_length,
+                                        CHARSET_INFO *from_cs, uint *errors);
 extern void dynstr_reassociate(DYNAMIC_STRING *str, char **res, size_t *length,
                                size_t *alloc_length);
+extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
+                                        CHARSET_INFO *to_cs,
+                                        const char *from, uint32 from_length,
+                                        CHARSET_INFO *from_cs, uint *errors);
 #ifdef HAVE_MLOCK
 extern void *my_malloc_lock(size_t length,myf flags);
 extern void my_free_lock(void *ptr);
@@ -814,7 +846,7 @@ extern void my_free_lock(void *ptr);
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(MEM_ROOT *mem_root, size_t block_size,
-			    size_t pre_alloc_size);
+			    size_t pre_alloc_size, myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
 extern void *multi_alloc_root(MEM_ROOT *mem_root, ...);
 extern void free_root(MEM_ROOT *root, myf MyFLAGS);
@@ -999,6 +1031,7 @@ char* my_cgets(char *string, size_t clen, size_t* plen);
 
 #ifdef HAVE_PSI_INTERFACE
 extern MYSQL_PLUGIN_IMPORT struct PSI_bootstrap *PSI_hook;
+extern void set_psi_server(PSI *psi);
 void my_init_mysys_psi_keys(void);
 #endif
 

@@ -32,9 +32,15 @@
 
 class hash_filo_element
 {
+private:
   hash_filo_element *next_used,*prev_used;
  public:
   hash_filo_element() {}
+  hash_filo_element *next()
+  { return next_used; }
+  hash_filo_element *prev()
+  { return prev_used; }
+
   friend class hash_filo;
 };
 

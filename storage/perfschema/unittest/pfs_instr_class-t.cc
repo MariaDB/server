@@ -29,12 +29,14 @@ void test_no_registration()
   PFS_sync_key key;
   PFS_thread_key thread_key;
   PFS_file_key file_key;
+  PFS_socket_key socket_key;
   PFS_mutex_class *mutex;
   PFS_rwlock_class *rwlock;
   PFS_cond_class *cond;
   PFS_thread_class *thread;
   PFS_file_class *file;
-  PFS_table_share *table;
+  PFS_socket_class *socket;
+  /* PFS_table_share *table; */
 
   rc= init_sync_class(0, 0, 0);
   ok(rc == 0, "zero init (sync)");
@@ -42,6 +44,8 @@ void test_no_registration()
   ok(rc == 0, "zero init (thread)");
   rc= init_file_class(0);
   ok(rc == 0, "zero init (file)");
+  rc= init_socket_class(0);
+  ok(rc == 0, "zero init (socket)");
   rc= init_table_share(0);
   ok(rc == 0, "zero init (table)");
 
@@ -80,15 +84,24 @@ void test_no_registration()
   file_key= register_file_class("FOO", 3, 0);
   ok(file_key == 0, "no file registered");
 
+  socket_key= register_socket_class("FOO", 3, 0);
+  ok(socket_key == 0, "no socket registered");
+  socket_key= register_socket_class("BAR", 3, 0);
+  ok(socket_key == 0, "no socket registered");
+  socket_key= register_socket_class("FOO", 3, 0);
+  ok(socket_key == 0, "no socket registered");
+
+#ifdef LATER
   PFS_thread fake_thread;
   fake_thread.m_table_share_hash_pins= NULL;
 
-  table= find_or_create_table_share(& fake_thread, "foo_db", 6, "foo_table", 9);
+  table= find_or_create_table_share(& fake_thread, false, "foo_db", 6, "foo_table", 9);
   ok(table == NULL, "not created");
-  table= find_or_create_table_share(& fake_thread, "bar_db", 6, "bar_table", 9);
+  table= find_or_create_table_share(& fake_thread, false, "bar_db", 6, "bar_table", 9);
   ok(table == NULL, "not created");
-  table= find_or_create_table_share(& fake_thread, "foo_db", 6, "foo_table", 9);
+  table= find_or_create_table_share(& fake_thread, false, "foo_db", 6, "foo_table", 9);
   ok(table == NULL, "not created");
+#endif
 
   mutex= find_mutex_class(0);
   ok(mutex == NULL, "no mutex key 0");
@@ -125,9 +138,17 @@ void test_no_registration()
   file= find_file_class(9999);
   ok(file == NULL, "no file key 9999");
 
+  socket= find_socket_class(0);
+  ok(socket == NULL, "no socket key 0");
+  socket= find_socket_class(1);
+  ok(socket == NULL, "no socket key 1");
+  socket= find_socket_class(9999);
+  ok(socket == NULL, "no socket key 9999");
+
   cleanup_sync_class();
   cleanup_thread_class();
   cleanup_file_class();
+  cleanup_socket_class();
   cleanup_table_share();
 }
 
@@ -346,8 +367,56 @@ void test_file_registration()
   cleanup_file_class();
 }
 
+void test_socket_registration()
+{
+  int rc;
+  PFS_socket_key key;
+  PFS_socket_class *socket;
+
+  rc= init_socket_class(5);
+  ok(rc == 0, "room for 5 socket");
+
+  key= register_socket_class("FOO", 3, 0);
+  ok(key == 1, "foo registered");
+  key= register_socket_class("BAR", 3, 0);
+  ok(key == 2, "bar registered");
+  key= register_socket_class("FOO", 3, 0);
+  ok(key == 1, "foo re registered");
+  key= register_socket_class("Socket-3", 8, 0);
+  ok(key == 3, "Socket-3 registered");
+  key= register_socket_class("Socket-4", 8, 0);
+  ok(key == 4, "Socket-4 registered");
+  key= register_socket_class("Socket-5", 8, 0);
+  ok(key == 5, "Socket-5 registered");
+  ok(socket_class_lost == 0, "lost nothing");
+  key= register_socket_class("Socket-6", 8, 0);
+  ok(key == 0, "Socket-6 not registered");
+  ok(socket_class_lost == 1, "lost 1 socket");
+  key= register_socket_class("Socket-7", 8, 0);
+  ok(key == 0, "Socket-7 not registered");
+  ok(socket_class_lost == 2, "lost 2 socket");
+  key= register_socket_class("Socket-3", 8, 0);
+  ok(key == 3, "Socket-3 re registered");
+  ok(socket_class_lost == 2, "lost 2 socket");
+  key= register_socket_class("Socket-5", 8, 0);
+  ok(key == 5, "Socket-5 re registered");
+  ok(socket_class_lost == 2, "lost 2 socket");
+
+  socket= find_socket_class(0);
+  ok(socket == NULL, "no key 0");
+  socket= find_socket_class(3);
+  ok(socket != NULL, "found key 3");
+  ok(strncmp(socket->m_name, "Socket-3", 8) == 0, "key 3 is Socket-3");
+  ok(socket->m_name_length == 8, "name length 3");
+  socket= find_socket_class(9999);
+  ok(socket == NULL, "no key 9999");
+
+  cleanup_socket_class();
+}
+
 void test_table_registration()
 {
+#ifdef LATER
   PFS_table_share *table_share;
   PFS_table_share *table_share_2;
 
@@ -355,7 +424,7 @@ void test_table_registration()
   fake_thread.m_table_share_hash_pins= NULL;
 
   table_share_lost= 0;
-  table_share= find_or_create_table_share(& fake_thread, "db1", 3, "t1", 2);
+  table_share= find_or_create_table_share(& fake_thread, false, "db1", 3, "t1", 2);
   ok(table_share == NULL, "not created");
   ok(table_share_lost == 1, "lost the table");
 
@@ -363,37 +432,37 @@ void test_table_registration()
   init_table_share(5);
   init_table_share_hash();
 
-  table_share= find_or_create_table_share(& fake_thread, "db1", 3, "t1", 2);
+  table_share= find_or_create_table_share(& fake_thread, false, "db1", 3, "t1", 2);
   ok(table_share != NULL, "created db1.t1");
   ok(table_share_lost == 0, "not lost");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db1", 3, "t1", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db1", 3, "t1", 2);
   ok(table_share_2 != NULL, "found db1.t1");
   ok(table_share_lost == 0, "not lost");
   ok(table_share == table_share_2, "same table");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db1", 3, "t2", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db1", 3, "t2", 2);
   ok(table_share_2 != NULL, "created db1.t2");
   ok(table_share_lost == 0, "not lost");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db2", 3, "t1", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db2", 3, "t1", 2);
   ok(table_share_2 != NULL, "created db2.t1");
   ok(table_share_lost == 0, "not lost");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db2", 3, "t2", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db2", 3, "t2", 2);
   ok(table_share_2 != NULL, "created db2.t2");
   ok(table_share_lost == 0, "not lost");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db3", 3, "t3", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db3", 3, "t3", 2);
   ok(table_share_2 != NULL, "created db3.t3");
   ok(table_share_lost == 0, "not lost");
 
-  table_share_2= find_or_create_table_share(& fake_thread, "db4", 3, "t4", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db4", 3, "t4", 2);
   ok(table_share_2 == NULL, "lost db4.t4");
   ok(table_share_lost == 1, "lost");
 
   table_share_lost= 0;
-  table_share_2= find_or_create_table_share(& fake_thread, "db1", 3, "t2", 2);
+  table_share_2= find_or_create_table_share(& fake_thread, false, "db1", 3, "t2", 2);
   ok(table_share_2 != NULL, "found db1.t2");
   ok(table_share_lost == 0, "not lost");
   ok(strncmp(table_share_2->m_schema_name, "db1", 3) == 0 , "schema db1");
@@ -403,18 +472,25 @@ void test_table_registration()
 
   cleanup_table_share_hash();
   cleanup_table_share();
+#endif
 }
 
-void set_wait_stat(PFS_single_stat_chain *stat)
+void set_wait_stat(PFS_instr_class *klass)
 {
+  PFS_single_stat *stat;
+  stat= & global_instr_class_waits_array[klass->m_event_name_index];
+
   stat->m_count= 12;
   stat->m_min= 5;
   stat->m_max= 120;
   stat->m_sum= 999;
 }
 
-bool is_empty_stat(PFS_single_stat_chain *stat)
+bool is_empty_stat(PFS_instr_class *klass)
 {
+  PFS_single_stat *stat;
+  stat= & global_instr_class_waits_array[klass->m_event_name_index];
+
   if (stat->m_count != 0)
     return false;
   if (stat->m_min != (ulonglong) -1)
@@ -431,6 +507,7 @@ void test_instruments_reset()
   int rc;
   PFS_sync_key key;
   PFS_file_key file_key;
+  PFS_socket_key socket_key;
   PFS_mutex_class *mutex_1;
   PFS_mutex_class *mutex_2;
   PFS_mutex_class *mutex_3;
@@ -443,6 +520,9 @@ void test_instruments_reset()
   PFS_file_class *file_1;
   PFS_file_class *file_2;
   PFS_file_class *file_3;
+  PFS_socket_class *socket_1;
+  PFS_socket_class *socket_2;
+  PFS_socket_class *socket_3;
 
   rc= init_sync_class(3, 3, 3);
   ok(rc == 0, "init (sync)");
@@ -450,6 +530,8 @@ void test_instruments_reset()
   ok(rc == 0, "init (thread)");
   rc= init_file_class(3);
   ok(rc == 0, "init (file)");
+  rc= init_socket_class(3);
+  ok(rc == 0, "init (socket)");
 
   key= register_mutex_class("M-1", 3, 0);
   ok(key == 1, "mutex registered");
@@ -479,6 +561,13 @@ void test_instruments_reset()
   file_key= register_file_class("F-3", 3, 0);
   ok(file_key == 3, "file registered");
 
+  socket_key= register_socket_class("S-1", 3, 0);
+  ok(socket_key == 1, "socket registered");
+  socket_key= register_socket_class("S-2", 3, 0);
+  ok(socket_key == 2, "socket registered");
+  socket_key= register_socket_class("S-3", 3, 0);
+  ok(socket_key == 3, "socket registered");
+
   mutex_1= find_mutex_class(1);
   ok(mutex_1 != NULL, "mutex key 1");
   mutex_2= find_mutex_class(2);
@@ -507,49 +596,59 @@ void test_instruments_reset()
   file_3= find_file_class(3);
   ok(file_3 != NULL, "file key 3");
 
-  set_wait_stat(& mutex_1->m_wait_stat);
-  set_wait_stat(& mutex_2->m_wait_stat);
-  set_wait_stat(& mutex_3->m_wait_stat);
-  set_wait_stat(& rwlock_1->m_wait_stat);
-  set_wait_stat(& rwlock_2->m_wait_stat);
-  set_wait_stat(& rwlock_3->m_wait_stat);
-  set_wait_stat(& cond_1->m_wait_stat);
-  set_wait_stat(& cond_2->m_wait_stat);
-  set_wait_stat(& cond_3->m_wait_stat);
-  set_wait_stat(& file_1->m_wait_stat);
-  set_wait_stat(& file_2->m_wait_stat);
-  set_wait_stat(& file_3->m_wait_stat);
+  socket_1= find_socket_class(1);
+  ok(socket_1 != NULL, "socket key 1");
+  socket_2= find_socket_class(2);
+  ok(socket_2 != NULL, "socket key 2");
+  socket_3= find_socket_class(3);
+  ok(socket_3 != NULL, "socket key 3");
 
-  ok(! is_empty_stat(& mutex_1->m_wait_stat), "mutex_1 stat is populated");
-  ok(! is_empty_stat(& mutex_2->m_wait_stat), "mutex_2 stat is populated");
-  ok(! is_empty_stat(& mutex_3->m_wait_stat), "mutex_3 stat is populated");
-  ok(! is_empty_stat(& rwlock_1->m_wait_stat), "rwlock_1 stat is populated");
-  ok(! is_empty_stat(& rwlock_2->m_wait_stat), "rwlock_2 stat is populated");
-  ok(! is_empty_stat(& rwlock_3->m_wait_stat), "rwlock_3 stat is populated");
-  ok(! is_empty_stat(& cond_1->m_wait_stat), "cond_1 stat is populated");
-  ok(! is_empty_stat(& cond_2->m_wait_stat), "cond_2 stat is populated");
-  ok(! is_empty_stat(& cond_3->m_wait_stat), "cond_3 stat is populated");
-  ok(! is_empty_stat(& file_1->m_wait_stat), "file_1 stat is populated");
-  ok(! is_empty_stat(& file_2->m_wait_stat), "file_2 stat is populated");
-  ok(! is_empty_stat(& file_3->m_wait_stat), "file_3 stat is populated");
+#ifdef LATER
+  set_wait_stat(mutex_1);
+  set_wait_stat(mutex_2);
+  set_wait_stat(mutex_3);
+  set_wait_stat(rwlock_1);
+  set_wait_stat(rwlock_2);
+  set_wait_stat(rwlock_3);
+  set_wait_stat(cond_1);
+  set_wait_stat(cond_2);
+  set_wait_stat(cond_3);
+  set_wait_stat(file_1);
+  set_wait_stat(file_2);
+  set_wait_stat(file_3);
 
-  reset_instrument_class_waits();
+  ok(! is_empty_stat(mutex_1), "mutex_1 stat is populated");
+  ok(! is_empty_stat(mutex_2), "mutex_2 stat is populated");
+  ok(! is_empty_stat(mutex_3), "mutex_3 stat is populated");
+  ok(! is_empty_stat(rwlock_1), "rwlock_1 stat is populated");
+  ok(! is_empty_stat(rwlock_2), "rwlock_2 stat is populated");
+  ok(! is_empty_stat(rwlock_3), "rwlock_3 stat is populated");
+  ok(! is_empty_stat(cond_1), "cond_1 stat is populated");
+  ok(! is_empty_stat(cond_2), "cond_2 stat is populated");
+  ok(! is_empty_stat(cond_3), "cond_3 stat is populated");
+  ok(! is_empty_stat(file_1), "file_1 stat is populated");
+  ok(! is_empty_stat(file_2), "file_2 stat is populated");
+  ok(! is_empty_stat(file_3), "file_3 stat is populated");
 
-  ok(is_empty_stat(& mutex_1->m_wait_stat), "mutex_1 stat is cleared");
-  ok(is_empty_stat(& mutex_2->m_wait_stat), "mutex_2 stat is cleared");
-  ok(is_empty_stat(& mutex_3->m_wait_stat), "mutex_3 stat is cleared");
-  ok(is_empty_stat(& rwlock_1->m_wait_stat), "rwlock_1 stat is cleared");
-  ok(is_empty_stat(& rwlock_2->m_wait_stat), "rwlock_2 stat is cleared");
-  ok(is_empty_stat(& rwlock_3->m_wait_stat), "rwlock_3 stat is cleared");
-  ok(is_empty_stat(& cond_1->m_wait_stat), "cond_1 stat is cleared");
-  ok(is_empty_stat(& cond_2->m_wait_stat), "cond_2 stat is cleared");
-  ok(is_empty_stat(& cond_3->m_wait_stat), "cond_3 stat is cleared");
-  ok(is_empty_stat(& file_1->m_wait_stat), "file_1 stat is cleared");
-  ok(is_empty_stat(& file_2->m_wait_stat), "file_2 stat is cleared");
-  ok(is_empty_stat(& file_3->m_wait_stat), "file_3 stat is cleared");
+  reset_global_wait_stat();
+
+  ok(is_empty_stat(mutex_1), "mutex_1 stat is cleared");
+  ok(is_empty_stat(mutex_2), "mutex_2 stat is cleared");
+  ok(is_empty_stat(mutex_3), "mutex_3 stat is cleared");
+  ok(is_empty_stat(rwlock_1), "rwlock_1 stat is cleared");
+  ok(is_empty_stat(rwlock_2), "rwlock_2 stat is cleared");
+  ok(is_empty_stat(rwlock_3), "rwlock_3 stat is cleared");
+  ok(is_empty_stat(cond_1), "cond_1 stat is cleared");
+  ok(is_empty_stat(cond_2), "cond_2 stat is cleared");
+  ok(is_empty_stat(cond_3), "cond_3 stat is cleared");
+  ok(is_empty_stat(file_1), "file_1 stat is cleared");
+  ok(is_empty_stat(file_2), "file_2 stat is cleared");
+  ok(is_empty_stat(file_3), "file_3 stat is cleared");
+#endif
 
   cleanup_sync_class();
   cleanup_file_class();
+  cleanup_socket_class();
 }
 
 void do_all_tests()
@@ -562,6 +661,7 @@ void do_all_tests()
   test_cond_registration();
   test_thread_registration();
   test_file_registration();
+  test_socket_registration();
   test_table_registration();
   test_instruments_reset();
 
@@ -570,11 +670,9 @@ void do_all_tests()
 
 int main(int argc, char **argv)
 {
-  plan(196);
+  plan(181);
   MY_INIT(argv[0]);
   do_all_tests();
   my_end(0);
   return 0;
 }
-
-

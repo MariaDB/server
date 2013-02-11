@@ -3,6 +3,10 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
+set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
+set global innodb_lock_wait_timeout=300;
+set session innodb_lock_wait_timeout=300;
+
 --echo #
 --echo # Bug #22876 Four-way deadlock
 --echo #
@@ -318,3 +322,6 @@ disconnect con1;
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
+
+set global innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;
+

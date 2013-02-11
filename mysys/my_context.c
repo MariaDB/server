@@ -1,5 +1,5 @@
 /*
-  Copyright 2011 Kristian Nielsen and Monty Program Ab
+  Copyright 2011, 2012 Kristian Nielsen and Monty Program Ab
 
   This file is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -437,8 +437,6 @@ my_context_destroy(struct my_context *c)
 int
 my_context_spawn(struct my_context *c, void (*f)(void *), void *d)
 {
-  void (*tmp_f)(void *)= f;
-  void *tmp_d= d;
   int ret;
 
   DBUG_SWAP_CODE_STATE(&c->dbug_state);
@@ -495,8 +493,8 @@ my_context_spawn(struct my_context *c, void (*f)(void *), void *d)
      "movl $1, %[ret]\n"
      "4:\n"
      : [ret] "=a" (ret),
-       [f] "+c" (tmp_f),
-       [d] "+d" (tmp_d)
+       [f] "+c" (f),
+       [d] "+d" (d)
      : [stack] "a" (c->stack_top),
        /* Need this in callee-save register to preserve across function call. */
        [save] "D" (&c->save[0])

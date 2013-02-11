@@ -6072,23 +6072,87 @@ Item* Item_equal::get_first(JOIN_TAB *context, Item *field_item)
 }
 
 
-longlong Item_func_dyncol_exists::val_int()
+longlong Item_func_dyncol_check::val_int()
 {
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp(buff, sizeof(buff), &my_charset_bin);
   DYNAMIC_COLUMN col;
   String *str;
-  ulonglong num;
   enum enum_dyncol_func_result rc;
 
-  num= args[1]->val_int();
+  str= args[0]->val_str(&tmp);
+  if (args[0]->null_value)
+    goto null;
+  col.length= str->length();
+  /* We do not change the string, so could do this trick */
+  col.str= (char *)str->ptr();
+  rc= mariadb_dyncol_check(&col);
+  if (rc < 0 && rc != ER_DYNCOL_FORMAT)
+  {
+    dynamic_column_error_message(rc);
+    goto null;
+  }
+  null_value= FALSE;
+  return rc == ER_DYNCOL_OK;
+
+null:
+  null_value= TRUE;
+  return 0;
+}
+
+longlong Item_func_dyncol_exists::val_int()
+{
+  char buff[STRING_BUFFER_USUAL_SIZE], nmstrbuf[11];
+  String tmp(buff, sizeof(buff), &my_charset_bin),
+         nmbuf(nmstrbuf, sizeof(nmstrbuf), system_charset_info);
+  DYNAMIC_COLUMN col;
+  String *str;
+  LEX_STRING buf, *name= NULL;
+  ulonglong num= 0;
+  enum enum_dyncol_func_result rc;
+
+  if (args[1]->result_type() == INT_RESULT)
+    num= args[1]->val_int();
+  else
+  {
+    String *nm= args[1]->val_str(&nmbuf);
+    if (!nm || args[1]->null_value)
+    {
+      null_value= 1;
+      return 1;
+    }
+    if (my_charset_same(nm->charset(), &my_charset_utf8_general_ci))
+    {
+      buf.str= (char *) nm->ptr();
+      buf.length= nm->length();
+    }
+    else
+    {
+      uint strlen;
+      uint dummy_errors;
+      buf.str= (char *)sql_alloc((strlen= nm->length() *
+                                     my_charset_utf8_general_ci.mbmaxlen + 1));
+      if (buf.str)
+      {
+        buf.length=
+          copy_and_convert(buf.str, strlen, &my_charset_utf8_general_ci,
+                           nm->ptr(), nm->length(), nm->charset(),
+                           &dummy_errors);
+      }
+      else
+        buf.length= 0;
+    }
+    name= &buf;
+  }
   str= args[0]->val_str(&tmp);
   if (args[0]->null_value || args[1]->null_value || num > UINT_MAX16)
     goto null;
   col.length= str->length();
   /* We do not change the string, so could do this trick */
   col.str= (char *)str->ptr();
-  rc= dynamic_column_exists(&col, (uint) num);
+  rc= ((name == NULL) ?
+       mariadb_dyncol_exists(&col, (uint) num) :
+       mariadb_dyncol_exists_named(&col, name));
   if (rc < 0)
   {
     dynamic_column_error_message(rc);

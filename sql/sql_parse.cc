@@ -82,6 +82,7 @@
 #include <myisam.h>
 #include <my_dir.h>
 #include "rpl_handler.h"
+#include "rpl_mi.h"
 
 #include "sp_head.h"
 #include "sp.h"
@@ -95,6 +96,7 @@
 #include "probes_mysql.h"
 #include "set_var.h"
 #include "log_slow.h"
+#include "sql_bootstrap.h"
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -268,12 +270,14 @@ void init_update_queries(void)
                                             CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
-                                            CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS ;
+                                            CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
+                                            CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_TRUNCATE]=       CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TABLE]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_LOAD]=           CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS | CF_REPORT_PROGRESS;
+                                            CF_CAN_GENERATE_ROW_EVENTS | CF_REPORT_PROGRESS |
+                                            CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_CREATE_DB]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_DB]=        CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]= CF_AUTO_COMMIT_TRANS;
@@ -290,26 +294,60 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_EVENT]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
 
   sql_command_flags[SQLCOM_UPDATE]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_UPDATES_DATA;
   sql_command_flags[SQLCOM_UPDATE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_UPDATES_DATA;
   sql_command_flags[SQLCOM_INSERT]=	    CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_INSERT_SELECT]=  CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_DELETE]=         CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
   sql_command_flags[SQLCOM_DELETE_MULTI]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;;
   sql_command_flags[SQLCOM_REPLACE]=        CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_INSERTS_DATA;;
   sql_command_flags[SQLCOM_REPLACE_SELECT]= CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED |
+                                            CF_INSERTS_DATA;
   sql_command_flags[SQLCOM_SELECT]=         CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_SET_OPTION]=     CF_REEXECUTION_FRAGILE | CF_AUTO_COMMIT_TRANS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE |
+                                            CF_CAN_BE_EXPLAINED;
+  // (1) so that subquery is traced when doing "SET @var = (subquery)"
+  /*
+    @todo SQLCOM_SET_OPTION should have CF_CAN_GENERATE_ROW_EVENTS
+    set, because it may invoke a stored function that generates row
+    events. /Sven
+  */
+  sql_command_flags[SQLCOM_SET_OPTION]=     CF_REEXECUTION_FRAGILE |
+                                            CF_AUTO_COMMIT_TRANS |
+                                            CF_OPTIMIZER_TRACE; // (1)
+  // (1) so that subquery is traced when doing "DO @var := (subquery)"
   sql_command_flags[SQLCOM_DO]=             CF_REEXECUTION_FRAGILE |
-                                            CF_CAN_GENERATE_ROW_EVENTS;
+                                            CF_CAN_GENERATE_ROW_EVENTS |
+                                            CF_OPTIMIZER_TRACE; // (1)
 
   sql_command_flags[SQLCOM_SHOW_STATUS_PROC]= CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_STATUS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
@@ -335,6 +373,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_ENGINE_STATUS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_MUTEX]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_ENGINE_LOGS]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_EXPLAIN]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROCESSLIST]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_GRANTS]=      CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_CREATE_DB]=   CF_STATUS_COMMAND;
@@ -350,7 +389,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_CREATE_EVENT]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILES]=    CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILE]=     CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND | CF_CAN_GENERATE_ROW_EVENTS;
   sql_command_flags[SQLCOM_SHOW_CLIENT_STATS]= CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_USER_STATS]=   CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_TABLE_STATS]=  CF_STATUS_COMMAND;
@@ -365,6 +404,12 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_GRANT]=             CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_REVOKE]=            CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_OPTIMIZE]=          CF_CHANGES_DATA;
+  /*
+    @todo SQLCOM_CREATE_FUNCTION should have CF_AUTO_COMMIT_TRANS
+    set. this currently is binlogged *before* the transaction if
+    executed inside a transaction because it does not have an implicit
+    pre-commit and is written to the statement cache. /Sven
+  */
   sql_command_flags[SQLCOM_CREATE_FUNCTION]=   CF_CHANGES_DATA;
   sql_command_flags[SQLCOM_CREATE_PROCEDURE]=  CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_SPFUNCTION]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -381,9 +426,27 @@ void init_update_queries(void)
     last called (or executed) statement is preserved.
     See mysql_execute_command() for how CF_ROW_COUNT is used.
   */
+  /*
+    (1): without it, in "CALL some_proc((subq))", subquery would not be
+    traced.
+  */
   sql_command_flags[SQLCOM_CALL]=      CF_REEXECUTION_FRAGILE |
-                                       CF_CAN_GENERATE_ROW_EVENTS;
+                                       CF_CAN_GENERATE_ROW_EVENTS |
+                                       CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+
+  /*
+    We don't want to change to statement based replication for these commands
+  */
+  sql_command_flags[SQLCOM_ROLLBACK]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate ALTER TABLE for temp tables in row format */
+  sql_command_flags[SQLCOM_ALTER_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate TRUNCATE for temp tables in row format */
+  sql_command_flags[SQLCOM_TRUNCATE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* We don't want to replicate DROP for temp tables in row format */
+  sql_command_flags[SQLCOM_DROP_TABLE]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
+  /* One can change replication mode with SET */
+  sql_command_flags[SQLCOM_SET_OPTION]|= CF_FORCE_ORIGINAL_BINLOG_FORMAT;
 
   /*
     The following admin table operations are allowed
@@ -410,6 +473,104 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_SERVER]=      CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_SERVER]=       CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_SERVER]=        CF_AUTO_COMMIT_TRANS;
+
+  /*
+    The following statements can deal with temporary tables,
+    so temporary tables should be pre-opened for those statements to
+    simplify privilege checking.
+
+    There are other statements that deal with temporary tables and open
+    them, but which are not listed here. The thing is that the order of
+    pre-opening temporary tables for those statements is somewhat custom.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_TRUNCATE]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_LOAD]|=            CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_UPDATE]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_UPDATE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_INSERT_SELECT]|=   CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DELETE]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DELETE_MULTI]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_REPLACE_SELECT]|=  CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_SELECT]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_SET_OPTION]|=      CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_DO]|=              CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CALL]|=            CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CHECKSUM]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ANALYZE]|=         CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_CHECK]|=           CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=        CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_REPAIR]|=          CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_PRELOAD_KEYS]|=    CF_PREOPEN_TMP_TABLES;
+  sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]|= CF_PREOPEN_TMP_TABLES;
+
+  /*
+    DDL statements that should start with closing opened handlers.
+
+    We use this flag only for statements for which open HANDLERs
+    have to be closed before emporary tables are pre-opened.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=     CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_TRUNCATE]|=        CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_REPAIR]|=          CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=        CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ANALYZE]|=         CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_CHECK]|=           CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=      CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_PRELOAD_KEYS]|=    CF_HA_CLOSE;
+  sql_command_flags[SQLCOM_ASSIGN_TO_KEYCACHE]|=  CF_HA_CLOSE;
+
+  /*
+    Mark statements that always are disallowed in read-only
+    transactions. Note that according to the SQL standard,
+    even temporary table DDL should be disallowed.
+  */
+  sql_command_flags[SQLCOM_CREATE_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_TABLE]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_TABLE]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_RENAME_TABLE]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_INDEX]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_INDEX]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_DB]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_DB]|=          CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_DB_UPGRADE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_DB]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_VIEW]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_VIEW]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_TRIGGER]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_TRIGGER]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_EVENT]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_EVENT]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_EVENT]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_USER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_RENAME_USER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_USER]|=        CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SERVER]|=    CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_SERVER]|=     CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_SERVER]|=      CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_FUNCTION]|=  CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_PROCEDURE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_CREATE_SPFUNCTION]|=CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_PROCEDURE]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_DROP_FUNCTION]|=    CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_PROCEDURE]|=  CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_FUNCTION]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_TRUNCATE]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_ALTER_TABLESPACE]|= CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REPAIR]|=           CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_OPTIMIZE]|=         CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_GRANT]|=            CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REVOKE]|=           CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_REVOKE_ALL]|=       CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_INSTALL_PLUGIN]|=   CF_DISALLOW_IN_RO_TRANS;
+  sql_command_flags[SQLCOM_UNINSTALL_PLUGIN]|= CF_DISALLOW_IN_RO_TRANS;
 }
 
 bool sqlcom_can_generate_row_events(const THD *thd)
@@ -462,7 +623,7 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
   thd->profiling.set_query_source(buf, len);
 #endif
 
-  thd_proc_info(thd, "Execution of init_command");
+  THD_STAGE_INFO(thd, stage_execution_of_init_command);
   save_client_capabilities= thd->client_capabilities;
   thd->client_capabilities|= CLIENT_MULTI_QUERIES;
   /*
@@ -481,11 +642,19 @@ void execute_init_command(THD *thd, LEX_STRING *init_command,
 }
 
 
+static char *fgets_fn(char *buffer, size_t size, fgets_input_t input, int *error)
+{
+  MYSQL_FILE *in= static_cast<MYSQL_FILE*> (input);
+  char *line= mysql_file_fgets(buffer, size, in);
+  if (error)
+    *error= (line == NULL) ? ferror(in->m_file) : 0;
+  return line;
+}
+
+
 static void handle_bootstrap_impl(THD *thd)
 {
   MYSQL_FILE *file= bootstrap_file;
-  char *buff, *res;
-
   DBUG_ENTER("handle_bootstrap");
 
 #ifndef EMBEDDED_LIBRARY
@@ -493,7 +662,6 @@ static void handle_bootstrap_impl(THD *thd)
   thd->thread_stack= (char*) &thd;
 #endif /* EMBEDDED_LIBRARY */
 
-  thd_proc_info(thd, 0);
   thd->security_ctx->user= (char*) my_strdup("boot", MYF(MY_WME));
   thd->security_ctx->priv_user[0]= thd->security_ctx->priv_host[0]=0;
   /*
@@ -503,50 +671,58 @@ static void handle_bootstrap_impl(THD *thd)
   */
   thd->client_capabilities|= CLIENT_MULTI_RESULTS;
 
-  buff= (char*) thd->net.buff;
   thd->init_for_queries();
-  while (mysql_file_fgets(buff, thd->net.max_packet, file))
+
+  for ( ; ; )
   {
+    char buffer[MAX_BOOTSTRAP_QUERY_SIZE] = "";
+    int rc, length;
     char *query;
-    /* strlen() can't be deleted because mysql_file_fgets() doesn't return length */
-    ulong length= (ulong) strlen(buff);
-    while (buff[length-1] != '\n' && !mysql_file_feof(file))
+    int error= 0;
+
+    rc= read_bootstrap_query(buffer, &length, file, fgets_fn, &error);
+
+    if (rc == READ_BOOTSTRAP_EOF)
+      break;
+    /*
+      Check for bootstrap file errors. SQL syntax errors will be
+      caught below.
+    */
+    if (rc != READ_BOOTSTRAP_SUCCESS)
     {
       /*
-        We got only a part of the current string. Will try to increase
-        net buffer then read the rest of the current string.
+        mysql_parse() may have set a successful error status for the previous
+        query. We must clear the error status to report the bootstrap error.
       */
-      /* purecov: begin tested */
-      if (net_realloc(&(thd->net), 2 * thd->net.max_packet))
+      thd->get_stmt_da()->reset_diagnostics_area();
+
+      /* Get the nearest query text for reference. */
+      char *err_ptr= buffer + (length <= MAX_BOOTSTRAP_ERROR_LEN ?
+                                        0 : (length - MAX_BOOTSTRAP_ERROR_LEN));
+      switch (rc)
       {
-        thd->protocol->end_statement();
-        bootstrap_error= 1;
+      case READ_BOOTSTRAP_ERROR:
+        my_printf_error(ER_UNKNOWN_ERROR, "Bootstrap file error, return code (%d). "
+                        "Nearest query: '%s'", MYF(0), error, err_ptr);
+        break;
+
+      case READ_BOOTSTRAP_QUERY_SIZE:
+        my_printf_error(ER_UNKNOWN_ERROR, "Boostrap file error. Query size "
+                        "exceeded %d bytes near '%s'.", MYF(0),
+                        MAX_BOOTSTRAP_LINE_SIZE, err_ptr);
+        break;
+
+      default:
+        DBUG_ASSERT(false);
         break;
       }
-      buff= (char*) thd->net.buff;
-      res= mysql_file_fgets(buff + length, thd->net.max_packet - length, file);
-      if (!res && !mysql_file_feof(file))
-      {
-        thd->protocol->end_statement();
-        bootstrap_error= 1;
-        break;
-      }
-      length+= (ulong) strlen(buff + length);
-      /* purecov: end */
+
+      thd->protocol->end_statement();
+      bootstrap_error= 1;
+      break;
     }
-    if (bootstrap_error)
-      break;                                    /* purecov: inspected */
 
-    while (length && (my_isspace(thd->charset(), buff[length-1]) ||
-                      buff[length-1] == ';'))
-      length--;
-    buff[length]=0;
-
-    /* Skip lines starting with delimiter */
-    if (strncmp(buff, STRING_WITH_LEN("delimiter")) == 0)
-      continue;
-
-    query= (char *) thd->memdup_w_gap(buff, length + 1,
+    query= (char *) thd->memdup_w_gap(buffer, length + 1,
                                       thd->db_length + 1 +
                                       QUERY_CACHE_DB_LENGTH_SIZE +
                                       QUERY_CACHE_FLAGS_SIZE);
@@ -625,8 +801,6 @@ void do_handle_bootstrap(THD *thd)
   handle_bootstrap_impl(thd);
 
 end:
-  net_end(&thd->net);
-  thd->cleanup();
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
@@ -737,17 +911,31 @@ bool do_command(THD *thd)
   */
   DEBUG_SYNC(thd, "before_do_command_net_read");
 
-  if ((packet_length= my_net_read(net)) == packet_error)
+  thd->m_server_idle= TRUE;
+  packet_length= my_net_read(net);
+  thd->m_server_idle= FALSE;
+
+  if ((packet_length == packet_error))
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,
 		       vio_description(net->vio)));
+
+    /* Instrument this broken statement as "statement/com/error" */
+    thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                                 com_statement_info[COM_END].
+                                                 m_key);
+
 
     /* Check if we can continue without closing the connection */
 
     /* The error must be set. */
     DBUG_ASSERT(thd->is_error());
     thd->protocol->end_statement();
+
+    /* Mark the statement completed. */
+    MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+    thd->m_statement_psi= NULL;
 
     if (net->error != 3)
     {
@@ -794,6 +982,8 @@ bool do_command(THD *thd)
   return_value= dispatch_command(command, thd, packet+1, (uint) (packet_length-1));
 
 out:
+  /* The statement instrumentation must be closed in all cases. */
+  DBUG_ASSERT(thd->m_statement_psi == NULL);
   DBUG_RETURN(return_value);
 }
 #endif  /* EMBEDDED_LIBRARY */
@@ -906,7 +1096,12 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                   { DBUG_PRINT("crash_dispatch_command_before", ("now"));
                     DBUG_ABORT(); });
 
-  thd->command=command;
+  /* Performance Schema Interface instrumentation, begin */
+  thd->m_statement_psi= MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                                               com_statement_info[command].
+                                               m_key);
+  thd->set_command(command);
+
   /*
     Commands which always take a long time are logged into
     the slow log only if opt_log_slow_admin_statements is set.
@@ -976,7 +1171,18 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     thd->security_ctx->user= 0;
     thd->user_connect= 0;
 
-    rc= acl_authenticate(thd, 0, packet_length);
+    /*
+      to limit COM_CHANGE_USER ability to brute-force passwords,
+      we only allow three unsuccessful COM_CHANGE_USER per connection.
+    */
+    if (thd->failed_com_change_user >= 3)
+    {
+      my_message(ER_UNKNOWN_COM_ERROR, ER(ER_UNKNOWN_COM_ERROR), MYF(0));
+      rc= 1;
+    }
+    else
+      rc= acl_authenticate(thd, 0, packet_length);
+
     MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
     if (rc)
     {
@@ -991,6 +1197,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->variables.collation_connection= save_collation_connection;
       thd->variables.character_set_results= save_character_set_results;
       thd->update_charset();
+      thd->failed_com_change_user++;
+      my_sleep(1000000);
     }
     else
     {
@@ -1048,6 +1256,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #if defined(ENABLED_PROFILING)
     thd->profiling.set_query_source(thd->query(), thd->query_length());
 #endif
+    MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, thd->query(),
+                             thd->query_length());
+
     Parser_state parser_state;
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       break;
@@ -1081,6 +1292,11 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         length--;
       }
 
+      /* PSI end */
+      MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+      thd->m_statement_psi= NULL;
+
+      /* DTRACE end */
       if (MYSQL_QUERY_DONE_ENABLED())
       {
         MYSQL_QUERY_DONE(thd->is_error());
@@ -1092,10 +1308,20 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       thd->profiling.set_query_source(beginning_of_next_stmt, length);
 #endif
 
+      /* DTRACE begin */
       MYSQL_QUERY_START(beginning_of_next_stmt, thd->thread_id,
                         (char *) (thd->db ? thd->db : ""),
                         &thd->security_ctx->priv_user[0],
                         (char *) thd->security_ctx->host_or_ip);
+
+      /* PSI begin */
+      thd->m_statement_psi=
+        MYSQL_START_STATEMENT(&thd->m_statement_state,
+                              com_statement_info[command].m_key,
+                              thd->db, thd->db_length);
+      THD_STAGE_INFO(thd, stage_init);
+      MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
+                               length);
 
       thd->set_query_and_id(beginning_of_next_stmt, length,
                             thd->charset(), next_query_id());
@@ -1274,17 +1500,21 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
         and flushes tables.
       */
       bool res;
-      my_pthread_setspecific_ptr(THR_THD, NULL);
+      set_current_thd(0);
       res= reload_acl_and_cache(NULL, options | REFRESH_FAST,
                                 NULL, &not_used);
-      my_pthread_setspecific_ptr(THR_THD, thd);
+      set_current_thd(thd);
       if (res)
         break;
     }
     else
 #endif
-    if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
-      break;
+    {
+      thd->lex->relay_log_connection_name.str= (char*) "";
+      thd->lex->relay_log_connection_name.length= 0;
+      if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
+        break;
+    }
     if (trans_commit_implicit(thd))
       break;
     close_thread_tables(thd);
@@ -1442,11 +1672,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
   log_slow_statement(thd);
 
-  thd_proc_info(thd, "cleaning up");
+  THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
-  thd->command=COM_SLEEP;
+  thd->set_examined_row_count(0);                   // For processlist
+  thd->set_command(COM_SLEEP);
+
+  /* Performance Schema Interface instrumentation, end */
+  MYSQL_END_STATEMENT(thd->m_statement_psi, thd->get_stmt_da());
+  thd->m_statement_psi= NULL;
+
   dec_thread_running();
-  thd_proc_info(thd, 0);
   thd->packet.shrink(thd->variables.net_buffer_length);	// Reclaim some memory
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
 
@@ -1492,7 +1727,7 @@ void log_slow_statement(THD *thd)
          (SERVER_QUERY_NO_INDEX_USED | SERVER_QUERY_NO_GOOD_INDEX_USED)) &&
         opt_log_queries_not_using_indexes &&
         !(sql_command_flags[thd->lex->sql_command] & CF_STATUS_COMMAND))) &&
-      thd->examined_row_count >= thd->variables.min_examined_row_limit)
+      thd->get_examined_row_count() >= thd->variables.min_examined_row_limit)
   {
     thd->status_var.long_query_count++;
     /*
@@ -1503,10 +1738,9 @@ void log_slow_statement(THD *thd)
         (global_query_id % thd->variables.log_slow_rate_limit) != 0)
       DBUG_VOID_RETURN;
 
-    thd_proc_info(thd, "logging slow query");
+    THD_STAGE_INFO(thd, stage_logging_slow_query);
     slow_log_print(thd, thd->query(), thd->query_length(), 
                    thd->utime_after_query);
-    thd_proc_info(thd, 0);
   }
   DBUG_VOID_RETURN;
 }
@@ -2095,6 +2329,22 @@ mysql_execute_command(THD *thd)
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
 
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
+
+  /*
+    Force statement logging for DDL commands to allow us to update
+    privilege, system or statistic tables directly without the updates
+    getting logged.
+  */
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format_stmt();
+
   /*
     End a active transaction so that this command will have it's
     own transaction and will also sync the binary log. If a DDL is
@@ -2122,6 +2372,19 @@ mysql_execute_command(THD *thd)
     DEBUG_SYNC(thd,"before_execute_sql_command");
 #endif
 
+  /*
+    Check if we are in a read-only transaction and we're trying to
+    execute a statement which should always be disallowed in such cases.
+
+    Note that this check is done after any implicit commits.
+  */
+  if (thd->tx_read_only &&
+      (sql_command_flags[lex->sql_command] & CF_DISALLOW_IN_RO_TRANS))
+  {
+    my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
+    goto error;
+  }
+
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
@@ -2140,6 +2403,33 @@ mysql_execute_command(THD *thd)
   {
     execute_show_status(thd, all_tables);
     break;
+  }
+  case SQLCOM_SHOW_EXPLAIN:
+  {
+    if (!thd->security_ctx->priv_user[0] &&
+        check_global_access(thd,PROCESS_ACL))
+      break;
+
+    /*
+      The select should use only one table, it's the SHOW EXPLAIN pseudo-table
+    */
+    if (lex->sroutines.records || lex->query_tables->next_global)
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+
+    Item **it= lex->value_list.head_ref();
+    if (!(*it)->basic_const_item() ||
+        (!(*it)->fixed && (*it)->fix_fields(lex->thd, it)) || 
+        (*it)->check_cols(1))
+    {
+      my_message(ER_SET_CONSTANTS_ONLY, ER(ER_SET_CONSTANTS_ONLY),
+		 MYF(0));
+      goto error;
+    }
+    /* no break; fall through */
   }
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_TABLES:
@@ -2314,10 +2604,47 @@ case SQLCOM_PREPARE:
 #ifdef HAVE_REPLICATION
   case SQLCOM_CHANGE_MASTER:
   {
+    LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+    Master_info *mi;
+    bool new_master= 0;
+    bool master_info_added;
+
     if (check_global_access(thd, SUPER_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    res = change_master(thd,active_mi);
+
+    mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                           MYSQL_ERROR::WARN_LEVEL_NOTE);
+
+    if (mi == NULL)
+    {
+      /* New replication created */
+      mi= new Master_info(&lex_mi->connection_name, relay_log_recovery); 
+      if (!mi || mi->error())
+      {
+        delete mi;
+        res= 1;
+        mysql_mutex_unlock(&LOCK_active_mi);
+        break;
+      }
+      new_master= 1;
+    }
+
+    res= change_master(thd, mi, &master_info_added);
+    if (res && new_master)
+    {
+      /*
+        If the new master was added by change_master(), remove it as it didn't
+        work (this will free mi as well).
+
+        If new master was not added, we still need to free mi.
+      */
+      if (master_info_added)
+        master_info_index->remove_master_info(&lex_mi->connection_name);
+      else
+        delete mi;
+    }
+
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
@@ -2327,15 +2654,19 @@ case SQLCOM_PREPARE:
     if (check_global_access(thd, SUPER_ACL | REPL_CLIENT_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
-    if (active_mi != NULL)
-    {
-      res = show_master_info(thd, active_mi);
-    }
+
+    if (lex->verbose)
+      res= show_all_master_info(thd);
     else
     {
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                   WARN_NO_MASTER_INFO, ER(WARN_NO_MASTER_INFO));
-      my_ok(thd);
+      LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
+      Master_info *mi;
+      mi= master_info_index->get_master_info(&lex_mi->connection_name,
+                                             MYSQL_ERROR::WARN_LEVEL_ERROR);
+      if (mi != NULL)
+      {
+        res= show_master_info(thd, mi, 0);
+      }
     }
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -2642,40 +2973,79 @@ end_with_restore_list:
 #ifdef HAVE_REPLICATION
   case SQLCOM_SLAVE_START:
   {
+    LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+    Master_info *mi;
     mysql_mutex_lock(&LOCK_active_mi);
-    start_slave(thd,active_mi,1 /* net report*/);
+
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      if (!start_slave(thd, mi, 1 /* net report*/))
+        my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
   case SQLCOM_SLAVE_STOP:
-  /*
-    If the client thread has locked tables, a deadlock is possible.
-    Assume that
-    - the client thread does LOCK TABLE t READ.
-    - then the master updates t.
-    - then the SQL slave thread wants to update t,
-      so it waits for the client thread because t is locked by it.
+  {
+    LEX_MASTER_INFO *lex_mi;
+    Master_info *mi;
+    /*
+      If the client thread has locked tables, a deadlock is possible.
+      Assume that
+      - the client thread does LOCK TABLE t READ.
+      - then the master updates t.
+      - then the SQL slave thread wants to update t,
+        so it waits for the client thread because t is locked by it.
     - then the client thread does SLAVE STOP.
       SLAVE STOP waits for the SQL slave thread to terminate its
       update t, which waits for the client thread because t is locked by it.
-    To prevent that, refuse SLAVE STOP if the
-    client thread has locked tables
-  */
-  if (thd->locked_tables_mode ||
-      thd->in_active_multi_stmt_transaction() || thd->global_read_lock.is_acquired())
-  {
-    my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
-               ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
-    goto error;
+      To prevent that, refuse SLAVE STOP if the
+      client thread has locked tables
+    */
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+
+    lex_mi= &thd->lex->mi;
+    mysql_mutex_lock(&LOCK_active_mi);
+    if ((mi= (master_info_index->
+              get_master_info(&lex_mi->connection_name,
+                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+      if (!stop_slave(thd, mi, 1/* net report*/))
+        my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
   }
+  case SQLCOM_SLAVE_ALL_START:
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    stop_slave(thd,active_mi,1/* net report*/);
+    if (!master_info_index->start_all_slaves(thd))
+      my_ok(thd);
+    mysql_mutex_unlock(&LOCK_active_mi);
+    break;
+  }
+  case SQLCOM_SLAVE_ALL_STOP:
+  {
+    if (thd->locked_tables_mode ||
+        thd->in_active_multi_stmt_transaction() ||
+        thd->global_read_lock.is_acquired())
+    {
+      my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,
+                 ER(ER_LOCK_OR_ACTIVE_TRANSACTION), MYF(0));
+      goto error;
+    }
+    mysql_mutex_lock(&LOCK_active_mi);
+    if (!master_info_index->stop_all_slaves(thd))
+      my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }
 #endif /* HAVE_REPLICATION */
-
   case SQLCOM_RENAME_TABLE:
   {
     if (execute_rename_table(thd, first_table, all_tables))
@@ -3067,7 +3437,7 @@ end_with_restore_list:
     if (add_item_to_list(thd, new Item_null()))
       goto error;
 
-    thd_proc_info(thd, "init");
+    THD_STAGE_INFO(thd, stage_init);
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
       break;
 
@@ -3781,12 +4151,13 @@ end_with_restore_list:
     if (tx_chain)
     {
       if (trans_begin(thd))
-      goto error;
+        goto error;
     }
     else
     {
-      /* Reset the isolation level if no chaining transaction. */
+      /* Reset the isolation level and access mode if no chaining transaction.*/
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -3818,8 +4189,9 @@ end_with_restore_list:
     }
     else
     {
-      /* Reset the isolation level if no chaining transaction. */
+      /* Reset the isolation level and access mode if no chaining transaction.*/
       thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+      thd->tx_read_only= thd->variables.tx_read_only;
     }
     /* Disconnect the current client connection. */
     if (tx_release)
@@ -4337,9 +4709,10 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     /*
       We've just done a commit, reset transaction
-      isolation level to the session default.
+      isolation level and access mode to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+    thd->tx_read_only= thd->variables.tx_read_only;
     my_ok(thd);
     break;
   case SQLCOM_XA_ROLLBACK:
@@ -4348,9 +4721,10 @@ create_sp_error:
     thd->mdl_context.release_transactional_locks();
     /*
       We've just done a rollback, reset transaction
-      isolation level to the session default.
+      isolation level and access mode to the session default.
     */
     thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
+    thd->tx_read_only= thd->variables.tx_read_only;
     my_ok(thd);
     break;
   case SQLCOM_XA_RECOVER:
@@ -4466,7 +4840,7 @@ create_sp_error:
     my_ok(thd);
     break;
   }
-  thd_proc_info(thd, "query end");
+  THD_STAGE_INFO(thd, stage_query_end);
   thd->update_stats();
 
   /*
@@ -4526,14 +4900,18 @@ finish:
 
   lex->unit.cleanup();
   /* Free tables */
-  thd_proc_info(thd, "closing tables");
+  THD_STAGE_INFO(thd, stage_closing_tables);
   close_thread_tables(thd);
-  thd_proc_info(thd, 0);
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION && ! thd->in_sub_stmt)
     DEBUG_SYNC(thd, "execute_command_after_close_tables");
 #endif
+  if (!(sql_command_flags[lex->sql_command] &
+        (CF_CAN_GENERATE_ROW_EVENTS | CF_FORCE_ORIGINAL_BINLOG_FORMAT |
+         CF_STATUS_COMMAND)))
+    thd->set_binlog_format(orig_binlog_format,
+                           orig_current_stmt_binlog_format);
 
   if (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END))
   {
@@ -4629,9 +5007,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
   }
   /* Count number of empty select queries */
-  if (!thd->sent_row_count)
+  if (!thd->get_sent_row_count())
     status_var_increment(thd->status_var.empty_queries);
-  status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
+  status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
 }
 
@@ -4654,7 +5032,8 @@ static bool execute_show_status(THD *thd, TABLE_LIST *all_tables)
   mysql_mutex_lock(&LOCK_status);
   add_diff_to_status(&global_status_var, &thd->status_var,
                      &old_status_var);
-  thd->status_var= old_status_var;
+  memcpy(&thd->status_var, &old_status_var,
+         offsetof(STATUS_VAR, last_cleared_system_status_var));
   mysql_mutex_unlock(&LOCK_status);
   return res;
 }
@@ -4847,7 +5226,7 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
     dummy= 0;
   }
 
-  thd_proc_info(thd, "checking permissions");
+  THD_STAGE_INFO(thd, stage_checking_permissions);
   if ((!db || !db[0]) && !thd->db && !dont_check_global_grants)
   {
     DBUG_PRINT("error",("No database"));
@@ -5468,7 +5847,7 @@ void THD::reset_for_next_command(bool calculate_userstat)
   thd->stmt_da->reset_diagnostics_area();
   thd->warning_info->reset_for_next_command();
   thd->rand_used= 0;
-  thd->sent_row_count= thd->examined_row_count= 0;
+  thd->m_sent_row_count= thd->m_examined_row_count= 0;
   thd->accessed_rows_and_keys= 0;
 
   /* Copy data for user stats */
@@ -5697,6 +6076,10 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
 
     if (!err)
     {
+      thd->m_statement_psi=
+        MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                               sql_statement_info[thd->lex->sql_command].
+                               m_key);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (mqh_used && thd->user_connect &&
 	  check_mqh(thd, lex->sql_command))
@@ -5745,13 +6128,17 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
     }
     else
     {
+      /* Instrument this broken statement as "statement/sql/error" */
+      thd->m_statement_psi=
+        MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                               sql_statement_info[SQLCOM_END].m_key);
       DBUG_ASSERT(thd->is_error());
       DBUG_PRINT("info",("Command aborted. Fatal_error: %d",
 			 thd->is_fatal_error));
 
       query_cache_abort(&thd->query_cache_tls);
     }
-    thd_proc_info(thd, "freeing items");
+    THD_STAGE_INFO(thd, stage_freeing_items);
     sp_cache_enforce_limit(thd->sp_proc_cache, stored_program_cache_size);
     sp_cache_enforce_limit(thd->sp_func_cache, stored_program_cache_size);
     thd->end_statement();
@@ -5762,6 +6149,9 @@ void mysql_parse(THD *thd, char *rawbuf, uint length,
   {
     /* Update statistics for getting the query from the cache */
     thd->lex->sql_command= SQLCOM_SELECT;
+    thd->m_statement_psi=
+      MYSQL_REFINE_STATEMENT(thd->m_statement_psi,
+                             sql_statement_info[SQLCOM_SELECT].m_key);
   }
   DBUG_VOID_RETURN;
 }
@@ -5822,6 +6212,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
 {
   register Create_field *new_field;
   LEX  *lex= thd->lex;
+  uint8 datetime_precision= length ? atoi(length) : 0;
   DBUG_ENTER("add_field_to_list");
 
   if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
@@ -5858,11 +6249,13 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
       no need fix_fields()
       
       We allow only one function as part of default value - 
-      NOW() as default for TIMESTAMP type.
+      NOW() as default for TIMESTAMP and DATETIME type.
     */
     if (default_value->type() == Item::FUNC_ITEM && 
-        !(((Item_func*)default_value)->functype() == Item_func::NOW_FUNC &&
-         type == MYSQL_TYPE_TIMESTAMP))
+        (static_cast<Item_func*>(default_value)->functype() !=
+         Item_func::NOW_FUNC ||
+         (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME) ||
+         default_value->decimals < datetime_precision))
     {
       my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
       DBUG_RETURN(1);
@@ -5884,7 +6277,9 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
     }
   }
 
-  if (on_update_value && type != MYSQL_TYPE_TIMESTAMP)
+  if (on_update_value &&
+      (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME ||
+       on_update_value->decimals < datetime_precision))
   {
     my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name->str);
     DBUG_RETURN(1);
@@ -6569,6 +6964,35 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 
 
 /**
+  Find a thread by id and return it, locking it LOCK_thd_data
+
+  @param id  Identifier of the thread we're looking for
+
+  @return NULL    - not found
+          pointer - thread found, and its LOCK_thd_data is locked.
+*/
+
+THD *find_thread_by_id(ulong id)
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  I_List_iterator<THD> it(threads);
+  while ((tmp=it++))
+  {
+    if (tmp->get_command() == COM_DAEMON)
+      continue;
+    if (tmp->thread_id == id)
+    {
+      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      break;
+    }
+  }
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return tmp;
+}
+
+
+/**
   kill on thread.
 
   @param thd			Thread class
@@ -6586,20 +7010,7 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lu  signal: %u", id, (uint) kill_signal));
 
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    if (tmp->command == COM_DAEMON)
-      continue;
-    if (tmp->thread_id == id)
-    {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
-      break;
-    }
-  }
-  mysql_mutex_unlock(&LOCK_thread_count);
-  if (tmp)
+  if ((tmp= find_thread_by_id(id)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -6670,7 +7081,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->command == COM_DAEMON)
+    if (tmp->get_command() == COM_DAEMON)
       continue;
     /*
       Check that hostname (if given) and user name matches.
@@ -6687,7 +7098,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
         mysql_mutex_unlock(&LOCK_thread_count);
         DBUG_RETURN(ER_KILL_DENIED_ERROR);
       }
-      if (!threads_to_kill.push_back(tmp, tmp->mem_root))
+      if (!threads_to_kill.push_back(tmp, thd->mem_root))
         mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from delete
     }
   }
@@ -7608,6 +8019,12 @@ bool parse_sql(THD *thd,
   /* Set parser state. */
 
   thd->m_parser_state= parser_state;
+
+#ifdef HAVE_PSI_STATEMENT_DIGEST_INTERFACE
+  /* Start Digest */
+  thd->m_parser_state->m_lip.m_digest_psi=
+    MYSQL_DIGEST_START(thd->m_statement_psi);
+#endif
 
   /* Parse the query. */
 

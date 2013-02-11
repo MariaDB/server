@@ -39,7 +39,7 @@ extern PSI_mutex_key key_LOCK_localtime_r;
 extern PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock, key_LOCK_alarm,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
-  key_THR_LOCK_isam, key_THR_LOCK_lock, key_THR_LOCK_malloc,
+  key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads, key_LOCK_uuid_generator,
   key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap;
@@ -56,8 +56,10 @@ extern PSI_rwlock_key key_SAFEHASH_mutex;
 
 #endif /* HAVE_PSI_INTERFACE */
 
+extern PSI_stage_info stage_waiting_for_table_level_lock;
+
 extern mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open, THR_LOCK_keycache;
-extern mysql_mutex_t THR_LOCK_lock, THR_LOCK_isam, THR_LOCK_net;
+extern mysql_mutex_t THR_LOCK_lock, THR_LOCK_net;
 extern mysql_mutex_t THR_LOCK_charset;
 
 #include <mysql/psi/mysql_file.h>
@@ -70,12 +72,13 @@ extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
 
 #ifdef SAFEMALLOC
-void *sf_malloc(size_t size);
-void *sf_realloc(void *ptr, size_t size);
+void *sf_malloc(size_t size, myf my_flags);
+void *sf_realloc(void *ptr, size_t size, myf my_flags);
 void sf_free(void *ptr);
+size_t sf_malloc_usable_size(void *ptr, my_bool *is_thread_specific);
 #else
-#define sf_malloc(X)    malloc(X)
-#define sf_realloc(X,Y) realloc(X,Y)
+#define sf_malloc(X,Y)    malloc(X)
+#define sf_realloc(X,Y,Z) realloc(X,Y)
 #define sf_free(X)      free(X)
 #endif
 

@@ -63,7 +63,7 @@ int select_union::send_data(List<Item> &values)
     return 0;
   if (table->no_rows_with_nulls)
     table->null_catch_flags= CHECK_ROW_FOR_NULLS_TO_REJECT;
-  fill_record(thd, table->field, values, TRUE, FALSE);
+  fill_record(thd, table, table->field, values, TRUE, FALSE);
   if (thd->is_error())
     return 1;
   if (table->no_rows_with_nulls)
@@ -672,8 +672,8 @@ bool st_select_lex_unit::exec()
                                     0);
 	if (!saved_error)
 	{
-	  examined_rows+= thd->examined_row_count;
-          thd->examined_row_count= 0;
+	  examined_rows+= thd->get_examined_row_count();
+          thd->set_examined_row_count(0);
 	  if (union_result->flush())
 	  {
 	    thd->lex->current_select= lex_select_save;
@@ -722,6 +722,8 @@ bool st_select_lex_unit::exec()
     }
   }
 
+  DBUG_EXECUTE_IF("show_explain_probe_union_read", 
+                   dbug_serve_apcs(thd, 1););
   /* Send result to 'result' */
   saved_error= TRUE;
   {
@@ -815,7 +817,7 @@ bool st_select_lex_unit::exec()
       if (!saved_error)
       {
 	thd->limit_found_rows = (ulonglong)table->file->stats.records + add_rows;
-        thd->examined_row_count+= examined_rows;
+        thd->inc_examined_row_count(examined_rows);
       }
       /*
 	Mark for slow query log if any of the union parts didn't use

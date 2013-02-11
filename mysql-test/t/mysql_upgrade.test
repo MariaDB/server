@@ -1,5 +1,6 @@
 -- source include/mysql_upgrade_preparation.inc
 -- source include/have_working_dns.inc
+-- source include/have_innodb.inc
 
 #
 # Basic test that we can run mysql_upgrde and that it finds the
@@ -47,7 +48,7 @@ DROP USER mysqltest1@'%';
 
 --echo Run mysql_upgrade with a non existing server socket
 --replace_result $MYSQLTEST_VARDIR var
---replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9]*\)/(errno)/
+--replace_regex /.*mysqlcheck.*: Got/mysqlcheck: Got/ /\([0-9|-]*\)/(errno)/
 --error 1
 --exec $MYSQL_UPGRADE --force --host=not_existing_host 2>&1
 

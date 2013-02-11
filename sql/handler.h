@@ -326,8 +326,24 @@
 #define HA_CACHE_TBL_ASKTRANSACT 2
 #define HA_CACHE_TBL_TRANSACT    4
 
-/* Options of START TRANSACTION statement (and later of SET TRANSACTION stmt) */
-#define MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT 1
+/**
+  Options for the START TRANSACTION statement.
+
+  Note that READ ONLY and READ WRITE are logically mutually exclusive.
+  This is enforced by the parser and depended upon by trans_begin().
+
+  We need two flags instead of one in order to differentiate between
+  situation when no READ WRITE/ONLY clause were given and thus transaction
+  is implicitly READ WRITE and the case when READ WRITE clause was used
+  explicitly.
+*/
+
+// WITH CONSISTENT SNAPSHOT option
+static const uint MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT = 1;
+// READ ONLY option
+static const uint MYSQL_START_TRANS_OPT_READ_ONLY          = 2;
+// READ WRITE option
+static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 
 /* Flags for method is_fatal_error */
 #define HA_CHECK_DUP_KEY 1
@@ -600,6 +616,7 @@ enum enum_schema_tables
   SCH_COLUMN_PRIVILEGES,
   SCH_ENGINES,
   SCH_EVENTS,
+  SCH_EXPLAIN,
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
@@ -866,10 +883,8 @@ struct handlerton
    int  (*close_connection)(handlerton *hton, THD *thd);
    /*
      Tell handler that query has been killed.
-     hard_kill is set in case of HARD KILL (abort query even if
-     it may corrupt table).
    */
-   void (*kill_query)(handlerton *hton, THD *thd, my_bool hard_kill);
+   void (*kill_query)(handlerton *hton, THD *thd, enum thd_kill_levels level);
    /*
      sv points to an uninitialized storage area of requested size
      (see savepoint_offset description)
@@ -982,6 +997,46 @@ struct handlerton
    int  (*recover)(handlerton *hton, XID *xid_list, uint len);
    int  (*commit_by_xid)(handlerton *hton, XID *xid);
    int  (*rollback_by_xid)(handlerton *hton, XID *xid);
+   /*
+     The commit_checkpoint_request() handlerton method is used to checkpoint
+     the XA recovery process for storage engines that support two-phase
+     commit.
+
+     The method is optional - an engine that does not implemented is expected
+     to work the traditional way, where every commit() durably flushes the
+     transaction to disk in the engine before completion, so XA recovery will
+     no longer be needed for that transaction.
+
+     An engine that does implement commit_checkpoint_request() is also
+     expected to implement commit_ordered(), so that ordering of commits is
+     consistent between 2pc participants. Such engine is no longer required to
+     durably flush to disk transactions in commit(), provided that the
+     transaction has been successfully prepare()d and commit_ordered(); thus
+     potentionally saving one fsync() call. (Engine must still durably flush
+     to disk in commit() when no prepare()/commit_ordered() steps took place,
+     at least if durable commits are wanted; this happens eg. if binlog is
+     disabled).
+
+     The TC will periodically (eg. once per binlog rotation) call
+     commit_checkpoint_request(). When this happens, the engine must arrange
+     for all transaction that have completed commit_ordered() to be durably
+     flushed to disk (this does not include transactions that might be in the
+     middle of executing commit_ordered()). When such flush has completed, the
+     engine must call commit_checkpoint_notify_ha(), passing back the opaque
+     "cookie".
+
+     The flush and call of commit_checkpoint_notify_ha() need not happen
+     immediately - it can be scheduled and performed asynchroneously (ie. as
+     part of next prepare(), or sync every second, or whatever), but should
+     not be postponed indefinitely. It is however also permissible to do it
+     immediately, before returning from commit_checkpoint_request().
+
+     When commit_checkpoint_notify_ha() is called, the TC will know that the
+     transactions are durably committed, and thus no longer require XA
+     recovery. It uses that to reduce the work needed for any subsequent XA
+     recovery process.
+   */
+   void (*commit_checkpoint_request)(handlerton *hton, void *cookie);
   /*
     "Disable or enable checkpointing internal to the storage engine. This is
     used for FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT to ensure that
@@ -1075,7 +1130,22 @@ inline LEX_STRING *hton_name(const handlerton *hton)
 #define HTON_NOT_USER_SELECTABLE     (1 << 5)
 #define HTON_TEMPORARY_NOT_SUPPORTED (1 << 6) //Having temporary tables not supported
 #define HTON_SUPPORT_LOG_TABLES      (1 << 7) //Engine supports log tables
-#define HTON_NO_PARTITION            (1 << 8) //You can not partition these tables
+#define HTON_NO_PARTITION            (1 << 8) //Not partition of these tables
+
+/*
+  This flag should be set when deciding that the engine does not allow
+  row based binary logging (RBL) optimizations.
+
+  Currently, setting this flag, means that table's read/write_set will
+  be left untouched when logging changes to tables in this engine. In
+  practice this means that the server will not mess around with
+  table->write_set and/or table->read_set when using RBL and deciding
+  whether to log full or minimal rows.
+
+  It's valuable for instance for virtual tables, eg: Performance
+  Schema which have no meaning for replication.
+*/
+#define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
 
 class Ha_trx_info;
 
@@ -1452,21 +1522,24 @@ typedef struct st_range_seq_if
 
 typedef bool (*SKIP_INDEX_TUPLE_FUNC) (range_seq_t seq, range_id_t range_info);
 
-class COST_VECT
+class Cost_estimate
 { 
 public:
   double io_count;     /* number of I/O                 */
   double avg_io_cost;  /* cost of an average I/O oper.  */
   double cpu_cost;     /* cost of operations in CPU     */
-  double mem_cost;     /* cost of used memory           */ 
   double import_cost;  /* cost of remote operations     */
+  double mem_cost;     /* cost of used memory           */ 
   
   enum { IO_COEFF=1 };
   enum { CPU_COEFF=1 };
   enum { MEM_COEFF=1 };
   enum { IMPORT_COEFF=1 };
 
-  COST_VECT() {}                              // keep gcc happy
+  Cost_estimate()
+  {
+    reset();
+  }
 
   double total_cost() 
   {
@@ -1474,7 +1547,17 @@ public:
            MEM_COEFF*mem_cost + IMPORT_COEFF*import_cost;
   }
 
-  void zero()
+  /**
+    Whether or not all costs in the object are zero
+    
+    @return true if all costs are zero, false otherwise
+  */
+  bool is_zero() const
+  { 
+    return !(io_count || cpu_cost || import_cost || mem_cost);
+  }
+
+  void reset()
   {
     avg_io_cost= 1.0;
     io_count= cpu_cost= mem_cost= import_cost= 0.0;
@@ -1488,13 +1571,14 @@ public:
     /* Don't multiply mem_cost */
   }
 
-  void add(const COST_VECT* cost)
+  void add(const Cost_estimate* cost)
   {
     double io_count_sum= io_count + cost->io_count;
     add_io(cost->io_count, cost->avg_io_cost);
     io_count= io_count_sum;
     cpu_cost += cost->cpu_cost;
   }
+
   void add_io(double add_io_cnt, double add_avg_cost)
   {
     /* In edge cases add_io_cnt may be zero */
@@ -1507,20 +1591,28 @@ public:
     }
   }
 
+  /// Add to CPU cost
+  void add_cpu(double add_cpu_cost) { cpu_cost+= add_cpu_cost; }
+
+  /// Add to import cost
+  void add_import(double add_import_cost) { import_cost+= add_import_cost; }
+
+  /// Add to memory cost
+  void add_mem(double add_mem_cost) { mem_cost+= add_mem_cost; }
+
   /*
     To be used when we go from old single value-based cost calculations to
-    the new COST_VECT-based.
+    the new Cost_estimate-based.
   */
   void convert_from_cost(double cost)
   {
-    zero();
-    avg_io_cost= 1.0;
+    reset();
     io_count= cost;
   }
 };
 
 void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted, 
-                         COST_VECT *cost);
+                         Cost_estimate *cost);
 
 /*
   Indicates that all scanned ranges will be singlepoint (aka equality) ranges.
@@ -1811,6 +1903,9 @@ public:
   */
   PSI_table *m_psi;
 
+  virtual void unbind_psi();
+  virtual void rebind_psi();
+
   handler(handlerton *ht_arg, TABLE_SHARE *share_arg)
     :table_share(share_arg), table(0),
     estimation_rows_to_insert(0), ht(ht_arg),
@@ -1919,11 +2014,11 @@ public:
   /** to be actually called to get 'check()' functionality*/
   int ha_check(THD *thd, HA_CHECK_OPT *check_opt);
   int ha_repair(THD* thd, HA_CHECK_OPT* check_opt);
-  void ha_start_bulk_insert(ha_rows rows)
+  void ha_start_bulk_insert(ha_rows rows, uint flags= 0)
   {
     DBUG_ENTER("handler::ha_start_bulk_insert");
     estimation_rows_to_insert= rows;
-    start_bulk_insert(rows);
+    start_bulk_insert(rows, flags);
     DBUG_VOID_RETURN;
   }
   int ha_end_bulk_insert()
@@ -1969,6 +2064,29 @@ public:
   virtual void print_error(int error, myf errflag);
   virtual bool get_error_message(int error, String *buf);
   uint get_dup_key(int error);
+  /**
+    Retrieves the names of the table and the key for which there was a
+    duplicate entry in the case of HA_ERR_FOREIGN_DUPLICATE_KEY.
+
+    If any of the table or key name is not available this method will return
+    false and will not change any of child_table_name or child_key_name.
+
+    @param child_table_name[out]    Table name
+    @param child_table_name_len[in] Table name buffer size
+    @param child_key_name[out]      Key name
+    @param child_key_name_len[in]   Key name buffer size
+
+    @retval  true                  table and key names were available
+                                   and were written into the corresponding
+                                   out parameters.
+    @retval  false                 table and key names were not available,
+                                   the out parameters were not touched.
+  */
+  virtual bool get_foreign_dup_key(char *child_table_name,
+                                   uint child_table_name_len,
+                                   char *child_key_name,
+                                   uint child_key_name_len)
+  { DBUG_ASSERT(false); return(false); }
   void reset_statistics()
   {
     rows_read= rows_changed= rows_tmp_read= 0;
@@ -2148,18 +2266,17 @@ protected:
   }
 public:
 
-  /* Similar functions like the above, but does statistics counting */
-  inline int ha_index_read_map(uchar * buf, const uchar * key,
-                               key_part_map keypart_map,
-                               enum ha_rkey_function find_flag);
-  inline int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
-                                   key_part_map keypart_map,
-                                   enum ha_rkey_function find_flag);
-  inline int ha_index_next(uchar * buf);
-  inline int ha_index_prev(uchar * buf);
-  inline int ha_index_first(uchar * buf);
-  inline int ha_index_last(uchar * buf);
-  inline int ha_index_next_same(uchar *buf, const uchar *key, uint keylen);
+  int ha_index_read_map(uchar * buf, const uchar * key,
+                        key_part_map keypart_map,
+                        enum ha_rkey_function find_flag);
+  int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
+                            key_part_map keypart_map,
+                            enum ha_rkey_function find_flag);
+  int ha_index_next(uchar * buf);
+  int ha_index_prev(uchar * buf);
+  int ha_index_first(uchar * buf);
+  int ha_index_last(uchar * buf);
+  int ha_index_next_same(uchar *buf, const uchar *key, uint keylen);
   /*
     TODO: should we make for those functions non-virtual ha_func_name wrappers,
     too?
@@ -2167,10 +2284,11 @@ public:
   virtual ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                               void *seq_init_param, 
                                               uint n_ranges, uint *bufsz,
-                                              uint *mrr_mode, COST_VECT *cost);
+                                              uint *mrr_mode,
+                                              Cost_estimate *cost);
   virtual ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                         uint key_parts, uint *bufsz, 
-                                        uint *mrr_mode, COST_VECT *cost);
+                                        uint *mrr_mode, Cost_estimate *cost);
   virtual int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
                                     uint n_ranges, uint mrr_mode, 
                                     HANDLER_BUFFER *buf);
@@ -2230,8 +2348,8 @@ public:
 
   /* Same as above, but with statistics */
   inline int ha_ft_read(uchar *buf);
-  inline int ha_rnd_next(uchar *buf);
-  inline int ha_rnd_pos(uchar *buf, uchar *pos);
+  int ha_rnd_next(uchar *buf);
+  int ha_rnd_pos(uchar *buf, uchar *pos);
   inline int ha_rnd_pos_by_record(uchar *buf);
   inline int ha_read_first_row(uchar *buf, uint primary_key);
 
@@ -2375,7 +2493,7 @@ public:
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}
   /** The following can be called without an open handler */
-  virtual const char *table_type() const =0;
+  const char *table_type() const { return hton_name(ht)->str; }
   /**
     If frm_error() is called then we will use this to find out what file
     extentions exist for the storage engine. This is also used by the default
@@ -2828,7 +2946,7 @@ private:
     DBUG_ASSERT(!(ha_table_flags() & HA_CAN_REPAIR));
     return HA_ADMIN_NOT_IMPLEMENTED;
   }
-  virtual void start_bulk_insert(ha_rows rows) {}
+  virtual void start_bulk_insert(ha_rows rows, uint flags) {}
   virtual int end_bulk_insert() { return 0; }
   virtual int index_read(uchar * buf, const uchar * key, uint key_len,
                          enum ha_rkey_function find_flag)
@@ -2983,10 +3101,11 @@ int ha_finalize_handlerton(st_plugin_int *plugin);
 TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
-void ha_kill_query(THD* thd, my_bool hard_kill);
+void ha_kill_query(THD* thd, enum thd_kill_levels level);
 bool ha_flush_logs(handlerton *db_type);
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);
+void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
                     HA_CREATE_INFO *create_info,
@@ -3067,6 +3186,7 @@ int ha_binlog_end(THD *thd);
 const char *get_canonical_filename(handler *file, const char *path,
                                    char *tmp_path);
 bool mysql_xa_recover(THD *thd);
+void commit_checkpoint_notify_ha(handlerton *hton, void *cookie);
 
 inline const char *table_case_name(HA_CREATE_INFO *info, const char *name)
 {

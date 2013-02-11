@@ -3812,16 +3812,14 @@ SET @variant3= 'CREATE VIEW v1 AS SELECT SUM(f59) AS f61 FROM t1';
 SET @variant4= 'CREATE VIEW v1 AS SELECT f61 FROM t1 GROUP BY f61';
 # For HAVING                         3.3.2.16
 SET @variant5= 'CREATE VIEW v1 AS SELECT f61 FROM t1 HAVING f61 > 0';
-# For a sub query in the select list 3.3.2.17
-SET @variant6= 'CREATE VIEW v1 AS SELECT (SELECT f60 FROM t2 WHERE f59=19) AS f61 FROM t1';
 # For a WHERE clause sub query that refers to a table also referenced in a
 # FROM clause 3.3.2.18
-SET @variant7= 'CREATE VIEW v1 AS SELECT f61 FROM v2';
-SET @variant8= 'CREATE VIEW v1 AS SELECT f59 AS f61 FROM t1 WHERE f60 IN (SELECT f59 FROM t1)';
+SET @variant6= 'CREATE VIEW v1 AS SELECT f61 FROM v2';
+SET @variant7= 'CREATE VIEW v1 AS SELECT f59 AS f61 FROM t1 WHERE f60 IN (SELECT f59 FROM t1)';
 # For ALGORITHM = TEMPTABLE          3.3.2.20
-SET @variant9= 'CREATE ALGORITHM = TEMPTABLE VIEW v1 (f61) AS select f60 from t1';
+SET @variant8= 'CREATE ALGORITHM = TEMPTABLE VIEW v1 (f61) AS select f60 from t1';
 
-let $num= 9;
+let $num= 8;
 while ($num)
 {
    --disable_abort_on_error
@@ -3844,6 +3842,15 @@ while ($num)
    DROP VIEW v1;
    dec $num;
 }
+# For a sub query in the select list 3.3.2.17
+CREATE VIEW v1 AS SELECT (SELECT f60 FROM t2 WHERE f59=19) AS f61 FROM t1;
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO v1 VALUES (1002);
+--error ER_NONUPDATEABLE_COLUMN
+UPDATE v1 SET f61=1007;
+# no error ER_NON_UPDATABLE_TABLE, because we can find columns for deleting
+DELETE FROM v1;
+DROP VIEW v1;
 
 Drop TABLE t1, t2 ;
 Drop VIEW  v2 ;

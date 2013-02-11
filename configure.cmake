@@ -55,11 +55,11 @@ ENDIF()
 
 
 # Always enable -Wall for gnu C/C++
-IF(CMAKE_COMPILER_IS_GNUCXX)
-  SET(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -Wno-unused-parameter")
+IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_CXX_FLAGS MATCHES ".*-Wall.*")
+  SET(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -Wall -Wno-unused-parameter")
 ENDIF()
-IF(CMAKE_COMPILER_IS_GNUCC)
-  SET(CMAKE_C_FLAGS "-Wall ${CMAKE_C_FLAGS}")
+IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_C_FLAGS MATCHES ".*-Wall.*")
+  SET(CMAKE_C_FLAGS "-Wall ${CMAKE_C_FLAGS} -Wall")
 ENDIF()
 
 
@@ -67,14 +67,7 @@ IF(CMAKE_COMPILER_IS_GNUCXX)
   # MySQL "canonical" GCC flags. At least -fno-rtti flag affects
   # ABI and cannot be simply removed. 
   SET(CMAKE_CXX_FLAGS 
-    "${CMAKE_CXX_FLAGS} -fno-implicit-templates -fno-exceptions -fno-rtti")
-  IF(CMAKE_CXX_FLAGS)
-    STRING(REGEX MATCH "fno-implicit-templates" NO_IMPLICIT_TEMPLATES
-      ${CMAKE_CXX_FLAGS})
-    IF (NO_IMPLICIT_TEMPLATES)
-      SET(HAVE_EXPLICIT_TEMPLATE_INSTANTIATION TRUE)
-    ENDIF()
-  ENDIF()
+    "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti")
 
   IF (CMAKE_EXE_LINKER_FLAGS MATCHES " -static " 
      OR CMAKE_EXE_LINKER_FLAGS MATCHES " -static$")
@@ -943,49 +936,13 @@ CHECK_CXX_SOURCE_COMPILES("
   "
   HAVE_SOLARIS_STYLE_GETHOST)
 
-# Use of ALARMs to wakeup on timeout on sockets
-#
-# This feature makes use of a mutex and is a scalability hog we
-# try to avoid using. However we need support for SO_SNDTIMEO and
-# SO_RCVTIMEO socket options for this to work. So we will check
-# if this feature is supported by a simple TRY_RUN macro. However
-# on some OS's there is support for setting those variables but
-# they are silently ignored. For those OS's we will not attempt
-# to use SO_SNDTIMEO and SO_RCVTIMEO even if it is said to work.
-# See Bug#29093 for the problem with SO_SND/RCVTIMEO on HP/UX.
-# To use alarm is simple, simply avoid setting anything.
+SET(NO_ALARM 1 CACHE BOOL  "No need to use alarm to implement timeout")
 
-IF(WIN32)
-  SET(HAVE_SOCKET_TIMEOUT 1)
-ELSEIF(CMAKE_SYSTEM MATCHES "HP-UX")
-  SET(HAVE_SOCKET_TIMEOUT 0)
-ELSEIF(CMAKE_CROSSCOMPILING)
-  SET(HAVE_SOCKET_TIMEOUT 0)
-ELSE()
-SET(CMAKE_REQUIRED_LIBRARIES ${LIBNSL} ${LIBSOCKET}) 
-CHECK_C_SOURCE_RUNS(
-"
- #include <sys/types.h>
- #include <sys/socket.h>
- #include <sys/time.h>
- 
- int main()
- {    
-   int fd = socket(AF_INET, SOCK_STREAM, 0);
-   struct timeval tv;
-   int ret= 0;
-   tv.tv_sec= 2;
-   tv.tv_usec= 0;
-   ret|= setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-   ret|= setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-   return !!ret;
- }
-" HAVE_SOCKET_TIMEOUT)
-ENDIF()
+# As a consequence of ALARMs no longer being used, thread
+# notification for KILL must close the socket to wake up
+# other threads.
+SET(SIGNAL_WITH_VIO_CLOSE 1)
 
-SET(NO_ALARM "${HAVE_SOCKET_TIMEOUT}" CACHE BOOL 
-   "No need to use alarm to implement socket timeout")
-SET(SIGNAL_WITH_VIO_CLOSE "${HAVE_SOCKET_TIMEOUT}")
 MARK_AS_ADVANCED(NO_ALARM)
 
 

@@ -40,6 +40,7 @@ int table_all_instr::rnd_next(void)
   PFS_rwlock *rwlock;
   PFS_cond *cond;
   PFS_file *file;
+  PFS_socket *socket;
 
   for (m_pos.set_at(&m_next_pos);
        m_pos.has_more_view();
@@ -94,6 +95,18 @@ int table_all_instr::rnd_next(void)
         }
       }
       break;
+    case pos_all_instr::VIEW_SOCKET:
+      for ( ; m_pos.m_index_2 < socket_max; m_pos.m_index_2++)
+      {
+        socket= &socket_array[m_pos.m_index_2];
+        if (socket->m_lock.is_populated())
+        {
+          make_socket_row(socket);
+          m_next_pos.set_after(&m_pos);
+          return 0;
+        }
+      }
+      break;
     }
   }
 
@@ -106,6 +119,7 @@ int table_all_instr::rnd_pos(const void *pos)
   PFS_rwlock *rwlock;
   PFS_cond *cond;
   PFS_file *file;
+  PFS_socket *socket;
 
   set_position(pos);
 
@@ -146,115 +160,12 @@ int table_all_instr::rnd_pos(const void *pos)
       return 0;
     }
     break;
-  }
-
-  return HA_ERR_RECORD_DELETED;
-}
-
-table_all_instr_class::table_all_instr_class
-(const PFS_engine_table_share *share)
-  : PFS_engine_table(share, &m_pos),
-    m_pos(), m_next_pos()
-{}
-
-void table_all_instr_class::reset_position(void)
-{
-  m_pos.reset();
-  m_next_pos.reset();
-}
-
-int table_all_instr_class::rnd_next(void)
-{
-  PFS_mutex_class *mutex_class;
-  PFS_rwlock_class *rwlock_class;
-  PFS_cond_class *cond_class;
-  PFS_file_class *file_class;
-
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.has_more_view();
-       m_pos.next_view())
-  {
-    switch (m_pos.m_index_1) {
-    case pos_all_instr_class::VIEW_MUTEX:
-      mutex_class= find_mutex_class(m_pos.m_index_2);
-      if (mutex_class)
-      {
-        make_instr_row(mutex_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
-      break;
-    case pos_all_instr_class::VIEW_RWLOCK:
-      rwlock_class= find_rwlock_class(m_pos.m_index_2);
-      if (rwlock_class)
-      {
-        make_instr_row(rwlock_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
-      break;
-    case pos_all_instr_class::VIEW_COND:
-      cond_class= find_cond_class(m_pos.m_index_2);
-      if (cond_class)
-      {
-        make_instr_row(cond_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
-      break;
-    case pos_all_instr_class::VIEW_FILE:
-      file_class= find_file_class(m_pos.m_index_2);
-      if (file_class)
-      {
-        make_instr_row(file_class);
-        m_next_pos.set_after(&m_pos);
-        return 0;
-      }
-      break;
-    }
-  }
-
-  return HA_ERR_END_OF_FILE;
-}
-
-int table_all_instr_class::rnd_pos(const void *pos)
-{
-  PFS_mutex_class *mutex_class;
-  PFS_rwlock_class *rwlock_class;
-  PFS_cond_class *cond_class;
-  PFS_file_class *file_class;
-
-  set_position(pos);
-  switch (m_pos.m_index_1) {
-  case pos_all_instr_class::VIEW_MUTEX:
-    mutex_class= find_mutex_class(m_pos.m_index_2);
-    if (mutex_class)
+  case pos_all_instr::VIEW_SOCKET:
+    DBUG_ASSERT(m_pos.m_index_2 < socket_max);
+    socket= &socket_array[m_pos.m_index_2];
+    if (socket->m_lock.is_populated())
     {
-      make_instr_row(mutex_class);
-      return 0;
-    }
-    break;
-  case pos_all_instr_class::VIEW_RWLOCK:
-    rwlock_class= find_rwlock_class(m_pos.m_index_2);
-    if (rwlock_class)
-    {
-      make_instr_row(rwlock_class);
-      return 0;
-    }
-    break;
-  case pos_all_instr_class::VIEW_COND:
-    cond_class= find_cond_class(m_pos.m_index_2);
-    if (cond_class)
-    {
-      make_instr_row(cond_class);
-      return 0;
-    }
-    break;
-  case pos_all_instr_class::VIEW_FILE:
-    file_class= find_file_class(m_pos.m_index_2);
-    if (file_class)
-    {
-      make_instr_row(file_class);
+      make_socket_row(socket);
       return 0;
     }
     break;
@@ -262,4 +173,3 @@ int table_all_instr_class::rnd_pos(const void *pos)
 
   return HA_ERR_RECORD_DELETED;
 }
-

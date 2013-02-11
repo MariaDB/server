@@ -1612,7 +1612,7 @@ Subquery_cache_hit	0
 Subquery_cache_miss	4
 drop table t1;
 #test of sql_big_tables switch and outer table reference in subquery with grouping
-set option sql_big_tables=1;
+set big_tables=1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1),(2,1),(3,2),(4,2),(5,3),(6,3);
 SELECT (SELECT t1_outer.a FROM t1 AS t1_inner GROUP BY b LIMIT 1) FROM t1 AS t1_outer;
@@ -1624,7 +1624,7 @@ SELECT (SELECT t1_outer.a FROM t1 AS t1_inner GROUP BY b LIMIT 1) FROM t1 AS t1_
 5
 6
 drop table t1;
-set option sql_big_tables=0;
+set big_tables=0;
 #test of function reference to outer query
 set local group_concat_max_len=400;
 create table t2 (a int, b int);

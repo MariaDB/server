@@ -16,7 +16,9 @@
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
 SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c default.c
-				errors.c hash.c list.c md5.c mf_cache.c mf_dirname.c mf_fn_ext.c
+				errors.c hash.c list.c
+                                md5.c md5_compute.cc
+                                mf_cache.c mf_dirname.c mf_fn_ext.c
 				mf_format.c mf_getdate.c mf_iocache.c mf_iocache2.c mf_keycache.c 
 				mf_keycaches.c mf_loadpath.c mf_pack.c mf_path.c mf_qsort.c mf_qsort2.c
 				mf_radix.c mf_same.c mf_sort.c mf_soundex.c mf_arr_appstr.c mf_tempdir.c
@@ -37,7 +39,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c default.c
                 safemalloc.c my_new.cc
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c
-				my_rdtsc.c my_context.c)
+				my_rdtsc.c my_context.c psi_noop.c)
 
 IF (WIN32)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c)

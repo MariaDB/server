@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -294,10 +294,7 @@ row_search_index_entry(
 /* The allowed latching order of index records is the following:
 (1) a secondary index record ->
 (2) the clustered index record ->
-(3) rollback segment data for the clustered index record.
-
-No new latches may be obtained while the kernel mutex is reserved.
-However, the kernel mutex can be reserved while latches are owned. */
+(3) rollback segment data for the clustered index record. */
 
 /*******************************************************************//**
 Formats the raw data in "data" (in InnoDB on-disk format) using

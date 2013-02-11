@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2012, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,10 +13,6 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
 
 /* variable declarations are in sys_vars.cc now !!! */
 
@@ -258,7 +254,7 @@ uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
 bool sys_var::set_default(THD *thd, enum_var_type type)
 {
   LEX_STRING empty={0,0};
-  set_var var(type, 0, &empty, 0);
+  set_var var(type, this, &empty, 0);
 
   if (type == OPT_GLOBAL || scope() == GLOBAL)
     global_save_default(thd, &var);
@@ -315,7 +311,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
     else
       llstr(v, buf);
 
-    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+    if (thd->is_strict_mode())
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
@@ -335,7 +331,7 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
 
     my_gcvt(v, MY_GCVT_ARG_DOUBLE, sizeof(buf) - 1, buf, NULL);
 
-    if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+    if (thd->is_strict_mode())
     {
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
@@ -531,6 +527,7 @@ sys_var *intern_find_sys_var(const char *str, uint length)
   */
   var= (sys_var*) my_hash_search(&system_variable_hash,
                               (uchar*) str, length ? length : strlen(str));
+
   return var;
 }
 

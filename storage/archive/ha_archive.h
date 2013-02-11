@@ -82,7 +82,6 @@ public:
   ~ha_archive()
   {
   }
-  const char *table_type() const { return "ARCHIVE"; }
   const char *index_type(uint inx) { return "NONE"; }
   const char **bas_ext() const;
   ulonglong table_flags() const
@@ -137,7 +136,7 @@ public:
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
   int repair(THD* thd, HA_CHECK_OPT* check_opt);
   int check_for_upgrade(HA_CHECK_OPT *check_opt);
-  void start_bulk_insert(ha_rows rows);
+  void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
   enum row_type get_row_type() const 
   { 

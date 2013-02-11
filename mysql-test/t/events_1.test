@@ -310,10 +310,8 @@ CREATE EVENT intact_check ON SCHEDULE EVERY 10 HOUR DO SELECT "nothing";
 --echo expects to see event schema name there
 --echo 
 ALTER TABLE mysql.event ADD dummy INT FIRST;
---error ER_CANNOT_LOAD_FROM_TABLE
 --error ER_EVENT_OPEN_TABLE_FAILED
 SHOW EVENTS;
---error ER_CANNOT_LOAD_FROM_TABLE
 --error ER_EVENT_OPEN_TABLE_FAILED
 SELECT event_name FROM INFORMATION_SCHEMA.events;
 --error ER_EVENT_OPEN_TABLE_FAILED

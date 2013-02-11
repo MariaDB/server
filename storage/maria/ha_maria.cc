@@ -347,29 +347,33 @@ static PSI_file_info all_aria_files[]=
   { &key_file_control, "control", PSI_FLAG_GLOBAL}
 };
 
+static PSI_stage_info *all_aria_stages[]=
+{
+  & stage_waiting_for_a_resource
+};
 
 static void init_aria_psi_keys(void)
 {
   const char* category= "aria";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_aria_mutexes);
-  PSI_server->register_mutex(category, all_aria_mutexes, count);
+  mysql_mutex_register(category, all_aria_mutexes, count);
 
   count= array_elements(all_aria_rwlocks);
-  PSI_server->register_rwlock(category, all_aria_rwlocks, count);
+  mysql_rwlock_register(category, all_aria_rwlocks, count);
 
   count= array_elements(all_aria_conds);
-  PSI_server->register_cond(category, all_aria_conds, count);
+  mysql_cond_register(category, all_aria_conds, count);
 
   count= array_elements(all_aria_threads);
-  PSI_server->register_thread(category, all_aria_threads, count);
+  mysql_thread_register(category, all_aria_threads, count);
 
   count= array_elements(all_aria_files);
-  PSI_server->register_file(category, all_aria_files, count);
+  mysql_file_register(category, all_aria_files, count);
+
+  count= array_elements(all_aria_stages);
+  mysql_stage_register(category, all_aria_stages, count);
 }
 #else
 #define init_aria_psi_keys() /* no-op */
@@ -397,6 +401,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   uint length, msg_length;
   char msgbuf[MYSQL_ERRMSG_SIZE];
   char name[NAME_LEN * 2 + 2];
+
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    return;
 
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1]= 0;                // healthy paranoia
@@ -851,6 +858,8 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   DBUG_ENTER("_ma_check_print_error");
   param->error_printed |= 1;
   param->out_flag |= O_DATA_LOST;
+  if (param->testflag & T_SUPPRESS_ERR_HANDLING)
+    DBUG_VOID_RETURN;
   va_start(args, fmt);
   _ma_check_print_msg(param, "error", fmt, args);
   va_end(args);
@@ -1248,10 +1257,6 @@ int ha_maria::close(void)
 
 int ha_maria::write_row(uchar * buf)
 {
-  /* If we have a timestamp column, update it to the current time */
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
-
   /*
      If we have an auto_increment column and we are writing a changed row
      or a new row, then update the auto_increment value in the record.
@@ -1584,6 +1589,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
   param->thd= thd;
   param->tmpdir= &mysql_tmpdir_list;
   param->out_flag= 0;
+  share->state.dupp_key= MI_MAX_KEY;
   strmov(fixed_name, share->open_file_name.str);
 
   // Don't lock tables if we have used LOCK TABLE
@@ -1634,6 +1640,10 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         error= maria_repair_by_sort(param, file, fixed_name,
                                     test(param->testflag & T_QUICK));
       }
+      if (error && file->create_unique_index_by_sort && 
+          share->state.dupp_key != MAX_KEY)
+          print_keydup_error(share->state.dupp_key, 
+                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
     }
     else
     {
@@ -1942,6 +1952,8 @@ int ha_maria::enable_indexes(uint mode)
     param.op_name= "recreating_index";
     param.testflag= (T_SILENT | T_REP_BY_SORT | T_QUICK |
                      T_CREATE_MISSING_KEYS | T_SAFE_REPAIR);
+    if (file->create_unique_index_by_sort)
+      param.testflag|= T_CREATE_UNIQUE_BY_SORT;
     if (bulk_insert_single_undo == BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)
     {
       bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_REPAIR;
@@ -2022,15 +2034,16 @@ int ha_maria::indexes_are_disabled(void)
   activate special bulk-insert optimizations
 
   SYNOPSIS
-    start_bulk_insert(rows)
-    rows        Rows to be inserted
+   start_bulk_insert(rows, flags)
+   rows        Rows to be inserted
                 0 if we don't know
+   flags       Flags to control index creation
 
   NOTICE
     Do not forget to call end_bulk_insert() later!
 */
 
-void ha_maria::start_bulk_insert(ha_rows rows)
+void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_maria::start_bulk_insert");
   THD *thd= table->in_use;
@@ -2096,7 +2109,10 @@ void ha_maria::start_bulk_insert(ha_rows rows)
         maria_clear_all_keys_active(file->s->state.key_map);
       }
       else
-        maria_disable_non_unique_index(file, rows);
+      {
+        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+        maria_disable_indexes_for_rebuild(file, rows, all_keys);
+      }
       if (share->now_transactional)
       {
         bulk_insert_single_undo= BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR;
@@ -2245,8 +2261,6 @@ bool ha_maria::is_crashed() const
 int ha_maria::update_row(const uchar * old_data, uchar * new_data)
 {
   CHECK_UNTIL_WE_FULLY_IMPLEMENTED_VERSIONING("UPDATE in WRITE CONCURRENT");
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
   return maria_update(file, old_data, new_data);
 }
 
@@ -3042,7 +3056,10 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
                               ha_create_info->transactional != HA_CHOICE_NO);
 
   if (ha_create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  {
     create_flags|= HA_CREATE_TMP_TABLE;
+    create_info.transactional= 0;
+  }
   if (ha_create_info->options & HA_CREATE_KEEP_FILES)
     create_flags|= HA_CREATE_KEEP_FILES;
   if (options & HA_OPTION_PACK_RECORD)
@@ -3769,7 +3786,7 @@ int ha_maria::multi_range_read_next(range_id_t *range_info)
 ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                                void *seq_init_param, 
                                                uint n_ranges, uint *bufsz,
-                                               uint *flags, COST_VECT *cost)
+                                               uint *flags, Cost_estimate *cost)
 {
   /*
     This call is here because there is no location where this->table would
@@ -3783,7 +3800,7 @@ ha_rows ha_maria::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
 ha_rows ha_maria::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                        uint key_parts, uint *bufsz, 
-                                       uint *flags, COST_VECT *cost)
+                                       uint *flags, Cost_estimate *cost)
 {
   ds_mrr.init(this, table);
   return ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz, flags, cost);
