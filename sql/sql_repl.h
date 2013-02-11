@@ -69,6 +69,7 @@ extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
 void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
 int rpl_load_gtid_slave_state(THD *thd);
+int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);
 
 #endif /* HAVE_REPLICATION */
 

@@ -6701,10 +6701,47 @@ slave_connection_state::load(char *slave_request, size_t len)
 }
 
 
+int
+slave_connection_state::load(const rpl_gtid *gtid_list, uint32 count)
+{
+  uint32 i;
+
+  my_hash_reset(&hash);
+  for (i= 0; i < count; ++i)
+    if (update(&gtid_list[i]))
+      return 1;
+  return 0;
+}
+
+
 rpl_gtid *
 slave_connection_state::find(uint32 domain_id)
 {
   return (rpl_gtid *) my_hash_search(&hash, (const uchar *)(&domain_id), 0);
+}
+
+
+int
+slave_connection_state::update(const rpl_gtid *in_gtid)
+{
+  rpl_gtid *new_gtid;
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  if (rec)
+  {
+    memcpy(rec, in_gtid, sizeof(*in_gtid));
+    return 0;
+  }
+
+  if (!(new_gtid= (rpl_gtid *)my_malloc(sizeof(*new_gtid), MYF(MY_WME))))
+    return 1;
+  memcpy(new_gtid, in_gtid, sizeof(*new_gtid));
+  if (my_hash_insert(&hash, (uchar *)new_gtid))
+  {
+    my_free(new_gtid);
+    return 1;
+  }
+
+  return 0;
 }
 
 
@@ -6722,6 +6759,30 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 
   err= my_hash_delete(&hash, rec);
   DBUG_ASSERT(!err);
+}
+
+
+int
+slave_connection_state::to_string(String *out_str)
+{
+  uint32 i;
+
+  out_str->length(0);
+  for (i= 0; i < hash.records; ++i)
+  {
+    const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
+    if (i && out_str->append(","))
+      return 1;
+    if (gtid->domain_id &&
+        (out_str->append_ulonglong(gtid->domain_id) ||
+         out_str->append("-")))
+      return 1;
+    if (out_str->append_ulonglong(gtid->server_id) ||
+        out_str->append("-") ||
+        out_str->append_ulonglong(gtid->seq_no))
+      return 1;
+  }
+  return 0;
 }
 
 
@@ -7153,6 +7214,46 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 }
 
 #endif  /* MYSQL_SERVER */
+
+
+/*
+  Used to record gtid_list event while sending binlog to slave, without having to
+  fully contruct the event object.
+*/
+bool
+Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
+                          rpl_gtid **out_gtid_list, uint32 *out_list_len)
+{
+  const char *p;
+  uint32 count_field, count;
+  rpl_gtid *gtid_list;
+
+  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN)
+    return true;
+  p= event_start + LOG_EVENT_HEADER_LEN;
+  count_field= uint4korr(p);
+  p+= 4;
+  count= count_field & ((1<<28)-1);
+  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN +
+      16 * count)
+    return true;
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(rpl_gtid)*count, MYF(MY_WME))))
+    return true;
+  *out_gtid_list= gtid_list;
+  *out_list_len= count;
+  while (count--)
+  {
+    gtid_list->domain_id= uint4korr(p);
+    p+= 4;
+    gtid_list->server_id= uint4korr(p);
+    p+= 4;
+    gtid_list->seq_no= uint8korr(p);
+    p+= 8;
+    ++gtid_list;
+  }
+
+  return false;
+}
 
 
 /**************************************************************************

@@ -59,6 +59,7 @@ C_MODE_START
 #include "../mysys/my_static.h"			// For soundex_map
 C_MODE_END
 #include "sql_show.h"                           // append_identifier
+#include <sql_repl.h>
 
 /**
    @todo Remove this. It is not safe to use a shared String object.
@@ -2722,6 +2723,40 @@ String *Item_func_repeat::val_str(String *str)
 err:
   null_value=1;
   return 0;
+}
+
+
+void Item_func_binlog_gtid_pos::fix_length_and_dec()
+{
+  collation.set(system_charset_info);
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= 1;
+}
+
+
+String *Item_func_binlog_gtid_pos::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  String name_str, *name;
+  longlong pos;
+
+  if (args[0]->null_value || args[1]->null_value)
+    goto err;
+
+  name= args[0]->val_str(&name_str);
+  pos= args[1]->val_int();
+
+  if (pos < 0 || pos > UINT_MAX32)
+    goto err;
+
+  if (gtid_state_from_binlog_pos(name->c_ptr_safe(), (uint32)pos, str))
+    goto err;
+  null_value= 0;
+  return str;
+
+err:
+  null_value= 1;
+  return NULL;
 }
 
 
