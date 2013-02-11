@@ -454,14 +454,14 @@ namespace open_query
     {
       graph_traits<Graph>::out_edge_iterator ei, ei_end;
       tie(ei, ei_end)= out_edges(orig, g);
-      if ((ei= find_if(ei, ei_end, target_equals(dest, g))) != ei_end)
+      if ((ei= std::find_if(ei, ei_end, target_equals(dest, g))) != ei_end)
         return *ei;
     }
     else
     {
       graph_traits<Graph>::in_edge_iterator ei, ei_end;
       tie(ei, ei_end)= in_edges(dest, g);
-      if ((ei= find_if(ei, ei_end, source_equals(orig, g))) != ei_end)
+      if ((ei= std::find_if(ei, ei_end, source_equals(orig, g))) != ei_end)
         return *ei;
     }
     return optional<Edge>();

@@ -37,6 +37,6 @@ namespace open_query
 
 
 class Field;
-typedef struct st_table TABLE;
+typedef struct TABLE TABLE;
 
 #endif

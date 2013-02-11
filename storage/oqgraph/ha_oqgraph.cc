@@ -28,7 +28,6 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#ifdef HAVE_OQGRAPH
 #include <stdarg.h>
 #include <stdio.h>
 
@@ -41,7 +40,8 @@
 #include "table.h"
 #include "field.h"
 #include "key.h"
-//#include "sql_class.h"
+#include "unireg.h"
+#include "sql_class.h"
 
 #define OQGRAPH_STATS_UPDATE_THRESHOLD 10
 
@@ -58,7 +58,7 @@ struct oqgraph_table_option_struct
 };
 
 #define ha_table_option_struct oqgraph_table_option_struct
-ha_create_table_option oqgraph_table_option_list[]=
+static const ha_create_table_option oqgraph_table_option_list[]=
 {
   HA_TOPTION_STRING("data_table", table_name),
   HA_TOPTION_STRING("origid", origid),
@@ -106,6 +106,7 @@ statistic_increment(table->in_use->status_var.X, &LOCK_status)
 #define STATISTIC_INCREMENT(X) /* nothing */
 #define MOVE(X) move_field_offset(X)
 #define RECORDS stats.records
+#endif
 
 static bool oqgraph_init_done= 0;
 
@@ -116,6 +117,7 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
   return new (mem_root) ha_oqgraph(hton, table);
 }
 
+#if MYSQL_VERSION_ID >= 50100
 static int oqgraph_init(handlerton *hton)
 {
 #else
@@ -123,14 +125,8 @@ static bool oqgraph_init()
 {
   if (have_oqgraph == SHOW_OPTION_DISABLED)
     return 1;
-  if (pthread_mutex_init(&LOCK_oqgraph, MY_MUTEX_INIT_FAST))
-    goto error;
-  if (my_hash_init(&oqgraph_open_tables, &my_charset_bin, 32, 0, 0,
-                get_key, 0, 0))
-  {
-    pthread_mutex_destroy(&LOCK_oqgraph);
-    goto error;
-  }
+#endif
+
 #if MYSQL_VERSION_ID >= 50100
   hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
@@ -143,64 +139,8 @@ static bool oqgraph_init()
 
 static int oqgraph_fini(void *)
 {
-  my_hash_free(&oqgraph_open_tables);
-  pthread_mutex_destroy(&LOCK_oqgraph);
   oqgraph_init_done= FALSE;
-  return 0;
-}
 #endif
-
-static OQGRAPH_INFO *get_share(const char *name, TABLE *table=0)
-{
-  OQGRAPH_INFO *share;
-  uint length= strlen(name);
-
-  safe_mutex_assert_owner(&LOCK_oqgraph);
-  if (!(share= (OQGRAPH_INFO*) my_hash_search(&oqgraph_open_tables,
-                                           (byte*) name, length)))
-  {
-    if (!table ||
-        !(share= new OQGRAPH_INFO))
-      return 0;
-    share->use_count= share->key_stat_version= share->records= 0;
-    share->dropped= 0;
-    strmov(share->name, name);
-    if (!(share->graph= oqgraph::create()))
-    {
-      delete share;
-      return 0;
-    }
-    if (my_hash_insert(&oqgraph_open_tables, (byte*) share))
-    {
-      oqgraph::free(share->graph);
-      delete share;
-      return 0;
-    }
-    thr_lock_init(&share->lock);
-  }
-  share->use_count++;
-  return share;
-}
-
-static int free_share(OQGRAPH_INFO *share, bool drop=0)
-{
-  safe_mutex_assert_owner(&LOCK_oqgraph);
-  if (!share)
-    return 0;
-  if (drop)
-  {
-    share->dropped= true;
-    my_hash_delete(&oqgraph_open_tables, (byte*) share);
-  }
-  if (!--share->use_count)
-  {
-    if (share->dropped)
-    {
-      thr_lock_delete(&share->lock);
-      oqgraph::free(share->graph);
-      delete share;
-    }
-  }
   return 0;
 }
 
@@ -363,7 +303,7 @@ bool ha_oqgraph::get_error_message(int error, String* buf)
   return false;
 }
 
-void ha_oqgraph::print_error(const char* fmt, ...)
+void ha_oqgraph::fprint_error(const char* fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
@@ -406,18 +346,18 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   while (open_table_def(thd, share, 0))
   {
-    if (thd->is_error() && thd->main_da.sql_errno() != ER_NO_SUCH_TABLE)
+    if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
     {
       free_table_share(share);
-      return thd->main_da.sql_errno();
+      return thd->stmt_da->sql_errno();
     }
 
     if (ha_create_table_from_engine(thd, table->s->db.str, options->table_name))
     {
       free_table_share(share);
-      return thd->main_da.sql_errno();
+      return thd->stmt_da->sql_errno();
     }
-    mysql_reset_errors(thd, 1);
+    /*mysql_reset_errors(thd, 1);*/
     thd->clear_error();
     continue;
   }
@@ -433,7 +373,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   {
     open_table_error(share, 1, EMFILE, 0);
     free_table_share(share);
-    print_error("VIEWs are not supported for a backing store");
+    fprint_error("VIEWs are not supported for a backing store");
     return -1;
   }
 
@@ -464,7 +404,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!edges->file)
   {
-    print_error("Some error occurred opening table '%s'", options->table_name);
+    fprint_error("Some error occurred opening table '%s'", options->table_name);
     free_table_share(share);
     return -1;
   }
@@ -476,7 +416,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->cmp_type() != INT_RESULT ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      print_error("Column '%s.%s' is not a not-null integer type",
+      fprint_error("Column '%s.%s' is not a not-null integer type",
           options->table_name, options->origid);
       closefrm(edges, 0);
       free_table_share(share);
@@ -493,7 +433,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->type() != origid->type() ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      print_error("Column '%s.%s' is not a not-null integer type",
+      fprint_error("Column '%s.%s' is not a not-null integer type",
           options->table_name, options->destid);
       closefrm(edges, 0);
       free_table_share(share);
@@ -510,7 +450,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     if ((*field)->result_type() != REAL_RESULT ||
         !((*field)->flags & NOT_NULL_FLAG))
     {
-      print_error("Column '%s.%s' is not a not-null real type",
+      fprint_error("Column '%s.%s' is not a not-null real type",
           options->table_name, options->weight);
       closefrm(edges, 0);
       free_table_share(share);
@@ -522,7 +462,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!origid || !destid || (!weight && options->weight))
   {
-    print_error("Data columns missing on table '%s'", options->table_name);
+    fprint_error("Data columns missing on table '%s'", options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     return -1;
@@ -530,7 +470,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   if (!(graph_share = oqgraph::create(edges, origid, destid, weight)))
   {
-    print_error("Unable to create graph instance.");
+    fprint_error("Unable to create graph instance.");
     closefrm(edges, 0);
     free_table_share(share);
     return -1;
@@ -586,17 +526,17 @@ void ha_oqgraph::update_key_stats()
 
 int ha_oqgraph::write_row(byte * buf)
 {
-  return ER_OPEN_AS_READONLY;
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::update_row(const byte * old, byte * buf)
 {
-  return ER_OPEN_AS_READONLY;
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::delete_row(const byte * buf)
 {
-  return ER_OPEN_AS_READONLY;
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len,
@@ -807,7 +747,7 @@ int ha_oqgraph::extra(enum ha_extra_function operation)
 
 int ha_oqgraph::delete_all_rows()
 {
-  return ER_OPEN_AS_READONLY;
+  return HA_ERR_TABLE_READONLY;
 }
 
 int ha_oqgraph::external_lock(THD *thd, int lock_type)
@@ -835,14 +775,6 @@ int ha_oqgraph::delete_table(const char *)
 
 int ha_oqgraph::rename_table(const char *, const char *)
 {
-  pthread_mutex_lock(&LOCK_oqgraph);
-  if (OQGRAPH_INFO *share= get_share(from))
-  {
-    strmov(share->name, to);
-    my_hash_update(&oqgraph_open_tables, (byte*) share,
-                (byte*) from, strlen(from));
-  }
-  pthread_mutex_unlock(&LOCK_oqgraph);
   return 0;
 }
 
@@ -887,7 +819,7 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
 		    HA_CREATE_INFO *create_info)
 {
   oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+    reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
 
   if (int res = oqgraph_check_table_structure(table_arg))
     return error_code(res);
@@ -924,7 +856,3 @@ maria_declare_plugin(oqgraph)
   MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
-
-#endif
-
-#endif
