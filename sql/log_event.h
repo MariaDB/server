@@ -3073,9 +3073,12 @@ struct slave_connection_state
   ~slave_connection_state();
 
   int load(char *slave_request, size_t len);
+  int load(const rpl_gtid *gtid_list, uint32 count);
   rpl_gtid *find(uint32 domain_id);
+  int update(const rpl_gtid *in_gtid);
   void remove(const rpl_gtid *gtid);
   ulong count() const { return hash.records; }
+  int to_string(String *out_str);
 };
 
 
@@ -3261,6 +3264,8 @@ public:
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE *file);
 #endif
+  static bool peek(const char *event_start, uint32 event_len,
+                   rpl_gtid **out_gtid_list, uint32 *out_list_len);
 };
 
 

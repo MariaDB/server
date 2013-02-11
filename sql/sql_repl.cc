@@ -656,8 +656,12 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   if (!(ev= Log_event::read_log_event(cache, 0, &init_fdle,
                                       opt_master_verify_checksum)) ||
       ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
+  {
+    if (ev)
+      delete ev;
     return "Could not read format description log event while looking for "
       "GTID position in binlog";
+  }
 
   fdle= static_cast<Format_description_log_event *>(ev);
 
@@ -792,6 +796,177 @@ end:
 
   free_root(&memroot, MYF(0));
   return errormsg;
+}
+
+
+/*
+  Given an old-style binlog position with file name and file offset, find the
+  corresponding gtid position. If the offset is not at an event boundary, give
+  an error.
+
+  Return NULL on ok, error message string on error.
+
+  ToDo: Improve the performance of this by using binlog index files.
+*/
+static const char *
+gtid_state_from_pos(const char *name, uint32 offset,
+                    slave_connection_state *gtid_state)
+{
+  IO_CACHE cache;
+  File file;
+  const char *errormsg= NULL;
+  bool found_gtid_list_event= false;
+  bool found_format_description_event= false;
+  bool valid_pos= false;
+  uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
+  int err;
+  String packet;
+
+  if (gtid_state->load((const rpl_gtid *)NULL, 0))
+  {
+    errormsg= "Internal error (out of memory?) initializing slave state "
+      "while scanning binlog to find start position";
+    return errormsg;
+  }
+
+  if ((file= open_binlog(&cache, name, &errormsg)) == (File)-1)
+    return errormsg;
+
+  /*
+    First we need to find the initial GTID_LIST_EVENT. We need this even
+    if the offset is at the very start of the binlog file.
+
+    But if we do not find any GTID_LIST_EVENT, then this is an old binlog
+    with no GTID information, so we return empty GTID state.
+  */
+  for (;;)
+  {
+    Log_event_type typ;
+    uint32 cur_pos;
+
+    cur_pos= (uint32)my_b_tell(&cache);
+    if (cur_pos == offset)
+      valid_pos= true;
+    if (found_format_description_event && found_gtid_list_event &&
+        cur_pos >= offset)
+      break;
+
+    packet.length(0);
+    err= Log_event::read_log_event(&cache, &packet, NULL,
+                                   current_checksum_alg);
+    if (err)
+    {
+      errormsg= "Could not read binlog while searching for slave start "
+        "position on master";
+      goto end;
+    }
+    /*
+      The cast to uchar is needed to avoid a signed char being converted to a
+      negative number.
+    */
+    typ= (Log_event_type)(uchar)packet[EVENT_TYPE_OFFSET];
+    if (typ == FORMAT_DESCRIPTION_EVENT)
+    {
+      if (found_format_description_event)
+      {
+        errormsg= "Duplicate format description log event found while "
+          "searching for old-style position in binlog";
+        goto end;
+      }
+
+      current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
+      found_format_description_event= true;
+    }
+    else if (typ != FORMAT_DESCRIPTION_EVENT && !found_format_description_event)
+    {
+      errormsg= "Did not find format description log event while searching "
+        "for old-style position in binlog";
+      goto end;
+    }
+    else if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
+             typ == BINLOG_CHECKPOINT_EVENT)
+      continue;                                 /* Continue looking */
+    else if (typ == GTID_LIST_EVENT)
+    {
+      rpl_gtid *gtid_list;
+      bool status;
+      uint32 list_len;
+
+      if (found_gtid_list_event)
+      {
+        errormsg= "Found duplicate Gtid_list_log_event while scanning binlog "
+          "to find slave start position";
+        goto end;
+      }
+      status= Gtid_list_log_event::peek(packet.ptr(), packet.length(),
+                                        &gtid_list, &list_len);
+      if (status)
+      {
+        errormsg= "Error reading Gtid_list_log_event while searching "
+          "for old-style position in binlog";
+        goto end;
+      }
+      err= gtid_state->load(gtid_list, list_len);
+      my_free(gtid_list);
+      if (err)
+      {
+        errormsg= "Internal error (out of memory?) initialising slave state "
+          "while scanning binlog to find start position";
+        goto end;
+      }
+      found_gtid_list_event= true;
+    }
+    else if (!found_gtid_list_event)
+    {
+      /* We did not find any Gtid_list_log_event, must be old binlog. */
+      goto end;
+    }
+    else if (typ == GTID_EVENT)
+    {
+      rpl_gtid gtid;
+      uchar flags2;
+      if (Gtid_log_event::peek(packet.ptr(), packet.length(), &gtid.domain_id,
+                               &gtid.server_id, &gtid.seq_no, &flags2))
+      {
+        errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
+          "initial slave position";
+        goto end;
+      }
+      if (gtid_state->update(&gtid))
+      {
+        errormsg= "Internal error (out of memory?) updating slave state while "
+          "scanning binlog to find start position";
+        goto end;
+      }
+    }
+  }
+
+  if (!valid_pos)
+  {
+    errormsg= "Slave requested incorrect position in master binlog. "
+      "Requested position %u in file '%s', but this position does not "
+      "correspond to the location of any binlog event.";
+  }
+
+end:
+  end_io_cache(&cache);
+  mysql_file_close(file, MYF(MY_WME));
+
+  return errormsg;
+}
+
+
+int
+gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str)
+{
+  slave_connection_state gtid_state;
+
+  if (pos < 4)
+    pos= 4;
+  if (gtid_state_from_pos(name, pos, &gtid_state) ||
+      gtid_state.to_string(out_str))
+    return 1;
+  return 0;
 }
 
 
@@ -945,8 +1120,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
         binlog positions.
       */
       if (Query_log_event::dummy_event(packet, ev_offset, current_checksum_alg))
-        return "Failed to replace binlog checkpoint event with dummy: "
-               "too small event.";
+        return "Failed to replace binlog checkpoint or gtid list event with "
+               "dummy: too small event.";
     }
   }
 
@@ -1010,7 +1185,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   char str_buf[256];
   String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
   bool using_gtid_state;
-  slave_connection_state gtid_state;
+  slave_connection_state gtid_state, return_gtid_state;
   enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;

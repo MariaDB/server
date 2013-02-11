@@ -616,6 +616,17 @@ public:
 };
 
 
+class Item_func_binlog_gtid_pos :public Item_str_func
+{
+  String tmp_value;
+public:
+  Item_func_binlog_gtid_pos(Item *arg1,Item *arg2) :Item_str_func(arg1,arg2) {}
+  String *val_str(String *);
+  void fix_length_and_dec();
+  const char *func_name() const { return "binlog_gtid_pos"; }
+};
+
+
 class Item_func_rpad :public Item_str_func
 {
   String tmp_value, rpad_str;
