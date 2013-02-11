@@ -176,6 +176,8 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
       len= snprintf(g->Message, sizeof(g->Message) - 1,
                     MSG(OPEN_EMPTY_FILE), // "Opening empty file %s: %s"
                     path, strerror(errno));
+      break;
+
     default:
       DBUG_ASSERT(0);
       /* Fall through*/
