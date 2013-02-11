@@ -114,7 +114,7 @@
 #include "global.h"
 #include "plgdbsem.h"
 #if defined(ODBC_SUPPORT)
-#include "odbconn.h"
+#include "odbccat.h"
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
 #include "myconn.h"

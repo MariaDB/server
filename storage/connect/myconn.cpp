@@ -208,7 +208,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
 
     crp = crp->Next;                       // New
-    crp->Kdata->SetValue((fmt) ? fmt : "", i);
+    crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
 
     crp = crp->Next;                       // New (charset)
     fld = myc.GetCharField(2);
