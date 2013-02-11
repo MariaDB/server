@@ -18,8 +18,8 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a	b
 Warnings:
-Warning	1105	Open(rb) error 2 on DATADIR/./test/t1vec1: No such file or directory
-Warning	1105	Open(rb) error 2 on DATADIR/./test/t1vec2: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec1: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec2: No such file or directory
 INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
 SELECT * FROM t1;
 a	b
@@ -39,10 +39,10 @@ test01
 test01
 test02
 test03
-SELECT * FROM dir1 ORDER BY fname, ftype;
-spath	fname	ftype	size
-DATADIR/./test/	t1vec1		16
-DATADIR/./test/	t1vec2		40
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+fname	ftype	size
+t1vec1		16
+t1vec2		40
 DROP TABLE t1;
 CREATE TABLE t1
 (
@@ -58,15 +58,15 @@ t1	CREATE TABLE `t1` (
 SELECT * FROM t1;
 a	b
 Warnings:
-Warning	1105	Open(rb) error 2 on DATADIR/./test/t1vec: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
 SELECT a FROM t1;
 a
 Warnings:
-Warning	1105	Open(rb) error 2 on DATADIR/./test/t1vec: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
 SELECT b FROM t1;
 b
 Warnings:
-Warning	1105	Open(rb) error 2 on DATADIR/./test/t1vec: No such file or directory
+Warning	1105	Open(rb) error 2 on DATADIR/test/t1vec: No such file or directory
 INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
 SELECT * FROM t1;
 a	b
@@ -86,10 +86,10 @@ test01
 test01
 test02
 test03
-SELECT * FROM dir1 ORDER BY fname, ftype;
-spath	fname	ftype	size
-DATADIR/./test/	t1vec		1400
-DATADIR/./test/	t1vec	.blk	8
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+fname	ftype	size
+t1vec		1400
+t1vec	.blk	8
 DROP TABLE t1;
 #
 # Clean up
