@@ -1,0 +1,58 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+CREATE TABLE dir1 (
+  spath VARCHAR(256) flag=1,
+  fname VARCHAR(256),
+  ftype CHAR(4),
+  size DOUBLE(12,0) flag=5
+) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*vec*';
+
+
+CREATE TABLE t1
+(
+  a INT,
+  b CHAR(10)
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec';
+SHOW CREATE TABLE t1;
+# Testing SELECT on empty file
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT * FROM t1;
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+SELECT a FROM t1;
+SELECT b FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT * FROM dir1 ORDER BY fname, ftype;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1vec1
+--remove_file $MYSQLD_DATADIR/test/t1vec2
+
+
+CREATE TABLE t1
+(
+  a INT,
+  b CHAR(10)
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
+SHOW CREATE TABLE t1;
+# Testing SELECTs on empty file
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT * FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT a FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT b FROM t1;
+INSERT INTO t1 VALUES (0,'test01'), (1,'test01'), (2,'test02'), (3,'test03');
+SELECT * FROM t1;
+SELECT a FROM t1;
+SELECT b FROM t1;
+--replace_result $MYSQLD_DATADIR DATADIR/
+SELECT * FROM dir1 ORDER BY fname, ftype;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1vec
+--remove_file $MYSQLD_DATADIR/test/t1vec.blk
+
+
+--echo #
+--echo # Clean up
+--echo #
+DROP TABLE dir1;
