@@ -66,6 +66,7 @@
 #include "plgdbsem.h"
 #include "xtable.h"
 #include "tabodbc.h"
+#include "odbccat.h"
 #include "tabmul.h"
 #include "reldef.h"
 #include "tabcol.h"
