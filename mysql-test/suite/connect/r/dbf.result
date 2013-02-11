@@ -67,6 +67,22 @@ a
 20
 DROP TABLE t1;
 #
+# This SQL script crashed (dbf01.sql)
+#
+CREATE TABLE t1
+(
+a int(11) DEFAULT NULL,
+b char(10) DEFAULT NULL,
+c varchar(10) DEFAULT NULL
+) ENGINE=CONNECT table_type=DBF file_name='t1.dbf';
+INSERT INTO t1 VALUES (1,'1','1');
+INSERT INTO t1 VALUES (2,'2','2');
+SELECT * FROM t1;
+a	b	c
+1	1	1
+2	2	2
+DROP TABLE t1;
+#
 # Testing that table options in lower case and mixed case are understood:
 #
 CREATE TABLE t1 (a INT) ENGINE=CONNECT table_type=dbf file_name='t1.dbf';
