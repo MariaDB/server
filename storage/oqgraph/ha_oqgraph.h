@@ -29,6 +29,7 @@
 #endif
 
 #include "handler.h"
+#include "table.h"
 
 typedef struct oqgraph_info_st OQGRAPH_INFO;
 typedef uchar byte;
@@ -112,7 +113,7 @@ public:
 
   bool get_error_message(int error, String* buf);
 
-  void print_error(const char* fmt, ...);
+  void fprint_error(const char* fmt, ...);
 
 private:
   void update_key_stats();

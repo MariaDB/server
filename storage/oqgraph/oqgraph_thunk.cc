@@ -29,7 +29,12 @@
 #include <boost/tuple/tuple.hpp>
 
 #define MYSQL_SERVER
-#include "mysql_priv.h"
+#include "mysql_version.h"
+#include "sql_base.h"
+#include "table.h"
+#include "field.h"
+#include "key.h"
+#include "unireg.h"
 
 static int debugid = 0;
 
@@ -183,7 +188,9 @@ int oqgraph3::cursor::restore_position()
       return rc;
     }
 
-    update_virtual_fields(table.in_use, &table);
+    if (table.vfield)
+      update_virtual_fields(table.in_use, &table);
+
     table.file->position(table.record[0]);
 
     while (memcmp(table.file->ref, _position.data(), table.file->ref_length))
@@ -193,7 +200,9 @@ int oqgraph3::cursor::restore_position()
         table.file->ha_index_end();
         return rc;
       }
-      update_virtual_fields(table.in_use, &table);
+
+      if (table.vfield)
+        update_virtual_fields(table.in_use, &table);
 
       if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
           (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
@@ -203,7 +212,6 @@ int oqgraph3::cursor::restore_position()
       }
       table.file->position(table.record[0]);
     }
-    update_virtual_fields(table.in_use, &table);
 
   }
   else
@@ -217,7 +225,9 @@ int oqgraph3::cursor::restore_position()
       table.file->ha_rnd_end();
       return rc;
     }
-    update_virtual_fields(table.in_use, &table);
+
+    if (table.vfield)
+      update_virtual_fields(table.in_use, &table);
   }
 
   _graph->_cursor= this;
@@ -292,7 +302,8 @@ int oqgraph3::cursor::seek_next()
     return clear_position(rc);
   }
 
-  update_virtual_fields(table.in_use, &table);
+  if (table.vfield)
+    update_virtual_fields(table.in_use, &table);
   _graph->_stale= true;
 
   if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
@@ -326,7 +337,8 @@ int oqgraph3::cursor::seek_prev()
     return clear_position(rc);
   }
 
-  update_virtual_fields(table.in_use, &table);
+  if (table.vfield)
+    update_virtual_fields(table.in_use, &table);
   _graph->_stale= true;
 
   if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
@@ -487,7 +499,8 @@ int oqgraph3::cursor::seek_to(
       return clear_position(rc);
     }
 
-    update_virtual_fields(table.in_use, &table);
+    if (table.vfield)
+      update_virtual_fields(table.in_use, &table);
 
     if ((_origid && vertex_id(_graph->_source->val_int()) != *_origid) ||
         (_destid && vertex_id(_graph->_target->val_int()) != *_destid))
