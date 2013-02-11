@@ -183,10 +183,13 @@ static void PROFILE_CopyEntry( char *buffer, const char *value, uint len,
 static void PROFILE_Save( FILE *file, PROFILESECTION *section )
 {
   PROFILEKEY *key;
+  int secno;
 
-  for (; section; section = section->next) {
-    if (section->name[0])
-      fprintf(file, "\n[%s]\n", SVP(section->name));
+  for (secno= 0; section; section= section->next) {
+    if (section->name[0]) {
+      fprintf(file, "%s[%s]\n", secno ? "\n" : "", SVP(section->name));
+      secno++;
+    }
 
     for (key = section->key; key; key = key->next)
       if (key->name && key->name[0]) {
