@@ -275,6 +275,7 @@ Variable_name	Value
 Handler_commit	0
 Handler_delete	0
 Handler_discover	0
+Handler_external_lock	0
 Handler_icp_attempts	0
 Handler_icp_match	0
 Handler_mrr_init	0
@@ -303,7 +304,7 @@ Created_tmp_files	0
 Created_tmp_tables	2
 Handler_tmp_update	2
 Handler_tmp_write	7
-Rows_tmp_read	41
+Rows_tmp_read	42
 drop table t1;
 CREATE TABLE t1 (i int(11) DEFAULT NULL, KEY i (i) ) ENGINE=MyISAM;
 insert into t1 values (1),(2),(3),(4),(5);
@@ -316,6 +317,7 @@ Variable_name	Value
 Handler_commit	0
 Handler_delete	0
 Handler_discover	0
+Handler_external_lock	0
 Handler_icp_attempts	0
 Handler_icp_match	0
 Handler_mrr_init	0

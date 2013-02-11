@@ -1,6 +1,6 @@
+-- Copyright (c) 2007, 2011, Oracle and/or its affiliates.
 -- Copyright (c) 2007, 2008 MySQL AB, 2009 Sun Microsystems, Inc.
--- Copyright (c) 2008-2011 Monty Program Ab
--- Use is subject to license terms.
+-- Copyright (c) 2008-2012 Monty Program Ab
 -- 
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -101,7 +101,52 @@ CREATE TABLE IF NOT EXISTS event ( db char(64) CHARACTER SET utf8 COLLATE utf8_b
 
 CREATE TABLE IF NOT EXISTS ndb_binlog_index (Position BIGINT UNSIGNED NOT NULL, File VARCHAR(255) NOT NULL, epoch BIGINT UNSIGNED NOT NULL, inserts BIGINT UNSIGNED NOT NULL, updates BIGINT UNSIGNED NOT NULL, deletes BIGINT UNSIGNED NOT NULL, schemaops BIGINT UNSIGNED NOT NULL, PRIMARY KEY(epoch)) ENGINE=MYISAM;
 
+CREATE TABLE IF NOT EXISTS slave_relay_log_info (Master_id INTEGER UNSIGNED NOT NULL, Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file or rows in the table. Used to version table definitions.', Relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the current relay log file.', Relay_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The relay log position of the last executed event.', Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the master binary log file from which the events in the relay log file were read.', Master_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The master log position of the last executed event.', Sql_delay INTEGER NOT NULL COMMENT 'The number of seconds that the slave must lag behind the master.', Number_of_workers INTEGER UNSIGNED NOT NULL, PRIMARY KEY(Master_id)) ENGINE=MYISAM DEFAULT CHARSET=utf8 COMMENT 'Relay Log Information';
+
+CREATE TABLE IF NOT EXISTS slave_master_info (Master_id INTEGER UNSIGNED NOT NULL, Number_of_lines INTEGER UNSIGNED NOT NULL COMMENT 'Number of lines in the file.', Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL COMMENT 'The name of the master binary log currently being read from the master.', Master_log_pos BIGINT UNSIGNED NOT NULL COMMENT 'The master log position of the last read event.', Host TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The host name of the master.', User_name TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The user name used to connect to the master.', User_password TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The password used to connect to the master.', Port INTEGER UNSIGNED NOT NULL COMMENT 'The network port used to connect to the master.', Connect_retry INTEGER UNSIGNED NOT NULL COMMENT 'The period (in seconds) that the slave will wait before trying to reconnect to the master.', Enabled_ssl BOOLEAN NOT NULL COMMENT 'Indicates whether the server supports SSL connections.', Ssl_ca TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The file used for the Certificate Authority (CA) certificate.', Ssl_capath TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The path to the Certificate Authority (CA) certificates.', Ssl_cert TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the SSL certificate file.', Ssl_cipher TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the cipher in use for the SSL connection.', Ssl_key TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The name of the SSL key file.', Ssl_verify_server_cert BOOLEAN NOT NULL COMMENT 'Whether to verify the server certificate.', Heartbeat FLOAT NOT NULL COMMENT '', Bind TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'Displays which interface is employed when connecting to the MySQL server', Ignored_server_ids TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The number of server IDs to be ignored, followed by the actual server IDs', Uuid TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The master server uuid.', Retry_count BIGINT UNSIGNED NOT NULL COMMENT 'Number of reconnect attempts, to the master, before giving up.', Ssl_crl TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The file used for the Certificate Revocation List (CRL)', Ssl_crlpath TEXT CHARACTER SET utf8 COLLATE utf8_bin COMMENT 'The path used for Certificate Revocation List (CRL) files', PRIMARY KEY(Master_id)) ENGINE=MYISAM DEFAULT CHARSET=utf8 COMMENT 'Master Information';
+
+CREATE TABLE IF NOT EXISTS slave_worker_info (Master_id INTEGER UNSIGNED NOT NULL, Worker_id INTEGER UNSIGNED NOT NULL, Relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, Relay_log_pos BIGINT UNSIGNED NOT NULL, Master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, Master_log_pos BIGINT UNSIGNED NOT NULL, Checkpoint_relay_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, Checkpoint_relay_log_pos BIGINT UNSIGNED NOT NULL, Checkpoint_master_log_name TEXT CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, Checkpoint_master_log_pos BIGINT UNSIGNED NOT NULL, Checkpoint_seqno INT UNSIGNED NOT NULL, Checkpoint_group_size INTEGER UNSIGNED NOT NULL, Checkpoint_group_bitmap BLOB NOT NULL, PRIMARY KEY(Master_id, Worker_id)) ENGINE=MYISAM DEFAULT CHARSET=utf8 COMMENT 'Worker Information';
+
+SET @sql_mode_orig=@@SESSION.sql_mode;
+SET SESSION sql_mode='NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE IF NOT EXISTS innodb_table_stats (
+	database_name			VARCHAR(64) NOT NULL,
+	table_name			VARCHAR(64) NOT NULL,
+	last_update			TIMESTAMP NOT NULL,
+	n_rows				BIGINT UNSIGNED NOT NULL,
+	clustered_index_size		BIGINT UNSIGNED NOT NULL,
+	sum_of_other_index_sizes	BIGINT UNSIGNED NOT NULL,
+	PRIMARY KEY (database_name, table_name)
+) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+CREATE TABLE IF NOT EXISTS innodb_index_stats (
+	database_name			VARCHAR(64) NOT NULL,
+	table_name			VARCHAR(64) NOT NULL,
+	index_name			VARCHAR(64) NOT NULL,
+	last_update			TIMESTAMP NOT NULL,
+	/* there are at least:
+	stat_name='size'
+	stat_name='n_leaf_pages'
+	stat_name='n_diff_pfx%' */
+	stat_name			VARCHAR(64) NOT NULL,
+	stat_value			BIGINT UNSIGNED NOT NULL,
+	sample_size			BIGINT UNSIGNED,
+	stat_description		VARCHAR(1024) NOT NULL,
+	PRIMARY KEY (database_name, table_name, index_name, stat_name),
+	FOREIGN KEY (database_name, table_name)
+	  REFERENCES innodb_table_stats (database_name, table_name)
+) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin;
+
+SET SESSION sql_mode=@sql_mode_orig;
+
 CREATE TABLE IF NOT EXISTS proxies_priv (Host char(60) binary DEFAULT '' NOT NULL, User char(16) binary DEFAULT '' NOT NULL, Proxied_host char(60) binary DEFAULT '' NOT NULL, Proxied_user char(16) binary DEFAULT '' NOT NULL, With_grant BOOL DEFAULT 0 NOT NULL, Grantor char(77) DEFAULT '' NOT NULL, Timestamp timestamp, PRIMARY KEY Host (Host,User,Proxied_host,Proxied_user), KEY Grantor (Grantor) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='User proxy privileges';
 
 -- Remember for later if proxies_priv table already existed
 set @had_proxies_priv_table= @@warning_count != 0;
+
+CREATE TABLE IF NOT EXISTS table_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, cardinality bigint(21) unsigned DEFAULT NULL, PRIMARY KEY (db_name,table_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Tables';
+
+CREATE TABLE IF NOT EXISTS column_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, column_name varchar(64) NOT NULL, min_value varchar(255) DEFAULT NULL, max_value varchar(255) DEFAULT NULL, nulls_ratio decimal(12,4) DEFAULT NULL, avg_length decimal(12,4) DEFAULT NULL, avg_frequency decimal(12,4) DEFAULT NULL, PRIMARY KEY (db_name,table_name,column_name) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+
+CREATE TABLE IF NOT EXISTS index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency decimal(12,4) DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';

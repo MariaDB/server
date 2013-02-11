@@ -14,7 +14,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-/*
+/**
+  @file
+  Definitions of all server's session or global variables.
+
   How to add new variables:
 
   1. copy one of the existing variables, and edit the declaration.
@@ -122,6 +125,22 @@ static Sys_var_ulong Sys_pfs_max_file_instances(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_FILE), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_pfs_max_sockets(
+       "performance_schema_max_socket_instances",
+       "Maximum number of opened instrumented sockets.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_SOCKETS),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_max_socket_classes(
+       "performance_schema_max_socket_classes",
+       "Maximum number of socket instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT(PFS_MAX_SOCKET_CLASS),
+       BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_pfs_max_mutex_classes(
        "performance_schema_max_mutex_classes",
        "Maximum number of mutex instruments.",
@@ -177,6 +196,111 @@ static Sys_var_ulong Sys_pfs_max_thread_instances(
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_thread_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_THREAD), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_setup_actors_size(
+       "performance_schema_setup_actors_size",
+       "Maximum number of rows in SETUP_ACTORS.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_setup_actor_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_MAX_SETUP_ACTOR),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_setup_objects_size(
+       "performance_schema_setup_objects_size",
+       "Maximum number of rows in SETUP_OBJECTS.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_setup_object_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_SETUP_OBJECT),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_accounts_size(
+       "performance_schema_accounts_size",
+       "Maximum number of instrumented user@host accounts.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_account_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_ACCOUNT),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_hosts_size(
+       "performance_schema_hosts_size",
+       "Maximum number of instrumented hosts.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_host_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_HOST),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_users_size(
+       "performance_schema_users_size",
+       "Maximum number of instrumented users.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_user_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_MAX_USER),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_max_stage_classes(
+       "performance_schema_max_stage_classes",
+       "Maximum number of stage instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_stage_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT(PFS_MAX_STAGE_CLASS),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_stages_history_long_size(
+       "performance_schema_events_stages_history_long_size",
+       "Number of rows in EVENTS_STAGES_HISTORY_LONG.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_long_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_STAGES_HISTORY_LONG_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_stages_history_size(
+       "performance_schema_events_stages_history_size",
+       "Number of rows per thread in EVENTS_STAGES_HISTORY.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_STAGES_HISTORY_SIZE),
+       BLOCK_SIZE(1));
+
+/**
+  Variable performance_schema_max_statement_classes.
+  The default number of statement classes is the sum of:
+  - COM_END for all regular "statement/com/...",
+  - 1 for "statement/com/new_packet", for unknown enum_server_command
+  - 1 for "statement/com/Error", for invalid enum_server_command
+  - SQLCOM_END for all regular "statement/sql/...",
+  - 1 for "statement/sql/error", for invalid enum_sql_command.
+*/
+static Sys_var_ulong Sys_pfs_max_statement_classes(
+       "performance_schema_max_statement_classes",
+       "Maximum number of statement instruments.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
+       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_statements_history_long_size(
+       "performance_schema_events_statements_history_long_size",
+       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_long_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
+       DEFAULT(PFS_STATEMENTS_HISTORY_LONG_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_events_statements_history_size(
+       "performance_schema_events_statements_history_size",
+       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
+       DEFAULT(PFS_STATEMENTS_HISTORY_SIZE),
+       BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_pfs_digest_size(
+       "performance_schema_digests_size",
+       "Size of the statement digest.",
+       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 200),
+       DEFAULT(PFS_DIGEST_SIZE),
+       BLOCK_SIZE(1));
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
@@ -690,7 +814,7 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
             : Events::stop();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (ret)
-    my_error(ER_EVENT_SET_VAR_ERROR, MYF(0), 0);
+    my_error(ER_EVENT_SET_VAR_ERROR, MYF(0), my_errno);
   return ret;
 }
 
@@ -796,6 +920,30 @@ static Sys_var_lexstring Sys_init_connect(
        GLOBAL_VAR(opt_init_connect), CMD_LINE(REQUIRED_ARG), IN_SYSTEM_CHARSET,
        DEFAULT(""), &PLock_sys_init_connect, NOT_IN_BINLOG,
        ON_CHECK(check_init_string));
+
+#ifdef HAVE_REPLICATION
+static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
+{
+  LEX_STRING tmp;
+  tmp.str= var->save_result.string_value.str;
+  tmp.length= var->save_result.string_value.length;
+  if (!tmp.str || check_master_connection_name(&tmp))
+  {
+    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+             var->var->name.str);
+    return true;
+  }
+  return false;
+}
+
+static Sys_var_session_lexstring Sys_default_master_connection(
+       "default_master_connection",
+       "Master connection to use for all slave variables and slave commands",
+       SESSION_ONLY(default_master_connection),
+       NO_CMD_LINE, IN_SYSTEM_CHARSET,
+       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection),
+       ON_UPDATE(0));
+#endif
 
 static Sys_var_charptr Sys_init_file(
        "init_file", "Read SQL commands from this file at startup",
@@ -1082,16 +1230,12 @@ static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
 {
   mysql_bin_log.set_max_size(max_binlog_size);
-#ifdef HAVE_REPLICATION
-  if (!max_relay_log_size)
-    active_mi->rli.relay_log.set_max_size(max_binlog_size);
-#endif
   return false;
 }
 static Sys_var_ulong Sys_max_binlog_size(
        "max_binlog_size",
        "Binary log will be rotated automatically when the size exceeds this "
-       "value. Will also apply to relay logs if max_relay_log_size is 0",
+       "value.",
        GLOBAL_VAR(max_binlog_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, 1024*1024L*1024L), DEFAULT(1024*1024L*1024L),
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
@@ -1235,24 +1379,6 @@ static Sys_var_ulong Sys_max_prepared_stmt_count(
        GLOBAL_VAR(max_prepared_stmt_count), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1024*1024), DEFAULT(16382), BLOCK_SIZE(1),
        &PLock_prepared_stmt_count);
-
-static bool fix_max_relay_log_size(sys_var *self, THD *thd, enum_var_type type)
-{
-#ifdef HAVE_REPLICATION
-  active_mi->rli.relay_log.set_max_size(max_relay_log_size ?
-                                        max_relay_log_size: max_binlog_size);
-#endif
-  return false;
-}
-static Sys_var_ulong Sys_max_relay_log_size(
-       "max_relay_log_size",
-       "If non-zero: relay log will be rotated automatically when the "
-       "size exceeds this value; if zero: when the size "
-       "exceeds max_binlog_size",
-       GLOBAL_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_max_relay_log_size));
 
 static Sys_var_ulong Sys_max_sort_length(
        "max_sort_length",
@@ -1428,7 +1554,7 @@ static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
 {
   SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;
   if (sv->optimizer_search_depth == MAX_TABLES+2)
-    WARN_DEPRECATED(thd, 6, 0, "optimizer-search-depth=63",
+    WARN_DEPRECATED(thd, 10, 1, "optimizer-search-depth=63",
                     "a search depth less than 63");
   return false;
 }
@@ -2024,50 +2150,22 @@ static Sys_var_mybool Sys_master_verify_checksum(
 static const char *replicate_events_marked_for_skip_names[]= {
   "replicate", "filter_on_slave", "filter_on_master", 0
 };
-static bool
-replicate_events_marked_for_skip_check(sys_var *self, THD *thd,
-                                                set_var *var)
-{
-  int thread_mask;
-  DBUG_ENTER("sys_var_replicate_events_marked_for_skip_check");
 
-  /* Slave threads must be stopped to change the variable. */
-  mysql_mutex_lock(&LOCK_active_mi);
-  lock_slave_threads(active_mi);
-  init_thread_mask(&thread_mask, active_mi, 0 /*not inverse*/);
-  unlock_slave_threads(active_mi);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  if (thread_mask) // We refuse if any slave thread is running
-  {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-    DBUG_RETURN(true);
-  }
-  DBUG_RETURN(false);
-}
 bool
 Sys_var_replicate_events_marked_for_skip::global_update(THD *thd, set_var *var)
 {
-  bool result;
-  int thread_mask;
+  bool result= true;                            // Assume error
   DBUG_ENTER("Sys_var_replicate_events_marked_for_skip::global_update");
 
-  /* Slave threads must be stopped to change the variable. */
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  lock_slave_threads(active_mi);
-  init_thread_mask(&thread_mask, active_mi, 0 /*not inverse*/);
-  if (thread_mask) // We refuse if any slave thread is running
-  {
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-    result= true;
-  }
-  else
+  if (!master_info_index->give_error_if_slave_running())
     result= Sys_var_enum::global_update(thd, var);
-
-  unlock_slave_threads(active_mi);
   mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   DBUG_RETURN(result);
 }
+
 static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    ("replicate_events_marked_for_skip",
    "Whether the slave should replicate events that were created with "
@@ -2078,8 +2176,7 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    "the slave).",
    GLOBAL_VAR(opt_replicate_events_marked_for_skip), CMD_LINE(REQUIRED_ARG),
    replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE),
-   NO_MUTEX_GUARD, NOT_IN_BINLOG,
-   ON_CHECK(replicate_events_marked_for_skip_check));
+    NO_MUTEX_GUARD, NOT_IN_BINLOG);
 #endif
 
 
@@ -2236,6 +2333,19 @@ static Sys_var_charptr Sys_ssl_key(
        READ_ONLY GLOBAL_VAR(opt_ssl_key), SSL_OPT(OPT_SSL_KEY),
        IN_FS_CHARSET, DEFAULT(0));
 
+static Sys_var_charptr Sys_ssl_crl(
+       "ssl_crl",
+       "CRL file in PEM format (check OpenSSL docs, implies --ssl)",
+       READ_ONLY GLOBAL_VAR(opt_ssl_crl), SSL_OPT(OPT_SSL_CRL),
+       IN_FS_CHARSET, DEFAULT(0));
+
+static Sys_var_charptr Sys_ssl_crlpath(
+       "ssl_crlpath",
+       "CRL directory (check OpenSSL docs, implies --ssl)",
+       READ_ONLY GLOBAL_VAR(opt_ssl_crlpath), SSL_OPT(OPT_SSL_CRLPATH),
+       IN_FS_CHARSET, DEFAULT(0));
+
+
 // why ENUM and not BOOL ?
 static const char *updatable_views_with_limit_names[]= {"NO", "YES", 0};
 static Sys_var_enum Sys_updatable_views_with_limit(
@@ -2377,7 +2487,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
   if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
   {
     DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
-    my_error(ER_CANT_CHANGE_TX_ISOLATION, MYF(0));
+    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
     return TRUE;
   }
   return FALSE;
@@ -2389,6 +2499,42 @@ static Sys_var_tx_isolation Sys_tx_isolation(
        SESSION_VAR(tx_isolation), NO_CMD_LINE,
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation));
+
+
+/**
+  Can't change the tx_read_only state if we are already in a
+  transaction.
+*/
+
+static bool check_tx_read_only(sys_var *self, THD *thd, set_var *var)
+{
+  if (var->type == OPT_DEFAULT && thd->in_active_multi_stmt_transaction())
+  {
+    DBUG_ASSERT(thd->in_multi_stmt_transaction_mode());
+    my_error(ER_CANT_CHANGE_TX_CHARACTERISTICS, MYF(0));
+    return true;
+  }
+  return false;
+}
+
+
+bool Sys_var_tx_read_only::session_update(THD *thd, set_var *var)
+{
+  if (var->type == OPT_SESSION && Sys_var_mybool::session_update(thd, var))
+    return true;
+  if (var->type == OPT_DEFAULT || !thd->in_active_multi_stmt_transaction())
+  {
+    // @see Sys_var_tx_isolation::session_update() above for the rules.
+    thd->tx_read_only= var->save_result.ulonglong_value;
+  }
+  return false;
+}
+
+
+static Sys_var_tx_read_only Sys_tx_read_only(
+       "tx_read_only", "Set default transaction access mode to read only.",
+       SESSION_VAR(tx_read_only), NO_CMD_LINE, DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_read_only));
 
 static Sys_var_ulonglong Sys_tmp_table_size(
        "tmp_table_size",
@@ -3101,7 +3247,7 @@ static Sys_var_have Sys_have_geometry(
 
 static Sys_var_have Sys_have_openssl(
        "have_openssl", "have_openssl",
-       READ_ONLY GLOBAL_VAR(have_ssl), NO_CMD_LINE);
+       READ_ONLY GLOBAL_VAR(have_openssl), NO_CMD_LINE);
 
 static Sys_var_have Sys_have_profiling(
        "have_profiling", "have_profiling",
@@ -3254,71 +3400,18 @@ static Sys_var_mybool Sys_relay_log_recovery(
        "processed",
        GLOBAL_VAR(relay_log_recovery), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-bool Sys_var_rpl_filter::do_check(THD *thd, set_var *var)
-{
-  bool status;
-
-  /*
-    We must not be holding LOCK_global_system_variables here, otherwise we can
-    deadlock with THD::init() which is invoked from within the slave threads
-    with opposite locking order.
-  */
-  mysql_mutex_assert_not_owner(&LOCK_global_system_variables);
-
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-
-  status= active_mi->rli.slave_running;
-
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  if (status)
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-  else
-    status= Sys_var_charptr::do_string_check(thd, var, charset(thd));
-
-  return status;
-}
-
-void Sys_var_rpl_filter::lock(void)
-{
-  /*
-    Starting a slave thread causes the new thread to attempt to
-    acquire LOCK_global_system_variables (in THD::init) while
-    LOCK_active_mi is being held by the thread that initiated
-    the process. In order to not violate the lock order, unlock
-    LOCK_global_system_variables before grabbing LOCK_active_mi.
-  */
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-}
-
-void Sys_var_rpl_filter::unlock(void)
-{
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-
-  mysql_mutex_lock(&LOCK_global_system_variables);
-}
 
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
-  bool slave_running, status= false;
+  bool result= true;                            // Assume error
 
-  lock();
-
-  if (! (slave_running= active_mi->rli.slave_running))
-    status= set_filter_value(var->save_result.string_value.str);
-
-  if (slave_running)
-    my_error(ER_SLAVE_MUST_STOP, MYF(0));
-
-  unlock();
-
-  return slave_running || status;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!master_info_index->give_error_if_slave_running())
+    result= set_filter_value(var->save_result.string_value.str);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return result;
 }
 
 bool Sys_var_rpl_filter::set_filter_value(const char *value)
@@ -3356,8 +3449,6 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
 
   tmp.length(0);
 
-  lock();
-
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
     rpl_filter->get_do_db(&tmp);
@@ -3378,8 +3469,6 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
     rpl_filter->get_wild_ignore_table(&tmp);
     break;
   }
-
-  unlock();
 
   return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
 }
@@ -3430,72 +3519,105 @@ static Sys_var_charptr Sys_slave_load_tmpdir(
        READ_ONLY GLOBAL_VAR(slave_load_tmpdir), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(0));
 
-static bool fix_slave_net_timeout(sys_var *self, THD *thd, enum_var_type type)
-{
-  DEBUG_SYNC(thd, "fix_slave_net_timeout");
-
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_active_mi);
-  DBUG_PRINT("info", ("slave_net_timeout=%u mi->heartbeat_period=%.3f",
-                     slave_net_timeout,
-                     (active_mi? active_mi->heartbeat_period : 0.0)));
-  if (active_mi && slave_net_timeout < active_mi->heartbeat_period)
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                        ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX,
-                        ER(ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX));
-  mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return false;
-}
 static Sys_var_uint Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
-       "from a master/slave connection before aborting the read",
+       "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_slave_net_timeout));
+       ON_UPDATE(0));
 
-static bool check_slave_skip_counter(sys_var *self, THD *thd, set_var *var)
+
+/*
+  Access a multi_source variable
+  Return 0 + warning if it doesn't exist
+*/
+
+uint Sys_var_multi_source_ulong::
+get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
-  bool result= false;
+  Master_info *mi;
+  uint res= 0;                                  // Default value
   mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  if (active_mi->rli.slave_running)
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_WARN);
+  if (mi)
   {
-    my_message(ER_SLAVE_MUST_STOP, ER(ER_SLAVE_MUST_STOP), MYF(0));
-    result= true;
+    mysql_mutex_lock(&mi->rli.data_lock);
+    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    mysql_mutex_unlock(&mi->rli.data_lock);
   }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
+  mysql_mutex_unlock(&LOCK_active_mi);    
+  return res;
+}
+  
+
+bool update_multi_source_variable(sys_var *self_var, THD *thd,
+                                  enum_var_type type)
+{
+  Sys_var_multi_source_ulong *self= (Sys_var_multi_source_ulong*) self_var;
+  bool result= true;
+  Master_info *mi;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  mi= master_info_index->
+    get_master_info(&thd->variables.default_master_connection,
+                    MYSQL_ERROR::WARN_LEVEL_ERROR);
+  if (mi)
+  {
+    mysql_mutex_lock(&mi->rli.run_lock);
+    mysql_mutex_lock(&mi->rli.data_lock);
+    result= self->update_variable(thd, mi);
+    mysql_mutex_unlock(&mi->rli.data_lock);
+    mysql_mutex_unlock(&mi->rli.run_lock);
+  }
   mysql_mutex_unlock(&LOCK_active_mi);
   return result;
 }
-static bool fix_slave_skip_counter(sys_var *self, THD *thd, enum_var_type type)
+
+static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_lock(&LOCK_active_mi);
-  mysql_mutex_lock(&active_mi->rli.run_lock);
-  /*
-    The following test should normally never be true as we test this
-    in the check function;  To be safe against multiple
-    SQL_SLAVE_SKIP_COUNTER request, we do the check anyway
-  */
-  if (!active_mi->rli.slave_running)
+  if (mi->rli.slave_running)
   {
-    mysql_mutex_lock(&active_mi->rli.data_lock);
-    active_mi->rli.slave_skip_counter= sql_slave_skip_counter;
-    mysql_mutex_unlock(&active_mi->rli.data_lock);
+    my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
+             mi->connection_name.str);
+    return true;
   }
-  mysql_mutex_unlock(&active_mi->rli.run_lock);
-  mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  return 0;
+  /* The value was stored temporarly in thd */
+  mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
+  return false;
 }
-static Sys_var_uint Sys_slave_skip_counter(
-       "sql_slave_skip_counter", "sql_slave_skip_counter",
-       GLOBAL_VAR(sql_slave_skip_counter), NO_CMD_LINE,
-       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_slave_skip_counter),
-       ON_UPDATE(fix_slave_skip_counter));
+
+
+static Sys_var_multi_source_ulong
+Sys_slave_skip_counter("sql_slave_skip_counter",
+                       "Skip the next N events from the master log",
+                       SESSION_VAR(slave_skip_counter),
+                       NO_CMD_LINE,
+                       my_offsetof(Master_info, rli.slave_skip_counter),
+                       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+                       ON_UPDATE(update_slave_skip_counter));
+
+
+static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
+{
+  mi->rli.max_relay_log_size= thd->variables.max_relay_log_size;
+  mi->rli.relay_log.set_max_size(mi->rli.max_relay_log_size);
+  return false;
+}
+
+static Sys_var_multi_source_ulong
+Sys_max_relay_log_size( "max_relay_log_size",
+                        "relay log will be rotated automatically when the "
+                        "size exceeds this value.  If 0 are startup, it's "
+                        "set to max_binlog_size",
+                        SESSION_VAR(max_relay_log_size),
+                        CMD_LINE(REQUIRED_ARG),
+                        my_offsetof(Master_info, rli.max_relay_log_size),
+                        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
+                        BLOCK_SIZE(IO_SIZE),
+                        ON_UPDATE(update_max_relay_log_size));
 
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
@@ -3790,6 +3912,15 @@ static Sys_var_ulong Sys_progress_report_time(
        "time-consuming statements. Set to 0 to disable progress reporting.",
        SESSION_VAR(progress_report_time), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(56), BLOCK_SIZE(1));
+
+const char *use_stat_tables_modes[] =
+           {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
+static Sys_var_enum Sys_optimizer_use_stat_tables(
+       "use_stat_tables",
+       "Specifies how to use system statistics tables. Possible values are "
+       "NEVER, COMPLEMENTARY, PREVERABLY",
+       SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
+       use_stat_tables_modes, DEFAULT(0));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",

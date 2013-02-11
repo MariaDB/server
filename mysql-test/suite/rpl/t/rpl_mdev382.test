@@ -22,7 +22,7 @@ rollback to savepoint `a``; create database couldbebadthingshere; savepoint ``du
 insert into t1 values (3);
 commit;
 
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 
 # This failed due to syntax error in query when the bug was not fixed.
 sync_slave_with_master;
@@ -58,7 +58,7 @@ insert into t1 values(18);
 COMMIT;
 set sql_quote_show_create = 1;
 
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 
 --echo *** Test correct USE statement in SHOW BINLOG EVENTS ***
 connection master;
@@ -70,13 +70,13 @@ CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM;
 INSERT INTO t1 VALUES (1);
 set sql_mode = '';
 INSERT INTO t1 VALUES (2);
-set sql_mode = 'ANSI_QUOTES';
---source include/show_binlog_events.inc
+set sql_mode =  'ANSI_QUOTES';
+--source include/show_binlog_events2.inc
 set sql_mode = '';
 set sql_quote_show_create = 0;
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 set sql_quote_show_create = 1;
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 DROP TABLE t1;
 
 use test;
@@ -112,7 +112,7 @@ eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/f''le.txt'
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_regex /LOCAL INFILE '.*SQL_LOAD.*' INTO/LOCAL INFILE '<name>' INTO/
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MYSQLD_DATADIR/master-bin.000001
@@ -146,7 +146,7 @@ eval LOAD DATA INFILE '$load_file' INTO TABLE t1
   (a, @b) SET b = CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b);
 
 SELECT * FROM t1 ORDER BY a;
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 
 sync_slave_with_master;
 connection slave;
@@ -166,7 +166,7 @@ SELECT @`a``1`:=a1, @`a``2`:=a2, @`a``3`:=a3, @`a``4`:=a4, @`b```:=b, @```c`:=c,
 INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98));
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 $MYSQLD_DATADIR/master-bin.000001
 
@@ -233,7 +233,7 @@ let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 SELECT * FROM `db1``; select 'oops!'`.`t``1`;
 
 --echo # The DELETE statement should be correctly quoted
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 
 connection slave;
 --source include/start_slave.inc
@@ -257,7 +257,7 @@ DROP DATABASE `db1``; select 'oops!'`;
 CREATE TABLE t1 (a INT PRIMARY KEY);
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
 INSERT INTO t1 VALUES(1);
---source include/show_binlog_events.inc
+--source include/show_binlog_events2.inc
 let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1);
 --exec $MYSQL_BINLOG --short-form --start-position=$binlog_start --stop-position=$pos2 --rewrite-db='test->ts`et' $MYSQLD_DATADIR/master-bin.000002
 DROP TABLE t1;

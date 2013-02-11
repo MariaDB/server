@@ -340,8 +340,10 @@ int prepare_linux_info()
 */
 int fill_linux_info(THD *thd, TABLE_LIST *tables)
 {
+#if defined(HAVE_SYS_UTSNAME_H) || defined(TARGET_OS_LINUX)
   TABLE *table= tables->table;
   CHARSET_INFO *cs= system_charset_info;
+#endif
 
 #ifdef HAVE_SYS_UTSNAME_H
   if (have_ubuf)

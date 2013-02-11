@@ -75,7 +75,7 @@ void my_error(int nr, myf MyFlags, ...)
   va_list args;
   char ebuff[ERRMSGSIZE];
   DBUG_ENTER("my_error");
-  DBUG_PRINT("my", ("nr: %d  MyFlags: %d  errno: %d", nr, MyFlags, errno));
+  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d", nr, MyFlags, errno));
 
   /* Search for the error messages array, which could contain the message. */
   for (meh_p= my_errmsgs_list; meh_p; meh_p= meh_p->meh_next)
@@ -114,7 +114,7 @@ void my_printf_error(uint error, const char *format, myf MyFlags, ...)
   va_list args;
   char ebuff[ERRMSGSIZE];
   DBUG_ENTER("my_printf_error");
-  DBUG_PRINT("my", ("nr: %d  MyFlags: %d  errno: %d  format: %s",
+  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d  format: %s",
 		    error, MyFlags, errno, format));
 
   va_start(args,MyFlags);
@@ -140,7 +140,7 @@ void my_printv_error(uint error, const char *format, myf MyFlags, va_list ap)
 {
   char ebuff[ERRMSGSIZE];
   DBUG_ENTER("my_printv_error");
-  DBUG_PRINT("my", ("nr: %d  MyFlags: %d  errno: %d  format: %s",
+  DBUG_PRINT("my", ("nr: %d  MyFlags: %lu  errno: %d  format: %s",
 		    error, MyFlags, errno, format));
 
   (void) my_vsnprintf(ebuff, sizeof(ebuff), format, ap);

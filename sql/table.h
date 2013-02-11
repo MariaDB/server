@@ -29,6 +29,7 @@
 #include "handler.h"                /* row_type, ha_choice, handler */
 #include "mysql_com.h"              /* enum_field_types */
 #include "thr_lock.h"                  /* thr_lock_type */
+#include "filesort_utils.h"
 
 /* Structs that defines the TABLE */
 
@@ -45,6 +46,7 @@ struct TABLE_LIST;
 class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
+class Table_statistics;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -306,11 +308,13 @@ enum enum_vcol_update_mode
   VCOL_UPDATE_ALL
 };
 
-typedef struct st_filesort_info
+class Filesort_info
 {
+  /// Buffer for sorting keys.
+  Filesort_buffer filesort_buffer;
+
+public:
   IO_CACHE *io_cache;           /* If sorted through filesort */
-  uchar     **sort_keys;        /* Buffer for sorting keys */
-  uint      keys;               /* Number of key pointers in buffer */
   uchar     *buffpek;           /* Buffer for buffpek structures */
   uint      buffpek_len;        /* Max number of buffpeks in the buffer */
   uchar     *addon_buf;         /* Pointer to a buffer if sorted with fields */
@@ -319,28 +323,40 @@ typedef struct st_filesort_info
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *); /* To unpack back */
   uchar     *record_pointers;    /* If sorted in memory */
   ha_rows   found_records;      /* How many records in sort */
-} FILESORT_INFO;
 
+  /** Sort filesort_buffer */
+  void sort_buffer(Sort_param *param, uint count)
+  { filesort_buffer.sort_buffer(param, count); }
 
-/*
-  Values in this enum are used to indicate how a tables TIMESTAMP field
-  should be treated. It can be set to the current timestamp on insert or
-  update or both.
-  WARNING: The values are used for bit operations. If you change the
-  enum, you must keep the bitwise relation of the values. For example:
-  (int) TIMESTAMP_AUTO_SET_ON_BOTH must be equal to
-  (int) TIMESTAMP_AUTO_SET_ON_INSERT | (int) TIMESTAMP_AUTO_SET_ON_UPDATE.
-  We use an enum here so that the debugger can display the value names.
-*/
-enum timestamp_auto_set_type
-{
-  TIMESTAMP_NO_AUTO_SET= 0, TIMESTAMP_AUTO_SET_ON_INSERT= 1,
-  TIMESTAMP_AUTO_SET_ON_UPDATE= 2, TIMESTAMP_AUTO_SET_ON_BOTH= 3
+  /**
+     Accessors for Filesort_buffer (which @c).
+  */
+  uchar *get_record_buffer(uint idx)
+  { return filesort_buffer.get_record_buffer(idx); }
+
+  uchar **get_sort_keys()
+  { return filesort_buffer.get_sort_keys(); }
+
+  uchar **alloc_sort_buffer(uint num_records, uint record_length)
+  { return filesort_buffer.alloc_sort_buffer(num_records, record_length); }
+
+  bool check_sort_buffer_properties(uint num_records, uint record_length)
+  {
+    return filesort_buffer.check_sort_buffer_properties(num_records,
+                                                        record_length);
+  }
+
+  void free_sort_buffer()
+  { filesort_buffer.free_sort_buffer(); }
+
+  void init_record_pointers()
+  { filesort_buffer.init_record_pointers(); }
+
+  size_t sort_buffer_size() const
+  { return filesort_buffer.sort_buffer_size(); }
 };
-#define clear_timestamp_auto_bits(_target_, _bits_) \
-  (_target_)= (enum timestamp_auto_set_type)((int)(_target_) & ~(int)(_bits_))
 
-class Field_timestamp;
+
 class Field_blob;
 class Table_triggers_list;
 
@@ -547,6 +563,21 @@ typedef I_P_List <Wait_for_flush,
 
 
 /**
+  Control block to access table statistics loaded 
+  from persistent statistical tables
+*/
+
+struct TABLE_STATISTICS_CB
+{
+  MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
+  Table_statistics *table_stats; /* Structure to access the statistical data */
+  bool stats_can_be_read;        /* Memory for statistical data is allocated */
+  bool stats_is_read;            /* Statistical data for table has been read
+                                    from statistical tables */   
+};
+
+
+/**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
 */
@@ -580,9 +611,10 @@ struct TABLE_SHARE
   /* The following is copied to each TABLE on OPEN */
   Field **field;
   Field **found_next_number_field;
-  Field *timestamp_field;               /* Used only during open */
   KEY  *key_info;			/* data of keys in database */
   uint	*blob_field;			/* Index to blobs in Field arrray*/
+
+  TABLE_STATISTICS_CB stats_cb;
 
   uchar	*default_values;		/* row with default values */
   LEX_STRING comment;			/* Comment about table */
@@ -652,7 +684,6 @@ struct TABLE_SHARE
   uint uniques;                         /* Number of UNIQUE index */
   uint null_fields;			/* number of null fields */
   uint blob_fields;			/* number of blob fields */
-  uint timestamp_field_offset;		/* Field number for timestamp field */
   uint varchar_fields;                  /* number of varchar fields */
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
@@ -667,6 +698,7 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
   uint vfields;                         /* Number of computed (virtual) fields */
+  uint default_fields;                  /* Number of default fields */
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
@@ -979,8 +1011,9 @@ public:
 
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
-  Field_timestamp *timestamp_field;
   Field **vfield;                       /* Pointer to virtual fields*/
+  /* Fields that are updated automatically on INSERT or UPDATE. */
+  Field **default_field;
 
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
@@ -1014,6 +1047,15 @@ public:
   */
   query_id_t	query_id;
 
+  /*
+    This structure is used for statistical data on the table that
+    is collected by the function collect_statistics_for_table
+  */
+  Table_statistics *collected_stats;
+
+  /* The estimate of the number of records in the table used by optimizer */ 
+  ha_rows used_stat_records;
+
   /* 
     For each key that has quick_keys.is_set(key) == TRUE: estimate of #records
     and max #key parts that range access would use.
@@ -1036,19 +1078,6 @@ public:
   */
   ha_rows       quick_condition_rows;
 
-  /*
-    If this table has TIMESTAMP field with auto-set property (pointed by
-    timestamp_field member) then this variable indicates during which
-    operations (insert only/on update/in both cases) we should set this
-    field to current timestamp. If there are no such field in this table
-    or we should not automatically set its value during execution of current
-    statement then the variable contains TIMESTAMP_NO_AUTO_SET (i.e. 0).
-
-    Value of this variable is set for each statement in open_table() and
-    if needed cleared later in statement processing code (see mysql_update()
-    as example).
-  */
-  timestamp_auto_set_type timestamp_field_type;
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 
   uint          lock_position;          /* Position in MYSQL_LOCK.table */
@@ -1118,7 +1147,12 @@ public:
     See TABLE_LIST::process_index_hints().
   */
   bool force_index_group;
-  bool distinct,const_table,no_rows, used_for_duplicate_elimination;
+  /*
+    TRUE<=> this table was created with create_tmp_table(... distinct=TRUE..)
+    call
+  */
+  bool distinct;
+  bool const_table,no_rows, used_for_duplicate_elimination;
 
   /**
      If set, the optimizer has found that row retrieval should access index 
@@ -1148,7 +1182,7 @@ public:
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
   GRANT_INFO grant;
-  FILESORT_INFO sort;
+  Filesort_info sort;
   /*
     The arena which the items for expressions from the table definition
     are associated with.  
@@ -1162,6 +1196,7 @@ public:
   bool no_partitions_used; /* If true, all partitions have been pruned away */
 #endif
   uint max_keys; /* Size of allocated key_info array. */
+  bool stats_is_read;     /* Persistent statistics is read for the table */
   MDL_ticket *mdl_ticket;
 
   void init(THD *thd, TABLE_LIST *tl);
@@ -1179,6 +1214,8 @@ public:
   void mark_columns_needed_for_insert(void);
   bool mark_virtual_col(Field *field);
   void mark_virtual_columns_for_write(bool insert_fl);
+  void mark_default_fields_for_write();
+  bool has_default_function(bool is_update);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg,
                                  MY_BITMAP *write_set_arg)
   {
@@ -1265,6 +1302,8 @@ public:
   bool update_const_key_parts(COND *conds);
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
+  int update_default_fields();
+  inline ha_rows stat_records() { return used_stat_records; }
 };
 
 
@@ -2373,6 +2412,9 @@ void init_mdl_requests(TABLE_LIST *table_list);
 int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
                           uint db_stat, uint prgflag, uint ha_open_flags,
                           TABLE *outparam, bool is_create_table);
+bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
+                               TABLE *table, Field *field,
+                               LEX_STRING *vcol_expr, bool *error_reported);
 TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
                                uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,

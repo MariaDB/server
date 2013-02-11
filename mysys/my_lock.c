@@ -144,7 +144,7 @@ int my_lock(File fd, int locktype, my_off_t start, my_off_t length,
 #endif
 
   DBUG_ENTER("my_lock");
-  DBUG_PRINT("my",("fd: %d  Op: %d  start: %ld  Length: %ld  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d  Op: %d  start: %ld  Length: %ld  MyFlags: %lu",
 		   fd,locktype,(long) start,(long) length,MyFlags));
   if (my_disable_locking && ! (MyFlags & MY_FORCE_LOCK))
     DBUG_RETURN(0);

@@ -241,8 +241,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
          (real_table_name= field->field->table->s->table_name.str))
         break;
     }
-    if ((thd->variables.sql_mode &
-         (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
+    if (thd->is_strict_mode())
     {
       my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
                real_table_name, static_cast<ulong>(TABLE_COMMENT_MAXLEN));
@@ -282,7 +281,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   }
 
   key_buff_length= uint4korr(fileinfo+47);
-  keybuff=(uchar*) my_malloc(key_buff_length, MYF(0));
+  keybuff=(uchar*) my_malloc(key_buff_length, MYF(MY_THREAD_SPECIFIC));
   key_info_length= pack_keys(keybuff, keys, key_info, data_offset);
 
   /*
@@ -534,7 +533,7 @@ static uchar *pack_screens(List<Create_field> &create_fields,
   while ((field=it++))
     length+=(uint) strlen(field->field_name)+1+TE_INFO_LENGTH+cols/2;
 
-  if (!(info=(uchar*) my_malloc(length,MYF(MY_WME))))
+  if (!(info=(uchar*) my_malloc(length,MYF(MY_WME | MY_THREAD_SPECIFIC))))
     DBUG_RETURN(0);
 
   start_screen=0;
@@ -707,8 +706,7 @@ static bool pack_header(uchar *forminfo, enum legacy_db_type table_type,
                                                      COLUMN_COMMENT_MAXLEN);
     if (tmp_len < field->comment.length)
     {
-      if ((current_thd->variables.sql_mode &
-	   (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
+      if (current_thd->is_strict_mode())
       {
         my_error(ER_TOO_LONG_FIELD_COMMENT, MYF(0), field->field_name,
                  static_cast<ulong>(COLUMN_COMMENT_MAXLEN));
@@ -1108,7 +1106,9 @@ static bool make_empty_rec(THD *thd, File file,enum legacy_db_type table_type,
   bzero((char*) &share, sizeof(share));
   table.s= &share;
 
-  if (!(buff=(uchar*) my_malloc((size_t) reclength,MYF(MY_WME | MY_ZEROFILL))))
+  if (!(buff=(uchar*) my_malloc((size_t) reclength,
+                                MYF(MY_WME | MY_ZEROFILL |
+                                    MY_THREAD_SPECIFIC))))
   {
     DBUG_RETURN(1);
   }

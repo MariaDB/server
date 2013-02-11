@@ -25,14 +25,14 @@ user() like _latin1"%@%"
 select charset(user());
 charset(user())
 utf8
-select version()>="3.23.29";
-version()>="3.23.29"
+select version()>="03.23.29";
+version()>="03.23.29"
 1
-select version()>=_utf8"3.23.29";
-version()>=_utf8"3.23.29"
+select version()>=_utf8"03.23.29";
+version()>=_utf8"03.23.29"
 1
-select version()>=_latin1"3.23.29";
-version()>=_latin1"3.23.29"
+select version()>=_latin1"03.23.29";
+version()>=_latin1"03.23.29"
 1
 select charset(version());
 charset(version())

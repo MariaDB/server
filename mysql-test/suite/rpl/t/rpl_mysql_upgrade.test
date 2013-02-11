@@ -6,6 +6,7 @@
 # statements are binlogged or not. 
 #############################################################################
 --source include/master-slave.inc
+--source include/have_innodb.inc
 
 # Only run test if "mysql_upgrade" is found
 --source include/have_mysql_upgrade.inc

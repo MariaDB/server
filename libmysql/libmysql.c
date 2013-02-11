@@ -1520,8 +1520,8 @@ mysql_stmt_init(MYSQL *mysql)
     DBUG_RETURN(NULL);
   }
 
-  init_alloc_root(&stmt->mem_root, 2048, 2048);
-  init_alloc_root(&stmt->result.alloc, 4096, 4096);
+  init_alloc_root(&stmt->mem_root, 2048, 2048, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&stmt->result.alloc, 4096, 4096, MYF(MY_THREAD_SPECIFIC));
   stmt->result.alloc.min_malloc= sizeof(MYSQL_ROWS);
   mysql->stmts= list_add(mysql->stmts, &stmt->list);
   stmt->list.data= stmt;
@@ -1532,7 +1532,8 @@ mysql_stmt_init(MYSQL *mysql)
   strmov(stmt->sqlstate, not_error_sqlstate);
   /* The rest of statement members was bzeroed inside malloc */
 
-  init_alloc_root(&stmt->extension->fields_mem_root, 2048, 0);
+  init_alloc_root(&stmt->extension->fields_mem_root, 2048, 0,
+                  MYF(MY_THREAD_SPECIFIC));
 
   DBUG_RETURN(stmt);
 }

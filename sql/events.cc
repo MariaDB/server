@@ -306,7 +306,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
                      bool if_not_exists)
 {
   bool ret;
-  bool save_binlog_row_based, event_already_exists;
+  bool event_already_exists;
+  enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::create_event");
 
   if (check_if_system_tables_error())
@@ -338,8 +339,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
     Turn off row binlogging of this statement and use statement-based 
     so that all supporting tables are updated for CREATE EVENT command.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
@@ -398,10 +398,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
       }
     }
   }
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
+
+  thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(ret);
 }
@@ -431,7 +429,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
                      LEX_STRING *new_dbname, LEX_STRING *new_name)
 {
   int ret;
-  bool save_binlog_row_based;
+  enum_binlog_format save_binlog_format;
   Event_queue_element *new_element;
 
   DBUG_ENTER("Events::update_event");
@@ -478,8 +476,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
     Turn off row binlogging of this statement and use statement-based 
     so that all supporting tables are updated for UPDATE EVENT command.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
@@ -513,11 +510,8 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
       ret= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
     }
   }
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
 
+  thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
 }
 
@@ -550,7 +544,7 @@ bool
 Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
 {
   int ret;
-  bool save_binlog_row_based;
+  enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::drop_event");
 
   if (check_if_system_tables_error())
@@ -563,8 +557,7 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
     Turn off row binlogging of this statement and use statement-based so
     that all supporting tables are updated for DROP EVENT command.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        dbname.str, name.str))
@@ -578,10 +571,8 @@ Events::drop_event(THD *thd, LEX_STRING dbname, LEX_STRING name, bool if_exists)
     DBUG_ASSERT(thd->query() && thd->query_length());
     ret= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
   }
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
+
+  thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
 }
 
@@ -888,7 +879,7 @@ end:
   }
   delete thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  NULL);
+  set_current_thd(0);
 
   DBUG_RETURN(res);
 }
@@ -947,23 +938,37 @@ static PSI_thread_info all_events_threads[]=
   { &key_thread_event_scheduler, "event_scheduler", PSI_FLAG_GLOBAL},
   { &key_thread_event_worker, "event_worker", 0}
 };
+#endif /* HAVE_PSI_INTERFACE */
+
+PSI_stage_info stage_waiting_on_empty_queue= { 0, "Waiting on empty queue", 0};
+PSI_stage_info stage_waiting_for_next_activation= { 0, "Waiting for next activation", 0};
+PSI_stage_info stage_waiting_for_scheduler_to_stop= { 0, "Waiting for the scheduler to stop", 0};
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_stage_info *all_events_stages[]=
+{
+  & stage_waiting_on_empty_queue,
+  & stage_waiting_for_next_activation,
+  & stage_waiting_for_scheduler_to_stop
+};
 
 static void init_events_psi_keys(void)
 {
   const char* category= "sql";
   int count;
 
-  if (PSI_server == NULL)
-    return;
-
   count= array_elements(all_events_mutexes);
-  PSI_server->register_mutex(category, all_events_mutexes, count);
+  mysql_mutex_register(category, all_events_mutexes, count);
 
   count= array_elements(all_events_conds);
-  PSI_server->register_cond(category, all_events_conds, count);
+  mysql_cond_register(category, all_events_conds, count);
 
   count= array_elements(all_events_threads);
-  PSI_server->register_thread(category, all_events_threads, count);
+  mysql_thread_register(category, all_events_threads, count);
+
+  count= array_elements(all_events_stages);
+  mysql_stage_register(category, all_events_stages, count);
+
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -1063,13 +1068,19 @@ Events::load_events_from_db(THD *thd)
     NOTE: even if we run in read-only mode, we should be able to lock the
     mysql.event table for writing. In order to achieve this, we should call
     mysql_lock_tables() under the super user.
+
+    Same goes for transaction access mode.
+    Temporarily reset it to read-write.
   */
 
   saved_master_access= thd->security_ctx->master_access;
   thd->security_ctx->master_access |= SUPER_ACL;
+  bool save_tx_read_only= thd->tx_read_only;
+  thd->tx_read_only= false;
 
   ret= db_repository->open_event_table(thd, TL_WRITE, &table);
 
+  thd->tx_read_only= save_tx_read_only;
   thd->security_ctx->master_access= saved_master_access;
 
   if (ret)

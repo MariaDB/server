@@ -222,7 +222,8 @@ mysql_event_fill_row(THD *thd,
       Safety: this can only happen if someone started the server
       and then altered mysql.event.
     */
-    my_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED, MYF(0), table->alias.c_ptr(),
+    my_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2, MYF(0),
+             table->s->db.str, table->alias.c_ptr(),
              (int) ET_FIELD_COUNT, table->s->fields);
     DBUG_RETURN(TRUE);
   }
@@ -432,7 +433,7 @@ Event_db_repository::index_read_for_db_for_i_s(THD *thd, TABLE *schema_table,
       key_info->key_part[0].field != event_table->field[ET_FIELD_DB])
   {
     /* Corrupted table: no index or index on a wrong column */
-    my_error(ER_CANNOT_LOAD_FROM_TABLE, MYF(0), "event");
+    my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "event");
     ret= 1;
     goto end;
   }
@@ -835,9 +836,6 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
                               (int) table->field[ET_FIELD_ON_COMPLETION]->val_int()))
     goto end;
 
-  /* Don't update create on row update. */
-  table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
-
   /*
     mysql_event_fill_row() calls my_error() in case of error so no need to
     handle it here
@@ -1090,7 +1088,7 @@ Event_db_repository::load_named_event(THD *thd, LEX_STRING dbname,
     if ((ret= find_named_event(dbname, name, event_table.table)))
       my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name.str);
     else if ((ret= etn->load_from_row(thd, event_table.table)))
-      my_error(ER_CANNOT_LOAD_FROM_TABLE, MYF(0), "event");
+      my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "event");
 
     close_system_tables(thd, &open_tables_backup);
   }
@@ -1118,17 +1116,15 @@ update_timing_fields_for_event(THD *thd,
   TABLE *table= NULL;
   Field **fields;
   int ret= 1;
-  bool save_binlog_row_based;
+  enum_binlog_format save_binlog_format;
   MYSQL_TIME time;
-
   DBUG_ENTER("Event_db_repository::update_timing_fields_for_event");
 
   /*
     Turn off row binlogging of event timing updates. These are not used
     for RBR of events replicated to the slave.
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   DBUG_ASSERT(thd->security_ctx->master_access & SUPER_ACL);
 
@@ -1141,8 +1137,6 @@ update_timing_fields_for_event(THD *thd,
     goto end;
 
   store_record(table, record[1]);
-  /* Don't update create on row update. */
-  table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
 
   my_tz_OFFSET0->gmt_sec_to_TIME(&time, last_executed);
   fields[ET_FIELD_LAST_EXECUTED]->set_notnull();
@@ -1163,10 +1157,7 @@ end:
   if (table)
     close_mysql_tables(thd);
 
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
+  thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(test(ret));
 }

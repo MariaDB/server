@@ -44,6 +44,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql-common/client_plugin.c ../sql-common/mysql_async.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
            ../sql/field.cc ../sql/field_conv.cc
+           ../sql/filesort_utils.cc
            ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
@@ -69,11 +70,13 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_lex.cc ../sql/keycaches.cc
            ../sql/sql_list.cc ../sql/sql_load.cc ../sql/sql_locale.cc 
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
-           ../sql/sql_parse.cc ../sql/sql_partition.cc ../sql/sql_plugin.cc 
+           ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
+           ../sql/sql_partition.cc ../sql/sql_plugin.cc 
            ../sql/debug_sync.cc ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
            ../sql/sql_select.cc ../sql/sql_servers.cc
-           ../sql/sql_show.cc ../sql/sql_state.c ../sql/sql_string.cc
+           ../sql/sql_show.cc ../sql/sql_state.c 
+           ../sql/sql_statistics.cc ../sql/sql_string.cc
            ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
@@ -95,6 +98,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/create_options.cc ../sql/rpl_utility.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
+           ../sql/my_apc.cc ../sql/my_apc.h
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -146,8 +150,21 @@ IF(UNIX)
   ${CMAKE_STATIC_LIBRARY_PREFIX}mysqld-debug)
 ENDIF()
 
+# List of exported functions in embedded (client api except client plugin or 
+# async (*_start/*_cont functions)
+
+SET(EMBEDDED_API)
+
+FOREACH(f ${CLIENT_API_FUNCTIONS})
+  IF(f MATCHES "plugin|_start$|_cont$")
+    # Ignore functions, embedded does not export them
+  ELSE()
+    SET(EMBEDDED_API ${EMBEDDED_API} ${f})
+  ENDIF()	
+ENDFOREACH()
+
 IF(NOT DISABLE_SHARED)
-  MERGE_LIBRARIES(libmysqld SHARED mysqlserver EXPORTS ${CLIENT_API_FUNCTIONS}
+  MERGE_LIBRARIES(libmysqld SHARED mysqlserver EXPORTS ${EMBEDDED_API}
     COMPONENT Server) 
   IF(UNIX)
     # Name the shared library, handle versioning (provides same api as client

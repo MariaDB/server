@@ -1922,7 +1922,7 @@ bool Item_allany_subselect::is_maxmin_applicable(JOIN *join)
     WHERE condition.
   */
   return (abort_on_null || (upper_item && upper_item->is_top_level_item())) &&
-      !join->select_lex->master_unit()->uncacheable && !func->eqne_op();
+      !(join->select_lex->master_unit()->uncacheable & ~UNCACHEABLE_EXPLAIN) && !func->eqne_op();
 }
 
 
@@ -4566,7 +4566,7 @@ double get_fanout_with_deps(JOIN *join, table_map tset)
         !tab->emb_sj_nest && 
         tab->records_read != 0)
     {
-      fanout *= rows2double(tab->records_read);
+      fanout *= tab->records_read;
     }
   } 
   return fanout;
@@ -5066,7 +5066,7 @@ bool Ordered_key::alloc_keys_buffers()
   DBUG_ASSERT(key_buff_elements > 0);
 
   if (!(key_buff= (rownum_t*) my_malloc((size_t)(key_buff_elements * 
-    sizeof(rownum_t)), MYF(MY_WME))))
+    sizeof(rownum_t)), MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /*
@@ -5097,7 +5097,8 @@ int
 Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
 {
   uchar *rowid_a, *rowid_b;
-  int error, cmp_res;
+  int __attribute__((unused)) error;
+  int cmp_res;
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
 
@@ -5193,7 +5194,8 @@ int Ordered_key::cmp_key_with_search_key(rownum_t row_num)
   /* The length in bytes of the rowids (positions) of tmp_table. */
   uint rowid_length= tbl->file->ref_length;
   uchar *cur_rowid= row_num_to_rowid + row_num * rowid_length;
-  int error, cmp_res;
+  int __attribute__((unused)) error;
+  int cmp_res;
 
   if ((error= tbl->file->ha_rnd_pos(tbl->record[0], cur_rowid)))
   {
@@ -5491,7 +5493,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
       !(null_bitmaps= (MY_BITMAP**) thd->alloc(merge_keys_count *
                                                sizeof(MY_BITMAP*))) ||
       !(row_num_to_rowid= (uchar*) my_malloc((size_t)(row_count * rowid_length),
-        MYF(MY_WME))))
+        MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /* Create the only non-NULL key if there is any. */

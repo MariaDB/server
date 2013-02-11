@@ -43,6 +43,10 @@ Created 1/8/1996 Heikki Tuuri
 #include "ut0byte.h"
 #include "hash0hash.h"
 #include "trx0types.h"
+#include "fts0fts.h"
+
+/* Forward declaration. */
+typedef struct ib_rbt_struct ib_rbt_t;
 
 /** Type flags of an index: OR'ing of the flags is allowed to define a
 combination of types */
@@ -54,72 +58,147 @@ combination of types */
 #define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
+#define	DICT_FTS	32	/* FTS index; can't be combined with the
+				other flags */
 
-#define	DICT_IT_BITS	5	/*!< number of bits used for
+#define	DICT_IT_BITS	6	/*!< number of bits used for
 				SYS_INDEXES.TYPE */
 /* @} */
 
+#if 0 /* not implemented, retained for history */
 /** Types for a table object */
 #define DICT_TABLE_ORDINARY		1 /*!< ordinary table */
-#if 0 /* not implemented */
 #define	DICT_TABLE_CLUSTER_MEMBER	2
 #define	DICT_TABLE_CLUSTER		3 /* this means that the table is
 					  really a cluster definition */
 #endif
 
-/** Table flags.  All unused bits must be 0. */
-/* @{ */
-#define DICT_TF_COMPACT			1	/* Compact page format.
-						This must be set for
-						new file formats
-						(later than
-						DICT_TF_FORMAT_51). */
+/* Table and tablespace flags are generally not used for the Antelope file
+format except for the low order bit, which is used differently depending on
+where the flags are stored.
 
-/** Compressed page size (0=uncompressed, up to 15 compressed sizes) */
+==================== Low order flags bit =========================
+                    | REDUNDANT | COMPACT | COMPRESSED and DYNAMIC
+SYS_TABLES.TYPE     |     1     |    1    |     1
+dict_table_t::flags |     0     |    1    |     1
+FSP_SPACE_FLAGS     |     0     |    0    |     1
+fil_space_t::flags  |     0     |    0    |     1
+
+Before the 5.1 plugin, SYS_TABLES.TYPE was always DICT_TABLE_ORDINARY (1)
+and the tablespace flags field was always 0. In the 5.1 plugin, these fields
+were repurposed to identify compressed and dynamic row formats.
+
+The following types and constants describe the flags found in dict_table_t
+and SYS_TABLES.TYPE.  Similar flags found in fil_space_t and FSP_SPACE_FLAGS
+are described in fsp0fsp.h. */
+
 /* @{ */
-#define DICT_TF_ZSSIZE_SHIFT		1
-#define DICT_TF_ZSSIZE_MASK		(15 << DICT_TF_ZSSIZE_SHIFT)
-#define DICT_TF_ZSSIZE_MAX (UNIV_PAGE_SIZE_SHIFT - PAGE_ZIP_MIN_SIZE_SHIFT + 1)
+/** SYS_TABLES.TYPE can be equal to 1 which means that the Row format
+is one of two Antelope row formats, Redundant or Compact. */
+#define SYS_TABLE_TYPE_ANTELOPE		1
+/** dict_table_t::flags can be equal to 0 if the row format = Redundant */
+#define DICT_TF_REDUNDANT		0	/*!< Redundant row format. */
+/** dict_table_t::flags can be equal to 1 if the row format = Compact */
+#define DICT_TF_COMPACT			1	/*!< Compact row format. */
+
+/** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
+the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
+#define DICT_N_COLS_COMPACT	0x80000000UL
+
+/** Width of the COMPACT flag */
+#define DICT_TF_WIDTH_COMPACT		1
+/** Width of the ZIP_SSIZE flag */
+#define DICT_TF_WIDTH_ZIP_SSIZE		4
+/** Width of the ATOMIC_BLOBS flag.  The Antelope file formats broke up
+BLOB and TEXT fields, storing the first 768 bytes in the clustered index.
+Brracuda row formats store the whole blob or text field off-page atomically.
+Secondary indexes are created from this external data using row_ext_t
+to cache the BLOB prefixes. */
+#define DICT_TF_WIDTH_ATOMIC_BLOBS	1
+/** Width of all the currently known table flags */
+#define DICT_TF_BITS	(DICT_TF_WIDTH_COMPACT		\
+			+ DICT_TF_WIDTH_ZIP_SSIZE	\
+			+ DICT_TF_WIDTH_ATOMIC_BLOBS)
+
+/** A mask of all the known/used bits in table flags */
+#define DICT_TF_BIT_MASK	(~(~0 << DICT_TF_BITS))
+
+/** Zero relative shift position of the COMPACT field */
+#define DICT_TF_POS_COMPACT		0
+/** Zero relative shift position of the ZIP_SSIZE field */
+#define DICT_TF_POS_ZIP_SSIZE		(DICT_TF_POS_COMPACT		\
+					+ DICT_TF_WIDTH_COMPACT)
+/** Zero relative shift position of the ATOMIC_BLOBS field */
+#define DICT_TF_POS_ATOMIC_BLOBS	(DICT_TF_POS_ZIP_SSIZE		\
+					+ DICT_TF_WIDTH_ZIP_SSIZE)
+/** Zero relative shift position of the start of the UNUSED bits */
+#define DICT_TF_POS_UNUSED		(DICT_TF_POS_ATOMIC_BLOBS	\
+					+ DICT_TF_WIDTH_ATOMIC_BLOBS)
+
+/** Bit mask of the COMPACT field */
+#define DICT_TF_MASK_COMPACT				\
+		((~(~0 << DICT_TF_WIDTH_COMPACT))	\
+		<< DICT_TF_POS_COMPACT)
+/** Bit mask of the ZIP_SSIZE field */
+#define DICT_TF_MASK_ZIP_SSIZE				\
+		((~(~0 << DICT_TF_WIDTH_ZIP_SSIZE))	\
+		<< DICT_TF_POS_ZIP_SSIZE)
+/** Bit mask of the ATOMIC_BLOBS field */
+#define DICT_TF_MASK_ATOMIC_BLOBS			\
+		((~(~0 << DICT_TF_WIDTH_ATOMIC_BLOBS))	\
+		<< DICT_TF_POS_ATOMIC_BLOBS)
+
+/** Return the value of the COMPACT field */
+#define DICT_TF_GET_COMPACT(flags)			\
+		((flags & DICT_TF_MASK_COMPACT)		\
+		>> DICT_TF_POS_COMPACT)
+/** Return the value of the ZIP_SSIZE field */
+#define DICT_TF_GET_ZIP_SSIZE(flags)			\
+		((flags & DICT_TF_MASK_ZIP_SSIZE)	\
+		>> DICT_TF_POS_ZIP_SSIZE)
+/** Return the value of the ATOMIC_BLOBS field */
+#define DICT_TF_HAS_ATOMIC_BLOBS(flags)			\
+		((flags & DICT_TF_MASK_ATOMIC_BLOBS)	\
+		>> DICT_TF_POS_ATOMIC_BLOBS)
+/** Return the contents of the UNUSED bits */
+#define DICT_TF_GET_UNUSED(flags)			\
+		(flags >> DICT_TF_POS_UNUSED)
 /* @} */
 
-/** File format */
-/* @{ */
-#define DICT_TF_FORMAT_SHIFT		5	/* file format */
-#define DICT_TF_FORMAT_MASK		\
-((~(~0 << (DICT_TF_BITS - DICT_TF_FORMAT_SHIFT))) << DICT_TF_FORMAT_SHIFT)
-#define DICT_TF_FORMAT_51		0	/*!< InnoDB/MySQL up to 5.1 */
-#define DICT_TF_FORMAT_ZIP		1	/*!< InnoDB plugin for 5.1:
-						compressed tables,
-						new BLOB treatment */
-/** Maximum supported file format */
-#define DICT_TF_FORMAT_MAX		DICT_TF_FORMAT_ZIP
-
-/** Minimum supported file format */
-#define DICT_TF_FORMAT_MIN		DICT_TF_FORMAT_51
-
-/* @} */
-#define DICT_TF_BITS			6	/*!< number of flag bits */
-#if (1 << (DICT_TF_BITS - DICT_TF_FORMAT_SHIFT)) <= DICT_TF_FORMAT_MAX
-# error "DICT_TF_BITS is insufficient for DICT_TF_FORMAT_MAX"
-#endif
-/* @} */
-
-/** @brief Additional table flags.
+/** @brief Table Flags set number 2.
 
 These flags will be stored in SYS_TABLES.MIX_LEN.  All unused flags
 will be written as 0.  The column may contain garbage for tables
 created with old versions of InnoDB that only implemented
-ROW_FORMAT=REDUNDANT. */
+ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
+for unknown bits in order to protect backward incompatibility. */
 /* @{ */
-#define DICT_TF2_SHIFT			DICT_TF_BITS
-						/*!< Shift value for
-						table->flags. */
-#define DICT_TF2_TEMPORARY		1	/*!< TRUE for tables from
-						CREATE TEMPORARY TABLE. */
-#define DICT_TF2_BITS			(DICT_TF2_SHIFT + 1)
-						/*!< Total number of bits
-						in table->flags. */
+/** Total number of bits in table->flags2. */
+#define DICT_TF2_BITS			5
+#define DICT_TF2_BIT_MASK		~(~0 << DICT_TF2_BITS)
+
+/** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
+#define DICT_TF2_TEMPORARY		1
+/** The table has an internal defined DOC ID column */
+#define DICT_TF2_FTS_HAS_DOC_ID		2
+/** The table has an FTS index */
+#define DICT_TF2_FTS			4
+/** Need to add Doc ID column for FTS index build.
+This is a transient bit for index build */
+#define DICT_TF2_FTS_ADD_DOC_ID		8
+/** This bit is used during table creation to indicate that it will
+use its own tablespace instead of the system tablespace. */
+#define DICT_TF2_USE_TABLESPACE		16
 /* @} */
+
+#define DICT_TF2_FLAG_SET(table, flag)				\
+	(table->flags2 |= (flag))
+
+#define DICT_TF2_FLAG_IS_SET(table, flag)			\
+	(table->flags2 & (flag))
+
+#define DICT_TF2_FLAG_UNSET(table, flag)			\
+	(table->flags2 &= ~(flag))
 
 /** Tables could be chained together with Foreign key constraint. When
 first load the parent table, we would load all of its descedents.
@@ -150,7 +229,8 @@ dict_mem_table_create(
 					is ignored if the table is made
 					a member of a cluster */
 	ulint		n_cols,		/*!< in: number of columns */
-	ulint		flags);		/*!< in: table flags */
+	ulint		flags,		/*!< in: table flags */
+	ulint		flags2);	/*!< in: table flags2 */
 /****************************************************************//**
 Free a table memory object. */
 UNIV_INTERN
@@ -273,14 +353,14 @@ struct dict_col_struct{
 	/** The following are copied from dtype_t,
 	so that all bit-fields can be packed tightly. */
 	/* @{ */
-	unsigned	mtype:8;	/*!< main data type */
-	unsigned	prtype:24;	/*!< precise type; MySQL data
+	unsigned	prtype:32;	/*!< precise type; MySQL data
 					type, charset code, flags to
 					indicate nullability,
 					signedness, whether this is a
 					binary string, whether this is
 					a true VARCHAR where MySQL
 					uses 2 bytes to store the length */
+	unsigned	mtype:8;	/*!< main data type */
 
 	/* the remaining fields do not affect alphabetical ordering: */
 
@@ -327,17 +407,16 @@ files would be at risk! */
 
 /** Find out maximum indexed column length by its table format.
 For ROW_FORMAT=REDUNDANT and ROW_FORMAT=COMPACT, the maximum
-field length is REC_ANTELOPE_MAX_INDEX_COL_LEN - 1 (767). For new
-barracuda format, the length could be REC_VERSION_56_MAX_INDEX_COL_LEN
-(3072) bytes */
+field length is REC_ANTELOPE_MAX_INDEX_COL_LEN - 1 (767). For
+Barracuda row formats COMPRESSED and DYNAMIC, the length could
+be REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes */
 #define DICT_MAX_FIELD_LEN_BY_FORMAT(table)				\
-		((dict_table_get_format(table) < DICT_TF_FORMAT_ZIP)	\
+		((dict_table_get_format(table) < UNIV_FORMAT_B)		\
 			? (REC_ANTELOPE_MAX_INDEX_COL_LEN - 1)		\
 			: REC_VERSION_56_MAX_INDEX_COL_LEN)
 
 #define DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(flags)			\
-		((((flags & DICT_TF_FORMAT_MASK) >> DICT_TF_FORMAT_SHIFT)\
-		    < DICT_TF_FORMAT_ZIP)				\
+		((DICT_TF_HAS_ATOMIC_BLOBS(flags) < UNIV_FORMAT_B)	\
 			? (REC_ANTELOPE_MAX_INDEX_COL_LEN - 1)		\
 			: REC_VERSION_56_MAX_INDEX_COL_LEN)
 
@@ -412,14 +491,19 @@ struct dict_index_struct{
 	/*----------------------*/
 	/** Statistics for query optimization */
 	/* @{ */
-	ib_int64_t*	stat_n_diff_key_vals;
+	ib_uint64_t*	stat_n_diff_key_vals;
 				/*!< approximate number of different
 				key values for this index, for each
 				n-column prefix where n <=
 				dict_get_n_unique(index); we
 				periodically calculate new
 				estimates */
-	ib_int64_t*	stat_n_non_null_key_vals;
+	ib_uint64_t*	stat_n_sample_sizes;
+				/*!< number of pages that were sampled
+				to calculate each of stat_n_diff_key_vals[],
+				e.g. stat_n_sample_sizes[3] pages were sampled
+				to get the number stat_n_diff_key_vals[3]. */
+	ib_uint64_t*	stat_n_non_null_key_vals;
 				/* approximate number of non-null key values
 				for this index, for each column where
 				n < dict_get_n_unique(index); This
@@ -441,7 +525,7 @@ struct dict_index_struct{
 #ifdef UNIV_BLOB_DEBUG
 	mutex_t		blobs_mutex;
 				/*!< mutex protecting blobs */
-	void*		blobs;	/*!< map of (page_no,heap_no,field_no)
+	ib_rbt_t*	blobs;	/*!< map of (page_no,heap_no,field_no)
 				to first_blob_page_no; protected by
 				blobs_mutex; @see btr_blob_dbg_t */
 #endif /* UNIV_BLOB_DEBUG */
@@ -506,7 +590,6 @@ a foreign key constraint is enforced, therefore RESTRICT just means no flag */
 #define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32	/*!< ON UPDATE NO ACTION */
 /* @} */
 
-
 /** Data structure for a database table.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_table_create(). */
 struct dict_table_struct{
@@ -522,7 +605,8 @@ struct dict_table_struct{
 	unsigned	space:32;
 				/*!< space where the clustered index of the
 				table is placed */
-	unsigned	flags:DICT_TF2_BITS;/*!< DICT_TF_COMPACT, ... */
+	unsigned	flags:DICT_TF_BITS;	/*!< DICT_TF_... */
+	unsigned	flags2:DICT_TF2_BITS;	/*!< DICT_TF2_... */
 	unsigned	ibd_file_missing:1;
 				/*!< TRUE if this is in a single-table
 				tablespace and the .ibd file is missing; then
@@ -537,6 +621,9 @@ struct dict_table_struct{
 				to the dictionary cache */
 	unsigned	n_def:10;/*!< number of columns defined so far */
 	unsigned	n_cols:10;/*!< number of columns */
+	unsigned	can_be_evicted:1;
+				/*!< TRUE if it's not an InnoDB system table
+				or a table that has no FK relationships */
 	unsigned	corrupted:1;
 				/*!< TRUE if table is corrupted */
 	dict_col_t*	cols;	/*!< array of column descriptions */
@@ -560,12 +647,6 @@ struct dict_table_struct{
 				which refer to this table */
 	UT_LIST_NODE_T(dict_table_t)
 			table_LRU; /*!< node of the LRU list of tables */
-	ulint		n_mysql_handles_opened;
-				/*!< count of how many handles MySQL has opened
-				to this table; dropping of the table is
-				NOT allowed until this count gets to zero;
-				MySQL does NOT itself check the number of
-				open handles at drop */
 	unsigned	fk_max_recusive_level:8;
 				/*!< maximum recursive level we support when
 				loading tables chained together with FK
@@ -586,8 +667,6 @@ struct dict_table_struct{
 				with undo logs commits, it sets this
 				to the value of the trx id counter for
 				the tables it had an IX lock on */
-	UT_LIST_BASE_NODE_T(lock_t)
-			locks; /*!< list of locks on the table */
 #ifdef UNIV_DEBUG
 	/*----------------------*/
 	ibool		does_not_fit_in_memory;
@@ -642,8 +721,8 @@ struct dict_table_struct{
 				whether a transaction has locked the AUTOINC
 				lock we keep a pointer to the transaction
 				here in the autoinc_trx variable. This is to
-				avoid acquiring the kernel mutex and scanning
-				the vector in trx_t.
+				avoid acquiring the lock_sys_t::mutex and
+				scanning the vector in trx_t.
 
 				When an AUTOINC lock has to wait, the
 				corresponding lock instance is created on
@@ -667,16 +746,32 @@ struct dict_table_struct{
 				/*!< This counter is used to track the number
 				of granted and pending autoinc locks on this
 				table. This value is set after acquiring the
-				kernel mutex but we peek the contents to
+				lock_sys_t::mutex but we peek the contents to
 				determine whether other transactions have
 				acquired the AUTOINC lock or not. Of course
 				only one transaction can be granted the
 				lock but there can be multiple waiters. */
-	const trx_t*		autoinc_trx;
+	const trx_t*	autoinc_trx;
 				/*!< The transaction that currently holds the
-				the AUTOINC lock on this table. */
+				the AUTOINC lock on this table.
+				Protected by lock_sys->mutex. */
+	fts_t*		fts;	/* FTS specific state variables */
 				/* @} */
 	/*----------------------*/
+	ulint		n_rec_locks;
+				/*!< Count of the number of record locks on
+				this table. We use this to determine whether
+				we can evict the table from the dictionary
+				cache. It is protected by lock_sys->mutex. */
+	ulint		n_ref_count;
+				/*!< count of how many handles are opened
+				to this table; dropping of the table is
+				NOT allowed until this count gets to zero;
+				MySQL does NOT itself check the number of
+				open handles at drop */
+	UT_LIST_BASE_NODE_T(lock_t)
+			locks;	/*!< list of locks on the table; protected
+				by lock_sys->mutex */
 #endif /* !UNIV_HOTBACKUP */
 
 #ifdef UNIV_DEBUG

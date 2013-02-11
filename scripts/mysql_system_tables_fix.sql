@@ -639,3 +639,4 @@ DROP TABLE tmp_proxies_priv;
 # changes was correct
 
 flush privileges;
+

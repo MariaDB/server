@@ -1345,7 +1345,7 @@ static int change_group(connection_t *c,
  thread_group_t *new_group)
 { 
   int ret= 0;
-  int fd = c->thd->net.vio->sd;
+  int fd= mysql_socket_getfd(c->thd->net.vio->mysql_socket);
 
   DBUG_ASSERT(c->thread_group == old_group);
 
@@ -1373,7 +1373,7 @@ static int change_group(connection_t *c,
 
 static int start_io(connection_t *connection)
 { 
-  int fd = connection->thd->net.vio->sd;
+  int fd = mysql_socket_getfd(connection->thd->net.vio->mysql_socket);
 
   /*
     Usually, connection will stay in the same group for the entire

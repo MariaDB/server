@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2009, Innobase Oy. All Rights Reserved.
+Copyright (c) 1997, 2011, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -11,8 +11,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,13 +37,15 @@ Created 2/6/1997 Heikki Tuuri
 
 /*****************************************************************//**
 Finds out if an active transaction has inserted or modified a secondary
-index record. NOTE: the kernel mutex is temporarily released in this
-function!
-@return NULL if committed, else the active transaction */
+index record.
+@return 0 if committed, else the active transaction id;
+NOTE that this function can return false positives but never false
+negatives. The caller must confirm all positive results by calling
+trx_is_active() while holding lock_sys->mutex. */
 UNIV_INTERN
-trx_t*
-row_vers_impl_x_locked_off_kernel(
-/*==============================*/
+trx_id_t
+row_vers_impl_x_locked(
+/*===================*/
 	const rec_t*	rec,	/*!< in: record in a secondary index */
 	dict_index_t*	index,	/*!< in: the secondary index */
 	const ulint*	offsets);/*!< in: rec_get_offsets(rec, index) */

@@ -636,11 +636,22 @@ void Item_sum::cleanup()
     @retval > 0       if key1 > key2
 */
 
-static int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2)
+int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2)
 {
   Field *f= (Field*) arg;
   return f->cmp(key1, key2);
 }
+
+
+C_MODE_START
+
+int count_distinct_walk(void *elem, element_count count, void *arg)
+{
+  (*((ulonglong*)arg))++;
+  return 0;
+}
+
+C_MODE_END
 
 
 /**
@@ -710,13 +721,13 @@ C_MODE_START
 
 /* Declarations for auxilary C-callbacks */
 
-static int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
+int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
     return memcmp(key1, key2, *(uint *) arg);
 }
 
 
-static int item_sum_distinct_walk(void *element, element_count num_of_dups,
+int item_sum_distinct_walk(void *element, element_count num_of_dups,
                                   void *item)
 {
   return ((Aggregator_distinct*) (item))->unique_walk_function(element);
@@ -1086,7 +1097,7 @@ void Aggregator_distinct::endup()
   {
     /* go over the tree of distinct keys and calculate the aggregate value */
     use_distinct_values= TRUE;
-    tree->walk(item_sum_distinct_walk, (void*) this);
+    tree->walk(table, item_sum_distinct_walk, (void*) this);
     use_distinct_values= FALSE;
   }
   /* prevent consecutive recalculations */
@@ -3480,7 +3491,8 @@ bool Item_func_group_concat::setup(THD *thd)
     init_tree(tree, (uint) min(thd->variables.max_heap_table_size,
                                thd->variables.sortbuff_size/16), 0,
               tree_key_length, 
-              group_concat_key_cmp_with_order , 0, NULL, (void*) this);
+              group_concat_key_cmp_with_order, NULL, (void*) this,
+              MYF(MY_THREAD_SPECIFIC));
   }
 
   if (distinct)

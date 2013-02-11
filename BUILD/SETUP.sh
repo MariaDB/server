@@ -63,6 +63,8 @@ parse_options()
       EXTRA_CXXFLAGS=`get_key_value "$1"`;;
     --extra-configs=*)
       EXTRA_CONFIGS=`get_key_value "$1"`;;
+    --extra-makeflags=*)
+      EXTRA_MAKEFLAGS=`get_key_value "$1"`;;
     -c | --just-configure)
       just_configure=1;;
     -n | --just-print | --print)
@@ -145,7 +147,7 @@ else
 # C warnings
   c_warnings="$warnings"
 # C++ warnings
-  cxx_warnings="$warnings -Wno-unused-parameter"
+  cxx_warnings="$warnings -Wno-unused-parameter -Wno-invalid-offsetof"
 # cxx_warnings="$cxx_warnings -Woverloaded-virtual -Wsign-promo"
   cxx_warnings="$cxx_warnings -Wnon-virtual-dtor"
   debug_extra_cflags="-O0 -g3 -gdwarf-2"

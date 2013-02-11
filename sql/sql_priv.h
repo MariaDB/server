@@ -362,9 +362,11 @@ enum enum_yes_no_unknown
 };
 
 #ifdef MYSQL_SERVER
+
 /*
   External variables
 */
+
 
 /* sql_yacc.cc */
 #ifndef DBUG_OFF

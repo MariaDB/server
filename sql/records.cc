@@ -594,7 +594,7 @@ static int init_rr_cache(THD *thd, READ_RECORD *info)
   if (info->cache_records <= 2 ||
       !(info->cache=(uchar*) my_malloc_lock(rec_cache_size+info->cache_records*
 					   info->struct_length+1,
-					   MYF(0))))
+					   MYF(MY_THREAD_SPECIFIC))))
     DBUG_RETURN(1);
 #ifdef HAVE_valgrind
   // Avoid warnings in qsort

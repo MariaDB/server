@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2010, Oracle and/or its affiliates
+   Copyright (c) 1995, 2012 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,41 +22,41 @@
 
 const char *globerrs[GLOBERRS]=
 {
-  "Can't create/write to file '%s' (Errcode: %d)",
-  "Error reading file '%s' (Errcode: %d)",
-  "Error writing file '%s' (Errcode: %d)",
-  "Error on close of '%s' (Errcode: %d)",
+  "Can't create/write to file '%s' (Errcode: %M)",
+  "Error reading file '%s' (Errcode: %M)",
+  "Error writing file '%s' (Errcode: %M)",
+  "Error on close of '%s' (Errcode: %M)",
   "Out of memory (Needed %u bytes)",
-  "Error on delete of '%s' (Errcode: %d)",
-  "Error on rename of '%s' to '%s' (Errcode: %d)",
+  "Error on delete of '%s' (Errcode: %M)",
+  "Error on rename of '%s' to '%s' (Errcode: %M)",
   "",
-  "Unexpected eof found when reading file '%s' (Errcode: %d)",
-  "Can't lock file (Errcode: %d)",
-  "Can't unlock file (Errcode: %d)",
-  "Can't read dir of '%s' (Errcode: %d)",
-  "Can't get stat of '%s' (Errcode: %d)",
-  "Can't change size of file (Errcode: %d)",
-  "Can't open stream from handle (Errcode: %d)",
-  "Can't get working dirctory (Errcode: %d)",
-  "Can't change dir to '%s' (Errcode: %d)",
+  "Unexpected end-of-file found when reading file '%s' (Errcode: %M)",
+  "Can't lock file (Errcode: %M)",
+  "Can't unlock file (Errcode: %M)",
+  "Can't read dir of '%s' (Errcode: %M)",
+  "Can't get stat of '%s' (Errcode: %M)",
+  "Can't change size of file (Errcode: %M)",
+  "Can't open stream from handle (Errcode: %M)",
+  "Can't get working directory (Errcode: %M)",
+  "Can't change dir to '%s' (Errcode: %M)",
   "Warning: '%s' had %d links",
   "Warning: %d files and %d streams is left open\n",
-  "Disk is full writing '%s' (Errcode: %d). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
-  "Can't create directory '%s' (Errcode: %d)",
+  "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
+  "Can't create directory '%s' (Errcode: %M)",
   "Character set '%s' is not a compiled character set and is not specified in the '%s' file",
-  "Out of resources when opening file '%s' (Errcode: %d)",
-  "Can't read value for symlink '%s' (Error %d)",
-  "Can't create symlink '%s' pointing at '%s' (Error %d)",
-  "Error on realpath() on '%s' (Error %d)",
-  "Can't sync file '%s' to disk (Errcode: %d)",
+  "Out of resources when opening file '%s' (Errcode: %M)",
+  "Can't read value for symlink '%s' (Errcode: %M)",
+  "Can't create symlink '%s' pointing at '%s' (Errcode: %M)",
+  "Error on realpath() on '%s' (Errcode: %M)",
+  "Can't sync file '%s' to disk (Errcode: %M)",
   "Collation '%s' is not a compiled collation and is not specified in the '%s' file",
-  "File '%s' not found (Errcode: %d)",
+  "File '%s' not found (Errcode: %M)",
   "File '%s' (fileno: %d) was not closed",
-  "Can't change ownership of the file '%s' (Errcode: %d)",
-  "Can't change permissions of the file '%s' (Errcode: %d)",
-  "Can't seek in file '%s' (Errcode: %d)"
-  "Can't change mode for file '%s' to 0x%lx (Error: %d)",
-  "Warning: Can't copy ownership for file '%s' (Error: %d)"
+  "Can't change ownership of the file '%s' (Errcode: %M)",
+  "Can't change permissions of the file '%s' (Errcode: %M)",
+  "Can't seek in file '%s' (Errcode: %M)"
+  "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
+  "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
 };
 
 void init_glob_errs(void)
@@ -67,40 +68,40 @@ void init_glob_errs(void)
 
 void init_glob_errs()
 {
-  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%s' (Errcode: %d)";
-  EE(EE_READ)		= "Error reading file '%s' (Errcode: %d)";
-  EE(EE_WRITE)		= "Error writing file '%s' (Errcode: %d)";
-  EE(EE_BADCLOSE)	= "Error on close of '%'s (Errcode: %d)";
+  EE(EE_CANTCREATEFILE) = "Can't create/write to file '%s' (Errcode: %M)";
+  EE(EE_READ)		= "Error reading file '%s' (Errcode: %M)";
+  EE(EE_WRITE)		= "Error writing file '%s' (Errcode: %M)";
+  EE(EE_BADCLOSE)	= "Error on close of '%'s (Errcode: %M)";
   EE(EE_OUTOFMEMORY)	= "Out of memory (Needed %u bytes)";
-  EE(EE_DELETE)		= "Error on delete of '%s' (Errcode: %d)";
-  EE(EE_LINK)		= "Error on rename of '%s' to '%s' (Errcode: %d)";
-  EE(EE_EOFERR)		= "Unexpected eof found when reading file '%s' (Errcode: %d)";
-  EE(EE_CANTLOCK)	= "Can't lock file (Errcode: %d)";
-  EE(EE_CANTUNLOCK)	= "Can't unlock file (Errcode: %d)";
-  EE(EE_DIR)		= "Can't read dir of '%s' (Errcode: %d)";
-  EE(EE_STAT)		= "Can't get stat of '%s' (Errcode: %d)";
-  EE(EE_CANT_CHSIZE)	= "Can't change size of file (Errcode: %d)";
-  EE(EE_CANT_OPEN_STREAM)= "Can't open stream from handle (Errcode: %d)";
-  EE(EE_GETWD)		= "Can't get working directory (Errcode: %d)";
-  EE(EE_SETWD)		= "Can't change dir to '%s' (Errcode: %d)";
+  EE(EE_DELETE)		= "Error on delete of '%s' (Errcode: %M)";
+  EE(EE_LINK)		= "Error on rename of '%s' to '%s' (Errcode: %M)";
+  EE(EE_EOFERR)		= "Unexpected eof found when reading file '%s' (Errcode: %M)";
+  EE(EE_CANTLOCK)	= "Can't lock file (Errcode: %M)";
+  EE(EE_CANTUNLOCK)	= "Can't unlock file (Errcode: %M)";
+  EE(EE_DIR)		= "Can't read dir of '%s' (Errcode: %M)";
+  EE(EE_STAT)		= "Can't get stat of '%s' (Errcode: %M)";
+  EE(EE_CANT_CHSIZE)	= "Can't change size of file (Errcode: %M)";
+  EE(EE_CANT_OPEN_STREAM)= "Can't open stream from handle (Errcode: %M)";
+  EE(EE_GETWD)		= "Can't get working directory (Errcode: %M)";
+  EE(EE_SETWD)		= "Can't change dir to '%s' (Errcode: %M)";
   EE(EE_LINK_WARNING)	= "Warning: '%s' had %d links";
   EE(EE_OPEN_WARNING)	= "Warning: %d files and %d streams is left open\n";
-  EE(EE_DISK_FULL)	= "Disk is full writing '%s'. Waiting for someone to free space...";
-  EE(EE_CANT_MKDIR)	="Can't create directory '%s' (Errcode: %d)";
+  EE(EE_DISK_FULL)	= "Disk is full writing '%s' (Errcode: %M). Waiting for someone to free space... (Expect up to %d secs delay for server to continue after freeing disk space)",
+  EE(EE_CANT_MKDIR)	="Can't create directory '%s' (Errcode: %M)";
   EE(EE_UNKNOWN_CHARSET)= "Character set '%s' is not a compiled character set and is not specified in the %s file";
-  EE(EE_OUT_OF_FILERESOURCES)="Out of resources when opening file '%s' (Errcode: %d)";
-  EE(EE_CANT_READLINK)=	"Can't read value for symlink '%s' (Error %d)";
-  EE(EE_CANT_SYMLINK)=	"Can't create symlink '%s' pointing at '%s' (Error %d)";
-  EE(EE_REALPATH)=	"Error on realpath() on '%s' (Error %d)";
-  EE(EE_SYNC)=		"Can't sync file '%s' to disk (Errcode: %d)";
+  EE(EE_OUT_OF_FILERESOURCES)="Out of resources when opening file '%s' (Errcode: %M)";
+  EE(EE_CANT_READLINK)=	"Can't read value for symlink '%s' (Errcode: %M)";
+  EE(EE_CANT_SYMLINK)=	"Can't create symlink '%s' pointing at '%s' (Errcode: %M)";
+  EE(EE_REALPATH)=	"Error on realpath() on '%s' (Errcode: %M)";
+  EE(EE_SYNC)=		"Can't sync file '%s' to disk (Errcode: %M)";
   EE(EE_UNKNOWN_COLLATION)= "Collation '%s' is not a compiled collation and is not specified in the %s file";
-  EE(EE_FILENOTFOUND)	= "File '%s' not found (Errcode: %d)";
+  EE(EE_FILENOTFOUND)	= "File '%s' not found (Errcode: %M)";
   EE(EE_FILE_NOT_CLOSED) = "File '%s' (fileno: %d) was not closed";
-  EE(EE_CHANGE_OWNERSHIP)   = "Can't change ownership of the file '%s' (Errcode: %d)";
-  EE(EE_CHANGE_PERMISSIONS) = "Can't change permissions of the file '%s' (Errcode: %d)";
-  EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %d)";
-  EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Error: %d)";
-  EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Error: %d)";
+  EE(EE_CHANGE_OWNERSHIP)   = "Can't change ownership of the file '%s' (Errcode: %M)";
+  EE(EE_CHANGE_PERMISSIONS) = "Can't change permissions of the file '%s' (Errcode: %M)";
+  EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
+  EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
+  EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
 }
 #endif
 

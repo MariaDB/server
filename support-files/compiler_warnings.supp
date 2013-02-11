@@ -28,7 +28,6 @@ pars0grm.c: 'yyerrorlab' : unreferenced label
 _flex_tmp.c: .*not enough actual parameters for macro 'yywrap'.*
 lexyy.c : not enough actual parameters for macro 'yywrap'
 pars0lex.l: .*conversion from 'ulint' to 'int', possible loss of data.*
-btr/btr0cur\.c: .*value computed is not used.*: 3175-3375
 include/buf0buf\.ic: unused parameter .*mtr.*
 fil/fil0fil\.c: pointer targets in passing argument.*differ in signedness
 fil/fil0fil\.c: comparison between signed and unsigned : 3100-3199
@@ -44,7 +43,9 @@ ut/ut0ut\.c: ignoring return value of
 srv/srv0srv\.c: value computed is not used
 buf/buf0buf\.c: .*block_mutex.* might be used uninitialized
 btr/btr0cur\.c: null argument where non-null required: 1800-3000
-btr/btr0btr\.c: null argument where non-null required: 2500-3000
+btr/btr0btr\.c: null argument where non-null required
+btr/btr0cur\.c: .*value computed is not used.*: 3175-3375
+btr/btr0sea\.c: passing argument 2 .* discards qualifiers from pointer target type
 ibuf/ibuf0ibuf.c: null argument where non-null required: 700-1000
 fsp0fsp\.c: result of 32-bit shift implicitly converted to 64 bits
 
@@ -160,6 +161,13 @@ mySTL/algorithm\.hpp: is used uninitialized in this function
 include/pwdbased\.hpp: comparison of unsigned expression
 
 #
+# OpenSSL
+#
+# The following comes because of different prototype between yassl and openssl.
+# Save as the argument is a function withing the library.
+vio/viosslfactories\.c: discards ~const~ qualifier from pointer target type
+
+#
 # Groff warnings on OpenSUSE.
 #
 .*/dbug/.*(groff|<standard input>) : .*
@@ -193,6 +201,9 @@ ma_packrec\.c : .*result of 32-bit shift implicitly converted to 64 bits.* : 550
 #
 .* : .*no matching operator delete found; memory will not be freed if initialization throws an exception.*
 ctype-simple\.c : .*unary minus operator applied to unsigned type, result still unsigned.*
+sql/sys_vars\.cc : invalid access to non-static data member
+string3\.h : memset used with constant zero length parameter
+
 
 # Wrong warning due to GCC bug: http://gcc.gnu.org/bugzilla/show_bug.cgi?id=29478
 regexec\.c : passing argument 3 of.*matcher.* discards qualifiers from pointer target type

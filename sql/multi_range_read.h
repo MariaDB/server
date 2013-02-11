@@ -562,11 +562,11 @@ public:
   int dsmrr_next(range_id_t *range_info);
 
   ha_rows dsmrr_info(uint keyno, uint n_ranges, uint keys, uint key_parts, 
-                     uint *bufsz, uint *flags, COST_VECT *cost);
+                     uint *bufsz, uint *flags, Cost_estimate *cost);
 
   ha_rows dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq, 
                             void *seq_init_param, uint n_ranges, uint *bufsz,
-                            uint *flags, COST_VECT *cost);
+                            uint *flags, Cost_estimate *cost);
 
   int dsmrr_explain_info(uint mrr_mode, char *str, size_t size);
 private:
@@ -624,9 +624,9 @@ private:
   Forward_lifo_buffer rowid_buffer;
   
   bool choose_mrr_impl(uint keyno, ha_rows rows, uint *flags, uint *bufsz, 
-                       COST_VECT *cost);
+                       Cost_estimate *cost);
   bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags, 
-                               uint *buffer_size, COST_VECT *cost);
+                               uint *buffer_size, Cost_estimate *cost);
   bool check_cpk_scan(THD *thd, uint keyno, uint mrr_flags);
 
   bool setup_buffer_sharing(uint key_size_in_keybuf, key_part_map key_tuple_map);

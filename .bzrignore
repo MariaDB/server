@@ -498,7 +498,6 @@ mysql-test/r/*.err
 mysql-test/r/*.log
 mysql-test/r/*.out
 mysql-test/r/*.reject
-mysql-test/std_data/*.pem
 mysql-test/var
 mysql.kdevprj
 mysql.proj
@@ -1136,6 +1135,7 @@ plugin/handler_socket/perl-Net-HandlerSocket/Makefile.PL
 libmysqld/libmysqld_exports_file.cc
 libmysqld/gcalc_slicescan.cc
 libmysqld/gcalc_tools.cc
+libmysqld/my_apc.cc
 sql/share/errmsg.sys
 sql/share/mysql
 install_manifest.txt
@@ -1143,3 +1143,5 @@ sql/db.opt
 ./_CPack_Packages
 ./install_manifest_*.txt
 typescript
+storage/perfschema/gen_pfs_lex_token
+storage/perfschema/pfs_lex_token.h

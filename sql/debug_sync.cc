@@ -239,7 +239,8 @@ void debug_sync_init_thread(THD *thd)
   if (opt_debug_sync_timeout)
   {
     thd->debug_sync_control= (st_debug_sync_control*)
-      my_malloc(sizeof(st_debug_sync_control), MYF(MY_WME | MY_ZEROFILL));
+      my_malloc(sizeof(st_debug_sync_control),
+                MYF(MY_WME | MY_ZEROFILL | MY_THREAD_SPECIFIC));
     if (!thd->debug_sync_control)
     {
       /*
@@ -984,6 +985,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str)
   DBUG_ENTER("debug_sync_eval_action");
   DBUG_ASSERT(thd);
   DBUG_ASSERT(action_str);
+  DBUG_PRINT("debug_sync", ("action_str='%s'", action_str));
 
   /*
     Get debug sync point name. Or a special command.
@@ -1520,6 +1522,8 @@ static void debug_sync(THD *thd, const char *sync_point_name, size_t name_len)
 {
   if (!thd)
     thd= current_thd;
+  if (!thd)
+    return;
 
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   st_debug_sync_action  *action;

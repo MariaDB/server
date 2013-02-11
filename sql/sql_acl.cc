@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 
 /*
@@ -701,7 +701,7 @@ my_bool acl_init(bool dont_read_acl_tables)
   return_val= acl_reload(thd);
   delete thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 
@@ -762,70 +762,71 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
 
   acl_cache->clear(1);				// Clear locked hostname cache
 
-  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0);
-  if (init_read_record(&read_record_info,thd,table= tables[0].table,NULL,1,0, 
-                       FALSE))
-    goto end;
-
-  table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST),20,50);
-  while (!(read_record_info.read_record(&read_record_info)))
+  init_sql_alloc(&mem, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  (void) my_init_dynamic_array(&acl_hosts,sizeof(ACL_HOST), 20, 50, MYF(0));
+  if (tables[0].table) // "host" table may not exist (e.g. in MySQL 5.6.7+)
   {
-    ACL_HOST host;
-    update_hostname(&host.host,get_field(&mem, table->field[0]));
-    host.db=	 get_field(&mem, table->field[1]);
-    if (lower_case_table_names && host.db)
+    if (init_read_record(&read_record_info, thd, table= tables[0].table,
+                         NULL, 1, 1, FALSE))
+      goto end;
+    table->use_all_columns();
+    while (!(read_record_info.read_record(&read_record_info)))
     {
-      /*
-        convert db to lower case and give a warning if the db wasn't
-        already in lower case
-      */
-      char *end = strnmov(tmp_name, host.db, sizeof(tmp_name));
-      if (end >= tmp_name + sizeof(tmp_name))
+      ACL_HOST host;
+      update_hostname(&host.host,get_field(&mem, table->field[0]));
+      host.db=	 get_field(&mem, table->field[1]);
+      if (lower_case_table_names && host.db)
       {
-        sql_print_warning(ER(ER_WRONG_DB_NAME), host.db);
-        continue;
+        /*
+          convert db to lower case and give a warning if the db wasn't
+          already in lower case
+        */
+        char *end = strnmov(tmp_name, host.db, sizeof(tmp_name));
+        if (end >= tmp_name + sizeof(tmp_name))
+        {
+          sql_print_warning(ER(ER_WRONG_DB_NAME), host.db);
+          continue;
+        }
+        my_casedn_str(files_charset_info, host.db);
+        if (strcmp(host.db, tmp_name) != 0)
+          sql_print_warning("'host' entry '%s|%s' had database in mixed "
+                            "case that has been forced to lowercase because "
+                            "lower_case_table_names is set. It will not be "
+                            "possible to remove this privilege using REVOKE.",
+                            host.host.hostname ? host.host.hostname : "",
+                            host.db ? host.db : "");
       }
-      my_casedn_str(files_charset_info, host.db);
-      if (strcmp(host.db, tmp_name) != 0)
-        sql_print_warning("'host' entry '%s|%s' had database in mixed "
-                          "case that has been forced to lowercase because "
-                          "lower_case_table_names is set. It will not be "
-                          "possible to remove this privilege using REVOKE.",
+      host.access= get_access(table,2);
+      host.access= fix_rights_for_db(host.access);
+      host.sort=	 get_sort(2,host.host.hostname,host.db);
+      if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
+      {
+        sql_print_warning("'host' entry '%s|%s' "
+                        "ignored in --skip-name-resolve mode.",
                           host.host.hostname ? host.host.hostname : "",
                           host.db ? host.db : "");
-    }
-    host.access= get_access(table,2);
-    host.access= fix_rights_for_db(host.access);
-    host.sort=	 get_sort(2,host.host.hostname,host.db);
-    if (check_no_resolve && hostname_requires_resolving(host.host.hostname))
-    {
-      sql_print_warning("'host' entry '%s|%s' "
-		      "ignored in --skip-name-resolve mode.",
-			host.host.hostname ? host.host.hostname : "",
-			host.db ? host.db : "");
-      continue;
-    }
+        continue;
+      }
 #ifndef TO_BE_REMOVED
-    if (table->s->fields == 8)
-    {						// Without grant
-      if (host.access & CREATE_ACL)
-	host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
-    }
+      if (table->s->fields == 8)
+      {						// Without grant
+        if (host.access & CREATE_ACL)
+          host.access|=REFERENCES_ACL | INDEX_ACL | ALTER_ACL | CREATE_TMP_ACL;
+      }
 #endif
-    (void) push_dynamic(&acl_hosts,(uchar*) &host);
+      (void) push_dynamic(&acl_hosts,(uchar*) &host);
+    }
+    my_qsort((uchar*) dynamic_element(&acl_hosts,0,ACL_HOST*),acl_hosts.elements,
+             sizeof(ACL_HOST),(qsort_cmp) acl_compare);
+    end_read_record(&read_record_info);
   }
-  my_qsort((uchar*) dynamic_element(&acl_hosts,0,ACL_HOST*),acl_hosts.elements,
-	   sizeof(ACL_HOST),(qsort_cmp) acl_compare);
-  end_read_record(&read_record_info);
   freeze_size(&acl_hosts);
 
-  if (init_read_record(&read_record_info,thd,table=tables[1].table,NULL,1,0,
-                       FALSE))
+  if (init_read_record(&read_record_info, thd, table=tables[1].table,
+                       NULL, 1, 1, FALSE))
     goto end;
-
   table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER),50,100);
+  (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
   if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
@@ -1022,12 +1023,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   end_read_record(&read_record_info);
   freeze_size(&acl_users);
 
-  if (init_read_record(&read_record_info,thd,table=tables[2].table,NULL,1,0,
-                       FALSE))
+  if (init_read_record(&read_record_info, thd, table=tables[2].table,
+                       NULL, 1, 1, FALSE))
     goto end;
-
   table->use_all_columns();
-  (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB),50,100);
+  (void) my_init_dynamic_array(&acl_dbs,sizeof(ACL_DB), 50, 100, MYF(0));
   while (!(read_record_info.read_record(&read_record_info)))
   {
     ACL_DB db;
@@ -1090,11 +1090,12 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
   freeze_size(&acl_dbs);
 
   (void) my_init_dynamic_array(&acl_proxy_users, sizeof(ACL_PROXY_USER), 
-                               50, 100);
+                               50, 100, MYF(0));
   if (tables[3].table)
   {
-    init_read_record(&read_record_info, thd, table= tables[3].table, NULL, 1, 
-                     0, FALSE);
+    if (init_read_record(&read_record_info, thd, table= tables[3].table,
+                         NULL, 1, 1, FALSE))
+      goto end;
     table->use_all_columns();
     while (!(read_record_info.read_record(&read_record_info)))
     {
@@ -1198,7 +1199,7 @@ my_bool acl_reload(THD *thd)
   tables[2].next_local= tables[2].next_global= tables + 3;
   tables[0].open_type= tables[1].open_type= tables[2].open_type= 
   tables[3].open_type= OT_BASE_ONLY;
-  tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+  tables[0].open_strategy= tables[3].open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {
@@ -1327,7 +1328,7 @@ static ulong get_sort(uint count,...)
         chars= 128;                             // Marker that chars existed
       }
     }
-    sort= (sort << 8) + (wild_pos ? min(wild_pos, 127) : chars);
+    sort= (sort << 8) + (wild_pos ? min(wild_pos, 127U) : chars);
   }
   va_end(args);
   return sort;
@@ -1745,7 +1746,7 @@ static void init_check_host(void)
 {
   DBUG_ENTER("init_check_host");
   (void) my_init_dynamic_array(&acl_wild_hosts,sizeof(struct acl_host_and_ip),
-			  acl_users.elements,1);
+                               acl_users.elements, 1, MYF(0));
   (void) my_hash_init(&acl_check_hosts,system_charset_info,
                       acl_users.elements, 0, 0,
                       (my_hash_get_key) check_get_key, 0, 0);
@@ -1906,7 +1907,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   /* Buffer should be extended when password length is extended. */
   char buff[512];
   ulong query_length;
-  bool save_binlog_row_based;
+  enum_binlog_format save_binlog_format;
   uint new_password_len= (uint) strlen(new_password);
   bool result= 1;
   DBUG_ENTER("change_password");
@@ -1943,9 +1944,10 @@ bool change_password(THD *thd, const char *host, const char *user,
     This statement will be replicated as a statement, even when using
     row-based replication.  The flag will be reset at the end of the
     statement.
+    This has to be handled here as it's called by set_var.cc, which is
+    not automaticly handled by sql_parse.cc
   */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
   mysql_mutex_lock(&acl_cache->lock);
   ACL_USER *acl_user;
@@ -1994,11 +1996,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   }
 end:
   close_mysql_tables(thd);
-
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
+  thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
 }
@@ -3594,7 +3592,6 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   TABLE_LIST tables[3];
   bool create_new_users=0;
   char *db_name, *table_name;
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_table_grant");
 
   if (!initialized)
@@ -3684,14 +3681,6 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   if (column_priv || (revoke_grant && ((rights & COL_ACLS) || columns.elements)))
     tables[1].next_local= tables[1].next_global= tables+2;
 
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
-
 #ifdef HAVE_REPLICATION
   /*
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
@@ -3705,13 +3694,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     */
     tables[0].updating= tables[1].updating= tables[2].updating= 1;
     if (!(thd->spcont || rpl_filter->tables_ok(0, tables)))
-    {
-      /* Restore the state of binlog format */
-      DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-      if (save_binlog_row_based)
-        thd->set_current_stmt_binlog_format_row();
       DBUG_RETURN(FALSE);
-    }
   }
 #endif
 
@@ -3729,11 +3712,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   thd->lex->sql_command= backup.sql_command;
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
   {						// Should never happen
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
     thd->lex->restore_backup_query_tables_list(&backup);
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(TRUE);				/* purecov: deadcode */
   }
 
@@ -3861,9 +3840,6 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   /* Tables are automatically closed */
   thd->lex->restore_backup_query_tables_list(&backup);
   /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(result);
 }
 
@@ -3892,7 +3868,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   TABLE_LIST tables[2];
   bool create_new_users=0, result=0;
   char *db_name, *table_name;
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_routine_grant");
 
   if (!initialized)
@@ -3922,14 +3897,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
                            C_STRING_WITH_LEN("procs_priv"), "procs_priv", TL_WRITE);
   tables[0].next_local= tables[0].next_global= tables+1;
 
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
-
 #ifdef HAVE_REPLICATION
   /*
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
@@ -3944,23 +3911,15 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
     tables[0].updating= tables[1].updating= 1;
     if (!(thd->spcont || rpl_filter->tables_ok(0, tables)))
     {
-      /* Restore the state of binlog format */
-      DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-      if (save_binlog_row_based)
-        thd->set_current_stmt_binlog_format_row();
       DBUG_RETURN(FALSE);
     }
   }
 #endif
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {						// Should never happen
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(TRUE);
-  }
+
+  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
   if (!revoke_grant)
     create_new_users= test_if_create_new_users(thd);
@@ -3993,7 +3952,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 
     db_name= table_list->db;
     table_name= table_list->table_name;
-
     grant_name= routine_hash_search(Str->host.str, NullS, db_name,
                                     Str->user.str, table_name, is_proc, 1);
     if (!grant_name)
@@ -4035,10 +3993,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   }
 
   mysql_rwlock_unlock(&LOCK_grant);
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
 
   /* Tables are automatically closed */
   DBUG_RETURN(result);
@@ -4053,8 +4007,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   char tmp_db[SAFE_NAME_LEN+1];
   bool create_new_users=0;
   TABLE_LIST tables[2];
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_grant");
+
   if (!initialized)
   {
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
@@ -4096,14 +4050,6 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
                              TL_WRITE);
   tables[0].next_local= tables[0].next_global= tables+1;
 
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
-
 #ifdef HAVE_REPLICATION
   /*
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
@@ -4117,24 +4063,14 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     */
     tables[0].updating= tables[1].updating= 1;
     if (!(thd->spcont || rpl_filter->tables_ok(0, tables)))
-    {
-      /* Restore the state of binlog format */
-      DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-      if (save_binlog_row_based)
-        thd->set_current_stmt_binlog_format_row();
       DBUG_RETURN(FALSE);
-    }
   }
 #endif
 
   if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {						// This should never happen
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(TRUE);				/* purecov: deadcode */
-  }
+
+  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
   if (!revoke_grant)
     create_new_users= test_if_create_new_users(thd);
@@ -4152,6 +4088,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       result= TRUE;
       continue;
     }
+
     /*
       No User, but a password?
       They did GRANT ... TO CURRENT_USER() IDENTIFIED BY ... !
@@ -4159,6 +4096,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     */
     if (!tmp_Str->user.str && tmp_Str->password.str)
       Str->password= tmp_Str->password;
+
     if (replace_user_table(thd, tables[0].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            test(thd->variables.sql_mode &
@@ -4198,10 +4136,6 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
 
   if (!result)
     my_ok(thd);
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
 
   DBUG_RETURN(result);
 }
@@ -4242,7 +4176,7 @@ my_bool grant_init()
   return_val=  grant_reload(thd);
   delete thd;
   /* Remember that we don't have a THD */
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_RETURN(return_val);
 }
 
@@ -4540,7 +4474,7 @@ my_bool grant_reload(THD *thd)
     opertion possible in case of failure.
   */
   old_mem= memex;
-  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&memex, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if ((return_val= grant_load(thd, tables)))
   {						// Error. Revert to old hash
@@ -5755,7 +5689,7 @@ void get_privilege_desc(char *to, uint max_length, ulong access)
 {
   uint pos;
   char *start=to;
-  DBUG_ASSERT(max_length >= 30);		// For end ',' removal
+  DBUG_ASSERT(max_length >= 30);                // For end ', ' removal
 
   if (access)
   {
@@ -5766,9 +5700,11 @@ void get_privilege_desc(char *to, uint max_length, ulong access)
 	  command_lengths[pos] + (uint) (to-start) < max_length)
       {
 	to= strmov(to, command_array[pos]);
-	*to++=',';
+        *to++= ',';
+        *to++= ' ';
       }
     }
+    to--;                                       // Remove end ' '
     to--;					// Remove end ','
   }
   *to=0;
@@ -6524,26 +6460,11 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_created= FALSE;
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_create_user");
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   /* CREATE USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
-  {
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(result != 1);
-  }
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
@@ -6584,10 +6505,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(result);
 }
 
@@ -6614,26 +6531,11 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_deleted= FALSE;
   ulonglong old_sql_mode= thd->variables.sql_mode;
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_drop_user");
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   /* DROP USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
-  {
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(result != 1);
-  }
 
   thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
 
@@ -6669,10 +6571,6 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list)
 
   mysql_rwlock_unlock(&LOCK_grant);
   thd->variables.sql_mode= old_sql_mode;
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(result);
 }
 
@@ -6699,26 +6597,13 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[GRANT_TABLES];
   bool some_users_renamed= FALSE;
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_rename_user");
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   /* RENAME USER may be skipped on replication client. */
   if ((result= open_grant_tables(thd, tables)))
-  {
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(result != 1);
-  }
+
+  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
@@ -6764,10 +6649,6 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
   DBUG_RETURN(result);
 }
 
@@ -6792,25 +6673,12 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
   int result;
   ACL_DB *acl_db;
   TABLE_LIST tables[GRANT_TABLES];
-  bool save_binlog_row_based;
   DBUG_ENTER("mysql_revoke_all");
 
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
-
   if ((result= open_grant_tables(thd, tables)))
-  {
-    /* Restore the state of binlog format */
-    DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-    if (save_binlog_row_based)
-      thd->set_current_stmt_binlog_format_row();
     DBUG_RETURN(result != 1);
-  }
+
+  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
@@ -6961,10 +6829,6 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
 
   DBUG_RETURN(result);
 }
@@ -7056,25 +6920,18 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
   TABLE_LIST tables[GRANT_TABLES];
   HASH *hash= is_proc ? &proc_priv_hash : &func_priv_hash;
   Silence_routine_definer_errors error_handler;
-  bool save_binlog_row_based;
   DBUG_ENTER("sp_revoke_privileges");
 
   if ((result= open_grant_tables(thd, tables)))
     DBUG_RETURN(result != 1);
+
+  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
 
   /* Be sure to pop this before exiting this scope! */
   thd->push_internal_handler(&error_handler);
 
   mysql_rwlock_wrlock(&LOCK_grant);
   mysql_mutex_lock(&acl_cache->lock);
-
-  /*
-    This statement will be replicated as a statement, even when using
-    row-based replication.  The flag will be reset at the end of the
-    statement.
-  */
-  if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
-    thd->clear_current_stmt_binlog_format_row();
 
   /* Remove procedure access */
   do
@@ -7109,10 +6966,6 @@ bool sp_revoke_privileges(THD *thd, const char *sp_db, const char *sp_name,
   mysql_rwlock_unlock(&LOCK_grant);
 
   thd->pop_internal_handler();
-  /* Restore the state of binlog format */
-  DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
-  if (save_binlog_row_based)
-    thd->set_current_stmt_binlog_format_row();
 
   DBUG_RETURN(error_handler.has_errors());
 }
@@ -7230,17 +7083,6 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   DBUG_RETURN(result);
 }
 
-
-/*****************************************************************************
-  Instantiate used templates
-*****************************************************************************/
-
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List_iterator<LEX_COLUMN>;
-template class List_iterator<LEX_USER>;
-template class List<LEX_COLUMN>;
-template class List<LEX_USER>;
-#endif
 
 /**
   Validate if a user can proxy as another user
@@ -7987,6 +7829,7 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
   } cached_server_packet;
   int packets_read, packets_written; ///< counters for send/received packets
   uint connect_errors;      ///< if there were connect errors for this host
+  bool make_it_fail;
   /** when plugin returns a failure this tells us what really happened */
   enum { SUCCESS, FAILURE, RESTART } status;
 };
@@ -8252,14 +8095,14 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
 /**
    Finds acl entry in user database for authentication purposes.
    
-   Finds a user and copies it into mpvio. Reports an authentication
-   failure if a user is not found.
+   Finds a user and copies it into mpvio. Creates a fake user
+   if no matching user account is found.
 
    @note find_acl_user is not the same, because it doesn't take into
    account the case when user is not empty, but acl_user->user is empty
 
    @retval 0    found
-   @retval 1    not found
+   @retval 1    error
 */
 static bool find_mpvio_user(MPVIO_EXT *mpvio)
 {
@@ -8282,8 +8125,27 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 
   if (!mpvio->acl_user)
   {
-    login_failed_error(mpvio->thd);
-    DBUG_RETURN (1);
+    /*
+      A matching user was not found. Fake it. Take any user, make the
+      authentication fail later.
+      This way we get a realistically looking failure, with occasional
+      "change auth plugin" requests even for nonexistent users. The ratio
+      of "change auth plugin" request will be the same for real and
+      nonexistent users.
+      Note, that we cannot pick any user at random, it must always be
+      the same user account for the incoming sctx->user name.
+    */
+    ulong nr1=1, nr2=4;
+    CHARSET_INFO *cs= &my_charset_latin1;
+    cs->coll->hash_sort(cs, (uchar*) sctx->user, strlen(sctx->user), &nr1, &nr2);
+
+    mysql_mutex_lock(&acl_cache->lock);
+    uint i= nr1 % acl_users.elements;
+    ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
+    mpvio->acl_user= acl_user_tmp->copy(mpvio->thd->mem_root);
+    mysql_mutex_unlock(&acl_cache->lock);
+
+    mpvio->make_it_fail= true;
   }
 
   /* user account requires non-default plugin and the client is too old */
@@ -8410,6 +8272,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+  thd->password= passwd_len > 0;
   if (find_mpvio_user(mpvio))
     DBUG_RETURN(1);
 
@@ -8705,8 +8568,8 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
                                    mpvio->cached_server_packet.pkt_len))
       return packet_error;
 
-    passwd_len= my_net_read(&mpvio->thd->net);
-    passwd= (char*)mpvio->thd->net.read_pos;
+    passwd_len= my_net_read(&thd->net);
+    passwd= (char*)thd->net.read_pos;
   }
 
   *buff= (uchar*) passwd;
@@ -8808,6 +8671,10 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
       *buf= (uchar*) mpvio->cached_client_reply.pkt;
       mpvio->cached_client_reply.pkt= 0;
       mpvio->packets_read++;
+
+      if (mpvio->make_it_fail)
+        goto err;
+
       DBUG_RETURN ((int) mpvio->cached_client_reply.pkt_len);
     }
 
@@ -8842,6 +8709,9 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   else
     *buf= mpvio->thd->net.read_pos;
 
+  if (mpvio->make_it_fail)
+    goto err;
+
   DBUG_RETURN((int)pkt_len);
 
 err:
@@ -8849,7 +8719,12 @@ err:
   {
     inc_host_errors(mpvio->thd->security_ctx->ip);
     if (!mpvio->thd->is_error())
-      my_error(ER_HANDSHAKE_ERROR, MYF(0));
+    {
+      if (mpvio->make_it_fail)
+        login_failed_error(mpvio->thd);
+      else
+        my_error(ER_HANDSHAKE_ERROR, MYF(0));
+    }
   }
   DBUG_RETURN(-1);
 }
@@ -9054,6 +8929,7 @@ bool acl_authenticate(THD *thd, uint connect_errors,
   mpvio.thd= thd;
   mpvio.connect_errors= connect_errors;
   mpvio.status= MPVIO_EXT::FAILURE;
+  mpvio.make_it_fail= false;
   mpvio.auth_info.host_or_ip= thd->security_ctx->host_or_ip;
   mpvio.auth_info.host_or_ip_length= 
     (unsigned int) strlen(thd->security_ctx->host_or_ip);
@@ -9283,6 +9159,13 @@ bool acl_authenticate(THD *thd, uint connect_errors,
     thd->stmt_da->disable_status();
   else
     my_ok(thd);
+
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  PSI_CALL(set_thread_user_host)(thd->main_security_ctx.user,
+                                 strlen(thd->main_security_ctx.user),
+                                 thd->main_security_ctx.host_or_ip,
+                                 strlen(thd->main_security_ctx.host_or_ip));
+#endif
 
   /* Ready to handle queries */
   DBUG_RETURN(0);

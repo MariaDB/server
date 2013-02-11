@@ -82,6 +82,9 @@ typedef struct st_mi_state_info
   uint open_count;
   uint8 changed;                        /* Changed since myisamchk */
 
+  uint8 dupp_key;                       /* Lastly processed index with    */
+                                        /* violated uniqueness constraint */
+
   /* the following isn't saved on disk */
   uint state_diff_length;               /* Should be 0 */
   uint state_length;                    /* Length of state header in file */
@@ -297,6 +300,7 @@ struct st_myisam_info
   my_bool page_changed;
   /* If info->buff has to be reread for rnext */
   my_bool buff_used;
+  my_bool create_unique_index_by_sort;
   index_cond_func_t index_cond_func;   /* Index condition function */
   void *index_cond_func_arg;           /* parameter for the func */
   THR_LOCK_DATA lock;
@@ -705,8 +709,8 @@ void mi_restore_status(void *param);
 void mi_copy_status(void *to, void *from);
 my_bool mi_check_status(void *param);
 void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table);
-void mi_disable_non_unique_index(MI_INFO *info, ha_rows rows);
-
+void mi_disable_indexes_for_rebuild(MI_INFO *info, ha_rows rows,
+                                    my_bool all_keys);
 extern MI_INFO *test_if_reopen(char *filename);
 my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share, const char *orn_name,

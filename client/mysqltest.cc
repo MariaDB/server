@@ -86,6 +86,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_SEND_FLAG  1
 #define QUERY_REAP_FLAG  2
 
+#define QUERY_PRINT_ORIGINAL_FLAG 4
+
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
 #endif
@@ -255,6 +257,8 @@ static void init_re(void);
 static int match_re(my_regex_t *, char *);
 static void free_re(void);
 
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command);
 static int replace(DYNAMIC_STRING *ds_str,
                    const char *search_str, ulong search_len,
                    const char *replace_str, ulong replace_len);
@@ -344,7 +348,8 @@ enum enum_commands {
   Q_ERROR,
   Q_SEND,		    Q_REAP,
   Q_DIRTY_CLOSE,	    Q_REPLACE, Q_REPLACE_COLUMN,
-  Q_PING,		    Q_EVAL,
+  Q_PING,		    Q_EVAL, 
+  Q_EVALP,
   Q_EVAL_RESULT,
   Q_ENABLE_QUERY_LOG, Q_DISABLE_QUERY_LOG,
   Q_ENABLE_RESULT_LOG, Q_DISABLE_RESULT_LOG,
@@ -410,6 +415,7 @@ const char *command_names[]=
   "replace_column",
   "ping",
   "eval",
+  "evalp",
   "eval_result",
   /* Enable/disable that the _query_ is logged to result file */
   "enable_query_log",
@@ -4393,7 +4399,10 @@ void do_change_user(struct st_command *command)
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
   if (mysql_change_user(mysql, ds_user.str, ds_passwd.str, ds_db.str))
-    die("change user failed: %s", mysql_error(mysql));
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+		 mysql_sqlstate(mysql), &ds_res);
+  else
+    handle_no_error(command);
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);
@@ -4584,7 +4593,8 @@ void do_wait_for_slave_to_stop(struct st_command *c __attribute__((unused)))
 }
 
 
-void do_sync_with_master2(struct st_command *command, long offset)
+void do_sync_with_master2(struct st_command *command, long offset,
+                          const char *connection_name)
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
@@ -4595,8 +4605,9 @@ void do_sync_with_master2(struct st_command *command, long offset)
   if (!master_pos.file[0])
     die("Calling 'sync_with_master' without calling 'save_master_pos'");
 
-  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d)",
-          master_pos.file, master_pos.pos + offset, timeout);
+  sprintf(query_buf, "select master_pos_wait('%s', %ld, %d, '%s')",
+          master_pos.file, master_pos.pos + offset, timeout,
+          connection_name);
 
   if (mysql_query(mysql, query_buf))
     die("failed in '%s': %d: %s", query_buf, mysql_errno(mysql),
@@ -4656,16 +4667,32 @@ void do_sync_with_master(struct st_command *command)
   long offset= 0;
   char *p= command->first_argument;
   const char *offset_start= p;
+  char *start, *buff= 0;
+  start= (char*) "";
+
   if (*offset_start)
   {
     for (; my_isdigit(charset_info, *p); p++)
       offset = offset * 10 + *p - '0';
 
-    if(*p && !my_isspace(charset_info, *p))
+    if (*p && !my_isspace(charset_info, *p) && *p != ',')
       die("Invalid integer argument \"%s\"", offset_start);
+
+    while (*p && my_isspace(charset_info, *p))
+      p++;
+    if (*p == ',')
+    {
+      p++;
+      while (*p && my_isspace(charset_info, *p))
+        p++;
+      start= buff= (char*)my_malloc(strlen(p)+1,MYF(MY_WME | MY_FAE));
+      get_string(&buff, &p, command);
+    }
     command->last_argument= p;
   }
-  do_sync_with_master2(command, offset);
+  do_sync_with_master2(command, offset, start);
+  if (buff)
+    my_free(start);
   return;
 }
 
@@ -5152,7 +5179,7 @@ typedef struct
 
 static st_error global_error_names[] =
 {
-  { "<No error>", -1U, "" },
+  { "<No error>", ~0U, "" },
 #include <mysqld_ername.h>
   { 0, 0, 0 }
 };
@@ -5290,7 +5317,7 @@ void do_get_errcodes(struct st_command *command)
     {
       die("The sqlstate definition must start with an uppercase S");
     }
-    else if (*p == 'E')
+    else if (*p == 'E' || *p == 'W')
     {
       /* Error name string */
 
@@ -5299,9 +5326,9 @@ void do_get_errcodes(struct st_command *command)
       to->type= ERR_ERRNO;
       DBUG_PRINT("info", ("ERR_ERRNO: %d", to->code.errnum));
     }
-    else if (*p == 'e')
+    else if (*p == 'e' || *p == 'w')
     {
-      die("The error name definition must start with an uppercase E");
+      die("The error name definition must start with an uppercase E or W");
     }
     else
     {
@@ -5364,8 +5391,8 @@ void do_get_errcodes(struct st_command *command)
   If string is a '$variable', return the value of the variable.
 */
 
-char *get_string(char **to_ptr, char **from_ptr,
-                 struct st_command *command)
+static char *get_string(char **to_ptr, char **from_ptr,
+                        struct st_command *command)
 {
   char c, sep;
   char *to= *to_ptr, *from= *from_ptr, *start=to;
@@ -5949,6 +5976,8 @@ void do_connect(struct st_command *command)
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
     mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
 #if MYSQL_VERSION_ID >= 50000
     /* Turn on ssl_verify_server_cert only if host is "localhost" */
     opt_ssl_verify_server_cert= !strcmp(ds_host.str, "localhost");
@@ -7264,7 +7293,7 @@ void init_win_path_patterns()
 
   DBUG_ENTER("init_win_path_patterns");
 
-  my_init_dynamic_array(&patterns, sizeof(const char*), 16, 16);
+  my_init_dynamic_array(&patterns, sizeof(const char*), 16, 16, MYF(0));
 
   /* Loop through all paths in the array */
   for (i= 0; i < num_paths; i++)
@@ -8299,7 +8328,8 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   /*
     Evaluate query if this is an eval command
   */
-  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL)
+  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL || 
+      command->type == Q_EVALP)
   {
     init_dynamic_string(&eval_query, "", command->query_len+256, 1024);
     do_eval(&eval_query, command->query, command->end, FALSE);
@@ -8331,10 +8361,20 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (!disable_query_log && (flags & QUERY_SEND_FLAG))
   {
-    replace_dynstr_append_mem(ds, query, query_len);
+    char *print_query= query;
+    int print_len= query_len;
+    if (flags & QUERY_PRINT_ORIGINAL_FLAG)
+    {
+      print_query= command->query;
+      print_len= command->end - command->query;
+    }
+    replace_dynstr_append_mem(ds, print_query, print_len);
     dynstr_append_mem(ds, delimiter, delimiter_length);
     dynstr_append_mem(ds, "\n", 1);
   }
+  
+  /* We're done with this flag */
+  flags &= ~QUERY_PRINT_ORIGINAL_FLAG;
 
   /*
     Write the command to the result file before we execute the query
@@ -8866,7 +8906,7 @@ int main(int argc, char **argv)
   cur_block->ok= TRUE; /* Outer block should always be executed */
   cur_block->cmd= cmd_none;
 
-  my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024);
+  my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024, MYF(0));
 
   if (my_hash_init2(&var_hash, 64, charset_info,
                  128, 0, 0, get_var_key, var_free, MYF(0)))
@@ -8896,7 +8936,7 @@ int main(int argc, char **argv)
 #endif
 
   init_dynamic_string(&ds_res, "", 2048, 2048);
-  init_alloc_root(&require_file_root, 1024, 1024);
+  init_alloc_root(&require_file_root, 1024, 1024, MYF(0));
 
   parse_args(argc, argv);
 
@@ -8984,6 +9024,8 @@ int main(int argc, char **argv)
   {
     mysql_ssl_set(con->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
 		  opt_ssl_capath, opt_ssl_cipher);
+    mysql_options(con->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
+    mysql_options(con->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
 #if MYSQL_VERSION_ID >= 50000
     /* Turn on ssl_verify_server_cert only if host is "localhost" */
     opt_ssl_verify_server_cert= opt_host && !strcmp(opt_host, "localhost");
@@ -9195,6 +9237,7 @@ int main(int argc, char **argv)
       case Q_EVAL_RESULT:
         die("'eval_result' command  is deprecated");
       case Q_EVAL:
+      case Q_EVALP:
       case Q_QUERY_VERTICAL:
       case Q_QUERY_HORIZONTAL:
 	if (command->query == command->query_buf)
@@ -9221,6 +9264,9 @@ int main(int argc, char **argv)
         {
           flags= QUERY_REAP_FLAG;
         }
+
+        if (command->type == Q_EVALP)
+          flags |= QUERY_PRINT_ORIGINAL_FLAG;
 
         /* Check for special property for this query */
         display_result_vertically|= (command->type == Q_QUERY_VERTICAL);
@@ -9291,7 +9337,7 @@ int main(int argc, char **argv)
 	  select_connection(command);
 	else
 	  select_connection_name("slave");
-	do_sync_with_master2(command, 0);
+	do_sync_with_master2(command, 0, "");
 	break;
       }
       case Q_COMMENT:
@@ -9836,7 +9882,7 @@ struct st_replace_regex* init_replace_regex(char* expr)
   /* my_malloc() will die on fail with MY_FAE */
   res=(struct st_replace_regex*)my_malloc(
                                           sizeof(*res)+expr_len ,MYF(MY_FAE+MY_WME));
-  my_init_dynamic_array(&res->regex_arr,sizeof(struct st_regex),128,128);
+  my_init_dynamic_array(&res->regex_arr,sizeof(struct st_regex), 128, 128, MYF(0));
 
   buf= (char*)res + sizeof(*res);
   expr_end= expr + expr_len;
@@ -10891,7 +10937,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   if (!*start)
     DBUG_VOID_RETURN;  /* No input */
 
-  my_init_dynamic_array(&lines, sizeof(const char*), 32, 32);
+  my_init_dynamic_array(&lines, sizeof(const char*), 32, 32, MYF(0));
 
   if (keep_header)
   {

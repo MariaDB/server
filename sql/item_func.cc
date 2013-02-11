@@ -3912,13 +3912,45 @@ longlong Item_master_pos_wait::val_int()
 #ifdef HAVE_REPLICATION
   longlong pos = (ulong)args[1]->val_int();
   longlong timeout = (arg_count==3) ? args[2]->val_int() : 0 ;
-  if ((event_count = active_mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
+  String connection_name_buff;
+  LEX_STRING connection_name;
+  Master_info *mi;
+  if (arg_count == 4)
+  {
+    String *con;
+    if (!(con= args[3]->val_str(&connection_name_buff)))
+      goto err;
+
+    connection_name.str= (char*) con->ptr();
+    connection_name.length= con->length();
+    if (check_master_connection_name(&connection_name))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
+               "MASTER_CONNECTION_NAME");
+      goto err;
+    }
+  }
+  else
+    connection_name= thd->variables.default_master_connection;
+
+  if (!(mi= master_info_index->get_master_info(&connection_name,
+                                               MYSQL_ERROR::WARN_LEVEL_WARN)))
+    goto err;
+  if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;
     event_count=0;
   }
 #endif
   return event_count;
+
+#ifdef HAVE_REPLICATION
+err:
+  {
+    null_value = 1;
+    return 0;
+  }
+#endif
 }
 
 
@@ -4084,7 +4116,7 @@ longlong Item_func_get_lock::val_int()
     Structure is now initialized.  Try to get the lock.
     Set up control struct to allow others to abort locks.
   */
-  thd_proc_info(thd, "User lock");
+  THD_STAGE_INFO(thd, stage_user_lock);
   thd->mysys_var->current_mutex= &LOCK_user_locks;
   thd->mysys_var->current_cond=  &ull->cond;
 
@@ -4130,7 +4162,6 @@ longlong Item_func_get_lock::val_int()
   mysql_mutex_unlock(&LOCK_user_locks);
 
   mysql_mutex_lock(&thd->mysys_var->mutex);
-  thd_proc_info(thd, 0);
   thd->mysys_var->current_mutex= 0;
   thd->mysys_var->current_cond=  0;
   mysql_mutex_unlock(&thd->mysys_var->mutex);
@@ -4317,7 +4348,7 @@ longlong Item_func_sleep::val_int()
   mysql_cond_init(key_item_func_sleep_cond, &cond, NULL);
   mysql_mutex_lock(&LOCK_user_locks);
 
-  thd_proc_info(thd, "User sleep");
+  THD_STAGE_INFO(thd, stage_user_sleep);
   thd->mysys_var->current_mutex= &LOCK_user_locks;
   thd->mysys_var->current_cond=  &cond;
 
@@ -4331,7 +4362,6 @@ longlong Item_func_sleep::val_int()
     error= 0;
   }
   thd_wait_end(thd);
-  thd_proc_info(thd, 0);
   mysql_mutex_unlock(&LOCK_user_locks);
   mysql_mutex_lock(&thd->mysys_var->mutex);
   thd->mysys_var->current_mutex= 0;
@@ -4346,7 +4376,7 @@ longlong Item_func_sleep::val_int()
 
 #define extra_size sizeof(double)
 
-static user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
+user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
 				    bool create_if_not_exists)
 {
   user_var_entry *entry;
@@ -4358,7 +4388,9 @@ static user_var_entry *get_variable(HASH *hash, LEX_STRING &name,
     uint size=ALIGN_SIZE(sizeof(user_var_entry))+name.length+1+extra_size;
     if (!my_hash_inited(hash))
       return 0;
-    if (!(entry = (user_var_entry*) my_malloc(size,MYF(MY_WME | ME_FATALERROR))))
+    if (!(entry = (user_var_entry*) my_malloc(size,
+                                              MYF(MY_WME | ME_FATALERROR |
+                                                  MY_THREAD_SPECIFIC))))
       return 0;
     entry->name.str=(char*) entry+ ALIGN_SIZE(sizeof(user_var_entry))+
       extra_size;
@@ -4586,7 +4618,8 @@ update_hash(user_var_entry *entry, bool set_null, void *ptr, uint length,
 	  entry->value=0;
         entry->value= (char*) my_realloc(entry->value, length,
                                          MYF(MY_ALLOW_ZERO_PTR | MY_WME |
-                                             ME_FATALERROR));
+                                             ME_FATALERROR |
+                                             MY_THREAD_SPECIFIC));
         if (!entry->value)
 	  return 1;
       }
@@ -6564,6 +6597,19 @@ Item_func_sp::init_result_field(THD *thd)
   sp_result_field->null_ptr= (uchar *) &null_value;
   sp_result_field->null_bit= 1;
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  @note
+  Deterministic stored procedures are considered inexpensive.
+  Consequently such procedures may be evaluated during optimization,
+  if they are constant (checked by the optimizer).
+*/
+
+bool Item_func_sp::is_expensive()
+{
+  return !(m_sp->m_chistics->detistic);
 }
 
 

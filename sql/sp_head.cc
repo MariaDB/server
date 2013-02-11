@@ -218,6 +218,7 @@ sp_get_flags_for_command(LEX *lex)
   case SQLCOM_SHOW_CREATE_TRIGGER:
   case SQLCOM_SHOW_DATABASES:
   case SQLCOM_SHOW_ERRORS:
+  case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_FUNC_CODE:
   case SQLCOM_SHOW_GRANTS:
@@ -384,9 +385,7 @@ sp_eval_expr(THD *thd, Field *result_field, Item **expr_item_ptr)
   */
 
   thd->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
-  thd->abort_on_warning=
-    thd->variables.sql_mode &
-    (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES);
+  thd->abort_on_warning= thd->is_strict_mode();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
 
   /* Save the value in the field. Convert the value if needed. */
@@ -509,7 +508,7 @@ sp_head::operator new(size_t size) throw()
   MEM_ROOT own_root;
   sp_head *sp;
 
-  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC);
+  init_sql_alloc(&own_root, MEM_ROOT_BLOCK_SIZE, MEM_ROOT_PREALLOC, MYF(0));
   sp= (sp_head *) alloc_root(&own_root, size);
   if (sp == NULL)
     DBUG_RETURN(NULL);
@@ -593,7 +592,7 @@ sp_head::init(LEX *lex)
     types of stored procedures to simplify reset_lex()/restore_lex() code.
   */
   lex->trg_table_fields.empty();
-  my_init_dynamic_array(&m_instr, sizeof(sp_instr *), 16, 8);
+  my_init_dynamic_array(&m_instr, sizeof(sp_instr *), 16, 8, MYF(0));
 
   m_param_begin= NULL;
   m_param_end= NULL;
@@ -1253,7 +1252,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     DBUG_RETURN(TRUE);
 
   /* init per-instruction memroot */
-  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&execute_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
 
   DBUG_ASSERT(!(m_flags & IS_INVOKED));
   m_flags|= IS_INVOKED;
@@ -1710,7 +1709,7 @@ sp_head::execute_trigger(THD *thd,
     TODO: we should create sp_rcontext once per command and reuse it
     on subsequent executions of a trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= new sp_rcontext(m_pcont, 0, octx)) ||
@@ -1827,7 +1826,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
     TODO: we should create sp_rcontext once per command and reuse
     it on subsequent executions of a function/trigger.
   */
-  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&call_mem_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(0));
   thd->set_n_backup_active_arena(&call_arena, &backup_arena);
 
   if (!(nctx= new sp_rcontext(m_pcont, return_value_fld, octx)) ||
@@ -2426,7 +2425,6 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
 {
   LEX_STRING cmt = { 0, 0 };
   uint unused1= 0;
-  int unused2= 0;
 
   if (field_def->init(thd, (char*) "", field_type, lex->length, lex->dec,
                       lex->type, (Item*) 0, (Item*) 0, &cmt, 0,
@@ -2443,8 +2441,7 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
 
   sp_prepare_create_field(thd, field_def);
 
-  if (prepare_create_field(field_def, &unused1, &unused2, &unused2,
-                           HA_CAN_GEOMETRY))
+  if (prepare_create_field(field_def, &unused1, HA_CAN_GEOMETRY))
   {
     return TRUE;
   }

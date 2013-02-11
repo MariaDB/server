@@ -25,7 +25,7 @@
 
 pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
-              THR_LOCK_lock, THR_LOCK_isam, THR_LOCK_myisam, THR_LOCK_heap,
+              THR_LOCK_lock, THR_LOCK_myisam, THR_LOCK_heap,
               THR_LOCK_net, THR_LOCK_charset, THR_LOCK_threads,
               THR_LOCK_myisam_mmap;
 
@@ -73,7 +73,6 @@ static void my_thread_init_common_mutex(void)
 {
   mysql_mutex_init(key_THR_LOCK_open, &THR_LOCK_open, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_THR_LOCK_lock, &THR_LOCK_lock, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_THR_LOCK_isam, &THR_LOCK_isam, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_THR_LOCK_myisam, &THR_LOCK_myisam, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_THR_LOCK_myisam_mmap, &THR_LOCK_myisam_mmap, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_THR_LOCK_heap, &THR_LOCK_heap, MY_MUTEX_INIT_FAST);
@@ -88,7 +87,6 @@ void my_thread_destroy_common_mutex(void)
 {
   mysql_mutex_destroy(&THR_LOCK_open);
   mysql_mutex_destroy(&THR_LOCK_lock);
-  mysql_mutex_destroy(&THR_LOCK_isam);
   mysql_mutex_destroy(&THR_LOCK_myisam);
   mysql_mutex_destroy(&THR_LOCK_myisam_mmap);
   mysql_mutex_destroy(&THR_LOCK_heap);
@@ -427,7 +425,12 @@ struct st_my_thread_var *_my_thread_var(void)
 
 my_thread_id my_thread_dbug_id()
 {
-  return my_thread_var->id;
+  /*
+    We need to do this test as some system thread may not yet have called
+    my_thread_init().
+  */
+  struct st_my_thread_var *tmp= my_thread_var;
+  return tmp ? tmp->id : 0;
 }
 
 #ifdef DBUG_OFF

@@ -42,11 +42,11 @@ if ($dir_bin eq '/usr/') {
     $dir_docs = "$dir_docs/Docs"; # development tree
   }
 }
-$found_version = "No line 'MySQL source #.#.#'";
-$found_revision = "No line 'revision-id: .....'";
+$found_version = "No line 'MySQL source #.#.#' in $dir_docs/INFO_SRC";
+$found_revision = "No line 'revision-id: .....' in $dir_docs/INFO_SRC";
 open(I_SRC,"<","$dir_docs/INFO_SRC") or print "Cannot open 'INFO_SRC' in '$dir_docs' (starting from bindir '$dir_bin')\n";
 while(defined ($line = <I_SRC>)) {
-  if ($line =~ m|^MySQL source \d\.\d\.\d+|) {$found_version = "Found MySQL version number";}
+  if ($line =~ m|^MySQL source \d+\.\d\.\d+|) {$found_version = "Found MySQL version number";}
   if ($line =~ m|^revision-id: .*@.*-2\d{13}-\w+$|) {$found_revision = "Found BZR revision id";}
 }
 close I_SRC;

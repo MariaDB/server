@@ -1,0 +1,51 @@
+#
+# Test how SHOW EXPLAIN is represented in performance schema
+#
+--source include/have_debug.inc
+--source include/have_perfschema.inc
+# Like all other perfschema tests, we don't work on embedded server:
+--source include/not_embedded.inc
+
+--disable_warnings
+drop table if exists t0, t1;
+--enable_warnings
+
+select * from performance_schema.setup_instruments where name like '%show_explain%';
+
+--echo # We've got no instances
+select * from performance_schema.cond_instances where name like '%show_explain%';
+
+--echo # Check out if our cond is hit.
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+connection default;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW EXPLAIN for simple queries
+#
+connection con1;
+set @show_explain_probe_select_id=1;
+set debug_dbug='d,show_explain_probe_join_exec_start';
+send select count(*) from t0 where a < 100000;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+set debug_dbug='';
+
+select event_name
+from performance_schema.events_waits_history_long 
+where event_name='wait/synch/cond/sql/show_explain';
+
+drop table t0;

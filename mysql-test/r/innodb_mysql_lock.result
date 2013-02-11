@@ -1,3 +1,6 @@
+set @old_innodb_lock_wait_timeout=@@global.innodb_lock_wait_timeout;
+set global innodb_lock_wait_timeout=300;
+set session innodb_lock_wait_timeout=300;
 #
 # Bug #22876 Four-way deadlock
 #
@@ -172,3 +175,4 @@ id	value
 1	12345
 COMMIT;
 DROP TABLE t1;
+set global innodb_lock_wait_timeout=@old_innodb_lock_wait_timeout;

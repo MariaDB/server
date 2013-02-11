@@ -50,7 +50,7 @@ static char *default_dbug_option= (char*) "d:t:O,/tmp/comp_err.trace";
 #endif
 
 /* Header for errmsg.sys files */
-uchar file_head[]= { 254, 254, 2, 1 };
+uchar file_head[]= { 254, 254, 2, 2 };
 /* Store positions to each error message row to store in errmsg.sys header */
 uint file_pos[MAX_ROWS];
 
@@ -371,8 +371,8 @@ static int create_sys_files(struct languages *lang_head,
     bzero((uchar*) head, HEADER_LENGTH);
     bmove((uchar *) head, (uchar *) file_head, 4);
     head[4]= 1;
-    int2store(head + 6, length);
-    int2store(head + 8, row_count);
+    int4store(head + 6, length);
+    int2store(head + 10, row_count);
     head[30]= csnum;
 
     my_fseek(to, 0l, MY_SEEK_SET, MYF(0));
@@ -714,12 +714,12 @@ static ha_checksum checksum_format_specifier(const char* msg)
     }
     else if (start)
     {
-      switch(*p)
-      {
+      switch(*p) {
       case 'd':
       case 'u':
       case 'x':
       case 's':
+      case 'M':
         chksum= my_checksum(chksum, (uchar*) start, (uint) (p + 1 - start));
         start= 0; /* Not in format specifier anymore */
         break;
@@ -894,7 +894,7 @@ static struct errors *generate_empty_message(uint d_code)
   if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
                                                MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1))
+  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1, MYF(0)))
     return(0);				/* OOM: Fatal error */
 
   new_error->er_name= NULL;
@@ -928,7 +928,7 @@ static struct errors *parse_error_string(char *str, int er_count)
                                                MYF(MY_WME))))
     DBUG_RETURN(0);
 
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0))
+  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0, MYF(0)))
     DBUG_RETURN(0);				/* OOM: Fatal error */
 
   /* getting the error name */

@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2011 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2009-2013 Arjen G Lentz & Antony T Curtis for Open Query
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

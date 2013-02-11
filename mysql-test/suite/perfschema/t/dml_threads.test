@@ -15,13 +15,25 @@ select * from performance_schema.threads
 insert into performance_schema.threads
   set name='FOO', thread_id=1, processlist_id=2;
 
---error ER_TABLEACCESS_DENIED_ERROR
+--error ER_WRONG_PERFSCHEMA_USAGE
 update performance_schema.threads
   set thread_id=12;
 
---error ER_TABLEACCESS_DENIED_ERROR
+--error ER_WRONG_PERFSCHEMA_USAGE
 update performance_schema.threads
-  set thread_id=12 where name like "FOO";
+  set thread_id=12 where PROCESSLIST_ID=connection_id();
+
+update performance_schema.threads
+  set instrumented= 'NO' where PROCESSLIST_ID=connection_id();
+
+select instrumented from performance_schema.threads
+  where PROCESSLIST_ID=connection_id();
+
+update performance_schema.threads
+  set instrumented= 'YES' where PROCESSLIST_ID=connection_id();
+
+select instrumented from performance_schema.threads
+  where PROCESSLIST_ID=connection_id();
 
 --error ER_TABLEACCESS_DENIED_ERROR
 delete from performance_schema.threads
@@ -30,11 +42,9 @@ delete from performance_schema.threads
 --error ER_TABLEACCESS_DENIED_ERROR
 delete from performance_schema.threads;
 
--- error ER_TABLEACCESS_DENIED_ERROR
 LOCK TABLES performance_schema.threads READ;
 UNLOCK TABLES;
 
--- error ER_TABLEACCESS_DENIED_ERROR
 LOCK TABLES performance_schema.threads WRITE;
 UNLOCK TABLES;
 

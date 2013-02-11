@@ -10,8 +10,8 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   along with this program; if not, write to the Free Software Foundation,
+   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 #ifndef REPLICATION_H
 #define REPLICATION_H
@@ -458,34 +458,6 @@ int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void
    @return address of MYSQL structure on success, NULL on failure
 */
 MYSQL *rpl_connect_master(MYSQL *mysql);
-
-/**
-   Set thread entering a condition
-
-   This function should be called before putting a thread to wait for
-   a condition. @a mutex should be held before calling this
-   function. After being waken up, @f thd_exit_cond should be called.
-
-   @param thd      The thread entering the condition, NULL means current thread
-   @param cond     The condition the thread is going to wait for
-   @param mutex    The mutex associated with the condition, this must be
-                   held before call this function
-   @param msg      The new process message for the thread
-*/
-const char* thd_enter_cond(MYSQL_THD thd, mysql_cond_t *cond,
-                           mysql_mutex_t *mutex, const char *msg);
-
-/**
-   Set thread leaving a condition
-
-   This function should be called after a thread being waken up for a
-   condition.
-
-   @param thd      The thread entering the condition, NULL means current thread
-   @param old_msg  The process message, ususally this should be the old process
-                   message before calling @f thd_enter_cond
-*/
-void thd_exit_cond(MYSQL_THD thd, const char *old_msg);
 
 /**
    Get the value of user variable as an integer.

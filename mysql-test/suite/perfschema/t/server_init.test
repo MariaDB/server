@@ -23,9 +23,6 @@ select count(name) from mutex_instances
  where name like "wait/synch/mutex/mysys/THR_LOCK_open";
 
 select count(name) from mutex_instances
- where name like "wait/synch/mutex/mysys/THR_LOCK_isam";
-
-select count(name) from mutex_instances
  where name like "wait/synch/mutex/mysys/THR_LOCK_myisam";
 
 select count(name) from mutex_instances
@@ -53,6 +50,9 @@ select count(name) from mutex_instances
  where name like "wait/synch/mutex/sql/LOCK_thread_count";
 
 select count(name) from mutex_instances
+ where name like "wait/synch/mutex/sql/LOCK_log_throttle_qni";
+
+select count(name) from mutex_instances
  where name like "wait/synch/mutex/sql/LOCK_status";
 
 select count(name) from mutex_instances
@@ -62,7 +62,7 @@ select count(name) from mutex_instances
  where name like "wait/synch/mutex/sql/LOCK_delayed_insert";
 
 select count(name) from mutex_instances
- where name like "wait/synch/mutex/sql/LOCK_uuid_short_generator";
+ where name like "wait/synch/mutex/sql/LOCK_uuid_generator";
 
 select count(name) from mutex_instances
  where name like "wait/synch/mutex/sql/LOCK_delayed_status";
@@ -96,9 +96,6 @@ select count(name) from mutex_instances
 
 select count(name) from mutex_instances
  where name like "wait/synch/mutex/sql/LOCK_server_started";
-
-select count(name) from mutex_instances
- where name like "wait/synch/mutex/sql/LOCK_rpl_status";
 
 # LOG_INFO object are created on demand, and are not global.
 # select count(name) from mutex_instances
@@ -169,9 +166,6 @@ select count(name) from cond_instances
 
 select count(name) from cond_instances
  where name like "wait/synch/cond/sql/COND_flush_thread_cache";
-
-select count(name) from cond_instances
- where name like "wait/synch/cond/sql/COND_rpl_status";
 
 select count(name) from cond_instances
  where name like "wait/synch/cond/sql/Query_cache::COND_cache_status_changed";

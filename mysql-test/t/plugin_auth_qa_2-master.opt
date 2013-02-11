@@ -1,1 +1,1 @@
---plugin-load=$QA_AUTH_INTERFACE_SO
+--plugin-load-add=$QA_AUTH_INTERFACE_SO

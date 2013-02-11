@@ -1,5 +1,4 @@
---require r/have_debug_sync.require
-disable_query_log;
-let $value= query_get_value(SHOW VARIABLES LIKE 'debug_sync', Value, 1);
-eval SELECT ('$value' LIKE 'ON %') AS debug_sync;
-enable_query_log;
+if (`SELECT COUNT(*) = 0 FROM information_schema.session_variables WHERE
+      variable_name = 'debug_sync' AND variable_value LIKE 'ON %'`) {
+  --skip Needs debug_sync enabled
+}

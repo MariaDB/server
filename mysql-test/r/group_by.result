@@ -359,7 +359,7 @@ A	4
 B	4
 a	1
 b	1
-SET SQL_BIG_TABLES=1;
+SET BIG_TABLES=1;
 SELECT a FROM t1 GROUP BY a;
 a
 NULL
@@ -398,7 +398,7 @@ A	4
 B	4
 a	1
 b	1
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 drop table t1;
 CREATE TABLE t1 (
 `a` char(193) default NULL,
@@ -515,7 +515,7 @@ a	count(*)
 NULL	9
 	3
 b	1
-set option sql_big_tables=1;
+set big_tables=1;
 select a,count(*) from t1 group by a;
 a	count(*)
 NULL	9
@@ -1918,7 +1918,7 @@ DROP TABLE t1;
 # Bug#11765254 (58200): Assertion failed: param.sort_length when grouping
 # by functions
 #
-SET SQL_BIG_TABLES=1;
+SET BIG_TABLES=1;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0),(0);
 SELECT 1 FROM t1 GROUP BY IF(`a`,'','');
@@ -1945,7 +1945,7 @@ Warning	1292	Truncated incorrect INTEGER value: 'jxW<'
 Warning	1292	Truncated incorrect INTEGER value: 'K'
 Warning	1292	Truncated incorrect INTEGER value: 'jxW<'
 DROP TABLE t1;
-SET SQL_BIG_TABLES=0;
+SET BIG_TABLES=0;
 # End of 5.1 tests
 #
 # LP bug#694450 Wrong result with non-standard GROUP BY + ORDER BY
@@ -2246,3 +2246,48 @@ i	GROUP_CONCAT(  d1, d2 ORDER BY d1, d2 )
 2	22.2
 NULL	11.1,22.2
 DROP TABLE t1;
+#
+# Bug #58782
+# Missing rows with SELECT .. WHERE .. IN subquery 
+# with full GROUP BY and no aggr
+#
+CREATE TABLE t1 (
+pk INT NOT NULL,
+col_int_nokey INT,
+PRIMARY KEY (pk)
+);
+INSERT INTO t1 VALUES (10,7);
+INSERT INTO t1 VALUES (11,1);
+INSERT INTO t1 VALUES (12,5);
+INSERT INTO t1 VALUES (13,3);
+SELECT pk AS field1, col_int_nokey AS field2 
+FROM t1 
+WHERE col_int_nokey > 0
+GROUP BY field1, field2;
+field1	field2
+10	7
+11	1
+12	5
+13	3
+CREATE TABLE where_subselect
+SELECT pk AS field1, col_int_nokey AS field2
+FROM t1
+WHERE col_int_nokey > 0
+GROUP BY field1, field2
+;
+SELECT * 
+FROM where_subselect
+WHERE (field1, field2) IN (
+SELECT pk AS field1, col_int_nokey AS field2
+FROM t1
+WHERE col_int_nokey > 0
+GROUP BY field1, field2
+);
+field1	field2
+10	7
+11	1
+12	5
+13	3
+DROP TABLE t1;
+DROP TABLE where_subselect;
+# End of Bug #58782

@@ -5,6 +5,12 @@
 #
 source include/not_embedded.inc;
 
+--disable_query_log
+let $innodb_index_stats = query_get_value(show create table mysql.innodb_index_stats, Create Table, 1);
+let $innodb_table_stats = query_get_value(show create table mysql.innodb_table_stats, Create Table, 1);
+let $database=`select database()`;
+drop table mysql.innodb_index_stats, mysql.innodb_table_stats;
+
 let $_server_id= `SELECT @@server_id`;
 let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect;
 let $datadir= `SELECT @@datadir`;
@@ -18,3 +24,9 @@ enable_reconnect;
 source include/wait_until_connected_again.inc;
 disable_reconnect;
 
+--disable_query_log
+use mysql;
+eval $innodb_table_stats;
+eval $innodb_index_stats;
+eval use $database;
+--enable_query_log

@@ -29,20 +29,11 @@
 #endif
 
 #include "procedure.h"
-#include <myisam.h>
 #include "sql_array.h"                        /* Array */
 #include "records.h"                          /* READ_RECORD */
 #include "opt_range.h"                /* SQL_SELECT, QUICK_SELECT_I */
 
 
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-#include <maria.h>
-#endif
-#if defined(USE_ARIA_FOR_TMP_TABLES)
-#define TMP_ENGINE_HTON maria_hton
-#else
-#define TMP_ENGINE_HTON myisam_hton
-#endif
 /* Values in optimize */
 #define KEY_OPTIMIZE_EXISTS		1
 #define KEY_OPTIMIZE_REF_OR_NULL	2
@@ -101,6 +92,13 @@ typedef struct st_table_ref
   uchar         *key_buff;                ///< value to look for with key
   uchar         *key_buff2;               ///< key_buff+key_length
   store_key     **key_copy;               //
+
+  /*
+    Bitmap of key parts which refer to constants. key_copy only has copiers for
+    non-const key parts.
+  */
+  key_part_map  const_ref_part_map;
+
   Item          **items;                  ///< val()'s for each keypart
   /*  
     Array of pointers to trigger variables. Some/all of the pointers may be
@@ -282,8 +280,8 @@ typedef struct st_join_table {
   */
   double        read_time;
   
-  /* psergey-todo: make the below have type double, like POSITION::records_read? */
-  ha_rows       records_read;
+  /* Copy of POSITION::records_read, set by get_best_combination() */
+  double       records_read;
   
   /* Startup cost for execution */
   double        startup_cost;
@@ -763,7 +761,7 @@ typedef struct st_position :public Sql_alloc
   double read_time;
 
   /* Cumulative cost and record count for the join prefix */
-  COST_VECT prefix_cost;
+  Cost_estimate prefix_cost;
   double    prefix_record_count;
 
   /*
@@ -917,7 +915,7 @@ public:
   */
   JOIN_TAB *table_access_tabs;
   uint     top_table_access_tabs_count;
-
+  
   JOIN_TAB **map2table;    ///< mapping between table indexes and JOIN_TABs
   JOIN_TAB *join_tab_save; ///< saved join_tab for subquery reexecution
 
@@ -1185,8 +1183,14 @@ public:
   const char *zero_result_cause; ///< not 0 if exec must return zero result
   
   bool union_part; ///< this subselect is part of union 
+
+  enum join_optimization_state { NOT_OPTIMIZED=0,
+                                 OPTIMIZATION_IN_PROGRESS=1,
+                                 OPTIMIZATION_DONE=2};
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
+  
+  enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
 
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
@@ -1269,6 +1273,7 @@ public:
     ref_pointer_array_size= 0;
     zero_result_cause= 0;
     optimized= 0;
+    have_query_plan= QEP_NOT_PRESENT_YET;
     initialized= 0;
     cleaned= 0;
     cond_equal= 0;
@@ -1300,9 +1305,11 @@ public:
 	      SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
+  int optimize_inner();
   int reinit();
   int init_execution();
   void exec();
+  void exec_inner();
   int destroy();
   void restore_tmp();
   bool alloc_func_list();
@@ -1416,6 +1423,11 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
+
+  int print_explain(select_result_sink *result, uint8 explain_flags,
+                     bool on_the_fly,
+                     bool need_tmp_table, bool need_order,
+                     bool distinct,const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
@@ -1730,8 +1742,8 @@ Field *create_tmp_field(THD *thd, TABLE *table,Item *item, Item::Type type,
                         bool make_copy_field,
                         uint convert_blob_length);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo, 
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options, my_bool big_tables);
 
 /*
@@ -1767,6 +1779,9 @@ inline bool optimizer_flag(THD *thd, uint flag)
   return (thd->variables.optimizer_switch & flag);
 }
 
+int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
+                               SELECT_LEX *select_lex, uint8 select_options);
+
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
                          ha_rows limit, bool *need_sort, bool *reverse);
 ORDER *simple_remove_const(ORDER *order, COND *where);
@@ -1795,12 +1810,12 @@ TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			const char* alias, bool do_not_open=FALSE);
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
-                                         ENGINE_COLUMNDEF *start_recinfo,
-                                         ENGINE_COLUMNDEF **recinfo, 
+                                         TMP_ENGINE_COLUMNDEF *start_recinfo,
+                                         TMP_ENGINE_COLUMNDEF **recinfo, 
                                          int error, bool ignore_last_dupp_key_error);
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
-                               ENGINE_COLUMNDEF *start_recinfo,
-                               ENGINE_COLUMNDEF **recinfo, 
+                               TMP_ENGINE_COLUMNDEF *start_recinfo,
+                               TMP_ENGINE_COLUMNDEF **recinfo, 
                                ulonglong options, my_bool big_tables);
 bool open_tmp_table(TABLE *table);
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);

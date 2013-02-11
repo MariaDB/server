@@ -174,6 +174,7 @@ my $DEFAULT_SUITES= join(',', map { "$_-" } qw(
     heap
     innodb
     maria
+    multi_source
     optimizer_unfixed_bugs
     oqgraph
     parts
@@ -3450,6 +3451,8 @@ sub mysql_install_db {
   mtr_add_arg($args, "--datadir=%s", $install_datadir);
   mtr_add_arg($args, "--default-storage-engine=myisam");
   mtr_add_arg($args, "--skip-$_") for @optional_plugins;
+  # starting from 10.0 bootstrap scripts require InnoDB
+  mtr_add_arg($args, "--loose-innodb");
   mtr_add_arg($args, "--disable-sync-frm");
   mtr_add_arg($args, "--tmpdir=%s", "$opt_vardir/tmp/");
   mtr_add_arg($args, "--core-file");
@@ -3515,7 +3518,7 @@ sub mysql_install_db {
   {
     my $sql_dir= dirname($path_sql);
     # Use the mysql database for system tables
-    mtr_tofile($bootstrap_sql_file, "use mysql\n");
+    mtr_tofile($bootstrap_sql_file, "use mysql;\n");
 
     # Add the offical mysql system tables
     # for a production system
@@ -3595,9 +3598,10 @@ sub mysql_install_db {
 	verbose       => $opt_verbose,
        ) != 0)
   {
+    my $data= mtr_grab_file($path_bootstrap_log);
     mtr_error("Error executing mysqld --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
-	      "see $path_bootstrap_log for errors");
+	      "The $path_bootstrap_log file contains:\n$data\n");
   }
 }
 
@@ -4703,6 +4707,7 @@ sub extract_warning_lines ($$) {
      qr/Plugin 'ndbcluster' will be forced to shutdown/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
+     qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
      qr/Slave: Unknown table 't1' Error_code: 1051/,
      qr/Slave SQL:.*(Error_code: [[:digit:]]+|Query:.*)/,
@@ -4733,7 +4738,8 @@ sub extract_warning_lines ($$) {
      qr|Checking table:   '\..mtr.test_suppressions'|,
      qr|Table \./test/bug53592 has a primary key in InnoDB data dictionary, but not in MySQL|,
      qr|Table '\..mtr.test_suppressions' is marked as crashed and should be repaired|,
-     qr|Can't open shared library.*ha_archive|,
+     qr|Can't open shared library|,
+     qr|Couldn't load plugin named .*EXAMPLE.*|,
      qr|InnoDB: Error: table 'test/bug39438'|,
      qr| entry '.*' ignored in --skip-name-resolve mode|,
      qr|mysqld got signal 6|,
@@ -5264,9 +5270,6 @@ sub mysqld_arguments ($$$) {
   }
 
   my $found_skip_core= 0;
-  my @plugins;
-  my %seen;
-  my $plugin;
   foreach my $arg ( @$extra_opts )
   {
     # Skip --defaults-file option since it's handled above.
@@ -5286,12 +5289,6 @@ sub mysqld_arguments ($$$) {
     {
       ; # Dont add --skip-log-bin when mysqld have --log-slave-updates in config
     }
-    elsif ($plugin = mtr_match_prefix($arg,  "--plugin-load="))
-    {
-      next if $plugin =~ /=$/;
-      push @plugins, $plugin unless $seen{$plugin};
-      $seen{$plugin} = 1;
-    }
     else
     {
       mtr_add_arg($args, "%s", $arg);
@@ -5307,11 +5304,6 @@ sub mysqld_arguments ($$$) {
   # Facility stays disabled if timeout value is zero.
   mtr_add_arg($args, "--loose-debug-sync-timeout=%s",
               $opt_debug_sync_timeout) unless $opt_user_args;
-
-  if (@plugins) {
-    my $sep = (IS_WINDOWS) ? ';' : ':';
-    mtr_add_arg($args, "--plugin-load=%s" .  join($sep, @plugins));
-  }
 
   return $args;
 }

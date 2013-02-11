@@ -1466,6 +1466,8 @@ log_write_up_to(
 	ulint		loop_count	= 0;
 #endif /* UNIV_DEBUG */
 	ulint		unlock;
+	ib_uint64_t	write_lsn;
+	ib_uint64_t	flush_lsn;
 
 	if (recv_no_ibuf_operations) {
 		/* Recovery is running and no operations on the log files are
@@ -1644,7 +1646,12 @@ loop:
 
 	log_flush_do_unlocks(unlock);
 
+	write_lsn = log_sys->write_lsn;
+	flush_lsn = log_sys->flushed_to_disk_lsn;
+
 	mutex_exit(&(log_sys->mutex));
+
+	innobase_mysql_log_notify(write_lsn, flush_lsn);
 
 	return;
 

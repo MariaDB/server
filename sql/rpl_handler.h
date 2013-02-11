@@ -124,7 +124,7 @@ public:
     inited= FALSE;
     if (my_rwlock_init(&lock, NULL))
       return;
-    init_sql_alloc(&memroot, 1024, 0);
+    init_sql_alloc(&memroot, 1024, 0, MYF(0));
     inited= TRUE;
   }
   ~Delegate()

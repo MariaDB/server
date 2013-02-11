@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -23,41 +23,70 @@
 #include "table_setup_consumers.h"
 #include "pfs_instr.h"
 #include "pfs_events_waits.h"
+#include "pfs_digest.h"
 
-#define COUNT_SETUP_CONSUMERS 8
+#define COUNT_SETUP_CONSUMERS 12
 static row_setup_consumers all_setup_consumers_data[COUNT_SETUP_CONSUMERS]=
 {
   {
+    { C_STRING_WITH_LEN("events_stages_current") },
+    &flag_events_stages_current,
+    false
+  },
+  {
+    { C_STRING_WITH_LEN("events_stages_history") },
+    &flag_events_stages_history,
+    false
+  },
+  {
+    { C_STRING_WITH_LEN("events_stages_history_long") },
+    &flag_events_stages_history_long,
+    false
+  },
+  {
+    { C_STRING_WITH_LEN("events_statements_current") },
+    &flag_events_statements_current,
+    false
+  },
+  {
+    { C_STRING_WITH_LEN("events_statements_history") },
+    &flag_events_statements_history,
+    false
+  },
+  {
+    { C_STRING_WITH_LEN("events_statements_history_long") },
+    &flag_events_statements_history_long,
+    false
+  },
+  {
     { C_STRING_WITH_LEN("events_waits_current") },
-    &flag_events_waits_current
+    &flag_events_waits_current,
+    false
   },
   {
     { C_STRING_WITH_LEN("events_waits_history") },
-    &flag_events_waits_history
+    &flag_events_waits_history,
+    false
   },
   {
     { C_STRING_WITH_LEN("events_waits_history_long") },
-    &flag_events_waits_history_long
+    &flag_events_waits_history_long,
+    false
   },
   {
-    { C_STRING_WITH_LEN("events_waits_summary_by_thread_by_event_name") },
-    &flag_events_waits_summary_by_thread_by_event_name
+    { C_STRING_WITH_LEN("global_instrumentation") },
+    &flag_global_instrumentation,
+    true
   },
   {
-    { C_STRING_WITH_LEN("events_waits_summary_by_event_name") },
-    &flag_events_waits_summary_by_event_name
+    { C_STRING_WITH_LEN("thread_instrumentation") },
+    &flag_thread_instrumentation,
+    false
   },
   {
-    { C_STRING_WITH_LEN("events_waits_summary_by_instance") },
-    &flag_events_waits_summary_by_instance
-  },
-  {
-    { C_STRING_WITH_LEN("file_summary_by_event_name") },
-    &flag_file_summary_by_event_name
-  },
-  {
-    { C_STRING_WITH_LEN("file_summary_by_instance") },
-    &flag_file_summary_by_instance
+    { C_STRING_WITH_LEN("statements_digest") },
+    &flag_statements_digest,
+    false
   }
 };
 
@@ -89,6 +118,7 @@ table_setup_consumers::m_share=
   &table_setup_consumers::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
+  NULL, /* get_row_count */
   COUNT_SETUP_CONSUMERS, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
@@ -204,6 +234,9 @@ int table_setup_consumers::update_row_values(TABLE *table,
       }
     }
   }
+
+  if (m_row->m_refresh)
+    update_instruments_derived_flags();
 
   return 0;
 }

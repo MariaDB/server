@@ -1179,7 +1179,7 @@ let $rows = 1;
 --source suite/vcol/inc/vcol_supported_sql_funcs.inc
 
 #--echo # DES_ENCRYPT(), DES_DECRYPT()
-#--source include/have_ssl.inc
+#--source include/have_ssl_communication.inc
 #let $cols = a varchar(1024), b varchar(1024) as (des_encrypt(des_decrypt(a,'adf'),'adf'));
 #let $values1 = 'MySQL',default;
 #let $rows = 1;

@@ -237,7 +237,7 @@ int maria_write(MARIA_HA *info, uchar *record)
             /* running. now we wait */
             WT_RESOURCE_ID rc;
             int res;
-            const char *old_proc_info; 
+            PSI_stage_info old_stage_info;
 
             rc.type= &ma_rc_dup_unique;
             /* TODO savepoint id when we'll have them */
@@ -249,11 +249,10 @@ int maria_write(MARIA_HA *info, uchar *record)
               my_errno= HA_ERR_LOCK_DEADLOCK;
               goto err;
             }
-            old_proc_info= proc_info_hook(0,
-                                          "waiting for a resource",
-                                          __func__, __FILE__, __LINE__);
+            proc_info_hook(0, &stage_waiting_for_a_resource, &old_stage_info,
+                           __func__, __FILE__, __LINE__);
             res= wt_thd_cond_timedwait(info->trn->wt, & blocker->state_lock);
-            proc_info_hook(0, old_proc_info, __func__, __FILE__, __LINE__);
+            proc_info_hook(0, &old_stage_info, 0, __func__, __FILE__, __LINE__);
 
             mysql_mutex_unlock(& blocker->state_lock);
             if (res != WT_OK)
@@ -881,7 +880,7 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
         /* Yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
           my_malloc(sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
-        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50);
+        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50, MYF(0));
 
         /*
           Now, adding all keys from the page to dynarray
@@ -1766,8 +1765,8 @@ int maria_init_bulk_insert(MARIA_HA *info, ulong cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-		(qsort_cmp2)keys_compare, 0,
-		(tree_element_free) keys_free, (void *)params++);
+		(qsort_cmp2)keys_compare,
+		(tree_element_free) keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

@@ -45,9 +45,12 @@
 
 #define MAX_SLAVE_ERROR    2000
 
+#define MAX_REPLICATION_THREAD 64
+
 // Forward declarations
 class Relay_log_info;
 class Master_info;
+class Master_info_index;
 
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
 int init_strvar_from_file(char *var, int max_size, IO_CACHE *f,
@@ -197,7 +200,8 @@ int mysql_table_dump(THD* thd, const char* db,
 int fetch_master_table(THD* thd, const char* db_name, const char* table_name,
 		       Master_info* mi, MYSQL* mysql, bool overwrite);
 
-bool show_master_info(THD* thd, Master_info* mi);
+bool show_master_info(THD* thd, Master_info* mi, bool full);
+bool show_all_master_info(THD* thd);
 bool show_binlog_info(THD* thd);
 bool rpl_master_has_bug(const Relay_log_info *rli, uint bug_id, bool report,
                         bool (*pred)(const void *), const void *param);
@@ -231,6 +235,9 @@ bool net_request_file(NET* net, const char* fname);
 
 extern bool volatile abort_loop;
 extern Master_info main_mi, *active_mi; /* active_mi for multi-master */
+extern Master_info *default_master_info; /* To replace active_mi */
+extern Master_info_index *master_info_index;
+extern LEX_STRING default_master_connection_name;
 extern LIST master_list;
 extern my_bool replicate_same_server_id;
 

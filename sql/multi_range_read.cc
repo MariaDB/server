@@ -56,7 +56,7 @@
 ha_rows 
 handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                      void *seq_init_param, uint n_ranges_arg,
-                                     uint *bufsz, uint *flags, COST_VECT *cost)
+                                     uint *bufsz, uint *flags, Cost_estimate *cost)
 {
   KEY_MULTI_RANGE range;
   range_seq_t seq_it;
@@ -106,7 +106,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   {
     /* The following calculation is the same as in multi_range_read_info(): */
     *flags |= HA_MRR_USE_DEFAULT_IMPL;
-    cost->zero();
+    cost->reset();
     cost->avg_io_cost= 1; /* assume random seeks */
     if ((*flags & HA_MRR_INDEX_ONLY) && total_rows > 2)
       cost->io_count= keyread_time(keyno, n_ranges, (uint)total_rows);
@@ -154,7 +154,7 @@ handler::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
 
 ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
                                        uint key_parts, uint *bufsz, 
-                                       uint *flags, COST_VECT *cost)
+                                       uint *flags, Cost_estimate *cost)
 {
   /* 
     Currently we expect this function to be called only in preparation of scan
@@ -165,7 +165,7 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
   *bufsz= 0; /* Default implementation doesn't need a buffer */
   *flags |= HA_MRR_USE_DEFAULT_IMPL;
 
-  cost->zero();
+  cost->reset();
   cost->avg_io_cost= 1; /* assume random seeks */
 
   /* Produce the same cost as non-MRR code does */
@@ -1201,7 +1201,7 @@ bool DsMrr_impl::setup_buffer_sharing(uint key_size_in_keybuf,
   uint parts= my_count_bits(key_tuple_map);
   ulong rpc;
   ulonglong rowids_size= rowid_buf_elem_size;
-  if ((rpc= key_info->rec_per_key[parts - 1]))
+  if ((rpc= key_info->actual_rec_per_key(parts - 1)))
     rowids_size= rowid_buf_elem_size * rpc;
 
   double fraction_for_rowids=
@@ -1402,7 +1402,7 @@ int DsMrr_impl::dsmrr_next(range_id_t *range_info)
 */
 ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows, 
                                uint key_parts,
-                               uint *bufsz, uint *flags, COST_VECT *cost)
+                               uint *bufsz, uint *flags, Cost_estimate *cost)
 {  
   ha_rows res __attribute__((unused));
   uint def_flags= *flags;
@@ -1437,7 +1437,7 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
 
 ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                  void *seq_init_param, uint n_ranges, 
-                                 uint *bufsz, uint *flags, COST_VECT *cost)
+                                 uint *bufsz, uint *flags, Cost_estimate *cost)
 {
   ha_rows rows;
   uint def_flags= *flags;
@@ -1551,9 +1551,9 @@ bool DsMrr_impl::check_cpk_scan(THD *thd, uint keyno, uint mrr_flags)
 
 
 bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
-                                 uint *bufsz, COST_VECT *cost)
+                                 uint *bufsz, Cost_estimate *cost)
 {
-  COST_VECT dsmrr_cost;
+  Cost_estimate dsmrr_cost;
   bool res;
   THD *thd= current_thd;
 
@@ -1655,7 +1655,7 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
 }
 
 
-static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, COST_VECT *cost);
+static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost);
 
 
 /**
@@ -1673,7 +1673,7 @@ static void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, COST_VECT *cost
 */
 
 bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
-                                         uint *buffer_size, COST_VECT *cost)
+                                         uint *buffer_size, Cost_estimate *cost)
 {
   ulong max_buff_entries, elem_size;
   ha_rows rows_in_full_step;
@@ -1707,13 +1707,13 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   }
   else
   {
-    cost->zero();
+    cost->reset();
     *buffer_size= max(*buffer_size, 
                       (size_t)(1.2*rows_in_last_step) * elem_size + 
                       primary_file->ref_length + table->key_info[keynr].key_length);
   }
   
-  COST_VECT last_step_cost;
+  Cost_estimate last_step_cost;
   get_sort_and_sweep_cost(table, rows_in_last_step, &last_step_cost);
   cost->add(&last_step_cost);
  
@@ -1742,7 +1742,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
 */
 
 static 
-void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, COST_VECT *cost)
+void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, Cost_estimate *cost)
 {
   if (nrows)
   {
@@ -1754,7 +1754,7 @@ void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, COST_VECT *cost)
     cost->cpu_cost += cmp_op * log2(cmp_op);
   }
   else
-    cost->zero();
+    cost->reset();
 }
 
 
@@ -1802,11 +1802,11 @@ void get_sort_and_sweep_cost(TABLE *table, ha_rows nrows, COST_VECT *cost)
 */
 
 void get_sweep_read_cost(TABLE *table, ha_rows nrows, bool interrupted, 
-                         COST_VECT *cost)
+                         Cost_estimate *cost)
 {
   DBUG_ENTER("get_sweep_read_cost");
 
-  cost->zero();
+  cost->reset();
   if (table->file->primary_key_is_clustered())
   {
     cost->io_count= table->file->read_time(table->s->primary_key,

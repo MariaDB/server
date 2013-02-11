@@ -2142,6 +2142,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       Note that we don't need to have cases in this list if they are
       marked with CF_STATUS_COMMAND in sql_command_flags
     */
+  case SQLCOM_SHOW_EXPLAIN:
   case SQLCOM_DROP_TABLE:
   case SQLCOM_RENAME_TABLE:
   case SQLCOM_ALTER_TABLE:
@@ -2159,6 +2160,8 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_FLUSH:
   case SQLCOM_SLAVE_START:
   case SQLCOM_SLAVE_STOP:
+  case SQLCOM_SLAVE_ALL_START:
+  case SQLCOM_SLAVE_ALL_STOP:
   case SQLCOM_INSTALL_PLUGIN:
   case SQLCOM_UNINSTALL_PLUGIN:
   case SQLCOM_CREATE_DB:
@@ -2832,7 +2835,7 @@ void mysqld_stmt_reset(THD *thd, char *packet)
 
   stmt->state= Query_arena::STMT_PREPARED;
 
-  general_log_print(thd, thd->command, NullS);
+  general_log_print(thd, thd->get_command(), NullS);
 
   my_ok(thd);
 
@@ -2865,7 +2868,7 @@ void mysqld_stmt_close(THD *thd, char *packet)
   */
   DBUG_ASSERT(! stmt->is_in_use());
   stmt->deallocate();
-  general_log_print(thd, thd->command, NullS);
+  general_log_print(thd, thd->get_command(), NullS);
 
   DBUG_VOID_RETURN;
 }
@@ -2980,7 +2983,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
   thd->stmt_da= save_stmt_da;
   thd->warning_info= save_warinig_info;
 
-  general_log_print(thd, thd->command, NullS);
+  general_log_print(thd, thd->get_command(), NullS);
 
   DBUG_VOID_RETURN;
 }
@@ -3090,6 +3093,7 @@ Execute_sql_statement(LEX_STRING sql_text)
 bool
 Execute_sql_statement::execute_server_code(THD *thd)
 {
+  PSI_statement_locker *parent_locker;
   bool error;
 
   if (alloc_query(thd, m_sql_text.str, m_sql_text.length))
@@ -3109,7 +3113,10 @@ Execute_sql_statement::execute_server_code(THD *thd)
 
   thd->lex->set_trg_event_type_for_tables();
 
+  parent_locker= thd->m_statement_psi;
+  thd->m_statement_psi= NULL;
   error= mysql_execute_command(thd);
+  thd->m_statement_psi= parent_locker;
 
   /* report error issued during command execution */
   if (error == 0 && thd->spcont == NULL)
@@ -3138,7 +3145,7 @@ Prepared_statement::Prepared_statement(THD *thd_arg)
   flags((uint) IS_IN_USE)
 {
   init_sql_alloc(&main_mem_root, thd_arg->variables.query_alloc_block_size,
-                  thd_arg->variables.query_prealloc_size);
+                 thd_arg->variables.query_prealloc_size, MYF(MY_THREAD_SPECIFIC));
   *last_error= '\0';
 }
 
@@ -3895,13 +3902,17 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
+      PSI_statement_locker *parent_locker;
       MYSQL_QUERY_EXEC_START(thd->query(),
                              thd->thread_id,
                              (char *) (thd->db ? thd->db : ""),
                              &thd->security_ctx->priv_user[0],
                              (char *) thd->security_ctx->host_or_ip,
                              1);
+      parent_locker= thd->m_statement_psi;
+      thd->m_statement_psi= NULL;
       error= mysql_execute_command(thd);
+      thd->m_statement_psi= parent_locker;
       MYSQL_QUERY_EXEC_DONE(error);
     }
   }
@@ -4028,7 +4039,7 @@ Ed_result_set::Ed_result_set(List<Ed_row> *rows_arg,
 */
 
 Ed_connection::Ed_connection(THD *thd)
-  :m_warning_info(thd->query_id, false),
+  :m_warning_info(thd->query_id, false, true),
   m_thd(thd),
   m_rsets(0),
   m_current_rset(0)
@@ -4452,7 +4463,7 @@ bool Protocol_local::send_result_set_metadata(List<Item> *columns, uint)
 {
   DBUG_ASSERT(m_rset == 0 && !alloc_root_inited(&m_rset_root));
 
-  init_sql_alloc(&m_rset_root, MEM_ROOT_BLOCK_SIZE, 0);
+  init_sql_alloc(&m_rset_root, MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (! (m_rset= new (&m_rset_root) List<Ed_row>))
     return TRUE;

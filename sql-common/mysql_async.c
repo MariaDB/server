@@ -56,7 +56,7 @@ my_context_install_suspend_resume_hook(struct mysql_async_context *b,
 /* Asynchronous connect(); socket must already be set non-blocking. */
 int
 my_connect_async(struct mysql_async_context *b, my_socket fd,
-                 const struct sockaddr *name, uint namelen, uint timeout)
+                 const struct sockaddr *name, uint namelen, int vio_timeout)
 {
   int res;
   size_socket s_err_size;
@@ -90,9 +90,13 @@ my_connect_async(struct mysql_async_context *b, my_socket fd,
       return res;
 #endif
     b->events_to_wait_for|= MYSQL_WAIT_WRITE;
-    b->timeout_value= timeout;
-    if (timeout)
+    if (vio_timeout >= 0)
+    {
+      b->timeout_value= vio_timeout;
       b->events_to_wait_for|= MYSQL_WAIT_TIMEOUT;
+    }
+    else
+      b->timeout_value= 0;
     if (b->suspend_resume_hook)
       (*b->suspend_resume_hook)(TRUE, b->suspend_resume_hook_user_data);
     my_context_yield(&b->async_context);
@@ -119,7 +123,7 @@ my_connect_async(struct mysql_async_context *b, my_socket fd,
 
 ssize_t
 my_recv_async(struct mysql_async_context *b, int fd,
-              unsigned char *buf, size_t size, uint timeout)
+              unsigned char *buf, size_t size, int timeout)
 {
   ssize_t res;
 
@@ -129,7 +133,7 @@ my_recv_async(struct mysql_async_context *b, int fd,
     if (res >= 0 || IS_BLOCKING_ERROR())
       return res;
     b->events_to_wait_for= MYSQL_WAIT_READ;
-    if (timeout)
+    if (timeout >= 0)
     {
       b->events_to_wait_for|= MYSQL_WAIT_TIMEOUT;
       b->timeout_value= timeout;
@@ -147,7 +151,7 @@ my_recv_async(struct mysql_async_context *b, int fd,
 
 ssize_t
 my_send_async(struct mysql_async_context *b, int fd,
-              const unsigned char *buf, size_t size, uint timeout)
+              const unsigned char *buf, size_t size, int timeout)
 {
   ssize_t res;
 
@@ -157,7 +161,7 @@ my_send_async(struct mysql_async_context *b, int fd,
     if (res >= 0 || IS_BLOCKING_ERROR())
       return res;
     b->events_to_wait_for= MYSQL_WAIT_WRITE;
-    if (timeout)
+    if (timeout >= 0)
     {
       b->events_to_wait_for|= MYSQL_WAIT_TIMEOUT;
       b->timeout_value= timeout;
@@ -174,16 +178,33 @@ my_send_async(struct mysql_async_context *b, int fd,
 
 
 my_bool
-my_poll_read_async(struct mysql_async_context *b, uint timeout)
+my_io_wait_async(struct mysql_async_context *b, enum enum_vio_io_event event,
+                 int timeout)
 {
-  b->events_to_wait_for= MYSQL_WAIT_READ | MYSQL_WAIT_TIMEOUT;
-  b->timeout_value= timeout;
+  switch (event)
+  {
+  case VIO_IO_EVENT_READ:
+    b->events_to_wait_for = MYSQL_WAIT_READ;
+    break;
+  case VIO_IO_EVENT_WRITE:
+    b->events_to_wait_for = MYSQL_WAIT_WRITE;
+    break;
+  case VIO_IO_EVENT_CONNECT:
+    b->events_to_wait_for = MYSQL_WAIT_WRITE | IF_WIN(0, MYSQL_WAIT_EXCEPT);
+    break;
+  }
+
+  if (timeout >= 0)
+  {
+    b->events_to_wait_for |= MYSQL_WAIT_TIMEOUT;
+    b->timeout_value= timeout;
+  }
   if (b->suspend_resume_hook)
     (*b->suspend_resume_hook)(TRUE, b->suspend_resume_hook_user_data);
   my_context_yield(&b->async_context);
   if (b->suspend_resume_hook)
     (*b->suspend_resume_hook)(FALSE, b->suspend_resume_hook_user_data);
-  return (b->events_occured & MYSQL_WAIT_READ) ? 0 : 1;
+  return (b->events_occured & MYSQL_WAIT_TIMEOUT) ? 0 : 1;
 }
 
 
@@ -239,32 +260,27 @@ my_ssl_write_async(struct mysql_async_context *b, SSL *ssl,
 }
 #endif  /* HAVE_OPENSSL */
 
+/*
+  Legacy support of the MariaDB 5.5 version, where timeouts where only in
+  seconds resolution. Applications that use this will be asked to set a timeout
+  at the nearest higher whole-seconds value.
+*/
 unsigned int STDCALL
 mysql_get_timeout_value(const MYSQL *mysql)
 {
-  return mysql->options.extension->async_context->timeout_value;
+  unsigned int timeout= mysql->options.extension->async_context->timeout_value;
+  /* Avoid overflow. */
+  if (timeout > UINT_MAX - 999)
+    return (timeout - 1)/1000 + 1;
+  else
+    return (timeout+999)/1000;
 }
 
 
-/*
-  In 10.0, VIO timeouts are in milliseconds, so we support getting the
-  millisecond timeout value from async applications.
-
-  In 5.5, timeouts are always in seconds, but we support the 10.0 version
-  that provides milliseconds, so applications can work with either version
-  of the library easily.
-
-  When merging this to 10.0, this function must be removed and the 10.0
-  version used.
-*/
 unsigned int STDCALL
 mysql_get_timeout_value_ms(const MYSQL *mysql)
 {
-  unsigned int timeout= mysql->options.extension->async_context->timeout_value;
-  if (timeout <= UINT_MAX / 1000)
-    return timeout*1000;
-  else
-    return UINT_MAX;
+  return mysql->options.extension->async_context->timeout_value;
 }
 
 

@@ -260,8 +260,6 @@ The following options may be given as the first argument:
  --lock-wait-timeout=# 
  Timeout in seconds to wait for a lock before returning an
  error.
- -l, --log[=name]    Log connections and queries to file (deprecated option,
- use --general-log/--general-log-file instead).
  --log-basename=name Basename for all log files and the .pid file. This sets
  all log file names at once (in 'datadir') and is normally
  the only option you need for specifying log files. Sets
@@ -361,8 +359,7 @@ The following options may be given as the first argument:
  --max-binlog-cache-size=# 
  Sets the total size of the transactional cache
  --max-binlog-size=# Binary log will be rotated automatically when the size
- exceeds this value. Will also apply to relay logs if
- max_relay_log_size is 0
+ exceeds this value.
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
  --max-connect-errors=# 
@@ -388,9 +385,9 @@ The following options may be given as the first argument:
  --max-prepared-stmt-count=# 
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
- If non-zero: relay log will be rotated automatically when
- the size exceeds this value; if zero: when the size
- exceeds max_binlog_size
+ relay log will be rotated automatically when the size
+ exceeds this value.  If 0 are startup, it's set to
+ max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
  based on a key
@@ -503,10 +500,66 @@ The following options may be given as the first argument:
  val is one of {on, off, default}
  --performance-schema 
  Enable the performance schema.
+ --performance-schema-accounts-size=# 
+ Maximum number of instrumented user@host accounts.
+ --performance-schema-consumer-events-stages-current 
+ Default startup value for the events_stages_current
+ consumer.
+ --performance-schema-consumer-events-stages-history 
+ Default startup value for the events_stages_history
+ consumer.
+ --performance-schema-consumer-events-stages-history-long 
+ Default startup value for the events_stages_history_long
+ consumer.
+ --performance-schema-consumer-events-statements-current 
+ Default startup value for the events_statements_current
+ consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-events-statements-current to disable.)
+ --performance-schema-consumer-events-statements-history 
+ Default startup value for the events_statements_history
+ consumer.
+ --performance-schema-consumer-events-statements-history-long 
+ Default startup value for the
+ events_statements_history_long consumer.
+ --performance-schema-consumer-events-waits-current 
+ Default startup value for the events_waits_current
+ consumer.
+ --performance-schema-consumer-events-waits-history 
+ Default startup value for the events_waits_history
+ consumer.
+ --performance-schema-consumer-events-waits-history-long 
+ Default startup value for the events_waits_history_long
+ consumer.
+ --performance-schema-consumer-global-instrumentation 
+ Default startup value for the global_instrumentation
+ consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-global-instrumentation to disable.)
+ --performance-schema-consumer-statements-digest 
+ Default startup value for the statements_digest consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-statements-digest to disable.)
+ --performance-schema-consumer-thread-instrumentation 
+ Default startup value for the thread_instrumentation
+ consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-thread-instrumentation to disable.)
+ --performance-schema-digests-size=# 
+ Size of the statement digest.
+ --performance-schema-events-stages-history-long-size=# 
+ Number of rows in EVENTS_STAGES_HISTORY_LONG.
+ --performance-schema-events-stages-history-size=# 
+ Number of rows per thread in EVENTS_STAGES_HISTORY.
+ --performance-schema-events-statements-history-long-size=# 
+ Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.
+ --performance-schema-events-statements-history-size=# 
+ Number of rows per thread in EVENTS_STATEMENTS_HISTORY.
  --performance-schema-events-waits-history-long-size=# 
  Number of rows in EVENTS_WAITS_HISTORY_LONG.
  --performance-schema-events-waits-history-size=# 
  Number of rows per thread in EVENTS_WAITS_HISTORY.
+ --performance-schema-hosts-size=# 
+ Maximum number of instrumented hosts.
+ --performance-schema-instrument[=name] 
+ Default startup value for a performance schema
+ instrument.
  --performance-schema-max-cond-classes=# 
  Maximum number of condition instruments.
  --performance-schema-max-cond-instances=# 
@@ -525,6 +578,14 @@ The following options may be given as the first argument:
  Maximum number of rwlock instruments.
  --performance-schema-max-rwlock-instances=# 
  Maximum number of instrumented RWLOCK objects.
+ --performance-schema-max-socket-classes=# 
+ Maximum number of socket instruments.
+ --performance-schema-max-socket-instances=# 
+ Maximum number of opened instrumented sockets.
+ --performance-schema-max-stage-classes=# 
+ Maximum number of stage instruments.
+ --performance-schema-max-statement-classes=# 
+ Maximum number of statement instruments.
  --performance-schema-max-table-handles=# 
  Maximum number of opened instrumented tables.
  --performance-schema-max-table-instances=# 
@@ -533,12 +594,23 @@ The following options may be given as the first argument:
  Maximum number of thread instruments.
  --performance-schema-max-thread-instances=# 
  Maximum number of instrumented threads.
+ --performance-schema-setup-actors-size=# 
+ Maximum number of rows in SETUP_ACTORS.
+ --performance-schema-setup-objects-size=# 
+ Maximum number of rows in SETUP_OBJECTS.
+ --performance-schema-users-size=# 
+ Maximum number of instrumented users.
  --pid-file=name     Pid file used by safe_mysqld
  --plugin-dir=name   Directory for plugins
  --plugin-load=name  Semicolon-separated list of plugins to load, where each
  plugin is specified as ether a plugin_name=library_file
  pair or only a library_file. If the latter case, all
  plugins from a given library_file will be loaded.
+ --plugin-load-add=name 
+ Optional semicolon-separated list of plugins to load.
+ This option adds to the list speficied by --plugin-load
+ in an incremental way. It can be specified many times,
+ adding more plugins every time.
  --plugin-maturity=name 
  The lowest desirable plugin maturity (unknown,
  experimental, alpha, beta, gamma, or stable). Plugins
@@ -745,7 +817,7 @@ The following options may be given as the first argument:
  The maximum packet length to sent successfully from the
  master to slave.
  --slave-net-timeout=# 
- Number of seconds to wait for more data from a
+ Number of seconds to wait for more data from any
  master/slave connection before aborting the read
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
@@ -836,6 +908,9 @@ The following options may be given as the first argument:
  --transaction-prealloc-size=# 
  Persistent buffer for transactions to be stored in binary
  log
+ --transaction-read-only 
+ Default transaction access mode. True if transactions are
+ read-only.
  --updatable-views-with-limit=name 
  YES = Don't issue an error message (warning only) if a
  VIEW without presence of a key of the underlying table is
@@ -843,6 +918,9 @@ The following options may be given as the first argument:
  Prohibit update of a VIEW, which does not contain a key
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
+ --use-stat-tables=name 
+ Specifies how to use system statistics tables. Possible
+ values are NEVER, COMPLEMENTARY, PREVERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -970,7 +1048,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-long-data-size 1048576
 max-prepared-stmt-count 16382
-max-relay-log-size 0
+max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
 max-sp-recursion-depth 0
@@ -1003,8 +1081,28 @@ optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
 performance-schema FALSE
+performance-schema-accounts-size 100
+performance-schema-consumer-events-stages-current FALSE
+performance-schema-consumer-events-stages-history FALSE
+performance-schema-consumer-events-stages-history-long FALSE
+performance-schema-consumer-events-statements-current TRUE
+performance-schema-consumer-events-statements-history FALSE
+performance-schema-consumer-events-statements-history-long FALSE
+performance-schema-consumer-events-waits-current FALSE
+performance-schema-consumer-events-waits-history FALSE
+performance-schema-consumer-events-waits-history-long FALSE
+performance-schema-consumer-global-instrumentation TRUE
+performance-schema-consumer-statements-digest TRUE
+performance-schema-consumer-thread-instrumentation TRUE
+performance-schema-digests-size 200
+performance-schema-events-stages-history-long-size 10000
+performance-schema-events-stages-history-size 10
+performance-schema-events-statements-history-long-size 10000
+performance-schema-events-statements-history-size 10
 performance-schema-events-waits-history-long-size 10000
 performance-schema-events-waits-history-size 10
+performance-schema-hosts-size 100
+performance-schema-instrument 
 performance-schema-max-cond-classes 80
 performance-schema-max-cond-instances 1000
 performance-schema-max-file-classes 50
@@ -1014,11 +1112,17 @@ performance-schema-max-mutex-classes 200
 performance-schema-max-mutex-instances 1000000
 performance-schema-max-rwlock-classes 30
 performance-schema-max-rwlock-instances 1000000
-performance-schema-max-table-handles 100000
-performance-schema-max-table-instances 50000
+performance-schema-max-socket-classes 10
+performance-schema-max-socket-instances 1000
+performance-schema-max-stage-classes 150
+performance-schema-max-statement-classes 173
+performance-schema-max-table-handles 10000
+performance-schema-max-table-instances 1000
 performance-schema-max-thread-classes 50
 performance-schema-max-thread-instances 1000
-plugin-load (No default value)
+performance-schema-setup-actors-size 100
+performance-schema-setup-objects-size 100
+performance-schema-users-size 100
 plugin-maturity unknown
 port 3306
 port-open-timeout 0
@@ -1095,7 +1199,9 @@ tmp-table-size 16777216
 transaction-alloc-block-size 8192
 transaction-isolation REPEATABLE-READ
 transaction-prealloc-size 4096
+transaction-read-only FALSE
 updatable-views-with-limit YES
+use-stat-tables NEVER
 userstat FALSE
 verbose TRUE
 wait-timeout 28800

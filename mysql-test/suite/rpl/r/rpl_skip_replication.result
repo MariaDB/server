@@ -10,7 +10,7 @@ SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
 replicate
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_SLAVE;
-ERROR HY000: This operation cannot be performed with a running slave; run STOP SLAVE first
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
 replicate

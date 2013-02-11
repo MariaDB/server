@@ -56,23 +56,26 @@ class String
 {
   char *Ptr;
   uint32 str_length,Alloced_length, extra_alloc;
-  bool alloced;
+  bool alloced,thread_specific;
   CHARSET_INFO *str_charset;
 public:
   String()
   { 
-    Ptr=0; str_length=Alloced_length=extra_alloc=0; alloced=0; 
+    Ptr=0; str_length=Alloced_length=extra_alloc=0;
+    alloced= thread_specific= 0; 
     str_charset= &my_charset_bin; 
   }
   String(uint32 length_arg)
   { 
-    alloced=0; Alloced_length= extra_alloc= 0; (void) real_alloc(length_arg); 
+    alloced= thread_specific= 0;
+    Alloced_length= extra_alloc= 0; (void) real_alloc(length_arg); 
     str_charset= &my_charset_bin;
   }
   String(const char *str, CHARSET_INFO *cs)
   { 
     Ptr=(char*) str; str_length= (uint32) strlen(str);
-    Alloced_length= extra_alloc= 0; alloced=0;
+    Alloced_length= extra_alloc= 0;
+    alloced= thread_specific= 0;
     str_charset=cs;
   }
   /*
@@ -82,18 +85,21 @@ public:
   */
   String(const char *str,uint32 len, CHARSET_INFO *cs)
   { 
-    Ptr=(char*) str; str_length=len; Alloced_length= extra_alloc=0; alloced=0;
+    Ptr=(char*) str; str_length=len; Alloced_length= extra_alloc=0;
+    alloced= thread_specific= 0;
     str_charset=cs;
   }
   String(char *str,uint32 len, CHARSET_INFO *cs)
   { 
-    Ptr=(char*) str; Alloced_length=str_length=len; extra_alloc= 0; alloced=0;
+    Ptr=(char*) str; Alloced_length=str_length=len; extra_alloc= 0;
+    alloced= thread_specific= 0;
     str_charset=cs;
   }
   String(const String &str)
   { 
     Ptr=str.Ptr ; str_length=str.str_length ;
-    Alloced_length=str.Alloced_length; extra_alloc= 0; alloced=0; 
+    Alloced_length=str.Alloced_length; extra_alloc= 0;
+    alloced= thread_specific= 0;
     str_charset=str.str_charset;
   }
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -108,6 +114,12 @@ public:
   { /* never called */ }
   ~String() { free(); }
 
+  /* Mark variable thread specific it it's not allocated already */
+  inline void set_thread_specific()
+  {
+    if (!alloced)
+      thread_specific= 1;
+  }
   inline void set_charset(CHARSET_INFO *charset_arg)
   { str_charset= charset_arg; }
   inline CHARSET_INFO *charset() const { return str_charset; }
@@ -332,6 +344,7 @@ public:
     Ptr=s.Ptr ; str_length=s.str_length ; Alloced_length=s.Alloced_length;
     extra_alloc= s.extra_alloc;
     alloced= s.alloced;
+    thread_specific= s.thread_specific;
     s.alloced= 0;
   }
   bool append(const String &s);
@@ -346,6 +359,7 @@ public:
   bool append(IO_CACHE* file, uint32 arg_length);
   bool append_with_prefill(const char *s, uint32 arg_length, 
 			   uint32 full_length, char fill_char);
+  bool append_parenthesized(long nr, int radix= 10);
   int strstr(const String &search,uint32 offset=0); // Returns offset to substring or -1
   int strrstr(const String &search,uint32 offset=0); // Returns offset to substring or -1
   bool replace(uint32 offset,uint32 arg_length,const char *to,uint32 length);

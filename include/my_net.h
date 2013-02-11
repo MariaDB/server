@@ -61,13 +61,15 @@ C_MODE_START
   #define SD_BOTH 0x02
 */
 #define SHUT_RDWR 0x02
-
+#else
+#include <netdb.h>     /* getaddrinfo() & co */
 #endif
 
 /*
-  On OSes which don't have the in_addr_t, we guess that using uint32 is the best
-  possible choice. We guess this from the fact that on HP-UX64bit & FreeBSD64bit
-  & Solaris64bit, in_addr_t is equivalent to uint32. And on Linux32bit too.
+  On OSes which don't have the in_addr_t, we guess that using uint32
+  is the best possible choice. We guess this from the fact that on
+  HP-UX64bit & FreeBSD64bit & Solaris64bit, in_addr_t is equivalent to
+  uint32. And on Linux32bit too.
 */
 #ifndef HAVE_IN_ADDR_T
 #define in_addr_t uint32

@@ -121,6 +121,7 @@ static ulong commit_threads = 0;
 static mysql_mutex_t commit_threads_m;
 static mysql_cond_t commit_cond;
 static mysql_mutex_t commit_cond_m;
+static mysql_mutex_t pending_checkpoint_mutex;
 static bool innodb_inited = 0;
 
 
@@ -254,11 +255,13 @@ static mysql_pfs_key_t	innobase_share_mutex_key;
 static mysql_pfs_key_t	commit_threads_m_key;
 static mysql_pfs_key_t	commit_cond_mutex_key;
 static mysql_pfs_key_t	commit_cond_key;
+static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
 static PSI_mutex_info	all_pthread_mutexes[] = {
         {&commit_threads_m_key, "commit_threads_m", 0},
         {&commit_cond_mutex_key, "commit_cond_mutex", 0},
-        {&innobase_share_mutex_key, "innobase_share_mutex", 0}
+        {&innobase_share_mutex_key, "innobase_share_mutex", 0},
+        {&pending_checkpoint_mutex_key, "pending_checkpoint_mutex", 0}
 };
 
 static PSI_cond_info	all_innodb_conds[] = {
@@ -378,7 +381,7 @@ static PSI_file_info	all_innodb_files[] = {
 static INNOBASE_SHARE *get_share(const char *table_name);
 static void free_share(INNOBASE_SHARE *share);
 static int innobase_close_connection(handlerton *hton, THD* thd);
-static void innobase_kill_query(handlerton *hton, THD* thd, my_bool hard_kill);
+static void innobase_kill_query(handlerton *hton, THD* thd, enum thd_kill_levels level);
 static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
 static int innobase_commit(handlerton *hton, THD* thd, bool all);
 static int innobase_rollback(handlerton *hton, THD* thd, bool all);
@@ -387,6 +390,7 @@ static int innobase_rollback_to_savepoint(handlerton *hton, THD* thd,
 static int innobase_savepoint(handlerton *hton, THD* thd, void *savepoint);
 static int innobase_release_savepoint(handlerton *hton, THD* thd,
            void *savepoint);
+static void innobase_checkpoint_request(handlerton *hton, void *cookie);
 static handler *innobase_create_handler(handlerton *hton,
                                         TABLE_SHARE *table,
                                         MEM_ROOT *mem_root);
@@ -487,10 +491,17 @@ static MYSQL_THDVAR_ULONG(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
   NULL, NULL, 50, 1, 1024 * 1024 * 1024, 0);
 
 static MYSQL_THDVAR_ULONG(flush_log_at_trx_commit, PLUGIN_VAR_OPCMDARG,
-  "Set to 0 (write and flush once per second),"
-  " 1 (write and flush at each commit)"
-  " or 2 (write at commit, flush once per second).",
-  NULL, NULL, 1, 0, 2, 0);
+  "Controls the durability/speed trade-off for commits."
+  " Set to 0 (write and flush redo log to disk only once per second),"
+  " 1 (flush to disk at each commit),"
+  " 2 (write to log at commit but flush to disk only once per second)"
+  " or 3 (flush to disk at prepare and at commit, slower and usually redundant)."
+  " 1 and 3 guarantees that after a crash, committed transactions will"
+  " not be lost and will be consistent with the binlog and other transactional"
+  " engines. 2 can get inconsistent and lose transactions if there is a"
+  " power failure or kernel crash but not if mysqld crashes. 0 has no"
+  " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
+  NULL, NULL, 1, 0, 3, 0);
 
 static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
   "In the transaction after enabled, UPDATE, INSERT and DELETE only move the cursor to the records "
@@ -2378,7 +2389,7 @@ trx_is_interrupted(
 /*===============*/
 	trx_t*	trx)	/*!< in: transaction */
 {
-	return(trx && trx->mysql_thd && thd_killed((THD*) trx->mysql_thd));
+	return(trx && trx->mysql_thd && thd_kill_level((THD*) trx->mysql_thd));
 }
 
 /**********************************************************************//**
@@ -2621,6 +2632,7 @@ innobase_init(
         innobase_hton->recover=innobase_xa_recover;
         innobase_hton->commit_by_xid=innobase_commit_by_xid;
         innobase_hton->rollback_by_xid=innobase_rollback_by_xid;
+        innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
         innobase_hton->checkpoint_state= innobase_checkpoint_state;
         innobase_hton->create_cursor_read_view=innobase_create_cursor_view;
         innobase_hton->set_cursor_read_view=innobase_set_cursor_view;
@@ -2634,7 +2646,7 @@ innobase_init(
         innobase_hton->flags=HTON_NO_FLAGS;
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
-	innobase_hton->kill_query = innobase_kill_query;
+        innobase_hton->kill_query = innobase_kill_query;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -3162,6 +3174,9 @@ innobase_change_buffering_inited_ok:
 	mysql_mutex_init(commit_cond_mutex_key,
 			 &commit_cond_m, MY_MUTEX_INIT_FAST);
 	mysql_cond_init(commit_cond_key, &commit_cond, NULL);
+	mysql_mutex_init(pending_checkpoint_mutex_key,
+			 &pending_checkpoint_mutex,
+			 MY_MUTEX_INIT_FAST);
 	innodb_inited= 1;
 #ifdef MYSQL_DYNAMIC_PLUGIN
 	if (innobase_hton != p) {
@@ -3209,6 +3224,7 @@ innobase_end(
 		mysql_mutex_destroy(&commit_threads_m);
 		mysql_mutex_destroy(&commit_cond_m);
 		mysql_cond_destroy(&commit_cond);
+		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
 
 	DBUG_RETURN(err);
@@ -3286,6 +3302,29 @@ innobase_commit_low(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 	if (trx_is_started(trx)) {
+#ifdef HAVE_REPLICATION
+#ifdef MYSQL_SERVER
+		THD *thd=current_thd;
+
+		if (innobase_overwrite_relay_log_info &&
+                    thd && thd_is_replication_slave_thread(thd) &&
+                    thd->connection_name.length) {
+		/* Update the replication position info inside InnoDB.
+		   In embedded server, does nothing. */
+			const char *log_file_name, *group_relay_log_name;
+			ulonglong log_pos, relay_log_pos;
+			bool res = rpl_get_position_info(&log_file_name, &log_pos,
+							 &group_relay_log_name,
+							 &relay_log_pos);
+			if (res) {
+				trx->mysql_master_log_file_name = log_file_name;
+				trx->mysql_master_log_pos = (ib_int64_t)log_pos;
+				trx->mysql_relay_log_file_name = group_relay_log_name;
+				trx->mysql_relay_log_pos = (ib_int64_t)relay_log_pos;
+			}
+		}
+#endif /* MYSQL_SERVER */
+#endif /* HAVE_REPLICATION */
 
 		/* Save the current replication position for write to trx sys
 		header for undo purposes, see the comment at corresponding call
@@ -3616,6 +3655,147 @@ innobase_rollback_trx(
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
 }
 
+
+struct pending_checkpoint {
+	struct pending_checkpoint *next;
+	handlerton *hton;
+	void *cookie;
+	ib_uint64_t lsn;
+};
+static struct pending_checkpoint *pending_checkpoint_list;
+static struct pending_checkpoint *pending_checkpoint_list_end;
+
+/*****************************************************************//**
+Handle a commit checkpoint request from server layer.
+We put the request in a queue, so that we can notify upper layer about
+checkpoint complete when we have flushed the redo log.
+If we have already flushed all relevant redo log, we notify immediately.*/
+static
+void
+innobase_checkpoint_request(
+	handlerton *hton,
+	void *cookie)
+{
+	ib_uint64_t			lsn;
+	ib_uint64_t			flush_lsn;
+	struct pending_checkpoint *	entry;
+
+	/* Do the allocation outside of lock to reduce contention. The normal
+	case is that not everything is flushed, so we will need to enqueue. */
+	entry = static_cast<struct pending_checkpoint *>
+		(my_malloc(sizeof(*entry), MYF(MY_WME)));
+	if (!entry) {
+		sql_print_error("Failed to allocate %u bytes."
+				" Commit checkpoint will be skipped.",
+				static_cast<unsigned>(sizeof(*entry)));
+		return;
+	}
+
+	entry->next = NULL;
+	entry->hton = hton;
+	entry->cookie = cookie;
+
+	mysql_mutex_lock(&pending_checkpoint_mutex);
+	lsn = log_get_lsn();
+	flush_lsn = log_get_flush_lsn();
+	if (lsn > flush_lsn) {
+		/* Put the request in queue.
+		When the log gets flushed past the lsn, we will remove the
+		entry from the queue and notify the upper layer. */
+		entry->lsn = lsn;
+		if (pending_checkpoint_list_end) {
+			pending_checkpoint_list_end->next = entry;
+			/* There is no need to order the entries in the list
+			by lsn. The upper layer can accept notifications in
+			any order, and short delays in notifications do not
+			significantly impact performance. */
+		} else {
+			pending_checkpoint_list = entry;
+		}
+		pending_checkpoint_list_end = entry;
+		entry = NULL;
+	}
+	mysql_mutex_unlock(&pending_checkpoint_mutex);
+
+	if (entry) {
+		/* We are already flushed. Notify the checkpoint immediately. */
+		commit_checkpoint_notify_ha(entry->hton, entry->cookie);
+		my_free(entry);
+	}
+}
+
+/*****************************************************************//**
+Log code calls this whenever log has been written and/or flushed up
+to a new position. We use this to notify upper layer of a new commit
+checkpoint when necessary.*/
+extern "C" UNIV_INTERN
+void
+innobase_mysql_log_notify(
+/*===============*/
+	ib_uint64_t	write_lsn,	/*!< in: LSN written to log file */
+	ib_uint64_t	flush_lsn)	/*!< in: LSN flushed to disk */
+{
+	struct pending_checkpoint *	pending;
+	struct pending_checkpoint *	entry;
+	struct pending_checkpoint *	last_ready;
+
+	/* It is safe to do a quick check for NULL first without lock.
+	Even if we should race, we will at most skip one checkpoint and
+	take the next one, which is harmless. */
+	if (!pending_checkpoint_list)
+		return;
+
+	mysql_mutex_lock(&pending_checkpoint_mutex);
+	pending = pending_checkpoint_list;
+	if (!pending)
+	{
+		mysql_mutex_unlock(&pending_checkpoint_mutex);
+		return;
+	}
+
+	last_ready = NULL;
+	for (entry = pending; entry != NULL; entry = entry -> next)
+	{
+		/* Notify checkpoints up until the first entry that has not
+		been fully flushed to the redo log. Since we do not maintain
+		the list ordered, in principle there could be more entries
+		later than were also flushed. But there is no harm in
+		delaying notifications for those a bit. And in practise, the
+		list is unlikely to have more than one element anyway, as we
+		flush the redo log at least once every second. */
+		if (entry->lsn > flush_lsn)
+			break;
+		last_ready = entry;
+	}
+
+	if (last_ready)
+	{
+		/* We found some pending checkpoints that are now flushed to
+		disk. So remove them from the list. */
+		pending_checkpoint_list = entry;
+		if (!entry)
+			pending_checkpoint_list_end = NULL;
+	}
+
+	mysql_mutex_unlock(&pending_checkpoint_mutex);
+
+	if (!last_ready)
+		return;
+
+	/* Now that we have released the lock, notify upper layer about all
+	commit checkpoints that have now completed. */
+	for (;;) {
+		entry = pending;
+		pending = pending->next;
+
+		commit_checkpoint_notify_ha(entry->hton, entry->cookie);
+
+		my_free(entry);
+		if (entry == last_ready)
+			break;
+	}
+}
+
 /*****************************************************************//**
 Rolls back a transaction to a savepoint.
 @return 0 if success, HA_ERR_NO_SAVEPOINT if no savepoint with the
@@ -3780,9 +3960,9 @@ static
 void
 innobase_kill_query(
 /*======================*/
-        handlerton*	hton,	/*!< in:  innobase handlerton */
-	THD*	thd,	/*!< in: handle to the MySQL thread being killed */
-        my_bool hard_kill)      /*!< in:  If hard kill */
+        handlerton*	hton,	    /*!< in: innobase handlerton */
+	THD*	thd,	            /*!< in: MySQL thread being killed */
+        enum thd_kill_levels level) /*!< in: kill level */
 {
 	trx_t*	trx;
 	DBUG_ENTER("innobase_kill_query");
@@ -3794,7 +3974,6 @@ innobase_kill_query(
 
 	/* Cancel a pending lock request. */
 	if (trx && trx->wait_lock) {
-                //trx->killed= 1;
 		lock_cancel_waiting_and_release(trx->wait_lock);
 	}
 
@@ -3867,17 +4046,6 @@ static const char* ha_innobase_exts[] = {
   ".ibd",
   NullS
 };
-
-/****************************************************************//**
-Returns the table type (storage engine name).
-@return	table type */
-UNIV_INTERN
-const char*
-ha_innobase::table_type() const
-/*===========================*/
-{
-	return(innobase_hton_name);
-}
 
 /****************************************************************//**
 Returns the index type. */
@@ -6030,14 +6198,9 @@ ha_innobase::write_row(
 		ut_error;
 	}
 
-	ha_statistic_increment(&SSV::ha_write_count);
-
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
-
-	if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-		table->timestamp_field->set_time();
 
 	sql_command = thd_sql_command(user_thd);
 
@@ -6458,14 +6621,9 @@ ha_innobase::update_row(
 		}
 	}
 
-	ha_statistic_increment(&SSV::ha_update_count);
-
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
-
-	if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-		table->timestamp_field->set_time();
 
 	if (prebuilt->upd_node) {
 		uvect = prebuilt->upd_node->update;
@@ -6575,8 +6733,6 @@ ha_innobase::delete_row(
 	DBUG_ENTER("ha_innobase::delete_row");
 
 	ut_a(prebuilt->trx == trx);
-
-	ha_statistic_increment(&SSV::ha_delete_count);
 
 	if (share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
@@ -6854,8 +7010,6 @@ ha_innobase::index_read(
 
 	ut_a(prebuilt->trx == thd_to_trx(user_thd));
 	ut_ad(key_len != 0 || find_flag != HA_READ_KEY_EXACT);
-
-	ha_statistic_increment(&SSV::ha_read_key_count);
 
 	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
 		DBUG_RETURN(HA_ERR_CRASHED);
@@ -7220,8 +7374,6 @@ ha_innobase::index_next(
 	uchar*		buf)	/*!< in/out: buffer for next row in MySQL
 				format */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, 0));
 }
 
@@ -7236,8 +7388,6 @@ ha_innobase::index_next_same(
 	const uchar*	key,	/*!< in: key value */
 	uint		keylen)	/*!< in: key value length */
 {
-	ha_statistic_increment(&SSV::ha_read_next_count);
-
 	return(general_fetch(buf, ROW_SEL_NEXT, last_match_mode));
 }
 
@@ -7251,8 +7401,6 @@ ha_innobase::index_prev(
 /*====================*/
 	uchar*	buf)	/*!< in/out: buffer for previous row in MySQL format */
 {
-	ha_statistic_increment(&SSV::ha_read_prev_count);
-
 	return(general_fetch(buf, ROW_SEL_PREV, 0));
 }
 
@@ -7269,7 +7417,6 @@ ha_innobase::index_first(
 	int	error;
 
 	DBUG_ENTER("index_first");
-	ha_statistic_increment(&SSV::ha_read_first_count);
 
 	error = index_read(buf, NULL, 0, HA_READ_AFTER_KEY);
 
@@ -7295,7 +7442,6 @@ ha_innobase::index_last(
 	int	error;
 
 	DBUG_ENTER("index_last");
-	ha_statistic_increment(&SSV::ha_read_last_count);
 
 	error = index_read(buf, NULL, 0, HA_READ_BEFORE_KEY);
 
@@ -7365,7 +7511,6 @@ ha_innobase::rnd_next(
 	int	error;
 
 	DBUG_ENTER("rnd_next");
-	ha_statistic_increment(&SSV::ha_read_rnd_next_count);
 
 	if (start_of_scan) {
 		error = index_first(buf);
@@ -7399,8 +7544,6 @@ ha_innobase::rnd_pos(
 	uint		keynr	= active_index;
 	DBUG_ENTER("rnd_pos");
 	DBUG_DUMP("key", pos, ref_length);
-
-	ha_statistic_increment(&SSV::ha_read_rnd_count);
 
 	ut_a(prebuilt->trx == thd_to_trx(ha_thd()));
 
@@ -7847,7 +7990,7 @@ get_row_format_name(
 	if (!srv_file_per_table) {				\
 		push_warning_printf(				\
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,	\
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: ROW_FORMAT=%s requires"	\
 			" innodb_file_per_table.",		\
 			get_row_format_name(row_format));	\
@@ -7859,7 +8002,7 @@ get_row_format_name(
 	if (srv_file_format < DICT_TF_FORMAT_ZIP) {		\
 		push_warning_printf(				\
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,	\
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: ROW_FORMAT=%s requires"	\
 			" innodb_file_format > Antelope.",	\
 			get_row_format_name(row_format));	\
@@ -7909,7 +8052,7 @@ create_options_are_valid(
 			if (!srv_file_per_table) {
 				push_warning(
 					thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-					ER_ILLEGAL_HA_CREATE_OPTION,
+					HA_WRONG_CREATE_OPTION,
 					"InnoDB: KEY_BLOCK_SIZE requires"
 					" innodb_file_per_table.");
 				ret = FALSE;
@@ -7917,7 +8060,7 @@ create_options_are_valid(
 			if (srv_file_format < DICT_TF_FORMAT_ZIP) {
 				push_warning(
 					thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-					ER_ILLEGAL_HA_CREATE_OPTION,
+					HA_WRONG_CREATE_OPTION,
 					"InnoDB: KEY_BLOCK_SIZE requires"
 					" innodb_file_format > Antelope.");
 					ret = FALSE;
@@ -7926,7 +8069,7 @@ create_options_are_valid(
 		default:
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: invalid KEY_BLOCK_SIZE = %lu."
 				" Valid values are [1, 2, 4, 8, 16]",
 				create_info->key_block_size);
@@ -7951,7 +8094,7 @@ create_options_are_valid(
 		if (kbs_specified) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: cannot specify ROW_FORMAT = %s"
 				" with KEY_BLOCK_SIZE.",
 				get_row_format_name(row_format));
@@ -7965,7 +8108,7 @@ create_options_are_valid(
 	case ROW_TYPE_NOT_USED:
 		push_warning(
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,		\
+			HA_WRONG_CREATE_OPTION,		\
 			"InnoDB: invalid ROW_FORMAT specifier.");
 		ret = FALSE;
 		break;
@@ -8068,7 +8211,7 @@ ha_innobase::create(
 
 	/* Validate create options if innodb_strict_mode is set. */
 	if (!create_options_are_valid(thd, form, create_info)) {
-		DBUG_RETURN(ER_ILLEGAL_HA_CREATE_OPTION);
+		DBUG_RETURN(HA_WRONG_CREATE_OPTION);
 	}
 
 	if (create_info->key_block_size) {
@@ -8094,7 +8237,7 @@ ha_innobase::create(
 		if (!srv_file_per_table) {
 			push_warning(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: KEY_BLOCK_SIZE requires"
 				" innodb_file_per_table.");
 			flags = 0;
@@ -8103,7 +8246,7 @@ ha_innobase::create(
 		if (file_format < DICT_TF_FORMAT_ZIP) {
 			push_warning(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: KEY_BLOCK_SIZE requires"
 				" innodb_file_format > Antelope.");
 			flags = 0;
@@ -8112,7 +8255,7 @@ ha_innobase::create(
 		if (!flags) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu.",
 				create_info->key_block_size);
 		}
@@ -8134,7 +8277,7 @@ ha_innobase::create(
 			with ALTER TABLE anyway. */
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ignoring KEY_BLOCK_SIZE=%lu"
 				" unless ROW_FORMAT=COMPRESSED.",
 				create_info->key_block_size);
@@ -8165,14 +8308,14 @@ ha_innobase::create(
 		if (!srv_file_per_table) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ROW_FORMAT=%s requires"
 				" innodb_file_per_table.",
 				get_row_format_name(row_format));
 		} else if (file_format < DICT_TF_FORMAT_ZIP) {
 			push_warning_printf(
 				thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
+				HA_WRONG_CREATE_OPTION,
 				"InnoDB: ROW_FORMAT=%s requires"
 				" innodb_file_format > Antelope.",
 				get_row_format_name(row_format));
@@ -8189,7 +8332,7 @@ ha_innobase::create(
 	case ROW_TYPE_PAGE:
 		push_warning(
 			thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-			ER_ILLEGAL_HA_CREATE_OPTION,
+			HA_WRONG_CREATE_OPTION,
 			"InnoDB: assuming ROW_FORMAT=COMPACT.");
 	case ROW_TYPE_DEFAULT:
 	case ROW_TYPE_COMPACT:
@@ -9731,7 +9874,7 @@ ha_innobase::check(
 			row_mysql_unlock_data_dictionary(prebuilt->trx);
 		}
 
-		if (thd_killed(user_thd)) {
+		if (thd_kill_level(user_thd)) {
 			break;
 		}
 
@@ -9788,7 +9931,7 @@ ha_innobase::check(
 	mutex_exit(&kernel_mutex);
 
 	prebuilt->trx->op_info = "";
-	if (thd_killed(user_thd)) {
+	if (thd_kill_level(user_thd)) {
 		my_error(ER_QUERY_INTERRUPTED, MYF(0));
 	}
 
@@ -11128,7 +11271,8 @@ ha_innobase::store_lock(
 
 			prebuilt->select_lock_type = LOCK_NONE;
 			prebuilt->stored_select_lock_type = LOCK_NONE;
-		} else if (sql_command == SQLCOM_CHECKSUM) {
+		} else if (sql_command == SQLCOM_CHECKSUM ||
+                           sql_command == SQLCOM_ANALYZE) {
 			/* Use consistent read for checksum table */
 
 			prebuilt->select_lock_type = LOCK_NONE;
@@ -13587,7 +13731,7 @@ int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t 
 
 bool ha_innobase::is_thd_killed()
 { 
-  return thd_killed(user_thd);
+  return thd_kill_level(user_thd);
 }
 
 /**

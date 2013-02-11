@@ -25,6 +25,7 @@
 #include "item.h"               /* From item_subselect.h: subselect_union_engine */
 #include "thr_lock.h"                  /* thr_lock_type, TL_UNLOCK */
 #include "mem_root_array.h"
+#include "sql_cmd.h"
 
 /* YACC and LEX Definitions */
 
@@ -123,85 +124,6 @@ struct sys_var_with_base
 #endif
 #endif
 
-/*
-  When a command is added here, be sure it's also added in mysqld.cc
-  in "struct show_var_st status_vars[]= {" ...
-
-  If the command returns a result set or is not allowed in stored
-  functions or triggers, please also make sure that
-  sp_get_flags_for_command (sp_head.cc) returns proper flags for the
-  added SQLCOM_.
-*/
-
-enum enum_sql_command {
-  SQLCOM_SELECT, SQLCOM_CREATE_TABLE, SQLCOM_CREATE_INDEX, SQLCOM_ALTER_TABLE,
-  SQLCOM_UPDATE, SQLCOM_INSERT, SQLCOM_INSERT_SELECT,
-  SQLCOM_DELETE, SQLCOM_TRUNCATE, SQLCOM_DROP_TABLE, SQLCOM_DROP_INDEX,
-
-  SQLCOM_SHOW_DATABASES, SQLCOM_SHOW_TABLES, SQLCOM_SHOW_FIELDS,
-  SQLCOM_SHOW_KEYS, SQLCOM_SHOW_VARIABLES, SQLCOM_SHOW_STATUS,
-  SQLCOM_SHOW_ENGINE_LOGS, SQLCOM_SHOW_ENGINE_STATUS, SQLCOM_SHOW_ENGINE_MUTEX,
-  SQLCOM_SHOW_PROCESSLIST, SQLCOM_SHOW_MASTER_STAT, SQLCOM_SHOW_SLAVE_STAT,
-  SQLCOM_SHOW_GRANTS, SQLCOM_SHOW_CREATE, SQLCOM_SHOW_CHARSETS,
-  SQLCOM_SHOW_COLLATIONS, SQLCOM_SHOW_CREATE_DB, SQLCOM_SHOW_TABLE_STATUS,
-  SQLCOM_SHOW_TRIGGERS,
-
-  SQLCOM_LOAD,SQLCOM_SET_OPTION,SQLCOM_LOCK_TABLES,SQLCOM_UNLOCK_TABLES,
-  SQLCOM_GRANT,
-  SQLCOM_CHANGE_DB, SQLCOM_CREATE_DB, SQLCOM_DROP_DB, SQLCOM_ALTER_DB,
-  SQLCOM_REPAIR, SQLCOM_REPLACE, SQLCOM_REPLACE_SELECT,
-  SQLCOM_CREATE_FUNCTION, SQLCOM_DROP_FUNCTION,
-  SQLCOM_REVOKE,SQLCOM_OPTIMIZE, SQLCOM_CHECK,
-  SQLCOM_ASSIGN_TO_KEYCACHE, SQLCOM_PRELOAD_KEYS,
-  SQLCOM_FLUSH, SQLCOM_KILL, SQLCOM_ANALYZE,
-  SQLCOM_ROLLBACK, SQLCOM_ROLLBACK_TO_SAVEPOINT,
-  SQLCOM_COMMIT, SQLCOM_SAVEPOINT, SQLCOM_RELEASE_SAVEPOINT,
-  SQLCOM_SLAVE_START, SQLCOM_SLAVE_STOP,
-  SQLCOM_BEGIN, SQLCOM_CHANGE_MASTER,
-  SQLCOM_RENAME_TABLE,
-  SQLCOM_RESET, SQLCOM_PURGE, SQLCOM_PURGE_BEFORE, SQLCOM_SHOW_BINLOGS,
-  SQLCOM_SHOW_OPEN_TABLES,
-  SQLCOM_HA_OPEN, SQLCOM_HA_CLOSE, SQLCOM_HA_READ,
-  SQLCOM_SHOW_SLAVE_HOSTS, SQLCOM_DELETE_MULTI, SQLCOM_UPDATE_MULTI,
-  SQLCOM_SHOW_BINLOG_EVENTS, SQLCOM_DO,
-  SQLCOM_SHOW_WARNS, SQLCOM_EMPTY_QUERY, SQLCOM_SHOW_ERRORS,
-  SQLCOM_SHOW_STORAGE_ENGINES, SQLCOM_SHOW_PRIVILEGES,
-  SQLCOM_HELP, SQLCOM_CREATE_USER, SQLCOM_DROP_USER, SQLCOM_RENAME_USER,
-  SQLCOM_REVOKE_ALL, SQLCOM_CHECKSUM,
-  SQLCOM_CREATE_PROCEDURE, SQLCOM_CREATE_SPFUNCTION, SQLCOM_CALL,
-  SQLCOM_DROP_PROCEDURE, SQLCOM_ALTER_PROCEDURE,SQLCOM_ALTER_FUNCTION,
-  SQLCOM_SHOW_CREATE_PROC, SQLCOM_SHOW_CREATE_FUNC,
-  SQLCOM_SHOW_STATUS_PROC, SQLCOM_SHOW_STATUS_FUNC,
-  SQLCOM_PREPARE, SQLCOM_EXECUTE, SQLCOM_DEALLOCATE_PREPARE,
-  SQLCOM_CREATE_VIEW, SQLCOM_DROP_VIEW,
-  SQLCOM_CREATE_TRIGGER, SQLCOM_DROP_TRIGGER,
-  SQLCOM_XA_START, SQLCOM_XA_END, SQLCOM_XA_PREPARE,
-  SQLCOM_XA_COMMIT, SQLCOM_XA_ROLLBACK, SQLCOM_XA_RECOVER,
-  SQLCOM_SHOW_PROC_CODE, SQLCOM_SHOW_FUNC_CODE,
-  SQLCOM_ALTER_TABLESPACE,
-  SQLCOM_INSTALL_PLUGIN, SQLCOM_UNINSTALL_PLUGIN,
-  SQLCOM_SHOW_AUTHORS, SQLCOM_BINLOG_BASE64_EVENT,
-  SQLCOM_SHOW_PLUGINS,
-  SQLCOM_SHOW_CONTRIBUTORS,
-  SQLCOM_CREATE_SERVER, SQLCOM_DROP_SERVER, SQLCOM_ALTER_SERVER,
-  SQLCOM_CREATE_EVENT, SQLCOM_ALTER_EVENT, SQLCOM_DROP_EVENT,
-  SQLCOM_SHOW_CREATE_EVENT, SQLCOM_SHOW_EVENTS,
-  SQLCOM_SHOW_CREATE_TRIGGER,
-  SQLCOM_ALTER_DB_UPGRADE,
-  SQLCOM_SHOW_PROFILE, SQLCOM_SHOW_PROFILES,
-  SQLCOM_SIGNAL, SQLCOM_RESIGNAL,
-  SQLCOM_SHOW_RELAYLOG_EVENTS, 
-  SQLCOM_SHOW_USER_STATS, SQLCOM_SHOW_TABLE_STATS, SQLCOM_SHOW_INDEX_STATS,
-  SQLCOM_SHOW_CLIENT_STATS,
-
-  /*
-    When a command is added here, be sure it's also added in mysqld.cc
-    in "struct show_var_st status_vars[]= {" ...
-  */
-  /* This should be the last !!! */
-  SQLCOM_END
-};
-
 // describe/explain types
 #define DESCRIBE_NORMAL		1
 #define DESCRIBE_EXTENDED	2
@@ -285,7 +207,9 @@ struct LEX_MASTER_INFO
   DYNAMIC_ARRAY repl_ignore_server_ids;
   char *host, *user, *password, *log_file_name;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
+  char *ssl_crl, *ssl_crlpath;
   char *relay_log_name;
+  LEX_STRING connection_name;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
@@ -302,7 +226,7 @@ struct LEX_MASTER_INFO
   {
     bzero(this, sizeof(*this));
     my_init_dynamic_array(&repl_ignore_server_ids,
-                          sizeof(::server_id), 0, 16);
+                          sizeof(::server_id), 0, 16, MYF(0));
   }
   void reset()
   {
@@ -354,6 +278,8 @@ typedef uchar index_clause_map;
 
 #define INDEX_HINT_MASK_ALL (INDEX_HINT_MASK_JOIN | INDEX_HINT_MASK_GROUP | \
                              INDEX_HINT_MASK_ORDER)
+
+class select_result_sink;
 
 /* Single element of an USE/FORCE/IGNORE INDEX list specified as a SQL hint  */
 class Index_hint : public Sql_alloc
@@ -715,6 +641,8 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
+  int print_explain(select_result_sink *output, uint8 explain_flags,
+                    bool *printed_anything);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -775,6 +703,12 @@ public:
     those converted to jtbm nests. The list is emptied when conversion is done.
   */
   List<Item_in_subselect> sj_subselects;
+  
+  /*
+    Needed to correctly generate 'PRIMARY' or 'SIMPLE' for select_type column
+    of EXPLAIN
+  */
+  bool have_merged_subqueries;
 
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
@@ -999,7 +933,7 @@ public:
   bool is_part_of_union() { return master_unit()->is_union(); }
   bool optimize_unflattened_subqueries(bool const_only);
   /* Set the EXPLAIN type for this subquery. */
-  void set_explain_type();
+  void set_explain_type(bool on_the_fly);
   bool handle_derived(LEX *lex, uint phases);
   void append_table_to_list(TABLE_LIST *TABLE_LIST::*link, TABLE_LIST *table);
   bool get_free_table_map(table_map *map, uint *tablenr);
@@ -1023,8 +957,10 @@ public:
 
   bool save_leaf_tables(THD *thd);
   bool save_prep_leaf_tables(THD *thd);
-  bool is_merged_child_of(st_select_lex *ancestor);
 
+  bool is_merged_child_of(st_select_lex *ancestor);
+  int print_explain(select_result_sink *output, uint8 explain_flags, 
+                    bool *printed_anything);
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
@@ -2270,6 +2206,11 @@ public:
     NOTE: this member must be used within MYSQLlex() function only.
   */
   CHARSET_INFO *m_underscore_cs;
+
+  /**
+    Current statement digest instrumentation. 
+  */
+  PSI_digest_locker* m_digest_psi;
 };
 
 /**
@@ -2346,7 +2287,7 @@ struct LEX: public Query_tables_list
   char *backup_dir;				/* For RESTORE/BACKUP */
   char* to_log;                                 /* For PURGE MASTER LOGS TO */
   char* x509_subject,*x509_issuer,*ssl_cipher;
-  String *wild;
+  String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
   Item *default_value, *on_update_value;
@@ -2391,6 +2332,8 @@ struct LEX: public Query_tables_list
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
+  List<LEX_STRING>   *column_list; // list of column names (in ANALYZE)
+  List<LEX_STRING>   *index_list;  // list of index names (in ANALYZE)
   /*
     A stack of name resolution contexts for the query. This stack is used
     at parse time to set local name resolution contexts for various parts
@@ -2416,6 +2359,7 @@ struct LEX: public Query_tables_list
   KEY_CREATE_INFO key_create_info;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
+  LEX_STRING relay_log_connection_name;
   USER_RESOURCES mqh;
   LEX_RESET_SLAVE reset_slave_info;
   ulong type;
@@ -2450,6 +2394,7 @@ struct LEX: public Query_tables_list
     this command.
   */
   bool parse_vcol_expr;
+  bool with_persistent_for_clause; // uses PERSISTENT FOR clause (in ANALYZE)
 
   enum SSL_type ssl_type;			/* defined in violite.h */
   enum enum_duplicates duplicates;

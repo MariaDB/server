@@ -28,7 +28,7 @@ typedef struct st_net {
   unsigned char reading_or_writing;
   char save_char;
   char net_skip_rest_factor;
-  my_bool unused1;
+  my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3;
   unsigned char *unused;
@@ -80,7 +80,7 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
-my_bool my_net_init(NET *net, Vio* vio);
+my_bool my_net_init(NET *net, Vio* vio, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
   void net_clear(NET *net, my_bool clear_buffer);
@@ -262,8 +262,12 @@ enum mysql_option
   MYSQL_OPT_GUESS_CONNECTION, MYSQL_SET_CLIENT_IP, MYSQL_SECURE_AUTH,
   MYSQL_REPORT_DATA_TRUNCATION, MYSQL_OPT_RECONNECT,
   MYSQL_OPT_SSL_VERIFY_SERVER_CERT, MYSQL_PLUGIN_DIR, MYSQL_DEFAULT_AUTH,
-  MYSQL_PROGRESS_CALLBACK,
-  MYSQL_OPT_NONBLOCK=6000
+  MYSQL_OPT_BIND,
+  MYSQL_OPT_SSL_KEY, MYSQL_OPT_SSL_CERT,
+  MYSQL_OPT_SSL_CA, MYSQL_OPT_SSL_CAPATH, MYSQL_OPT_SSL_CIPHER,
+  MYSQL_OPT_SSL_CRL, MYSQL_OPT_SSL_CRLPATH,
+  MYSQL_OPT_NONBLOCK=6000,
+  MYSQL_PROGRESS_CALLBACK
 };
 struct st_mysql_options_extention;
 struct st_mysql_options {

@@ -27,8 +27,8 @@ ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_
 delete from performance_schema.events_waits_summary_by_instance;
 ERROR 42000: DELETE command denied to user 'root'@'localhost' for table 'events_waits_summary_by_instance'
 LOCK TABLES performance_schema.events_waits_summary_by_instance READ;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'events_waits_summary_by_instance'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_summary_by_instance'
 UNLOCK TABLES;
 LOCK TABLES performance_schema.events_waits_summary_by_instance WRITE;
-ERROR 42000: SELECT,LOCK TABL command denied to user 'root'@'localhost' for table 'events_waits_summary_by_instance'
+ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'events_waits_summary_by_instance'
 UNLOCK TABLES;

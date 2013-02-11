@@ -311,8 +311,6 @@ private:
 public:
   ha_federatedx(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_federatedx() {}
-  /* The name that will be used for display purposes */
-  const char *table_type() const { return "FEDERATED"; }
   /*
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes
@@ -392,7 +390,7 @@ public:
   int open(const char *name, int mode, uint test_if_locked);    // required
   int close(void);                                              // required
 
-  void start_bulk_insert(ha_rows rows);
+  void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
   int write_row(uchar *buf);
   int update_row(const uchar *old_data, uchar *new_data);

@@ -459,6 +459,9 @@ void lex_start(THD *thd)
   lex->set_var_list.empty();
   lex->param_list.empty();
   lex->view_list.empty();
+  lex->with_persistent_for_clause= FALSE;
+  lex->column_list= NULL;
+  lex->index_list= NULL;
   lex->prepared_stmt_params.empty();
   lex->auxiliary_table_list.empty();
   lex->unit.next= lex->unit.master=
@@ -504,6 +507,7 @@ void lex_start(THD *thd)
   lex->expr_allows_subselect= TRUE;
   lex->use_only_table_context= FALSE;
   lex->parse_vcol_expr= FALSE;
+  lex->verbose= 0;
 
   lex->name.str= 0;
   lex->name.length= 0;
@@ -971,6 +975,7 @@ int MYSQLlex(void *arg, void *yythd)
     lip->lookahead_token= -1;
     *yylval= *(lip->lookahead_yylval);
     lip->lookahead_yylval= NULL;
+    lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
     return token;
   }
 
@@ -988,8 +993,12 @@ int MYSQLlex(void *arg, void *yythd)
     token= lex_one_token(arg, yythd);
     switch(token) {
     case CUBE_SYM:
+      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
+                                         yylval);
       return WITH_CUBE_SYM;
     case ROLLUP_SYM:
+      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_ROLLUP_SYM,
+                                         yylval);
       return WITH_ROLLUP_SYM;
     default:
       /*
@@ -998,6 +1007,7 @@ int MYSQLlex(void *arg, void *yythd)
       lip->lookahead_yylval= lip->yylval;
       lip->yylval= NULL;
       lip->lookahead_token= token;
+      lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH, yylval);
       return WITH;
     }
     break;
@@ -1005,6 +1015,7 @@ int MYSQLlex(void *arg, void *yythd)
     break;
   }
 
+  lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, token, yylval);
   return token;
 }
 
@@ -1526,10 +1537,11 @@ int lex_one_token(void *arg, void *yythd)
         /*
           The special comment format is very strict:
           '/' '*' '!', followed by an optional 'M' and exactly
-          1 digit (major), 2 digits (minor), then 2 digits (dot).
-          32302 -> 3.23.02
-          50032 -> 5.0.32
-          50114 -> 5.1.14
+          1-2 digits (major), 2 digits (minor), then 2 digits (dot).
+          32302  -> 3.23.02
+          50032  -> 5.0.32
+          50114  -> 5.1.14
+          100000 -> 10.0.0
         */
         if (  my_isdigit(cs, lip->yyPeekn(0))
            && my_isdigit(cs, lip->yyPeekn(1))
@@ -1539,14 +1551,21 @@ int lex_one_token(void *arg, void *yythd)
            )
         {
           ulong version;
-          char *end_ptr= (char*) lip->get_ptr()+5;
+          uint length= 5;
+          char *end_ptr= (char*) lip->get_ptr()+length;
           int error;
+          if (my_isdigit(cs, lip->yyPeekn(5)))
+          {
+            end_ptr++;                          // 6 digit number
+            length++;
+          }
+
           version= (ulong) my_strtoll10(lip->get_ptr(), &end_ptr, &error);
 
           if (version <= MYSQL_VERSION_ID)
           {
             /* Accept 'M' 'm' 'm' 'd' 'd' */
-            lip->yySkipn(5);
+            lip->yySkipn(length);
             /* Expand the content of the special comment as real code */
             lip->set_echo(TRUE);
             state=MY_LEX_START;
@@ -1876,6 +1895,7 @@ void st_select_lex::init_query()
   nest_level= 0;
   link_next= 0;
   is_prep_leaf_list_saved= FALSE;
+  have_merged_subqueries= FALSE;
   bzero((char*) expr_cache_may_be_used, sizeof(expr_cache_may_be_used));
   m_non_agg_field_used= false;
   m_agg_func_used= false;
@@ -2541,7 +2561,7 @@ LEX::LEX()
   my_init_dynamic_array2(&plugins, sizeof(plugin_ref),
                          plugins_static_buffer,
                          INITIAL_LEX_PLUGIN_LIST_SIZE, 
-                         INITIAL_LEX_PLUGIN_LIST_SIZE);
+                         INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
 }
@@ -2580,7 +2600,8 @@ bool LEX::can_be_merged()
       if (tmp_unit->first_select()->parent_lex == this &&
           (tmp_unit->item == 0 ||
            (tmp_unit->item->place() != IN_WHERE &&
-            tmp_unit->item->place() != IN_ON)))
+            tmp_unit->item->place() != IN_ON &&
+            tmp_unit->item->place() != SELECT_LIST)))
       {
         selects_allow_merge= 0;
         break;
@@ -3467,7 +3488,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         if (options & SELECT_DESCRIBE)
         {
           /* Optimize the subquery in the context of EXPLAIN. */
-          sl->set_explain_type();
+          sl->set_explain_type(FALSE);
           sl->options|= SELECT_DESCRIBE;
           inner_join->select_options|= SELECT_DESCRIBE;
         }
@@ -3917,9 +3938,12 @@ void st_select_lex::update_correlated_cache()
 
 /**
   Set the EXPLAIN type for this subquery.
+  
+  @param on_the_fly  TRUE<=> We're running a SHOW EXPLAIN command, so we must 
+                     not change any variables
 */
 
-void st_select_lex::set_explain_type()
+void st_select_lex::set_explain_type(bool on_the_fly)
 {
   bool is_primary= FALSE;
   if (next_select())
@@ -3940,6 +3964,9 @@ void st_select_lex::set_explain_type()
       }
     }
   }
+
+  if (on_the_fly && !is_primary && have_merged_subqueries)
+    is_primary= TRUE;
 
   SELECT_LEX *first= master_unit()->first_select();
   /* drop UNCACHEABLE_EXPLAIN, because it is for internal usage only */
@@ -3993,10 +4020,15 @@ void st_select_lex::set_explain_type()
       else
       {
         type= is_uncacheable ? "UNCACHEABLE UNION": "UNION";
+        if (this == master_unit()->fake_select_lex)
+          type= "UNION RESULT";
+
       }
     }
   }
-  options|= SELECT_DESCRIBE;
+
+  if (!on_the_fly)
+    options|= SELECT_DESCRIBE;
 }
 
 
@@ -4140,6 +4172,116 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
     break;
   }
   return all_merged;
+}
+
+
+int print_explain_message_line(select_result_sink *result, 
+                               SELECT_LEX *select_lex,
+                               bool on_the_fly,
+                               uint8 options,
+                               const char *message);
+
+
+int st_select_lex::print_explain(select_result_sink *output, 
+                                 uint8 explain_flags,
+                                 bool *printed_anything)
+{
+  int res;
+  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
+  {
+    /*
+      There is a number of reasons join can be marked as degenerate, so all
+      three conditions below can happen simultaneously, or individually:
+    */
+    *printed_anything= TRUE;
+    if (!join->table_count || !join->tables_list || join->zero_result_cause)
+    {
+      /* It's a degenerate join */
+      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
+                                                   "No tables used";
+      res= join->print_explain(output, explain_flags, TRUE, FALSE, FALSE, 
+                               FALSE, cause);
+    }
+    else
+    {
+      res= join->print_explain(output, explain_flags, TRUE,
+                               join->need_tmp, // need_tmp_table
+                               !join->skip_sort_order && !join->no_order &&
+                               (join->order || join->group_list), // bool need_order
+                               join->select_distinct, // bool distinct
+                               NULL); //const char *message
+    }
+    if (res)
+      goto err;
+
+    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+         unit;
+         unit= unit->next_unit())
+    {
+      /* 
+        Display subqueries only if they are not parts of eliminated WHERE/ON
+        clauses.
+      */
+      if (!(unit->item && unit->item->eliminated))
+      {
+        if ((res= unit->print_explain(output, explain_flags, printed_anything)))
+          goto err;
+      }
+    }
+  }
+  else
+  {
+    const char *msg;
+    if (!join)
+      DBUG_ASSERT(0); /* Seems not to be possible */
+
+    /* Not printing anything useful, don't touch *printed_anything here */
+    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
+      msg= "Not yet optimized";
+    else
+    {
+      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
+      msg= "Query plan already deleted";
+    }
+    res= print_explain_message_line(output, this, TRUE /* on_the_fly */,
+                                    0, msg);
+  }
+err:
+  return res;
+}
+
+
+int st_select_lex_unit::print_explain(select_result_sink *output, 
+                                      uint8 explain_flags, bool *printed_anything)
+{
+  int res= 0;
+  SELECT_LEX *first= first_select();
+  
+  if (first && !first->next_select() && !first->join)
+  {
+    /*
+      If there is only one child, 'first', and it has join==NULL, emit "not in
+      EXPLAIN state" error.
+    */
+    const char *msg="Query plan already deleted";
+    res= print_explain_message_line(output, first, TRUE /* on_the_fly */,
+                                    0, msg);
+    return 0;
+  }
+
+  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
+  {
+    if ((res= sl->print_explain(output, explain_flags, printed_anything)))
+      break;
+  }
+
+  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
+  if (fake_select_lex)
+  {
+    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
+                                    fake_select_lex, explain_flags);
+  }
+  return res;
 }
 
 
@@ -4308,6 +4450,3 @@ void binlog_unsafe_map_init()
 }
 #endif
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class Mem_root_array<ORDER*, true>;
-#endif

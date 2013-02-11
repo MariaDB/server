@@ -20,6 +20,8 @@
 #include "m_string.h" /* LEX_STRING */
 #include "sql_string.h"                        /* String */
 #include "mysql_com.h" /* MYSQL_ERRMSG_SIZE */
+#include "my_time.h"   /* MYSQL_TIME */
+#include "decimal.h"
 
 class THD;
 
@@ -191,6 +193,10 @@ public:
   MYSQL_ERROR::enum_warning_level get_level() const
   { return m_level; }
 
+  /** Destructor. */
+  ~MYSQL_ERROR()
+  {}
+
 private:
   /*
     The interface of MYSQL_ERROR is mostly private, by design,
@@ -232,9 +238,7 @@ private:
   */
   MYSQL_ERROR(MEM_ROOT *mem_root);
 
-  /** Destructor. */
-  ~MYSQL_ERROR()
-  {}
+
 
   /**
     Copy optional condition items attributes.
@@ -319,6 +323,14 @@ private:
   MEM_ROOT *m_mem_root;
 };
 
+class Sql_condition : public MYSQL_ERROR
+{
+  /*
+    Wrapper class to allow one to use Sql_condition in handlers instead of
+    MYSQL_ERROR
+   */
+};
+
 ///////////////////////////////////////////////////////////////////////////
 
 /**
@@ -355,14 +367,20 @@ class Warning_info
 
   /** Indicates if push_warning() allows unlimited number of warnings. */
   bool               m_allow_unlimited_warnings;
+  bool		     initialized;    /* Set to 1 if init() has been called */
 
 private:
   Warning_info(const Warning_info &rhs); /* Not implemented */
   Warning_info& operator=(const Warning_info &rhs); /* Not implemented */
 public:
 
-  Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings);
+  Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings,
+               bool initialize=true);
   ~Warning_info();
+
+  /* Allocate memory for structures */
+  void init();
+  void free_memory();
 
   /**
     Reset the warning information. Clear all warnings,

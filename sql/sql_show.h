@@ -19,6 +19,7 @@
 #include "sql_list.h"                           /* List */
 #include "handler.h"                            /* enum_schema_tables */
 #include "table.h"                              /* enum_schema_table_state */
+#include "my_apc.h"
 
 /* Forward declarations */
 class JOIN;
@@ -131,6 +132,31 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
+THD *find_thread_by_id(ulong id);
+
+class select_result_explain_buffer;
+/*
+  SHOW EXPLAIN request object. 
+*/
+
+class Show_explain_request : public Apc_target::Apc_call
+{
+public:
+  THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
+  THD *request_thd; /* thd that run SHOW EXPLAIN command */
+  
+  /* If true, there was some error when producing EXPLAIN output. */
+  bool failed_to_produce;
+   
+  /* SHOW EXPLAIN will be stored here */
+  select_result_explain_buffer *explain_buf;
+  
+  /* Query that we've got SHOW EXPLAIN for */
+  String query_str;
+  
+  /* Overloaded virtual function */
+  void call_in_target_thread();
+};
 
 /* Handle the ignored database directories list for SHOW/I_S. */
 bool ignore_db_dirs_init();

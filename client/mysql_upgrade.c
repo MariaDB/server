@@ -806,14 +806,32 @@ static void print_line(char* line)
 static int run_sql_fix_privilege_tables(void)
 {
   int found_real_errors= 0;
+  const char **query_ptr;
+  DYNAMIC_STRING ds_script;
   DYNAMIC_STRING ds_result;
   DBUG_ENTER("run_sql_fix_privilege_tables");
+
+  if (init_dynamic_string(&ds_script, "", 65536, 1024))
+    die("Out of memory");
 
   if (init_dynamic_string(&ds_result, "", 512, 512))
     die("Out of memory");
 
   verbose("Phase 3/3: Running 'mysql_fix_privilege_tables'...");
-  run_query(mysql_fix_privilege_tables,
+  /*
+    Individual queries can not be executed independently by invoking
+    a forked mysql client, because the script uses session variables
+    and prepared statements.
+  */
+  for ( query_ptr= &mysql_fix_privilege_tables[0];
+        *query_ptr != NULL;
+        query_ptr++
+      )
+  {
+    dynstr_append(&ds_script, *query_ptr);
+  }
+
+  run_query(ds_script.str,
             &ds_result, /* Collect result */
             TRUE);
 
@@ -841,6 +859,7 @@ static int run_sql_fix_privilege_tables(void)
   }
 
   dynstr_free(&ds_result);
+  dynstr_free(&ds_script);
   DBUG_RETURN(found_real_errors);
 }
 

@@ -273,7 +273,6 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
     for (field=table->field; *field ; field++)
       fields_vars.push_back(new Item_field(*field));
     bitmap_set_all(table->write_set);
-    table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
     /*
       Let us also prepare SET clause, altough it is probably empty
       in this case.
@@ -289,21 +288,9 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
         setup_fields(thd, 0, set_fields, MARK_COLUMNS_WRITE, 0, 0) ||
         check_that_all_fields_are_given_values(thd, table, table_list))
       DBUG_RETURN(TRUE);
-    /*
-      Check whenever TIMESTAMP field with auto-set feature specified
-      explicitly.
-    */
-    if (table->timestamp_field)
-    {
-      if (bitmap_is_set(table->write_set,
-                        table->timestamp_field->field_index))
-        table->timestamp_field_type= TIMESTAMP_NO_AUTO_SET;
-      else
-      {
-        bitmap_set_bit(table->write_set,
-                       table->timestamp_field->field_index);
-      }
-    }
+    /* Add all fields with default functions to table->write_set. */
+    if (table->default_field)
+      table->mark_default_fields_for_write();
     /* Fix the expressions in SET clause */
     if (setup_fields(thd, 0, set_values, MARK_COLUMNS_READ, 0, 0))
       DBUG_RETURN(TRUE);
@@ -375,11 +362,11 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
                        MY_RETURN_REAL_PATH);
     }
 
-    if (thd->slave_thread)
+    if (thd->rli_slave)
     {
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-      if (strncmp(active_mi->rli.slave_patternload_file, name, 
-          active_mi->rli.slave_patternload_file_size))
+      if (strncmp(thd->rli_slave->slave_patternload_file, name, 
+                  thd->rli_slave->slave_patternload_file_size))
       {
         /*
           LOAD DATA INFILE in the slave SQL Thread can only read from 
@@ -487,10 +474,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       table->file->ha_start_bulk_insert((ha_rows) 0);
     table->copy_blobs=1;
 
-    thd->abort_on_warning= (!ignore &&
-                            (thd->variables.sql_mode &
-                             (MODE_STRICT_TRANS_TABLES |
-                              MODE_STRICT_ALL_TABLES)));
+    thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
     thd_progress_init(thd, 2);
     if (ex->filetype == FILETYPE_XML) /* load xml */
@@ -849,8 +833,12 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                             ER_WARN_TOO_FEW_RECORDS,
                             ER(ER_WARN_TOO_FEW_RECORDS),
                             thd->warning_info->current_row_for_warning());
+        /*
+          Timestamp fields that are NOT NULL are autoupdated if there is no
+          corresponding value in the data file.
+        */
         if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
-            ((Field_timestamp*) field)->set_time();
+          field->set_time();
       }
       else
       {
@@ -865,6 +853,8 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
 	if ((pos+=length) > read_info.row_end)
 	  pos= read_info.row_end;	/* Fills rest with space */
       }
+      /* Do not auto-update this field. */
+      field->set_has_explicit_value();
     }
     if (pos != read_info.row_end)
     {
@@ -876,10 +866,10 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, set_fields, set_values,
+        fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             table->triggers,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT) ||
+        (table->default_field && table->update_default_fields()))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -996,12 +986,18 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           field->set_null();
           if (!field->maybe_null())
           {
+            /*
+              Timestamp fields that are NOT NULL are autoupdated if there is no
+              corresponding value in the data file.
+            */
             if (field->type() == MYSQL_TYPE_TIMESTAMP)
-              ((Field_timestamp*) field)->set_time();
+              field->set_time();
             else if (field != table->next_number_field)
               field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
                                  ER_WARN_NULL_TO_NOTNULL, 1);
           }
+          /* Do not auto-update this field. */
+          field->set_has_explicit_value();
 	}
         else if (item->type() == Item::STRING_ITEM)
         {
@@ -1025,6 +1021,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         if (field == table->next_number_field)
           table->auto_increment_field_not_null= TRUE;
         field->store((char*) pos, length, read_info.read_charset);
+        field->set_has_explicit_value();
       }
       else if (item->type() == Item::STRING_ITEM)
       {
@@ -1066,7 +1063,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
             DBUG_RETURN(1);
           }
           if (!field->maybe_null() && field->type() == FIELD_TYPE_TIMESTAMP)
-              ((Field_timestamp*) field)->set_time();
+            field->set_time();
+          field->set_has_explicit_value();
           /*
             TODO: We probably should not throw warning for each field.
             But how about intention to always have the same number
@@ -1093,10 +1091,10 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, set_fields, set_values,
+        fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             table->triggers,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT) ||
+        (table->default_field && table->update_default_fields()))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -1206,11 +1204,13 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
           if (!field->maybe_null())
           {
             if (field->type() == FIELD_TYPE_TIMESTAMP)
-              ((Field_timestamp *) field)->set_time();
+              field->set_time();
             else if (field != table->next_number_field)
               field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN,
                                  ER_WARN_NULL_TO_NOTNULL, 1);
           }
+          /* Do not auto-update this field. */
+          field->set_has_explicit_value();
         }
         else
           ((Item_user_var_as_out_param *) item)->set_null_value(cs);
@@ -1225,6 +1225,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
         if (field == table->next_number_field)
           table->auto_increment_field_not_null= TRUE;
         field->store((char *) tag->value.ptr(), tag->value.length(), cs);
+        field->set_has_explicit_value();
       }
       else
         ((Item_user_var_as_out_param *) item)->set_value(
@@ -1269,10 +1270,10 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     }
 
     if (thd->killed ||
-        fill_record_n_invoke_before_triggers(thd, set_fields, set_values,
+        fill_record_n_invoke_before_triggers(thd, table, set_fields, set_values,
                                              ignore_check_option_errors,
-                                             table->triggers,
-                                             TRG_EVENT_INSERT))
+                                             TRG_EVENT_INSERT) ||
+        (table->default_field && table->update_default_fields()))
       DBUG_RETURN(1);
 
     switch (table_list->view_check_option(thd,
@@ -1367,7 +1368,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
   set_if_bigger(length,line_start.length());
   stack=stack_pos=(int*) sql_alloc(sizeof(int)*length);
 
-  if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(0))))
+  if (!(buffer=(uchar*) my_malloc(buff_length+1,MYF(MY_THREAD_SPECIFIC))))
     error=1; /* purecov: inspected */
   else
   {
@@ -1375,7 +1376,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
     if (init_io_cache(&cache,(get_it_from_net) ? -1 : file, 0,
 		      (get_it_from_net) ? READ_NET :
 		      (is_fifo ? READ_FIFO : READ_CACHE),0L,1,
-		      MYF(MY_WME)))
+		      MYF(MY_WME | MY_THREAD_SPECIFIC)))
     {
       my_free(buffer); /* purecov: inspected */
       buffer= NULL;
@@ -1601,7 +1602,7 @@ int READ_INFO::read_field()
     ** We come here if buffer is too small. Enlarge it and continue
     */
     if (!(new_buffer=(uchar*) my_realloc((char*) buffer,buff_length+1+IO_SIZE,
-					MYF(MY_WME))))
+					MYF(MY_WME | MY_THREAD_SPECIFIC))))
       return (error=1);
     to=new_buffer + (to-buffer);
     buffer=new_buffer;

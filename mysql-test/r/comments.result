@@ -10,7 +10,7 @@ ERROR 42000: Query was empty
 select 1 /*!32301 +1 */;
 1  +1
 2
-select 1 /*!52301 +1 */;
+select 1 /*!952301 +1 */;
 1
 1
 select 1--1;
@@ -35,19 +35,19 @@ select 1 /*M!50000 +1 */;
 select 1 /*M!50300 +1 */;
 1  +1
 2
-select 2 /*M!99999 +1 */;
+select 2 /*M!999999 +1 */;
 2
 2
 select 2 /*M!0000 +1 */;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0000 +1 */' at line 1
 select 1/*!2*/;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2*/' at line 1
-select 1/*!000002*/;
+select 1/*!0000002*/;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2*/' at line 1
 select 1/*!999992*/;
 1
 1
-select 1 + /*!00000 2 */ + 3 /*!99999 noise*/ + 4;
+select 1 + /*!00000 2 */ + 3 /*!999999 noise*/ + 4;
 1 +  2  + 3  + 4
 10
 drop table if exists table_28779;
@@ -60,8 +60,8 @@ prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*! AND 2=2;";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*! AND 2=2;*";
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '*' at line 1
-prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!98765' AND b = 'bar';";
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!98765' AND b = 'bar'' at line 1
-prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!98765' AND b = 'bar';*";
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!98765' AND b = 'bar';*' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = 'bar';";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!998765' AND b = 'bar'' at line 1
+prepare bar from "DELETE FROM table_28779 WHERE a = 7 OR 1=1/*!998765' AND b = 'bar';*";
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '/*!998765' AND b = 'bar';*' at line 1
 drop table table_28779;

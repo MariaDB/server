@@ -39,6 +39,7 @@
 #include "my_bit.h"
 #include "sql_select.h"
 #include "sql_derived.h"
+#include "sql_statistics.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 
 /* INFORMATION_SCHEMA name */
@@ -306,7 +307,7 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
   path_length= build_table_filename(path, sizeof(path) - 1,
                                     table_list->db,
                                     table_list->table_name, "", 0);
-  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),
                        &key_buff, key_length,
@@ -338,6 +339,8 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
     share->used_tables.empty();
     share->free_tables.empty();
     share->m_flush_tickets.empty();
+
+    init_sql_alloc(&share->stats_cb.mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
     memcpy((char*) &share->mem_root, (char*) &mem_root, sizeof(mem_root));
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
@@ -378,7 +381,12 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
   DBUG_PRINT("enter", ("table: '%s'.'%s'", key, table_name));
 
   bzero((char*) share, sizeof(*share));
-  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  /*
+    This can't be MY_THREAD_SPECIFIC for slaves as they are freed
+    during cleanup() from Relay_log_info::close_temporary_tables()
+  */
+  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, 
+                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
   share->db.str=                 (char*) key;
@@ -418,6 +426,14 @@ void TABLE_SHARE::destroy()
 {
   uint idx;
   KEY *info_it;
+
+  if (tmp_table == NO_TMP_TABLE)
+    mysql_mutex_lock(&LOCK_ha_data);
+  free_root(&stats_cb.mem_root, MYF(0));
+  stats_cb.stats_can_be_read= FALSE;
+  stats_cb.stats_is_read= FALSE;
+  if (tmp_table == NO_TMP_TABLE)
+    mysql_mutex_unlock(&LOCK_ha_data);
 
   /* The mutex is initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -544,6 +560,13 @@ inline bool is_system_table_name(const char *name, uint length)
              my_tolower(ci, name[2]) == 'm' &&
              my_tolower(ci, name[3]) == 'e') ||
 
+            /* one of mysql.*_stat tables */
+            (my_tolower(ci, name[length-5]) == 's' &&
+             my_tolower(ci, name[length-4]) == 't' &&
+             my_tolower(ci, name[length-3]) == 'a' &&
+             my_tolower(ci, name[length-2]) == 't' &&
+             my_tolower(ci, name[length-1]) == 's') ||
+           
             /* mysql.event table */
             (my_tolower(ci, name[0]) == 'e' &&
              my_tolower(ci, name[1]) == 'v' &&
@@ -753,7 +776,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   uchar forminfo[288];
   uchar *record;
   uchar *disk_buff, *strpos, *null_flags, *null_pos;
-  ulong pos, record_offset;
+  ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
   handler *handler_file= 0;
@@ -1251,6 +1274,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   com_length= uint2korr(forminfo+284);
   vcol_screen_length= uint2korr(forminfo+286);
   share->vfields= 0;
+  share->default_fields= 0;
   share->stored_fields= share->fields;
   if (forminfo[46] != (uchar)255)
   {
@@ -1582,8 +1606,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
-    if (share->timestamp_field == reg_field)
-      share->timestamp_field_offset= i;
 
     if (use_hash)
     {
@@ -1605,6 +1627,9 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       if (share->stored_rec_length>=recpos)
         share->stored_rec_length= recpos-1;
     }
+    if (reg_field->has_insert_default_function() ||
+        reg_field->has_update_default_function())
+      ++share->default_fields;
   }
   *field_ptr=0;					// End marker
   /* Sanity checks: */
@@ -2138,8 +2163,10 @@ end:
   @brief
     Unpack the definition of a virtual column from its linear representation
 
-  @parm
+  @param
     thd                  The thread object
+  @param
+    mem_root             The mem_root object where to allocated memory 
   @param
     table                The table containing the virtual column
   @param
@@ -2169,6 +2196,7 @@ end:
     TRUE            Otherwise
 */
 bool unpack_vcol_info_from_frm(THD *thd,
+                               MEM_ROOT *mem_root,
                                TABLE *table,
                                Field *field,
                                LEX_STRING *vcol_expr,
@@ -2196,7 +2224,7 @@ bool unpack_vcol_info_from_frm(THD *thd,
     "PARSE_VCOL_EXPR (<expr_string_from_frm>)".
   */
   
-  if (!(vcol_expr_str= (char*) alloc_root(&table->mem_root,
+  if (!(vcol_expr_str= (char*) alloc_root(mem_root,
                                           vcol_expr->length + 
                                             parse_vcol_keyword.length + 3)))
   {
@@ -2230,10 +2258,10 @@ bool unpack_vcol_info_from_frm(THD *thd,
       We need to use CONVENTIONAL_EXECUTION here to ensure that
       any new items created by fix_fields() are not reverted.
     */
-    Query_arena expr_arena(&table->mem_root,
+    Query_arena expr_arena(mem_root,
                            Query_arena::STMT_CONVENTIONAL_EXECUTION);
-    if (!(vcol_arena= (Query_arena *) alloc_root(&table->mem_root,
-                                                 sizeof(Query_arena))))
+    if (!(vcol_arena= (Query_arena *) alloc_root(mem_root,
+                                               sizeof(Query_arena))))
       goto err;
     *vcol_arena= expr_arena;
     table->expr_arena= vcol_arena;
@@ -2316,7 +2344,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   uint records, i, bitmap_size;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
-  Field **field_ptr, **vfield_ptr;
+  Field **field_ptr, **UNINIT_VAR(vfield_ptr), **UNINIT_VAR(dfield_ptr);
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: 0x%lx", share->db.str,
@@ -2331,7 +2359,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   outparam->db_stat= db_stat;
   outparam->write_row_record= NULL;
 
-  init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&outparam->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   if (outparam->alias.copy(alias, strlen(alias), table_alias_charset))
     goto err;
@@ -2420,9 +2448,6 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   if (share->found_next_number_field)
     outparam->found_next_number_field=
       outparam->field[(uint) (share->found_next_number_field - share->field)];
-  if (share->timestamp_field)
-    outparam->timestamp_field= (Field_timestamp*) outparam->field[share->timestamp_field_offset];
-
 
   /* Fix key->name and key_part->field */
   if (share->key_parts)
@@ -2473,11 +2498,9 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
   }
 
   /*
-    Process virtual columns, if any.
+    Process virtual and default columns, if any.
   */
-  if (!share->vfields)
-    outparam->vfield= NULL;
-  else
+  if (share->vfields)
   {
     if (!(vfield_ptr = (Field **) alloc_root(&outparam->mem_root,
                                              (uint) ((share->vfields+1)*
@@ -2485,12 +2508,27 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
       goto err;
 
     outparam->vfield= vfield_ptr;
+  }
 
+  if (share->default_fields)
+  {
+    if (!(dfield_ptr = (Field **) alloc_root(&outparam->mem_root,
+                                             (uint) ((share->default_fields+1)*
+                                                     sizeof(Field*)))))
+      goto err;
+
+    outparam->default_field= dfield_ptr;
+  }
+
+  if (share->vfields || share->default_fields)
+  {
+    /* Reuse the same loop both for virtual and default fields. */
     for (field_ptr= outparam->field; *field_ptr; field_ptr++)
     {
-      if ((*field_ptr)->vcol_info)
+      if (share->vfields && (*field_ptr)->vcol_info)
       {
         if (unpack_vcol_info_from_frm(thd,
+                                      &outparam->mem_root,
                                       outparam,
                                       *field_ptr,
                                       &(*field_ptr)->vcol_info->expr_str,
@@ -2501,8 +2539,15 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
         }
         *(vfield_ptr++)= *field_ptr;
       }
+      if (share->default_fields &&
+          ((*field_ptr)->has_insert_default_function() ||
+           (*field_ptr)->has_update_default_function()))
+        *(dfield_ptr++)= *field_ptr;
     }
-    *vfield_ptr= 0;                              // End marker
+    if (share->vfields)
+      *vfield_ptr= 0;                            // End marker
+    if (share->default_fields)
+      *dfield_ptr= 0;                            // End marker
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3591,9 +3636,9 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     }
     else if (MYSQL_VERSION_ID == table->s->mysql_version)
     {
-      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED,
-                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED),
-                   table->alias.c_ptr(),
+      report_error(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2,
+                   ER(ER_COL_COUNT_DOESNT_MATCH_CORRUPTED_V2),
+                   table->s->db.str, table->s->table_name.str,
                    table_def->count, table->s->fields);
       DBUG_RETURN(TRUE);
     }
@@ -3839,7 +3884,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   mdl_context->find_deadlock();
 
   wait_status= mdl_context->m_wait.timed_wait(thd, abstime, TRUE,
-                                              "Waiting for table flush");
+                                              &stage_waiting_for_table_flush);
 
   mdl_context->done_waiting_for();
 
@@ -3927,9 +3972,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
   auto_increment_field_not_null= FALSE;
-
-  if (timestamp_field)
-    timestamp_field_type= timestamp_field->get_auto_set_type();
 
   pos_in_table_list= tl;
 
@@ -4022,7 +4064,8 @@ void TABLE::reset_item_list(List<Item> *item_list) const
 void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
-  MY_MD5_HASH(digest, (uchar *) select_stmt.str, select_stmt.length);
+  compute_md5_hash((char*) digest, select_stmt.str,
+                   select_stmt.length);
   sprintf((char *) buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 	    digest[0], digest[1], digest[2], digest[3],
@@ -5870,6 +5913,51 @@ void TABLE::mark_virtual_columns_for_write(bool insert_fl)
 
 
 /**
+  Check if a table has a default function either for INSERT or UPDATE-like
+  operation
+  @retval true  there is a default function
+  @retval false there is no default function
+*/
+
+bool TABLE::has_default_function(bool is_update)
+{
+  Field **dfield_ptr, *dfield;
+  bool res= false;
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    if (is_update)
+      res= dfield->has_update_default_function();
+    else
+      res= dfield->has_insert_default_function();
+    if (res)
+      return res;
+  }
+  return res;
+}
+
+
+/**
+  Add all fields that have a default function to the table write set.
+*/
+
+void TABLE::mark_default_fields_for_write()
+{
+  Field **dfield_ptr, *dfield;
+  enum_sql_command cmd= in_use->lex->sql_command;
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    if (((sql_command_flags[cmd] & CF_INSERTS_DATA) &&
+         dfield->has_insert_default_function()) ||
+        ((sql_command_flags[cmd] & CF_UPDATES_DATA) &&
+         dfield->has_update_default_function()))
+      bitmap_set_bit(write_set, dfield->field_index);
+  }
+}
+
+
+/**
   @brief
   Allocate space for keys
 
@@ -5986,6 +6074,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
   keyinfo->flags= HA_GENERATED_KEY;
   keyinfo->ext_key_flags= keyinfo->flags;
+  keyinfo->is_statistics_from_stat_tables= FALSE;
   if (unique)
     keyinfo->flags|= HA_NOSAME;
   sprintf(buf, "key%i", key);
@@ -5996,6 +6085,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   if (!keyinfo->rec_per_key)
     return TRUE;
   bzero(keyinfo->rec_per_key, sizeof(ulong)*key_parts);
+  keyinfo->read_stats= NULL;
+  keyinfo->collected_stats= NULL;
 
   for (i= 0; i < key_parts; i++)
   {
@@ -6478,6 +6569,56 @@ int update_virtual_fields(THD *thd, TABLE *table,
   DBUG_RETURN(0);
 }
 
+
+/**
+  Update all DEFAULT and/or ON INSERT fields.
+
+  @details
+    Compute and set the default value of all fields with a default function.
+    There are two kinds of default functions - one is used for INSERT-like
+    operations, the other for UPDATE-like operations. Depending on the field
+    definition and the current operation one or the other kind of update
+    function is evaluated.
+
+  @retval
+    0    Success
+  @retval
+    >0   Error occurred when storing a virtual field value
+*/
+
+int TABLE::update_default_fields()
+{
+  DBUG_ENTER("update_default_fields");
+  Field **dfield_ptr, *dfield;
+  int res= 0;
+  enum_sql_command cmd= in_use->lex->sql_command;
+
+  DBUG_ASSERT(default_field);
+
+  /* Iterate over virtual fields in the table */
+  for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
+  {
+    dfield= (*dfield_ptr);
+    /*
+      If an explicit default value for a filed overrides the default,
+      do not update the field with its automatic default value.
+    */
+    if (!(dfield->flags & HAS_EXPLICIT_VALUE))
+    {
+      if (sql_command_flags[cmd] & CF_INSERTS_DATA)
+        res= dfield->evaluate_insert_default_function();
+      if (sql_command_flags[cmd] & CF_UPDATES_DATA)
+        res= dfield->evaluate_update_default_function();
+      if (res)
+        DBUG_RETURN(res);
+    }
+    /* Unset the explicit default flag for the next record. */
+    dfield->flags&= ~HAS_EXPLICIT_VALUE;
+  }
+  DBUG_RETURN(res);
+}
+
+
 /*
   @brief Reset const_table flag
 
@@ -6689,6 +6830,7 @@ int TABLE_LIST::fetch_number_of_rows()
   {
     table->file->stats.records= ((select_union*)derived->result)->records;
     set_if_bigger(table->file->stats.records, 2);
+    table->used_stat_records= table->file->stats.records;
   }
   else
     error= table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
@@ -6785,11 +6927,11 @@ uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 }  
 
 
-/*****************************************************************************
-** Instansiate templates
-*****************************************************************************/
+double KEY::actual_rec_per_key(uint i)
+{ 
+  if (rec_per_key == 0)
+    return 0;
+  return (is_statistics_from_stat_tables ?
+          read_stats->get_avg_frequency(i) : (double) rec_per_key[i]);
+}
 
-#ifdef HAVE_EXPLICIT_TEMPLATE_INSTANTIATION
-template class List<String>;
-template class List_iterator<String>;
-#endif

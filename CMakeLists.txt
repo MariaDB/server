@@ -106,7 +106,7 @@ ENDIF()
 #
 INCLUDE(maintainer)
 
-SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
+SET(MYSQL_MAINTAINER_MODE "OFF" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
 MARK_AS_ADVANCED(MYSQL_MAINTAINER_MODE)
 
 # Whether the maintainer mode compiler options should be enabled.
@@ -266,16 +266,18 @@ MYSQL_CHECK_SSL()
 MYSQL_CHECK_READLINE()
 
 #
-# Setup maintainer mode options by the end. Platform checks are
+# Setup maintainer mode options. Platform checks are
 # not run with the warning options as to not perturb fragile checks
 # (i.e. do not make warnings into errors).
+# We have to add MAINTAINER_C_WARNINGS first to ensure that the flags
+# given by the invoking user are honored
 #
 IF(MYSQL_MAINTAINER_MODE MATCHES "ON")
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${MY_MAINTAINER_C_WARNINGS}")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MY_MAINTAINER_CXX_WARNINGS}")
+  SET(CMAKE_C_FLAGS "${MY_MAINTAINER_C_WARNINGS} ${CMAKE_C_FLAGS}")
+  SET(CMAKE_CXX_FLAGS "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS}")
 ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
-  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${MY_MAINTAINER_C_WARNINGS}")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${MY_MAINTAINER_CXX_WARNINGS}")
+  SET(CMAKE_C_FLAGS_DEBUG "${MY_MAINTAINER_C_WARNINGS} ${CMAKE_C_FLAGS_DEBUG}")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS_DEBUG}")
 ENDIF()
 
 IF(WITH_UNIT_TESTS)
@@ -284,6 +286,7 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/strings)
  ADD_SUBDIRECTORY(unittest/examples)
  ADD_SUBDIRECTORY(unittest/mysys)
+ ADD_SUBDIRECTORY(unittest/sql)
 ENDIF()
 
 IF(NOT WITHOUT_SERVER)

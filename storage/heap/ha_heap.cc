@@ -241,8 +241,6 @@ void ha_heap::update_key_stats()
 int ha_heap::write_row(uchar * buf)
 {
   int res;
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
   if (table->next_number_field && buf == table->record[0])
   {
     if ((res= update_auto_increment()))
@@ -264,8 +262,6 @@ int ha_heap::write_row(uchar * buf)
 int ha_heap::update_row(const uchar * old_data, uchar * new_data)
 {
   int res;
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
   res= heap_update(file,old_data,new_data);
   if (!res && ++records_changed*HEAP_STATS_UPDATE_THRESHOLD > 
               file->s->records)
@@ -638,7 +634,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
 
   if (!(keydef= (HP_KEYDEF*) my_malloc(keys * sizeof(HP_KEYDEF) +
 				       parts * sizeof(HA_KEYSEG),
-				       MYF(MY_WME))))
+				       MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return my_errno;
   seg= reinterpret_cast<HA_KEYSEG*>(keydef + keys);
   for (key= 0; key < keys; key++)

@@ -120,7 +120,7 @@ ha_myisammrg::ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0), is_cloned(0)
 {
   init_sql_alloc(&children_mem_root,
-                 FN_REFLEN + ALLOC_ROOT_MIN_BLOCK_SIZE, 0);
+                 FN_REFLEN + ALLOC_ROOT_MIN_BLOCK_SIZE, 0, MYF(0));
 }
 
 
@@ -1073,13 +1073,10 @@ int ha_myisammrg::write_row(uchar * buf)
 {
   DBUG_ENTER("ha_myisammrg::write_row");
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_write_count);
 
   if (file->merge_insert_method == MERGE_INSERT_DISABLED || !file->tables)
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
 
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_INSERT)
-    table->timestamp_field->set_time();
   if (table->next_number_field && buf == table->record[0])
   {
     int error;
@@ -1092,16 +1089,12 @@ int ha_myisammrg::write_row(uchar * buf)
 int ha_myisammrg::update_row(const uchar * old_data, uchar * new_data)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_update_count);
-  if (table->timestamp_field_type & TIMESTAMP_AUTO_SET_ON_UPDATE)
-    table->timestamp_field->set_time();
   return myrg_update(file,old_data,new_data);
 }
 
 int ha_myisammrg::delete_row(const uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_delete_count);
   return myrg_delete(file,buf);
 }
 
@@ -1110,7 +1103,6 @@ int ha_myisammrg::index_read_map(uchar * buf, const uchar * key,
                                  enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_key_count);
   int error=myrg_rkey(file,buf,active_index, key, keypart_map, find_flag);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1121,7 +1113,6 @@ int ha_myisammrg::index_read_idx_map(uchar * buf, uint index, const uchar * key,
                                      enum ha_rkey_function find_flag)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_key_count);
   int error=myrg_rkey(file,buf,index, key, keypart_map, find_flag);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1131,7 +1122,6 @@ int ha_myisammrg::index_read_last_map(uchar *buf, const uchar *key,
                                       key_part_map keypart_map)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_key_count);
   int error=myrg_rkey(file,buf,active_index, key, keypart_map,
 		      HA_READ_PREFIX_LAST);
   table->status=error ? STATUS_NOT_FOUND: 0;
@@ -1141,7 +1131,6 @@ int ha_myisammrg::index_read_last_map(uchar *buf, const uchar *key,
 int ha_myisammrg::index_next(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_next_count);
   int error=myrg_rnext(file,buf,active_index);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1150,7 +1139,6 @@ int ha_myisammrg::index_next(uchar * buf)
 int ha_myisammrg::index_prev(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_prev_count);
   int error=myrg_rprev(file,buf, active_index);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1159,7 +1147,6 @@ int ha_myisammrg::index_prev(uchar * buf)
 int ha_myisammrg::index_first(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_first_count);
   int error=myrg_rfirst(file, buf, active_index);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1168,7 +1155,6 @@ int ha_myisammrg::index_first(uchar * buf)
 int ha_myisammrg::index_last(uchar * buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_last_count);
   int error=myrg_rlast(file, buf, active_index);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1180,7 +1166,6 @@ int ha_myisammrg::index_next_same(uchar * buf,
 {
   int error;
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_next_count);
   do
   {
     error= myrg_rnext_same(file,buf);
@@ -1200,7 +1185,6 @@ int ha_myisammrg::rnd_init(bool scan)
 int ha_myisammrg::rnd_next(uchar *buf)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_rnd_next_count);
   int error=myrg_rrnd(file, buf, HA_OFFSET_ERROR);
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1210,7 +1194,6 @@ int ha_myisammrg::rnd_next(uchar *buf)
 int ha_myisammrg::rnd_pos(uchar * buf, uchar *pos)
 {
   DBUG_ASSERT(this->file->children_attached);
-  ha_statistic_increment(&SSV::ha_read_rnd_count);
   int error=myrg_rrnd(file, buf, my_get_ptr(pos,ref_length));
   table->status=error ? STATUS_NOT_FOUND: 0;
   return error;
@@ -1721,28 +1704,11 @@ static int myisammrg_init(void *p)
 struct st_mysql_storage_engine myisammrg_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(myisammrg)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &myisammrg_storage_engine,
-  "MRG_MYISAM",
-  "MySQL AB",
-  "Collection of identical MyISAM tables",
-  PLUGIN_LICENSE_GPL,
-  myisammrg_init, /* Plugin Init */
-  NULL, /* Plugin Deinit */
-  0x0100, /* 1.0 */
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(myisammrg)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &myisammrg_storage_engine,
-  "MRG_MYISAM",
+  "MRG_MyISAM",
   "MySQL AB",
   "Collection of identical MyISAM tables",
   PLUGIN_LICENSE_GPL,

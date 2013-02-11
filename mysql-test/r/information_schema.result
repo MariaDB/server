@@ -81,6 +81,7 @@ TRIGGERS
 USER_PRIVILEGES
 USER_STATISTICS
 VIEWS
+column_stats
 columns_priv
 db
 event
@@ -91,6 +92,7 @@ help_keyword
 help_relation
 help_topic
 host
+index_stats
 plugin
 proc
 procs_priv
@@ -102,6 +104,7 @@ t2
 t3
 t4
 t5
+table_stats
 tables_priv
 time_zone
 time_zone_leap_second
@@ -120,6 +123,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second
@@ -141,6 +145,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second
@@ -162,6 +167,7 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
 time_zone_leap_second	time_zone_leap_second

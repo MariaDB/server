@@ -19,7 +19,17 @@
 
 char buf[1024]; /* let's hope that's enough */
 
-void test1(const char *res, const char *fmt, ...)
+static void test_w_len(const char *res, size_t buflen, const char *fmt, ...)
+{
+  va_list args;
+  size_t len;
+  va_start(args,fmt);
+  len= my_vsnprintf(buf, buflen, fmt, args);
+  va_end(args);
+  ok(strlen(res) == len && strcmp(buf, res) == 0, "\"%s\"", buf);
+}
+
+static void test1(const char *res, const char *fmt, ...)
 {
   va_list args;
   size_t len;
@@ -29,9 +39,29 @@ void test1(const char *res, const char *fmt, ...)
   ok(strlen(res) == len && strcmp(buf, res) == 0, "\"%s\"", buf);
 }
 
+static void test_many(const char **res, const char *fmt, ...)
+{
+  va_list args;
+  size_t len;
+  va_start(args,fmt);
+  len= my_vsnprintf(buf, sizeof(buf)-1, fmt, args);
+  va_end(args);
+
+  for (; *res ; res++)
+  {
+    if (strlen(*res) == len && strcmp(buf, *res) == 0)
+    {
+      ok(1, "\"%s\"", buf);
+      return;
+    }
+  }
+  ok(0, "\"%s\"", buf);
+}
+
+
 int main(void)
 {
-  plan(58);
+  plan(39);
 
   test1("Constant string",
         "Constant string");
@@ -121,61 +151,32 @@ int main(void)
   test1("G with a width (ignored) and precision: <12.35>",
         "G with a width (ignored) and precision: <%10.5g>", 12.3456789);
 
-  diag("================================================================");
+  {
+    /* Test that %M works */
+    const char *results[]=
+    {
+      "Error 1 \"Operation not permitted\"",    /* Linux */
+      "Error 1 \"Not owner\"",                  /* Solaris */
+      NullS
+    };
+    test_many(results, "Error %M", 1);
+  }
 
-  test1("Hello",
-        "Hello");
-  test1("Hello int, 1",
-        "Hello int, %d", 1);
-  test1("Hello int, -1",
-        "Hello int, %d", -1);
-  test1("Hello int, 1",
-        "Hello int, %i", 1);
-  test1("Hello int, -1",
-        "Hello int, %i", -1);
-  test1("Hello string 'I am a string'",
-        "Hello string '%s'", "I am a string");
-  test1("Hello hack hack hack hack hack hack hack 1",
-        "Hello hack hack hack hack hack hack hack %d", 1);
-  test1("Hello 1 hack 4",
-        "Hello %d hack %d", 1, 4);
-  test1("Hello 1 hack hack hack hack hack 4",
-        "Hello %d hack hack hack hack hack %d", 1, 4);
-  test1("Hello 'hack' hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-        "Hello '%s' hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh", "hack");
-  test1("Hello hhhhhhhhhhhhhh 1 sssssssssssssss",
-        "Hello hhhhhhhhhhhhhh %d sssssssssssssss", 1);
-  test1("Hello 1",
-        "Hello %u", 1);
-  test1("Hello 4294967295",
-        "Hello %u", -1);
-  test1("Hex:   20  '    41'",
-        "Hex:   %lx  '%6lx'", 32, 65);
-  test1("conn 1 to: '(null)' user: '(null)' host: '(null)' ((null))",
-        "conn %ld to: '%-.64s' user: '%-.32s' host: '%-.64s' (%-.64s)",
-                   1L,     NULL,          NULL,          NULL,    NULL);
-  test1("Hello string `I am a string`",
-        "Hello string %`s", "I am a string");
-  test1("Hello TEST",
-        "Hello %05s", "TEST");
-  test1("My `Q` test",
-        "My %1$`-.1s test", "QQQQ");
-  test1("My AAAA test done DDDD",
-        "My %2$s test done %1$s", "DDDD", "AAAA");
-  test1("My DDDD test CCCC, DDD",
-        "My %1$s test %2$s, %1$-.3s", "DDDD", "CCCC");
-  test1("My QQQQ test",
-        "My %1$`-.4b test", "QQQQ");
-  test1("My X test",
-        "My %1$c test", 'X');
-  test1("My <0000000010> test1 <   a> test2 <   A>",
-        "My <%010d> test1 <%4x> test2 <%4X>", 10, 10, 10);
-  test1("My <0000000010> test1 <   a> test2 <   a>",
-        "My <%1$010d> test1 <%2$4x> test2 <%2$4x>", 10, 10);
-  test1("My 00010 test",
-        "My %1$*02$d test", 10, 5);
-  test1("My `DDDD` test CCCC, `DDD`",
-        "My %1$`s test %2$s, %1$`-.3s", "DDDD", "CCCC");
+  test1("M with 0 error code: 0 \"Internal error/check (Not system error)\"",
+        "M with 0 error code: %M", 0);
+
+  test1("M with positional: 0 \"Internal error/check (Not system error)\"",
+        "M with positional: %1$M", 0);
+
+  test1("M with width: 0 \"Internal error/ch",
+        "M with width: %.20M", 0);
+  test1("M with width positional: 0 \"Internal error/ch",
+        "M with width positional: %2$.*1$M", 20, 0);
+
+  test_w_len("M small buf: 0 \"In",
+         19, "M small buf: %M", 0);
+  test_w_len("M small buf positional: 0 \"In",
+         30, "M small buf positional: %1$M", 0);
 
   return exit_status();
 }

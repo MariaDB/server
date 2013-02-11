@@ -49,7 +49,7 @@ int completion_hash_init(HashTable *ht, uint nSize)
     ht->initialized = 0;
     return FAILURE;
   }
-  init_alloc_root(&ht->mem_root, 8192, 0);
+  init_alloc_root(&ht->mem_root, 8192, 0, MYF(0));
   ht->pHashFunction = hashpjw;
   ht->nTableSize = nSize;
   ht->initialized = 1;

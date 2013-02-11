@@ -16,8 +16,8 @@
 
 /* This is the include file that should be included 'first' in every C file. */
 
-#ifndef _global_h
-#define _global_h
+#ifndef MY_GLOBAL_INCLUDED
+#define MY_GLOBAL_INCLUDED
 
 /* Client library users on Windows need this macro defined here. */
 #if !defined(__WIN__) && defined(_WIN32)
@@ -87,17 +87,6 @@
 #define IF_WIN(A,B) A
 #else
 #define IF_WIN(A,B) B
-#endif
-
-#ifndef EMBEDDED_LIBRARY
-#ifdef WITH_NDB_BINLOG
-#define HAVE_NDB_BINLOG 1
-#endif
-#endif /* !EMBEDDED_LIBRARY */
-
-#ifndef EMBEDDED_LIBRARY
-#define HAVE_REPLICATION
-#define HAVE_EXTERNAL_CLIENT
 #endif
 
 #if defined (_WIN32)
@@ -989,6 +978,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_ETIMEDOUT WSAETIMEDOUT
 #define SOCKET_EWOULDBLOCK WSAEWOULDBLOCK
 #define SOCKET_EADDRINUSE WSAEADDRINUSE
+#define SOCKET_ECONNRESET WSAECONNRESET
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
 #else /* Unix */
@@ -996,14 +986,15 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define closesocket(A)	close(A)
 #define SOCKET_EINTR	EINTR
 #define SOCKET_EAGAIN	EAGAIN
-#define SOCKET_ETIMEDOUT SOCKET_EINTR
 #define SOCKET_EWOULDBLOCK EWOULDBLOCK
 #define SOCKET_EADDRINUSE EADDRINUSE
+#define SOCKET_ETIMEDOUT ETIMEDOUT
+#define SOCKET_ECONNRESET ECONNRESET
 #define SOCKET_ENFILE	ENFILE
 #define SOCKET_EMFILE	EMFILE
 #endif
 
-typedef int		myf;	/* Type of MyFlags in my_funcs */
+typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 typedef char		my_bool; /* Small bool */
 
 /* Macros for converting *constants* to the right type */
@@ -1410,6 +1401,8 @@ static inline char *dlerror(void)
 #define max(a, b)	((a) > (b) ? (a) : (b))
 #define min(a, b)	((a) < (b) ? (a) : (b))
 #endif  
+#define MY_MAX(a, b)	((a) > (b) ? (a) : (b))
+#define MY_MIN(a, b)	((a) < (b) ? (a) : (b))
 
 #define CMP_NUM(a,b)    (((a) < (b)) ? -1 : ((a) == (b)) ? 0 : 1)
 
@@ -1510,6 +1503,12 @@ static inline double rint(double x)
 
 #undef HAVE_SMEM				/* No shared memory */
 
+#else
+#ifdef WITH_NDB_BINLOG
+#define HAVE_NDB_BINLOG 1
+#endif
+#define HAVE_REPLICATION
+#define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
 
 #endif /* my_global_h */

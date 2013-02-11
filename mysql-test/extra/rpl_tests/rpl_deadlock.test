@@ -34,7 +34,7 @@ INSERT INTO t3 VALUES (3);
 COMMIT;
 save_master_pos;
 # Save BEGIN event into variable
-let $master_pos_begin= query_get_value(SHOW BINLOG EVENTS, Pos, 5);
+let $master_pos_begin= query_get_value(SHOW BINLOG EVENTS, Pos, 6);
 --echo
 
 # 1) Test deadlock

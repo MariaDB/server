@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -21,30 +21,26 @@
 #include "my_global.h"
 #include "my_sys.h"
 #include "pfs_global.h"
+#include "pfs_instr_class.h"
 #include "pfs_instr.h"
+#include "pfs_user.h"
+#include "pfs_host.h"
+#include "pfs_account.h"
 #include "pfs_events_waits.h"
 #include "pfs_atomic.h"
 #include "m_string.h"
 
 ulong events_waits_history_long_size= 0;
 /** Consumer flag for table EVENTS_WAITS_CURRENT. */
-bool flag_events_waits_current= true;
+bool flag_events_waits_current= false;
 /** Consumer flag for table EVENTS_WAITS_HISTORY. */
-bool flag_events_waits_history= true;
+bool flag_events_waits_history= false;
 /** Consumer flag for table EVENTS_WAITS_HISTORY_LONG. */
-bool flag_events_waits_history_long= true;
-/** Consumer flag for table EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME. */
-bool flag_events_waits_summary_by_thread_by_event_name= true;
-/** Consumer flag for table EVENTS_WAITS_SUMMARY_BY_EVENT_NAME. */
-bool flag_events_waits_summary_by_event_name= true;
-/** Consumer flag for table EVENTS_WAITS_SUMMARY_BY_INSTANCE. */
-bool flag_events_waits_summary_by_instance= true;
-bool flag_events_locks_summary_by_event_name= true;
-bool flag_events_locks_summary_by_instance= true;
-/** Consumer flag for table FILE_SUMMARY_BY_EVENT_NAME. */
-bool flag_file_summary_by_event_name= true;
-/** Consumer flag for table FILE_SUMMARY_BY_INSTANCE. */
-bool flag_file_summary_by_instance= true;
+bool flag_events_waits_history_long= false;
+/** Consumer flag for the global instrumentation. */
+bool flag_global_instrumentation= false;
+/** Consumer flag for the per thread instrumentation. */
+bool flag_thread_instrumentation= false;
 
 /** True if EVENTS_WAITS_HISTORY_LONG circular buffer is full. */
 bool events_waits_history_long_full= false;
@@ -93,6 +89,9 @@ static inline void copy_events_waits(PFS_events_waits *dest,
 */
 void insert_events_waits_history(PFS_thread *thread, PFS_events_waits *wait)
 {
+  if (unlikely(events_waits_history_per_thread == 0))
+    return;
+
   uint index= thread->m_waits_history_index;
 
   /*
@@ -120,6 +119,9 @@ void insert_events_waits_history(PFS_thread *thread, PFS_events_waits *wait)
 */
 void insert_events_waits_history_long(PFS_events_waits *wait)
 {
+  if (unlikely(events_waits_history_long_size == 0))
+    return;
+
   uint index= PFS_atomic::add_u32(&events_waits_history_long_index, 1);
 
   index= index % events_waits_history_long_size;
@@ -138,11 +140,11 @@ void reset_events_waits_current(void)
 
   for ( ; pfs_thread < pfs_thread_last; pfs_thread++)
   {
-    PFS_wait_locker *locker= pfs_thread->m_wait_locker_stack;
-    PFS_wait_locker *locker_last= locker + LOCKER_STACK_SIZE;
+    PFS_events_waits *pfs_wait= pfs_thread->m_events_waits_stack;
+    PFS_events_waits *pfs_wait_last= pfs_wait + WAIT_STACK_SIZE;
 
-    for ( ; locker < locker_last; locker++)
-      locker->m_waits_current.m_wait_class= NO_WAIT_CLASS;
+    for ( ; pfs_wait < pfs_wait_last; pfs_wait++)
+      pfs_wait->m_wait_class= NO_WAIT_CLASS;
   }
 }
 
@@ -174,5 +176,139 @@ void reset_events_waits_history_long(void)
   PFS_events_waits *wait_last= wait + events_waits_history_long_size;
   for ( ; wait < wait_last; wait++)
     wait->m_wait_class= NO_WAIT_CLASS;
+}
+
+/** Reset table EVENTS_WAITS_SUMMARY_BY_THREAD_BY_EVENT_NAME data. */
+void reset_events_waits_by_thread()
+{
+  PFS_thread *thread= thread_array;
+  PFS_thread *thread_last= thread_array + thread_max;
+
+  for ( ; thread < thread_last; thread++)
+  {
+    if (thread->m_lock.is_populated())
+      aggregate_thread_waits(thread);
+  }
+}
+
+/** Reset table EVENTS_WAITS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME data. */
+void reset_events_waits_by_account()
+{
+  PFS_account *pfs= account_array;
+  PFS_account *pfs_last= account_array + account_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_waits();
+  }
+}
+
+/** Reset table EVENTS_WAITS_SUMMARY_BY_USER_BY_EVENT_NAME data. */
+void reset_events_waits_by_user()
+{
+  PFS_user *pfs= user_array;
+  PFS_user *pfs_last= user_array + user_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_waits();
+  }
+}
+
+/** Reset table EVENTS_WAITS_SUMMARY_BY_HOST_BY_EVENT_NAME data. */
+void reset_events_waits_by_host()
+{
+  PFS_host *pfs= host_array;
+  PFS_host *pfs_last= host_array + host_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_waits();
+  }
+}
+
+/** Reset table EVENTS_WAITS_GLOBAL_BY_EVENT_NAME data. */
+void reset_events_waits_global()
+{
+  PFS_single_stat *stat= global_instr_class_waits_array;
+  PFS_single_stat *stat_last= global_instr_class_waits_array + wait_class_max;
+
+  for ( ; stat < stat_last; stat++)
+    stat->reset();
+}
+
+void reset_table_waits_by_table()
+{
+  PFS_table_share *pfs= table_share_array;
+  PFS_table_share *pfs_last= pfs + table_share_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate();
+  }
+}
+
+void reset_table_io_waits_by_table()
+{
+  PFS_table_share *pfs= table_share_array;
+  PFS_table_share *pfs_last= pfs + table_share_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_io();
+  }
+}
+
+void reset_table_lock_waits_by_table()
+{
+  PFS_table_share *pfs= table_share_array;
+  PFS_table_share *pfs_last= pfs + table_share_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->aggregate_lock();
+  }
+}
+
+void reset_table_waits_by_table_handle()
+{
+  PFS_table *pfs= table_array;
+  PFS_table *pfs_last= pfs + table_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->sanitized_aggregate();
+  }
+}
+
+void reset_table_io_waits_by_table_handle()
+{
+  PFS_table *pfs= table_array;
+  PFS_table *pfs_last= pfs + table_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->sanitized_aggregate_io();
+  }
+}
+
+void reset_table_lock_waits_by_table_handle()
+{
+  PFS_table *pfs= table_array;
+  PFS_table *pfs_last= pfs + table_max;
+
+  for ( ; pfs < pfs_last; pfs++)
+  {
+    if (pfs->m_lock.is_populated())
+      pfs->sanitized_aggregate_lock();
+  }
 }
 

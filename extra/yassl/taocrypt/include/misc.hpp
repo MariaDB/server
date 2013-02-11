@@ -133,6 +133,10 @@ void CleanUp();
     #define TAOCRYPT_DISABLE_X86ASM
 #endif
 
+// a problem with gcc (newer versions only?)
+#if defined(__GNUC__)
+    #define TAOCRYPT_DISABLE_X86ASM
+#endif
 
 // Turn on ia32 ASM for Big Integer
 // CodeWarrior defines _MSC_VER

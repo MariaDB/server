@@ -41,7 +41,7 @@ extern my_bool opt_sporadic_binlog_dump_fail;
 
 int start_slave(THD* thd, Master_info* mi, bool net_report);
 int stop_slave(THD* thd, Master_info* mi, bool net_report);
-bool change_master(THD* thd, Master_info* mi);
+bool change_master(THD* thd, Master_info* mi, bool *master_info_added);
 bool mysql_show_binlog_events(THD* thd);
 int reset_slave(THD *thd, Master_info* mi);
 int reset_master(THD* thd);
