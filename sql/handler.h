@@ -1053,9 +1053,9 @@ struct handlerton
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
-   ha_create_table_option *table_options; // table level options
-   ha_create_table_option *field_options; // these are specified per field
-   ha_create_table_option *index_options; // these are specified per index
+   const ha_create_table_option *table_options; // table level options
+   const ha_create_table_option *field_options; // these are specified per field
+   const ha_create_table_option *index_options; // these are specified per index
 
 };
 

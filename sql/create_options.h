@@ -73,7 +73,7 @@ my_bool parse_engine_table_options(THD *thd, handlerton *ht,
                                    TABLE_SHARE *share);
 my_bool parse_option_list(THD* thd, void *option_struct,
                           engine_option_value *option_list,
-                          ha_create_table_option *rules,
+                          const ha_create_table_option *rules,
                           my_bool suppress_warning,
                           MEM_ROOT *root);
 my_bool engine_table_options_frm_read(const uchar *buff,

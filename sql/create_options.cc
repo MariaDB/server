@@ -114,7 +114,7 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
   DBUG_RETURN(FALSE);
 }
 
-static bool set_one_value(ha_create_table_option *opt,
+static bool set_one_value(const ha_create_table_option *opt,
                           THD *thd, LEX_STRING *value, void *base,
                           my_bool suppress_warning,
                           MEM_ROOT *root)
@@ -259,11 +259,11 @@ static const size_t ha_option_type_sizeof[]=
 
 my_bool parse_option_list(THD* thd, void *option_struct_arg,
                           engine_option_value *option_list,
-                          ha_create_table_option *rules,
+                          const ha_create_table_option *rules,
                           my_bool suppress_warning,
                           MEM_ROOT *root)
 {
-  ha_create_table_option *opt;
+  const ha_create_table_option *opt;
   size_t option_struct_size= 0;
   engine_option_value *val= option_list;
   void **option_struct= (void**)option_struct_arg;
