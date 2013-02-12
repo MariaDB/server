@@ -136,7 +136,7 @@ CREATE TABLE t1
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 
 --echo #
---echo # Testing 2 columns with long names
+--echo # Testing 2 columns with long names (12)
 --echo #
 --error ER_UNKNOWN_ERROR
 CREATE TABLE t1
@@ -145,9 +145,29 @@ CREATE TABLE t1
   b0123456789b INT DEFAULT NULL
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x11.dbf';
 
-#
-# TODO: add a test with shorter name 'a012345678a'. It should also fail.
-#
+--echo #
+--echo # Testing 2 columns with long names (11)
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  a012345678a INT DEFAULT NULL,
+  b012345678b INT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x12.dbf';
+
+--echo #
+--echo # Testing 2 columns name length 10 (maximum possible length)
+--echo #
+CREATE TABLE t1
+(
+  a01234567a INT DEFAULT NULL,
+  b01234567b INT DEFAULT NULL
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t02x13.dbf';
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,2);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t02x13.dbf
 
 
 --echo #
