@@ -3559,13 +3559,31 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(rc);
     } // endif g
 
-  // Check column types
+  // Check table type
   ttp= GetTypeID(options->type);
 
-  if (ttp == TAB_UNDEF || ttp == TAB_NIY) ;
+  if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
+#if 0   // Does not work. It's too late, FRM is constructed yet.
+    THD *thd= table_arg->in_use;
+
+    ttp= TAB_DOS;
+    options->type= strmake_root(thd->mem_root, "DOS", strlen("DOS"));
+    strcpy(g->Message, "Table_type defaulted to DOS");
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+#endif
+    if (options->type)
+      sprintf(g->Message, "Unsupported table type %s", options->type);
+    else
+      strcpy(g->Message, "Unspecified table type");
+
+    rc= HA_ERR_INTERNAL_ERROR;
+    my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    DBUG_RETURN(rc);
+    } // endif ttp
 
   dbf= ttp == TAB_DBF;
 
+  // Check column types
   for (field= table_arg->field; *field; field++) {
     fp= *field;
 
