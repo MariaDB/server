@@ -10756,7 +10756,8 @@ void JOIN::cleanup(bool full)
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
-  have_query_plan= QEP_DELETED;
+  if (full)
+    have_query_plan= QEP_DELETED; //psergey: this is a problem!
 
   if (table)
   {

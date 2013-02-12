@@ -9,6 +9,9 @@
 drop table if exists t0, t1;
 --enable_warnings
 
+SET @old_debug= @@session.debug;
+set debug_sync='RESET';
+
 # 
 # Setup two threads and their ids
 #
@@ -31,11 +34,11 @@ from t0 A, t0 B, t0 C;
 
 let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
 
-#
-# Test SHOW EXPLAIN for single-table DELETEs
-#
+--echo #
+--echo # Test SHOW EXPLAIN for single-table DELETE
+--echo #
 connection con2;
-set debug_dbug='d,show_explain_probe_delete_exec_start';
+set debug_dbug='+d,show_explain_probe_delete_exec_start';
 send delete from t1 where a<10 and b+1>1000;
 
 connection default;
@@ -44,8 +47,11 @@ evalp show explain for $thr2;
 connection con2;
 reap;
 
+--echo #
+--echo # Test SHOW EXPLAIN for multi-table DELETE
+--echo #
 set @show_explain_probe_select_id=1;
-set debug_dbug='d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select';
 send delete t1 from t1, t0 where t0.a=t1.a and t1.b +1 > 1000;
 connection default;
 --source include/wait_condition.inc
@@ -53,5 +59,20 @@ evalp show explain for $thr2;
 connection con2;
 reap;
 
+--echo #
+--echo # Test SHOW EXPLAIN for single-table UPDATE
+--echo #
+connection con2;
+set debug_dbug='+d,show_explain_probe_update_exec_start';
+send update t1 set filler='filler-data-2' where a<10 and b+1>1000;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con2;
+reap;
 
 drop table t0,t1;
+
+set debug_dbug=@old_debug;
+set debug_sync='RESET';
