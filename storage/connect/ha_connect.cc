@@ -3607,8 +3607,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     if (dbf) {
       bool b= false;
 
-      if ((b= strlen(fp->field_name) > 11))
-        sprintf(g->Message, "DBF: Column name '%s' is too long (max=11)",
+      if ((b= strlen(fp->field_name) > 10))
+        sprintf(g->Message, "DBF: Column name '%s' is too long (max=10)",
                             fp->field_name);
       else if ((b= fp->field_length > 255))
         sprintf(g->Message, "DBF: Column length too big for '%s' (max=255)",
