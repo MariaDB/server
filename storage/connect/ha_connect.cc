@@ -1241,6 +1241,17 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
 
   if (!(tdbp= GetTDB(g)))
     return true;
+  else if (tdbp->IsReadOnly())
+    switch (xmod) {
+      case MODE_WRITE:
+      case MODE_INSERT:
+      case MODE_UPDATE:
+      case MODE_DELETE:
+        strcpy(g->Message, MSG(READ_ONLY));
+        return true;
+      default:
+        break;
+      } // endswitch xmode
 
   // Get the list of used fields (columns)
   char        *p;
@@ -3527,10 +3538,10 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   Called from handle.cc by ha_create_table().
 
   @note
-  Currently we do nothing here because we suppose that the PlugDB matching
-  table already exists. At least we should check that the table definition
-  for MariaDB exactly match the PlugDB one. Later we should make possible
-  to entirely create a table from MariaDB.
+  Currently we do some checking on the create definitions and stop
+  creating if an error is found. We wish we could change the table
+  definition such as providing a default table type. However, as said
+  above, there are no method to do so.
 
   @see
   ha_create_table() in handle.cc
@@ -3711,6 +3722,9 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 //ha_table_option_struct *param_old, *param_new;
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
   // TO DO: implement it.
+  if (table)
+    push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
+      "No check done for compatible changes, you are on your own!");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 

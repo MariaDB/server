@@ -101,8 +101,7 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   Elemt = cat->GetIntCatInfo(name, "Elements", 0);
   Multiple = cat->GetIntCatInfo(name, "Multiple", 0);
   Degree = cat->GetIntCatInfo(name, "Degree", 0);
-  cat->GetCharCatInfo(name, "ReadOnly", "No", buf, sizeof(buf));
-  Read_Only = (toupper(*buf) == 'Y');
+  Read_Only = cat->GetBoolCatInfo(name, "ReadOnly", false);
 
   // Get The column definitions
   if ((poff = cat->GetColCatInfo(g, this)) < 0)
