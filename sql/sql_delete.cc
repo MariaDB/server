@@ -54,9 +54,27 @@
 int Delete_plan::print_explain(select_result_sink *output, uint8 explain_flags, 
                                bool *printed_anything)
 {
-  if (deleting_all_rows || impossible_where)
+  if (deleting_all_rows)
   {
-    const char *msg= deleting_all_rows? "Deleting all rows": "Impossible where";
+    const char *msg= "Deleting all rows";
+    if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
+                                   "SIMPLE", msg))
+    {
+      return 1;
+    }
+    *printed_anything= true;
+    return 0;
+  }
+  return Update_plan::print_explain(output, explain_flags, printed_anything);
+}
+
+
+int Update_plan::print_explain(select_result_sink *output, uint8 explain_flags, 
+                               bool *printed_anything)
+{
+  if (impossible_where)
+  {
+    const char *msg= "Impossible where";
     if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
                                    "SIMPLE", msg))
     {
@@ -404,7 +422,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.select= select;
   query_plan.possible_keys= table->quick_keys;
   query_plan.table_rows= table->file->stats.records;
-  thd->lex->delete_plan= &query_plan;
+  thd->lex->upd_del_plan= &query_plan;
   
   /*
     Ok, we have generated a query plan for the DELETE.
@@ -629,7 +647,7 @@ cleanup:
   
   /* Special exits */
 exit_without_my_ok:
-  thd->lex->delete_plan= &query_plan;
+  thd->lex->upd_del_plan= &query_plan;
   
   select_send *result;
   bool printed_anything;

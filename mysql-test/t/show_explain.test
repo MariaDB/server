@@ -238,10 +238,10 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;
