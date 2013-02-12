@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2012
+/* Copyright (C) Olivier Bertrand 2004 - 2013
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 /*************** Mycat CC Program Source Code File (.CC) ***************/
 /* PROGRAM NAME: MYCAT                                                 */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /*  Author: Olivier Bertrand                       2012 - 2013         */
 /*                                                                     */
@@ -86,38 +86,65 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-/**************************************************************************/
-/*  Extern static variables.                                              */
-/**************************************************************************/
+/***********************************************************************/
+/*  Extern static variables.                                           */
+/***********************************************************************/
 #if defined(WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
 
 extern int xtrace;
 
-/**************************************************************************/
-/*  General DB routines.                                                  */
-/**************************************************************************/
-//bool  PlugCheckPattern(PGLOBAL, LPCSTR, LPCSTR);
-//#if !defined(WIN32)
-//#endif  // !WIN32
-//void  ptrc(char const *fmt, ...);
+/***********************************************************************/
+/*  Get a unique enum table type ID.                                   */
+/***********************************************************************/
+TABTYPE GetTypeID(const char *type)
+  {
+  return (!type) ? TAB_UNDEF                      
+                 : (!stricmp(type, "DOS"))   ? TAB_DOS
+                 : (!stricmp(type, "FIX"))   ? TAB_FIX
+                 : (!stricmp(type, "BIN"))   ? TAB_BIN
+	               : (!stricmp(type, "CSV"))   ? TAB_CSV
+                 : (!stricmp(type, "FMT"))   ? TAB_FMT
+                 : (!stricmp(type, "DBF"))   ? TAB_DBF
+                 : (!stricmp(type, "XML"))   ? TAB_XML
+                 : (!stricmp(type, "INI"))   ? TAB_INI
+                 : (!stricmp(type, "VEC"))   ? TAB_VEC
+                 : (!stricmp(type, "ODBC"))  ? TAB_ODBC
+                 : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+                 : (!stricmp(type, "DIR"))   ? TAB_DIR
+	               : (!stricmp(type, "MAC"))   ? TAB_MAC
+	               : (!stricmp(type, "WMI"))   ? TAB_WMI
+	               : (!stricmp(type, "TBL"))   ? TAB_TBL
+                 : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
+  } // end of GetTypeID
 
 /***********************************************************************/
-/*  Get a unique char identifier for types. The letter used are:       */
-/*  ABCDEF..I.KLM.O..R.T.VWXY..                                        */
+/*  Get a unique enum catalog function ID.                             */
 /***********************************************************************/
-char GetTypeID(const char *type)
+uint GetFuncID(const char *func)
   {
-  return (!type) ? 'D'                               // DOS (default)
-                 : (!stricmp(type, "FMT"))   ? 'T'	 // CSV
-                 : (!stricmp(type, "DIR"))   ? 'R'   // diR
-                 : (!stricmp(type, "DBF"))   ? 'A'   // dbAse
-                 : (!stricmp(type, "SYS"))   ? 'I'	 // INI
-	               : (!stricmp(type, "TBL"))   ? 'L'   // tbL
-                 : (!stricmp(type, "MYSQL")) ? 'Y'	 // mYsql
-                 : (!stricmp(type, "OEM"))   ? 'E' : toupper(*type);
-  } // end of GetTypeID
+  uint fnc;
+
+  if (!func)
+    fnc= FNC_NO;
+  else if (!strnicmp(func, "col", 3))
+    fnc= FNC_COL;
+  else if (!strnicmp(func, "tab", 3))
+    fnc= FNC_TABLE;
+  else if (!stricmp(func, "dsn") ||
+           !strnicmp(func, "datasource", 10) ||
+           !strnicmp(func, "source", 6) ||
+           !strnicmp(func, "sqldatasource", 13))
+    fnc= FNC_DSN;
+  else if (!strnicmp(func, "driver", 6) ||
+           !strnicmp(func, "sqldriver", 9))
+    fnc= FNC_DRIVER;
+  else
+    fnc= FNC_NIY;
+
+  return fnc;
+  } // end of GetFuncID
 
 /* ------------------------- Class CATALOG --------------------------- */
 
@@ -270,43 +297,44 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
 /***********************************************************************/
 int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	{
-	char		 tc, *type= GetStringCatInfo(g, NULL, "Type", "DOS");
+	char		*type= GetStringCatInfo(g, NULL, "Type", "DOS");
 	int      i, loff, poff, nof, nlg;
 	void    *field= NULL;
+  TABTYPE  tc;
   PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   // Get a unique char identifier for type
-  tc= (!defp->Catfunc) ? GetTypeID(type) : 0;
+  tc= (!defp->Catfunc) ? GetTypeID(type) : TAB_CATLG;
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
 
 	// Offsets of HTML and DIR tables start from 0, DBF at 1
-	loff= (tc == 'A') ? 1 : (tc == 'X' || tc == 'R') ? -1 : 0; 
+	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0; 
 
   while (true) {
 		// Default Offset depends on table type
 		switch (tc) {
-      case 'D':        // DOS
-      case 'F':        // FIX
-      case 'B':        // BIN
-      case 'V':        // VEC
-      case 'A':        // DBF
+      case TAB_DOS:
+      case TAB_FIX:
+      case TAB_BIN:
+      case TAB_VEC:
+      case TAB_DBF:
         poff= loff + nof;				 // Default next offset
 				nlg= max(nlg, poff);		 // Default lrecl
         break;
-      case 'C':        // CSV
-      case 'T':        // FMT
+      case TAB_CSV:
+      case TAB_FMT:
 				nlg+= nof;
-      case 'R':        // DIR
-      case 'X':        // XML
+      case TAB_DIR:
+      case TAB_XML:
         poff= loff + 1;
         break;
-      case 'I':        // INI
-      case 'M':        // MAC
-      case 'L':        // TBL
-      case 'E':        // OEM
+      case TAB_INI:
+      case TAB_MAC:
+      case TAB_TBL:
+      case TAB_OEM:
         poff = 0;      // Offset represents an independant flag
         break;
       default:         // VCT PLG ODBC MYSQL WMI...
@@ -318,7 +346,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 			field= Hc->GetColumnOption(field, pcf);
 			} while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
 
-		if (tc == 'A' && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
+		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
 			// DBF date format defaults to 'YYYMMDD'
 			pcf->Datefmt= "YYYYMMDD";
 			pcf->Length= 8;
@@ -336,9 +364,9 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 			loff= cdp->GetOffset();
 
 		switch (tc) {
-			case 'V':
+			case TAB_VEC:
 				cdp->SetOffset(0);		 // Not to have shift
-			case 'B':
+			case TAB_BIN:
 				// BIN/VEC are packed by default
 				if (nof)
 					// Field width is the internal representation width
@@ -355,6 +383,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 						default:  nof= cdp->Clen;
 						} // endswitch Fmt
 
+      default:
 				break;
 			} // endswitch tc
 
@@ -389,11 +418,11 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 
 		// Calculate the default record size
 		switch (tc) {
-      case 'F':
+      case TAB_FIX:
         recln= nlg + ending;     // + length of line ending
         break;
-      case 'B':
-      case 'V':
+      case TAB_BIN:
+      case TAB_VEC:
         recln= nlg;
 	
 //      if ((k= (pak < 0) ? 8 : pak) > 1)
@@ -402,15 +431,16 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 //        recln= ((recln + k - 1) / k) * k;
 	
         break;
-      case 'D':
-      case 'A':
+      case TAB_DOS:
+      case TAB_DBF:
         recln= nlg;
         break;
-      case 'T':
-      case 'C':
+      case TAB_CSV:
+      case TAB_FMT:
         // The number of separators (assuming an extra one can exist)
 //      recln= poff * ((qotd) ? 3 : 1);	 to be investigated
 				recln= nlg + poff * 3;     // To be safe
+      default:
         break;
       } // endswitch tc
 
@@ -484,46 +514,45 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 /***********************************************************************/
 PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   {
-  char tc;
+  TABTYPE tc;
   PRELDEF tdp= NULL;
 
 	if (xtrace)
 		printf("MakeTableDesc: name=%s am=%s\n", name, SVP(am));
 
   /*********************************************************************/
-  /*  Get a unique char identifier for types. The letter used are:     */
-  /*  ABCDEF..IJKLM.OPQRSTUVWXYZ and Allocate table definition class   */
+  /*  Get a unique enum identifier for types.                          */
   /*********************************************************************/
   tc= GetTypeID(am);
 
   switch (tc) {
-    case 'F':
-    case 'B':
-    case 'A':
-    case 'D': tdp= new(g) DOSDEF;   break;
-    case 'T':
-    case 'C': tdp= new(g) CSVDEF;   break;
-    case 'I': tdp= new(g) INIDEF;   break;
-    case 'R': tdp= new(g) DIRDEF;   break;
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_DBF:
+    case TAB_DOS: tdp= new(g) DOSDEF;   break;
+    case TAB_CSV:
+    case TAB_FMT: tdp= new(g) CSVDEF;   break;
+    case TAB_INI: tdp= new(g) INIDEF;   break;
+    case TAB_DIR: tdp= new(g) DIRDEF;   break;
 #if defined(XML_SUPPORT)
-    case 'X': tdp= new(g) XMLDEF;   break;
+    case TAB_XML: tdp= new(g) XMLDEF;   break;
 #endif   // XML_SUPPORT
-    case 'V': tdp= new(g) VCTDEF;   break;
+    case TAB_VEC: tdp= new(g) VCTDEF;   break;
 #if defined(ODBC_SUPPORT)
-    case 'O': tdp= new(g) ODBCDEF;  break;
+    case TAB_ODBC: tdp= new(g) ODBCDEF; break;
 #endif   // ODBC_SUPPORT
 #if defined(WIN32)
-    case 'M': tdp= new(g) MACDEF;   break;
-    case 'W': tdp= new(g) WMIDEF;   break;
+    case TAB_MAC: tdp= new(g) MACDEF;   break;
+    case TAB_WMI: tdp= new(g) WMIDEF;   break;
 #endif   // WIN32
-    case 'E': tdp= new(g) OEMDEF;   break;
-	  case 'L': tdp= new(g) TBLDEF;   break;
+    case TAB_OEM: tdp= new(g) OEMDEF;   break;
+	  case TAB_TBL: tdp= new(g) TBLDEF;   break;
 #if defined(MYSQL_SUPPORT)
-		case 'Y': tdp= new(g) MYSQLDEF;	break;
+		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
 #endif   // MYSQL_SUPPORT
-#if defined(PIVOT_SUPPORT)
-    case 'P': tdp= new(g) PIVOTDEF; break;
-#endif   // PIVOT_SUPPORT
+//#if defined(PIVOT_SUPPORT)
+//  case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
+//#endif   // PIVOT_SUPPORT
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch

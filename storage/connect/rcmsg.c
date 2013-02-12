@@ -129,10 +129,10 @@ char *GetMsgid(int id)
     case IDS_13:     p = "%s: invalid connection key value %d";                          break;
     case IDS_14:     p = "SafeDB: %s rc=%d";                                             break;
     case IDS_15:     p = "Wrong communication Dll called for engine %s";                  break;
-    case IDS_TAB_01: p = "Qualifier";          break;
-    case IDS_TAB_02: p = "Owner";              break;
-    case IDS_TAB_03: p = "Name";               break;
-    case IDS_TAB_04: p = "Type";               break;
+    case IDS_TAB_01: p = "Table_Qualifier";    break;
+    case IDS_TAB_02: p = "Table_Owner";        break;
+    case IDS_TAB_03: p = "Table_Name";         break;
+    case IDS_TAB_04: p = "Table_Type";         break;
     case IDS_TAB_05: p = "Remark";             break;
     case IDS_COL_01: p = "Table_Qualif";       break;
     case IDS_COL_02: p = "Table_Owner";        break;
