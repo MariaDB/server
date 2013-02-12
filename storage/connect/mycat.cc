@@ -305,7 +305,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   // Get a unique char identifier for type
-  tc= (!defp->Catfunc) ? GetTypeID(type) : TAB_CATLG;
+  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_CATLG;
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;

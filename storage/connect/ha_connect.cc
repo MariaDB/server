@@ -3543,6 +3543,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   bool    dbf;
   Field* *field;
   Field  *fp;
+  TABTYPE ttp;
   TABLE  *st= table;                       // Probably unuseful
   PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
@@ -3559,7 +3560,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     } // endif g
 
   // Check column types
-  dbf= (options->type && !stricmp(options->type, "DBF"));
+  ttp= GetTypeID(options->type);
+
+  if (ttp == TAB_UNDEF || ttp == TAB_NIY) ;
+
+  dbf= ttp == TAB_DBF;
 
   for (field= table_arg->field; *field; field++) {
     fp= *field;
