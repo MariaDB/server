@@ -46,7 +46,7 @@
 #include "osutil.h"
 #include "plgdbsem.h"
 #include "catalog.h"
-//#include "reldef.h"
+#include "mycat.h"
 #include "xindex.h"
 #include "filamap.h"
 #include "filamfix.h"
@@ -297,7 +297,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
   if (Recfm == RECFM_DBF) {
-    if (!Catfunc) {
+    if (Catfunc == FNC_NO) {
       if (map)
         txfp = new(g) DBMFAM(this);
       else

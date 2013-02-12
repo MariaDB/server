@@ -49,6 +49,7 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
+#include "mycat.h"
 #include "filamap.h"
 #if defined(ZIP_SUPPORT)
 #include "filamzip.h"
@@ -405,7 +406,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   char   buf[8];
 
   // Double check correctness of offset values
-  if (!Catfunc)
+  if (Catfunc == FNC_NO)
     for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
       if (cdp->GetOffset() < 1) {
         strcpy(g->Message, MSG(BAD_OFFSET_VAL));
@@ -441,7 +442,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   {
   PTDBASE tdbp;
 
-  if (Catfunc != 'C') {
+  if (Catfunc != FNC_COL) {
     USETEMP tmp = PlgGetUser(g)->UseTemp;
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&

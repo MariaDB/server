@@ -53,7 +53,7 @@
 #include "xtable.h"
 #include "tabcol.h"
 #include "colblk.h"
-//#include "xindex.h"
+#include "mycat.h"
 #include "reldef.h"
 #include "tabmysql.h"
 #include "valblk.h"
@@ -105,7 +105,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB MYSQLDEF::GetTable(PGLOBAL g, MODE m)
   {
-  if (Catfunc == 'C')
+  if (Catfunc == FNC_COL)
     return new(g) TDBMCL(this);
   else
     return new(g) TDBMYSQL(this);

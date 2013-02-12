@@ -3256,24 +3256,25 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
 */
 bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 {
-  char    ttp= '?', spc= ',', qch= 0, fnc= '*';
+  char        spc= ',', qch= 0;
   const char *typn= "?";
+  const char *fncn= "?";
   const char *user;
-  char   *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep, *csn;
+  char       *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep; // *csn;
 #if defined(WIN32)
-  char   *nsp= NULL, *cls= NULL;
+  char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  char   *supfnc = "*C";
-  int     port= MYSQL_PORT, hdr= 0, mxr= 0;
-  uint    tm;
-  bool    b= false, ok= false, dbf= false;
+  int         port= MYSQL_PORT, hdr= 0, mxr= 0;
+  uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
+  bool        b= false, ok= false, dbf= false;
+  TABTYPE     ttp= TAB_UNDEF;
   LEX_STRING *comment, *name;
   HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
   CHARSET_INFO *cs;
   engine_option_value *pov;
-  PQRYRES qrp;
-  PCOLRES crp;
-  PGLOBAL g= GetPlug(thd);
+  PQRYRES     qrp;
+  PCOLRES     crp;
+  PGLOBAL     g= GetPlug(thd);
 
   if (!g)
     return true;
@@ -3294,7 +3295,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
     } else if (!stricmp(pov->name.str, "db_name")) {
       db= pov->value.str;
     } else if (!stricmp(pov->name.str, "catfunc")) {
-      fnc= toupper(*pov->value.str);
+      fncn= pov->value.str;
+      fnc= GetFuncID(fncn);
     } else if (!stricmp(pov->name.str, "sep_char")) {
       sep= pov->value.str;
       spc= (!strcmp(sep, "\\t")) ? '\t' : *sep;
@@ -3319,25 +3321,25 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
     } // endelse option_list
 
-  if (!tab && fnc != 'T')
+  if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
     tab= (char*)create_info->alias;
 
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
-    case 'O':       // ODBC
+    case TAB_ODBC:
       if (!(dsn= create_info->connect_string.str)
-                 && fnc != 'S'&& fnc != 'D')
+                 && !(fnc & (FNC_DSN | FNC_DRIVER)))
         sprintf(g->Message, "Missing %s connection string", typn);
       else
         ok= true;
 
-      supfnc = "*CTSD";
+      supfnc |= (FNC_TABLE | FNC_DSN | FNC_DRIVER);
       break;
 #endif   // ODBC_SUPPORT
-    case 'A':       // DBF
+    case TAB_DBF:
       dbf= true;
       // Passthru
-    case 'C':       // CSV
+    case TAB_CSV:
       if (!fn)
         sprintf(g->Message, "Missing %s file name", typn);
       else
@@ -3345,7 +3347,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 
       break;
 #if defined(MYSQL_SUPPORT)
-    case 'Y':       // MYSQL
+    case TAB_MYSQL:
       if (!user)
         user= "root";       // Avoid crash
 
@@ -3353,7 +3355,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       break;
 #endif   // MYSQL_SUPPORT
 #if defined(WIN32)
-    case 'W':       // WMI
+    case TAB_WMI:
       ok= true;
       break;
 #endif   // WIN32
@@ -3362,9 +3364,9 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
     } // endif ttp
 
   // Check for supported catalog function
-  if (ok && !strchr(supfnc, fnc)) {
-    sprintf(g->Message, "Unsupported catalog function %c for table type %s",
-                        fnc, typn);
+  if (ok && !(supfnc & fnc)) {
+    sprintf(g->Message, "Unsupported catalog function %s for table type %s",
+                        fncn, typn);
     ok= false;
     } // endif supfnc
 
@@ -3381,45 +3383,48 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;           // Should never happen
 
     switch (ttp) {
-      case 'A':
-        qrp= DBFColumns(g, fn, fnc == 'C');
+      case TAB_DBF:
+        qrp= DBFColumns(g, fn, fnc == FNC_COL);
         break;
 #if defined(ODBC_SUPPORT)
-      case 'O':
+      case TAB_ODBC:
         switch (fnc) {
-          case 'C':
-          case '\0':
-            qrp= MyODBCCols(g, dsn, tab, fnc == 'C');
+          case FNC_NO:
+          case FNC_COL:
+            qrp= ODBCColumns(g, dsn, tab, NULL, fnc == FNC_COL);
             break;
-          case 'T':
+          case FNC_TABLE:
             qrp= ODBCTables(g, dsn, tab, true);
             break;
-          case 'S':
+          case FNC_DSN:
             qrp= ODBCDataSources(g, true);
             break;
-          case 'D':
+          case FNC_DRIVER:
             qrp= ODBCDrivers(g, true);
             break;
           default:
-            sprintf(g->Message, "invalid catfunc %c", fnc);
+            sprintf(g->Message, "invalid catfunc %c", fncn);
         } // endswitch info
 
         break;
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
-      case 'Y':
+      case TAB_MYSQL:
         qrp= MyColumns(g, host, db, user, pwd, tab, 
-                       NULL, port, false, fnc == 'C');
+                       NULL, port, false, fnc == FNC_COL);
         break;
 #endif   // MYSQL_SUPPORT
-      case 'C':
-        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr, fnc == 'C');
+      case TAB_CSV:
+        qrp= CSVColumns(g, fn, spc, qch, hdr, mxr, fnc == FNC_COL);
         break;
 #if defined(WIN32)
-      case 'W':
-        qrp= WMIColumns(g, nsp, cls, fnc == 'C');
+      case TAB_WMI:
+        qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
         break;
 #endif   // WIN32
+      default:
+        strcpy(g->Message, "System error in pre_create");
+        break;
       } // endswitch ttp
 
     if (!qrp) {
@@ -3427,7 +3432,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       return true;
       } // endif qrp
 
-    if (fnc && fnc != '*') {
+    if (fnc != FNC_NO) {
       // Catalog table
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
@@ -3488,6 +3493,8 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 //              cs= get_charset_by_name(csn, 0);
 
 //            break;
+            default:
+              break;                 // Ignore
             } // endswitch Fld
 
         comment= thd->make_lex_string(NULL, rem, strlen(rem), true);

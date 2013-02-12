@@ -225,58 +225,67 @@ void ResetNullValues(CATPARM *cap)
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /*  Note: The first two columns (Qualifier, Owner) are ignored.        */
 /***********************************************************************/
-PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
-                                                        char *colpat)
+PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
+                                          char *colpat, bool info)
   {
-  static int dbtype[]  = {DB_CHAR,  DB_CHAR,
+  static int dbtype[]  = {DB_CHAR,  DB_CHAR,  DB_CHAR,
                           DB_CHAR,  DB_SHORT, DB_CHAR,
                           DB_INT,   DB_INT,   DB_SHORT,
                           DB_SHORT, DB_SHORT, DB_CHAR};
-  static int buftyp[]  = {TYPE_STRING, TYPE_STRING,
+  static int buftyp[]  = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                           TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,    TYPE_INT,   TYPE_SHORT,
                           TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NO,    FLD_NO, 
+  static XFLD fldtyp[] = {FLD_NO,    FLD_NO,     FLD_NO,
                           FLD_NAME,  FLD_TYPE,   FLD_TYPENAME,
                           FLD_PREC,  FLD_LENGTH, FLD_SCALE,
                           FLD_RADIX, FLD_NULL,   FLD_REM};
-  static unsigned int length[] = {0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
-  int      n, ncol = 11;
+  static unsigned int length[] = {0, 0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
+  int      n, ncol = 12;
   int      maxres;
   PQRYRES  qrp;
   CATPARM *cap;
+  ODBConn *ocp;
 
   /************************************************************************/
   /*  Do an evaluation of the result size.                                */
   /************************************************************************/
-  if (ocp) {
+  if (!info) {
+    ocp = new(g) ODBConn(g, NULL);
+
+    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+      return NULL;
+
     n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
     maxres = (n) ? (int)n : 250;
-    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+    n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
     length[0] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+    n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
     length[1] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
     length[2] = (n) ? (n + 1) : 128;
+    n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+    length[3] = (n) ? (n + 1) : 128;
   } else {                 // Info table
     maxres = 0;
     length[0] = 128;
     length[1] = 128;
     length[2] = 128;
+    length[3] = 128;
   } // endif ocp
 
 #ifdef DEBTRACE
  htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
-         maxres, length[0], length[1], length[2]);
+         maxres, length[0], length[1], length[2], length[3]);
 #endif
 
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS + 1,
-                          dbtype, buftyp, NULL, length, true, true);
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_COLUMNS,
+                          dbtype, buftyp, fldtyp, length, true, true);
 
-  if (!ocp)                      // Info table
+  if (info)                      // Info table
     return qrp;
 
 #ifdef DEBTRACE
@@ -305,6 +314,7 @@ PQRYRES ODBCColumns(PGLOBAL g, ODBConn *ocp, char *dsn, char *table,
   return qrp;
   } // end of ODBCColumns
 
+#if 0
 /**************************************************************************/
 /* MyODBCCols: returns column info as required by ha_connect::pre_create. */
 /**************************************************************************/
@@ -339,7 +349,6 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
   if (ocp)
     ocp->Close();
 
-#if 0
   if (!qrp)
     return NULL;             // Error in ODBCColumns
 
@@ -375,9 +384,9 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
     crp->Ncol = ++i;
 
   qrp->Nbcol = i;             // Should be 7; was 11, skipped 4
-#endif // 0
   return qrp;
   } // end of MyODBCCols
+#endif // 0
 
 /*************************************************************************/
 /*  ODBCDataSources: constructs the result blocks containing all ODBC    */
@@ -482,16 +491,19 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
 /***********************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING,
+  static int dbtype[] = {DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR};
+  static int buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                          TYPE_STRING, TYPE_STRING};
-  static unsigned int length[] = {0, 0, 16, 128};
-  int      n, ncol = 4;
+  static unsigned int length[] = {0, 0, 0, 16, 128};
+  int      n, ncol = 5;
   int     maxres;
   PQRYRES  qrp;
   CATPARM *cap;
   ODBConn *ocp;
 
+  /************************************************************************/
+  /*  Do an evaluation of the result size.                                */
+  /************************************************************************/
   if (!info) {
     /**********************************************************************/
     /*  Open the connection with the ODBC data source.                    */
@@ -501,13 +513,9 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
-    } // endif info
-
-  /************************************************************************/
-  /*  Do an evaluation of the result size.                                */
-  /************************************************************************/
-  if (!info) {
     maxres = 512;                       // This is completely arbitrary
+    n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
+    length[0] = (n) ? (n + 1) : 128;
     n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
     length[0] = (n) ? (n + 1) : 128;
     n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
@@ -516,6 +524,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     maxres = 0;
     length[0] = 128;
     length[1] = 128;
+    length[2] = 128;
   } // endif info
 
 #ifdef DEBTRACE
@@ -526,8 +535,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES + 1,
-                          dbtype, buftyp, NULL, length, true, true);
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES, dbtype, buftyp,
+                                        NULL, length, true, true);
 
   if (info)
     return qrp;
@@ -570,10 +579,11 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
 /**************************************************************************/
 PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR, DB_CHAR, DB_SHORT, DB_CHAR};
+  static int dbtype[] = {DB_CHAR, DB_CHAR,  DB_CHAR, 
+                         DB_CHAR, DB_SHORT, DB_CHAR};
   static int buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
-                         TYPE_SHORT,  TYPE_STRING};
-  static unsigned int length[] = {0, 0, 0, 6, 128};
+                         TYPE_STRING, TYPE_SHORT,  TYPE_STRING};
+  static unsigned int length[] = {0, 0, 0, 0, 6, 128};
   int      n, ncol = 5;
   int     maxres;
   PQRYRES  qrp;
@@ -596,12 +606,14 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /************************************************************************/
   n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
   maxres = (n) ? (int)n : 250;
-  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
   length[0] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
   length[1] = (n) ? (n + 1) : 128;
-  n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+  n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
   length[2] = (n) ? (n + 1) : 128;
+  n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
+  length[3] = (n) ? (n + 1) : 128;
 
 #ifdef DEBTRACE
  htrc("ODBCPrimaryKeys: max=%d len=%d,%d,%d\n",
@@ -611,7 +623,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   /************************************************************************/
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY + 1,
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
                           dbtype, buftyp, NULL, length, true, true);
 
 #ifdef DEBTRACE
@@ -653,14 +665,15 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
 PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
                                                int un, int acc)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR,  DB_SHORT, DB_CHAR,
-                         DB_CHAR, DB_SHORT, DB_SHORT, DB_CHAR,
-                         DB_CHAR, DB_INT,  DB_INT,  DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+  static int dbtype[] = {DB_CHAR, DB_CHAR,  DB_CHAR,  DB_SHORT, DB_CHAR,
+                         DB_CHAR, DB_SHORT, DB_SHORT, DB_CHAR,  DB_CHAR,
+                         DB_INT,  DB_INT,   DB_CHAR};
+  static int buftyp[] = {TYPE_STRING,
+                         TYPE_STRING, TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                          TYPE_STRING, TYPE_SHORT,  TYPE_SHORT, TYPE_STRING,
                          TYPE_STRING, TYPE_INT,   TYPE_INT,  TYPE_STRING};
-  static unsigned int length[] = {0, 0 ,6 ,0 ,0 ,6 ,6 ,0 ,2 ,10 ,10 ,128};
-  int      n, ncol = 12;
+  static unsigned int length[] = {0, 0, 0 ,6 ,0 ,0 ,6 ,6 ,0 ,2 ,10 ,10 ,128};
+  int      n, ncol = 13;
   int     maxres;
   PQRYRES  qrp;
   CATPARM *cap;
@@ -683,11 +696,11 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   n = 1 + ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_INDEX);
   maxres = (n) ? (int)n : 32;
   n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-  length[0] = (n) ? (n + 1) : 128;
+  length[1] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
-  length[1] = length[4] = (n) ? (n + 1) : 128;
+  length[2] = length[5] = (n) ? (n + 1) : 128;
   n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
-  length[3] = (n) ? (n + 1) : length[1];
+  length[0] = length[4] = (n) ? (n + 1) : length[2];
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[7] = (n) ? (n + 1) : 128;
 
@@ -698,7 +711,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /************************************************************************/
   /*  Allocate the structure used to refer to the result set.             */
   /************************************************************************/
-  qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT + 1,
+  qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
                           dbtype, buftyp, NULL, length, true, true);
 
 #ifdef DEBTRACE
@@ -734,80 +747,6 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   /************************************************************************/
   return qrp;
   } // end of Statistics
-
-/***********************************************************************/
-/*  GetColumnInfo: used when defining a ODBC table. The issue is that  */
-/*  some ODBC drivers give key information by SQLPrimaryKeys while     */
-/*  others do not implement it but give info using SQLStatistics.      */
-/***********************************************************************/
-PQRYRES GetColumnInfo(PGLOBAL g, char*& dsn,
-                                 char *table, int ver, PVBLK& vbp)
-  {
-  PCOLRES  crp;
-  PQRYRES  qrpc, qrp;
-  PVBLK    vbp2;
-  ODBConn *ocp = new(g) ODBConn(g, NULL);
-
-  /**********************************************************************/
-  /*  Open the connection with the ODBC data source.                    */
-  /**********************************************************************/
-  if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
-    return NULL;
-  else if (ver > 0)
-    ocp->m_Catver = ver;
-
-  /**********************************************************************/
-  /*  Get the information about the ODBC table columns.                 */
-  /**********************************************************************/
-  if ((qrpc = ODBCColumns(g, ocp, dsn, table, NULL)))
-    dsn = ocp->GetConnect();        // Complete connect string
-  else
-    return NULL;
-
-  if ((qrp = ODBCPrimaryKeys(g, ocp, dsn, table))) {
-    // Oracle, ...
-    if (qrp->Nblin) {
-      crp = qrp->Colresp->Next->Next;
-      vbp = crp->Kdata;
-      vbp->ReAlloc(vbp->GetValPointer(), qrp->Nblin);
-      } // endif Nblin
-
-  } else if ((qrp = ODBCStatistics(g, ocp, dsn, table, -1, -1))) {
-    // Case of Microsoft Jet Engine
-    if (qrp->Nblin) {
-      int     i, n = 0;
-      PCOLRES crp2;
-
-      crp = qrp->Colresp->Next->Next->Next->Next;
-      crp2 = crp->Next->Next->Next;
-
-      // This test may have to be modified for other ODBC drivers
-      for (i = 0; i < qrp->Nblin; i++)
-        if (!strcmp(crp->Kdata->GetCharValue(i), "PrimaryKey"))
-          n++;
-
-      if (n) {
-        vbp2 = crp2->Kdata;
-        vbp = AllocValBlock(g, NULL, vbp2->GetType(), n,
-                                     vbp2->GetVlen(), 0, false, false);
-
-        for (i = 0, n = 0; i < qrp->Nblin; i++)
-          if (!strcmp(crp->Kdata->GetCharValue(i), "PrimaryKey"))
-            vbp->SetValue(vbp2, n++, i);
-
-        } // endif n
-
-      } // endif Nblin
-
-  } // endif qrp
-
-  /************************************************************************/
-  /*  Close the local connection.                                         */
-  /************************************************************************/
-  ocp->Close();
-
-  return qrpc;
-  } // end of GetColumnInfo
 #endif // 0
 
 /***********************************************************************/
@@ -1796,8 +1735,8 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
     rc = SQLNumResultCols(hstmt, &ncol);
 
-    // n + 1 because we ignore the first column
-    if ((n = (UWORD)cap->Qrp->Nbcol) + 1 > (UWORD)ncol)
+    // n because we no more ignore the first column
+    if ((n = (UWORD)cap->Qrp->Nbcol) > (UWORD)ncol)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     if (m_RowsetSize == 1 && cap->Qrp->Maxres > 1) {
@@ -1825,9 +1764,8 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         ThrowDBX(m_G->Message);
         } // endif tp
 
-      // n + 2 because column numbers begin with 1 and because
-      // we ignore the first column
-      rc = SQLBindCol(hstmt, n + 2, tp, buffer, len, vl);
+      // n + 1 because column numbers begin with 1
+      rc = SQLBindCol(hstmt, n + 1, tp, buffer, len, vl);
 
       if (!Check(rc))
         ThrowDBX(rc, hstmt);

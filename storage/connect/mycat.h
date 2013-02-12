@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2011
+/* Copyright (C) Olivier Bertrand 2004 - 2013
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -24,7 +24,18 @@
 #include "block.h"
 #include "catalog.h"
 
-char GetTypeID(const char *type);
+// Possible value for catalog functions
+#define FNC_NO      (1 << 0)    // Not a catalog table         
+#define FNC_COL     (1 << 1)    // Column catalog function     
+#define FNC_TABLE   (1 << 2)    // Table catalog function      
+#define FNC_DSN     (1 << 3)    // Data Source catalog function
+#define FNC_DRIVER  (1 << 4)    // Column catalog function     
+#define FNC_NIY     (1 << 5)    // Catalog function NIY        
+
+typedef class ha_connect     *PHC;
+
+TABTYPE GetTypeID(const char *type);
+uint    GetFuncID(const char *func);
 
 /***********************************************************************/
 /*  MYCAT: class for managing the CONNECT plugin DB items.             */

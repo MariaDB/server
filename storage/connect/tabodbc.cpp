@@ -64,6 +64,7 @@
 /***********************************************************************/
 #include "global.h"
 #include "plgdbsem.h"
+#include "mycat.h"
 #include "xtable.h"
 #include "tabodbc.h"
 #include "odbccat.h"
@@ -102,7 +103,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Desc = Connect = Cat->GetStringCatInfo(g, Name, "Connect", "");
   Tabname = Cat->GetStringCatInfo(g, Name, "Name",
-                                  Catfunc == 'T' ? NULL : Name);
+                 (Catfunc & (FNC_TABLE || FNC_COL)) ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
   Tabowner = Cat->GetStringCatInfo(g, Name, "Owner", "");
   Tabqual = Cat->GetStringCatInfo(g, Name, "Qualifier", "");
@@ -125,16 +126,16 @@ PTDB ODBCDEF::GetTable(PGLOBAL g, MODE m)
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
   switch (Catfunc) {
-    case 'C':
+    case FNC_COL:
       tdbp = new(g) TDBOCL(this);
       break;
-    case 'T':
+    case FNC_TABLE:
       tdbp = new(g) TDBOTB(this);
       break;
-    case 'S':
+    case FNC_DSN:
       tdbp = new(g) TDBSRC(this);
       break;
-    case 'D':
+    case FNC_DRIVER:
       tdbp = new(g) TDBDRV(this);
       break;
     default:
@@ -950,7 +951,7 @@ PQRYRES TDBOTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return MyODBCCols(g, Dsn, Tab, false);
+  return ODBCColumns(g, Dsn, Tab, NULL, false);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */

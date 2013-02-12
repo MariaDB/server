@@ -10,7 +10,7 @@
 
 #include "global.h"
 #include "plgdbsem.h"
-//#include "catalog.h"
+#include "mycat.h"
 #include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
@@ -344,7 +344,7 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Wclass = strcat(strcpy(p, "Win32_"), Wclass);
   } // endif Wclass
 
-  if (!Catfunc)
+  if (Catfunc == FNC_NO)
     Ems = Cat->GetIntCatInfo(Name, "Estimate", 100);
 
   return false;
@@ -355,12 +355,12 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB WMIDEF::GetTable(PGLOBAL g, MODE m)
   {
-  if (!Catfunc)
+  if (Catfunc == FNC_NO)
     return new(g) TDBWMI(this);
-  else if (Catfunc == 'C')
+  else if (Catfunc == FNC_COL)
     return new(g) TDBWCL(this);
 
-  sprintf(g->Message, "Bad catfunc %c for WMI", Catfunc);
+  sprintf(g->Message, "Bad catfunc %ud for WMI", Catfunc);
   return NULL;
   } // end of GetTable
 
