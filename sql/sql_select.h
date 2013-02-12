@@ -1804,6 +1804,28 @@ void eliminate_tables(JOIN *join);
 /* Index Condition Pushdown entry point function */
 void push_index_cond(JOIN_TAB *tab, uint keyno);
 
+/* EXPLAIN-related utility functions */
+int print_explain_message_line(select_result_sink *result, 
+                               uint8 options,
+                               uint select_number,
+                               const char *select_type,
+                               const char *message);
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      //const char *partitions, (todo)
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows rows,
+                      const char *extra);
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
+
 /****************************************************************************
   Temporary table support for SQL Runtime
  ***************************************************************************/

@@ -3212,7 +3212,8 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    multi_delete *del_result;
+    bool explain= test(lex->describe);
+    select_result *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -3227,37 +3228,72 @@ end_with_restore_list:
     if ((res= open_and_lock_tables(thd, all_tables, TRUE, 0)))
       break;
 
-    MYSQL_MULTI_DELETE_START(thd->query());
+    if (!explain)
+    {
+      MYSQL_MULTI_DELETE_START(thd->query());
+    }
+
     if ((res= mysql_multi_delete_prepare(thd)))
     {
-      MYSQL_MULTI_DELETE_DONE(1, 0);
+      if (!explain)
+      {
+        MYSQL_MULTI_DELETE_DONE(1, 0);
+      }
       goto error;
     }
 
-    if (!thd->is_fatal_error &&
-        (del_result= new multi_delete(aux_tables, lex->table_count)))
+    if (!thd->is_fatal_error)
     {
-      res= mysql_select(thd, &select_lex->ref_pointer_array,
-			select_lex->get_table_list(),
-			select_lex->with_wild,
-			select_lex->item_list,
-			select_lex->where,
-			0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
-			(ORDER *)NULL,
-			(select_lex->options | thd->variables.option_bits |
-			SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
-                        OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
-			del_result, unit, select_lex);
-      res|= thd->is_error();
-      MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
-      if (res)
-        del_result->abort_result_set();
-      delete del_result;
+      if (explain)
+      {
+        result= new select_send();
+        if (thd->send_explain_fields(result))
+        {
+          delete result;
+          result= NULL;
+        }
+        select_lex->set_explain_type(FALSE);
+      }
+      else
+        result= new multi_delete(aux_tables, lex->table_count);
+
+      if (result)
+      {
+        res= mysql_select(thd, &select_lex->ref_pointer_array,
+                          select_lex->get_table_list(),
+                          select_lex->with_wild,
+                          select_lex->item_list,
+                          select_lex->where,
+                          0, (ORDER *)NULL, (ORDER *)NULL, (Item *)NULL,
+                          (ORDER *)NULL,
+                          (select_lex->options | thd->variables.option_bits |
+                          SELECT_NO_JOIN_CACHE | SELECT_NO_UNLOCK |
+                          OPTION_SETUP_TABLES_DONE) & ~OPTION_BUFFER_RESULT,
+                          result, unit, select_lex);
+        res|= thd->is_error();
+
+        if (!explain)
+        {
+          MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+        }
+      
+        if (res)
+          result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
+        else
+        {
+          if (explain)
+            result->send_eof(); 
+        }
+        delete result;
+      }
     }
     else
     {
       res= TRUE;                                // Error
-      MYSQL_MULTI_DELETE_DONE(1, 0);
+      if (!explain)
+      {
+        MYSQL_MULTI_DELETE_DONE(1, 0);
+      }
     }
     break;
   }

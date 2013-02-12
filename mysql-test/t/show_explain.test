@@ -249,7 +249,7 @@ drop table t2;
 set debug_dbug=@old_debug;
 
 --echo #
---echo # Attempt SHOW EXPLAIN for a DELETE
+--echo # Attempt SHOW EXPLAIN for a DELETE (UPD: now works)
 --echo # 
 create table t2 as select a as a, a as dummy from t0 limit 2;
 set @show_explain_probe_select_id=2;
@@ -257,10 +257,10 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 --source include/wait_condition.inc
---error ER_TARGET_NOT_EXPLAINABLE
+#--error ER_TARGET_NOT_EXPLAINABLE
 evalp show explain for $thr2;
 connection con1;
 reap;

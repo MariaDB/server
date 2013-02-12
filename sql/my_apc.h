@@ -64,6 +64,8 @@ public:
   {
     return test(apc_calls);
   }
+
+  inline bool is_enabled() { return enabled; }
   
   /* Functor class for calls you can schedule */
   class Apc_call

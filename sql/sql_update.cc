@@ -1394,7 +1394,10 @@ bool mysql_multi_update(THD *thd,
   thd->abort_on_warning= test(thd->variables.sql_mode &
                               (MODE_STRICT_TRANS_TABLES |
                                MODE_STRICT_ALL_TABLES));
-
+/*  
+  psergey-explain-todo:
+   This is the place where EXPLAIN <multi-table-update> should be handled.
+*/
   List<Item> total_list;
 
   res= mysql_select(thd, &select_lex->ref_pointer_array,
