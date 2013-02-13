@@ -957,13 +957,28 @@ end:
 
 
 int
-gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str)
+gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
 {
   slave_connection_state gtid_state;
+  const char *lookup_name;
+  char name_buf[FN_REFLEN];
+  LOG_INFO linfo;
+
+  if (in_name && in_name[0])
+  {
+    mysql_bin_log.make_log_name(name_buf, in_name);
+    lookup_name= name_buf;
+  }
+  else
+    lookup_name= NULL;
+  linfo.index_file_offset= 0;
+  if (mysql_bin_log.find_log_pos(&linfo, lookup_name, 1))
+    return 1;
 
   if (pos < 4)
     pos= 4;
-  if (gtid_state_from_pos(name, pos, &gtid_state) ||
+
+  if (gtid_state_from_pos(linfo.log_file_name, pos, &gtid_state) ||
       gtid_state.to_string(out_str))
     return 1;
   return 0;
