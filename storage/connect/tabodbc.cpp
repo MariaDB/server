@@ -103,7 +103,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Desc = Connect = Cat->GetStringCatInfo(g, Name, "Connect", "");
   Tabname = Cat->GetStringCatInfo(g, Name, "Name",
-                 (Catfunc & (FNC_TABLE || FNC_COL)) ? NULL : Name);
+                 (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
   Tabowner = Cat->GetStringCatInfo(g, Name, "Owner", "");
   Tabqual = Cat->GetStringCatInfo(g, Name, "Qualifier", "");
