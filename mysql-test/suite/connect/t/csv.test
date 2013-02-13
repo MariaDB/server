@@ -32,6 +32,36 @@ DROP TABLE t1;
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/people.csv'),'\r\n','\n');
 
+--echo #
+--echo # Testing READONLY tables
+--echo #
+CREATE TABLE t1 
+(
+  name CHAR(12),
+  birth DATE DATE_FORMAT='DD/MM/YY',
+  children SMALLINT(2)
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='people.csv'
+  HEADER=1 SEP_CHAR=';' QUOTED=1 READONLY=yes;
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+--error ER_GET_ERRMSG
+UPDATE t1 SET children=6 WHERE name='BILL';
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE name='BILL';
+--error ER_GET_ERRMSG
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+SELECT * FROM t1;
+ALTER TABLE t1 READONLY=1;
+SHOW CREATE TABLE t1;
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
+SELECT * FROM t1;
+DROP TABLE t1;
+
 
 --echo #
 --echo # Testing that the underlying file is created
