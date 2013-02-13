@@ -3383,7 +3383,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 
   if (ok) {
     char *length, *decimals, *cnm, *rem;
-    int   i, len, dec;
+    int   i, len, dec, typ;
     enum_field_types type;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
@@ -3463,6 +3463,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
     } else              // Not a catalog table
       for (i= 0; !b && i < qrp->Nblin; i++) {
         rem= "";
+        typ= len= dec= 0;
         length= "";
         decimals= NULL;
         tm= NOT_NULL_FLAG;
@@ -3475,12 +3476,10 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
               name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
               break;
             case FLD_TYPE:
-              type= PLGtoMYSQL(crp->Kdata->GetIntValue(i), true);
+              typ= crp->Kdata->GetIntValue(i);
               break;
             case FLD_PREC:
               len= crp->Kdata->GetIntValue(i);
-              length= (char*)PlugSubAlloc(g, NULL, 8);
-              sprintf(length, "%d", len);
               break;
             case FLD_SCALE:
               if ((dec= crp->Kdata->GetIntValue(i))) {
@@ -3508,6 +3507,29 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
               break;                 // Ignore
             } // endswitch Fld
 
+#if defined(ODBC_SUPPORT)
+        if (ttp == TAB_ODBC) {
+          int plgtyp;
+
+          // typ must be PLG type, not SQL type
+          if (!(plgtyp= TranslateSQLType(typ, dec, len))) {
+            sprintf(g->Message, "Unsupported SQL type %d", typ);
+            push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+            return true;
+          } else
+            typ= plgtyp;
+
+          // Some data sources do not count dec in length
+          if (typ == TYPE_FLOAT)
+            len += (dec + 2);        // To be safe
+
+          } // endif ttp
+#endif   // ODBC_SUPPORT
+
+        // Make the arguments as required by add_fields
+        type= PLGtoMYSQL(typ, true);
+        length= (char*)PlugSubAlloc(g, NULL, 8);
+        sprintf(length, "%d", len);
         comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
      
         // Now add the field
@@ -3724,7 +3746,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
   // TO DO: implement it.
   if (table)
     push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
-      "No check done for compatible changes, you are on your own!");
+      "No check done for compatible changes, you are onyour own!");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 
