@@ -13,6 +13,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --copy_file $MYSQL_TEST_DIR/suite/connect/std_data/contacts.xls $MYSQLD_DATADIR/test/contacts.xls
 
+--replace_result $MYSQLD_DATADIR DATADIR
 --eval CREATE TABLE contact (Nom VARCHAR(128), Fonction VARCHAR(128), Company VARCHAR(128), Repertoire VARCHAR(30)) ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEngineXLS;DBQ=$MYSQLD_DATADIR/test/contacts.xls';
 SELECT Nom, Fonction FROM contact WHERE Repertoire='ascii';
 DROP TABLE contact;
