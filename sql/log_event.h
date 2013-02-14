@@ -3009,6 +3009,7 @@ struct rpl_slave_state
                       bool in_transaction);
   uint64 next_subid(uint32 domain_id);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
+  int load(THD *thd, char *state_from_master);
   bool is_empty();
 
   void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
