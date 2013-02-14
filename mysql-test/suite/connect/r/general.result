@@ -1,0 +1,5 @@
+#
+# Testing features not specific to any TABLE_TYPE
+#
+CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
+ERROR HY000: Unsupported table type NON_EXISTING
