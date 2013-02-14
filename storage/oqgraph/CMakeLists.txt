@@ -6,8 +6,8 @@ IF(NOT Boost_FOUND)
 ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
-FIND_PACKAGE(JUDY)
-IF(NOT JUDY_FOUND)
+FIND_PACKAGE(Judy)
+IF(NOT Judy_FOUND)
   MESSAGE(STATUS "Judy not found")
   include(ExternalProject)
   ExternalProject_Add(
@@ -18,10 +18,10 @@ IF(NOT JUDY_FOUND)
     INSTALL_COMMAND ""
     BUILD_IN_SOURCE 1
   )
-  SET(JUDY_LIBRARIES ${CMAKE_CURRENT_SOURCE_DIR}/Judy/src/obj/.libs/libJudy.a)
-  SET(JUDY_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Judy/src)
+  SET(Judy_LIBRARIES ${CMAKE_CURRENT_SOURCE_DIR}/Judy/src/obj/.libs/libJudy.a)
+  SET(Judy_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Judy/src)
 ENDIF()
-INCLUDE_DIRECTORIES(${JUDY_INCLUDE_DIR})
+INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
 
 IF(MSVC)
   # lp:756966 OQGRAPH on Win64 does not compile
@@ -58,7 +58,7 @@ IF(BOOST_OK)
                    oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
                    STORAGE_ENGINE
                    MODULE_ONLY
-                   LINK_LIBRARIES ${JUDY_LIBRARIES})
+                   LINK_LIBRARIES ${Judy_LIBRARIES})
 ELSE(BOOST_OK)
   MESSAGE(STATUS "Requisites for OQGraph not met")
 ENDIF(BOOST_OK)
