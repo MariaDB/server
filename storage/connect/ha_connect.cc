@@ -3746,7 +3746,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
   // TO DO: implement it.
   if (table)
     push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
-      "No check done for compatible changes, you are onyour own!");
+      "No check done for compatible changes, be sure of what you did!");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 
