@@ -6173,8 +6173,6 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   list_element *elist= 0, *next;
   element *elem;
 
-  DBUG_ASSERT(in_transaction /* ToDo: new transaction for DDL etc. */);
-
   mysql_reset_thd_for_next_command(thd, 0);
 
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
@@ -6247,14 +6245,14 @@ end:
       */
       ha_rollback_trans(thd, FALSE);
       close_thread_tables(thd);
-      if (in_transaction)
+      if (!in_transaction)
         ha_rollback_trans(thd, TRUE);
     }
     else
     {
       ha_commit_trans(thd, FALSE);
       close_thread_tables(thd);
-      if (in_transaction)
+      if (!in_transaction)
         ha_commit_trans(thd, TRUE);
     }
   }
@@ -6384,6 +6382,89 @@ err:
   my_hash_free(&gtid_hash);
 
   return res;
+}
+
+
+/*
+  Parse a GTID at the start of a string, and update the pointer to point
+  at the first character after the parsed GTID.
+
+  GTID can be in short form with domain_id=0 implied, SERVERID-SEQNO.
+  Or long form, DOMAINID-SERVERID-SEQNO.
+
+  Returns 0 on ok, non-zero on parse error.
+*/
+static int
+gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
+{
+  char *q;
+  char *p= *ptr;
+  uint64 v1, v2, v3;
+  int err= 0;
+
+  q= end;
+  v1= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0 || v1 > (uint32)0xffffffff || q == end || *q != '-')
+    return 1;
+  p= q+1;
+  q= end;
+  v2= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0)
+    return 1;
+  if (q == end || *q != '-')
+  {
+    /* Short form SERVERID-SEQNO, domain_id=0 implied. */
+    out_gtid->domain_id= 0;
+    out_gtid->server_id= v1;
+    out_gtid->seq_no= v2;
+    *ptr= q;
+    return 0;
+  }
+
+  /* Long form DOMAINID-SERVERID-SEQNO. */
+  if (v2 > (uint32)0xffffffff)
+    return 1;
+  p= q+1;
+  q= end;
+  v3= (uint64)my_strtoll10(p, &q, &err);
+  if (err != 0)
+    return 1;
+
+  out_gtid->domain_id= v1;
+  out_gtid->server_id= v2;
+  out_gtid->seq_no= v3;
+  *ptr= q;
+  return 0;
+}
+
+
+/*
+  Update the slave replication state with the GTID position obtained from
+  master when connecting with old-style (filename,offset) position.
+
+  Returns 0 if ok, non-zero if error.
+*/
+int
+rpl_slave_state::load(THD *thd, char *state_from_master)
+{
+  char *end= state_from_master + strlen(state_from_master);
+
+  for (;;)
+  {
+    rpl_gtid gtid;
+    uint64 sub_id;
+
+    if (gtid_parser_helper(&state_from_master, end, &gtid) ||
+        !(sub_id= next_subid(gtid.domain_id)) ||
+        record_gtid(thd, &gtid, sub_id, false) ||
+        update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
+      return 1;
+    if (state_from_master == end)
+      break;
+    if (*state_from_master != ',')
+      return 1;
+  }
+  return 0;
 }
 
 
@@ -6649,52 +6730,29 @@ slave_connection_state::~slave_connection_state()
 int
 slave_connection_state::load(char *slave_request, size_t len)
 {
-  char *p, *q, *end;
-  uint64 v;
-  uint32 domain_id, server_id;
-  uint64 seq_no;
+  char *p, *end;
   uchar *rec;
   rpl_gtid *gtid;
-  int err= 0;
 
   my_hash_reset(&hash);
   p= slave_request;
   end= slave_request + len;
   for (;;)
   {
-    q= end;
-    v= (uint64)my_strtoll10(p, &q, &err);
-    if (err != 0 || v > (uint32)0xffffffff || *q != '-')
-      return 1;
-    domain_id= (uint32)v;
-    p= q+1;
-    q= end;
-    v= (uint64)my_strtoll10(p, &q, &err);
-    if (err != 0 || v > (uint32)0xffffffff || *q != '-')
-      return 1;
-    server_id= (uint32)v;
-    p= q+1;
-    q= end;
-    seq_no= (uint64)my_strtoll10(p, &q, &err);
-    if (err != 0)
-      return 1;
-
     if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
       return 1;
     gtid= (rpl_gtid *)rec;
-    gtid->domain_id= domain_id;
-    gtid->server_id= server_id;
-    gtid->seq_no= seq_no;
-    if (my_hash_insert(&hash, rec))
+    if (gtid_parser_helper(&p, end, gtid) ||
+        my_hash_insert(&hash, rec))
     {
       my_free(rec);
       return 1;
     }
-    if (q == end)
+    if (p == end)
       break;                                         /* Finished. */
-    if (*q != ',')
+    if (*p != ',')
       return 1;
-    p= q+1;
+    ++p;
   }
 
   return 0;
@@ -7650,30 +7708,21 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
       mysql.rpl_slave_state is non-transactional and the row is not removed
       by rollback.
     */
-    rpl_slave_state::element *elem=
-      rpl_global_gtid_slave_state.get_element(gtid.domain_id);
-    rpl_slave_state::list_element *lelem=
-      (rpl_slave_state::list_element *)my_malloc(sizeof(*lelem), MYF(MY_WME));
-    if (elem && lelem)
+    rpl_global_gtid_slave_state.lock();
+    err= rpl_global_gtid_slave_state.update(gtid.domain_id, gtid.server_id,
+                                            sub_id, gtid.seq_no);
+    rpl_global_gtid_slave_state.unlock();
+    if (err)
     {
-      lelem->sub_id= sub_id;
-      lelem->server_id= gtid.server_id;
-      lelem->seq_no= gtid.seq_no;
-      elem->add(lelem);
-    }
-    else
-    {
-      if (lelem)
-        my_free(lelem);
       sql_print_warning("Slave: Out of memory during slave state maintenance. "
                         "Some no longer necessary rows in table "
                         "mysql.rpl_slave_state may be left undeleted.");
+      /*
+        Such failure is not fatal. We will fail to delete the row for this
+        GTID, but it will do no harm and will be removed automatically on next
+        server restart.
+      */
     }
-    /*
-      Such failure is not fatal. We will fail to delete the row for this GTID,
-      but it will do no harm and will be removed automatically on next server
-      restart.
-    */
   }
 
   /*
