@@ -163,7 +163,8 @@ extern "C" {
 /****************************************************************************/
 /*  Initialize the ha_connect static members.                               */
 /****************************************************************************/
-char  connectini[_MAX_PATH]= "connect.ini";
+#define CONNECT_INI "connect.ini"
+char  connectini[_MAX_PATH]= CONNECT_INI;
 int   xtrace= 0;
 ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
@@ -337,9 +338,36 @@ static void init_connect_psi_keys()
 }
 #endif
 
+
+/**
+  @brief
+  Plugin initialization
+*/
 static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
+  char dir[_MAX_PATH - sizeof(CONNECT_INI) - 1];
+
+#ifdef LIBXML2_SUPPORT
+  XmlInitParserLib();
+#endif   // LIBXML2_SUPPORT
+
+  /* Build connect.ini file name */
+  my_getwd(dir, sizeof(dir) - 1, MYF(0));
+  snprintf(connectini, sizeof(connectini), "%s%s", dir, CONNECT_INI);
+  sql_print_information("CONNECT: %s=%s", CONNECT_INI, connectini);
+
+  if ((xtrace= GetPrivateProfileInt("CONNECT", "Trace", 0, connectini)))
+  {
+    sql_print_information("CONNECT: xtrace=%d", xtrace);
+    sql_print_information("CONNECT: plgini=%s", plgini);
+    sql_print_information("CONNECT: plgxini=%s", plgxini);
+    sql_print_information("CONNECT: nmfile=%s", nmfile);
+    sql_print_information("CONNECT: pdebug=%s", pdebug);
+    sql_print_information("CONNECT: version=%s", version);
+    trace= xtrace;
+  } // endif xtrace
+
 
 #ifdef HAVE_PSI_INTERFACE
   init_connect_psi_keys();
@@ -366,18 +394,26 @@ static int connect_init_func(void *p)
 #endif  // !MARIADB
 
   if (xtrace)
-    printf("connect_init: hton=%p\n", p);
+    sql_print_information("connect_init: hton=%p", p);
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   DBUG_RETURN(0);
 }
 
 
+/**
+  @brief
+  Plugin clean up
+*/
 static int connect_done_func(void *p)
 {
   int error= 0;
   PCONNECT pc, pn;
   DBUG_ENTER("connect_done_func");
+
+#ifdef LIBXML2_SUPPORT
+  XmlCleanupParserLib();
+#endif   // LIBXML2_SUPPORT
 
   if (connect_open_tables.records)
     error= 1;
@@ -3809,80 +3845,3 @@ maria_declare_plugin(connect)
 }
 maria_declare_plugin_end;
 #endif   // MARIADB
-
-#if defined(WIN32)
-/**************************************************************************/
-/*  DllMain                                                               */
-/**************************************************************************/
-bool APIENTRY DllMain(HINSTANCE hInst, ULONG ulReason, PCONTEXT pctx)
-  {
-  switch (ulReason) {
-    case DLL_PROCESS_ATTACH:
-      printf("CONNECT Engine loaded...\n");
-      GetCurrentDirectory(sizeof(connectini), connectini);
-      strcat(connectini, "\\connect.ini");
-
-      if ((xtrace= GetPrivateProfileInt("CONNECT", "Trace", 0, connectini))) {
-        printf("connectini=%s xtrace=%d\n", connectini, xtrace);
-        printf("plgini=%s\n", plgini);
-        printf("plgxini=%s\n", plgxini);
-        printf("nmfile=%s\n", nmfile);
-        printf("pdebug=%s\n", pdebug);
-        printf("version=%s\n", version);
-        trace= xtrace;
-        } // endif xtrace
-#ifdef LIBXML2_SUPPORT
-      XmlInitParserLib();
-#endif   // LIBXML2_SUPPORT
-      break;
-    case DLL_PROCESS_DETACH:
-#ifdef LIBXML2_SUPPORT
-      XmlCleanupParserLib();
-#endif   // LIBXML2_SUPPORT
-      break;
-    case DLL_THREAD_ATTACH:
-      break;
-    case DLL_THREAD_DETACH:
-      break;
-    default:
-      break;
-    } // endswitch ulReason
-
-  return true;
-  } // end of DllMain
-#else   // !WIN32
-/**************************************************************************/
-/*  Library's initialization function.                                    */
-/**************************************************************************/
-void __attribute__((constructor)) init()
-  {
-  printf("CONNECT Engine loaded...\n");
-  getcwd(connectini, sizeof(connectini));
-  strcat(connectini, "/connect.ini");
-  printf("connectini=%s\n", connectini);
-
-  if ((xtrace= GetPrivateProfileInt("CONNECT", "Trace", 0, connectini))) {
-    printf("connectini=%s xtrace=%d\n", connectini, xtrace);
-    printf("plgini=%s\n", plgini);
-    printf("plgxini=%s\n", plgxini);
-    printf("nmfile=%s\n", nmfile);
-    printf("pdebug=%s\n", pdebug);
-    printf("version=%s\n", version);
-    trace= xtrace;
-    } // endif xtrace
-
-#ifdef LIBXML2_SUPPORT
-    XmlInitParserLib();
-#endif   // LIBXML2_SUPPORT
-  } // end of init
-
-/**************************************************************************/
-/*  Library's cleanup function                                            */
-/**************************************************************************/
-void __attribute__((destructor)) fini()
-  {
-#ifdef LIBXML2_SUPPORT
-  XmlCleanupParserLib();
-#endif   // LIBXML2_SUPPORT
-  } // end of fini
-#endif  // !WIN32
