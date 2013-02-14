@@ -158,3 +158,63 @@ c2=4000
 [a b]
 c2=c d
 
+#
+# Testing bad table
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+INSERT INTO t1 VALUES (10);
+ERROR HY000: Got error 122 'Section name must come first on Insert' from CONNECT
+SELECT * FROM t1;
+id
+DROP TABLE t1;
+#
+# Testing READONLY tables
+#
+CREATE TABLE t1
+(
+contact CHAR(10) flag=1,
+c2 CHAR(60)
+) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='t1.ini';
+INSERT INTO t1 VALUES ('UK',10),('FR',20),('RU',30);
+SELECT * FROM t1;
+contact	c2
+UK	10
+FR	20
+RU	30
+ALTER TABLE t1 READONLY=1;
+Warnings:
+Warning	1105	No check done for compatible changes, you are on your own!
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `contact` char(10) DEFAULT NULL `flag`=1,
+  `c2` char(60) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=INI `FILE_NAME`='t1.ini' `READONLY`=1
+INSERT INTO t1 VALUES ('US',40);
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+UPDATE t1 SET c2=20 WHERE c2=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE c2=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ALTER TABLE t1 READONLY=0;
+Warnings:
+Warning	1105	No check done for compatible changes, you are on your own!
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `contact` char(10) DEFAULT NULL `flag`=1,
+  `c2` char(60) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=INI `FILE_NAME`='t1.ini' `READONLY`=0
+INSERT INTO t1 VALUES ('US',40);
+SELECT * FROM t1;
+contact	c2
+UK	10
+FR	20
+RU	30
+US	40
+DROP TABLE t1;

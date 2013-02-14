@@ -54,6 +54,9 @@ SET fieldno=fieldno + 1;
 END WHILE;
 SELECT '--------';
 END//
+#
+# Testing READONLY tables
+#
 CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -65,6 +68,36 @@ SELECT * FROM t1;
 a
 10
 20
+ALTER TABLE t1 READONLY=Yes;
+Warnings:
+Warning	1105	No check done for compatible changes, you are on your own!
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=Yes
+INSERT INTO t1 VALUES (30);
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+UPDATE t1 SET a=30 WHERE a=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+DELETE FROM t1 WHERE a=10;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+TRUNCATE TABLE t1;
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
+ALTER TABLE t1 READONLY=NO;
+Warnings:
+Warning	1105	No check done for compatible changes, you are on your own!
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf' `READONLY`=NO
+INSERT INTO t1 VALUES (30);
+SELECT * FROM t1;
+a
+10
+20
+30
 DROP TABLE t1;
 #
 # This SQL script crashed (dbf01.sql)

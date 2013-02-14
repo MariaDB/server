@@ -17,6 +17,25 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # Testing update on FMT tables
+--echo #
+CREATE TABLE t1
+(
+  id INT field_format=' %n%d%n'
+) ENGINE=CONNECT TABLE_TYPE=FMT FILE_NAME='t1.txt';
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES (10),(20);
+# TODO: 
+#--error ER_GET_ERRMSG
+#UPDATE t1 SET id=20;
+#TRUNCATE TABLE t1;
+#DELETE FROM t1 WHERE id=10;
+#SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.txt
+
+
+--echo #
 --echo # Testing manual examples
 --echo #
 CREATE TABLE t1
@@ -50,6 +69,12 @@ CREATE TABLE t1
   DEPNO Integer(4) field_format=''' , #%n%d%m',
   SALARY Double(12,2) field_format=' ; %n%f%n'
 ) Engine=CONNECT table_type=FMT file_name='funny2.txt';
+SELECT * FROM t1;
+--error ER_GET_ERRMSG
+UPDATE t1 SET SALARY=1234;
+# TODO: this query crashes
+# UPDATE t1 SET SALARY=1234 WHERE ID=56;
+DELETE FROM t1 WHERE ID=56;
 SELECT * FROM t1;
 DROP TABLE t1;
 

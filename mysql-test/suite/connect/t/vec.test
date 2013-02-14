@@ -47,6 +47,28 @@ SELECT a FROM t1;
 SELECT b FROM t1;
 --replace_result $MYSQLD_DATADIR DATADIR/
 SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+--echo #
+--echo # Testing READONLY
+--echo #
+ALTER TABLE t1 READONLY=yes;
+SHOW CREATE TABLE t1;
+--error ER_GET_ERRMSG
+INSERT INTO t1 VALUES (4,'test04');
+--error ER_GET_ERRMSG
+UPDATE t1 SET b='test04' WHERE a=3;
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE a=3;
+--error ER_GET_ERRMSG
+TRUNCATE TABLE t1;
+ALTER TABLE t1 READONLY=no;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (4,'test04');
+UPDATE t1 SET b='test04a' WHERE a=4;
+DELETE FROM t1 WHERE a=0;
+SELECT * FROM t1;
+TRUNCATE TABLE t1;
+SELECT fname, ftype, size FROM dir1 ORDER BY fname, ftype;
+SELECT * FROM t1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1vec
 --remove_file $MYSQLD_DATADIR/test/t1vec.blk
