@@ -162,8 +162,10 @@ static int terminate_slave_thread(THD *thd,
                                   volatile uint *slave_running,
                                   bool skip_lock);
 static bool check_io_slave_killed(THD *thd, Master_info *mi, const char *info);
-static bool send_show_master_info_header(THD *thd, bool full);
-static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full);
+static bool send_show_master_info_header(THD *thd, bool full,
+                                         size_t gtid_pos_length);
+static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
+                                       String *gtid_pos);
 
 /*
   Find out which replications threads are running
@@ -2134,16 +2136,20 @@ int register_slave_on_master(MYSQL* mysql, Master_info *mi,
 bool show_master_info(THD *thd, Master_info *mi, bool full)
 {
   DBUG_ENTER("show_master_info");
+  String gtid_pos;
 
-  if (send_show_master_info_header(thd, full))
+  if (full && rpl_global_gtid_slave_state.tostring(&gtid_pos, NULL, 0))
     DBUG_RETURN(TRUE);
-  if (send_show_master_info_data(thd, mi, full))
+  if (send_show_master_info_header(thd, full, gtid_pos.length()))
+    DBUG_RETURN(TRUE);
+  if (send_show_master_info_data(thd, mi, full, &gtid_pos))
     DBUG_RETURN(TRUE);
   my_eof(thd);
   DBUG_RETURN(FALSE);
 }
 
-static bool send_show_master_info_header(THD *thd, bool full)
+static bool send_show_master_info_header(THD *thd, bool full,
+                                         size_t gtid_pos_length)
 {
   List<Item> field_list;
   Protocol *protocol= thd->protocol;
@@ -2222,6 +2228,8 @@ static bool send_show_master_info_header(THD *thd, bool full)
                                              FN_REFLEN));
   field_list.push_back(new Item_return_int("Master_Server_Id", sizeof(ulong),
                                            MYSQL_TYPE_LONG));
+  field_list.push_back(new Item_return_int("Gtid_Pos_Auto", sizeof(ulong),
+                                           MYSQL_TYPE_LONG));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2234,8 +2242,7 @@ static bool send_show_master_info_header(THD *thd, bool full)
                                              10, MYSQL_TYPE_LONG));
     field_list.push_back(new Item_float("Slave_heartbeat_period",
                                         0.0, 3, 10));
-    field_list.push_back(new Item_return_int("Gtid_Pos_Auto", sizeof(ulong),
-                                             MYSQL_TYPE_LONG));
+    field_list.push_back(new Item_empty_string("Gtid_Pos", gtid_pos_length));
   }
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2244,7 +2251,8 @@ static bool send_show_master_info_header(THD *thd, bool full)
 }
 
 
-static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full)
+static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
+                                       String *gtid_pos)
 {
   DBUG_ENTER("send_show_master_info_data");
 
@@ -2399,6 +2407,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full)
     }
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
+    protocol->store((uint32) (mi->gtid_pos_auto != 0));
     if (full)
     {
       protocol->store((uint32)    mi->rli.retried_trans);
@@ -2406,7 +2415,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full)
       protocol->store((uint32)    mi->rli.executed_entries);
       protocol->store((uint32)    mi->received_heartbeats);
       protocol->store((double)    mi->heartbeat_period, 3, &tmp);
-      protocol->store((uint32)    (mi->gtid_pos_auto != 0));
+      protocol->store(gtid_pos->ptr(), gtid_pos->length(), &my_charset_bin);
     }
 
     mysql_mutex_unlock(&mi->rli.err_lock);
@@ -2449,11 +2458,14 @@ static int cmp_mi_by_name(const Master_info **arg1,
 bool show_all_master_info(THD* thd)
 {
   uint i, elements;
+  String gtid_pos;
   Master_info **tmp;
   DBUG_ENTER("show_master_info");
   mysql_mutex_assert_owner(&LOCK_active_mi);
 
-  if (send_show_master_info_header(thd, 1))
+  rpl_global_gtid_slave_state.tostring(&gtid_pos, NULL, 0);
+
+  if (send_show_master_info_header(thd, 1, gtid_pos.length()))
     DBUG_RETURN(TRUE);
 
   if (!(elements= master_info_index->master_info_hash.records))
@@ -2475,7 +2487,7 @@ bool show_all_master_info(THD* thd)
 
   for (i= 0; i < elements; i++)
   {
-    if (send_show_master_info_data(thd, tmp[i], 1))
+    if (send_show_master_info_data(thd, tmp[i], 1, &gtid_pos))
       DBUG_RETURN(TRUE);
   }
 
