@@ -4853,6 +4853,14 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // 'Error in my_thread_global_end(): 2 threads didn't exit'
     // at server shutdown
   }
+
+  if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
+  {
+    mysql_mutex_lock(&LOCK_thread_count);
+    delete thd;
+    thread_count--;
+    mysql_mutex_unlock(&LOCK_thread_count);
+  }
   return(NULL);
 }
 
@@ -5175,7 +5183,14 @@ void wsrep_wait_appliers_close(THD *thd)
   // This gotta be fixed in a more elegant manner if we gonna have arbitrary
   // number of non-applier wsrep threads.
   {
-    mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
+    if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
+    {
+      mysql_mutex_unlock(&LOCK_thread_count);
+      my_sleep(100);
+      mysql_mutex_lock(&LOCK_thread_count);
+    }
+    else
+      mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
     DBUG_PRINT("quit",("One applier died (count=%u)",thread_count));
   }
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -5185,7 +5200,14 @@ void wsrep_wait_appliers_close(THD *thd)
   mysql_mutex_lock(&LOCK_thread_count);
   while (have_wsrep_appliers(thd) > 0)
   {
-    mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
+   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
+    {
+      mysql_mutex_unlock(&LOCK_thread_count);
+      my_sleep(100);
+      mysql_mutex_lock(&LOCK_thread_count);
+    }
+    else
+      mysql_cond_wait(&COND_thread_count,&LOCK_thread_count);
     DBUG_PRINT("quit",("One thread died (count=%u)",thread_count));
   }
   mysql_mutex_unlock(&LOCK_thread_count);
