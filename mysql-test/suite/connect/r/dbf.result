@@ -13,11 +13,10 @@ Warnings:
 Warning	1105	Open(rb) error 2 on DATADIR/test/t1.dbf: No such file or directory
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR 42000: A table must have at least 1 column
+ERROR HY000: Cannot open DATADIR/test/t1.dbf
 SHOW WARNINGS;
 Level	Code	Message
-Warning	1105	Cannot open DATADIR/test/t1.dbf
-Error	1113	A table must have at least 1 column
+Error	1105	Cannot open DATADIR/test/t1.dbf
 CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
 BEGIN
 SELECT '---';
@@ -70,7 +69,7 @@ a
 20
 ALTER TABLE t1 READONLY=Yes;
 Warnings:
-Warning	1105	No check done for compatible changes, you are on your own!
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -86,7 +85,7 @@ TRUNCATE TABLE t1;
 ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 ALTER TABLE t1 READONLY=NO;
 Warnings:
-Warning	1105	No check done for compatible changes, you are on your own!
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
