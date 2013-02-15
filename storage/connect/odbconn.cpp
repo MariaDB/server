@@ -62,6 +62,8 @@ extern "C" int GetRcString(int id, char *buf, int bufsize);
 #define DEBUG_ONLY(f)      ((void)0)
 #endif  // !_DEBUG
 
+extern "C" int trace;
+
 /***********************************************************************/
 /*  GetSQLType: returns the SQL_TYPE corresponding to a PLG type.      */
 /***********************************************************************/
@@ -274,10 +276,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
     length[3] = 128;
   } // endif ocp
 
-#ifdef DEBTRACE
- htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
+  if (trace)
+    htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
          maxres, length[0], length[1], length[2], length[3]);
-#endif
 
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
@@ -288,9 +289,8 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
   if (info)                      // Info table
     return qrp;
 
-#ifdef DEBTRACE
- htrc("Getting col results ncol=%d\n", qrp->Nbcol);
-#endif
+  if (trace)
+    htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
   cap = AllocCatInfo(g, CAT_COL, table, qrp);
   cap->Pat = (PUCHAR)colpat;
@@ -302,9 +302,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
     qrp->Nblin = n;
     ResetNullValues(cap);
 
-#ifdef DEBTRACE
- htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
-#endif
+    if (trace)
+      htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
+
   } else
     qrp = NULL;
 
@@ -416,9 +416,8 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
     maxres = 0;
   } // endif info
 
-#ifdef DEBTRACE
- htrc("ODBCDataSources: max=%d len=%d\n", maxres, length[0]);
-#endif
+  if (trace)
+    htrc("ODBCDataSources: max=%d len=%d\n", maxres, length[0]);
 
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
@@ -462,9 +461,8 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
   } else
     maxres = 0;
 
-#ifdef DEBTRACE
- htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
-#endif
+  if (trace)
+    htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
 
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
@@ -527,10 +525,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     length[2] = 128;
   } // endif info
 
-#ifdef DEBTRACE
- htrc("ODBCTables: max=%d len=%d,%d\n",
-  maxres, length[0], length[1]);
-#endif
+  if (trace)
+    htrc("ODBCTables: max=%d len=%d,%d\n", maxres, length[0], length[1]);
 
   /************************************************************************/
   /*  Allocate the structures used to refer to the result set.            */
@@ -544,9 +540,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   cap = AllocCatInfo(g, CAT_TAB, tabpat, qrp);
 //cap->Pat = (PUCHAR)tabtyp;
 
-#ifdef DEBTRACE
- htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
-#endif
+  if (trace)
+    htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -555,9 +550,9 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     qrp->Nblin = n;
     ResetNullValues(cap);
 
-#ifdef DEBTRACE
- htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
-#endif
+    if (trace)
+      htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
+
   } else
     qrp = NULL;
 
@@ -615,10 +610,9 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[3] = (n) ? (n + 1) : 128;
 
-#ifdef DEBTRACE
- htrc("ODBCPrimaryKeys: max=%d len=%d,%d,%d\n",
+  if (trace)
+    htrc("ODBCPrimaryKeys: max=%d len=%d,%d,%d\n",
          maxres, length[0], length[1], length[2]);
-#endif
 
   /************************************************************************/
   /*  Allocate the structure used to refer to the result set.             */
@@ -626,9 +620,8 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
                           dbtype, buftyp, NULL, length, true, true);
 
-#ifdef DEBTRACE
- htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
-#endif
+  if (trace)
+    htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
 
   cap = AllocCatInfo(g, CAT_KEY, table, qrp);
 
@@ -639,10 +632,9 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
     qrp->Nblin = n;
     ResetNullValues(cap);
 
-#ifdef DEBTRACE
- htrc("PrimaryKeys: NBCOL=%d NBLIN=%d\n",
-  qrp->Nbcol, qrp->Nblin);
-#endif
+    if (trace)
+      htrc("PrimaryKeys: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
+
   } else
     qrp = NULL;
 
@@ -704,9 +696,8 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[7] = (n) ? (n + 1) : 128;
 
-#ifdef DEBTRACE
- htrc("SemStatistics: max=%d pat=%s\n", maxres, SVP(pat));
-#endif
+  if (trace)
+    htrc("SemStatistics: max=%d pat=%s\n", maxres, SVP(pat));
 
   /************************************************************************/
   /*  Allocate the structure used to refer to the result set.             */
@@ -714,9 +705,8 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
                           dbtype, buftyp, NULL, length, true, true);
 
-#ifdef DEBTRACE
- htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
-#endif
+  if (trace)
+    htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
 
   cap = AllocCatInfo(g, CAT_STAT, pat, qrp);
   cap->Unique = (un < 0) ? SQL_INDEX_UNIQUE : (UWORD)un;
@@ -729,10 +719,9 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
     qrp->Nblin = n;
     ResetNullValues(cap);
 
-#ifdef DEBTRACE
- htrc("Statistics: NBCOL=%d NBLIN=%d\n",
-  qrp->Nbcol, qrp->Nblin);
-#endif
+    if (trace)
+      htrc("Statistics: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
+
   } else
     qrp = NULL;
 
@@ -785,9 +774,8 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
         m_ErrMsg[i] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
         strcpy(m_ErrMsg[i], (char*)msg);
 
-#ifdef DEBTRACE
- htrc("%s, Native=%d\n", msg, native);
-#endif
+        if (trace)
+          htrc("%s, Native=%d\n", msg, native);
 
         rc = SQLError(pdb->m_henv, pdb->m_hdbc, hstmt, state,
                       &native, msg, SQL_MAX_MESSAGE_LENGTH - 1, &len);
@@ -1025,18 +1013,15 @@ void ODBConn::AllocConnect(DWORD Options)
 
   rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
 
-#ifdef DEBTRACE
- if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
-  htrc("Warning: Failure setting login timeout\n");
-#endif
+  if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+    htrc("Warning: Failure setting login timeout\n");
 
   if (!m_Updatable) {
-    rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE,
-                                     SQL_MODE_READ_ONLY);
-#ifdef DEBTRACE
- if (rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
-  htrc("Warning: Failure setting read only access mode\n");
-#endif
+    rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE, SQL_MODE_READ_ONLY);
+    
+    if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+      htrc("Warning: Failure setting read only access mode\n");
+
     } // endif
 
   // Turn on cursor lib support
@@ -1088,10 +1073,9 @@ bool ODBConn::Connect(DWORD Options)
     } // endif rc
 
   if (!Check(rc)) {
-#ifdef DEBTRACE
- if (!hWnd == NULL)
-  htrc("Error: No default window for SQLDriverConnect\n");
-#endif
+    if (trace && !hWnd == NULL)
+      htrc("Error: No default window for SQLDriverConnect\n");
+
     ThrowDBX(rc);
     } // endif Check
 
@@ -1175,9 +1159,9 @@ void ODBConn::GetConnectInfo()
     else
       m_Updatable = false;
 
-#ifdef DEBTRACE
- htrc("Warning: data source is readonly\n");
-#endif
+    if (trace)
+      htrc("Warning: data source is readonly\n");
+
   } else // Make data source is !Updatable
     rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE,
                                      SQL_MODE_READ_ONLY);
@@ -1194,10 +1178,10 @@ void ODBConn::GetConnectInfo()
   else
     m_IDQuoteChar = ' ';
 
-#ifdef DEBTRACE
- htrc("DBMS: %s, Version: %s",
-  GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER));
-#endif // DEBTRACE
+  if (trace)
+    htrc("DBMS: %s, Version: %s",
+         GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER));
+
   } // end of GetConnectInfo
 
 /***********************************************************************/
@@ -1305,10 +1289,10 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
         } // endif pcol
 
   } catch(DBX *x) {
-#ifdef DEBTRACE
- for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
-  htrc(x->m_ErrMsg[i]);
-#endif
+    if (trace)
+      for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+        htrc(x->m_ErrMsg[i]);
+
     strcpy(m_G->Message, x->GetErrorMessage(0));
 
     if (b)
@@ -1351,10 +1335,11 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
   } catch(DBX *x) {
 //    strcpy(m_G->Message, x->m_ErrMsg[0]);
     strcpy(m_G->Message, x->GetErrorMessage(0));
-#ifdef DEBTRACE
- for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
-  htrc(x->m_ErrMsg[i]);
-#endif
+    
+    if (trace)
+      for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+        htrc(x->m_ErrMsg[i]);
+
     SQLCancel(m_hstmt);
     n = -2;
   } // end try/catch
@@ -1458,10 +1443,10 @@ int ODBConn::PrepareSQL(char *sql)
       } while (rc == SQL_STILL_EXECUTING);
 
   } catch(DBX *x) {
-#ifdef DEBTRACE
- for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
-  htrc(x->m_ErrMsg[i]);
-#endif
+    if (trace)
+      for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+        htrc(x->m_ErrMsg[i]);
+
     strcpy(m_G->Message, x->GetErrorMessage(0));
 
     if (b)
@@ -1813,10 +1798,10 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
     irc = (int)crow;
   } catch(DBX *x) {
-#ifdef DEBTRACE
- for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
-  htrc(x->m_ErrMsg[i]);
-#endif
+    if (trace)
+      for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
+        htrc(x->m_ErrMsg[i]);
+
     strcpy(m_G->Message, x->GetErrorMessage(0));
     irc = -1;
   } // end try/catch
@@ -1887,9 +1872,9 @@ void ODBConn::Free()
     Close();
   } catch(DBX*) {
     // Nothing we can do
-#ifdef DEBTRACE
- htrc("Error: exception by Close ignored in Free\n");
-#endif
+    if (trace)
+      htrc("Error: exception by Close ignored in Free\n");
+
 //  DELETE_EXCEPTION(x);
   } // endcatch
 
@@ -1900,16 +1885,18 @@ void ODBConn::Free()
 
     if (m_nAlloc == 0) {
       // free last connection - release HENV
-#ifdef DEBTRACE
- RETCODE rc = SQLFreeEnv(m_henv);
- if (rc != SQL_SUCCESS) // Nothing we can do
-  htrc("Error: SQLFreeEnv failure ignored in Free\n");
-#else
-      SQLFreeEnv(m_henv);
-#endif
+      if (trace) {
+        RETCODE rc = SQLFreeEnv(m_henv);
+        
+        if (rc != SQL_SUCCESS) // Nothing we can do
+          htrc("Error: SQLFreeEnv failure ignored in Free\n");
+          
+      } else
+        SQLFreeEnv(m_henv);
+
       m_henv = SQL_NULL_HENV;
       } // endif m_nAlloc
-  }
+    } // endif m_henv
 //AfxUnlockGlobals(CRIT_ODBC);
   } // end of Free
 
@@ -1976,13 +1963,12 @@ RECSET::~RECSET()
   {
   try {
     if (m_hstmt) {
-#ifdef DEBTRACE
- if (m_dwOptions & useMultiRowFetch) {
-  htrc("WARNING: Close called implicitly from destructor\n");
-  htrc("Use of multi row fetch requires explicit call\n");
-  htrc("to Close or memory leaks will result\n");
-  }
-#endif
+      if (trace && (m_dwOptions & useMultiRowFetch)) {
+        htrc("WARNING: Close called implicitly from destructor\n");
+        htrc("Use of multi row fetch requires explicit call\n");
+        htrc("to Close or memory leaks will result\n");
+        } // endif trace
+
       Close();
       } // endif m_hstmt
 
@@ -1992,9 +1978,9 @@ RECSET::~RECSET()
     m_pDB = NULL;
   } catch(DBX*) {
     // Nothing we can do
-#ifdef DEBTRACE
- htrc("Error: Exception ignored in ~RECSET\n");
-#endif
+    if (trace)
+      htrc("Error: Exception ignored in ~RECSET\n");
+
   } // endtry/catch
 
   } // end of ~RECSET
