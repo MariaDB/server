@@ -6600,3 +6600,7 @@ ER_SLAVE_STARTED
         eng "SLAVE '%.*s' started"
 ER_SLAVE_STOPPED
         eng "SLAVE '%.*s' stopped"
+ER_FAILED_GTID_STATE_INIT
+        eng "Failed initializing replication GTID state"
+ER_INCORRECT_GTID_STATE
+        eng "Could not parse GTID list for MASTER_GTID_POS"
