@@ -79,6 +79,22 @@ DROP TABLE t1;
 --replace_result $MYSQLD_DATADIR DATADIR
 --eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/tmp.csv'),'\r\n','\n');
 
+--echo #
+--echo # Creating a CSV table from a MyISAM table
+--echo #
+CREATE TABLE t1 (a VARCHAR(10), b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('test1',1), ('test2',2);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t2.csv'
+  AS SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t2.csv
+--replace_result $MYSQLD_DATADIR DATADIR
+--eval SELECT REPLACE(LOAD_FILE('$MYSQLD_DATADIR/test/t2.csv'),'\r\n','\n');
+--remove_file $MYSQLD_DATADIR/test/t2.csv
+
+
 #
 # Clean up
 #

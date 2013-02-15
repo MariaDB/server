@@ -124,3 +124,21 @@ REPLACE(LOAD_FILE('DATADIR/test/tmp.csv'),'\r\n','\n')
 "4000","4000"
 "a b","c d"
 
+#
+# Creating a CSV table from a MyISAM table
+#
+CREATE TABLE t1 (a VARCHAR(10), b INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('test1',1), ('test2',2);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t2.csv'
+  AS SELECT * FROM t1;
+SELECT * FROM t2;
+a	b
+test1	1
+test2	2
+DROP TABLE t2;
+DROP TABLE t1;
+SELECT REPLACE(LOAD_FILE('DATADIR/test/t2.csv'),'\r\n','\n');;
+REPLACE(LOAD_FILE('DATADIR/test/t2.csv'),'\r\n','\n')
+test1,1
+test2,2
+
