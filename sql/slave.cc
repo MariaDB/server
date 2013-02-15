@@ -1864,7 +1864,8 @@ after_set_capability:
         (master_row= mysql_fetch_row(master_res)) &&
         (master_row[0] != NULL))
     {
-      rpl_global_gtid_slave_state.load(mi->io_thd, master_row[0]);
+      rpl_global_gtid_slave_state.load(mi->io_thd, master_row[0],
+                                       strlen(master_row[0]), false);
     }
     else if (check_io_slave_killed(mi->io_thd, mi, NULL))
       goto slave_killed_err;

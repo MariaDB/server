@@ -2231,6 +2231,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+  slave_connection_state tmp_slave_state;
   DBUG_ENTER("change_master");
 
   *master_info_added= false;
@@ -2259,6 +2260,27 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
              mi->connection_name.str);
     ret= TRUE;
     goto err;
+  }
+
+  if (lex_mi->gtid_pos_str.str)
+  {
+    if (master_info_index->give_error_if_slave_running())
+    {
+      ret= TRUE;
+      goto err;
+    }
+    /*
+      First load it into a dummy object, to check for parse errors.
+      We do not want to wipe the previous state if there is an error
+      in the syntax of the new state!
+    */
+    if (tmp_slave_state.load(lex_mi->gtid_pos_str.str,
+                             lex_mi->gtid_pos_str.length))
+    {
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
   }
 
   thd_proc_info(thd, "Changing master");
@@ -2426,7 +2448,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->gtid_pos_auto)
+  if (lex_mi->gtid_pos_auto || lex_mi->gtid_pos_str.str)
     mi->gtid_pos_auto= true;
   else if (lex_mi->gtid_pos_str.str ||
            lex_mi->log_file_name || lex_mi->pos ||
@@ -2463,6 +2485,18 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
      strmake(mi->master_log_name, mi->rli.group_master_log_name,
              sizeof(mi->master_log_name)-1);
   }
+
+  if (lex_mi->gtid_pos_str.str)
+  {
+    if (rpl_global_gtid_slave_state.load(thd, lex_mi->gtid_pos_str.str,
+                                         lex_mi->gtid_pos_str.length, true))
+    {
+      my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
+      ret= TRUE;
+      goto err;
+    }
+  }
+
   /*
     Relay log's IO_CACHE may not be inited, if rli->inited==0 (server was never
     a slave before).

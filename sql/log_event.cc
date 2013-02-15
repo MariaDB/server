@@ -6076,13 +6076,12 @@ rpl_slave_state::init()
   inited= true;
 }
 
+
 void
-rpl_slave_state::deinit()
+rpl_slave_state::truncate_hash()
 {
   uint32 i;
 
-  if (!inited)
-    return;
   for (i= 0; i < hash.records; ++i)
   {
     element *e= (element *)my_hash_element(&hash, i);
@@ -6094,8 +6093,17 @@ rpl_slave_state::deinit()
       my_free(l);
       l= next;
     }
-    /* The element itself is freed by my_hash_free(). */
+    /* The element itself is freed by the hash element free function. */
   }
+  my_hash_reset(&hash);
+}
+
+void
+rpl_slave_state::deinit()
+{
+  if (!inited)
+    return;
+  truncate_hash();
   my_hash_free(&hash);
   mysql_mutex_destroy(&LOCK_slave_state);
 }
@@ -6148,6 +6156,42 @@ rpl_slave_state::get_element(uint32 domain_id)
 
 #ifdef MYSQL_SERVER
 #ifdef HAVE_REPLICATION
+int
+rpl_slave_state::truncate_state_table(THD *thd)
+{
+  TABLE_LIST tlist;
+  int err= 0;
+  TABLE *table;
+
+  mysql_reset_thd_for_next_command(thd, 0);
+
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_WRITE);
+  if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+  {
+    table= tlist.table;
+    err= table->file->ha_truncate();
+
+    if (err)
+    {
+      ha_rollback_trans(thd, FALSE);
+      close_thread_tables(thd);
+      ha_rollback_trans(thd, TRUE);
+    }
+    else
+    {
+      ha_commit_trans(thd, FALSE);
+      close_thread_tables(thd);
+      ha_commit_trans(thd, TRUE);
+    }
+  }
+
+  return err;
+}
+
+
 /*
   Write a gtid to the replication slave state table.
 
@@ -6442,13 +6486,23 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
   Update the slave replication state with the GTID position obtained from
   master when connecting with old-style (filename,offset) position.
 
+  If RESET is true then all existing entries are removed. Otherwise only
+  domain_ids mentioned in the STATE_FROM_MASTER are changed.
+
   Returns 0 if ok, non-zero if error.
 */
 int
-rpl_slave_state::load(THD *thd, char *state_from_master)
+rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
+                      bool reset)
 {
-  char *end= state_from_master + strlen(state_from_master);
+  char *end= state_from_master + len;
 
+  if (reset)
+  {
+    if (truncate_state_table(thd))
+      return 1;
+    truncate_hash();
+  }
   for (;;)
   {
     rpl_gtid gtid;
@@ -6463,6 +6517,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master)
       break;
     if (*state_from_master != ',')
       return 1;
+    ++state_from_master;
   }
   return 0;
 }
