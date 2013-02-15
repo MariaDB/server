@@ -461,7 +461,27 @@ char *XML2NODE::GetText(char *buf, int len)
     xmlFree(Content);
 
   if ((Content = xmlNodeGetContent(Nodep))) {
-    int rc = ((PXDOC2)Doc)->Decode(Content, buf, len);
+    char *p1, *p2;
+    bool  b = false;
+    int   rc = ((PXDOC2)Doc)->Decode(Content, buf, len);
+
+    // Eliminate extra characters
+    for (p1 = p2 = buf; *p1; p1++)
+      if (strchr(" \t\r\n", *p1)) {
+        if (b) {
+          *p2++ = ' ';
+          b = false;
+          }  // endif b
+
+      } else {
+        *p2++ = *p1;
+        b = true;
+      } // endif p1
+
+    if (*(p2 - 1) == ' ')
+      *(p2 - 1) = 0;
+    else
+      *p2 = 0;
 
     if (trace)
       htrc("GetText buf='%s' len=%d rc=%d\n", buf, len, rc);
