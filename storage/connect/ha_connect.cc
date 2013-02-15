@@ -3301,7 +3301,8 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
   @note
   Not really implemented yet.
 */
-bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
+bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
+                            void *alt_info)
 {
   char        spc= ',', qch= 0;
   const char *typn= "?";
@@ -3315,10 +3316,11 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        b= false, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
-  LEX_STRING *comment, *name;
-  HA_CREATE_INFO *create_info= (HA_CREATE_INFO *)crt_info;
+  LEX_STRING *comment, *name, *val;
+  MEM_ROOT   *mem= thd->mem_root;
   CHARSET_INFO *cs;
-  engine_option_value *pov;
+  Alter_info *alter_info= (Alter_info*)alt_info;
+  engine_option_value *pov, *start= create_info->option_list, *end= NULL;
   PQRYRES     qrp;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd);
@@ -3331,7 +3333,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
   db= thd->db;                     // Default value
 
   // Get the useful create options
-  for (pov= create_info->option_list; pov; pov= pov->next)
+  for (pov= start; pov; pov= pov->next) {
     if (!stricmp(pov->name.str, "table_type")) {
       typn= pov->value.str;
       ttp= GetTypeID(typn);
@@ -3367,6 +3369,28 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
 #endif   // WIN32
       mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
     } // endelse option_list
+
+    end= pov;
+    } // endfor pov
+
+  // Check table type
+  if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
+    sprintf(g->Message, "Unknown Table_type '%s'", typn);
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    strcpy(g->Message, "Using Table_type DOS");
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    ttp= TAB_DOS;
+    typn= "DOS";
+    name= thd->make_lex_string(NULL, "table_type", 10, true);
+    val= thd->make_lex_string(NULL, typn, strlen(typn), true);
+    pov= new(mem) engine_option_value(*name, *val, false, &start, &end);
+    } // endif ttp
+
+  // Test whether columns must be specified
+  if (alter_info->create_list.elements)
+    return false;
+
+  dbf= ttp == TAB_DBF;
 
   if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
     tab= (char*)create_info->alias;
@@ -3450,7 +3474,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
             qrp= ODBCDrivers(g, true);
             break;
           default:
-            sprintf(g->Message, "invalid catfunc %c", fncn);
+            sprintf(g->Message, "invalid catfunc %s", fncn);
         } // endswitch info
 
         break;
@@ -3475,7 +3499,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
       } // endswitch ttp
 
     if (!qrp) {
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       return true;
       } // endif qrp
 
@@ -3550,7 +3574,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
           // typ must be PLG type, not SQL type
           if (!(plgtyp= TranslateSQLType(typ, dec, len))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
-            push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return true;
           } else
             typ= plgtyp;
@@ -3576,7 +3600,7 @@ bool ha_connect::pre_create(THD *thd, void *crt_info, void *alt_info)
     return b;
     } // endif ok
 
-  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+  my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
   return true;
 } // end of pre_create
 
@@ -3612,7 +3636,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   bool    dbf;
   Field* *field;
   Field  *fp;
-  TABTYPE ttp;
   TABLE  *st= table;                       // Probably unuseful
   PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
@@ -3626,31 +3649,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (!g) {
     rc= HA_ERR_INTERNAL_ERROR;
     DBUG_RETURN(rc);
-    } // endif g
-
-  // Check table type
-  ttp= GetTypeID(options->type);
-
-  if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
-#if 0   // Does not work. It's too late, FRM is constructed yet.
-    THD *thd= table_arg->in_use;
-
-    ttp= TAB_DOS;
-    options->type= strmake_root(thd->mem_root, "DOS", strlen("DOS"));
-    strcpy(g->Message, "Table_type defaulted to DOS");
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-#endif
-    if (options->type)
-      sprintf(g->Message, "Unsupported table type %s", options->type);
-    else
-      strcpy(g->Message, "Unspecified table type");
-
-    rc= HA_ERR_INTERNAL_ERROR;
-    my_printf_error(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-    DBUG_RETURN(rc);
-    } // endif ttp
-
-  dbf= ttp == TAB_DBF;
+  } else
+    dbf= (GetTypeID(options->type) == TAB_DBF);
 
   // Check column types
   for (field= table_arg->field; *field; field++) {

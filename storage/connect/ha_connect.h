@@ -94,7 +94,7 @@ public:
   PIXDEF   GetIndexInfo(int n);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
-  int       GetColNameLen(Field *fp);
+  int      GetColNameLen(Field *fp);
   char    *GetColName(Field *fp);
   void     AddColName(char *cp, Field *fp);
   TABLE    *GetTable(void) {return table;}
@@ -335,7 +335,7 @@ const char *GetValStr(OPVAL vop, bool neg);
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key);
   int delete_table(const char *from);
-  bool pre_create(THD *thd, void *crt_info, void *alt_info);
+  bool pre_create(THD *thd, HA_CREATE_INFO *crt_info, void *alt_info);
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,

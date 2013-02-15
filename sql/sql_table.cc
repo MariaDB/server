@@ -4134,7 +4134,6 @@ bool mysql_create_table_no_lock(THD *thd,
                        db, table_name, internal_tmp_table));
 
 
-  /* Check for duplicate fields and check type of table to create */
   if (check_engine(thd, db, table_name, create_info))
     DBUG_RETURN(TRUE);
 
@@ -4150,6 +4149,17 @@ bool mysql_create_table_no_lock(THD *thd,
                               create_info->db_type)))
   {
     mem_alloc_error(sizeof(handler));
+    DBUG_RETURN(TRUE);
+  }
+  /* Let handlers test and update create table definition. */
+  if (file->pre_create(thd, create_info, alter_info))
+    DBUG_RETURN(TRUE);    // Error message was created in pre_create
+
+  /* Check for duplicate fields and check type of table to create */
+  if (!alter_info->create_list.elements)
+  {
+    my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
+               MYF(0));
     DBUG_RETURN(TRUE);
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4314,14 +4324,6 @@ bool mysql_create_table_no_lock(THD *thd,
   }
 #endif
 
-  // Added by O. Bertrand
-  if (!alter_info->create_list.elements &&
-      file->pre_create(thd, create_info, alter_info))
-  {
-    my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
-               MYF(0));
-    DBUG_RETURN(TRUE);
-  }
   if (mysql_prepare_create_table(thd, create_info, alter_info,
                                  internal_tmp_table,
                                  &db_options, file,
