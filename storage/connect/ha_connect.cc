@@ -648,7 +648,7 @@ char *ha_connect::GetListOption(const char *opname,
   char *opval= (char *) def;
   int n;
 
-  for (pk= (char*)oplist; ; pk= ++pn) {
+  for (pk= (char*)oplist; pk; pk= ++pn) {
     pn= strchr(pk, ',');
     pv= strchr(pk, '=');
 
@@ -3782,7 +3782,7 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
   // TO DO: implement it.
   if (table)
     push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
-      "No check done for compatible changes, you are on your own!");
+      "The current version of CONNECT did not check what you changed in ALTER. Use on your own risk");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 
