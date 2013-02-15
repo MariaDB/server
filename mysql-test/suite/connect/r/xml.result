@@ -12,30 +12,15 @@ DATEPUB INT(4)
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   OPTION_LIST='xmlsup=libxml2';
 SELECT * FROM t1;
-AUTHOR	
-      Jean-Christophe
-      Bernadac
-
+AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
 TRANSLATOR	
-PUBLISHER	
-      Eyrolles
-      Paris
-
+PUBLISHER	Eyrolles Paris
 DATEPUB	1999
-AUTHOR	
-      William J.
-      Pardi
-
+AUTHOR	William J. Pardi
 TITLE	XML en Action
-TRANSLATOR	
-      James
-      Guerin
-
-PUBLISHER	
-      Microsoft Press
-      Paris
-
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
 DATEPUB	1999
 DROP TABLE t1;
 #
@@ -54,21 +39,12 @@ SELECT * FROM t1;
 author	
 TITLE	Construire une application XML
 TRANSLATOR	
-PUBLISHER	
-      Eyrolles
-      Paris
-
+PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 author	
 TITLE	XML en Action
-TRANSLATOR	
-      James
-      Guerin
-
-PUBLISHER	
-      Microsoft Press
-      Paris
-
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
 DATEPUB	1999
 DROP TABLE t1;
 #
@@ -124,33 +100,18 @@ SELECT * FROM t1;
 ISBN	9782212090819
 LANG	fr
 SUBJECT	applications
-AUTHOR	
-      Jean-Christophe
-      Bernadac
-
+AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
 TRANSLATOR	
-PUBLISHER	
-      Eyrolles
-      Paris
-
+PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 ISBN	9782840825685
 LANG	fr
 SUBJECT	applications
-AUTHOR	
-      William J.
-      Pardi
-
+AUTHOR	William J. Pardi
 TITLE	XML en Action
-TRANSLATOR	
-      James
-      Guerin
-
-PUBLISHER	
-      Microsoft Press
-      Paris
-
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
 DATEPUB	1999
 DROP TABLE t1;
 #
@@ -175,33 +136,18 @@ SELECT * FROM t1;
 ISBN	9782212090819
 LANG	fr
 SUBJECT	applications
-AUTHOR	
-      Jean-Christophe
-      Bernadac
-
+AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
 TRANSLATOR	
-PUBLISHER	
-      Eyrolles
-      Paris
-
+PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 ISBN	9782840825685
 LANG	fr
 SUBJECT	applications
-AUTHOR	
-      William J.
-      Pardi
-
+AUTHOR	William J. Pardi
 TITLE	XML en Action
-TRANSLATOR	
-      James
-      Guerin
-
-PUBLISHER	
-      Microsoft Press
-      Paris
-
+TRANSLATOR	James Guerin
+PUBLISHER	Microsoft Press Paris
 DATEPUB	1999
 ISBN	9782212090529
 LANG	fr
