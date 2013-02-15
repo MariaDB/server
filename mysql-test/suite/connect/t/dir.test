@@ -30,7 +30,7 @@ INSERT INTO t1 VALUES ('','','','');
 DROP TABLE t1;
 
 # TODO: automatically add columns
---error ER_TABLE_MUST_HAVE_COLUMNS
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt';
 
 

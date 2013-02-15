@@ -10,7 +10,8 @@ SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
---error ER_TABLE_MUST_HAVE_COLUMNS
+--replace_regex /Cannot open .*test.t1.dbf/Cannot open DATADIR\/test\/t1.dbf/
+--error ER_UNKNOWN_ERROR
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
 --replace_regex /Cannot open .*test.t1.dbf/Cannot open DATADIR\/test\/t1.dbf/
 SHOW WARNINGS;
