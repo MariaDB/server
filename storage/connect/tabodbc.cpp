@@ -76,6 +76,7 @@
 #include "sql_string.h"
 
 extern "C" char *GetMsgid(int id);
+extern "C" int   trace;
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -584,10 +585,9 @@ int TDBODBC::ReadDB(PGLOBAL g)
   {
   int   rc;
 
-#ifdef DEBTRACE
- htrc("ODBC ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p\n",
-  GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
-#endif
+  if (trace > 1)
+    htrc("ODBC ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p\n",
+      GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
 
   if (To_Kindex) {
     // Direct access of ODBC tables is not implemented yet
@@ -631,9 +631,9 @@ int TDBODBC::ReadDB(PGLOBAL g)
   rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
   Fpos++;                // Used for progress info
 
-#ifdef DEBTRACE
- htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
-#endif
+  if (trace > 1)
+    htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
+
   return rc;
   } // end of ReadDB
 
@@ -667,9 +667,9 @@ void TDBODBC::CloseDB(PGLOBAL g)
 
   Ocp->Close();
 
-#ifdef DEBTRACE
- htrc("ODBC CloseDB: closing %s\n", Name);
-#endif
+  if (trace)
+    htrc("ODBC CloseDB: closing %s\n", Name);
+
   } // end of CloseDB
 
 /* --------------------------- ODBCCOL ------------------------------- */
@@ -699,10 +699,9 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   Blkp = NULL;
   Rank = 0;           // Not known yet
 
-#ifdef DEBTRACE
- htrc(" making new %sCOL C%d %s at %p\n",
-  am, Index, Name, this);
-#endif
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+
   } // end of ODBCCOL constructor
 
 /***********************************************************************/
