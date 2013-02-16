@@ -893,10 +893,11 @@ extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id)
 {
   thd->wsrep_last_query_id= id;
 }
-extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
+extern "C" void wsrep_thd_awake(THD* bf_thd, THD *thd, my_bool signal)
 {
   if (signal)
   {
+    thd->wsrep_bf_thd = bf_thd;
     mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake(KILL_QUERY);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -1114,7 +1115,7 @@ THD::THD()
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
-
+  wsrep_bf_thd            = NULL;
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1469,6 +1470,7 @@ void THD::init(void)
   wsrep_seqno_changed= false;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
   wsrep_mysql_replicated  = 0;
+  wsrep_bf_thd = NULL;
 #endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1836,8 +1838,11 @@ void THD::awake(killed_state state_to_set)
 
   /* Interrupt target waiting inside a storage engine. */
   if (state_to_set != NOT_KILLED)
+#ifdef WITH_WSREP
+    if (!wsrep_bf_thd || wsrep_bf_thd->wsrep_exec_mode == LOCAL_STATE)
+#else
     ha_kill_query(this, thd_kill_level(this));
-
+#endif /* WITH_WSREP */
   /* Broadcast a condition to kick the target if it is waiting on it. */
   if (mysys_var)
   {

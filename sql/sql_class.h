@@ -2376,6 +2376,7 @@ public:
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
+  THD*                      wsrep_bf_thd;
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

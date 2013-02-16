@@ -13502,7 +13502,7 @@ wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 		WSREP_DEBUG("victim %llu in MUST ABORT state", 
 			    victim_trx->id);
 		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
+		wsrep_thd_awake(bf_thd, thd, signal);
 		DBUG_RETURN(0);
 		break;
 	case ABORTED:
@@ -13521,7 +13521,7 @@ wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		wsrep_thd_awake(thd, signal); 
+		wsrep_thd_awake(bf_thd, thd, signal); 
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu", 
 			    victim_trx->id);
 
@@ -13574,14 +13574,14 @@ wsrep_innobase_kill_one_trx(trx_t *bf_trx, trx_t *victim_trx, ibool signal)
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_awake(thd, signal); 
+			wsrep_thd_awake(bf_thd, thd, signal); 
 		} else {
 			/* abort currently executing query */
 			DBUG_PRINT("wsrep",("sending KILL_QUERY to: %ld", 
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
-			wsrep_thd_awake(thd, signal); 
+			wsrep_thd_awake(bf_thd, thd, signal); 
 
 			/* for BF thd, we need to prevent him from committing */
 			if (wsrep_thd_exec_mode(thd) == REPL_RECV) {
@@ -13672,7 +13672,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_LOCK(victim_thd);
 		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
 		wsrep_thd_UNLOCK(victim_thd);
-		wsrep_thd_awake(victim_thd, signal); 
+		wsrep_thd_awake(bf_thd, victim_thd, signal); 
 	}
 	DBUG_RETURN(-1);
 }
