@@ -170,8 +170,8 @@ int TranslateSQLType(int stp, int prec, int& len)
 /***********************************************************************/
 /*  ODBConn static members initialization.                             */
 /***********************************************************************/
-  HENV ODBConn::m_henv = SQL_NULL_HENV;
-  int  ODBConn::m_nAlloc = 0;        // per-Appl reference to HENV above
+//HENV ODBConn::m_henv = SQL_NULL_HENV;
+//int  ODBConn::m_nAlloc = 0;        // per-Appl reference to HENV above
 
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
@@ -811,6 +811,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   {
   m_G = g;
   m_Tdb = tdbp;
+  m_henv = SQL_NULL_HENV;
   m_hdbc = SQL_NULL_HDBC;
 //m_Recset = NULL
   m_hstmt = SQL_NULL_HSTMT;
@@ -975,7 +976,8 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
-    Free();
+    Close();
+//  Free();
     return -1;
   } // end try-catch
 
@@ -998,7 +1000,7 @@ void ODBConn::AllocConnect(DWORD Options)
 
   // Need to allocate an environment for first connection
   if (m_henv == SQL_NULL_HENV) {
-    ASSERT(m_nAlloc == 0);
+//  ASSERT(m_nAlloc == 0);
 
     rc = SQLAllocEnv(&m_henv);
 
@@ -1017,7 +1019,7 @@ void ODBConn::AllocConnect(DWORD Options)
     ThrowDBX(rc, "SQLAllocConnect");  // Fatal
     } // endif rc
 
-  m_nAlloc++;                          // allocated at last
+//m_nAlloc++;                          // allocated at last
 //AfxUnlockGlobals(CRIT_ODBC);
 
 #if defined(_DEBUG)
@@ -1084,7 +1086,8 @@ bool ODBConn::Connect(DWORD Options)
 
   // If user hit 'Cancel'
   if (rc == SQL_NO_DATA_FOUND) {
-    Free();
+    Close();
+//  Free();
     return true;
     } // endif rc
 
@@ -1581,7 +1584,7 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
     rv = true;
   } // end try/catch
 
-  SQLFreeEnv(m_henv);
+//SQLFreeEnv(m_henv);
   Close();
   return rv;
   } // end of GetDataSources
@@ -1633,7 +1636,7 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
     rv = true;
   } // end try/catch
 
-  SQLFreeEnv(m_henv);
+//SQLFreeEnv(m_henv);
   Close();
   return rv;
   } // end of GetDrivers
@@ -1871,13 +1874,27 @@ void ODBConn::Close()
     m_hdbc = SQL_NULL_HDBC;
 
 //  AfxLockGlobals(CRIT_ODBC);
-    ASSERT(m_nAlloc != 0);
-    m_nAlloc--;
+//  ASSERT(m_nAlloc != 0);
+//  m_nAlloc--;
 //  AfxUnlockGlobals(CRIT_ODBC);
     } // endif m_hdbc
 
+  if (m_henv != SQL_NULL_HENV) {
+    if (trace) {
+      RETCODE rc = SQLFreeEnv(m_henv);
+        
+      if (rc != SQL_SUCCESS) // Nothing we can do
+        htrc("Error: SQLFreeEnv failure ignored in Close\n");
+          
+    } else
+      SQLFreeEnv(m_henv);
+
+      m_henv = SQL_NULL_HENV;
+    } // endif m_henv
+
   } // end of Close
 
+#if 0
 // Silently disconnect and free all ODBC resources.
 // Don't throw any exceptions
 void ODBConn::Free()
@@ -1915,7 +1932,6 @@ void ODBConn::Free()
 //AfxUnlockGlobals(CRIT_ODBC);
   } // end of Free
 
-#if 0
 //////////////////////////////////////////////////////////////////////////////
 // CRecordset helpers
 
