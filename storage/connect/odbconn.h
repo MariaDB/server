@@ -169,12 +169,13 @@ class ODBConn : public BLOCK {
 
  protected:
   // Static members
-  static HENV m_henv;
-  static int  m_nAlloc;            // per-Appl reference to HENV above
+//static HENV m_henv;
+//static int  m_nAlloc;            // per-Appl reference to HENV above
 
   // Members
   PGLOBAL  m_G;
   TDBODBC *m_Tdb;
+  HENV     m_henv;
   HDBC     m_hdbc;
   HSTMT    m_hstmt;
   DWORD    m_LoginTimeout;
