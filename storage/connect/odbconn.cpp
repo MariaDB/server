@@ -741,9 +741,10 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
 /***********************************************************************/
 /*  Implementation of DBX class.                                       */
 /***********************************************************************/
-DBX::DBX(RETCODE rc)
+DBX::DBX(RETCODE rc, PSZ msg)
   {
   m_RC = rc;
+  m_Msg = msg;
 
   for (int i = 0; i < MAX_NUM_OF_MSG; i++)
     m_ErrMsg[i] = NULL;
@@ -766,7 +767,7 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
     rc = SQLError(pdb->m_henv, pdb->m_hdbc, hstmt, state,
                   &native, msg, SQL_MAX_MESSAGE_LENGTH - 1, &len);
 
-    if (rc != SQL_INVALID_HANDLE)
+    if (rc != SQL_INVALID_HANDLE) {
     // Skip non-errors
       for (int i = 0; i < MAX_NUM_OF_MSG
               && (rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO)
@@ -775,17 +776,31 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
         strcpy(m_ErrMsg[i], (char*)msg);
 
         if (trace)
-          htrc("%s, Native=%d\n", msg, native);
+          htrc("%s: %s, Native=%d\n", state, msg, native);
 
         rc = SQLError(pdb->m_henv, pdb->m_hdbc, hstmt, state,
                       &native, msg, SQL_MAX_MESSAGE_LENGTH - 1, &len);
+
         } // endfor i
 
-    else
-      m_ErrMsg[0] = MSG(BAD_HANDLE_VAL);
+      return;
+    } else {
+      snprintf((char*)msg, SQL_MAX_MESSAGE_LENGTH + 1, "%s: %s", m_Msg,
+               MSG(BAD_HANDLE_VAL));
+      m_ErrMsg[0] = (PSZ)PlugSubAlloc(g, NULL, strlen((char*)msg) + 1);
+      strcpy(m_ErrMsg[0], (char*)msg);
+
+      if (trace)
+        htrc("%s: rc=%hd\n", SVP(m_ErrMsg[0]), m_RC); 
+
+      return;
+    } // endif rc
 
   } else
     m_ErrMsg[0] = "No connexion address provided";
+
+  if (trace)
+    htrc("%s: rc=%hd (%s)\n", SVP(m_Msg), m_RC, SVP(m_ErrMsg[0])); 
 
   } // end of BuildErrorMessage
 
@@ -825,13 +840,13 @@ bool ODBConn::Check(RETCODE rc)
   {
   switch (rc) {
     case SQL_SUCCESS_WITH_INFO:
-      if (m_G->Trace) {
+      if (trace > 1) {
         DBX x(rc);
 
         x.BuildErrorMessage(this, m_hstmt);
         htrc("ODBC Success With Info, hstmt=%p %s\n",
           m_hstmt, x.GetErrorMessage(0));
-        } // endif Trace
+        } // endif trace
 
       // Fall through
     case SQL_SUCCESS:
@@ -845,9 +860,9 @@ bool ODBConn::Check(RETCODE rc)
 /***********************************************************************/
 /*  DB exception throw routines.                                       */
 /***********************************************************************/
-void ODBConn::ThrowDBX(RETCODE rc, HSTMT hstmt)
+void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
   {
-  DBX* xp = new(m_G) DBX(rc);
+  DBX* xp = new(m_G) DBX(rc, msg);
 
   xp->BuildErrorMessage(this, hstmt);
   throw xp;
@@ -855,7 +870,7 @@ void ODBConn::ThrowDBX(RETCODE rc, HSTMT hstmt)
 
 void ODBConn::ThrowDBX(PSZ msg)
   {
-  DBX* xp = new(m_G) DBX(0);
+  DBX* xp = new(m_G) DBX(0, msg);
 
   xp->m_ErrMsg[0] = msg;
   throw xp;
@@ -873,9 +888,10 @@ PSZ ODBConn::GetStringInfo(ushort infotype)
 
   rc = SQLGetInfo(m_hdbc, infotype, buffer, sizeof(buffer), &result);
 
-  if (!Check(rc))
-    ThrowDBX(rc);  // Temporary
+  if (!Check(rc)) {
+    ThrowDBX(rc, "SQLGetInfo");  // Temporary
 //  *buffer = '\0';
+    } // endif rc
 
   p = (char *)PlugSubAlloc(m_G, NULL, strlen(buffer) + 1);
   strcpy(p, buffer);
@@ -988,8 +1004,8 @@ void ODBConn::AllocConnect(DWORD Options)
 
     if (!Check(rc)) {
 //    AfxUnlockGlobals(CRIT_ODBC);
-      ThrowDBX(rc);  // Fatal
-      } // endif
+      ThrowDBX(rc, "SQLAllocEnv");  // Fatal
+      } // endif rc
 
     } // endif m_henv
 
@@ -998,8 +1014,8 @@ void ODBConn::AllocConnect(DWORD Options)
 
   if (!Check(rc)) {
 //  AfxUnlockGlobals(CRIT_ODBC);
-    ThrowDBX(rc);  // Fatal
-    } // endif
+    ThrowDBX(rc, "SQLAllocConnect");  // Fatal
+    } // endif rc
 
   m_nAlloc++;                          // allocated at last
 //AfxUnlockGlobals(CRIT_ODBC);
@@ -1072,12 +1088,8 @@ bool ODBConn::Connect(DWORD Options)
     return true;
     } // endif rc
 
-  if (!Check(rc)) {
-    if (trace && !hWnd == NULL)
-      htrc("Error: No default window for SQLDriverConnect\n");
-
-    ThrowDBX(rc);
-    } // endif Check
+  if (!Check(rc))
+    ThrowDBX(rc, "SQLDriverConnect");
 
   // Save connect string returned from ODBC
   m_Connect = (PSZ)ConnOut;
@@ -1099,7 +1111,7 @@ void ODBConn::VerifyConnect()
                   &conformance, sizeof(conformance), &result);
 
   if (!Check(rc))
-    ThrowDBX(rc);
+    ThrowDBX(rc, "SQLGetInfo");
 
   if (conformance < SQL_OAC_LEVEL1)
     ThrowDBX(MSG(API_CONF_ERROR));
@@ -1108,7 +1120,7 @@ void ODBConn::VerifyConnect()
                   &conformance, sizeof(conformance), &result);
 
   if (!Check(rc))
-    ThrowDBX(rc);
+    ThrowDBX(rc, "SQLGetInfo");
 
   if (conformance < SQL_OSC_MINIMUM)
     ThrowDBX(MSG(SQL_CONF_ERROR));
@@ -1220,24 +1232,22 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       rc = SQLAllocStmt(m_hdbc, &hstmt);
 
       if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE);
+        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
 
     } // endif hstmt
 
     OnSetOptions(hstmt);
     b = true;
 
-    if (g->Trace) {
+    if (trace)
       htrc("ExecDirect hstmt=%p %.64s\n", hstmt, sql);
-      fflush(debug);
-      } // endif Trace
 
     do {
       rc = SQLExecDirect(hstmt, (PUCHAR)sql, SQL_NTS);
       } while (rc == SQL_STILL_EXECUTING);
 
     if (!Check(rc))
-      ThrowDBX(rc, hstmt);
+      ThrowDBX(rc, "SQLExecDirect", hstmt);
 
     do {
       rc = SQLNumResultCols(hstmt, &ncol);
@@ -1248,7 +1258,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       rc = SQLRowCount(hstmt, &afrw);
 
       if (!Check(rc))
-        ThrowDBX(rc, hstmt);
+        ThrowDBX(rc, "SQLRowCount", hstmt);
 
       return afrw;
       } // endif ncol
@@ -1274,16 +1284,14 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
           ThrowDBX(m_G->Message);
           } // endif tp
 
-        if (g->Trace) {
+        if (trace)
           htrc("Binding col=%u type=%d buf=%p len=%d slen=%p\n",
                   n, tp, buffer, len, colp->GetStrLen());
-          fflush(debug);
-          } // endif Trace
 
         rc = SQLBindCol(hstmt, n, tp, buffer, len, colp->GetStrLen());
 
         if (!Check(rc))
-          ThrowDBX(rc, hstmt);
+          ThrowDBX(rc, "SQLBindCol", hstmt);
 
         n++;
         } // endif pcol
@@ -1325,7 +1333,7 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
         } while (rc == SQL_STILL_EXECUTING);
 
       if (!Check(rc))
-        ThrowDBX(rc, m_hstmt);
+        ThrowDBX(rc, "SQLFetch", m_hstmt);
 
       if (rc == SQL_NO_DATA_FOUND)
         break;
@@ -1375,16 +1383,16 @@ int ODBConn::Fetch()
     } // endif m_RowsetSize
 //    } while (rc == SQL_STILL_EXECUTING);
 
-    if (g->Trace)
+    if (trace > 1)
       htrc("Fetch: hstmt=%p RowseSize=%d rc=%d\n",
                      m_hstmt, m_RowsetSize, rc);
 
     if (!Check(rc))
-      ThrowDBX(rc, m_hstmt);
+      ThrowDBX(rc, "Fetch", m_hstmt);
 
     irc = (rc == SQL_NO_DATA_FOUND) ? 0 : (int)crow;
   } catch(DBX *x) {
-    if (g->Trace)
+    if (trace)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -1419,24 +1427,22 @@ int ODBConn::PrepareSQL(char *sql)
       rc = SQLAllocStmt(m_hdbc, &hstmt);
 
       if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE);
+        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
 
     } // endif hstmt
 
     OnSetOptions(hstmt);
     b = true;
 
-    if (g->Trace) {
+    if (trace)
       htrc("Prepare hstmt=%p %.64s\n", hstmt, sql);
-      fflush(debug);
-      } // endif Trace
 
     do {
       rc = SQLPrepare(hstmt, (PUCHAR)sql, SQL_NTS);
       } while (rc == SQL_STILL_EXECUTING);
 
     if (!Check(rc))
-      ThrowDBX(rc, hstmt);
+      ThrowDBX(rc, "SQLPrepare", hstmt);
 
     do {
       rc = SQLNumParams(hstmt, &nparm);
@@ -1472,7 +1478,7 @@ bool ODBConn::ExecuteSQL(void)
     rc = SQLExecute(m_hstmt);
 
     if (!Check(rc))
-      ThrowDBX(rc, m_hstmt);
+      ThrowDBX(rc, "SQLExecute", m_hstmt);
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
@@ -1522,7 +1528,7 @@ bool ODBConn::BindParam(ODBCCOL *colp)
                           len, 0, buf, 0, strlen);
 
     if (!Check(rc))
-      ThrowDBX(rc, m_hstmt);
+      ThrowDBX(rc, "SQLBindParameter", m_hstmt);
 
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
@@ -1554,7 +1560,7 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
     rc = SQLAllocEnv(&m_henv);
 
     if (!Check(rc))
-      ThrowDBX(rc);  // Fatal
+      ThrowDBX(rc, "SQLAllocEnv"); // Fatal
 
     for (int i = 0; i < qrp->Maxres; i++) {
       dsn = (UCHAR*)crp1->Kdata->GetValPtr(i);
@@ -1564,7 +1570,7 @@ bool ODBConn::GetDataSources(PQRYRES qrp)
       if (rc == SQL_NO_DATA_FOUND)
         break;
       else if (!Check(rc))
-        ThrowDBX(rc);  // Fatal
+        ThrowDBX(rc, "SQLDataSources");
 
       qrp->Nblin++;
       dir = SQL_FETCH_NEXT;
@@ -1600,7 +1606,7 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
     rc = SQLAllocEnv(&m_henv);
 
     if (!Check(rc))
-      ThrowDBX(rc);  // Fatal
+      ThrowDBX(rc, "SQLAllocEnv"); // Fatal
 
     for (n = 0; n < qrp->Maxres; n++) {
       des = (UCHAR*)crp1->Kdata->GetValPtr(n);
@@ -1610,7 +1616,8 @@ bool ODBConn::GetDrivers(PQRYRES qrp)
       if (rc == SQL_NO_DATA_FOUND)
         break;
       else if (!Check(rc))
-        ThrowDBX(rc);  // Fatal
+        ThrowDBX(rc, "SQLDrivers");
+
 
       // The attributes being separated by '\0', set them to ';'
       for (i = 0; i < p2; i++)
@@ -1642,6 +1649,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   void    *buffer;
   int      i, irc;
   bool     b;
+  PSZ      fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
   SQLULEN  crow;
@@ -1658,7 +1666,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       rc = SQLAllocStmt(m_hdbc, &hstmt);
 
       if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE);
+        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
 
     } else
       ThrowDBX(MSG(SEQUENCE_ERROR));
@@ -1695,19 +1703,23 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       case CAT_TAB:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)false, 0);
+        fnc = "SQLTables";
         rc = SQLTables(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
                                                 cap->Pat, SQL_NTS);
         break;
       case CAT_COL:
 //      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_METADATA_ID,
 //                                (SQLPOINTER)true, 0);
+        fnc = "SQLColumns";
         rc = SQLColumns(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
                                                  cap->Pat, SQL_NTS);
         break;
       case CAT_KEY:
+        fnc = "SQLPrimaryKeys";
         rc = SQLPrimaryKeys(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS);
         break;
       case CAT_STAT:
+        fnc = "SQLStatistics";
         rc = SQLStatistics(hstmt, NULL, 0, NULL, 0, cap->Tab, SQL_NTS,
                                   cap->Unique, cap->Accuracy);
         break;
@@ -1716,7 +1728,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       } // endswitch infotype
 
     if (!Check(rc))
-      ThrowDBX(rc, hstmt);
+      ThrowDBX(rc, fnc, hstmt);
 
     rc = SQLNumResultCols(hstmt, &ncol);
 
@@ -1753,14 +1765,17 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       rc = SQLBindCol(hstmt, n + 1, tp, buffer, len, vl);
 
       if (!Check(rc))
-        ThrowDBX(rc, hstmt);
+        ThrowDBX(rc, "SQLBindCol", hstmt);
 
       n++;
       } // endfor crp
 
+    fnc = "SQLFetch";
+
     // Now fetch the result
     if (m_Catver != 3) {
       if (m_RowsetSize > 1) {
+        fnc = "SQLExtendedFetch";
         rc = SQLExtendedFetch(hstmt, SQL_FETCH_NEXT, 1, &crow, cap->Status);
       } else if (pval) {
         for (n = 0; n < cap->Qrp->Maxres; n++) {
@@ -1794,7 +1809,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
       ThrowDBX(m_G->Message);
     } else if (rc != SQL_SUCCESS)
-      ThrowDBX(rc, hstmt);
+      ThrowDBX(rc, fnc, hstmt);
 
     irc = (int)crow;
   } catch(DBX *x) {
