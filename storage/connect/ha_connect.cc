@@ -287,6 +287,22 @@ ha_create_table_option connect_field_option_list[]=
 };
 #endif   // MARIADB
 
+/***********************************************************************/
+/*  Push G->Message as a MySQL warning.                                */
+/***********************************************************************/
+bool PushWarning(PGLOBAL g, PTDBASE tdbp)
+  {
+  PHC    phc;
+  THD   *thd;
+  MYCAT *cat= (MYCAT*)tdbp->GetDef()->GetCat();
+
+  if (!cat || !(phc= cat->GetHandler()) || !phc->GetTable() ||
+      !(thd= (phc->GetTable())->in_use))
+    return true;
+
+  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+  return false;
+  } // end of PushWarning
 
 /**
   @brief
@@ -307,23 +323,6 @@ static PSI_mutex_info all_connect_mutexes[]=
   { &ex_key_mutex_connect, "connect", PSI_FLAG_GLOBAL},
   { &ex_key_mutex_CONNECT_SHARE_mutex, "CONNECT_SHARE::mutex", 0}
 };
-
-/***********************************************************************/
-/*  Push G->Message as a MySQL warning.                                */
-/***********************************************************************/
-bool PushWarning(PGLOBAL g, PTDBASE tdbp)
-  {
-  PHC    phc;
-  THD   *thd;
-  MYCAT *cat= (MYCAT*)tdbp->GetDef()->GetCat();
-
-  if (!cat || !(phc= cat->GetHandler()) || !phc->GetTable() ||
-      !(thd= (phc->GetTable())->in_use))
-    return true;
-
-  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-  return false;
-  } // end of PushWarning
 
 static void init_connect_psi_keys()
 {
