@@ -207,6 +207,7 @@ struct ha_table_option_struct {
   const char *subtype;
   const char *catfunc;
   const char *oplist;
+  const char *data_charset;
   int lrecl;
   int elements;
 //int estimate;
@@ -238,6 +239,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("SUBTYPE", subtype),
   HA_TOPTION_STRING("CATFUNC", catfunc),
   HA_TOPTION_STRING("OPTION_LIST", oplist),
+  HA_TOPTION_STRING("DATA_CHARSET", data_charset),
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("BLOCK_SIZE", elements, 0, 0, INT_MAX32, 1),
 //HA_TOPTION_NUMBER("ESTIMATE", estimate, 0, 0, INT_MAX32, 1),
@@ -820,6 +822,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->subtype;
   else if (!stricmp(opname, "Catfunc"))
     opval= (char*)options->catfunc;
+  else if (!stricmp(opname, "Data_charset"))
+    opval= (char*)options->data_charset;
 
   if (!opval && options->oplist)
     opval= GetListOption(opname, options->oplist);
@@ -1397,7 +1401,7 @@ int ha_connect::MakeRecord(char *buf)
   Field*          *field;
   Field           *fp;
   my_bitmap_map   *org_bitmap;
-  CHARSET_INFO    *charset;
+  CHARSET_INFO    *charset= tdbp->data_charset();
   const MY_BITMAP *map;
   PVAL             value;
   PCOL             colp= NULL;
@@ -1427,9 +1431,6 @@ int ha_connect::MakeRecord(char *buf)
   // Make the pseudo record from field values
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
-
-    // Default charset
-    charset= table->s->table_charset;
 
 #if defined(MARIADB)
     if (fp->vcol_info && !fp->stored_in_db)
@@ -1475,7 +1476,6 @@ int ha_connect::MakeRecord(char *buf)
           p= NULL;
           break;
         case TYPE_STRING:
-          charset= fp->charset();
           // Passthru
         default:
           p= value->GetCharString(val);
@@ -1512,6 +1512,7 @@ int ha_connect::MakeRecord(char *buf)
 int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
 {
   char    attr_buffer[1024];
+  char    data_buffer[1024];
   int     rc= 0;
   PCOL    colp;
   PVAL    value;
@@ -1520,6 +1521,8 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
   String  attribute(attr_buffer, sizeof(attr_buffer),
                     table->s->table_charset);
   my_bitmap_map *bmap= dbug_tmp_use_all_columns(table, table->read_set);
+  const CHARSET_INFO *charset= tdbp->data_charset();
+  String  data_charset_value(data_buffer, sizeof(data_buffer),  charset);
 
   // Scan the pseudo record for field values and set column values
   for (Field **field=table->field ; *field ; field++) {
@@ -1563,7 +1566,18 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           break;
         default:
           fp->val_str(&attribute);
-          value->SetValue_psz(attribute.c_ptr());
+          if (charset == &my_charset_bin)
+          {
+            value->SetValue_psz(attribute.c_ptr());
+          }
+          else
+          {
+            // Convert from SQL field charset to DATA_CHARSET
+            uint cnv_errors;
+            data_charset_value.copy(attribute.ptr(), attribute.length(),
+                                    attribute.charset(), charset, &cnv_errors);
+            value->SetValue_psz(data_charset_value.c_ptr());
+          }
         } // endswitch Type
 
 #ifdef NEWCHANGE
@@ -3638,12 +3652,37 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABLE  *st= table;                       // Probably unuseful
   PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
+  const CHARSET_INFO *data_charset;
 
   DBUG_ENTER("ha_connect::create");
   PTOS options= GetTableOptionStruct(table_arg);
 
   // CONNECT engine specific table options:
   DBUG_ASSERT(options);
+
+  if (options->data_charset)
+  {
+    if (!(data_charset= get_charset_by_csname(options->data_charset,
+                                              MY_CS_PRIMARY, MYF(0))))
+    {
+      my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), options->data_charset);
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+    if (GetTypeID(options->type) == TAB_XML &&
+        data_charset != &my_charset_utf8_general_ci)
+    {
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "DATA_CHARSET='%s' is not supported for TABLE_TYPE=XML",
+                        MYF(0), options->data_charset);
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    }
+  }
+  else
+  {
+    data_charset= create_info->default_table_charset ?
+                  create_info->default_table_charset :
+                  &my_charset_latin1;
+  }
 
   if (!g) {
     rc= HA_ERR_INTERNAL_ERROR;
