@@ -1,0 +1,48 @@
+include/rpl_init.inc [topology=1->2->3->4]
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+INSERT INTO t2 VALUES (1, "i1");
+BEGIN;
+INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
+INSERT INTO t2 VALUES (4, "i4");
+COMMIT;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+DROP TABLE t1,t2;
+include/rpl_end.inc

@@ -1,0 +1,37 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2->3->4
+--source include/rpl_init.inc
+
+connection server_1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, "m1");
+INSERT INTO t1 VALUES (2, "m2"), (3, "m3"), (4, "m4");
+INSERT INTO t2 VALUES (1, "i1");
+BEGIN;
+INSERT INTO t2 VALUES (2, "i2"), (3, "i3");
+INSERT INTO t2 VALUES (4, "i4");
+COMMIT;
+save_master_pos;
+
+connection server_2;
+sync_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+save_master_pos;
+
+connection server_3;
+sync_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+save_master_pos;
+
+connection server_4;
+sync_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+connection server_1;
+DROP TABLE t1,t2;
+
+--source include/rpl_end.inc
