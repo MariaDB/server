@@ -242,6 +242,7 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   MaxSize = -1;
   Knum = 0;
   Read_Only = (tdp) ? tdp->IsReadOnly() : false;
+  m_data_charset=  (tdp) ? tdp->data_charset() : NULL;
   } // end of TDBASE constructor
 
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
@@ -250,6 +251,7 @@ TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   To_SetCols = tdbp->To_SetCols;          // ???
   MaxSize = tdbp->MaxSize;
   Read_Only = tdbp->Read_Only;
+  m_data_charset= tdbp->m_data_charset;
   } // end of TDBASE copy constructor
 
 /***********************************************************************/

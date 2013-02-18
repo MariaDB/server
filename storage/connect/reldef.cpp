@@ -102,6 +102,10 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   Multiple = cat->GetIntCatInfo(name, "Multiple", 0);
   Degree = cat->GetIntCatInfo(name, "Degree", 0);
   Read_Only = cat->GetBoolCatInfo(name, "ReadOnly", false);
+  const char *data_charset_name= cat->GetStringCatInfo(g, Name, "Data_charset", NULL);
+  m_data_charset= data_charset_name ?
+                  get_charset_by_csname(data_charset_name, MY_CS_PRIMARY, 0):
+                  NULL;
 
   // Get The column definitions
   if ((poff = cat->GetColCatInfo(g, this)) < 0)
