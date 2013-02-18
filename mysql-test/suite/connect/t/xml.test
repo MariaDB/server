@@ -199,6 +199,25 @@ DROP TABLE t1;
 --echo #
 --echo # Testing character sets
 --echo #
+
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=libxml2'
+  DATA_CHARSET=latin1;
+
+CREATE TABLE t1
+(
+  c CHAR(16)
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='latin1.xml'
+  OPTION_LIST='xmlsup=libxml2'
+  DATA_CHARSET=utf8;
+SHOW CREATE TABLE t1;
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
+
 CREATE TABLE t1
 (
   c CHAR(16)
@@ -229,15 +248,27 @@ SELECT c, HEX(c) FROM t1;
 DROP TABLE t1;
 
 
-#
-# TODO: Cyrillic does not work
-#
-#CREATE TABLE t1
-#(
-#  c CHAR(16) CHARACTER SET utf8
-#) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml';
-#SELECT c, HEX(c) FROM t1;
-#DROP TABLE t1;
+--echo #
+--echo # Testing Cyrillic
+--echo #
+CREATE TABLE t1
+(
+  c CHAR(16) CHARACTER SET utf8
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml'
+  OPTION_LIST='xmlsup=libxml2,rownode=b';
+SELECT * FROM t1;
+INSERT INTO t1 VALUES ('ИКЛМН');
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1
+(
+  c CHAR(16) CHARACTER SET cp1251
+) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml'
+  OPTION_LIST='xmlsup=libxml2,rownode=b';
+SELECT * FROM t1;
+INSERT INTO t1 VALUES ('ОПРСТ');
+SELECT c, HEX(c) FROM t1;
+DROP TABLE t1;
 
 
 #
