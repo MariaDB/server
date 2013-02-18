@@ -11,6 +11,7 @@
 
 #include "block.h"
 #include "catalog.h"
+#include "my_sys.h"
 
 typedef class  INDEXDEF *PIXDEF;
 
@@ -75,6 +76,10 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   virtual PIXDEF GetIndx(void) {return NULL;}
   virtual void   SetIndx(PIXDEF xp) {}
   virtual bool   IsHuge(void) {return false;}
+  const CHARSET_INFO *data_charset()
+  {
+    return m_data_charset;
+  }
 
   // Methods
           bool DropTable(PGLOBAL g, PSZ name);
@@ -93,6 +98,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   int     Degree;               /* Number of columns in the table      */
   int     Pseudo;               /* Bit: 1 ROWID Ok, 2 FILEID Ok        */
   bool    Read_Only;            /* true for read only tables           */
+  const CHARSET_INFO *m_data_charset;
   }; // end of TABDEF
 
 /***********************************************************************/

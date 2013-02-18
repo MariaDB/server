@@ -16,6 +16,7 @@
 #include "assert.h"
 #include "block.h"
 #include "colblk.h"
+#include "m_ctype.h"
 
 //pedef class  INDEXDEF  *PIXDEF;
 typedef char         *PFIL;                // Specific to CONNECT
@@ -104,6 +105,7 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
   virtual int    Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
   virtual int    RowNumber(PGLOBAL g, bool b = false);
   virtual bool   IsReadOnly(void) {return true;}
+  virtual const CHARSET_INFO *data_charset() { return NULL; }
   virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
   virtual PTDB   CopyOne(PTABS t) {return this;}
   virtual PTBX   Copy(PTABS t);
@@ -171,6 +173,15 @@ class DllExport TDBASE : public TDB {
   virtual int    GetRecpos(void) = 0;
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
+  virtual CHARSET_INFO *data_charset()
+  {
+    /*
+      If no DATA_CHARSET is specified, we assume that character
+      set of the remote data is the same with CHARACTER SET 
+      definition of the SQL column.
+    */
+    return m_data_charset ? m_data_charset : &my_charset_bin;
+  }
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
   virtual PSZ    GetFile(PGLOBAL g) {return "Not a file";}
@@ -199,6 +210,7 @@ class DllExport TDBASE : public TDB {
   int      MaxSize;            // Max size in number of lines
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
+  const CHARSET_INFO *m_data_charset;
   }; // end of class TDBASE
 
 /***********************************************************************/
