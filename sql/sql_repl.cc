@@ -3062,6 +3062,7 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   table_opened= true;
   table= tlist.table;
+  table->no_replicate= 1;
 
   /*
     ToDo: Check the table definition, error if not as expected.

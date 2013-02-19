@@ -5151,24 +5151,7 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 bool flush_relay_log_info(Relay_log_info* rli)
 {
   bool error=0;
-  uint64 sub_id;
-  rpl_gtid gtid;
   DBUG_ENTER("flush_relay_log_info");
-
-  /*
-    Update the GTID position, if we have it and did not already update
-    it in a GTID transaction.
-  */
-  if ((sub_id= rli->gtid_sub_id))
-  {
-    rli->gtid_sub_id= 0;
-    gtid= rli->current_gtid;
-    if (rpl_global_gtid_slave_state.record_gtid(rli->sql_thd,
-                                                &gtid, sub_id, false))
-      error= 1;
-    else
-      update_slave_gtid_state_hash(sub_id, &gtid);
-  }
 
   if (unlikely(rli->no_storage))
     DBUG_RETURN(0);

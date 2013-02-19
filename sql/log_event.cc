@@ -911,9 +911,11 @@ int Log_event::do_update_pos(Relay_log_info *rli)
                     if (debug_not_change_ts_if_art_event == 1
                         && is_artificial_event())
                       debug_not_change_ts_if_art_event= 0; );
-    rli->stmt_done(log_pos, is_artificial_event() &&
-                   IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
-                     0 : when);
+    rli->stmt_done(log_pos,
+                   (is_artificial_event() &&
+                    IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
+                    0 : when),
+                   thd);
     DBUG_EXECUTE_IF("let_first_flush_log_change_timestamp",
                     if (debug_not_change_ts_if_art_event == 0)
                       debug_not_change_ts_if_art_event= 2; );
@@ -3725,7 +3727,7 @@ bool test_if_equal_repl_errors(int expected_error, int actual_error)
 
 
 void
-update_slave_gtid_state_hash(uint64 sub_id, rpl_gtid *gtid)
+rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
 {
   int err;
   /*
@@ -3735,10 +3737,9 @@ update_slave_gtid_state_hash(uint64 sub_id, rpl_gtid *gtid)
     there will not be an attempt to delete the corresponding table row before
     it is even committed.
   */
-  rpl_global_gtid_slave_state.lock();
-  err= rpl_global_gtid_slave_state.update(gtid->domain_id, gtid->server_id,
-                                          sub_id, gtid->seq_no);
-  rpl_global_gtid_slave_state.unlock();
+  lock();
+  err= update(gtid->domain_id, gtid->server_id, sub_id, gtid->seq_no);
+  unlock();
   if (err)
   {
     sql_print_warning("Slave: Out of memory during slave state maintenance. "
@@ -3750,6 +3751,26 @@ update_slave_gtid_state_hash(uint64 sub_id, rpl_gtid *gtid)
       server restart.
     */
   }
+}
+
+
+int
+rpl_slave_state::record_and_update_gtid(THD *thd, Relay_log_info *rli)
+{
+  uint64 sub_id;
+
+  /*
+    Update the GTID position, if we have it and did not already update
+    it in a GTID transaction.
+  */
+  if ((sub_id= rli->gtid_sub_id))
+  {
+    rli->gtid_sub_id= 0;
+    if (record_gtid(thd, &rli->current_gtid, sub_id, false))
+      return 1;
+    update_state_hash(sub_id, &rli->current_gtid);
+  }
+  return 0;
 }
 
 
@@ -4171,7 +4192,7 @@ Default database: '%s'. Query: '%s'",
 
 end:
   if (sub_id && !thd->is_slave_error)
-    update_slave_gtid_state_hash(sub_id, &gtid);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
@@ -5982,6 +6003,7 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
     flush_relay_log_info(rli);
     
     /*
@@ -6226,6 +6248,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
   if (!(err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
   {
     table= tlist.table;
+    table->no_replicate= 1;
     err= table->file->ha_truncate();
 
     if (err)
@@ -6281,6 +6304,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
     goto end;
   table_opened= true;
   table= tlist.table;
+  table->no_replicate= 1;
 
   /*
     ToDo: Check the table definition, error if not as expected.
@@ -7805,7 +7829,7 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
   thd->mdl_context.release_transactional_locks();
 
   if (sub_id)
-    update_slave_gtid_state_hash(sub_id, &gtid);
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*
     Increment the global status commit count variable
@@ -8553,6 +8577,7 @@ int Stop_log_event::do_update_pos(Relay_log_info *rli)
     rli->inc_event_relay_log_pos();
   else
   {
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
     rli->inc_group_relay_log_pos(0);
     flush_relay_log_info(rli);
   }
@@ -10354,7 +10379,7 @@ Rows_log_event::do_update_pos(Relay_log_info *rli)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
     */
-    rli->stmt_done(log_pos, when);
+    rli->stmt_done(log_pos, when, thd);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in
