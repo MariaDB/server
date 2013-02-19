@@ -30,7 +30,7 @@ filamzip.cpp tabtbl.cpp myutil.cpp)
 #
 # Definitions that are shared for all OSes
 #
-add_definitions( -DMYSQL_DYNAMIC_PLUGIN -DMARIADB -DFORCE_INIT_OF_VARS )
+add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS )
 add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
 
 
@@ -68,7 +68,7 @@ IF(UNIX)
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
   SET(IPHLPAPI_LIBRARY "")
-ELSE(!UNIX)
+ELSE(NOT UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabwmi.cpp tabmac.cpp macutil.cpp)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
@@ -160,12 +160,12 @@ IF(CONNECT_WITH_MYSQL)
   # For dynamic linking
   SET(MYSQL_LIBRARY libmysql)
   add_definitions(-DMYSQL_SUPPORT)
-  IF(!UNIX)
+  IF(NOT UNIX)
     #
     # TODO: remove this
     # change to use "#include "../../include/mysql.h" in the sources.
     INCLUDE_DIRECTORIES("../../include/mysql")
-  ENDIF(!UNIX)
+  ENDIF(NOT UNIX)
 ENDIF(CONNECT_WITH_MYSQL)
 
 
@@ -222,7 +222,7 @@ IF(CONNECT_WITH_ODBC)
     ELSE()
       SET(ODBC_LIBRARY "")
     ENDIF()
-  ELSE(!UNIX)
+  ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
     SET(ODBC_LIBRARY "odbc32.lib odbccp32.lib")
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabodbc.cpp odbconn.cpp)

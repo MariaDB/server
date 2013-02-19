@@ -3652,7 +3652,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABLE  *st= table;                       // Probably unuseful
   PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
-  const CHARSET_INFO *data_charset;
 
   DBUG_ENTER("ha_connect::create");
   PTOS options= GetTableOptionStruct(table_arg);
@@ -3662,6 +3661,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   if (options->data_charset)
   {
+    const CHARSET_INFO *data_charset;
     if (!(data_charset= get_charset_by_csname(options->data_charset,
                                               MY_CS_PRIMARY, MYF(0))))
     {
@@ -3676,12 +3676,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                         MYF(0), options->data_charset);
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     }
-  }
-  else
-  {
-    data_charset= create_info->default_table_charset ?
-                  create_info->default_table_charset :
-                  &my_charset_latin1;
   }
 
   if (!g) {
