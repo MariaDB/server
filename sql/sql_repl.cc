@@ -679,6 +679,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
     typ= ev->get_type_code();
     if (typ == GTID_LIST_EVENT)
       break;                                    /* Done, found it */
+    delete ev;
     if (typ == ROTATE_EVENT || typ == STOP_EVENT ||
         typ == FORMAT_DESCRIPTION_EVENT)
       continue;                                 /* Continue looking */
