@@ -1200,7 +1200,7 @@ bool Relay_log_info::cached_charset_compare(char *charset) const
 
 
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
-                                  time_t event_creation_time)
+                               time_t event_creation_time, THD *thd)
 {
 #ifndef DBUG_OFF
   extern uint debug_not_change_ts_if_art_event;
@@ -1235,6 +1235,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   else
   {
     inc_group_relay_log_pos(event_master_log_pos);
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, this);
     flush_relay_log_info(this);
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
