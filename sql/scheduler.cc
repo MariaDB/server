@@ -27,6 +27,7 @@
 #include "mysqld.h"
 #include "sql_class.h"
 #include "sql_callback.h"
+#include <violite.h>
 
 /*
   End connection, in case when we are using 'no-threads'
@@ -61,6 +62,15 @@ static void scheduler_wait_sync_begin(void) {
 static void scheduler_wait_sync_end(void) {
   thd_wait_end(NULL);
 }
+
+static void scheduler_wait_net_begin(void) {
+   thd_wait_begin(NULL, THD_WAIT_NET);
+}
+
+static void scheduler_wait_net_end(void) {
+   thd_wait_end(NULL);
+}
+
 };
 /**@}*/
 
@@ -76,6 +86,9 @@ void scheduler_init() {
                              scheduler_wait_lock_end);
   thr_set_sync_wait_callback(scheduler_wait_sync_begin,
                              scheduler_wait_sync_end);
+
+  vio_set_wait_callback(scheduler_wait_net_begin,
+    scheduler_wait_net_end);
 }
 
 
