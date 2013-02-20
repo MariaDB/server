@@ -1561,14 +1561,14 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
             } // endif sdval
 
           fp->val_str(&attribute);
-          sdval->SetValue_psz(attribute.c_ptr());
+          sdval->SetValue_psz(attribute.c_ptr_safe());
           value->SetValue_pval(sdval);
           break;
         default:
           fp->val_str(&attribute);
           if (charset == &my_charset_bin)
           {
-            value->SetValue_psz(attribute.c_ptr());
+            value->SetValue_psz(attribute.c_ptr_safe());
           }
           else
           {
@@ -1576,7 +1576,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
             uint cnv_errors;
             data_charset_value.copy(attribute.ptr(), attribute.length(),
                                     attribute.charset(), charset, &cnv_errors);
-            value->SetValue_psz(data_charset_value.c_ptr());
+            value->SetValue_psz(data_charset_value.c_ptr_safe());
           }
         } // endswitch Type
 
