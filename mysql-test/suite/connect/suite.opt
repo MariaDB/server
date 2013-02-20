@@ -1,1 +1,1 @@
---plugin-load-add=$HA_CONNECT_SO --connect=10
+--plugin-load-add=$HA_CONNECT_SO --plugin-connect=ON
