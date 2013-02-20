@@ -7,11 +7,11 @@ size DOUBLE(12,0) flag=5
   OPTION_LIST='subdir=1';
 SELECT * FROM t1;
 path	fname	ftype	size
-SELECT fname, ftype, size FROM t1;
+SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 fname	ftype	size
 boys	.txt	282
-boyswin	.txt	288
 boys2	.txt	282
+boyswin	.txt	288
 ALTER TABLE t1 OPTION_LIST='subdir=0';
 Warnings:
 Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   `ftype` char(4) DEFAULT NULL,
   `size` double(12,0) DEFAULT NULL `flag`=5
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DIR `FILE_NAME`='*.txt' `OPTION_LIST`='subdir=0'
-SELECT fname, ftype, size FROM t1;
+SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 fname	ftype	size
 boys	.txt	282
 boyswin	.txt	288
