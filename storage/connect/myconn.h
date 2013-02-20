@@ -62,8 +62,8 @@ class DllItem MYSQLC {
   int     Open(PGLOBAL g, const char *host, const char *db,
                           const char *user= "root", const char *pwd= "*",
                           int pt= 0);
-  ulong   GetThreadID(void);
-  ulong   ServerVersion(void);
+//ulong   GetThreadID(void);
+//ulong   ServerVersion(void);
   const char *ServerInfo(void);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);

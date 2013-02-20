@@ -92,7 +92,7 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
 /******************************************************************/
 bool LIBXMLDOC::Initialize(PGLOBAL g)
   {
-//int n = xmlKeepBlanksDefault(0);
+  int n = xmlKeepBlanksDefault(1);
   return MakeNSlist(g);
   } // end of Initialize
 
@@ -221,7 +221,7 @@ PXLIST LIBXMLDOC::NewPlist(PGLOBAL g)
 /******************************************************************/
 int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
   {
-  int   rc;
+  int   rc = 0;
   FILE *of;
 
   if (!(of= global_fopen(g, MSGID_CANNOT_OPEN, ofn, "w")))
@@ -229,7 +229,13 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
 
 #if 1
   // This function does not crash (
-  rc = xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0);
+  if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
+    xmlErrorPtr err = xmlGetLastError();
+
+    strcpy(g->Message, (err) ? err->message : "Error saving XML doc"
+      );
+    rc = -1;
+    } // endif Save
 //  rc = xmlDocDump(of, Docp);
 #else // 0
   // Until this function is fixed, do the job ourself
@@ -465,6 +471,7 @@ char *XML2NODE::GetText(char *buf, int len)
     bool  b = false;
     int   rc = ((PXDOC2)Doc)->Decode(Content, buf, len);
 
+#if 0
     // Eliminate extra characters
     for (p1 = p2 = buf; *p1; p1++)
       if (strchr(" \t\r\n", *p1)) {
@@ -482,6 +489,7 @@ char *XML2NODE::GetText(char *buf, int len)
       *(p2 - 1) = 0;
     else
       *p2 = 0;
+#endif // 0
 
     if (trace)
       htrc("GetText buf='%s' len=%d rc=%d\n", buf, len, rc);

@@ -328,6 +328,7 @@ bool MYSQLC::Connected(void)
 
   } // end of Connected
 
+#if 0                         // Not used
 /***********************************************************************/
 /*  Returns the thread ID of the current MySQL connection.             */
 /***********************************************************************/
@@ -345,14 +346,15 @@ const char *MYSQLC::ServerInfo(void)
   } // end of ServerInfo
 
 /***********************************************************************/
-/*  Returns the version number of the server as a number that           */
-/*  represents the MySQL server version in this format:                 */
+/*  Returns the version number of the server as a number that          */
+/*  represents the MySQL server version in this format:                */
 /*  major_version*10000 + minor_version *100 + sub_version             */
 /***********************************************************************/
 ulong MYSQLC::ServerVersion(void)
   {
   return (m_DB) ? mysql_get_server_version(m_DB) : 0;
   } // end of ServerVersion
+#endif // 0
 
 /**************************************************************************/
 /*  KillQuery: Send MySQL a Kill Query command.                           */
@@ -421,7 +423,8 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
   if (m_Rows >= 0)
     return RC_OK;                  // Already done
 
-  if (mysql_query(m_DB, query) != 0) {
+//if (mysql_query(m_DB, query) != 0) {
+  if (mysql_real_query(m_DB, query, strlen(query))) {
     char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
 
     sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),

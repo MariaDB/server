@@ -152,7 +152,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0001 February 08, 2013";
+       char  version[]= "Version 1.01.0002 February 19, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -2923,7 +2923,9 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
         } // endif Mode
 
-      rc= CloseTable(g);
+      if (CloseTable(g))
+        rc= HA_ERR_INTERNAL_ERROR;
+
     } // endif tdbp
 
     DBUG_RETURN(rc);

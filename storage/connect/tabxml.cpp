@@ -496,8 +496,9 @@ bool TDBXML::Initialize(PGLOBAL g)
           goto error;
           } // endif NewDoc
 
-        // Add a PlugDB comment node
-        sprintf(buf, MSG(CREATED_PLUGDB), version);
+        // Add a CONNECT comment node
+//      sprintf(buf, MSG(CREATED_PLUGDB), version);
+        sprintf(buf, " Created by CONNECT %s ", version);
         Docp->AddComment(g, buf);
 
         if (XmlDB) {
@@ -914,7 +915,14 @@ void TDBXML::CloseDB(PGLOBAL g)
         TabNode->AddText(g, "\n");
 
       // Save the modified document
-      int rc = Docp->DumpDoc(g, filename);
+      if (Docp->DumpDoc(g, filename)) {
+        PushWarning(g, this);
+        Docp->CloseDoc(g, To_Xb);
+
+        // This causes a crash in Diagnostics_area::set_error_status
+//      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+        } // endif DumpDoc
+      
       } // endif Changed
 
     // Free the document and terminate XML processing
