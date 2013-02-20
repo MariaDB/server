@@ -1925,7 +1925,7 @@ sub collect_mysqld_features {
       # here we want to detect all not mandatory plugins
       # they are listed in the --help output as
       #  --archive[=name]    Enable or disable ARCHIVE plugin. Possible values are ON, OFF, FORCE (don't start if the plugin fails to load).
-      push @optional_plugins, $1
+      push @optional_plugins, "plugin-$1"
         if /^  --([-a-z0-9]+)\[=name\] +Enable or disable \w+ plugin. Possible values are ON, OFF, FORCE/;
       next;
     }
