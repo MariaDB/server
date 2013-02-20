@@ -281,8 +281,14 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   *colist = '\0';
 
   if (Prep) {
+#if defined(MYSQL_PREPARED_STATEMENTS)
     valist = (char*)PlugSubAlloc(g, NULL, 2 * Nparm);
     *valist = '\0';
+#else   // !MYSQL_PREPARED_STATEMENTS
+    strcpy(g->Message, "Prepared statements not used (not supported)");
+    PushWarning(g, this);
+    Prep = FALSE;
+#endif  // !MYSQL_PREPARED_STATEMENTS 
     } // endif Prep
 
   for (colp = Columns; colp; colp = colp->GetNext()) {
@@ -472,7 +478,7 @@ int TDBMYSQL::GetMaxSize(PGLOBAL g)
       Query = NULL;     // Must be remade when columns are known
 #endif // 0
 
-    MaxSize = 0;
+    MaxSize = 10;       // To make MySQL happy
     } // endif MaxSize
 
   return MaxSize;
@@ -500,6 +506,7 @@ int TDBMYSQL::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 int TDBMYSQL::BindColumns(PGLOBAL g)
   {
+#if defined(MYSQL_PREPARED_STATEMENTS)
   if (Prep) {
     Bind = (MYSQL_BIND*)PlugSubAlloc(g, NULL, Nparm * sizeof(MYSQL_BIND));
 
@@ -507,15 +514,15 @@ int TDBMYSQL::BindColumns(PGLOBAL g)
       colp->InitBind(g);
 
     return Myc.BindParams(g, Bind);
-  } else {
-    for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
-      if (colp->Buf_Type == TYPE_DATE)
-        // Format must match DATETIME MySQL type
-        ((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
+    } // endif prep
+#endif   // MYSQL_PREPARED_STATEMENTS
 
-    return RC_OK;
-  } // endif Prep
+  for (PMYCOL colp = (PMYCOL)Columns; colp; colp = (PMYCOL)colp->Next)
+    if (colp->Buf_Type == TYPE_DATE)
+      // Format must match DATETIME MySQL type
+      ((DTVAL*)colp->GetValue())->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
 
+  return RC_OK;
   } // end of BindColumns
 
 /***********************************************************************/
@@ -553,6 +560,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
 
   } else if (Mode == MODE_INSERT) {
     if (!MakeInsert(g)) {
+#if defined(MYSQL_PREPARED_STATEMENTS)
       int n = (Prep) ? Myc.PrepareSQL(g, Query) : Nparm;
 
       if (Nparm != n) {
@@ -560,6 +568,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
           strcpy(g->Message, MSG(BAD_PARM_COUNT));
 
       } else
+#endif   // MYSQL_PREPARED_STATEMENTS
         m_Rc = BindColumns(g);
 
       } // endif MakeInsert
@@ -630,8 +639,10 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBMYSQL::WriteDB(PGLOBAL g)
   {
+#if defined(MYSQL_PREPARED_STATEMENTS)
   if (Prep)
     return Myc.ExecStmt(g);
+#endif   // MYSQL_PREPARED_STATEMENTS
 
   // Statement was not prepared, we must construct and execute
   // an insert query for each line to insert
@@ -853,6 +864,7 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, FALSE);   // Convert the inserted value
 
+#if defined(MYSQL_PREPARED_STATEMENTS)
   if (((PTDBMY)To_Tdb)->Prep) {
     if (Buf_Type == TYPE_DATE) {
       Value->ShowValue((char *)Bind->buffer, (int)*Bind->length);
@@ -861,6 +873,7 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
       Slen = strlen(Value->GetCharValue());
 
     } // endif Prep
+#endif   // MYSQL_PREPARED_STATEMENTS
 
   } // end of WriteColumn
 

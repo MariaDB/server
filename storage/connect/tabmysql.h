@@ -90,7 +90,7 @@ class TDBMYSQL : public TDBASE {
 
   // Members
   MYSQLC      Myc;            // MySQL connection class
-  MYSQL_BIND *Bind;            // To the MySQL bind structure array
+  MYSQL_BIND *Bind;           // To the MySQL bind structure array
   char       *Host;           // Host machine to use
   char       *User;           // User logon info
   char       *Pwd;            // Password logon info

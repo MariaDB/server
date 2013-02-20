@@ -1,7 +1,7 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.6                                                         */
+/*  Version 1.7                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
@@ -317,12 +317,12 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 /***********************************************************************/
 bool MYSQLC::Connected(void)
   {
-  int rc;
+//int rc;
 
   if (!m_DB)
     return FALSE;
-  else if ((rc = mysql_ping(m_DB)) == CR_SERVER_GONE_ERROR)
-    return FALSE;
+//else if ((rc = mysql_ping(m_DB)) == CR_SERVER_GONE_ERROR)
+//  return FALSE;
   else
     return TRUE;
 
@@ -364,9 +364,11 @@ int MYSQLC::KillQuery(ulong id)
   char kill[20];
 
   sprintf(kill, "KILL QUERY %u", (unsigned int) id);
-  return (m_DB) ? mysql_query(m_DB, kill) : 1;
+//return (m_DB) ? mysql_query(m_DB, kill) : 1;
+  return (m_DB) ? mysql_real_query(m_DB, kill, strlen(kill)) : 1;
   } // end of KillQuery
 
+#if defined (MYSQL_PREPARED_STATEMENTS)
 /***********************************************************************/
 /*  Prepare the SQL statement used to insert into a MySQL table.       */
 /***********************************************************************/
@@ -406,58 +408,6 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
   } // end of PrepareSQL
 
 /***********************************************************************/
-/*  Exec the Select SQL command and get back the result size in rows.  */
-/***********************************************************************/
-int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
-  {
-  int rc = RC_OK;
-
-  if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
-    return RC_FX;
-    } // endif m_DB
-
-  if (w)
-    *w = 0;
-
-  if (m_Rows >= 0)
-    return RC_OK;                  // Already done
-
-//if (mysql_query(m_DB, query) != 0) {
-  if (mysql_real_query(m_DB, query, strlen(query))) {
-    char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
-
-    sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),
-                                 mysql_error(m_DB), query);
-    strncpy(g->Message, msg, sizeof(g->Message) - 1);
-    g->Message[sizeof(g->Message) - 1] = 0;
-    rc = RC_FX;
-  } else if (mysql_field_count(m_DB) > 0) {
-    if (!(m_Res = mysql_store_result(m_DB))) {
-      char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
-
-      sprintf(msg, "mysql_store_result failed: %s", mysql_error(m_DB));
-      strncpy(g->Message, msg, sizeof(g->Message) - 1);
-      g->Message[sizeof(g->Message) - 1] = 0;
-      rc = RC_FX;
-    } else {
-      m_Fields = mysql_num_fields(m_Res);
-      m_Rows = (int)mysql_num_rows(m_Res);
-    } // endif m_Res
-
-  } else {
-    m_Rows = (int)mysql_affected_rows(m_DB);
-    sprintf(g->Message, "Affected rows: %d\n", m_Rows);
-    rc = RC_NF;
-  } // endif field count
-
-  if (w)
-    *w = mysql_warning_count(m_DB);
-
-  return rc;
-  } // end of ExecSQL
-
-/***********************************************************************/
 /*  Bind the parameter buffers.                                        */
 /***********************************************************************/
 int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
@@ -481,7 +431,6 @@ int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
     } // endif bind
 
   return RC_OK;
-  } // end of BindParams
 
 /***********************************************************************/
 /*  Execute a prepared statement.                                      */
@@ -515,6 +464,77 @@ int MYSQLC::ExecStmt(PGLOBAL g)
 
   return RC_OK;
   } // end of ExecStmt
+#endif   // MYSQL_PREPARED_STATEMENTS
+
+/***********************************************************************/
+/*  Exec the Select SQL command and get back the result size in rows.  */
+/***********************************************************************/
+int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
+  {
+  int rc = RC_OK;
+
+  if (!m_DB) {
+    strcpy(g->Message, "MySQL not connected");
+    return RC_FX;
+    } // endif m_DB
+
+  if (w)
+    *w = 0;
+
+  if (m_Rows >= 0)
+    return RC_OK;                  // Already done
+
+//if (mysql_query(m_DB, query) != 0) {
+  if (mysql_real_query(m_DB, query, strlen(query))) {
+    char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+
+    sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),
+                                 mysql_error(m_DB), query);
+    strncpy(g->Message, msg, sizeof(g->Message) - 1);
+    g->Message[sizeof(g->Message) - 1] = 0;
+    rc = RC_FX;
+//} else if (mysql_field_count(m_DB) > 0) {
+  } else if (m_DB->field_count > 0) {
+    if (!(m_Res = mysql_store_result(m_DB))) {
+      char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+
+      sprintf(msg, "mysql_store_result failed: %s", mysql_error(m_DB));
+      strncpy(g->Message, msg, sizeof(g->Message) - 1);
+      g->Message[sizeof(g->Message) - 1] = 0;
+      rc = RC_FX;
+    } else {
+      m_Fields = mysql_num_fields(m_Res);
+      m_Rows = (int)mysql_num_rows(m_Res);
+    } // endif m_Res
+
+  } else {
+//  m_Rows = (int)mysql_affected_rows(m_DB);
+    m_Rows = (int)m_DB->affected_rows;
+    sprintf(g->Message, "Affected rows: %d\n", m_Rows);
+    rc = RC_NF;
+  } // endif field count
+
+if (w)
+//*w = mysql_warning_count(m_DB);
+  *w = m_DB->warning_count;
+
+  return rc;
+  } // end of ExecSQL
+
+/***********************************************************************/
+/*  Move to a specific row and column                                  */
+/***********************************************************************/
+void MYSQLC::DataSeek(my_ulonglong row)
+  {
+  MYSQL_ROWS	*tmp=0;
+//DBUG_PRINT("info",("mysql_data_seek(%ld)",(long) row));
+
+  if (m_Res->data)
+    for (tmp = m_Res->data->data; row-- && tmp; tmp = tmp->next) ;
+
+  m_Res->current_row = 0;
+  m_Res->data_cursor = tmp;
+  } // end of DataSeek
 
 /***********************************************************************/
 /*  Fetch one result line from the query result set.                   */
@@ -534,7 +554,8 @@ int MYSQLC::Fetch(PGLOBAL g, int pos)
     N++;
 
   if (pos >= 0)
-    mysql_data_seek(m_Res, (my_ulonglong)pos);
+//  mysql_data_seek(m_Res, (my_ulonglong)pos);
+    DataSeek((my_ulonglong)pos);
 
   m_Row = mysql_fetch_row(m_Res);
   return (m_Row) ? RC_OK : RC_EF;
@@ -547,7 +568,7 @@ char *MYSQLC::GetCharField(int i)
   {
   if (m_Res && m_Row) {
 #if defined(_DEBUG)
-    MYSQL_FIELD *fld = mysql_fetch_field_direct(m_Res, i);
+//  MYSQL_FIELD *fld = mysql_fetch_field_direct(m_Res, i);
 #endif   // _DEBUG
     MYSQL_ROW row = m_Row + i;
 
@@ -563,16 +584,25 @@ char *MYSQLC::GetCharField(int i)
 int MYSQLC::GetFieldLength(int i)
   {
   if (m_Res) {
-    MYSQL_FIELD *fld = mysql_fetch_field_direct(m_Res, i);
-
-    return fld->max_length;
+//  MYSQL_FIELD *fld = mysql_fetch_field_direct(m_Res, i);
+//  return fld->max_length;
+    return (m_Res)->fields[i].max_length;
   } else
     return 0;
 
   } // end of GetFieldLength
 
 /***********************************************************************/
-/*  Make a PlugDB result structure from the MySQL result.              */
+/*  Return next field of the query results.                            */
+/***********************************************************************/
+MYSQL_FIELD *MYSQLC::GetNextField(void)
+  {
+  return (m_Res->current_field >= m_Res->field_count) ? NULL
+       : &m_Res->fields[m_Res->current_field++];
+  } // end of GetNextField
+
+/***********************************************************************/
+/*  Make a CONNECT result structure from the MySQL result.             */
 /***********************************************************************/
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
@@ -604,8 +634,10 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   qrp->Nblin = 0;
   qrp->Cursor = 0;
 
-  for (fld = mysql_fetch_field(m_Res); fld;
-       fld = mysql_fetch_field(m_Res)) {
+
+//for (fld = mysql_fetch_field(m_Res); fld;
+//     fld = mysql_fetch_field(m_Res)) {
+  for (fld = GetNextField(); fld; fld = GetNextField()) {
     *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
     crp = *pcrp;
     pcrp = &crp->Next;
@@ -701,7 +733,7 @@ void MYSQLC::FreeResult(void)
 void MYSQLC::Rewind(void)
   {
   if (m_Res)
-    mysql_data_seek(m_Res, 0);
+    DataSeek(0);
 
   } // end of Rewind
 
@@ -715,6 +747,7 @@ void MYSQLC::Close(void)
   m_DB = NULL;
   } // end of Close
 
+#if 0                       // not used yet
 /***********************************************************************/
 /*  Discard additional results from a stored procedure.                */
 /***********************************************************************/
@@ -722,9 +755,10 @@ void MYSQLC::DiscardResults(void)
   {
   MYSQL_RES *res;
 
-  while(!mysql_next_result(m_DB)) {
+  while (!mysql_next_result(m_DB)) {
     res = mysql_store_result(m_DB);
     mysql_free_result(res);
     } // endwhile next result 
 
-  } // end of DiscardResults 
+  } // end of DiscardResults
+#endif // 0
