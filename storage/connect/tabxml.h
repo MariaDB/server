@@ -40,13 +40,13 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   char   *Encoding;               /* New XML table file encoding       */
   char   *Tabname;                /* Name of Table node                */
   char   *Rowname;                /* Name of first level nodes         */
-  char   *Colname;                /* Name of second level nodes         */
+  char   *Colname;                /* Name of second level nodes        */
   char   *Mulnode;                /* Name of multiple node             */
   char   *XmlDB;                  /* Name of XML DB node               */
-  char   *Nslist;                  /* List of namespaces to register    */
+  char   *Nslist;                 /* List of namespaces to register    */
   char   *DefNs;                  /* Dummy name of default namespace   */
-  char   *Attrib;                  /* Table node attributes             */
-  char   *Hdattr;                  /* Header node attributes            */
+  char   *Attrib;                 /* Table node attributes             */
+  char   *Hdattr;                 /* Header node attributes            */
   int     Coltype;                /* Default column type               */
   int     Limit;                  /* Limit of multiple values          */
   int     Header;                 /* n first rows are header rows      */
@@ -77,7 +77,7 @@ class DllExport TDBXML : public TDBASE {
   virtual PTDB  CopyOne(PTABS t);
   virtual int   GetRecpos(void);
   virtual int   GetProgCur(void) {return N;}
-  virtual PSZ    GetFile(PGLOBAL g) {return Xfile;}
+  virtual PSZ   GetFile(PGLOBAL g) {return Xfile;}
   virtual void  SetFile(PGLOBAL g, PSZ fn) {Xfile = fn;}
   virtual void  ResetDB(void) {N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1;}
@@ -126,26 +126,26 @@ class DllExport TDBXML : public TDBASE {
   bool    NewRow;                   // True when inserting a new row
   bool    Hasnod;                   // True if rows have subnodes
   bool    Write;                    // True for Insert and Update
-  bool    Usedom;                    // True for DOM, False for libxml2
+  bool    Usedom;                   // True for DOM, False for libxml2
   bool    Bufdone;                  // True when column buffers allocated
-  bool    Nodedone;                  // True when column nodes allocated
-  bool    Skipnull;                  // True to skip writing nullnodes
+  bool    Nodedone;                 // True when column nodes allocated
+  bool    Skipnull;                 // True to skip writing nullnodes
   bool    Void;                     // True if the file does not exist
-  char   *Xfile;                     // The XML file
+  char   *Xfile;                    // The XML file
   char   *Enc;                      // New XML table file encoding
   char   *Tabname;                  // Name of Table node
   char   *Rowname;                  // Name of first level nodes
-  char   *Colname;                   // Name of second level nodes
+  char   *Colname;                  // Name of second level nodes
   char   *Mulnode;                  // Name of multiple node
   char   *XmlDB;                    // Name of XML DB node
-  char   *Nslist;                    // List of namespaces to register
+  char   *Nslist;                   // List of namespaces to register
   char   *DefNs;                    // Dummy name of default namespace
-  char   *Attrib;                    // Table node attribut(s)
-  char   *Hdattr;                    // Header node attribut(s)
+  char   *Attrib;                   // Table node attribut(s)
+  char   *Hdattr;                   // Header node attribut(s)
   int     Coltype;                  // Default column type
   int     Limit;                    // Limit of multiple values
   int     Header;                   // n first rows are header rows
-  int     Nrow;                       // The table cardinality
+  int     Nrow;                     // The table cardinality
   int     Irow;                     // The current row index
   int     Nsub;                     // The current subrow index
   int     N;                        // The current Rowid
@@ -188,7 +188,7 @@ class XMLCOL : public COLBLK {
   PXATTR  Vxap;            
   PXATTR  AttNode;            
   PTDBXML Tdbp;                          
-  char   *Valbuf;                   // To the node value buffer
+  char   *Valbuf;                 // To the node value buffer
   char   *Xname;                  // The node or attribute name
   char*  *Nodes;                  // The intermediate nodes
   int     Type;                   // 0: Attribute, 1: Tag, 2: position

@@ -469,12 +469,13 @@ char *XML2NODE::GetText(char *buf, int len)
     xmlFree(Content);
 
   if ((Content = xmlNodeGetContent(Nodep))) {
+    char *extra = " \t\r\n";
     char *p1 = (char*)Content, *p2 = buf;
     bool  b = false;
 
     // Copy content eliminating extra characters
-    for (; *p1 && (p2 - buf) < (len - 1); p1++)
-      if (strchr("\t\r\n", *p1)) {
+    for (; *p1 && (p2 - buf) < len; p1++)
+      if (strchr(extra, *p1)) {
         if (b) {
           // This to have one blank between sub-nodes
           *p2++ = ' ';
