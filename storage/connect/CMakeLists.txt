@@ -155,10 +155,6 @@ OPTION(CONNECT_WITH_MYSQL
 
 IF(CONNECT_WITH_MYSQL)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} myconn.cpp tabmysql.cpp)
-  # For static linking
-  #SET(MYSQL_LIBRARY mysqlclient)
-  # For dynamic linking
-  SET(MYSQL_LIBRARY libmysql)
   add_definitions(-DMYSQL_SUPPORT)
   IF(NOT UNIX)
     #
@@ -238,4 +234,4 @@ MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   MODULE_OUTPUT_NAME "ha_connect"
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
-                 ${MYSQL_LIBRARY} ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+                 ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
