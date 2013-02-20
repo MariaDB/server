@@ -90,7 +90,7 @@ TABDEF::TABDEF(void)
 /***********************************************************************/
 bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   {
-  char  buf[8];
+//char  buf[8];
   int   poff = 0;
   void *memp = cat->Descp;
 
