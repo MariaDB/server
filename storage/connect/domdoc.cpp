@@ -217,10 +217,17 @@ PXLIST DOMDOC::NewPlist(PGLOBAL g)
 /******************************************************************/
 int DOMDOC::DumpDoc(PGLOBAL g, char *ofn)
   {
-  if (TestHr(g, Docp->save(ofn)))
-    return -1;
+  int rc = 0;
 
-  return 0;
+  try {
+    Docp->save(ofn);
+  } catch(_com_error e)  {
+    sprintf(g->Message, "%s: %s", MSG(COM_ERROR), 
+            _com_util::ConvertBSTRToString(e.Description()));
+    rc = -1;
+  }  catch(...) {}
+
+  return rc;
   } // end of Dump
 
 /******************************************************************/
