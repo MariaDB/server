@@ -335,6 +335,7 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
   return nl;
   } // end of GetNodeList
 
+#if 0                                // Not used anymore
 /******************************************************************/
 /*  CheckDocument: check if the document is ok to dump.           */
 /*  Currently this does the dumping of the document.              */
@@ -411,6 +412,7 @@ xmlChar *LIBXMLDOC::Encode(PGLOBAL g, char *txt)
   buf[len]= '\0';
   return BAD_CAST buf;
   } // end of Encode
+#endif // 0
 
 /* ---------------------- class XML2NODE ------------------------ */
 
@@ -467,15 +469,14 @@ char *XML2NODE::GetText(char *buf, int len)
     xmlFree(Content);
 
   if ((Content = xmlNodeGetContent(Nodep))) {
-    char *p1, *p2;
+    char *p1 = (char*)Content, *p2 = buf;
     bool  b = false;
-    int   rc = ((PXDOC2)Doc)->Decode(Content, buf, len);
 
-#if 0
-    // Eliminate extra characters
-    for (p1 = p2 = buf; *p1; p1++)
-      if (strchr(" \t\r\n", *p1)) {
+    // Copy content eliminating extra characters
+    for (; *p1 && (p2 - buf) < (len - 1); p1++)
+      if (strchr("\t\r\n", *p1)) {
         if (b) {
+          // This to have one blank between sub-nodes
           *p2++ = ' ';
           b = false;
           }  // endif b
@@ -485,14 +486,10 @@ char *XML2NODE::GetText(char *buf, int len)
         b = true;
       } // endif p1
 
-    if (*(p2 - 1) == ' ')
-      *(p2 - 1) = 0;
-    else
-      *p2 = 0;
-#endif // 0
+    *p2 = 0;
 
     if (trace)
-      htrc("GetText buf='%s' len=%d rc=%d\n", buf, len, rc);
+      htrc("GetText buf='%s' len=%d\n", buf, len);
 
     xmlFree(Content);
     Content = NULL;
@@ -507,10 +504,13 @@ char *XML2NODE::GetText(char *buf, int len)
 /******************************************************************/
 bool XML2NODE::SetContent(PGLOBAL g, char *txtp, int len)
   {
-  if (trace)
-    htrc("SetContent %s\n", txtp);
+  xmlChar *buf = xmlEncodeEntitiesReentrant(Docp, BAD_CAST txtp);
 
-  xmlNodeSetContent(Nodep, ((PXDOC2)Doc)->Encode(g, txtp));
+  if (trace)
+    htrc("SetContent %s -> %s\n", txtp, buf);
+
+  xmlNodeSetContent(Nodep, buf);
+  xmlFree(buf);
   return false;
   } // end of SetContent
 
@@ -772,8 +772,8 @@ XML2ATTR::XML2ATTR(PXDOC dp, xmlAttrPtr ap, xmlNodePtr np)
 bool XML2ATTR::SetText(PGLOBAL g, char *txtp, int len)
   {
   if (trace)
-    htrc("SetText %s\n", txtp);
+    htrc("SetText %s %d\n", txtp, len);
 
-  xmlSetProp(Parent, Atrp->name, ((PXDOC2)Doc)->Encode(g, txtp));
+  xmlSetProp(Parent, Atrp->name, BAD_CAST txtp);
   return false;
   } // end of SetText

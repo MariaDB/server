@@ -53,7 +53,7 @@ class LIBXMLDOC : public XMLDOCUMENT {
   virtual PFBLOCK LinkXblock(PGLOBAL g, MODE m, int rc, char *fn);
 
  protected:
-          bool     CheckDocument(FILE *of, xmlNodePtr np);
+//        bool     CheckDocument(FILE *of, xmlNodePtr np);
           xmlNodeSetPtr GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp);
           int      Decode(xmlChar *cnt, char *buf, int n);
           xmlChar *Encode(PGLOBAL g, char *txt);
