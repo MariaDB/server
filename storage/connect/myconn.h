@@ -1,5 +1,5 @@
 /***********************************************************************/
-/*  MYCONN.H     Olivier Bertrand    2007-2012                         */
+/*  MYCONN.H     Olivier Bertrand    2007-2013                         */
 /*                                                                     */
 /*  This is the declaration file for the MySQL connection class and    */
 /*  a few utility functions used to communicate with MySQL.            */
@@ -64,7 +64,7 @@ class DllItem MYSQLC {
                           int pt= 0);
 //ulong   GetThreadID(void);
 //ulong   ServerVersion(void);
-  const char *ServerInfo(void);
+//const char *ServerInfo(void);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);
   int     PrepareSQL(PGLOBAL g, const char *query);
@@ -77,9 +77,12 @@ class DllItem MYSQLC {
   void    Rewind(void);
   void    FreeResult(void);
   void    Close(void);
-  void    DiscardResults(void);
+//void    DiscardResults(void);
 
  protected:
+  MYSQL_FIELD *GetNextField(void);
+  void    DataSeek(my_ulonglong row);
+
   // Members
   MYSQL      *m_DB;         // The return from MySQL connection
   MYSQL_STMT *m_Stmt;       // Prepared statement handle
