@@ -965,6 +965,12 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
   char name_buf[FN_REFLEN];
   LOG_INFO linfo;
 
+  if (!mysql_bin_log.is_open())
+  {
+    my_error(ER_NO_BINARY_LOGGING, MYF(0));
+    return 1;
+  }
+
   if (in_name && in_name[0])
   {
     mysql_bin_log.make_log_name(name_buf, in_name);
