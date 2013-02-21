@@ -232,7 +232,7 @@ ha_create_table_option connect_table_option_list[]=
 //HA_TOPTION_STRING("CONNECT_STRING", connect),
   HA_TOPTION_STRING("TABNAME", tabname),
   HA_TOPTION_STRING("TABLE_LIST", tablist),
-  HA_TOPTION_STRING("DB_NAME", dbname),
+  HA_TOPTION_STRING("DBNAME", dbname),
   HA_TOPTION_STRING("SEP_CHAR", separator),
   HA_TOPTION_STRING("QCHAR", qchar),
   HA_TOPTION_STRING("MODULE", module),
@@ -737,8 +737,8 @@ PTOS ha_connect::GetTableOptionStruct(TABLE *tab)
     } else if (!stricmp(pk, "sep") || !stricmp(pk, "separator")
                                    || !stricmp(pk, "Sep_Char")) {
       top->separator= val;
-    } else if (!stricmp(pk, "db") || !stricmp(pk, "database")
-                                  || !stricmp(pk, "DB_Name")) {
+    } else if (!stricmp(pk, "db") || !stricmp(pk, "DBName")
+                                  || !stricmp(pk, "Database") {
       top->dbname= val;
     } else if (!stricmp(pk, "qchar")) {
       top->qchar= val;
@@ -807,7 +807,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->tabname;
   else if (!stricmp(opname, "Tablist"))
     opval= (char*)options->tablist;
-  else if (!stricmp(opname, "Database"))
+  else if (!stricmp(opname, "Database") ||
+           !stricmp(opname, "DBname"))
     opval= (char*)options->dbname;
   else if (!stricmp(opname, "Separator"))
     opval= (char*)options->separator;
@@ -3345,7 +3346,6 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
 
   fn= dsn= tab= host= pwd= prt= sep= NULL;
   user= NULL;
-  db= thd->db;                     // Default value
 
   // Get the useful create options
   for (pov= start; pov; pov= pov->next) {
@@ -3356,7 +3356,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       fn= pov->value.str;
     } else if (!stricmp(pov->name.str, "tabname")) {
       tab= pov->value.str;
-    } else if (!stricmp(pov->name.str, "db_name")) {
+    } else if (!stricmp(pov->name.str, "dbname")) {
       db= pov->value.str;
     } else if (!stricmp(pov->name.str, "catfunc")) {
       fncn= pov->value.str;
@@ -3375,6 +3375,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     } else if (!stricmp(pov->name.str, "option_list")) {
       host= GetListOption("host", pov->value.str, "localhost");
       user= GetListOption("user", pov->value.str, "root");
+      db= GetListOption("database", pov->value.str);
       pwd= GetListOption("password", pov->value.str);
       prt= GetListOption("port", pov->value.str);
       port= (prt) ? atoi(prt) : MYSQL_PORT;
@@ -3387,6 +3388,9 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
 
     end= pov;
     } // endfor pov
+
+  if (!db)
+    db= thd->db;                     // Default value
 
   // Check table type
   if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
