@@ -831,6 +831,16 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+extern "C" const char* const oqgraph_boost_version;
+extern "C" const char* const oqgraph_judy_version;
+
+static struct st_mysql_show_var oqgraph_status[]=
+{
+  { "OQGraph_Boost_Version", (char*) &oqgraph_boost_version, SHOW_CHAR_PTR },
+  /*{ "OQGraph_Judy_Version",  (char*) &oqgraph_judy_version, SHOW_CHAR_PTR },*/
+  { 0, 0 }
+};
+
 maria_declare_plugin(oqgraph)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -842,7 +852,7 @@ maria_declare_plugin(oqgraph)
   (int (*)(void*)) oqgraph_init, /* Plugin Init                  */
   oqgraph_fini,               /* Plugin Deinit                   */
   0x0300,                     /* Version: 3s.0                    */
-  NULL,                       /* status variables                */
+  oqgraph_status,             /* status variables                */
   NULL,                       /* system variables                */
   "3.0",
   MariaDB_PLUGIN_MATURITY_BETA

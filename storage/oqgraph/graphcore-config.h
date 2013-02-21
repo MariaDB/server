@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2011 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,14 +16,25 @@
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
-   Mk.III implementation by Antony Curtis & Arjen Lentz
+   Mk.II implementation by Antony Curtis & Arjen Lentz
    For more information, documentation, support, enhancement engineering,
    and non-GPL licensing, see http://openquery.com/graph
    or contact graph@openquery.com
    For packaged binaries, see http://ourdelta.org
    ======================================================================
 */
+#ifndef oq_graphcore_config_h_
+#define oq_graphcore_config_h_
 
-#include "graphcore-config.h"
-#include "graphcore-graph.h"
+#define BOOST_ALL_NO_LIB 1
+#define BOOST_NO_RTTI 1
+#define BOOST_NO_TYPEID 1
+
+#ifdef DBUG_OFF
+#define NDEBUG 1
+#endif
+
+#include <boost/config.hpp>
+
+#endif
 

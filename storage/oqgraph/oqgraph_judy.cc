@@ -27,6 +27,12 @@
 #include "oqgraph_judy.h"
 #include <Judy.h>
 
+#ifndef JUDY_LIB_VERSION
+#define JUDY_LIB_VERSION "(unknown)"
+#endif
+
+extern "C" const char* const oqgraph_judy_version= JUDY_LIB_VERSION;
+
 void open_query::judy_bitset::clear()
 {
   int rc;
