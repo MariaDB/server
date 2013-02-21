@@ -1840,9 +1840,9 @@ void THD::awake(killed_state state_to_set)
   if (state_to_set != NOT_KILLED)
 #ifdef WITH_WSREP
     if (!wsrep_bf_thd || wsrep_bf_thd->wsrep_exec_mode == LOCAL_STATE)
-#else
-    ha_kill_query(this, thd_kill_level(this));
 #endif /* WITH_WSREP */
+    ha_kill_query(this, thd_kill_level(this));
+
   /* Broadcast a condition to kick the target if it is waiting on it. */
   if (mysys_var)
   {
