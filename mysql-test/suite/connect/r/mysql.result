@@ -22,7 +22,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `x` int(11) DEFAULT NULL,
   `y` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=16000'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
 SELECT * FROM t2;
 ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'field list' [SELECT `x`, `y` FROM `t1`]' from CONNECT
 DROP TABLE t2;
