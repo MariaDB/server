@@ -301,6 +301,25 @@ SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
 --remove_file $MYSQLD_DATADIR/test/t1.xml
 
 
+--echo #
+--echo # Testing XML entities
+--echo #
+CREATE TABLE t1 (node VARCHAR(50))
+  CHARACTER SET utf8
+  ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
+  OPTION_LIST='xmlsup=libxml2,rownode=line,encoding=iso-8859-1';
+INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
+INSERT INTO t1 VALUES ('&<>"\'');
+SELECT node, hex(node) FROM t1;
+DROP TABLE t1;
+--chmod 0777 $MYSQLD_DATADIR/test/t1.xml
+SET @a=LOAD_FILE('test/t1.xml');
+SELECT CAST(@a AS CHAR CHARACTER SET latin1);
+--remove_file $MYSQLD_DATADIR/test/t1.xml
+
+
+
 #
 # Clean up
 #

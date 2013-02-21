@@ -390,3 +390,37 @@ SELECT LEFT(@a,43);
 LEFT(@a,43)	<?xml version="1.0" encoding="iso-8859-1"?>
 SELECT HEX(EXTRACTVALUE(@a,'/t1/line/node'));
 HEX(EXTRACTVALUE(@a,'/t1/line/node'))	C0C1C2C3
+#
+# Testing XML entities
+#
+CREATE TABLE t1 (node VARCHAR(50))
+CHARACTER SET utf8
+ENGINE=connect TABLE_TYPE=xml FILE_NAME='t1.xml'
+  OPTION_LIST='xmlsup=libxml2,rownode=line,encoding=iso-8859-1';
+INSERT INTO t1 VALUES (_latin1 0xC0C1C2C3);
+INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
+INSERT INTO t1 VALUES ('&<>"\'');
+SELECT node, hex(node) FROM t1;
+node	ÀÁÂÃ
+hex(node)	C380C381C382C383
+node	АБВГ
+hex(node)	D090D091D092D093
+node	&<>"'
+hex(node)	263C3E2227
+DROP TABLE t1;
+SET @a=LOAD_FILE('test/t1.xml');
+SELECT CAST(@a AS CHAR CHARACTER SET latin1);
+CAST(@a AS CHAR CHARACTER SET latin1)	<?xml version="1.0" encoding="iso-8859-1"?>
+<!-- Created by CONNECT Version 1.01.0002 February 19, 2013 -->
+<t1>
+	<line>
+		<node>ÀÁÂÃ</node>
+	</line>
+	<line>
+		<node>&#1040;&#1041;&#1042;&#1043;</node>
+	</line>
+	<line>
+		<node>&amp;&lt;&gt;"'</node>
+	</line>
+</t1>
+
