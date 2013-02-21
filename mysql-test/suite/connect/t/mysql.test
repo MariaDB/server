@@ -12,7 +12,8 @@ SELECT * FROM t1;
 --echo #
 
 # Bad user name
---replace_result $PORT PORT
+# Suppress "mysql_real_connect failed:" (printed in _DEBUG build)
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
 --error ER_UNKNOWN_ERROR
 --eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
 
@@ -28,6 +29,7 @@ SHOW CREATE TABLE t2;
 # Bad column name
 --replace_result $PORT PORT
 --eval CREATE TABLE t2 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT
 SHOW CREATE TABLE t2;
 --error ER_GET_ERRMSG
 SELECT * FROM t2;
