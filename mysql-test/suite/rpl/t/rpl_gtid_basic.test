@@ -2,6 +2,11 @@
 --let $rpl_topology=1->2->3->4
 --source include/rpl_init.inc
 
+# Set up a 4-deep replication topology, then test various fail-overs
+# using GTID.
+#
+#  A -> B -> C -> D
+
 connection server_1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=MyISAM;
 CREATE TABLE t2 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
@@ -30,6 +35,82 @@ connection server_4;
 sync_with_master;
 SELECT * FROM t1 ORDER BY a;
 SELECT * FROM t2 ORDER BY a;
+
+
+--echo *** Now take out D, let it fall behind a bit, and then test re-attaching it to A ***
+connection server_4;
+--source include/stop_slave.inc
+
+connection server_1;
+INSERT INTO t1 VALUES (5, "m1a");
+INSERT INTO t2 VALUES (5, "i1a");
+save_master_pos;
+
+connection server_4;
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     MASTER_GTID_POS=AUTO;
+--source include/start_slave.inc
+sync_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Now move B to D (C is still replicating from B) ***
+connection server_2;
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_4 SERVER_MYPORT_4
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_4,
+     MASTER_GTID_POS=AUTO;
+--source include/start_slave.inc
+
+connection server_4;
+UPDATE t2 SET b="j1a" WHERE a=5;
+save_master_pos;
+
+connection server_2;
+sync_with_master;
+SELECT * FROM t1 ORDER BY a;
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Now move C to D, after letting it fall a little behind ***
+connection server_3;
+--source include/stop_slave.inc
+
+connection server_1;
+BEGIN;
+INSERT INTO t2 VALUES (6, "i6b");
+INSERT INTO t2 VALUES (7, "i7b");
+COMMIT;
+
+connection server_3;
+--replace_result $SERVER_MYPORT_4 SERVER_MYPORT_4
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_4,
+     MASTER_GTID_POS=AUTO;
+--source include/start_slave.inc
+# This time, let's sync up without reference to binlog on D.
+--let $wait_condition= SELECT COUNT(*) = 7 FROM t2
+--source include/wait_condition.inc
+SELECT * FROM t2 ORDER BY a;
+
+--echo *** Now change everything back to what it was, to make rpl_end.inc happy
+# Also check that MASTER_GTID_POS=AUTO is still enabled.
+connection server_2;
+--source include/stop_slave.inc
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT;
+--source include/start_slave.inc
+
+connection server_3;
+--source include/stop_slave.inc
+--replace_result $SLAVE_MYPORT SLAVE_MYPORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT;
+--source include/start_slave.inc
+
+connection server_4;
+--source include/stop_slave.inc
+--replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_3;
+--source include/start_slave.inc
 
 connection server_1;
 DROP TABLE t1,t2;

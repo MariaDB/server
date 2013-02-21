@@ -79,6 +79,22 @@ while ($_rpl_server)
 --source include/rpl_sync.inc
 --source include/rpl_stop_slaves.inc
 
+if (!$rpl_debug)
+{
+  --disable_query_log
+}
+--let $_rpl_server= $rpl_server_count
+while ($_rpl_server)
+{
+  --let $rpl_connection_name= server_$_rpl_server
+  --source include/rpl_connection.inc
+
+  # Clear Gtid_Pos_Auto in SHOW SLAVE STATUS to keep check_testcase happy.
+  CHANGE MASTER TO master_log_file='';
+
+  --dec $_rpl_server
+}
+
 # mtr configures server 2 to be a slave before it runs the test. We
 # have to restore that state now, so we change topology to 1->2.
 --let $rpl_topology= none

@@ -397,6 +397,33 @@ int init_recovery(Master_info* mi, const char** errmsg)
 
   DBUG_RETURN(0);
 }
+
+
+/*
+  When connecting a slave to a master with GTID, we reset the relay log
+  coordinates of the SQL thread and clear the master coordinates of SQL and IO
+  threads.
+
+  This way we ensure that we start from the correct place even after a change
+  to new master or a crash where relay log coordinates may be wrong (GTID
+  state is crash safe but master.info is not). And we get the correct master
+  coordinates set upon reading the initial fake rotate event sent from master.
+*/
+static void
+reset_coordinates_for_gtid(Master_info *mi, Relay_log_info *rli)
+{
+  mi->master_log_pos= 0;
+  mi->master_log_name[0]= 0;
+  rli->group_master_log_pos= 0;
+  rli->group_master_log_name[0]= 0;
+  rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
+  strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
+          sizeof(rli->group_relay_log_name)-1);
+  rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
+  strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
+          sizeof(mi->rli.event_relay_log_name)-1);
+}
+
  
 /**
   Convert slave skip errors bitmap into a printable string.
@@ -3385,6 +3412,8 @@ connected:
   if (ret == 1)
     /* Fatal error */
     goto err;
+  if (mi->gtid_pos_auto)
+    reset_coordinates_for_gtid(mi, rli);
 
   if (ret == 2) 
   { 
@@ -4694,16 +4723,18 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
        
        Heartbeat is sent only after an event corresponding to the corrdinates
        the heartbeat carries.
-       Slave can not have a difference in coordinates except in the only
+       Slave can not have a higher coordinate except in the only
        special case when mi->master_log_name, master_log_pos have never
        been updated by Rotate event i.e when slave does not have any history
        with the master (and thereafter mi->master_log_pos is NULL).
+
+       Slave can have lower coordinates, if some event from master was omitted.
 
        TODO: handling `when' for SHOW SLAVE STATUS' snds behind
     */
     if ((memcmp(mi->master_log_name, hb.get_log_ident(), hb.get_ident_len())
          && mi->master_log_name != NULL)
-        || mi->master_log_pos != hb.log_pos)
+        || mi->master_log_pos > hb.log_pos)
     {
       /* missed events of heartbeat from the past */
       error= ER_SLAVE_HEARTBEAT_FAILURE;

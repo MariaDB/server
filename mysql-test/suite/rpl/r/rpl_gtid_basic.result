@@ -44,5 +44,74 @@ a	b
 2	i2
 3	i3
 4	i4
+*** Now take out D, let it fall behind a bit, and then test re-attaching it to A ***
+include/stop_slave.inc
+INSERT INTO t1 VALUES (5, "m1a");
+INSERT INTO t2 VALUES (5, "i1a");
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_GTID_POS=AUTO;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+5	m1a
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	i1a
+*** Now move B to D (C is still replicating from B) ***
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
+MASTER_GTID_POS=AUTO;
+include/start_slave.inc
+UPDATE t2 SET b="j1a" WHERE a=5;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	m1
+2	m2
+3	m3
+4	m4
+5	m1a
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	j1a
+*** Now move C to D, after letting it fall a little behind ***
+include/stop_slave.inc
+BEGIN;
+INSERT INTO t2 VALUES (6, "i6b");
+INSERT INTO t2 VALUES (7, "i7b");
+COMMIT;
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
+MASTER_GTID_POS=AUTO;
+include/start_slave.inc
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	i1
+2	i2
+3	i3
+4	i4
+5	j1a
+6	i6b
+7	i7b
+*** Now change everything back to what it was, to make rpl_end.inc happy
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_MYPORT;
+include/start_slave.inc
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_MYPORT;
+include/start_slave.inc
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
+include/start_slave.inc
 DROP TABLE t1,t2;
 include/rpl_end.inc
