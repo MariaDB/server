@@ -31,6 +31,8 @@
 #include <string>
 #include <utility>
 
+#include "graphcore-config.h"
+
 #include <boost/intrusive_ptr.hpp>
 #include <boost/optional.hpp>
 #include <boost/unordered_map.hpp>

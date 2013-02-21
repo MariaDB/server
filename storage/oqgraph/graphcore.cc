@@ -26,10 +26,7 @@
 
 #include <string.h>
 
-#define BOOST_ALL_NO_LIB 1
-
-#include <boost/config.hpp>
-
+#include "graphcore-config.h"
 #include "graphcore-graph.h"
 
 #include <set>
@@ -46,11 +43,14 @@
 #include "graphcore.h"
 
 #include <boost/unordered_map.hpp>
+#include <boost/version.hpp>
 
 using namespace open_query;
 using namespace boost;
 
 static const row empty_row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+extern "C" const char* const oqgraph_boost_version= BOOST_LIB_VERSION;
 
 namespace open_query
 {
