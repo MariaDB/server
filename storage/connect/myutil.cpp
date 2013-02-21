@@ -40,8 +40,8 @@ int MYSQLtoPLG(char *typname)
   else if (!stricmp(typname, "char") || !stricmp(typname, "varchar") ||
            !stricmp(typname, "text") || !stricmp(typname, "blob"))
     type = TYPE_STRING;
-  else if (!stricmp(typname, "double") || !stricmp(typname, "float") ||
-           !stricmp(typname, "real") || !stricmp(typname, "bigint") ||
+  else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
+           !stricmp(typname, "real")    ||
            !stricmp(typname, "decimal") || !stricmp(typname, "numeric"))
     type = TYPE_FLOAT;
   else if (!stricmp(typname, "date") || !stricmp(typname, "datetime") ||
@@ -143,7 +143,7 @@ int MYSQLtoPLG(int mytype)
   } // end of MYSQLtoPLG
 
 /************************************************************************/
-/*  Returns the format corresponding to a MySQL date type.              */
+/*  Returns the format corresponding to a MySQL date type number.       */
 /************************************************************************/
 char *MyDateFmt(int mytype)
   {
@@ -171,7 +171,7 @@ char *MyDateFmt(int mytype)
   } // end of MyDateFmt
 
 /************************************************************************/
-/*  Returns the format corresponding to a MySQL date type.              */
+/*  Returns the format corresponding to a MySQL date type name.         */
 /************************************************************************/
 char *MyDateFmt(char *typname)
   {
