@@ -3344,7 +3344,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
   if (!g)
     return true;
 
-  fn= dsn= tab= host= pwd= prt= sep= NULL;
+  fn= dsn= tab= db= host= pwd= prt= sep= NULL;
   user= NULL;
 
   // Get the useful create options
