@@ -140,15 +140,15 @@ DROP TABLE t2, t1;
 
 
 # TODO: bigint is mapped to double(20,0)
-#CREATE TABLE t1 (a bigint);
-#--replace_result $PORT PORT
-#--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
-#--replace_result $PORT PORT
-#SHOW CREATE TABLE t1;
-#--replace_result $PORT PORT
-#SHOW CREATE TABLE t2;
-#SELECT * FROM t2;
-#DROP TABLE t2, t1;
+CREATE TABLE t1 (a bigint);
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT
+SHOW CREATE TABLE t1;
+--replace_result $PORT PORT
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2, t1;
 
 
 # TODO: ERROR 1439: Display width out of range for 'a' (max = 255)
