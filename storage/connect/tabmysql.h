@@ -19,6 +19,7 @@ typedef class MYSQLCOL *PMYCOL;
 class MYSQLDEF : public TABDEF           {/* Logical table description */
   friend class TDBMYSQL;
   friend class TDBMCL;
+  friend class ha_connect;
  public:
   // Constructor
   MYSQLDEF(void);
@@ -36,6 +37,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
+          bool ParseURL(PGLOBAL g, char *url);
 
  protected:
   // Members
@@ -44,9 +46,9 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Tabname;            /* External table name                   */
   PSZ     Username;           /* User logon name                       */
   PSZ     Password;           /* Password logon info                   */
-  int     Portnumber;         /* MySQL port number (0 = default)        */
-  bool    Bind;               /* Use prepared statement on insert       */
-  bool    Delayed;            /* Delayed insert                         */
+  int     Portnumber;         /* MySQL port number (0 = default)       */
+  bool    Bind;               /* Use prepared statement on insert      */
+  bool    Delayed;            /* Delayed insert                        */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
