@@ -3270,12 +3270,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           there had been an entry (domain_id, server_id, 0).
         */
 
-        if (rpl_global_gtid_binlog_state.count())
-        {
-          Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state);
-          if (gl_ev.write(&log_file))
-            goto err;
-        }
+        Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state);
+        if (gl_ev.write(&log_file))
+          goto err;
 
         /* Output a binlog checkpoint event at the start of the binlog file. */
 
