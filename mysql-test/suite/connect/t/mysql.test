@@ -17,7 +17,15 @@ SELECT * FROM t1;
 --error ER_UNKNOWN_ERROR
 --eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root1,port=$PORT'
 
-# TODO: bad database name
+# Bad database name
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL DBNAME='unknown' TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+
+# Bad database name, with OPTION_LIST going first.
+--replace_result $PORT PORT "mysql_real_connect failed: " ""
+--error ER_UNKNOWN_ERROR
+--eval CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL OPTION_LIST='host=localhost,user=root,port=$PORT' DBNAME='unknown' TABNAME='t1'
 
 # Bad table name
 --replace_result $PORT PORT

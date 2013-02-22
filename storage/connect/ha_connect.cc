@@ -3375,7 +3375,14 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     } else if (!stricmp(pov->name.str, "option_list")) {
       host= GetListOption("host", pov->value.str, "localhost");
       user= GetListOption("user", pov->value.str, "root");
-      db= GetListOption("database", pov->value.str);
+      /*
+        Change DB only if Database=xxx is specified.
+        Otherwise, preserver the previous value that
+        has possibly come from the DBNAME=xxx option.
+      */
+      char *db1= GetListOption("database", pov->value.str);
+      if (db1)
+        db= db1;
       pwd= GetListOption("password", pov->value.str);
       prt= GetListOption("port", pov->value.str);
       port= (prt) ? atoi(prt) : MYSQL_PORT;
