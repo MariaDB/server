@@ -131,6 +131,21 @@ t2	CREATE TABLE `t2` (
 SELECT * FROM t2;
 a
 DROP TABLE t2, t1;
+CREATE TABLE t1 (a bigint);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=PORT';
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` bigint(20) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=MYSQL `TABNAME`='t1' `OPTION_LIST`='host=localhost,user=root,port=PORT'
+SELECT * FROM t2;
+a
+DROP TABLE t2, t1;
 #
 # Testing character data types
 #
