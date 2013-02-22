@@ -86,6 +86,10 @@ OPTION(CONNECT_WITH_LIBXML2 "Compile CONNECT storage engine with LIBXML2 support
 
 IF(CONNECT_WITH_LIBXML2)
   IF(WIN32)
+    #
+    # NOTE: when switching to static linking of libxml2
+    # make sure to define LIBXML_STATIC.
+    #
     # Adding some typical places to search in
     SET(PC_LIBXML_INCLUDE_DIRS
         C:/libxml2/include
