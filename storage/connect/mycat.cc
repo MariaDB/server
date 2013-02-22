@@ -107,10 +107,14 @@ TABTYPE GetTypeID(const char *type)
 	               : (!stricmp(type, "CSV"))   ? TAB_CSV
                  : (!stricmp(type, "FMT"))   ? TAB_FMT
                  : (!stricmp(type, "DBF"))   ? TAB_DBF
+#ifdef XML_SUPPORT
                  : (!stricmp(type, "XML"))   ? TAB_XML
+#endif
                  : (!stricmp(type, "INI"))   ? TAB_INI
                  : (!stricmp(type, "VEC"))   ? TAB_VEC
+#ifdef ODBC_SUPPORT
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
+#endif
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 	               : (!stricmp(type, "MAC"))   ? TAB_MAC
