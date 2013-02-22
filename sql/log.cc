@@ -3834,6 +3834,9 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
       break;
   }
 
+  if (!is_relay_log)
+    rpl_global_gtid_binlog_state.reset();
+
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
   if ((error= my_delete_allow_opened(index_file_name, MYF(0))))	// Reset (open will update)

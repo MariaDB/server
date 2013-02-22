@@ -4271,6 +4271,17 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
   DBUG_RETURN(Log_event::do_shall_skip(rli));
 }
 
+
+bool
+Query_log_event::peek_is_commit_rollback(const char *event_start,
+                                         size_t event_len)
+{
+  if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
+    return false;
+  return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
+         !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
+}
+
 #endif
 
 
@@ -7028,6 +7039,8 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
   *seq_no= uint8korr(p);
   p+= 8;
   *domain_id= uint4korr(p);
+  p+= 4;
+  *flags2= (uchar)*p;
   return false;
 }
 

@@ -1015,6 +1015,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     enum_gtid_skip_type *gtid_skip_group)
 {
   my_off_t pos;
+  size_t len= packet->length();
 
   /* Skip GTID event groups until we reach slave position within a domain_id. */
   if (event_type == GTID_EVENT && using_gtid_state && gtid_state->count() > 0)
@@ -1023,7 +1024,6 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
     uint64 seq_no;
     uchar flags2;
     rpl_gtid *gtid;
-    size_t len= packet->length();
 
     if (ev_offset > len ||
         Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
@@ -1054,7 +1054,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   switch (*gtid_skip_group)
   {
   case GTID_SKIP_STANDALONE:
-    if (event_type != INTVAR_EVENT &&
+    if (event_type != GTID_EVENT &&
+        event_type != INTVAR_EVENT &&
         event_type != RAND_EVENT &&
         event_type != USER_VAR_EVENT &&
         event_type != TABLE_MAP_EVENT &&
@@ -1062,7 +1063,10 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
       *gtid_skip_group= GTID_SKIP_NOT;
     return NULL;
   case GTID_SKIP_TRANSACTION:
-    if (event_type == XID_EVENT /* ToDo || is_COMMIT_query_event() */)
+    if (event_type == XID_EVENT ||
+        (event_type == QUERY_EVENT &&
+         Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
+                                                  len - ev_offset)))
       *gtid_skip_group= GTID_SKIP_NOT;
     return NULL;
   case GTID_SKIP_NOT:
@@ -1173,7 +1177,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                (thd, flags, packet, log_file_name, pos)))
     return "run 'before_send_event' hook failed";
 
-  if (my_net_write(net, (uchar*) packet->ptr(), packet->length()))
+  if (my_net_write(net, (uchar*) packet->ptr(), len))
     return "Failed on my_net_write()";
 
   DBUG_PRINT("info", ("log event code %d", (*packet)[LOG_EVENT_OFFSET+1] ));
