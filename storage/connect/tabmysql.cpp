@@ -271,11 +271,11 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
 /***********************************************************************/
 bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *url;
+  char *url = Cat->GetStringCatInfo(g, Name, "Connect", NULL);
 
   Desc = "MySQL Table";
 
-  if (!(url = Cat->GetStringCatInfo(g, Name, "Connect", NULL))) { 
+  if (!url || !*url) { 
     // Not using the connection URL
     Hostname = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
     Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
