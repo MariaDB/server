@@ -24,8 +24,13 @@ colblk.cpp reldef.cpp tabcol.cpp table.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
 tabdos.cpp tabfix.cpp tabfmt.cpp tabmul.cpp tabsys.cpp tabvct.cpp
 valblk.cpp value.cpp xindex.cpp xobject.cpp
-filamzip.cpp tabtbl.cpp myutil.cpp)
-
+filamzip.cpp tabtbl.cpp myutil.cpp
+block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
+filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
+global.h ha_connect.h maputil.h msgid.h mycat.h myutil.h os.h
+osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
+tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h  
+user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 
 #
 # Definitions that are shared for all OSes
@@ -71,7 +76,8 @@ IF(UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
   SET(IPHLPAPI_LIBRARY "")
 ELSE(NOT UNIX)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabwmi.cpp tabmac.cpp macutil.cpp)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
   SET(IPHLPAPI_LIBRARY iphlpapi.lib)
@@ -104,7 +110,7 @@ IF(CONNECT_WITH_LIBXML2)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} libdoc.cpp libdoc.h)
     add_definitions(-DLIBXML2_SUPPORT)
   ENDIF(LIBXML2_FOUND)
 ENDIF(CONNECT_WITH_LIBXML2)
@@ -148,7 +154,8 @@ IF(WIN32)
 ENDIF(WIN32)
 
 IF(LIBXML2_FOUND OR MSXML_FOUND)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabxml.cpp plgxml.cpp)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  tabxml.cpp tabxml.h plgxml.cpp plgxml.h)
 ENDIF()
 
 #
@@ -160,7 +167,8 @@ OPTION(CONNECT_WITH_MYSQL
        ON)
 
 IF(CONNECT_WITH_MYSQL)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} myconn.cpp tabmysql.cpp)
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  myconn.cpp myconn.h tabmysql.cpp tabxml.h)
   add_definitions(-DMYSQL_SUPPORT)
   IF(NOT UNIX)
     #
@@ -227,7 +235,8 @@ IF(CONNECT_WITH_ODBC)
   ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
     SET(ODBC_LIBRARY "odbc32.lib odbccp32.lib")
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabodbc.cpp odbconn.cpp)
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+    tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
 
