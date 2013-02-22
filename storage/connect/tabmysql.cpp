@@ -1,7 +1,7 @@
 /************* TabMySQL C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABMYSQL                                               */
 /* -------------                                                        */
-/*  Version 1.6                                                         */
+/*  Version 1.7                                                         */
 /*                                                                      */
 /* AUTHOR:                                                              */
 /* -------                                                              */
@@ -83,18 +83,210 @@ MYSQLDEF::MYSQLDEF(void)
   } // end of MYSQLDEF constructor
 
 /***********************************************************************/
+/* Parse connection string                                             */
+/*                                                                     */
+/* SYNOPSIS                                                            */
+/*   ParseURL()                                                        */
+/*   url                 The connection string to parse                */
+/*                                                                     */
+/* DESCRIPTION                                                         */
+/*   Populates the table with information about the connection         */
+/*   to the foreign database that will serve as the data source.       */
+/*   This string must be specified (currently) in the "CONNECTION"     */
+/*   field, listed in the CREATE TABLE statement.                      */
+/*                                                                     */
+/*   This string MUST be in the format of any of these:                */
+/*                                                                     */
+/*   CONNECTION="scheme://user:pwd@host:port/database/table"           */
+/*   CONNECTION="scheme://user@host/database/table"                    */
+/*   CONNECTION="scheme://user@host:port/database/table"               */
+/*   CONNECTION="scheme://user:pwd@host/database/table"                */
+/*                                                                     */
+/*   _OR_                                                              */
+/*                                                                     */
+/*   CONNECTION="connection name" (NIY)                                */
+/*                                                                     */
+/* An Example:                                                         */
+/*                                                                     */
+/* CREATE TABLE t1 (id int(32))                                        */
+/*   ENGINE="FEDERATEDX"                                               */
+/*   CONNECTION="mysql://joe:pwd@192.168.1.111:9308/dbname/tabname";   */
+/*                                                                     */
+/* CREATE TABLE t2 (                                                   */
+/*   id int(4) NOT NULL auto_increment,                                */
+/*   name varchar(32) NOT NULL,                                        */
+/*   PRIMARY KEY(id)                                                   */
+/*   ) ENGINE="FEDERATEDX" CONNECTION="my_conn";    (NIY)              */
+/*                                                                     */
+/*  'password' and 'port' are both optional.                           */
+/*                                                                     */
+/* RETURN VALUE                                                        */
+/*   false       success                                               */
+/*   true        error                                                 */
+/*                                                                     */
+/***********************************************************************/
+bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
+  {
+  if ((!strstr(url, "://") && (!strchr(url, '@')))) {
+    // No :// or @ in connection string. Must be a straight
+    // connection name of either "server" or "server/table"
+    strcpy(g->Message, "Using Federated server not implemented yet");
+    return true;
+#if 0
+    /* ok, so we do a little parsing, but not completely! */
+    share->parsed= FALSE;
+    /*
+      If there is a single '/' in the connection string, this means the user is
+      specifying a table name
+    */
+
+    if ((share->table_name= strchr(share->connection_string, '/')))
+    {
+      *share->table_name++= '\0';
+      share->table_name_length= strlen(share->table_name);
+
+      DBUG_PRINT("info", 
+                 ("internal format, parsed table_name "
+                  "share->connection_string: %s  share->table_name: %s",
+                  share->connection_string, share->table_name));
+
+      /*
+        there better not be any more '/'s !
+      */
+      if (strchr(share->table_name, '/'))
+        goto error;
+    }
+    /*
+      Otherwise, straight server name, use tablename of federatedx table
+      as remote table name
+    */
+    else
+    {
+      /*
+        Connection specifies everything but, resort to
+        expecting remote and foreign table names to match
+      */
+      share->table_name= strmake_root(mem_root, table->s->table_name.str,
+                                      (share->table_name_length=
+                                       table->s->table_name.length));
+      DBUG_PRINT("info", 
+                 ("internal format, default table_name "
+                  "share->connection_string: %s  share->table_name: %s",
+                  share->connection_string, share->table_name));
+    }
+
+    if ((error_num= get_connection(mem_root, share)))
+      goto error;
+#endif // 0
+  } else {
+    // URL, parse it
+    char *sport, *scheme = url;
+
+    if (!(Username = strstr(url, "://"))) {
+      strcpy(g->Message, "Connection is not an URL");
+      return true;
+      } // endif User
+
+    scheme[Username - scheme] = 0;
+
+    if (stricmp(scheme, "mysql")) {
+      strcpy(g->Message, "scheme must be mysql");
+      return true;
+      } // endif scheme
+
+    Username += 3;
+
+    if (!(Hostname = strchr(Username, '@'))) {
+      strcpy(g->Message, "No host specified in URL");
+      return true;
+    } else
+      *Hostname++ = 0;                   // End Username
+
+    if ((Password = strchr(Username, ':'))) {
+      *Password++ = 0;                   // End username
+
+      // Make sure there isn't an extra / or @
+      if ((strchr(Password, '/') || strchr(Hostname, '@'))) {
+        strcpy(g->Message, "Syntax error in URL");
+        return true;
+        } // endif
+
+      // Found that if the string is:
+      // user:@hostname:port/db/table
+      // Then password is a null string, so set to NULL
+      if ((Password[0] == 0))
+        Password = NULL;
+
+      } // endif password
+
+    // Make sure there isn't an extra / or @ */
+    if ((strchr(Username, '/')) || (strchr(Hostname, '@'))) {
+      strcpy(g->Message, "Syntax error in URL");
+      return true;
+      } // endif
+
+    if ((Database = strchr(Hostname, '/'))) {
+      *Database++ = 0;
+
+      if ((Tabname = strchr(Database, '/')))
+        *Tabname++ = 0;
+
+      // Make sure there's not an extra /
+      if ((strchr(Tabname, '/'))) {
+        strcpy(g->Message, "Syntax error in URL");
+        return true;
+        } // endif /
+        
+      } // endif database
+
+    if ((sport = strchr(Hostname, ':')))
+      *sport++ = 0;
+
+    Portnumber = (sport && sport[0]) ? atoi(sport) : MYSQL_PORT;
+
+    if (Hostname[0] == 0)
+      Hostname = "localhost";
+
+    if (!Database || !*Database)
+      Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
+
+    if (!Tabname || !*Tabname)
+      Tabname = Name;
+
+    } // endif URL
+
+#if 0
+  if (!share->port)
+    if (!share->hostname || strcmp(share->hostname, my_localhost) == 0)
+      share->socket= (char *) MYSQL_UNIX_ADDR;
+    else
+      share->port= MYSQL_PORT;
+#endif // 0
+
+  return false;
+  } // end of ParseURL
+
+/***********************************************************************/
 /*  DefineAM: define specific AM block values from XCV file.           */
 /***********************************************************************/
 bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
+  char *url;
+
   Desc = "MySQL Table";
-  Hostname = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
-  Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
-  Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name);  // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
-  Username = Cat->GetStringCatInfo(g, Name, "User", "root");
-  Password = Cat->GetStringCatInfo(g, Name, "Password", NULL);
-  Portnumber = Cat->GetIntCatInfo(Name, "Port", MYSQL_PORT);
+
+  if (!(url = Cat->GetStringCatInfo(g, Name, "Connect", NULL))) { 
+    // Not using the connection URL
+    Hostname = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
+    Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
+    Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name); // Deprecated
+    Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
+    Username = Cat->GetStringCatInfo(g, Name, "User", "root");
+    Password = Cat->GetStringCatInfo(g, Name, "Password", NULL);
+    Portnumber = Cat->GetIntCatInfo(Name, "Port", MYSQL_PORT);
+  } else if (ParseURL(g, url))
+    return TRUE;
+
   Bind = !!Cat->GetIntCatInfo(Name, "Bind", 0);
   Delayed = !!Cat->GetIntCatInfo(Name, "Delayed", 0);
   return FALSE;

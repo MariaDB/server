@@ -117,7 +117,8 @@
 #include "odbccat.h"
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
-#include "myconn.h"
+#include "xtable.h"
+#include "tabmysql.h"
 #endif   // MYSQL_SUPPORT
 #include "filamdbf.h"
 #include "tabfmt.h"
@@ -832,8 +833,10 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
       // Return the handler default value
-      if (!stricmp(opname, "Database"))
+      if (!stricmp(opname, "Dbname") || !stricmp(opname, "Database"))
         opval= (char*)GetDBName(NULL);    // Current database
+      else
+        opval= sdef;                      // Caller default
 
     } else
       opval= sdef;                        // Caller default
@@ -3405,12 +3408,6 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     pov= new(mem) engine_option_value(*name, *val, false, &start, &end);
     } // endif ttp
 
-  // Test whether columns must be specified
-  if (alter_info->create_list.elements)
-    return false;
-
-  dbf= ttp == TAB_DBF;
-
   if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
     tab= (char*)create_info->alias;
 
@@ -3438,10 +3435,33 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       break;
 #if defined(MYSQL_SUPPORT)
     case TAB_MYSQL:
-      if (!user)
+      ok= true;
+
+      if ((dsn= create_info->connect_string.str)) {
+        PDBUSER dup= PlgGetUser(g);
+        PCATLG  cat= (dup) ? dup->Catalog : NULL;
+        PMYDEF  mydef= new(g) MYSQLDEF();
+
+        dsn= (char*)PlugSubAlloc(g, NULL, strlen(dsn) + 1);
+        strncpy(dsn, create_info->connect_string.str,
+                     create_info->connect_string.length);
+        dsn[create_info->connect_string.length] = 0;
+        mydef->Name= (char*)create_info->alias;
+        mydef->Cat= cat;
+
+        if (!mydef->ParseURL(g, dsn)) {
+          host= mydef->Hostname;
+          user= mydef->Username;
+          pwd=  mydef->Password;
+          db=   mydef->Database;
+          tab=  mydef->Tabname;
+          port= mydef->Portnumber;
+        } else
+          ok= false;
+
+      } else if (!user)
         user= "root";       // Avoid crash
 
-      ok= true;
       break;
 #endif   // MYSQL_SUPPORT
 #if defined(WIN32)
@@ -3459,6 +3479,10 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
                         fncn, typn);
     ok= false;
     } // endif supfnc
+
+  // Test whether columns must be specified
+  if (alter_info->create_list.elements)
+    return false;
 
   if (ok) {
     char *length, *decimals, *cnm, *rem;
