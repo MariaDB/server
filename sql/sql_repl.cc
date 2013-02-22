@@ -735,7 +735,7 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
 {
   MEM_ROOT memroot;
   binlog_file_entry *list;
-  Gtid_list_log_event *glev;
+  Gtid_list_log_event *glev= NULL;
   const char *errormsg= NULL;
   IO_CACHE cache;
   File file = (File)-1;
@@ -780,6 +780,8 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
       strmake(out_name, buf, FN_REFLEN);
       goto end;
     }
+    delete glev;
+    glev= NULL;
     list= list->next;
   }
 
@@ -789,6 +791,8 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
     "have been purged.";
 
 end:
+  if (glev)
+    delete glev;
   if (file != (File)-1)
   {
     end_io_cache(&cache);

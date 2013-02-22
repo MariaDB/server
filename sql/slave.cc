@@ -2256,7 +2256,7 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                              FN_REFLEN));
   field_list.push_back(new Item_return_int("Master_Server_Id", sizeof(ulong),
                                            MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int("Gtid_Pos_Auto", sizeof(ulong),
+  field_list.push_back(new Item_return_int("Using_Gtid", sizeof(ulong),
                                            MYSQL_TYPE_LONG));
   if (full)
   {

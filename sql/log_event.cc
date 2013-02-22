@@ -7220,9 +7220,9 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
   buf+= header_size;
   count= uint4korr(buf) & ((1<<28)-1);
   buf+= 4;
-  if (count == 0 ||
-      event_len - (header_size + post_header_len) < count*element_size ||
-      (!(list= (rpl_gtid *)my_malloc(count*sizeof(*list), MYF(MY_WME)))))
+  if (event_len - (header_size + post_header_len) < count*element_size ||
+      (!(list= (rpl_gtid *)my_malloc(count*sizeof(*list) + (count == 0),
+                                     MYF(MY_WME)))))
     return;
 
   for (i= 0; i < count; ++i)
@@ -7314,11 +7314,10 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
   : count(gtid_set->count()), list(0)
 {
-  DBUG_ASSERT(count != 0);
-
   /* Failure to allocate memory will be caught by is_valid() returning false. */
-  if (count != 0 && count < (1<<28) &&
-      (list = (rpl_gtid *)my_malloc(count * sizeof(*list), MYF(MY_WME))))
+  if (count < (1<<28) &&
+      (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
+                                    MYF(MY_WME))))
     gtid_set->get_gtid_list(list, count);
 }
 
@@ -7356,17 +7355,13 @@ Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
   uint32 i;
 
   buf.length(0);
+  buf.append(STRING_WITH_LEN("["));
   for (i= 0; i < count; ++i)
   {
     if (i)
       buf.append(STRING_WITH_LEN(", "));
-    else
-      buf.append(STRING_WITH_LEN("["));
-    if (list[i].domain_id)
-    {
-      buf.append_ulonglong((ulonglong)list[i].domain_id);
-      buf.append(STRING_WITH_LEN("-"));
-    }
+    buf.append_ulonglong((ulonglong)list[i].domain_id);
+    buf.append(STRING_WITH_LEN("-"));
     buf.append_ulonglong((ulonglong)list[i].server_id);
     buf.append(STRING_WITH_LEN("-"));
     buf.append_ulonglong(list[i].seq_no);
@@ -7392,8 +7387,7 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     print_header(&cache, print_event_info, FALSE);
     for (i= 0; i < count; ++i)
     {
-      if (list[i].domain_id)
-        my_b_printf(&cache, "%u-", list[i].domain_id);
+      my_b_printf(&cache, "%u-", list[i].domain_id);
       longlong10_to_str(list[i].seq_no, buf, 10);
       my_b_printf(&cache, "%u-%s", list[i].server_id, buf);
       if (i < count-1)
@@ -7428,7 +7422,8 @@ Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
   if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN +
       16 * count)
     return true;
-  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(rpl_gtid)*count, MYF(MY_WME))))
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(rpl_gtid)*count + (count == 0),
+                                         MYF(MY_WME))))
     return true;
   *out_gtid_list= gtid_list;
   *out_list_len= count;
