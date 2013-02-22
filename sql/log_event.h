@@ -1913,6 +1913,8 @@ public:        /* !!! Public in this patch to allow old usage */
   int do_apply_event(Relay_log_info const *rli,
                        const char *query_arg,
                        uint32 q_len_arg);
+  static bool peek_is_commit_rollback(const char *event_start,
+                                      size_t event_len);
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
