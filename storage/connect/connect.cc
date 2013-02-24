@@ -273,8 +273,10 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       cp= new(g) COLUMN(p + 1);
       cp->SetTo_Table(tdbp->GetTable());
       colp= ((PTDBASE)tdbp)->InsertSpcBlk(g, cp);
-    } else
-      colp= tdbp->ColDB(g, p, 0);
+    } else {
+      colp= tdbp->ColDB(g, p + 1, 0);
+      colp->SetNullable(*p == '1');
+    } // endif p
 
     if (!colp) {
       sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
@@ -338,7 +340,8 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       utp->ColDB(g, NULL, 0);
     else for (p= c2; *p; p+= n) {
       // Allocate only used column blocks
-      utp->ColDB(g, p, 0);
+      colp= utp->ColDB(g, p + 1, 0);
+      colp->SetNullable(*p == '1');
       n= strlen(p) + 1;
       } // endfor p
 

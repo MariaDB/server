@@ -27,7 +27,7 @@
 #define __VALUE_H
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -397,6 +397,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
 
 /* -------------------------- Class VALUE ---------------------------- */
 
+#if 0
 /***********************************************************************/
 /*  ShowTypedValue: send back the value formatted according to parms.  */
 /*  buf: is a pointer to a buffer large enough for big double values.  */
@@ -447,6 +448,7 @@ BYTE VALUE::TestValue(PVAL vp)
 
   return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
   } // end of TestValue
+#endif // 0
 
 /* -------------------------- Class STRING --------------------------- */
 
@@ -490,7 +492,7 @@ STRING::STRING(PGLOBAL g, short i) : VALUE(TYPE_STRING)
   } // end of STRING constructor
 
 /***********************************************************************/
-/*  STRING public constructor from int.                               */
+/*  STRING public constructor from int.                                */
 /***********************************************************************/
 STRING::STRING(PGLOBAL g, int n) : VALUE(TYPE_STRING)
   {
@@ -532,7 +534,11 @@ bool STRING::SetValue_pval(PVAL valp, bool chktype)
 
   char buf[32];
 
-  strncpy(Strp, valp->GetCharString(buf), Len);
+  if (!(Null = valp->IsNull() && Nullable))
+    strncpy(Strp, valp->GetCharString(buf), Len);
+  else
+    Reset();
+
   return false;
   } // end of SetValue_pval
 
@@ -551,6 +557,7 @@ void STRING::SetValue_char(char *p, int n)
   if (trace)
     htrc(" Setting string to: '%s'\n", Strp);
 
+  Null = false;
   } // end of SetValue_char
 
 /***********************************************************************/
@@ -559,6 +566,7 @@ void STRING::SetValue_char(char *p, int n)
 void STRING::SetValue_psz(PSZ s)
   {
   strncpy(Strp, s, Len);
+  Null = false;
   } // end of SetValue_psz
 
 /***********************************************************************/
@@ -575,6 +583,7 @@ void STRING::SetValue_pvblk(PVBLK blk, int n)
 void STRING::SetValue(short n)
   {
   SetValue((int)n);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -592,6 +601,7 @@ void STRING::SetValue(int n)
   } else
     SetValue_psz(buf);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -609,6 +619,7 @@ void STRING::SetValue(longlong n)
   } else
     SetValue_psz(buf);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -633,6 +644,7 @@ void STRING::SetValue(double f)
   } else
     SetValue_psz(buf);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -641,6 +653,7 @@ void STRING::SetValue(double f)
 void STRING::SetBinValue(void *p)
   {
   SetValue_char((char *)p, Len);
+  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -651,7 +664,7 @@ void STRING::SetBinValue(void *p)
 /***********************************************************************/
 bool STRING::GetBinValue(void *buf, int buflen, bool go)
   {
-  int len = strlen(Strp);
+  int len = (Null) ? 0 : strlen(Strp);
 
   if (len > buflen)
     return true;
@@ -663,6 +676,7 @@ bool STRING::GetBinValue(void *buf, int buflen, bool go)
   return false;
   } // end of GetBinValue
 
+#if 0
 /***********************************************************************/
 /*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
 /*  This is a fast implementation that does not do any checking.       */
@@ -674,6 +688,7 @@ void STRING::GetBinValue(void *buf, int buflen)
   memset(buf, ' ', buflen);
   memcpy(buf, Strp, buflen);
   } // end of GetBinValue
+#endif // 0
 
 /***********************************************************************/
 /*  STRING ShowValue: get string representation of a char value.       */
@@ -696,7 +711,7 @@ char *STRING::GetCharString(char *p)
 /***********************************************************************/
 char *STRING::GetShortString(char *p, int n)
   {
-  sprintf(p, "%*hd", n, (short)atoi(Strp));
+  sprintf(p, "%*hd", n,(short)(Null ? 0 : atoi(Strp)));
   return p;
   } // end of GetShortString
 
@@ -705,7 +720,7 @@ char *STRING::GetShortString(char *p, int n)
 /***********************************************************************/
 char *STRING::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, atol(Strp));
+  sprintf(p, "%*ld", n, (Null) ? 0 : atol(Strp));
   return p;
   } // end of GetIntString
 
@@ -714,7 +729,7 @@ char *STRING::GetIntString(char *p, int n)
 /***********************************************************************/
 char *STRING::GetBigintString(char *p, int n)
   {
-  sprintf(p, "%*lld", n, atoll(Strp));
+  sprintf(p, "%*lld", n, (Null) ? 0 : atoll(Strp));
   return p;
   } // end of GetBigintString
 
@@ -723,7 +738,7 @@ char *STRING::GetBigintString(char *p, int n)
 /***********************************************************************/
 char *STRING::GetFloatString(char *p, int n, int prec)
   {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, atof(Strp));
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Strp));
   return p;
   } // end of GetFloatString
 
@@ -736,6 +751,8 @@ bool STRING::IsEqual(PVAL vp, bool chktype)
     return true;
   else if (chktype && Type != vp->GetType())
     return false;
+  else if (Null || vp->IsNull())
+    return false;
   else if (Ci || vp->IsCi())
     return !stricmp(Strp, vp->GetCharValue());
   else // (!Ci)
@@ -743,6 +760,7 @@ bool STRING::IsEqual(PVAL vp, bool chktype)
 
   } // end of IsEqual
 
+#if 0
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
 /*  This function is used for evaluation of character filters.         */
@@ -1149,19 +1167,6 @@ int STRING::GetTime(PGLOBAL g, PVAL *vp, int np)
   } // end of GetTime
 
 /***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool STRING::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Strp);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
 /*  SetMin: used by the aggregate function MIN.                        */
 /***********************************************************************/
 void STRING::SetMin(PVAL vp)
@@ -1280,6 +1285,20 @@ void STRING::SetMax(PVBLK vbp, int *x, int j, int k)
     } // endfor i
 
   } // end of SetMax
+#endif // 0
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool STRING::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Strp);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
 
 /***********************************************************************/
 /*  STRING SetFormat function (used to set SELECT output format).      */
@@ -1302,7 +1321,7 @@ void STRING::Print(PGLOBAL g, FILE *f, uint n)
   memset(m, ' ', n);                             /* Make margin string */
   m[n] = '\0';
 
-  fprintf(f, "%s%s\n", m, Strp);
+  fprintf(f, "%s%s\n", m, (Null) ? "<null>" : Strp);
   } // end of Print
 
 /***********************************************************************/
@@ -1310,7 +1329,7 @@ void STRING::Print(PGLOBAL g, FILE *f, uint n)
 /***********************************************************************/
 void STRING::Print(PGLOBAL g, char *ps, uint z)
   {
-  sprintf(ps, "'%.*s'", z-3, Strp);
+  sprintf(ps, "'%.*s'", z-3, (Null) ? "<null>" : Strp);
   } // end of Print
 
 /* -------------------------- Class SHVAL ---------------------------- */
@@ -1379,7 +1398,11 @@ bool SHVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && Type != valp->GetType())
     return true;
 
-  Sval = valp->GetShortValue();
+  if (!(Null = valp->IsNull() && Nullable))
+    Sval = valp->GetShortValue();
+  else
+    Reset();
+
   return false;
   } // end of SetValue
 
@@ -1422,6 +1445,7 @@ void SHVAL::SetValue_char(char *p, int n)
   if (trace)
     htrc(" setting short to: %hd\n", Sval);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -1430,6 +1454,7 @@ void SHVAL::SetValue_char(char *p, int n)
 void SHVAL::SetValue_psz(PSZ s)
   {
   Sval = atoi(s);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -1438,6 +1463,7 @@ void SHVAL::SetValue_psz(PSZ s)
 void SHVAL::SetValue_pvblk(PVBLK blk, int n)
   {
   Sval = blk->GetShortValue(n);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -1446,6 +1472,7 @@ void SHVAL::SetValue_pvblk(PVBLK blk, int n)
 void SHVAL::SetBinValue(void *p)
   {
   Sval = *(short *)p;
+  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -1471,6 +1498,7 @@ bool SHVAL::GetBinValue(void *buf, int buflen, bool go)
   return false;
   } // end of GetBinValue
 
+#if 0
 /***********************************************************************/
 /*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
 /*  This is a fast implementation that does not do any checking.       */
@@ -1481,6 +1509,7 @@ void SHVAL::GetBinValue(void *buf, int buflen)
 
   *(short *)buf = Sval;
   } // end of GetBinValue
+#endif // 0
 
 /***********************************************************************/
 /*  SHVAL ShowValue: get string representation of a short value.       */
@@ -1545,11 +1574,14 @@ bool SHVAL::IsEqual(PVAL vp, bool chktype)
     return true;
   else if (chktype && Type != vp->GetType())
     return false;
+  else if (Null || vp->IsNull())
+    return false;
   else
     return (Sval == vp->GetShortValue());
 
   } // end of IsEqual
 
+#if 0
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
 /*  This function is used for evaluation of short integer filters.     */
@@ -1876,19 +1908,6 @@ void SHVAL::AddSquare(PVBLK vbp, int j, int k)
   } // end of AddSquare
 
 /***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool SHVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Sval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
 /*  SetMin: used by the aggregate function MIN.                        */
 /***********************************************************************/
 void SHVAL::SetMin(PVAL vp)
@@ -2001,6 +2020,20 @@ void SHVAL::SetMax(PVBLK vbp, int *x, int j, int k)
     } // endfor i
 
   } // end of SetMax
+#endif // 0
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool SHVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Sval);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
 
 /***********************************************************************/
 /*  SHVAL  SetFormat function (used to set SELECT output format).      */
@@ -2094,7 +2127,7 @@ int INTVAL::GetValLen(void)
   } // end of GetValLen
 
 /***********************************************************************/
-/*  INTVAL SetValue: copy the value of another Value object.            */
+/*  INTVAL SetValue: copy the value of another Value object.           */
 /*  This function allows conversion if chktype is false.               */
 /***********************************************************************/
 bool INTVAL::SetValue_pval(PVAL valp, bool chktype)
@@ -2102,7 +2135,11 @@ bool INTVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && Type != valp->GetType())
     return true;
 
-  Ival = valp->GetIntValue();
+  if (!(Null = valp->IsNull() && Nullable))
+    Ival = valp->GetIntValue();
+  else
+    Reset();
+
   return false;
   } // end of SetValue
 
@@ -2142,6 +2179,7 @@ void INTVAL::SetValue_char(char *p, int n)
   if (trace)
     htrc(" setting int to: %d\n", Ival);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -2150,6 +2188,7 @@ void INTVAL::SetValue_char(char *p, int n)
 void INTVAL::SetValue_psz(PSZ s)
   {
   Ival = atol(s);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -2158,6 +2197,7 @@ void INTVAL::SetValue_psz(PSZ s)
 void INTVAL::SetValue_pvblk(PVBLK blk, int n)
   {
   Ival = blk->GetIntValue(n);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -2166,6 +2206,7 @@ void INTVAL::SetValue_pvblk(PVBLK blk, int n)
 void INTVAL::SetBinValue(void *p)
   {
   Ival = *(int *)p;
+  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -2188,9 +2229,11 @@ bool INTVAL::GetBinValue(void *buf, int buflen, bool go)
   if (go)
     *(int *)buf = Ival;
 
+  Null = false;
   return false;
   } // end of GetBinValue
 
+#if 0
 /***********************************************************************/
 /*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
 /*  This is a fast implementation that does not do any checking.       */
@@ -2201,6 +2244,7 @@ void INTVAL::GetBinValue(void *buf, int buflen)
 
   *(int *)buf = Ival;
   } // end of GetBinValue
+#endif // 0
 
 /***********************************************************************/
 /*  INTVAL ShowValue: get string representation of a int value.        */
@@ -2265,11 +2309,14 @@ bool INTVAL::IsEqual(PVAL vp, bool chktype)
     return true;
   else if (chktype && Type != vp->GetType())
     return false;
+  else if (Null || vp->IsNull())
+    return false;
   else
     return (Ival == vp->GetIntValue());
 
   } // end of IsEqual
 
+#if 0
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
 /*  This function is used for evaluation of int integer filters.       */
@@ -2644,19 +2691,6 @@ void INTVAL::AddSquare(PVBLK vbp, int j, int k)
   } // end of AddSquare
 
 /***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool INTVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Ival);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
 /*  SetMin: used by the aggregate function MIN.                        */
 /***********************************************************************/
 void INTVAL::SetMin(PVAL vp)
@@ -2769,6 +2803,20 @@ void INTVAL::SetMax(PVBLK vbp, int *x, int j, int k)
     } // endfor i
 
   } // end of SetMax
+#endif // 0
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool INTVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Ival);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
 
 /***********************************************************************/
 /*  INTVAL  SetFormat function (used to set SELECT output format).      */
@@ -3083,14 +3131,18 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && Type != valp->GetType())
     return true;
 
-  if (Pdtp && !valp->IsTypeNum()) {
-    int   ndv;
-    int  dval[6];
+  if (!(Null = valp->IsNull() && Nullable)) {
+    if (Pdtp && !valp->IsTypeNum()) {
+      int   ndv;
+      int  dval[6];
 
-    ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
-    MakeDate(NULL, dval, ndv);
+      ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
+      MakeDate(NULL, dval, ndv);
+    } else
+      Ival = valp->GetIntValue();
+
   } else
-    Ival = valp->GetIntValue();
+    Reset();
 
   return false;
   } // end of SetValue
@@ -3118,6 +3170,7 @@ void DTVAL::SetValue_char(char *p, int n)
     if (trace)
       htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
 
+    Null = false;
   } else
     INTVAL::SetValue_char(p, n);
 
@@ -3141,6 +3194,7 @@ void DTVAL::SetValue_psz(PSZ p)
     if (trace)
       htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
 
+    Null = false;
   } else
     INTVAL::SetValue_psz(p);
 
@@ -3183,6 +3237,7 @@ char *DTVAL::GetCharString(char *p)
   } else
     sprintf(p, "%d", Ival);
 
+  Null = false;
   return p;
   } // end of GetCharString
 
@@ -3218,6 +3273,7 @@ char *DTVAL::ShowValue(char *buf, int len)
 
   } // end of ShowValue
 
+#if 0
 /***********************************************************************/
 /*  Compute a function on a date time stamp.                           */
 /***********************************************************************/
@@ -3280,6 +3336,7 @@ int DTVAL::GetTime(PGLOBAL g, PVAL *vp, int np)
   {
   return (Ival % 86400);
   } // end of GetTime
+#endif // 0
 
 /***********************************************************************/
 /*  Returns a member of the struct tm representation of the date.      */
@@ -3331,13 +3388,14 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
   return false;
   } // end of WeekNum
 
+#if 0
 /***********************************************************************/
 /*  This covers days, months and years between two dates.              */
 /***********************************************************************/
 bool DTVAL::DateDiff(DTVAL *dtp, OPVAL op, int& tdif)
   {
   bool      rc = false;
-  int      lv1, lv2, t1, t2;
+  int       lv1, lv2, t1, t2;
   int       s = CompareValue(dtp);
   struct tm dat1, dat2, *ptm = dtp->GetGmTime();
 
@@ -3406,6 +3464,7 @@ bool DTVAL::DateDiff(DTVAL *dtp, OPVAL op, int& tdif)
 
   return rc;
   } // end of DateDiff
+#endif // 0
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
@@ -3498,7 +3557,11 @@ bool BIGVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && Type != valp->GetType())
     return true;
 
-  Lval = valp->GetBigintValue();
+  if (!(Null = valp->IsNull() && Nullable))
+    Lval = valp->GetBigintValue();
+  else
+    Reset();
+
   return false;
   } // end of SetValue
 
@@ -3538,6 +3601,7 @@ void BIGVAL::SetValue_char(char *p, int n)
   if (trace)
     htrc(" setting big int to: %lld\n", Lval);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -3546,6 +3610,7 @@ void BIGVAL::SetValue_char(char *p, int n)
 void BIGVAL::SetValue_psz(PSZ s)
   {
   Lval = atoll(s);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -3554,6 +3619,7 @@ void BIGVAL::SetValue_psz(PSZ s)
 void BIGVAL::SetValue_pvblk(PVBLK blk, int n)
   {
   Lval = blk->GetBigintValue(n);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -3562,6 +3628,7 @@ void BIGVAL::SetValue_pvblk(PVBLK blk, int n)
 void BIGVAL::SetBinValue(void *p)
   {
   Lval = *(longlong *)p;
+  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -3587,6 +3654,7 @@ bool BIGVAL::GetBinValue(void *buf, int buflen, bool go)
   return false;
   } // end of GetBinValue
 
+#if 0
 /***********************************************************************/
 /*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
 /*  This is a fast implementation that does not do any checking.       */
@@ -3597,6 +3665,7 @@ void BIGVAL::GetBinValue(void *buf, int buflen)
 
   *(longlong *)buf = Lval;
   } // end of GetBinValue
+#endif // 0
 
 /***********************************************************************/
 /*  BIGVAL ShowValue: get string representation of a big int value.    */
@@ -3661,11 +3730,14 @@ bool BIGVAL::IsEqual(PVAL vp, bool chktype)
     return true;
   else if (chktype && Type != vp->GetType())
     return false;
+  else if (vp->IsNull() || Null)
+    return false;
   else
     return (Lval == vp->GetBigintValue());
 
   } // end of IsEqual
 
+#if 0
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
 /*  This function is used for evaluation of big int integer filters.   */
@@ -3990,19 +4062,6 @@ void BIGVAL::AddSquare(PVBLK vbp, int j, int k)
   } // end of AddSquare
 
 /***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool BIGVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Lval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
 /*  SetMin: used by the aggregate function MIN.                        */
 /***********************************************************************/
 void BIGVAL::SetMin(PVAL vp)
@@ -4115,6 +4174,20 @@ void BIGVAL::SetMax(PVBLK vbp, int *x, int j, int k)
     } // endfor i
 
   } // end of SetMax
+#endif // 0
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool BIGVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Lval);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
 
 /***********************************************************************/
 /*  BIGVAL  SetFormat function (used to set SELECT output format).     */
@@ -4221,7 +4294,11 @@ bool DFVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && Type != valp->GetType())
     return true;
 
-  Fval = valp->GetFloatValue();
+  if (!(Null = valp->IsNull() && Nullable))
+    Fval = valp->GetFloatValue();
+  else
+    Reset();
+
   return false;
   } // end of SetValue
 
@@ -4242,6 +4319,7 @@ void DFVAL::SetValue_char(char *p, int n)
   if (trace)
     htrc(" setting double: '%s' -> %lf\n", buf, Fval);
 
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -4250,6 +4328,7 @@ void DFVAL::SetValue_char(char *p, int n)
 void DFVAL::SetValue_psz(PSZ s)
   {
   Fval = atof(s);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -4258,6 +4337,7 @@ void DFVAL::SetValue_psz(PSZ s)
 void DFVAL::SetValue_pvblk(PVBLK blk, int n)
   {
   Fval = blk->GetFloatValue(n);
+  Null = false;
   } // end of SetValue
 
 /***********************************************************************/
@@ -4266,6 +4346,7 @@ void DFVAL::SetValue_pvblk(PVBLK blk, int n)
 void DFVAL::SetBinValue(void *p)
   {
   Fval = *(double *)p;
+  Null = false;
   } // end of SetBinValue
 
 /***********************************************************************/
@@ -4291,6 +4372,7 @@ bool DFVAL::GetBinValue(void *buf, int buflen, bool go)
   return false;
   } // end of GetBinValue
 
+#if 0
 /***********************************************************************/
 /*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
 /*  This is a fast implementation that does not do any checking.       */
@@ -4302,6 +4384,7 @@ void DFVAL::GetBinValue(void *buf, int buflen)
 
   *(double *)buf = Fval;
   } // end of GetBinValue
+#endif // 0
 
 /***********************************************************************/
 /*  DFVAL ShowValue: get string representation of a double value.      */
@@ -4367,11 +4450,14 @@ bool DFVAL::IsEqual(PVAL vp, bool chktype)
     return true;
   else if (chktype && Type != vp->GetType())
     return false;
+  else if (Null || vp->IsNull())
+    return false;
   else
     return (Fval == vp->GetFloatValue());
 
   } // end of IsEqual
 
+#if 0
 /***********************************************************************/
 /*  Compare values and returns 1, 0 or -1 according to comparison.     */
 /*  This function is used for evaluation of double float filters.      */
@@ -4785,6 +4871,20 @@ void DFVAL::SetMax(PVBLK vbp, int *x, int j, int k)
     } // endfor i
 
   } // end of SetMax
+#endif // 0
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool DFVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Fval);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
 
 /***********************************************************************/
 /*  DFVAL  SetFormat function (used to set SELECT output format).      */

@@ -1,7 +1,7 @@
 /*************** Colblk H Declares Source Code File (.H) ***************/
-/*  Name: COLBLK.H    Version 1.5                                      */
+/*  Name: COLBLK.H    Version 1.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
 /*  This file contains the COLBLK and derived classes declares.        */
 /***********************************************************************/
@@ -53,6 +53,8 @@ class DllExport COLBLK : public XOBJECT {
           PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}
           PSZ     GetDesc(void) {return (Cdp) ? Cdp->Desc : NULL;}
           PSZ     GetFmt(void) {return (Cdp) ? Cdp->Fmt : NULL;}
+          bool    IsNullable(void) {return Nullable;}
+          void    SetNullable(bool b) {Nullable = b;}
                   
   // Methods      
   virtual void    Reset(void);
@@ -81,6 +83,7 @@ class DllExport COLBLK : public XOBJECT {
   PCOLDEF Cdp;                 // To column definition block
   PTDB    To_Tdb;              // Points to Table Descriptor Block
   PXCOL   To_Kcol;             // Points to Xindex matching column
+  bool    Nullable;            // True if nullable
   int     Index;               // Column number in table
   int     Opt;                 // Cluster/sort information
   int     Buf_Type;            // Data type

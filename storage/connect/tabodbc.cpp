@@ -796,9 +796,13 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
 
   if (StrLen[n] == SQL_NULL_DATA) {
     // Null value
+    if (Nullable)
+      Value->SetNull(true);
+
     Value->Reset();
     return;
-    } // endif StrLen
+  } else
+    Value->SetNull(false);
 
   if (Bufp && tdbp->Rows)
     if (Buf_Type == TYPE_DATE)

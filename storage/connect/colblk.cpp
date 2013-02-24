@@ -1,7 +1,7 @@
 /************* Colblk C++ Functions Source Code File (.CPP) ************/
-/*  Name: COLBLK.CPP  Version 1.9                                      */
+/*  Name: COLBLK.CPP  Version 2.0                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
 /*  This file contains the COLBLK class functions.                     */
 /***********************************************************************/
@@ -49,6 +49,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
   } // endif cdp
 
   To_Tdb = tdbp;
+  Nullable = false;
   Status = BUF_NO;
 //Value = NULL;                  done in XOBJECT constructor
   To_Kcol = NULL;
@@ -190,6 +191,7 @@ bool COLBLK::InitValue(PGLOBAL g)
     return true;
 
   Status = BUF_READY;
+  Value->SetNullable(Nullable);
 
 #ifdef DEBTRACE
  htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
