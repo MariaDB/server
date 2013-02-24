@@ -27,8 +27,7 @@ class VALBLK : public BLOCK {
 //friend void SemColData(PGLOBAL g, PSEM semp);
  public:
   // Constructors
-  VALBLK(void *mp, int type, int nval)
-                {Blkp = mp; Type = type; Nval = nval; Check = true;}
+  VALBLK(void *mp, int type, int nval);
 
   // Implementation
           int    GetNval(void) {return Nval;}
@@ -37,6 +36,12 @@ class VALBLK : public BLOCK {
           void   SetValPointer(void *mp) {Blkp = mp;}
           int    GetType(void) {return Type;}
           void   SetCheck(bool b) {Check = b;}
+          void   MoveNull(int i, int j)
+                  {if (To_Nulls) To_Nulls[j] = To_Nulls[j];}
+  virtual void   SetNull(int n, bool b)
+                  {if (To_Nulls) {To_Nulls[n] = (b) ? '*' : 0;}}
+  virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
+  virtual void   SetNullable(bool b);
   virtual void   Init(PGLOBAL g, bool check) = 0;
   virtual int    GetVlen(void) = 0;
   virtual PSZ    GetCharValue(int n);
@@ -56,11 +61,13 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(longlong lval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
+  virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
+#if 0
   virtual void   SetMin(PVAL valp, int n) = 0;
   virtual void   SetMax(PVAL valp, int n) = 0;
-  virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
   virtual void   SetValues(PVBLK pv, int i, int n) = 0;
   virtual void   AddMinus1(PVBLK pv, int n1, int n2) {assert(false);}
+#endif // 0
   virtual void   Move(int i, int j) = 0;
   virtual int    CompVal(PVAL vp, int n) = 0;
   virtual int    CompVal(int i1, int i2) = 0;
@@ -80,10 +87,12 @@ class VALBLK : public BLOCK {
 
   // Members
   PGLOBAL Global;           // Used for messages and allocation
+  char   *To_Nulls;         // Null values array
   void   *Blkp;             // To value block
   int     Type;             // Type of individual values
   int     Nval;             // Max number of values in block
   bool    Check;            // If true SetValue types must match
+  bool    Nullable;         // True if values can be null
   }; // end of class VALBLK
 
 /***********************************************************************/
@@ -109,10 +118,12 @@ class CHRBLK : public VALBLK {
   // Methods
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -126,7 +137,7 @@ class CHRBLK : public VALBLK {
   char* const &Chrp;             // Pointer to char buffer
   PSZ   Valp;                    // Used to make a zero ended value
   bool  Blanks;                  // True for right filling with blanks
-  bool  Ci;                       // True if case insensitive
+  bool  Ci;                      // True if case insensitive
   int   Long;                    // Length of each string
   }; // end of class CHRBLK
 
@@ -141,6 +152,9 @@ class STRBLK : public VALBLK {
   STRBLK(PGLOBAL g, void *mp, int size);
 
   // Implementation
+  virtual void   SetNull(int n, bool b) {if (b) {Strp[n] = NULL;}}
+  virtual bool   IsNull(int n) {return Strp[n] == NULL;}
+  virtual void   SetNullable(bool b) {}    // Always nullable
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(PSZ);}
   virtual PSZ    GetCharValue(int n) {return Strp[n];}
@@ -153,10 +167,12 @@ class STRBLK : public VALBLK {
   // Methods
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -190,15 +206,20 @@ class SHRBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
-  virtual void   SetValue(short sval, int n) {Shrp[n] = sval;}
-  virtual void   SetValue(int lval, int n) {Shrp[n] = (short)lval;}
-  virtual void   SetValue(longlong lval, int n) {Shrp[n] = (short)lval;}
+  virtual void   SetValue(short sval, int n)
+                  {Shrp[n] = sval; SetNull(n, false);}
+  virtual void   SetValue(int lval, int n)
+                  {Shrp[n] = (short)lval; SetNull(n, false);}
+  virtual void   SetValue(longlong lval, int n)
+                  {Shrp[n] = (short)lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   AddMinus1(PVBLK pv, int n1, int n2);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -232,15 +253,20 @@ class LNGBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
-  virtual void   SetValue(short sval, int n) {Lngp[n] = (int)sval;}
-  virtual void   SetValue(int lval, int n) {Lngp[n] = lval;}
-  virtual void   SetValue(longlong lval, int n) {Lngp[n] = (int)lval;}
+  virtual void   SetValue(short sval, int n)
+                  {Lngp[n] = (int)sval; SetNull(n, false);}
+  virtual void   SetValue(int lval, int n)
+                  {Lngp[n] = lval; SetNull(n, false);}
+  virtual void   SetValue(longlong lval, int n)
+                  {Lngp[n] = (int)lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   AddMinus1(PVBLK pv, int n1, int n2);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -293,15 +319,20 @@ class BIGBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
-  virtual void   SetValue(short sval, int n) {Lngp[n] = (longlong)sval;}
-  virtual void   SetValue(int lval, int n) {Lngp[n] = (longlong)lval;}
-  virtual void   SetValue(longlong lval, int n) {Lngp[n] = lval;}
+  virtual void   SetValue(short sval, int n)
+                  {Lngp[n] = (longlong)sval; SetNull(n, false);}
+  virtual void   SetValue(int lval, int n)
+                  {Lngp[n] = (longlong)lval; SetNull(n, false);}
+  virtual void   SetValue(longlong lval, int n)
+                  {Lngp[n] = lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   AddMinus1(PVBLK pv, int n1, int n2);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -337,10 +368,12 @@ class DBLBLK : public VALBLK {
   // Methods
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+#if 0
   virtual void   SetMin(PVAL valp, int n);
   virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValue(PVBLK pv, int n1, int n2);
   virtual void   SetValues(PVBLK pv, int k, int n);
+#endif // 0
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);

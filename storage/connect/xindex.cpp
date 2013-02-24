@@ -279,7 +279,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
 bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   {
   /*********************************************************************/
-  /*  Table can be accessed through an index.                         */
+  /*  Table can be accessed through an index.                          */
   /*********************************************************************/
   int     k, rc = RC_OK;
   int   *bof, i, j, n, ndf, nkey;
@@ -2860,6 +2860,12 @@ KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
 bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   {
   int len = colp->GetLength(), prec = colp->GetPrecision();
+
+  // Currently no indexing on NULL columns
+  if (colp->IsNullable()) {
+    sprintf(g->Message, "Cannot index nullable column %s", colp->GetName());
+    return true;
+    } // endif nullable
 
   if (kln && len > kln && colp->GetResultType() == TYPE_STRING) {
     len = kln;

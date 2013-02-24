@@ -1211,7 +1211,7 @@ int ha_connect::GetColNameLen(Field *fp)
   if (fop && fop->special)
     n= strlen(fop->special) + 1;
   else
-    n= strlen(fp->field_name);
+    n= strlen(fp->field_name) + 1;
 
   return n;
 } // end of GetColNameLen
@@ -1238,7 +1238,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
     // The prefix * mark the column as "special"
     strcat(strcpy(cp, "*"), strupr(fop->special));
   else
-    strcpy(cp, (char*)fp->field_name);
+    strcat(strcpy(cp, fp->maybe_null() ? "1" : "0"), (char*)fp->field_name);
 
 } // end of AddColName
 
@@ -1456,49 +1456,54 @@ int ha_connect::MakeRecord(char *buf)
       value= colp->GetValue();
 
       // All this could be better optimized
-      switch (value->GetType()) {
-        case TYPE_DATE:
-          if (!sdval)
-            sdval= AllocateValue(xp->g, TYPE_STRING, 20);
+      if (!value->IsNull()) {
+        switch (value->GetType()) {
+          case TYPE_DATE:
+            if (!sdval)
+              sdval= AllocateValue(xp->g, TYPE_STRING, 20);
+      
+            switch (fp->type()) {
+              case MYSQL_TYPE_DATE:
+                fmt= "%Y-%m-%d";
+                break;
+              case MYSQL_TYPE_TIME:
+                fmt= "%H:%M:%S";
+                break;
+              default:
+                fmt= "%Y-%m-%d %H:%M:%S";
+              } // endswitch type
+      
+            // Get date in the format required by MySQL fields
+            value->FormatValue(sdval, fmt);
+            p= sdval->GetCharValue();
+            break;
+          case TYPE_FLOAT:
+            p= NULL;
+            break;
+          case TYPE_STRING:
+            // Passthru
+          default:
+            p= value->GetCharString(val);
+          } // endswitch Type
 
-          switch (fp->type()) {
-            case MYSQL_TYPE_DATE:
-              fmt= "%Y-%m-%d";
-              break;
-            case MYSQL_TYPE_TIME:
-              fmt= "%H:%M:%S";
-              break;
-            default:
-              fmt= "%Y-%m-%d %H:%M:%S";
-            } // endswitch type
-
-          // Get date in the format required by MySQL fields
-          value->FormatValue(sdval, fmt);
-          p= sdval->GetCharValue();
-          break;
-        case TYPE_FLOAT:
-          p= NULL;
-          break;
-        case TYPE_STRING:
-          // Passthru
-        default:
-          p= value->GetCharString(val);
-        } // endswitch Type
-
-      if (p) {
-        if (fp->store(p, strlen(p), charset, CHECK_FIELD_WARN)) {
-          // Avoid "error" on null fields
-          if (value->GetIntValue())
+        if (p) {
+          if (fp->store(p, strlen(p), charset, CHECK_FIELD_WARN)) {
+            // Avoid "error" on null fields
+            if (value->GetIntValue())
+              rc= HA_ERR_WRONG_IN_RECORD;
+    
+            DBUG_PRINT("MakeRecord", (p));
+            } // endif store
+    
+        } else
+          if (fp->store(value->GetFloatValue())) {
             rc= HA_ERR_WRONG_IN_RECORD;
+            DBUG_PRINT("MakeRecord", (value->GetCharString(val)));
+            } // endif store
 
-          DBUG_PRINT("MakeRecord", (p));
-          } // endif store
-
+        fp->set_notnull();
       } else
-        if (fp->store(value->GetFloatValue())) {
-          rc= HA_ERR_WRONG_IN_RECORD;
-          DBUG_PRINT("MakeRecord", (value->GetCharString(val)));
-          } // endif store
+        fp->set_null();
 
       } // endif bitmap
 
@@ -1552,7 +1557,12 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
 
       // This is a used field, fill the value from the row buffer
       // All this could be better optimized
-      switch (value->GetType()) {
+      if (fp->is_null()) {
+        if (colp->IsNullable())
+          value->SetNull(true);
+
+        value->Reset();
+      } else switch (value->GetType()) {
         case TYPE_FLOAT:
           value->SetValue(fp->val_real());
           break;
@@ -3306,7 +3316,7 @@ bool ha_connect::add_fields(THD *thd, void *alt_info,
   alter_info->create_list.push_back(new_field);
 //lex->last_field=new_field;
   DBUG_RETURN(0);
-}
+} // end of add_fields
 
 /**
   @brief

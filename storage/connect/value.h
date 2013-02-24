@@ -81,6 +81,9 @@ class DllExport VALUE : public BLOCK {
   virtual longlong GetBigintValue(void) = 0;
   virtual double GetFloatValue(void) = 0;
   virtual void  *GetTo_Val(void) = 0;
+          bool   IsNull(void) {return Null;}
+          void   SetNull(bool b) {Null = b;}
+          void   SetNullable(bool b) {Nullable = b;}
           int    GetType(void) {return Type;}
           int    GetClen(void) {return Clen;}
           void   SetGlobal(PGLOBAL g) {Global = g;}
@@ -97,11 +100,17 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetValue_pvblk(PVBLK blk, int n) = 0;
   virtual void   SetBinValue(void *p) = 0;
   virtual bool   GetBinValue(void *buf, int buflen, bool go) = 0;
-  virtual void   GetBinValue(void *buf, int len) = 0;
+//virtual void   GetBinValue(void *buf, int len) = 0;
+  virtual char  *ShowValue(char *buf, int len = 0) = 0;
+  virtual char  *GetCharString(char *p) = 0;
+  virtual char  *GetShortString(char *p, int n) {return "#####";}
+  virtual char  *GetIntString(char *p, int n) = 0;
+  virtual char  *GetBigintString(char *p, int n) = 0;
+  virtual char  *GetFloatString(char *p, int n, int prec) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
+#if 0
   virtual int    CompareValue(PVAL vp) = 0;
   virtual BYTE   TestValue(PVAL vp);
-  virtual void   Divide(int cnt) {assert(false);}
   virtual void   StdVar(PVAL vp, int cnt, bool b) {assert(false);}
   virtual void   Add(int lv) {assert(false);}
   virtual void   Add(PVAL vp) {assert(false);}
@@ -112,6 +121,7 @@ class DllExport VALUE : public BLOCK {
   virtual void   AddSquare(PVBLK vbp, int i) {assert(false);}
   virtual void   AddSquare(PVBLK vbp, int j, int k) {assert(false);}
   virtual void   Times(PVAL vp) {assert(false);}
+  virtual void   Divide(int cnt) {assert(false);}
   virtual void   SetMin(PVAL vp) = 0;
   virtual void   SetMin(PVBLK vbp, int i) = 0;
   virtual void   SetMin(PVBLK vbp, int j, int k) = 0;
@@ -120,25 +130,23 @@ class DllExport VALUE : public BLOCK {
   virtual void   SetMax(PVBLK vbp, int i) = 0;
   virtual void   SetMax(PVBLK vbp, int j, int k) = 0;
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k) = 0;
-  virtual char  *ShowValue(char *buf, int len = 0) = 0;
-  virtual char  *GetCharString(char *p) = 0;
-  virtual char  *GetShortString(char *p, int n) {return "#####";}
-  virtual char  *GetIntString(char *p, int n) = 0;
-  virtual char  *GetBigintString(char *p, int n) = 0;
-  virtual char  *GetFloatString(char *p, int n, int prec) = 0;
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op) = 0;
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np) = 0;
+#endif // 0
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
-          char  *ShowTypedValue(PGLOBAL g, char *buf, int typ, int n, int p);
+//        char  *ShowTypedValue(PGLOBAL g, char *buf, int typ, int n, int p);
+
  protected:
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&) = 0;
 
   // Constructor used by derived classes
-  VALUE(int type) : Type(type) {}
+  VALUE(int type) : Type(type) {Null=Nullable=false; Clen=0;}
 
   // Members
   PGLOBAL Global;                   // To reduce arglist
 //const int   Type;                 // The value type
+  bool    Nullable;                 // True if value can be null
+  bool    Null;                     // True if value is null
   int     Type;                     // The value type
   int     Clen;                     // Internal value length
   }; // end of class VALUE
@@ -184,7 +192,7 @@ class STRING : public VALUE {
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual void   GetBinValue(void *buf, int len);
+//virtual void   GetBinValue(void *buf, int len);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
@@ -192,6 +200,7 @@ class STRING : public VALUE {
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if 0
   virtual int    CompareValue(PVAL vp);
   virtual BYTE   TestValue(PVAL vp);
   virtual void   SetMin(PVAL vp);
@@ -202,9 +211,10 @@ class STRING : public VALUE {
   virtual void   SetMax(PVBLK vbp, int i);
   virtual void   SetMax(PVBLK vbp, int j, int k);
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np);
+#endif // 0
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
@@ -256,7 +266,7 @@ class SHVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual void   GetBinValue(void *buf, int len);
+//virtual void   GetBinValue(void *buf, int len);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
@@ -264,8 +274,8 @@ class SHVAL : public VALUE {
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if 0
   virtual int    CompareValue(PVAL vp);
-  virtual void   Divide(int cnt);
   virtual void   StdVar(PVAL vp, int cnt, bool b);
   virtual void   Add(int lv) {Sval += (short)lv;}
   virtual void   Add(PVAL vp);
@@ -276,6 +286,7 @@ class SHVAL : public VALUE {
   virtual void   AddSquare(PVBLK vbp, int i);
   virtual void   AddSquare(PVBLK vbp, int j, int k);
   virtual void   Times(PVAL vp);
+  virtual void   Divide(int cnt);
   virtual void   SetMin(PVAL vp);
   virtual void   SetMin(PVBLK vbp, int i);
   virtual void   SetMin(PVBLK vbp, int j, int k);
@@ -284,16 +295,17 @@ class SHVAL : public VALUE {
   virtual void   SetMax(PVBLK vbp, int i);
   virtual void   SetMax(PVBLK vbp, int j, int k);
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np) {return 0;}
+#endif // 0
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
 
  protected:
-          short  SafeAdd(short n1, short n2);
-          short  SafeMult(short n1, short n2);
+//        short  SafeAdd(short n1, short n2);
+//        short  SafeMult(short n1, short n2);
   // Default constructor not to be used
   SHVAL(void) : VALUE(TYPE_ERROR) {}
 
@@ -339,7 +351,7 @@ class DllExport INTVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual void   GetBinValue(void *buf, int len);
+//virtual void   GetBinValue(void *buf, int len);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
@@ -347,8 +359,8 @@ class DllExport INTVAL : public VALUE {
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if 0
   virtual int    CompareValue(PVAL vp);
-  virtual void   Divide(int cnt);
   virtual void   StdVar(PVAL vp, int cnt, bool b);
   virtual void   Add(int lv) {Ival += lv;}
   virtual void   Add(PVAL vp);
@@ -359,6 +371,7 @@ class DllExport INTVAL : public VALUE {
   virtual void   AddSquare(PVBLK vbp, int i);
   virtual void   AddSquare(PVBLK vbp, int j, int k);
   virtual void   Times(PVAL vp);
+  virtual void   Divide(int cnt);
   virtual void   SetMin(PVAL vp);
   virtual void   SetMin(PVBLK vbp, int i);
   virtual void   SetMin(PVBLK vbp, int j, int k);
@@ -367,16 +380,17 @@ class DllExport INTVAL : public VALUE {
   virtual void   SetMax(PVBLK vbp, int i);
   virtual void   SetMax(PVBLK vbp, int j, int k);
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np);
+#endif // 0
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
 
  protected:
-          int   SafeAdd(int n1, int n2);
-          int   SafeMult(int n1, int n2);
+//        int   SafeAdd(int n1, int n2);
+//        int   SafeMult(int n1, int n2);
   // Default constructor not to be used
   INTVAL(void) : VALUE(TYPE_ERROR) {}
 
@@ -404,8 +418,8 @@ class DllExport DTVAL : public INTVAL {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual char  *GetCharString(char *p);
   virtual char  *ShowValue(char *buf, int);
-  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
-  virtual int    GetTime(PGLOBAL g, PVAL *vp, int np);
+//virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
+//virtual int    GetTime(PGLOBAL g, PVAL *vp, int np);
   virtual bool   FormatValue(PVAL vp, char *fmt);
           bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);
@@ -473,7 +487,7 @@ class DllExport BIGVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual void   GetBinValue(void *buf, int len);
+//virtual void   GetBinValue(void *buf, int len);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
@@ -481,8 +495,8 @@ class DllExport BIGVAL : public VALUE {
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if 0
   virtual int    CompareValue(PVAL vp);
-  virtual void   Divide(int cnt);
   virtual void   StdVar(PVAL vp, int cnt, bool b);
   virtual void   Add(int lv) {Lval += (longlong)lv;}
   virtual void   Add(PVAL vp);
@@ -493,6 +507,7 @@ class DllExport BIGVAL : public VALUE {
   virtual void   AddSquare(PVBLK vbp, int i);
   virtual void   AddSquare(PVBLK vbp, int j, int k);
   virtual void   Times(PVAL vp);
+  virtual void   Divide(int cnt);
   virtual void   SetMin(PVAL vp);
   virtual void   SetMin(PVBLK vbp, int i);
   virtual void   SetMin(PVBLK vbp, int j, int k);
@@ -501,16 +516,17 @@ class DllExport BIGVAL : public VALUE {
   virtual void   SetMax(PVBLK vbp, int i);
   virtual void   SetMax(PVBLK vbp, int j, int k);
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np) {return 0;}
+#endif // 0
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
 
  protected:
-          longlong SafeAdd(longlong n1, longlong n2);
-          longlong SafeMult(longlong n1, longlong n2);
+//        longlong SafeAdd(longlong n1, longlong n2);
+//        longlong SafeMult(longlong n1, longlong n2);
   // Default constructor not to be used
   BIGVAL(void) : VALUE(TYPE_ERROR) {}
 
@@ -556,7 +572,7 @@ class DFVAL : public VALUE {
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
-  virtual void   GetBinValue(void *buf, int len);
+//virtual void   GetBinValue(void *buf, int len);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual char  *GetShortString(char *p, int n);
@@ -564,8 +580,8 @@ class DFVAL : public VALUE {
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+#if 0
   virtual int    CompareValue(PVAL vp);
-  virtual void   Divide(int cnt);
   virtual void   StdVar(PVAL vp, int cnt, bool b);
   virtual void   Add(PVAL vp);
   virtual void   Add(PVBLK vbp, int i);
@@ -575,6 +591,7 @@ class DFVAL : public VALUE {
   virtual void   AddSquare(PVBLK vbp, int i);
   virtual void   AddSquare(PVBLK vbp, int j, int k);
   virtual void   Times(PVAL vp);
+  virtual void   Divide(int cnt)
   virtual void   SetMin(PVAL vp);
   virtual void   SetMin(PVBLK vbp, int i);
   virtual void   SetMin(PVBLK vbp, int j, int k);
@@ -583,15 +600,16 @@ class DFVAL : public VALUE {
   virtual void   SetMax(PVBLK vbp, int i);
   virtual void   SetMax(PVBLK vbp, int j, int k);
   virtual void   SetMax(PVBLK vbp, int *x, int j, int k);
-  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual int    GetTime(PGLOBAL g, PVAL *vp, int np);
+#endif // 0
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
 
   // Specific function
-          void   Divide(double div) {Fval /= div;}
+          void   Divide(double d) {Fval /= d;}
 
  protected:
   // Default constructor not to be used

@@ -109,14 +109,15 @@ MYSQLDEF::MYSQLDEF(void)
 /* An Example:                                                         */
 /*                                                                     */
 /* CREATE TABLE t1 (id int(32))                                        */
-/*   ENGINE="FEDERATEDX"                                               */
+/*   ENGINE="CONNECT" TABLE_TYPE="MYSQL"                               */
 /*   CONNECTION="mysql://joe:pwd@192.168.1.111:9308/dbname/tabname";   */
 /*                                                                     */
 /* CREATE TABLE t2 (                                                   */
 /*   id int(4) NOT NULL auto_increment,                                */
 /*   name varchar(32) NOT NULL,                                        */
 /*   PRIMARY KEY(id)                                                   */
-/*   ) ENGINE="FEDERATEDX" CONNECTION="my_conn";    (NIY)              */
+/*   ) ENGINE="CONNECT" TABLE_TYPE="MYSQL"                             */
+/*   CONNECTION="my_conn";    (NIY)                                    */
 /*                                                                     */
 /*  'password' and 'port' are both optional.                           */
 /*                                                                     */
@@ -1040,8 +1041,12 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank)))
     Value->SetValue_char(buf, Long);
-  else
+  else {
+    if (Nullable)
+      Value->SetNull(true);
+
     Value->Reset();              // Null value
+    } // endelse
 
   } // end of ReadColumn
 

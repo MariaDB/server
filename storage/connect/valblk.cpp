@@ -14,12 +14,12 @@
 /*  to avoid too complicated classes and unuseful duplication of many  */
 /*  functions used on one family only. The drawback is that for new    */
 /*  types of objects, we shall have more classes to update.            */
-/*  Currently the only implemented types are STRING, int and DOUBLE.  */
-/*  Shortly we should add at least int VARCHAR and DATE.              */
+/*  Currently the only implemented types are STRING, int and DOUBLE.   */
+/*  Shortly we should add at least int VARCHAR and DATE.               */
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -131,6 +131,19 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 /* -------------------------- Class VALBLK --------------------------- */
 
 /***********************************************************************/
+/*  Constructor.                                                       */
+/***********************************************************************/
+VALBLK::VALBLK(void *mp, int type, int nval)
+  {
+  Blkp = mp;
+  To_Nulls = NULL;
+  Type = type;
+  Nval = nval;
+  Check = true;
+  Nullable = false;
+  } // end of VALBLK constructor
+
+/***********************************************************************/
 /*  Raise error for numeric types.                                     */
 /***********************************************************************/
 PSZ VALBLK::GetCharValue(int n)
@@ -170,6 +183,18 @@ bool VALBLK::Locate(PVAL vp, int& i)
   return (!n);
   } // end of Locate
 
+/***********************************************************************/
+/*  Set Nullable and allocate the Null array.                          */
+/***********************************************************************/
+void VALBLK::SetNullable(bool b)
+{
+  if ((Nullable = b)) {
+    To_Nulls = (char*)PlugSubAlloc(Global, NULL, Nval);
+    memset(To_Nulls, 0, Nval);
+  } else
+    To_Nulls = NULL;
+
+} // end of SetNullable
 
 /* -------------------------- Class CHRBLK --------------------------- */
 
@@ -229,7 +254,7 @@ short CHRBLK::GetShortValue(int n)
   } // end of GetIntValue
 
 /***********************************************************************/
-/*  Return the value of the nth element converted to int.             */
+/*  Return the value of the nth element converted to int.              */
 /***********************************************************************/
 int CHRBLK::GetIntValue(int n)
   {
@@ -258,8 +283,14 @@ double CHRBLK::GetFloatValue(int n)
 void CHRBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
+  bool b;
 
-  SetValue((PSZ)valp->GetCharValue(), n);
+  if (!(b = valp->IsNull() && Nullable))
+    SetValue((PSZ)valp->GetCharValue(), n);
+  else
+    Reset(n);
+
+  SetNull(n, b);
   } // end of SetValue
 
 /***********************************************************************/
@@ -288,6 +319,7 @@ void CHRBLK::SetValue(PSZ sp, int n)
     for (register int i = len; i < Long; i++)
       p[i] = ' ';
 
+  SetNull(n, false);
   } // end of SetValue
 
 /***********************************************************************/
@@ -302,10 +334,17 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Type
 #endif
+  bool b;
 
-  memcpy(Chrp + n1 * Long, ((CHRBLK*)pv)->Chrp + n2 * Long, Long);
+  if (!(b = pv->IsNull(n2) && Nullable))
+    memcpy(Chrp + n1 * Long, ((CHRBLK*)pv)->Chrp + n2 * Long, Long);
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
   } // end of SetValue
 
+#if 0
 /***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
@@ -356,6 +395,7 @@ void CHRBLK::SetMax(PVAL valp, int n)
     memcpy(bp, vp, Long);
 
   } // end of SetMax
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -363,6 +403,7 @@ void CHRBLK::SetMax(PVAL valp, int n)
 void CHRBLK::Move(int i, int j)
   {
   memcpy(Chrp + j * Long, Chrp + i * Long, Long);
+  MoveNull(i, j);
   } // end of Move
 
 /***********************************************************************/
@@ -404,6 +445,9 @@ void *CHRBLK::GetValPtrEx(int n)
   CheckIndex(n)
   memcpy(Valp, Chrp + n * Long, Long);
 
+  if (IsNull(n))
+    return "";
+
   if (Blanks) {
     // The (fast) way this is done works only for blocks such
     // as Min and Max where strings are stored with the ending 0
@@ -429,7 +473,13 @@ int CHRBLK::Find(PVAL vp)
   bool ci = Ci || vp->IsCi();
   PSZ  s = vp->GetCharValue();
 
+  if (vp->IsNull())
+    return -1;
+
   for (i = 0; i < Nval; i++) {
+    if (IsNull(i))
+      continue;
+
     GetValPtrEx(i);               // Get a zero ended string in Valp
 
     if (!((ci) ? strnicmp(s, Valp, Long) : strncmp(s, Valp, Long)))
@@ -438,7 +488,7 @@ int CHRBLK::Find(PVAL vp)
     } // endfor i
 
   return (i < Nval) ? i : (-1);
-  } // end of GetValPtr
+  } // end of Find
 
 /***********************************************************************/
 /*  Returns the length of the longest string in the block.             */
@@ -447,10 +497,11 @@ int CHRBLK::GetMaxLength(void)
   {
   int i, n;
 
-  for (i = n = 0; i < Nval; i++) {
-    GetValPtrEx(i);
-    n = max(n, (signed)strlen(Valp));
-    } // endfor i
+  for (i = n = 0; i < Nval; i++)
+    if (!IsNull(i)) {
+      GetValPtrEx(i);
+      n = max(n, (signed)strlen(Valp));
+      } // endif null
 
   return n;
   } // end of GetMaxLength
@@ -465,6 +516,7 @@ STRBLK::STRBLK(PGLOBAL g, void *mp, int nval)
       : VALBLK(mp, TYPE_STRING, nval), Strp((PSZ*&)Blkp)
   {
   Global = g;
+  Nullable = true;
   } // end of STRBLK constructor
 
 /***********************************************************************/
@@ -486,9 +538,10 @@ void STRBLK::SetValue(PVBLK pv, int n1, int n2)
   {
   CheckType(pv)
 
-  Strp[n1] = ((STRBLK*)pv)->Strp[n2];
+  Strp[n1] = (!pv->IsNull(n2)) ? ((STRBLK*)pv)->Strp[n2] : NULL;
   } // end of SetValue
 
+#if 0
 /***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
@@ -498,9 +551,10 @@ void STRBLK::SetValues(PVBLK pv, int k, int n)
   PSZ *sp = ((STRBLK*)pv)->Strp;
 
   for (register int i = k; i < n; i++)
-    Strp[i] = sp[i];
+    Strp[i] = (!pv->IsNull(i)) ? sp[i] : NULL;
 
   } // end of SetValues
+#endif // 0
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -508,7 +562,12 @@ void STRBLK::SetValues(PVBLK pv, int k, int n)
 void STRBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
-  SetValue((PSZ)valp->GetCharValue(), n);
+
+  if (!valp->IsNull())
+    SetValue((PSZ)valp->GetCharValue(), n);
+  else
+    Strp[n] = NULL;
+
   } // end of SetValue
 
 /***********************************************************************/
@@ -520,6 +579,7 @@ void STRBLK::SetValue(PSZ p, int n)
   strcpy(Strp[n], p);
   } // end of SetValue
 
+#if 0
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -547,6 +607,7 @@ void STRBLK::SetMax(PVAL valp, int n)
     SetValue(valp, n);
 
   } // end of SetMax
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -562,6 +623,10 @@ void STRBLK::Move(int i, int j)
 int STRBLK::CompVal(PVAL vp, int n)
   {
   CheckParms(vp, n)
+
+  if (vp->IsNull() || !Strp[n])
+    DBUG_ASSERT(false);
+
   return strcmp(vp->GetCharValue(), Strp[n]);
   } // end of CompVal
 
@@ -570,6 +635,9 @@ int STRBLK::CompVal(PVAL vp, int n)
 /***********************************************************************/
 int STRBLK::CompVal(int i1, int i2)
   {
+  if (!Strp[i1] || Strp[i2])
+    DBUG_ASSERT(false);
+
   return (strcmp(Strp[i1], Strp[i2]));
   } // end of CompVal
 
@@ -588,7 +656,7 @@ void *STRBLK::GetValPtr(int n)
 void *STRBLK::GetValPtrEx(int n)
   {
   CheckIndex(n)
-  return Strp[n];
+  return (Strp[n]) ? Strp[n] : "";
   } // end of GetValPtrEx
 
 /***********************************************************************/
@@ -598,10 +666,15 @@ int STRBLK::Find(PVAL vp)
   {
   CheckType(vp)
   int i;
-  PSZ s = vp->GetCharValue();
+  PSZ s;
+  
+  if (vp->IsNull())
+    return -1;
+  else
+    s = vp->GetCharValue();
 
   for (i = 0; i < Nval; i++)
-    if (!strcmp(s, Strp[i]))
+    if (Strp[i] && !strcmp(s, Strp[i]))
       break;
 
   return (i < Nval) ? i : (-1);
@@ -615,7 +688,8 @@ int STRBLK::GetMaxLength(void)
   int i, n;
 
   for (i = n = 0; i < Nval; i++)
-    n = max(n, (signed)strlen(Strp[i]));
+    if (Strp[i])
+      n = max(n, (signed)strlen(Strp[i]));
 
   return n;
   } // end of GetMaxLength
@@ -649,7 +723,14 @@ void SHRBLK::Init(PGLOBAL g, bool check)
 void SHRBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
-  Shrp[n] = valp->GetShortValue();
+  bool b;
+
+  if (!(b = valp->IsNull() && Nullable))
+    Shrp[n] = valp->GetShortValue();
+  else
+    Reset(n);
+
+  SetNull(n, b);
   } // end of SetValue
 
 /***********************************************************************/
@@ -664,10 +745,27 @@ void SHRBLK::SetValue(PSZ p, int n)
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Check
 #endif
-
   Shrp[n] = (short)atoi(p);
+  SetNull(n, false);
   } // end of SetValue
 
+/***********************************************************************/
+/*  Set one value in a block from a value in another block.            */
+/***********************************************************************/
+void SHRBLK::SetValue(PVBLK pv, int n1, int n2)
+  {
+  CheckType(pv)
+  bool b;
+
+  if (!(b = pv->IsNull(n2) && Nullable))
+    Shrp[n1] = ((SHRBLK*)pv)->Shrp[n2];
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
+  } // end of SetValue
+
+#if 0
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -697,16 +795,6 @@ void SHRBLK::SetMax(PVAL valp, int n)
   } // end of SetMax
 
 /***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void SHRBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-
-  Shrp[n1] = ((SHRBLK*)pv)->Shrp[n2];
-  } // end of SetValue
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void SHRBLK::SetValues(PVBLK pv, int k, int n)
@@ -727,6 +815,7 @@ void SHRBLK::AddMinus1(PVBLK pv, int n1, int n2)
   assert(Type == pv->GetType());
   Shrp[n1] += (((SHRBLK*)pv)->Shrp[n2] - 1);
   } // end of AddMinus1
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -734,6 +823,7 @@ void SHRBLK::AddMinus1(PVBLK pv, int n1, int n2)
 void SHRBLK::Move(int i, int j)
   {
   Shrp[j] = Shrp[i];
+  MoveNull(i, j);
   } // end of Move
 
 /***********************************************************************/
@@ -839,7 +929,14 @@ void LNGBLK::Init(PGLOBAL g, bool check)
 void LNGBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
-  Lngp[n] = valp->GetIntValue();
+  bool b;
+
+  if (!(b = valp->IsNull() && Nullable))
+    Lngp[n] = valp->GetIntValue();
+  else
+    Reset(n);
+
+  SetNull(n, b);
   } // end of SetValue
 
 /***********************************************************************/
@@ -858,6 +955,23 @@ void LNGBLK::SetValue(PSZ p, int n)
   Lngp[n] = atol(p);
   } // end of SetValue
 
+/***********************************************************************/
+/*  Set one value in a block from a value in another block.            */
+/***********************************************************************/
+void LNGBLK::SetValue(PVBLK pv, int n1, int n2)
+  {
+  CheckType(pv)
+  bool b;
+
+  if (!(b = pv->IsNull(n2) && Nullable))
+    Lngp[n1] = ((LNGBLK*)pv)->Lngp[n2];
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
+  } // end of SetValue
+
+#if 0
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -887,16 +1001,6 @@ void LNGBLK::SetMax(PVAL valp, int n)
   } // end of SetMax
 
 /***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void LNGBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-
-  Lngp[n1] = ((LNGBLK*)pv)->Lngp[n2];
-  } // end of SetValue
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void LNGBLK::SetValues(PVBLK pv, int k, int n)
@@ -917,6 +1021,7 @@ void LNGBLK::AddMinus1(PVBLK pv, int n1, int n2)
   assert(Type == pv->GetType());
   Lngp[n1] += (((LNGBLK*)pv)->Lngp[n2] - 1);
   } // end of AddMinus1
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -924,6 +1029,7 @@ void LNGBLK::AddMinus1(PVBLK pv, int n1, int n2)
 void LNGBLK::Move(int i, int j)
   {
   Lngp[j] = Lngp[i];
+  MoveNull(i, j);
   } // end of Move
 
 /***********************************************************************/
@@ -1066,7 +1172,14 @@ void BIGBLK::Init(PGLOBAL g, bool check)
 void BIGBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
-  Lngp[n] = valp->GetBigintValue();
+  bool b;
+
+  if (!(b = valp->IsNull() && Nullable))
+    Lngp[n] = valp->GetBigintValue();
+  else
+    Reset(n);
+
+  SetNull(n, b);
   } // end of SetValue
 
 /***********************************************************************/
@@ -1085,6 +1198,23 @@ void BIGBLK::SetValue(PSZ p, int n)
   Lngp[n] = atoll(p);
   } // end of SetValue
 
+/***********************************************************************/
+/*  Set one value in a block from a value in another block.            */
+/***********************************************************************/
+void BIGBLK::SetValue(PVBLK pv, int n1, int n2)
+  {
+  CheckType(pv)
+  bool b;
+
+  if (!(b = pv->IsNull(n2) && Nullable))
+    Lngp[n1] = ((BIGBLK*)pv)->Lngp[n2];
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
+  } // end of SetValue
+
+#if 0
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
 /***********************************************************************/
@@ -1114,16 +1244,6 @@ void BIGBLK::SetMax(PVAL valp, int n)
   } // end of SetMax
 
 /***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void BIGBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-
-  Lngp[n1] = ((BIGBLK*)pv)->Lngp[n2];
-  } // end of SetValue
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void BIGBLK::SetValues(PVBLK pv, int k, int n)
@@ -1144,6 +1264,7 @@ void BIGBLK::AddMinus1(PVBLK pv, int n1, int n2)
   assert(Type == pv->GetType());
   Lngp[n1] += (((BIGBLK*)pv)->Lngp[n2] - 1);
   } // end of AddMinus1
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -1151,6 +1272,7 @@ void BIGBLK::AddMinus1(PVBLK pv, int n1, int n2)
 void BIGBLK::Move(int i, int j)
   {
   Lngp[j] = Lngp[i];
+  MoveNull(i, j);
   } // end of Move
 
 /***********************************************************************/
@@ -1257,22 +1379,15 @@ void DBLBLK::Init(PGLOBAL g, bool check)
 void DBLBLK::SetValue(PVBLK pv, int n1, int n2)
   {
   CheckType(pv)
+  bool b;
 
-  Dblp[n1] = ((DBLBLK*)pv)->Dblp[n2];
+  if (!(b = pv->IsNull(n2) && Nullable))
+    Dblp[n1] = ((DBLBLK*)pv)->Dblp[n2];
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
   } // end of SetValue
-
-/***********************************************************************/
-/*  Set many values in a block from values in another block.           */
-/***********************************************************************/
-void DBLBLK::SetValues(PVBLK pv, int k, int n)
-  {
-  CheckType(pv)
-  double *dp = ((DBLBLK*)pv)->Dblp;
-
-  for (register int i = k; i < n; i++)
-    Dblp[i] = dp[i];
-
-  } // end of SetValues
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -1280,7 +1395,14 @@ void DBLBLK::SetValues(PVBLK pv, int k, int n)
 void DBLBLK::SetValue(PVAL valp, int n)
   {
   CheckParms(valp, n)
-  Dblp[n] = valp->GetFloatValue();
+  bool b;
+
+  if (!(b = valp->IsNull() && Nullable))
+    Dblp[n] = valp->GetFloatValue();
+  else
+    Reset(n);
+
+  SetNull(n, b);
   } // end of SetValue
 
 /***********************************************************************/
@@ -1298,6 +1420,20 @@ void DBLBLK::SetValue(PSZ p, int n)
 
   Dblp[n] = atof(p);
   } // end of SetValue
+
+#if 0
+/***********************************************************************/
+/*  Set many values in a block from values in another block.           */
+/***********************************************************************/
+void DBLBLK::SetValues(PVBLK pv, int k, int n)
+  {
+  CheckType(pv)
+  double *dp = ((DBLBLK*)pv)->Dblp;
+
+  for (register int i = k; i < n; i++)
+    Dblp[i] = dp[i];
+
+  } // end of SetValues
 
 /***********************************************************************/
 /*  Set one value in a block if val is less than the current value.    */
@@ -1326,6 +1462,7 @@ void DBLBLK::SetMax(PVAL valp, int n)
     fmax = fval;
 
   } // end of SetMax
+#endif // 0
 
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
@@ -1333,6 +1470,7 @@ void DBLBLK::SetMax(PVAL valp, int n)
 void DBLBLK::Move(int i, int j)
   {
   Dblp[j] = Dblp[i];
+  MoveNull(i, j);
   } // end of Move
 
 /***********************************************************************/
