@@ -3400,6 +3400,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
   uint res= 0;                                  // Default value
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3411,6 +3412,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return res;
 }
   
@@ -3422,6 +3424,7 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
   bool result= true;
   Master_info *mi;
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3435,6 +3438,7 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
     mysql_mutex_unlock(&mi->rli.run_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 

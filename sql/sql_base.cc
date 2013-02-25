@@ -379,6 +379,7 @@ bool table_def_init(void)
   init_tdc_psi_keys();
 #endif
   mysql_mutex_init(key_LOCK_open, &LOCK_open, MY_MUTEX_INIT_FAST);
+  mysql_mutex_record_order(&LOCK_active_mi, &LOCK_open);
   oldest_unused_share= &end_of_unused_share;
   end_of_unused_share.prev= &oldest_unused_share;
 

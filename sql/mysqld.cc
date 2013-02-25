@@ -4005,6 +4005,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_active_mi, &LOCK_active_mi, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
+  mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
   mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
