@@ -6896,7 +6896,84 @@ calc_row_difference(
 
 	return(0);
 }
+#ifdef WITH_WSREP
+static
+int
+wsrep_calc_row_hash(
+/*================*/
+	byte*		digest,		/*!< in/out: md5 sum */
+	const uchar*	row,		/*!< in: row in MySQL format */
+	TABLE*		table,		/*!< in: table in MySQL data
+					dictionary */
+	row_prebuilt_t*	prebuilt,	/*!< in: InnoDB prebuilt struct */
+	THD*		thd)		/*!< in: user thread */
+{
+	Field*		field;
+	enum_field_types field_mysql_type;
+	uint		n_fields;
+	ulint		len;
+	const byte*	ptr;
+	ulint		col_type;
+	uint		i;
 
+	my_MD5Context ctx;
+	my_MD5Init (&ctx);
+
+	n_fields = table->s->fields;
+
+	for (i = 0; i < n_fields; i++) {
+		byte null_byte=0;
+		byte true_byte=1;
+
+		field = table->field[i];
+
+		ptr = (const byte*) row + get_field_offset(table, field);
+		len = field->pack_length();
+
+		field_mysql_type = field->type();
+
+		col_type = prebuilt->table->cols[i].mtype;
+
+		switch (col_type) {
+
+		case DATA_BLOB:
+			ptr = row_mysql_read_blob_ref(&len, ptr, len);
+
+			break;
+
+		case DATA_VARCHAR:
+		case DATA_BINARY:
+		case DATA_VARMYSQL:
+			if (field_mysql_type == MYSQL_TYPE_VARCHAR) {
+				/* This is a >= 5.0.3 type true VARCHAR where
+				the real payload data length is stored in
+				1 or 2 bytes */
+
+				ptr = row_mysql_read_true_varchar(
+					&len, ptr,
+					(ulint)
+					(((Field_varstring*)field)->length_bytes));
+
+			}
+
+			break;
+		default:
+			;
+		}
+
+		if (field->null_ptr &&
+		    field_in_record_is_null(table, field, (char*) row)) {
+			my_MD5Update (&ctx, &null_byte, 1);
+		} else {
+			my_MD5Update (&ctx, &true_byte, 1);
+			my_MD5Update (&ctx, ptr, len);
+		}
+	}
+	my_MD5Final (digest, &ctx);
+
+	return(0);
+}
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Updates a row given as a parameter to a new value. Note that we are given
 whole rows, not just the fields which are updated: this incurs some
@@ -8213,14 +8290,15 @@ ha_innobase::wsrep_append_keys(
 		uchar digest[16];
 		int rcode;
 
-		MY_MD5_HASH(digest, (uchar *)record0, table->s->reclength);
+		wsrep_calc_row_hash(digest, record0, table, prebuilt, thd);
 		if ((rcode = wsrep_append_key(thd, trx, table_share, table, 
 					      (const char*) digest, 16, 
 					      shared))) {
 			DBUG_RETURN(rcode);
 		}
+
 		if (record1) {
-			MY_MD5_HASH(digest, (uchar *)record1, table->s->reclength);
+			wsrep_calc_row_hash(digest, record1, table, prebuilt, thd);
 			if ((rcode = wsrep_append_key(thd, trx, table_share, 
 						      table,
 						      (const char*) digest, 
@@ -8228,6 +8306,7 @@ ha_innobase::wsrep_append_keys(
 				DBUG_RETURN(rcode);
 			}
 		}
+		DBUG_RETURN(0);
 	}
 	if (wsrep_protocol_version == 0) {
 		uint	len;

@@ -1799,14 +1799,25 @@ row_upd_sec_index_entry(
 					rec_get_offsets(
 							rec, index, NULL, ULINT_UNDEFINED,
 							&heap);
-				uint werr = wsrep_row_upd_check_foreign_constraints(
+				err = wsrep_row_upd_check_foreign_constraints(
 					node, &pcur, index->table,
 					index, offsets, thr, &mtr);
-
-				if (wsrep_debug && werr != DB_SUCCESS)
+				switch (err) {
+				case DB_SUCCESS:
+				case DB_NO_REFERENCED_ROW:
+					err = DB_SUCCESS;
+					break;
+				case DB_DEADLOCK:
+					if (wsrep_debug)
+						fprintf (stderr, 
+							 "WSREP: sec index FK check fail for deadlock");
+					break;
+				default:
 					fprintf (stderr, 
-						 "WSREP: FK check fail: %u", 
-						 werr);
+						 "WSREP: referenced FK check fail: %lu", 
+						 err);
+					break;
+				}
 			}
 #endif /* WITH_WSREP */
 		}
@@ -2054,12 +2065,26 @@ err_exit:
 		}
 #ifdef WITH_WSREP
 		if (!referenced) {
-			uint werr = wsrep_row_upd_check_foreign_constraints(
+			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
-			if (wsrep_debug && werr != DB_SUCCESS)
+			switch (err) {
+			case DB_SUCCESS:
+			case DB_NO_REFERENCED_ROW:
+				err = DB_SUCCESS;
+				break;
+			case DB_DEADLOCK:
+				if (wsrep_debug) fprintf (stderr, 
+					"WSREP: insert FK check fail for deadlock");
+				break;
+			default:
 				fprintf (stderr, 
-					 "WSREP: FK check fail: %u", 
-					 werr);
+					"WSREP: referenced FK check fail: %lu", 
+					 err);
+				break;
+			}
+			if (err != DB_SUCCESS) {
+				goto err_exit;
+			}
 		}
 #endif /* WITH_WSREP */
 	}
@@ -2307,10 +2332,23 @@ row_upd_del_mark_clust_rec(
 	}
 #ifdef WITH_WSREP
 	if (err == DB_SUCCESS && !referenced) {
-		uint werr = wsrep_row_upd_check_foreign_constraints(
+		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
-		if (wsrep_debug && werr != DB_SUCCESS)
-			fprintf (stderr,  "WSREP: FK check fail: %u",  werr);
+		switch (err) {
+		case DB_SUCCESS:
+		case DB_NO_REFERENCED_ROW:
+			err = DB_SUCCESS;
+			break;
+		case DB_DEADLOCK:
+			if (wsrep_debug) fprintf (stderr, 
+				"WSREP: clust rec FK check fail for deadlock");
+			break;
+		default:
+			fprintf (stderr, 
+				"WSREP: clust rec referenced FK check fail: %lu", 
+				 err);
+			break;
+		}
 	}
 #endif /* WITH_WSREP */
 

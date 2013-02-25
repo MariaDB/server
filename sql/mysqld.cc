@@ -5590,6 +5590,14 @@ int mysqld_main(int argc, char **argv)
   my_str_malloc= &my_str_malloc_mysqld;
   my_str_free= &my_str_free_mysqld;
 
+#ifdef WITH_WSREP /* WSREP AFTER SE */
+  if (wsrep_recovery)
+  {
+    select_thread_in_use= 0;
+    wsrep_recover();
+    unireg_abort(0);
+  }
+#endif /* WITH_WSREP */
   /*
     init signals & alarm
     After this we can't quit by a simple unireg_abort
@@ -5662,13 +5670,6 @@ int mysqld_main(int argc, char **argv)
     unireg_abort(1);
 
 #ifdef WITH_WSREP /* WSREP AFTER SE */
-  if (wsrep_recovery)
-  {
-    select_thread_in_use= 0;
-    wsrep_recover();
-    unireg_abort(0);
-  }
-
   if (opt_bootstrap)
   {
     /*! bootstrap wsrep init was taken care of above */
