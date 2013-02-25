@@ -1434,7 +1434,7 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
   return FALSE;
 }
 
-bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
+bool Item_in_optimizer::fix_left(THD *thd)
 {
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
       (!cache && !(cache= Item_cache::get_cache(args[0]))))
@@ -1482,6 +1482,13 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
     cache->store(args[0]);
     cache->cache_value();
   }
+  if (args[1]->fixed)
+  {
+    /* to avoid overriding is called to update left expression */
+    used_tables_cache|= args[1]->used_tables();
+    with_sum_func= with_sum_func || args[1]->with_sum_func;
+    const_item_cache= const_item_cache && args[1]->const_item();
+  }
   return 0;
 }
 
@@ -1489,15 +1496,17 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
 bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
-  if (fix_left(thd, ref))
+  if (fix_left(thd))
     return TRUE;
   if (args[0]->maybe_null)
     maybe_null=1;
 
   if (!args[1]->fixed && args[1]->fix_fields(thd, args+1))
     return TRUE;
+
   Item_in_subselect * sub= (Item_in_subselect *)args[1];
-  if (args[0]->cols() != sub->engine->cols())
+  if (!invisible_mode() &&
+      args[0]->cols() != sub->engine->cols())
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), args[0]->cols());
     return TRUE;
@@ -1511,6 +1520,30 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   const_item_cache&= args[1]->const_item();
   fixed= 1;
   return FALSE;
+}
+
+/**
+  Check if Item_in_optimizer should work as a pass-through item for its 
+  arguments.
+
+  @note 
+   Item_in_optimizer should work as pass-through for
+    - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
+    - subqueries taht were originally EXISTS subqueries (and were coverted by
+      the EXISTS->IN rewrite)
+
+   When Item_in_optimizer is not not working as a pass-through, it
+    - caches its "left argument", args[0].
+    - makes adjustments to subquery item's return value for proper NULL
+      value handling
+*/
+
+bool Item_in_optimizer::invisible_mode()
+{
+  /* MAX/MIN transformed or EXISTS->IN prepared => do nothing */
+ return (args[1]->type() != Item::SUBSELECT_ITEM ||
+         ((Item_subselect *)args[1])->substype() ==
+         Item_subselect::EXISTS_SUBS);
 }
 
 
@@ -1536,8 +1569,9 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(uchar *thd_arg)
 {
   THD *thd= (THD*) thd_arg;
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
-    DBUG_RETURN(this); // MAX/MIN transformed => do nothing
+
+  if (invisible_mode())
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
@@ -1560,13 +1594,16 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(uchar *thd_arg)
 void Item_in_optimizer::get_cache_parameters(List<Item> &parameters)
 {
   /* Add left expression to the list of the parameters of the subquery */
-  if (args[0]->cols() == 1)
-    parameters.add_unique(args[0], &cmp_items);
-  else
+  if (!invisible_mode())
   {
-    for (uint i= 0; i < args[0]->cols(); i++)
+    if (args[0]->cols() == 1)
+      parameters.add_unique(args[0], &cmp_items);
+    else
     {
-      parameters.add_unique(args[0]->element_index(i), &cmp_items);
+      for (uint i= 0; i < args[0]->cols(); i++)
+      {
+        parameters.add_unique(args[0]->element_index(i), &cmp_items);
+      }
     }
   }
   args[1]->get_cache_parameters(parameters);
@@ -1649,17 +1686,19 @@ longlong Item_in_optimizer::val_int()
   DBUG_ASSERT(fixed == 1);
   cache->store(args[0]);
   cache->cache_value();
+  DBUG_ENTER(" Item_in_optimizer::val_int");
 
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
+  if (invisible_mode())
   {
-    /* MAX/MIN transformed => pass through */
     longlong res= args[1]->val_int();
     null_value= args[1]->null_value;
-    return (res);
+    DBUG_PRINT("info", ("pass trough"));
+    DBUG_RETURN(res);
   }
 
   if (cache->null_value)
   {
+     DBUG_PRINT("info", ("Left NULL..."));
     /*
       We're evaluating 
       "<outer_value_list> [NOT] IN (SELECT <inner_value_list>...)" 
@@ -1731,11 +1770,11 @@ longlong Item_in_optimizer::val_int()
       for (uint i= 0; i < ncols; i++)
         item_subs->set_cond_guard_var(i, TRUE);
     }
-    return 0;
+    DBUG_RETURN(0);
   }
   tmp= args[1]->val_bool_result();
   null_value= args[1]->null_value;
-  return tmp;
+  DBUG_RETURN(tmp);
 }
 
 
@@ -1786,7 +1825,8 @@ bool Item_in_optimizer::is_null()
     @retval NULL if an error occurred
 */
 
-Item *Item_in_optimizer::transform(Item_transformer transformer, uchar *argument)
+Item *Item_in_optimizer::transform(Item_transformer transformer,
+                                   uchar *argument)
 {
   Item *new_item;
 
@@ -1806,7 +1846,7 @@ Item *Item_in_optimizer::transform(Item_transformer transformer, uchar *argument
   if ((*args) != new_item)
     current_thd->change_item_tree(args, new_item);
 
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
+  if (invisible_mode())
   {
     /* MAX/MIN transformed => pass through */
     new_item= args[1]->transform(transformer, argument);
@@ -5350,6 +5390,7 @@ Item *Item_func_not::neg_transformer(THD *thd)	/* NOT(x)  ->  x */
 
 bool Item_func_not::fix_fields(THD *thd, Item **ref)
 {
+  args[0]->under_not(this);
   if (args[0]->type() == FIELD_ITEM)
   {
     /* replace  "NOT <field>" with "<filed> == 0" */

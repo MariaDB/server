@@ -807,10 +807,15 @@ bool Item_ident::remove_dependence_processor(uchar * arg)
 bool Item_ident::collect_outer_ref_processor(uchar *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
-  if (depended_from && 
+  if (depended_from &&
       depended_from->nest_level_base == prm->nest_level_base &&
       depended_from->nest_level < prm->nest_level)
-    prm->parameters->add_unique(this, &cmp_items);
+  {
+    if (prm->collect)
+      prm->parameters->add_unique(this, &cmp_items);
+    else
+      prm->count++;
+  }
   return FALSE;
 }
 
@@ -6481,6 +6486,13 @@ Item* Item::cache_const_expr_transformer(uchar *arg)
   return this;
 }
 
+/**
+  Find Item by reference in the expression
+*/
+bool Item::find_item_processor(uchar *arg)
+{
+  return (this == ((Item *) arg));
+}
 
 bool Item_field::send(Protocol *protocol, String *buffer)
 {

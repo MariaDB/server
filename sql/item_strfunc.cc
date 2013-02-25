@@ -2489,10 +2489,12 @@ void Item_func_make_set::fix_length_and_dec()
 
 void Item_func_make_set::update_used_tables()
 {
+  DBUG_ENTER("Item_func_make_set::update_used_tables");
   Item_func::update_used_tables();
   item->update_used_tables();
   used_tables_cache|=item->used_tables();
   const_item_cache&=item->const_item();
+  DBUG_VOID_RETURN;
 }
 
 

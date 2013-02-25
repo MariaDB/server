@@ -1,0 +1,83 @@
+#
+# Tests of cost-based choice between the materialization and in-to-exists
+# subquery execution strategies (MWL#89)
+#
+# The test file is divided into two groups of tests:
+# A. Typical cases when either of the two strategies is selected:
+#    1. Subquery in disjunctive WHERE clause of the outer query.
+#    2. NOT IN subqueries
+#    3. Subqueries with GROUP BY, HAVING, and aggregate functions
+#    4. Subqueries in the SELECT and HAVING clauses
+#    5. Subqueries with UNION
+# B. Reasonably exhaustive tests of the various combinations of optimizer
+#    switches, data distribution, available indexes, and typical queries.
+#
+
+set @subselect_mat_cost=@@optimizer_switch;
+set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
+#
+# Test logging to slow log (there was some errors in the log files about
+# the slow log when running under valgrind, so better to get this tested)
+#
+set long_query_time=0.1;
+
+
+--disable_warnings
+drop database if exists world;
+--enable_warnings
+
+set names utf8;
+
+create database world;
+use world;
+
+--source include/world_schema.inc
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+-- echo Make the schema and data more diverse by adding more indexes, nullable
+-- echo columns, and NULL data.
+create index SurfaceArea on Country(SurfaceArea);
+create index Language on CountryLanguage(Language);
+create index CityName on City(Name);
+alter table City change population population int(11) null default 0;
+
+select max(id) from City into @max_city_id;
+insert into City values (@max_city_id + 1,'Kilifarevo','BGR',NULL);
+
+
+SELECT COUNT(*) FROM Country;
+SELECT COUNT(*) FROM City;
+SELECT COUNT(*) FROM CountryLanguage;
+
+set @@optimizer_switch = 'exists_to_in=on,in_to_exists=on,semijoin=on,materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on';
+
+-- echo
+-- echo 1. Subquery in a disjunctive WHERE clause of the outer query.
+-- echo
+
+-- echo
+-- echo Q1.1m:
+-- echo MATERIALIZATION: there are too many rows in the outer query
+-- echo to be looked up in the inner table.
+EXPLAIN
+SELECT Name FROM Country
+WHERE (EXISTS (select 1 from City where City.Population > 100000 and
+Code = Country) OR
+       Name LIKE 'L%') AND
+      surfacearea > 1000000;
+
+SELECT Name FROM Country
+WHERE (EXISTS (select 1 from City where City.Population > 100000 and
+Code = Country) OR
+       Name LIKE 'L%') AND
+      surfacearea > 1000000;
+
+drop database world;
+
+set optimizer_switch=@subselect_mat_cost;

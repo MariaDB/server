@@ -1876,6 +1876,7 @@ void st_select_lex::init_query()
   max_equal_elems= 0;
   ref_pointer_array= 0;
   select_n_where_fields= 0;
+  select_n_reserved= 0;
   select_n_having_items= 0;
   n_child_sum_items= 0;
   subquery_in_having= explicit_limit= 0;
@@ -2321,6 +2322,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   ref_pointer_array=
     (Item **)thd->stmt_arena->alloc(sizeof(Item*) * (n_child_sum_items +
                                                      item_list.elements +
+                                                     select_n_reserved +
                                                      select_n_having_items +
                                                      select_n_where_fields +
                                                      order_group_num)*5);

@@ -666,6 +666,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         8. No execution method was already chosen (by a prepared statement)
         9. Parent select is not a table-less select
         10. Neither parent nor child select have STRAIGHT_JOIN option.
+        11. It is first optimisation (the subquery could be moved from ON
+        clause during first optimisation and then be considered for SJ
+        on the second when it is too late)
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -679,7 +682,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->leaf_tables.elements &&           // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
-          & SELECT_STRAIGHT_JOIN))                                    // 10
+          & SELECT_STRAIGHT_JOIN) &&                                  // 10
+        select_lex->first_cond_optimization)                          // 11
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
