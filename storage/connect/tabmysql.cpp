@@ -846,15 +846,19 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
 
   // Make the Insert command value list
   for (PCOL colp = Columns; colp; colp = colp->GetNext()) {
-    if (colp->GetResultType() == TYPE_STRING || 
-        colp->GetResultType() == TYPE_DATE)
-      strcat(Qbuf, "'");
+    if (!colp->GetValue()->IsNull()) {
+      if (colp->GetResultType() == TYPE_STRING || 
+          colp->GetResultType() == TYPE_DATE)
+        strcat(Qbuf, "'");
 
-    strcat(Qbuf, colp->GetValue()->GetCharString(buf));
+      strcat(Qbuf, colp->GetValue()->GetCharString(buf));
 
-    if (colp->GetResultType() == TYPE_STRING || 
-        colp->GetResultType() == TYPE_DATE)
-      strcat(Qbuf, "'");
+      if (colp->GetResultType() == TYPE_STRING || 
+          colp->GetResultType() == TYPE_DATE)
+        strcat(Qbuf, "'");
+
+    } else
+      strcat(Qbuf, "NULL");
 
     strcat(Qbuf, (colp->GetNext()) ? "," : ")");
     } // endfor colp

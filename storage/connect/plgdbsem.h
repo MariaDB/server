@@ -469,7 +469,7 @@ typedef struct _tabs {
 /*  Following definitions are used to define table fields (columns).   */
 /***********************************************************************/
 enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
-           FLD_NAME     =  1,         /* Field name                    */
+           FLD_NAME     =  1,         /* Item name                     */
            FLD_TYPE     =  2,         /* Field type                    */
            FLD_TYPENAME =  3,         /* Field type name               */
            FLD_PREC     =  4,         /* Field precision (length?)     */
@@ -482,7 +482,10 @@ enum XFLD {FLD_NO       =  0,         /* Not a field definition item   */
            FLD_KEY      = 11,         /* Field key property            */
            FLD_DEFAULT  = 12,         /* Field default value           */
            FLD_PRIV     = 13,         /* Field priviledges             */
-           FLD_DATEFMT  = 14};        /* Field date format             */
+           FLD_DATEFMT  = 14,         /* Field date format             */
+           FLD_QUALIF   = 15,         /* Table qualifier               */
+           FLD_OWNER    = 16,         /* Table owner                   */
+           FLD_TABNAME  = 17};        /* Column Table name             */
 
 /***********************************************************************/
 /*  Result of last SQL noconv query.                                   */
