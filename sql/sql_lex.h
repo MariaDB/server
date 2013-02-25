@@ -819,6 +819,8 @@ public:
     and all inner subselects.
   */
   uint select_n_where_fields;
+  /* reserved for exists 2 in */
+  uint select_n_reserved;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   bool with_sum_func;   /* sum function indicator */
 

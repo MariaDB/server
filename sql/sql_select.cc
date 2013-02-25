@@ -602,7 +602,9 @@ inline int setup_without_group(THD *thd, Item **ref_pointer_array,
 			       List<Item> &all_fields,
 			       COND **conds,
 			       ORDER *order,
-			       ORDER *group, bool *hidden_group_fields)
+			       ORDER *group,
+                               bool *hidden_group_fields,
+                               uint *reserved)
 {
   int res;
   nesting_map save_allow_sum_func=thd->lex->allow_sum_func ;
@@ -616,6 +618,13 @@ inline int setup_without_group(THD *thd, Item **ref_pointer_array,
 
   thd->lex->allow_sum_func&= ~(1 << thd->lex->current_select->nest_level);
   res= setup_conds(thd, tables, leaves, conds);
+  if (thd->lex->current_select->first_cond_optimization)
+  {
+    if (!res && *conds)
+      (*reserved)= (*conds)->exists2in_reserved_items();
+    else
+      (*reserved)= 0;
+  }
 
   /* it's not wrong to have non-aggregated columns in a WHERE */
   thd->lex->current_select->set_non_agg_field_used(saved_non_agg_field_used);
@@ -763,7 +772,7 @@ JOIN::prepare(Item ***rref_pointer_array,
       setup_without_group(thd, (*rref_pointer_array), tables_list,
 			  select_lex->leaf_tables, fields_list,
 			  all_fields, &conds, order, group_list,
-			  &hidden_group_fields))
+			  &hidden_group_fields, &select_lex->select_n_reserved))
     DBUG_RETURN(-1);				/* purecov: inspected */
 
   ref_pointer_array= *rref_pointer_array;
@@ -1043,6 +1052,23 @@ JOIN::optimize_inner()
     table_count= select_lex->leaf_tables.elements;
     select_lex->update_used_tables();
   }
+  /*
+    In fact we transform underlying subqueries after their 'prepare' phase and
+    before 'optimize' from upper query 'optimize' to allow semijoin
+    conversion happened (which done in the same way.
+  */
+  if(select_lex->first_cond_optimization &&
+     conds && conds->walk(&Item::exists2in_processor, 0, (uchar *)thd))
+    DBUG_RETURN(1);
+  /*
+TODO: make view to decide if it is possible to write to WHERE directly or make Semi-Joins able to process ON condition if it is possible
+  for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (tbl->on_expr &&
+        tbl->on_expr->walk(&Item::exists2in_processor, 0, (uchar *)thd))
+      DBUG_RETURN(1);
+  }
+  */
 
   if (transform_max_min_subquery())
     DBUG_RETURN(1); /* purecov: inspected */
@@ -6004,6 +6030,7 @@ static void choose_initial_table_order(JOIN *join)
   TABLE_LIST *emb_subq;
   JOIN_TAB **tab= join->best_ref + join->const_tables;
   JOIN_TAB **tabs_end= tab + join->table_count - join->const_tables;
+  DBUG_ENTER("choose_initial_table_order");
   /* Find where the top-level JOIN_TABs end and subquery JOIN_TABs start */
   for (; tab != tabs_end; tab++)
   {
@@ -6013,7 +6040,7 @@ static void choose_initial_table_order(JOIN *join)
   uint n_subquery_tabs= tabs_end - tab;
 
   if (!n_subquery_tabs)
-    return;
+    DBUG_VOID_RETURN;
 
   /* Copy the subquery JOIN_TABs to a separate array */
   JOIN_TAB *subquery_tabs[MAX_TABLES];
@@ -6068,6 +6095,7 @@ static void choose_initial_table_order(JOIN *join)
       subq_tab += n_subquery_tables - 1;
     }
   }
+  DBUG_VOID_RETURN;
 }
 
 
@@ -16373,7 +16401,9 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
   DBUG_ENTER("evaluate_join_record");
   DBUG_PRINT("enter",
              ("evaluate_join_record join: %p join_tab: %p"
-              " cond: %p error: %d", join, join_tab, select_cond, error));
+              " cond: %p error: %d  alias %s",
+              join, join_tab, select_cond, error,
+              join_tab->table->alias.ptr()));
   if (error > 0 || (join->thd->is_error()))     // Fatal error
     DBUG_RETURN(NESTED_LOOP_ERROR);
   if (error < 0)
@@ -16486,6 +16516,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     if (join_tab->check_weed_out_table && found)
     {
       int res= join_tab->check_weed_out_table->sj_weedout_check_row(join->thd);
+      DBUG_PRINT("info", ("weedout_check: %d", res));
       if (res == -1)
         DBUG_RETURN(NESTED_LOOP_ERROR);
       else if (res == 1)
@@ -16506,8 +16537,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       (See above join->return_tab= tab).
     */
     join->examined_rows++;
-    DBUG_PRINT("counts", ("join->examined_rows++: %lu",
-                          (ulong) join->examined_rows));
+    DBUG_PRINT("counts", ("join->examined_rows++: %lu  found: %d",
+                          (ulong) join->examined_rows, (int) found));
 
     if (found)
     {

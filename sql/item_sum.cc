@@ -375,7 +375,12 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
   if ((ds= depended_from()) &&
       ds->nest_level_base == prm->nest_level_base &&
       ds->nest_level < prm->nest_level)
-    prm->parameters->add_unique(this, &cmp_items);
+  {
+    if (prm->collect)
+      prm->parameters->add_unique(this, &cmp_items);
+    else
+      prm->count++;
+  }
   return FALSE;
 }
 

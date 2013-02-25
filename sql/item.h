@@ -553,6 +553,8 @@ class COND_EQUAL;
 
 class st_select_lex_unit;
 
+class Item_func_not;
+
 class Item {
   Item(const Item &);			/* Prevent use of these */
   void operator=(Item &);
@@ -1153,6 +1155,7 @@ public:
   virtual bool collect_item_field_processor(uchar * arg) { return 0; }
   virtual bool add_field_to_set_processor(uchar * arg) { return 0; }
   virtual bool find_item_in_field_list_processor(uchar *arg) { return 0; }
+  virtual bool find_item_processor(uchar *arg);
   virtual bool change_context_processor(uchar *context) { return 0; }
   virtual bool reset_query_id_processor(uchar *query_id_arg) { return 0; }
   virtual bool is_expensive_processor(uchar *arg) { return 0; }
@@ -1167,9 +1170,10 @@ public:
   virtual bool eval_not_null_tables(uchar *opt_arg) { return 0; }
   virtual bool is_subquery_processor (uchar *opt_arg) { return 0; }
   virtual bool limit_index_condition_pushdown_processor(uchar *opt_arg)
-  { 
+  {
     return FALSE;
   }
+  virtual bool exists2in_processor(uchar *opt_arg) { return 0; }
 
   /* To call bool function for all arguments */
   struct bool_func_call_args
@@ -1185,6 +1189,7 @@ public:
       (this->*(info->bool_function))();
     return FALSE;
   }
+
 
   /*
     The next function differs from the previous one that a bitmap to be updated
@@ -1315,7 +1320,9 @@ public:
     List<Item> *parameters;
     /* unit from which we count nest_level */
     st_select_lex_unit *nest_level_base;
+    uint count;
     int nest_level;
+    bool collect;
   };
   /**
     Collect outer references
@@ -1478,6 +1485,15 @@ public:
   virtual void get_cache_parameters(List<Item> &parameters) { };
 
   virtual void mark_as_condition_AND_part(TABLE_LIST *embedding) {};
+
+  /* how much position should be reserved for Exists2In transformation */
+  virtual uint exists2in_reserved_items() { return 0; };
+
+  /**
+    Inform the item that it is located under a NOT, which is a top-level item.
+  */
+  virtual void under_not(Item_func_not * upper
+                         __attribute__((unused))) {};
 };
 
 
@@ -2983,6 +2999,13 @@ public:
               alias_name_used_arg)
   {}
 
+  bool fix_fields(THD *thd, Item **it)
+  {
+    if ((!(*ref)->fixed && (*ref)->fix_fields(thd, ref)) ||
+        (*ref)->check_cols(1))
+      return TRUE;
+    return Item_ref::fix_fields(thd, it);
+  }
   void save_val(Field *to);
   double val_real();
   longlong val_int();
@@ -3202,7 +3225,7 @@ public:
   bool subst_argument_checker(uchar **arg);
   Item *equal_fields_propagator(uchar *arg);
   Item *replace_equal_field(uchar *arg);
-  table_map used_tables() const;	
+  table_map used_tables() const;
   table_map not_null_tables() const;
   void update_used_tables();
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)

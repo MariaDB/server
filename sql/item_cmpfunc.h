@@ -246,12 +246,12 @@ protected:
   */
   int result_for_null_param;
 public:
-  Item_in_optimizer(Item *a, Item_in_subselect *b):
-    Item_bool_func(a, reinterpret_cast<Item *>(b)), cache(0), expr_cache(0),
+  Item_in_optimizer(Item *a, Item *b):
+    Item_bool_func(a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   { with_subselect= true; }
   bool fix_fields(THD *, Item **);
-  bool fix_left(THD *thd, Item **ref);
+  bool fix_left(THD *thd);
   table_map not_null_tables() const { return 0; }
   bool is_null();
   longlong val_int();
@@ -269,6 +269,8 @@ public:
   bool is_top_level_item();
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool invisible_mode();
+  void reset_cache() { cache= NULL; }
 };
 
 class Comp_creator
@@ -436,8 +438,11 @@ public:
 
 class Item_func_not :public Item_bool_func
 {
+  bool abort_on_null;
 public:
-  Item_func_not(Item *a) :Item_bool_func(a) {}
+  Item_func_not(Item *a) :Item_bool_func(a), abort_on_null(FALSE) {}
+  virtual void top_level_item() { abort_on_null= 1; }
+  bool is_top_level_item() { return abort_on_null; }
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
@@ -495,16 +500,13 @@ class Item_func_not_all :public Item_func_not
   Item_sum_hybrid *test_sum_item;
   Item_maxmin_subselect *test_sub_item;
 
-  bool abort_on_null;
 public:
   bool show;
 
   Item_func_not_all(Item *a)
-    :Item_func_not(a), test_sum_item(0), test_sub_item(0), abort_on_null(0),
+    :Item_func_not(a), test_sum_item(0), test_sub_item(0),
      show(0)
     {}
-  virtual void top_level_item() { abort_on_null= 1; }
-  bool is_top_level_item() { return abort_on_null; }
   table_map not_null_tables() const { return 0; }
   longlong val_int();
   enum Functype functype() const { return NOT_ALL_FUNC; }
@@ -550,6 +552,7 @@ public:
     - Otherwise, UINT_MAX
   */
   uint in_equality_no;
+  virtual uint exists2in_reserved_items() { return 1; };
 };
 
 class Item_func_equal :public Item_bool_rowready_func2
@@ -1851,6 +1854,7 @@ public:
   }
   Item *neg_transformer(THD *thd);
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
+  virtual uint exists2in_reserved_items() { return list.elements; };
 };
 
 inline bool is_cond_and(Item *item)
