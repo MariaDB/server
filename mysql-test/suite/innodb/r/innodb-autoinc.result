@@ -1295,6 +1295,7 @@ SHOW VARIABLES LIKE "%auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
+wsrep_auto_increment_control	ON
 CREATE TABLE t1 (c1 INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (2147483648, 'a');
 SHOW CREATE TABLE t1;
