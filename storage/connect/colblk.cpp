@@ -40,16 +40,17 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Long = cdp->Long;
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
+    Nullable = !!(cdp->Flags & U_NULLS);
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
     Opt = 0;
     Long = 0;
     Buf_Type = TYPE_ERROR;
+    Nullable = false;
   } // endif cdp
 
   To_Tdb = tdbp;
-  Nullable = false;
   Status = BUF_NO;
 //Value = NULL;                  done in XOBJECT constructor
   To_Kcol = NULL;

@@ -1238,7 +1238,7 @@ void ha_connect::AddColName(char *cp, Field *fp)
     // The prefix * mark the column as "special"
     strcat(strcpy(cp, "*"), strupr(fop->special));
   else
-    strcat(strcpy(cp, fp->maybe_null() ? "1" : "0"), (char*)fp->field_name);
+    strcpy(cp, (char*)fp->field_name);
 
 } // end of AddColName
 
@@ -1313,7 +1313,7 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
       } // endif
 
     if (ump && bitmap_is_set(ump, (*field)->field_index)) {
-      n2+= (GetColNameLen(*field) + 1);
+      n2+= GetColNameLen(*field);
       k2++;
       } // endif
 

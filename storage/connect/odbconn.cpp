@@ -238,10 +238,10 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
                           TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,    TYPE_INT,   TYPE_SHORT,
                           TYPE_SHORT,  TYPE_SHORT, TYPE_STRING};
-  static XFLD fldtyp[] = {FLD_NO,    FLD_NO,     FLD_NO,
-                          FLD_NAME,  FLD_TYPE,   FLD_TYPENAME,
-                          FLD_PREC,  FLD_LENGTH, FLD_SCALE,
-                          FLD_RADIX, FLD_NULL,   FLD_REM};
+  static XFLD fldtyp[] = {FLD_QUALIF, FLD_OWNER,  FLD_TABNAME,
+                          FLD_NAME,   FLD_TYPE,   FLD_TYPENAME,
+                          FLD_PREC,   FLD_LENGTH, FLD_SCALE,
+                          FLD_RADIX,  FLD_NULL,   FLD_REM};
   static unsigned int length[] = {0, 0, 0, 0, 6, 20, 10, 10, 6, 6, 6, 128};
   int      n, ncol = 12;
   int      maxres;
@@ -395,8 +395,9 @@ PQRYRES MyODBCCols(PGLOBAL g, char *dsn, char *tab, bool info)
 /*************************************************************************/
 PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static int  dbtype[] = {DB_CHAR, DB_CHAR};
+  static int  buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_REM};
   static unsigned int length[] = {0, 256};
   int      n = 0, ncol = 2;
   int      maxres;
@@ -423,7 +424,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DSRC, 
-                          dbtype, buftyp, NULL, length, true, true);
+                          dbtype, buftyp, fldtyp, length, true, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */
@@ -444,8 +445,9 @@ PQRYRES ODBCDataSources(PGLOBAL g, bool info)
 /*************************************************************************/
 PQRYRES ODBCDrivers(PGLOBAL g, bool info)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static int  dbtype[] = {DB_CHAR, DB_CHAR};
+  static int  buftyp[] = {TYPE_STRING, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_NAME, FLD_REM};
   static unsigned int length[] = {128, 256};
   int      ncol = 2;
   int      maxres;
@@ -468,7 +470,7 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_DRIVER, 
-                          dbtype, buftyp, NULL, length, true, true);
+                          dbtype, buftyp, fldtyp, length, true, true);
 
   /************************************************************************/
   /*  Now get the results into blocks.                                    */

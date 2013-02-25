@@ -530,7 +530,7 @@ bool TDBCAT::InitCol(PGLOBAL g)
 
   for (colp = (PCATCOL)Columns; colp; colp = (PCATCOL)colp->GetNext()) {
     for (crp = Qrp->Colresp; crp; crp = crp->Next)
-      if ((colp->Flag == crp->Ncol) ||
+      if ((colp->Flag && colp->Flag == crp->Fld) ||
          (!colp->Flag && !stricmp(colp->Name, crp->Name))) {
         colp->Crp = crp;
         break;
