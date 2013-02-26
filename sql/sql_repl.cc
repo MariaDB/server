@@ -2292,7 +2292,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     if (tmp_slave_state.load(lex_mi->gtid_pos_str.str,
                              lex_mi->gtid_pos_str.length))
     {
-      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
       ret= TRUE;
       goto err;
     }
@@ -3110,7 +3109,7 @@ rpl_load_gtid_slave_state(THD *thd)
     sub_id= (ulonglong)table->field[1]->val_int();
     server_id= (ulonglong)table->field[2]->val_int();
     seq_no= (ulonglong)table->field[3]->val_int();
-    DBUG_PRINT("info", ("Read slave state row: %u:%u-%lu sub_id=%lu\n",
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
     if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))

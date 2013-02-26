@@ -6412,7 +6412,7 @@ rpl_slave_state::next_subid(uint32 domain_id)
 
 static
 bool
-rpl_slave_state_tostring_helper(String *dest, rpl_gtid *gtid, bool *first)
+rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
 {
   if (*first)
     *first= false;
@@ -6542,20 +6542,7 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
   p= q+1;
   q= end;
   v2= (uint64)my_strtoll10(p, &q, &err);
-  if (err != 0)
-    return 1;
-  if (q == end || *q != '-')
-  {
-    /* Short form SERVERID-SEQNO, domain_id=0 implied. */
-    out_gtid->domain_id= 0;
-    out_gtid->server_id= v1;
-    out_gtid->seq_no= v2;
-    *ptr= q;
-    return 0;
-  }
-
-  /* Long form DOMAINID-SERVERID-SEQNO. */
-  if (v2 > (uint32)0xffffffff)
+  if (err != 0 || v2 > (uint32)0xffffffff || q == end || *q != '-')
     return 1;
   p= q+1;
   q= end;
@@ -6806,10 +6793,8 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
 {
   /* 10-digit - 10-digit - 20-digit \n \0 */
   char buf[10+1+10+1+20+1+1];
-  char *p, *q, *end;
-  int err;
+  char *p, *end;
   rpl_gtid gtid;
-  uint64 v;
 
   reset();
   for (;;)
@@ -6817,21 +6802,10 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
     size_t res= my_b_gets(src, buf, sizeof(buf));
     if (!res)
       break;
+    p= buf;
     end= buf + res;
-    p= end;
-    v= (uint64)my_strtoll10(buf, &p, &err);
-    if (err != 0 || v > (uint32)0xffffffff || *p++ != '-')
+    if (gtid_parser_helper(&p, end, &gtid))
       return 1;
-    gtid.domain_id= (uint32)v;
-    q= end;
-    v= (uint64)my_strtoll10(p, &q, &err);
-    if (err != 0 || v > (uint32)0xffffffff || *q++ != '-')
-      return 1;
-    gtid.server_id= (uint32)v;
-    gtid.seq_no= (uint64)my_strtoll10(q, &end, &err);
-    if (err != 0)
-      return 1;
-
     if (update(&gtid))
       return 1;
   }
@@ -6877,6 +6851,7 @@ slave_connection_state::load(char *slave_request, size_t len)
   char *p, *end;
   uchar *rec;
   rpl_gtid *gtid;
+  const rpl_gtid *gtid2;
 
   my_hash_reset(&hash);
   p= slave_request;
@@ -6884,18 +6859,39 @@ slave_connection_state::load(char *slave_request, size_t len)
   for (;;)
   {
     if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
+    {
+      my_error(ER_OUTOFMEMORY, MYF(0), sizeof(*gtid));
       return 1;
+    }
     gtid= (rpl_gtid *)rec;
-    if (gtid_parser_helper(&p, end, gtid) ||
-        my_hash_insert(&hash, rec))
+    if (gtid_parser_helper(&p, end, gtid))
     {
       my_free(rec);
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
+      return 1;
+    }
+    if ((gtid2= (const rpl_gtid *)
+         my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0)))
+    {
+      my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
+               gtid->server_id, (ulonglong)gtid->seq_no, gtid2->domain_id,
+               gtid2->server_id, (ulonglong)gtid2->seq_no, gtid->domain_id);
+      my_free(rec);
+      return 1;
+    }
+    if (my_hash_insert(&hash, rec))
+    {
+      my_free(rec);
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       return 1;
     }
     if (p == end)
       break;                                         /* Finished. */
     if (*p != ',')
+    {
+      my_error(ER_INCORRECT_GTID_STATE, MYF(0));
       return 1;
+    }
     ++p;
   }
 
@@ -6968,20 +6964,14 @@ int
 slave_connection_state::to_string(String *out_str)
 {
   uint32 i;
+  bool first;
 
   out_str->length(0);
+  first= true;
   for (i= 0; i < hash.records; ++i)
   {
     const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(&hash, i);
-    if (i && out_str->append(","))
-      return 1;
-    if (gtid->domain_id &&
-        (out_str->append_ulonglong(gtid->domain_id) ||
-         out_str->append("-")))
-      return 1;
-    if (out_str->append_ulonglong(gtid->server_id) ||
-        out_str->append("-") ||
-        out_str->append_ulonglong(gtid->seq_no))
+    if (rpl_slave_state_tostring_helper(out_str, gtid, &first))
       return 1;
   }
   return 0;
@@ -7096,11 +7086,8 @@ Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
   char buf[6+5+10+1+10+1+20+1];
   char *p;
   p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
-  if (domain_id)
-  {
-    p= longlong10_to_str(domain_id, p, 10);
-    *p++= '-';
-  }
+  p= longlong10_to_str(domain_id, p, 10);
+  *p++= '-';
   p= longlong10_to_str(server_id, p, 10);
   *p++= '-';
   p= longlong10_to_str(seq_no, p, 10);
@@ -7182,12 +7169,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   print_header(&cache, print_event_info, FALSE);
   longlong10_to_str(seq_no, buf, 10);
   if (!print_event_info->short_form)
-  {
-    my_b_printf(&cache, "\tGTID ");
-    if (domain_id)
-      my_b_printf(&cache, "%u-", domain_id);
-    my_b_printf(&cache, "%u-%s", server_id, buf);
-  }
+    my_b_printf(&cache, "\tGTID %u-%u-%s", domain_id, server_id, buf);
   my_b_printf(&cache, "\n");
 
   if (!print_event_info->domain_id_printed ||
@@ -7366,19 +7348,13 @@ Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
   uint32 i;
+  bool first;
 
   buf.length(0);
   buf.append(STRING_WITH_LEN("["));
+  first= true;
   for (i= 0; i < count; ++i)
-  {
-    if (i)
-      buf.append(STRING_WITH_LEN(", "));
-    buf.append_ulonglong((ulonglong)list[i].domain_id);
-    buf.append(STRING_WITH_LEN("-"));
-    buf.append_ulonglong((ulonglong)list[i].server_id);
-    buf.append(STRING_WITH_LEN("-"));
-    buf.append_ulonglong(list[i].seq_no);
-  }
+    rpl_slave_state_tostring_helper(&buf, &list[i], &first);
   buf.append(STRING_WITH_LEN("]"));
 
   protocol->store(&buf);
@@ -7400,9 +7376,9 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     print_header(&cache, print_event_info, FALSE);
     for (i= 0; i < count; ++i)
     {
-      my_b_printf(&cache, "%u-", list[i].domain_id);
       longlong10_to_str(list[i].seq_no, buf, 10);
-      my_b_printf(&cache, "%u-%s", list[i].server_id, buf);
+      my_b_printf(&cache, "%u-%u-%s", list[i].domain_id,
+                  list[i].server_id, buf);
       if (i < count-1)
         my_b_printf(&cache, "\n# ");
       else
