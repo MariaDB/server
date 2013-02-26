@@ -3452,8 +3452,9 @@ end_with_restore_list:
 #ifdef WITH_WSREP
    for (TABLE_LIST *table= all_tables; table; table= table->next_global)
    {
-     if (!thd->is_current_stmt_binlog_format_row() ||
-        !find_temporary_table(thd, table))
+     if (!lex->drop_temporary                       && 
+	 (!thd->is_current_stmt_binlog_format_row() ||
+	  !find_temporary_table(thd, table)))
      {
        WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
        break;

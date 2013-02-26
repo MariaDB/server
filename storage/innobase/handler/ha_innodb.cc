@@ -7358,6 +7358,8 @@ ha_innobase::wsrep_append_keys(
 	const uchar*	record1)	/* in: row in MySQL format */
 {
 	DBUG_ENTER("wsrep_append_keys");
+
+  	bool key_appended = false;
 	trx_t *trx = thd_to_trx(thd);
 
 	if (table_share && table_share->tmp_table  != NO_TMP_TABLE) {
@@ -7369,29 +7371,6 @@ ha_innobase::wsrep_append_keys(
 		DBUG_RETURN(0);
 	}
 
-	/* if no PK, calculate hash of full row, to be the key value */
-	if (prebuilt->clust_index_was_generated && wsrep_certify_nonPK) {
-		uchar digest[16];
-		int rcode;
-
-		wsrep_calc_row_hash(digest, record0, table, prebuilt, thd);
-		if ((rcode = wsrep_append_key(thd, trx, table_share, table, 
-					      (const char*) digest, 16, 
-					      shared))) {
-			DBUG_RETURN(rcode);
-		}
-
-		if (record1) {
-			wsrep_calc_row_hash(digest, record1, table, prebuilt, thd);
-			if ((rcode = wsrep_append_key(thd, trx, table_share, 
-						      table,
-						      (const char*) digest, 
-						      16, shared))) {
-				DBUG_RETURN(rcode);
-			}
-		}
-		DBUG_RETURN(0);
-	}
 	if (wsrep_protocol_version == 0) {
 		uint	len;
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
@@ -7430,6 +7409,8 @@ ha_innobase::wsrep_append_keys(
 
 			if (key_info->flags & HA_NOSAME ||
 			    referenced_by_foreign_key()) {
+				if (key_info->flags & HA_NOSAME || shared)
+			  		key_appended = true;
 
 				len = wsrep_store_key_val_for_row(
 					table, i, key0, key_info->key_length, 
@@ -7460,6 +7441,32 @@ ha_innobase::wsrep_append_keys(
 			}
 		}
 	}
+
+	/* if no PK, calculate hash of full row, to be the key value */
+	if (!key_appended && wsrep_certify_nonPK) {
+		uchar digest[16];
+		int rcode;
+
+		wsrep_calc_row_hash(digest, record0, table, prebuilt, thd);
+		if ((rcode = wsrep_append_key(thd, trx, table_share, table, 
+					      (const char*) digest, 16, 
+					      shared))) {
+			DBUG_RETURN(rcode);
+		}
+
+		if (record1) {
+			wsrep_calc_row_hash(
+				digest, record1, table, prebuilt, thd);
+			if ((rcode = wsrep_append_key(thd, trx, table_share, 
+						      table,
+						      (const char*) digest, 
+						      16, shared))) {
+				DBUG_RETURN(rcode);
+			}
+		}
+		DBUG_RETURN(0);
+	}
+
 	DBUG_RETURN(0);
 }
 #endif
