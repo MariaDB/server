@@ -6606,3 +6606,5 @@ ER_INCORRECT_GTID_STATE
         eng "Could not parse GTID list for MASTER_GTID_POS"
 ER_CANNOT_UPDATE_GTID_STATE
         eng "Could not update replication slave gtid state"
+ER_DUPLICATE_GTID_DOMAIN
+	eng "GTID %u-%u-%llu and %u-%u-%llu conflict (duplicate domain id %u)"
