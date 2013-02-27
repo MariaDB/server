@@ -361,10 +361,10 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
       options->table_name, "");
 
   size_t tlen= strlen(options->table_name);
-  size_t plen= (int)(p - name) + tlen;
+  size_t plen= (int)(p - name) + tlen + 1;
 
   share->path.str= (char*)
-      alloc_root(&share->mem_root, plen + 1);
+      alloc_root(&share->mem_root, plen);
 
   strmov(strnmov(share->path.str, name, (int)(p - name) + 1), options->table_name);
 
@@ -373,6 +373,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   origid= destid= weight= 0;
 
+  DBUG_PRINT( "oq-debug", ("share:(normalized_path=%s,path.length=%zu)", 
+              share->normalized_path.str, share->path.length));
   while (open_table_def(thd, share, 0))
   {
     if (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE)
@@ -843,6 +845,9 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
 {
   oqgraph_table_option_struct *options=
     reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
+
+  DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
+
 
   if (int res = oqgraph_check_table_structure(table_arg))
     return error_code(res);
