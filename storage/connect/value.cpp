@@ -1,5 +1,5 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.0                                       */
+/*  Name: VALUE.CPP  Version 2.1                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
@@ -22,9 +22,6 @@
 /*  Currently the only implemented types are STRING, INT, DOUBLE, DATE */
 /*  and LONGLONG. Shortly we should add at least TINY and VARCHAR.     */
 /***********************************************************************/
-
-#ifndef __VALUE_H
-#define __VALUE_H
 
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
@@ -321,11 +318,21 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
     htrc("AllocateConstant: value=%p type=%hd\n", value, type);
 
   switch (type) {
-    case TYPE_STRING: valp = new(g) STRING((PSZ)value);        break;
-    case TYPE_SHORT:  valp = new(g) SHVAL(*(short*)value);     break;
-    case TYPE_INT:    valp = new(g) INTVAL(*(int*)value);      break;
-    case TYPE_BIGINT: valp = new(g) BIGVAL(*(longlong*)value); break;
-    case TYPE_FLOAT:  valp = new(g) DFVAL(*(double *)value);   break;
+    case TYPE_STRING:
+      valp = new(g) TYPVAL<PSZ>(NULL, (PSZ)value, 0, 0, TYPE_STRING);
+      break;
+    case TYPE_SHORT:
+      valp = new(g) TYPVAL<short>(*(short*)value, TYPE_SHORT);
+      break;
+    case TYPE_INT: 
+      valp = new(g) TYPVAL<int>(*(int*)value, TYPE_INT);
+      break;
+    case TYPE_BIGINT:
+      valp = new(g) TYPVAL<longlong>(*(longlong*)value, TYPE_BIGINT);
+      break;
+    case TYPE_FLOAT:
+      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_FLOAT);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
       return NULL;
@@ -344,13 +351,24 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
   PVAL valp;
 
   switch (type) {
-    case TYPE_STRING: valp = new(g) STRING(g, (PSZ)NULL, len, prec);
+    case TYPE_STRING:
+      valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec, TYPE_STRING);
       break;
-    case TYPE_DATE:   valp = new(g) DTVAL(g, len, prec, dom);  break;
-    case TYPE_INT:    valp = new(g) INTVAL((int)0);            break;
-    case TYPE_BIGINT: valp = new(g) BIGVAL((longlong)0);       break;
-    case TYPE_SHORT:  valp = new(g) SHVAL((short)0);           break;
-    case TYPE_FLOAT:  valp = new(g) DFVAL(0.0, prec);          break;
+    case TYPE_DATE: 
+      valp = new(g) DTVAL(g, len, prec, dom);
+      break;
+    case TYPE_INT: 
+      valp = new(g) TYPVAL<int>((int)0, TYPE_INT);
+      break;
+    case TYPE_BIGINT:
+      valp = new(g) TYPVAL<longlong>((longlong)0, TYPE_BIGINT);
+      break;
+    case TYPE_SHORT:
+      valp = new(g) TYPVAL<short>((short)0, TYPE_SHORT);
+      break;
+    case TYPE_FLOAT:
+      valp = new(g) TYPVAL<double>(0.0, prec, TYPE_FLOAT);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
       return NULL;
@@ -378,13 +396,24 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
       if ((sp = valp->GetCharString(p)) != p)
         strcpy (p, sp);
 
-      valp = new(g) STRING(g, p, valp->GetValLen(), valp->GetValPrec());
+      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), 
+                                      valp->GetValPrec(), TYPE_STRING);
       break;
-    case TYPE_SHORT:  valp = new(g) SHVAL(valp->GetShortValue());   break;
-    case TYPE_INT:    valp = new(g) INTVAL(valp->GetIntValue());    break;
-    case TYPE_BIGINT: valp = new(g) BIGVAL(valp->GetBigintValue()); break;
-    case TYPE_DATE:   valp = new(g) DTVAL(g, valp->GetIntValue());  break;
-    case TYPE_FLOAT:  valp = new(g) DFVAL(valp->GetFloatValue());   break;
+    case TYPE_SHORT:  
+      valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
+      break;
+    case TYPE_INT: 
+      valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
+      break;
+    case TYPE_BIGINT: 
+      valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
+      break;
+    case TYPE_DATE:
+      valp = new(g) DTVAL(g, valp->GetIntValue());
+      break;
+    case TYPE_FLOAT:
+      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_FLOAT);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
       return NULL;
@@ -397,199 +426,251 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
 
 /* -------------------------- Class VALUE ---------------------------- */
 
-#if 0
 /***********************************************************************/
-/*  ShowTypedValue: send back the value formatted according to parms.  */
-/*  buf: is a pointer to a buffer large enough for big double values.  */
-/*  typ: is the type wanted for the value character representation.    */
-/*    n: is the field length (needed for right justification.          */
-/*    p: is the precision (for float representations).                 */
-/*  Note: this fonction is currently not used anymore.                 */
+/*  Class VALUE protected constructor.                                 */
 /***********************************************************************/
-char *VALUE::ShowTypedValue(PGLOBAL g, char *buf, int typ, int n, int p)
+VALUE::VALUE(int type) : Type(type)
   {
-  switch (typ) {
-    case TYPE_STRING:
-      buf = GetCharString(buf);
-      break;
-    case TYPE_INT:
-    case TYPE_DATE:
-      buf = GetIntString(buf, n);
-      break;
-    case TYPE_FLOAT:
-      buf = GetFloatString(buf, n, p);
-      break;
-    case TYPE_SHORT:
-      buf = GetShortString(buf, n);
-      break;
-    case TYPE_BIGINT:
-      buf = GetBigintString(buf, n);
-      break;
-    default:
-      // More should be added for additional values.
-      if (trace)
-        htrc("Invalid col format type %d\n", typ);
+  Fmt = GetFmt();
+  Xfmt = GetXfmt();
+  Null = false;
+  Nullable = false; 
+  Ci = false;
+  Clen = 0;
+  Len = 0;
+  Prec = 0;
+  } // end of VALUE constructor
 
-      sprintf(g->Message, MSG(BAD_COL_FORMAT), typ);
-      longjmp(g->jumper[g->jump_level], 31);
+/***********************************************************************/
+/*  VALUE GetFmt: returns the format to use with typed value.          */
+/***********************************************************************/
+const char *VALUE::GetFmt(void)
+  {
+  const char *fmt = "%d";;
+
+  switch (Type) {
+    case TYPE_STRING: fmt = "%s";    break;
+    case TYPE_SHORT:  fmt = "%hd";   break;
+    case TYPE_BIGINT: fmt = "%lld";  break;
+    case TYPE_FLOAT:  fmt = "%.*lf"; break;
     } // endswitch Type
 
-  return buf;
-  } // end of ShowTypedValue
+  return fmt;
+  } // end of GetFmt
 
 /***********************************************************************/
-/*  Returns a BYTE indicating the comparison between two values.       */
-/*  Bit 1 indicates equality, Bit 2 less than, and Bit3 greater than.  */
-/*  More than 1 bit can be set only in the case of TYPE_LIST.          */
+/* VALUE GetXfmt: returns the extended format to use with typed value. */
 /***********************************************************************/
-BYTE VALUE::TestValue(PVAL vp)
+const char *VALUE::GetXfmt(void)
   {
-  int n = CompareValue(vp);
+  const char *fmt = "%*d";;
 
-  return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
-  } // end of TestValue
-#endif // 0
+  switch (Type) {
+    case TYPE_STRING: fmt = "%*s";    break;
+    case TYPE_SHORT:  fmt = "%*hd";   break;
+    case TYPE_BIGINT: fmt = "%*lld";  break;
+    case TYPE_FLOAT:  fmt = "%*.*lf"; break;
+    } // endswitch Type
 
-/* -------------------------- Class STRING --------------------------- */
+  return fmt;
+  } // end of GetFmt
+
+/* -------------------------- Class TYPVAL ---------------------------- */
 
 /***********************************************************************/
-/*  STRING public constructor from a constant string.                  */
+/*  TYPVAL  public constructor from a constant typed value.            */
 /***********************************************************************/
-STRING::STRING(PSZ s) : VALUE(TYPE_STRING)
+template <class TYPE>
+TYPVAL<TYPE>::TYPVAL(TYPE n, int type) : VALUE(type)
   {
-  Strp = s;
-  Len = strlen(s);
-  Clen = Len;
-  Ci = false;
-  } // end of STRING constructor
+  Tval = n;
+  Clen = sizeof(TYPE);
+  Prec = (Type == TYPE_FLOAT) ? 2 : 0;
+  } // end of TYPVAL constructor
 
 /***********************************************************************/
 /*  STRING public constructor from char.                               */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, PSZ s, int n, int c) : VALUE(TYPE_STRING)
+template <class TYPE>
+TYPVAL<TYPE>::TYPVAL(PGLOBAL g, PSZ s, int n, int c, int type)
+            : VALUE(type)
   {
-  Len = n;
+  assert(Type == TYPE_STRING && (g || s));
+  Len = (g) ? n : strlen(s);
 
-  if (!s) {
-    Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
-    Strp[Len] = '\0';
+  if (g && !s) {
+    Tval = (char *)PlugSubAlloc(g, NULL, Len + 1);
+    Tval[Len] = '\0';
   } else
-    Strp = s;
+    Tval = s;
 
   Clen = Len;
   Ci = (c != 0);
   } // end of STRING constructor
 
 /***********************************************************************/
-/*  STRING public constructor from short.                              */
+/*  TYPVAL  public constructor from typed value.                       */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, short i) : VALUE(TYPE_STRING)
+template <class TYPE>
+TYPVAL<TYPE>::TYPVAL(TYPE n, int prec, int type) : VALUE(type)
   {
-  Strp = (char *)PlugSubAlloc(g, NULL, 12);
-  Len = sprintf(Strp, "%hd", i);
-  Clen = Len;
-  Ci = false;
-  } // end of STRING constructor
+  assert(Type == TYPE_FLOAT);
+  Tval = n;
+  Clen = sizeof(TYPE);
+  Prec = prec;
+  } // end of TYPVAL constructor
 
 /***********************************************************************/
-/*  STRING public constructor from int.                                */
+/*  TYPVAL GetValLen: returns the print length of the typed object.    */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, int n) : VALUE(TYPE_STRING)
+template <class TYPE>
+int TYPVAL<TYPE>::GetValLen(void)
   {
-  Strp = (char *)PlugSubAlloc(g, NULL, 12);
-  Len = sprintf(Strp, "%d", n);
-  Clen = Len;
-  Ci = false;
-  } // end of STRING constructor
+  char c[32];
+
+  return sprintf(c, Fmt, Tval);
+  } // end of GetValLen
+
+int TYPVAL<PSZ>::GetValLen(void) {return Len;};
+
+int TYPVAL<double>::GetValLen(void)
+  {
+  char c[32];
+
+  return sprintf(c, Fmt, Prec, Tval);
+  } // end of GetValLen
 
 /***********************************************************************/
-/*  STRING public constructor from bigint.                             */
+/*  TYPVAL SetValue: copy the value of another Value object.           */
+/*  This function allows conversion if chktype is false.               */
 /***********************************************************************/
-STRING::STRING(PGLOBAL g, longlong n) : VALUE(TYPE_STRING)
+template <class TYPE>
+bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
   {
-  Strp = (char *)PlugSubAlloc(g, NULL, 12);
-  Len = sprintf(Strp, "%lld", n);
-  Clen = Len;
-  Ci = false;
-  } // end of STRING constructor
-
-/***********************************************************************/
-/*  STRING public constructor from double.                             */
-/***********************************************************************/
-STRING::STRING(PGLOBAL g, double f) : VALUE(TYPE_STRING)
-  {
-  Strp = (char *)PlugSubAlloc(g, NULL, 32);
-  Len = sprintf(Strp, "%lf", f);
-  Clen = Len;
-  Ci = false;
-  } // end of STRING constructor
-
-/***********************************************************************/
-/*  STRING SetValue: copy the value of another Value object.           */
-/***********************************************************************/
-bool STRING::SetValue_pval(PVAL valp, bool chktype)
-  {
-  if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
+  if (chktype && Type != valp->GetType())
     return true;
 
-  char buf[32];
-
   if (!(Null = valp->IsNull() && Nullable))
-    strncpy(Strp, valp->GetCharString(buf), Len);
+//  Tval = (TYPE)valp->GetBigintValue();
+    Tval = GetTypedValue(valp, (TYPE)0);
   else
     Reset();
 
   return false;
-  } // end of SetValue_pval
+  } // end of SetValue
 
 /***********************************************************************/
-/*  STRING SetValue: fill string with chars extracted from a line.     */
+/*  TYPVAL SetValue: convert chars extracted from a line to TYPE value.*/
 /***********************************************************************/
-void STRING::SetValue_char(char *p, int n)
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue_char(char *p, int n)
+  {
+  char *p2, buf[32];
+  bool  minus;
+
+  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
+
+  for (Tval = 0, minus = false; p < p2; p++)
+    switch (*p) {
+      case '-':
+        minus = true;
+      case '+':
+        break;
+      case '0': Tval = Tval * 10;     break;
+      case '1': Tval = Tval * 10 + 1; break;
+      case '2': Tval = Tval * 10 + 2; break;
+      case '3': Tval = Tval * 10 + 3; break;
+      case '4': Tval = Tval * 10 + 4; break;
+      case '5': Tval = Tval * 10 + 5; break;
+      case '6': Tval = Tval * 10 + 6; break;
+      case '7': Tval = Tval * 10 + 7; break;
+      case '8': Tval = Tval * 10 + 8; break;
+      case '9': Tval = Tval * 10 + 9; break;
+      default:
+        p = p2;
+      } // endswitch *p
+
+  if (minus && Tval)
+    Tval = - Tval;
+
+  if (trace)
+    htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
+                              GetTypeName(Type), Tval);
+
+  Null = false;
+  } // end of SetValue
+
+void TYPVAL<PSZ>::SetValue_char(char *p, int n)
   {
   n = min(n, Len);
-  strncpy(Strp, p, n);
+  strncpy(Tval, p, n);
 
-  for (p = Strp + n - 1; (*p == ' ' || *p == '\0') && p >= Strp; p--) ;
+  for (p = Tval + n - 1; (*p == ' ' || *p == '\0') && p >= Tval; p--) ;
 
   *(++p) = '\0';
 
   if (trace)
-    htrc(" Setting string to: '%s'\n", Strp);
+    htrc(" Setting string to: '%s'\n", Tval);
 
   Null = false;
   } // end of SetValue_char
 
-/***********************************************************************/
-/*  STRING SetValue: fill string with another string.                  */
-/***********************************************************************/
-void STRING::SetValue_psz(PSZ s)
+void TYPVAL<double>::SetValue_char(char *p, int n)
   {
-  strncpy(Strp, s, Len);
-  Null = false;
-  } // end of SetValue_psz
+  char *p2, buf[32];
 
-/***********************************************************************/
-/*  STRING SetValue: fill string with a string extracted from a block. */
-/***********************************************************************/
-void STRING::SetValue_pvblk(PVBLK blk, int n)
-  {
-  strncpy(Strp, blk->GetCharValue(n), Len);
-  } // end of SetValue_pvblk
+  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
 
-/***********************************************************************/
-/*  STRING SetValue: get the character representation of a short int.  */
-/***********************************************************************/
-void STRING::SetValue(short n)
-  {
-  SetValue((int)n);
+  n = min(p2 - p, 31);
+  memcpy(buf, p, n);
+  buf[n] = '\0';
+  Tval = atof(buf);
+
+  if (trace)
+    htrc(" setting double: '%s' -> %lf\n", buf, Tval);
+
   Null = false;
   } // end of SetValue
 
 /***********************************************************************/
+/*  TYPVAL SetValue: fill a typed value from a string.                 */
+/***********************************************************************/
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue_psz(PSZ s)
+  {
+  Tval = GetTypedValue(s, (TYPE)0);
+  Null = false;
+  } // end of SetValue
+
+/***********************************************************************/
+/*  TYPVAL SetValue: set value with a TYPE extracted from a block.     */
+/***********************************************************************/
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue_pvblk(PVBLK blk, int n)
+  {
+  Tval = GetTypedValue(blk, n, (TYPE)0);
+  Null = false;
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set Tval to a coerced object.                                      */
+/***********************************************************************/
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue(short i) {Tval = (TYPE)i; Null = false;}
+
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue(int n) {Tval = (TYPE)n; Null = false;}
+
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue(longlong n) {Tval = (TYPE)n; Null = false;}
+
+template <class TYPE>
+void TYPVAL<TYPE>::SetValue(double f) {Tval = (TYPE)f; Null = false;}
+
+/***********************************************************************/
 /*  STRING SetValue: get the character representation of an integer.   */
 /***********************************************************************/
-void STRING::SetValue(int n)
+void TYPVAL<PSZ>::SetValue(int n)
   {
   char     buf[16];
   PGLOBAL& g = Global;
@@ -605,9 +686,18 @@ void STRING::SetValue(int n)
   } // end of SetValue
 
 /***********************************************************************/
+/*  STRING SetValue: get the character representation of a short int.  */
+/***********************************************************************/
+void TYPVAL<PSZ>::SetValue(short i)
+  {
+  SetValue((int)i);
+  Null = false;
+  } // end of SetValue
+
+/***********************************************************************/
 /*  STRING SetValue: get the character representation of a big integer.*/
 /***********************************************************************/
-void STRING::SetValue(longlong n)
+void TYPVAL<PSZ>::SetValue(longlong n)
   {
   char     buf[24];
   PGLOBAL& g = Global;
@@ -625,7 +715,7 @@ void STRING::SetValue(longlong n)
 /***********************************************************************/
 /*  STRING SetValue: get the character representation of a double.     */
 /***********************************************************************/
-void STRING::SetValue(double f)
+void TYPVAL<PSZ>::SetValue(double f)
   {
   char    *p, buf[32];
   PGLOBAL& g = Global;
@@ -648,9 +738,16 @@ void STRING::SetValue(double f)
   } // end of SetValue
 
 /***********************************************************************/
-/*  STRING SetBinValue: fill string with chars extracted from a line.  */
+/*  TYPVAL SetBinValue: with bytes extracted from a line.              */
 /***********************************************************************/
-void STRING::SetBinValue(void *p)
+template <class TYPE>
+void TYPVAL<TYPE>::SetBinValue(void *p)
+  {
+  Tval = *(TYPE *)p;
+  Null = false;
+  } // end of SetBinValue
+
+void TYPVAL<PSZ>::SetBinValue(void *p)
   {
   SetValue_char((char *)p, Len);
   Null = false;
@@ -662,1560 +759,8 @@ void STRING::SetBinValue(void *p)
 /*  returns true if not. Actual filling occurs only if go is true.     */
 /*  Currently used by WriteColumn of binary files.                     */
 /***********************************************************************/
-bool STRING::GetBinValue(void *buf, int buflen, bool go)
-  {
-  int len = (Null) ? 0 : strlen(Strp);
-
-  if (len > buflen)
-    return true;
-  else if (go) {
-    memset(buf, ' ', buflen);
-    memcpy(buf, Strp, len);
-    } // endif go
-
-  return false;
-  } // end of GetBinValue
-
-#if 0
-/***********************************************************************/
-/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
-/*  This is a fast implementation that does not do any checking.       */
-/***********************************************************************/
-void STRING::GetBinValue(void *buf, int buflen)
-  {
-  assert(buflen >= (signed)strlen(Strp));
-
-  memset(buf, ' ', buflen);
-  memcpy(buf, Strp, buflen);
-  } // end of GetBinValue
-#endif // 0
-
-/***********************************************************************/
-/*  STRING ShowValue: get string representation of a char value.       */
-/***********************************************************************/
-char *STRING::ShowValue(char *buf, int len)
-  {
-  return Strp;
-  } // end of ShowValue
-
-/***********************************************************************/
-/*  STRING GetCharString: get string representation of a char value.   */
-/***********************************************************************/
-char *STRING::GetCharString(char *p)
-  {
-  return Strp;
-  } // end of GetCharString
-
-/***********************************************************************/
-/*  STRING GetShortString: get short representation of a char value.   */
-/***********************************************************************/
-char *STRING::GetShortString(char *p, int n)
-  {
-  sprintf(p, "%*hd", n,(short)(Null ? 0 : atoi(Strp)));
-  return p;
-  } // end of GetShortString
-
-/***********************************************************************/
-/*  STRING GetIntString: get int representation of a char value.       */
-/***********************************************************************/
-char *STRING::GetIntString(char *p, int n)
-  {
-  sprintf(p, "%*ld", n, (Null) ? 0 : atol(Strp));
-  return p;
-  } // end of GetIntString
-
-/***********************************************************************/
-/*  STRING GetBigintString: get big int representation of a char value.*/
-/***********************************************************************/
-char *STRING::GetBigintString(char *p, int n)
-  {
-  sprintf(p, "%*lld", n, (Null) ? 0 : atoll(Strp));
-  return p;
-  } // end of GetBigintString
-
-/***********************************************************************/
-/*  STRING GetFloatString: get double representation of a char value.  */
-/***********************************************************************/
-char *STRING::GetFloatString(char *p, int n, int prec)
-  {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Strp));
-  return p;
-  } // end of GetFloatString
-
-/***********************************************************************/
-/*  STRING compare value with another Value.                           */
-/***********************************************************************/
-bool STRING::IsEqual(PVAL vp, bool chktype)
-  {
-  if (this == vp)
-    return true;
-  else if (chktype && Type != vp->GetType())
-    return false;
-  else if (Null || vp->IsNull())
-    return false;
-  else if (Ci || vp->IsCi())
-    return !stricmp(Strp, vp->GetCharValue());
-  else // (!Ci)
-    return !strcmp(Strp, vp->GetCharValue());
-
-  } // end of IsEqual
-
-#if 0
-/***********************************************************************/
-/*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of character filters.         */
-/***********************************************************************/
-int STRING::CompareValue(PVAL vp)
-  {
-  int n;
-//assert(vp->GetType() == Type);
-
-  if (trace)
-    htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
-
-  // Process filtering on character strings.
-  if (Ci || vp->IsCi())
-    n = stricmp(Strp, vp->GetCharValue());
-  else
-    n = strcmp(Strp, vp->GetCharValue());
-
-#if defined(WIN32)
-  if (n == _NLSCMPERROR)
-    return n;                        // Here we should raise an error
-#endif   // WIN32
-
-  return (n > 0) ? 1 : (n < 0) ? -1 : 0;
-  } // end of CompareValue
-
-/***********************************************************************/
-/*  Returns a BYTE indicating the comparison between two values.       */
-/*  Bit 1 indicates equality, Bit 2 less than, and Bit3 greater than.  */
-/*  More than 1 bit are set only in the case of error.                 */
-/***********************************************************************/
-BYTE STRING::TestValue(PVAL vp)
-  {
-  // Process filtering on character strings.
-  bool ci = (Ci || vp->IsCi());
-  int  n = (ci) ? stricmp(Strp, vp->GetCharValue())
-                : strcmp(Strp, vp->GetCharValue());
-
-#if defined(WIN32)
-  if (n == _NLSCMPERROR)
-    return 0x07;                     // Here we could raise an error
-#endif   // WIN32
-
-  return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
-  } // end of TestValue
-
-/***********************************************************************/
-/*  Compute a function on a string.                                    */
-/***********************************************************************/
-bool STRING::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  assert(np <= 3);
-
-  if (op == OP_SUBST) {
-    /*******************************************************************/
-    /*  SUBSTR: this functions have 1 STRING parameter followed by     */
-    /*          1 or 2 int parameters.                                */
-    /*******************************************************************/
-    char *p, *s, buf[32];
-    int   i, n, len;
-
-    assert(np >= 2);
-
-    s = vp[0]->GetCharString(buf);
-    i = (int)vp[1]->GetIntValue();          // Starting point
-    n = (np > 2) ? (int)vp[2]->GetIntValue(): 0;
-    len = strlen(s);
-    *Strp = '\0';
-
-    if (i > len || i < -len || i == 0 || n < 0)
-      p = NULL;
-    else if (i > 0)
-      p = s + i - 1;
-    else
-      p = s + len + i;
-
-    if (p) {
-      /******************************************************************/
-      /*  This should not happen if the result size has been set        */
-      /*  accurately, and this test could be placed under trace.        */
-      /******************************************************************/
-      if (((n > 0) ? min(n, (signed)strlen(p)) : (signed)strlen(p)) > Len) {
-        strcpy(g->Message, MSG(SUB_RES_TOO_LNG));
-        return true;
-        } // endif
-
-      /******************************************************************/
-      /*  Do the actual Substr operation.                               */
-      /******************************************************************/
-      if (n > 0)
-        strncat(Strp, p, n);
-      else
-        strcpy(Strp, p);
-
-      } // endif p
-
-    if (trace)
-      htrc("SUBSTR result=%s val=%s,%d,%d", Strp, s, i, n);
-
-  } else if (op == OP_LTRIM || op == OP_RTRIM) {
-    /*******************************************************************/
-    /*  Trimming functions have one STRING parameter followed by one   */
-    /*          CHAR parameter (one chararacter).                      */
-    /*******************************************************************/
-    char *p, buf[32], c = ' ';
-    PSZ   strg;
-    int   len;
-
-    assert(np > 0);
-
-    strg = vp[0]->GetCharString(buf);
-    len = strlen(strg);
-    strg = strcpy(Strp, strg);
-
-    if (len > 0) {
-      if (np > 1) {
-        // Character value may have been entered as an integer
-        if (vp[1]->GetType() == TYPE_INT)
-          c = (char)vp[1]->GetIntValue();
-        else if (IsTypeChar(vp[1]->GetType()))
-          c = *vp[1]->GetCharValue();
-        else {
-          strcpy(g->Message, MSG(BAD_TRIM_ARGTYP));
-          return true;
-          } // endelse
-
-        } // endif 2 args
-
-      if (op == OP_LTRIM) {
-        for (p = strg; *p == c; p++) ;
-
-        if (p != strg)
-          do {
-            *(strg++) = *p;
-            } while (*(p++)); /* enddo */
-
-      } else // OP_RTRIM:
-        for (p = strg + len - 1; *p == c && p >= strg; p--)
-          *p = '\0';
-
-      } // endif len
-
-  } else if (op == OP_LPAD  || op == OP_RPAD  ||
-             op == OP_LJUST || op == OP_RJUST || op == OP_CJUST) {
-    /*******************************************************************/
-    /*  Pad and justify functions have 3 arguments char, NUM and C.    */
-    /*******************************************************************/
-    PSZ  strg;
-    int  i, n1, n2, len;
-    int n = 0;
-    char buf[32], c = ' ';
-
-    assert(np > 0);
-
-    strg = vp[0]->GetCharString(buf);
-    len = strlen(strg);
-    strg = strcpy(Strp, strg);
-
-    if (np > 1) {
-      n = vp[1]->GetIntValue();
-
-      if (n > Len) {
-        sprintf(g->Message, MSG(OP_RES_TOO_LONG), op);
-        return true;
-        } // endif
-
-      if (np > 2) {
-        // Character value may have been entered as an integer
-        if (vp[2]->GetType() == TYPE_INT)
-          c = (char)vp[2]->GetIntValue();
-        else if (IsTypeChar(vp[2]->GetType()))
-          c = *vp[2]->GetCharValue();
-        else {
-          strcpy(g->Message, MSG(BAD_PAD_ARGTYP));
-          return true;
-          } // endelse
-
-        } // endif 3 args
-
-      } // endif 2 args
-
-    if (n == 0)
-      n = Len;
-
-    if ((n = (n - (int)len)) > 0) {
-      switch (op) {
-        case OP_RPAD:
-        case OP_LJUST:
-          n1 = 0;
-          n2 = (int)n;
-          break;
-        case OP_LPAD:
-        case OP_RJUST:
-          n1 = (int)n;
-          n2 = 0;
-          break;
-        case OP_CJUST:
-          n1 = (int)n / 2;
-          n2 = (int)n - n1;
-          break;
-        default:
-          sprintf(g->Message, MSG(INVALID_OPER), op, "Compute");
-          return true;
-        } // endswitch op
-
-      if (n1 > 0) {
-        for (i = len; i >= 0; i--)
-          *(strg + i + n1) = *(strg + i);
-
-        for (i = 0; i < n1; i++)
-          *(strg + i) = c;
-
-        len += n1;
-        } // endif n1
-
-      if (n2 > 0) {
-        for (i = len; i < len + n2; i++)
-          *(strg + i) = c;
-
-        *(strg + len + n2) = '\0';
-        } // endif n2
-
-      } // endif n
-
-    if (trace)
-      htrc(" function result=%s\n", strg);
-
-  } else if (op == OP_SNDX) {
-    /*******************************************************************/
-    /*  SOUNDEX function: one string argument.                         */
-    /*  In addition to Knuth standard algorithm, we accept and ignore  */
-    /*  all non alpha characters.                                      */
-    /*******************************************************************/
-    static int t[27] =
-              {0,1,2,3,0,1,2,0,0,2,2,4,5,5,0,1,2,6,2,3,0,1,0,2,0,2,0};
-    //         A B C D E F G H I J K L M N O P Q R S T U V W X Y Z [
-    char *p, s[65];
-    int   i, n;
-    bool  b = false;
-
-    assert(np == 1);
-
-    p = vp[0]->GetCharValue();
-
-    for (i = 0; i < 64; p++)
-      if (isalpha(*p)) {
-        s[i++] = toupper(*p);
-        b = true;
-      } else if (!*p)
-        break;
-      else
-        s[i++] = 'Z' + 1;
-
-    if (b) {
-      s[i] = '\0';
-      Strp[0] = *s;
-    } else {
-      strcpy(Strp, "    ");         // Null string
-      return false;
-    } // endif i
-
-    for (i = 1, p = s + 1; *p && i < 4; p++)
-      if ((n = t[*p - 'A'])) {
-        Strp[i] = '0' + n;
-
-        if (!b || Strp[i] != Strp[i - 1]) {
-          b = true;
-          i++;
-          } // endif dup
-
-      } else
-        b = false;
-
-    for (; i < 4; i++)
-      Strp[i] = '0';
-
-//  Strp[4] = '\0';
-  } else {
-    /*******************************************************************/
-    /*  All other functions have STRING parameter(s).                  */
-    /*******************************************************************/
-    char *p[3], val[3][32];
-    int   i;
-
-    for (i = 0; i < np; i++)
-      p[i] = vp[i]->GetCharString(val[i]);
-
-    switch (op) {
-      case OP_LOWER:
-        assert(np == 1);
-        strlwr(strcpy(Strp, p[0]));
-        break;
-      case OP_UPPER:
-        assert(np == 1);
-        strupr(strcpy(Strp, p[0]));
-        break;
-      case OP_CNC:
-        assert(np == 2);
-        strncat(strncpy(Strp, p[0], Len), p[1], Len);
-        break;
-      case OP_MIN:
-        assert(np == 2);
-        strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
-        break;
-      case OP_MAX:
-        assert(np == 2);
-        strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
-        break;
-      case OP_REPL:
-       {char *pp;
-        int   i, len;
-
-        if (np == 2) {
-          p[2] = "";
-          np = 3;
-        } else
-          assert(np == 3);
-
-        if ((len = strlen(p[1]))) {
-          *Strp = '\0';
-
-          do {
-            if ((pp = strstr(p[0], p[1]))) {
-              i = strlen(Strp) + (pp - p[0]) + strlen(p[2]);
-
-              if (i > Len) {
-                if (trace)
-                  htrc(" error len=%d R_Length=%d\n", i, Len);
-
-                sprintf(g->Message, MSG(OP_RES_TOO_LONG), op);
-                return true;
-                } // endif
-
-              strncat(Strp, p[0], pp - p[0]);
-              strcat(Strp, p[2]);
-              p[0] = pp + len;
-            } else
-              strcat(Strp, p[0]);
-
-            } while (pp); // enddo
-
-        } else
-          strcpy(Strp, p[0]);
-
-       }break;
-      case OP_TRANSL:
-       {unsigned char *p0, *p1, *p2, cp[256];
-        unsigned int   k, n = strlen(p[1]);
-
-        assert(np == 3 && n == strlen(p[2]));
-
-        p0 = (unsigned char *)p[0];
-        p1 = (unsigned char *)p[1];
-        p2 = (unsigned char *)p[2];
-
-        for (k = 0; k < 256; k++)
-          cp[k] = k;
-
-        for (k = 0; k < n; k++)
-          cp[p1[k]] = p2[k];
-
-        for (k = 0; k < strlen(p[0]); k++)
-          Strp[k] = cp[p0[k]];
-
-        Strp[k] = 0;
-       }break;
-      case OP_FDISK:
-      case OP_FPATH:
-      case OP_FNAME:
-      case OP_FTYPE:
-//      if (!ExtractFromPath(g, Strp, p[0], op))
-//        return true;
-
-//      break;
-      default:
-        sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-        return true;
-      } // endswitch op
-
-    if (trace) {
-      htrc("Compute result=%s val=%s", Strp, p[0]);
-
-      for (i = 1; i < np; i++)
-        htrc(",%s", p[i]);
-
-      htrc(" op=%d\n", op);
-      } // endif trace
-
-  } // endif op
-
-  return false;
-  } // end of Compute
-
-/***********************************************************************/
-/*  GetTime: extract the time from a string of format hh:mm:ss         */
-/***********************************************************************/
-int STRING::GetTime(PGLOBAL g, PVAL *vp, int np)
-  {
-  int hh, mm, ss;
-
-  hh = mm = ss = 0;
-  sscanf(Strp, " %d : %d : %d", &hh, &mm, &ss);
-  return ((hh * 3600) + (mm * 60) + ss);
-  } // end of GetTime
-
-/***********************************************************************/
-/*  SetMin: used by the aggregate function MIN.                        */
-/***********************************************************************/
-void STRING::SetMin(PVAL vp)
-  {
-  char *val = vp->GetCharValue();
-
-  assert(strlen(val) <= (unsigned)Len);
-
-  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) < 0)
-    strcpy(Strp, val);
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void STRING::SetMin(PVBLK vbp, int i)
-  {
-  char *val = vbp->GetCharValue(i);
-
-  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) < 0)
-    strcpy(Strp, val);
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void STRING::SetMin(PVBLK vbp, int j, int k)
-  {
-  char *val;
-
-  for (register int i = j; i < k; i++) {
-    val = vbp->GetCharValue(i);
-
-    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) < 0)
-      strcpy(Strp, val);
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void STRING::SetMin(PVBLK vbp, int *x, int j, int k)
-  {
-  char *val;
-
-  for (register int i = j; i < k; i++) {
-    val = vbp->GetCharValue(x[i]);
-
-    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) < 0)
-      strcpy(Strp, val);
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by the aggregate function MAX.                        */
-/***********************************************************************/
-void STRING::SetMax(PVAL vp)
-  {
-  char *val = vp->GetCharValue();
-
-  assert(strlen(val) <= (unsigned)Len);
-
-  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
-    strcpy(Strp, val);
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void STRING::SetMax(PVBLK vbp, int i)
-  {
-  char *val = vbp->GetCharValue(i);
-
-  if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
-    strcpy(Strp, val);
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void STRING::SetMax(PVBLK vbp, int j, int k)
-  {
-  char *val;
-
-  for (register int i = j; i < k; i++) {
-    val = vbp->GetCharValue(i);
-
-    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
-      strcpy(Strp, val);
-
-    } // endfor i
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void STRING::SetMax(PVBLK vbp, int *x, int j, int k)
-  {
-  char *val;
-
-  for (register int i = j; i < k; i++) {
-    val = vbp->GetCharValue(x[i]);
-
-    if (((Ci) ? stricmp(val, Strp) : strcmp(val, Strp)) > 0)
-      strcpy(Strp, val);
-
-    } // endfor i
-
-  } // end of SetMax
-#endif // 0
-
-/***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool STRING::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Strp);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
-/*  STRING SetFormat function (used to set SELECT output format).      */
-/***********************************************************************/
-bool STRING::SetConstFormat(PGLOBAL g, FORMAT& fmt)
-  {
-  fmt.Type[0] = 'C';
-  fmt.Length = Len;
-  fmt.Prec = 0;
-  return false;
-  } // end of SetConstFormat
-
-/***********************************************************************/
-/*  Make file output of a STRING object.                               */
-/***********************************************************************/
-void STRING::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  fprintf(f, "%s%s\n", m, (Null) ? "<null>" : Strp);
-  } // end of Print
-
-/***********************************************************************/
-/*  Make string output of a STRING object.                             */
-/***********************************************************************/
-void STRING::Print(PGLOBAL g, char *ps, uint z)
-  {
-  sprintf(ps, "'%.*s'", z-3, (Null) ? "<null>" : Strp);
-  } // end of Print
-
-/* -------------------------- Class SHVAL ---------------------------- */
-
-/***********************************************************************/
-/*  SHVAL  public constructor from char.                               */
-/***********************************************************************/
-SHVAL::SHVAL(PSZ s) : VALUE(TYPE_SHORT)
-  {
-  Sval = atoi(s);
-  Clen = sizeof(short);
-  } // end of SHVAL constructor
-
-/***********************************************************************/
-/*  SHVAL  public constructor from short.                              */
-/***********************************************************************/
-SHVAL::SHVAL(short i) : VALUE(TYPE_SHORT)
-  {
-  Sval = i;
-  Clen = sizeof(short);
-  } // end of SHVAL constructor
-
-/***********************************************************************/
-/*  SHVAL  public constructor from int.                                */
-/***********************************************************************/
-SHVAL::SHVAL(int n) : VALUE(TYPE_SHORT)
-  {
-  Sval = (short)n;
-  Clen = sizeof(short);
-  } // end of SHVAL constructor
-
-/***********************************************************************/
-/*  SHVAL  public constructor from big int.                            */
-/***********************************************************************/
-SHVAL::SHVAL(longlong n) : VALUE(TYPE_SHORT)
-  {
-  Sval = (short)n;
-  Clen = sizeof(short);
-  } // end of SHVAL constructor
-
-/***********************************************************************/
-/*  SHVAL  public constructor from double.                             */
-/***********************************************************************/
-SHVAL::SHVAL(double f) : VALUE(TYPE_SHORT)
-  {
-  Sval = (short)f;
-  Clen = sizeof(short);
-  } // end of SHVAL constructor
-
-/***********************************************************************/
-/*  SHVAL GetValLen: returns the print length of the short object.     */
-/***********************************************************************/
-int SHVAL::GetValLen(void)
-  {
-  char c[16];
-
-  return sprintf(c, "%hd", Sval);
-  } // end of GetValLen
-
-/***********************************************************************/
-/*  SHVAL SetValue: copy the value of another Value object.            */
-/*  This function allows conversion if chktype is false.               */
-/***********************************************************************/
-bool SHVAL::SetValue_pval(PVAL valp, bool chktype)
-  {
-  if (chktype && Type != valp->GetType())
-    return true;
-
-  if (!(Null = valp->IsNull() && Nullable))
-    Sval = valp->GetShortValue();
-  else
-    Reset();
-
-  return false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SHVAL SetValue: convert chars extracted from a line to short value */
-/***********************************************************************/
-void SHVAL::SetValue_char(char *p, int n)
-  {
-  char *p2;
-  bool  minus;
-
-//  if (trace)    wrong because p can be not null terminated
-//    htrc("SHVAL_char: p='%s' n=%d\n", p, n);
-
-  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
-
-  for (Sval = 0, minus = false; p < p2; p++)
-    switch (*p) {
-      case '-':
-        minus = true;
-      case '+':
-        break;
-      case '0': Sval = Sval * 10;     break;
-      case '1': Sval = Sval * 10 + 1; break;
-      case '2': Sval = Sval * 10 + 2; break;
-      case '3': Sval = Sval * 10 + 3; break;
-      case '4': Sval = Sval * 10 + 4; break;
-      case '5': Sval = Sval * 10 + 5; break;
-      case '6': Sval = Sval * 10 + 6; break;
-      case '7': Sval = Sval * 10 + 7; break;
-      case '8': Sval = Sval * 10 + 8; break;
-      case '9': Sval = Sval * 10 + 9; break;
-      default:
-        p = p2;
-      } // endswitch *p
-
-  if (minus && Sval)
-    Sval = - Sval;
-
-  if (trace)
-    htrc(" setting short to: %hd\n", Sval);
-
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SHVAL SetValue: fill a short value from a string.                  */
-/***********************************************************************/
-void SHVAL::SetValue_psz(PSZ s)
-  {
-  Sval = atoi(s);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SHVAL SetValue: set value with a short extracted from a block.     */
-/***********************************************************************/
-void SHVAL::SetValue_pvblk(PVBLK blk, int n)
-  {
-  Sval = blk->GetShortValue(n);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SHVAL SetBinValue: with bytes extracted from a line.               */
-/***********************************************************************/
-void SHVAL::SetBinValue(void *p)
-  {
-  Sval = *(short *)p;
-  Null = false;
-  } // end of SetBinValue
-
-/***********************************************************************/
-/*  GetBinValue: fill a buffer with the internal binary value.         */
-/*  This function checks whether the buffer length is enough and       */
-/*  returns true if not. Actual filling occurs only if go is true.     */
-/*  Currently used by WriteColumn of binary files.                     */
-/***********************************************************************/
-bool SHVAL::GetBinValue(void *buf, int buflen, bool go)
-  {
-  // Test on length was removed here until a variable in column give the
-  // real field length. For BIN files the field length logically cannot
-  // be different from the variable length because no conversion is done.
-  // Therefore this test is useless anyway.
-//#if defined(_DEBUG)
-//  if (sizeof(short) > buflen)
-//    return true;
-//#endif
-
-  if (go)
-    *(short *)buf = Sval;
-
-  return false;
-  } // end of GetBinValue
-
-#if 0
-/***********************************************************************/
-/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
-/*  This is a fast implementation that does not do any checking.       */
-/***********************************************************************/
-void SHVAL::GetBinValue(void *buf, int buflen)
-  {
-  assert(buflen == sizeof(short));
-
-  *(short *)buf = Sval;
-  } // end of GetBinValue
-#endif // 0
-
-/***********************************************************************/
-/*  SHVAL ShowValue: get string representation of a short value.       */
-/***********************************************************************/
-char *SHVAL::ShowValue(char *buf, int len)
-  {
-  sprintf(buf, "%*hd", len, Sval);
-  return buf;
-  } // end of ShowValue
-
-/***********************************************************************/
-/*  SHVAL GetCharString: get string representation of a short value.   */
-/***********************************************************************/
-char *SHVAL::GetCharString(char *p)
-  {
-  sprintf(p, "%hd", Sval);
-  return p;
-  } // end of GetCharString
-
-/***********************************************************************/
-/*  SHVAL GetShortString: get short representation of a short value.   */
-/***********************************************************************/
-char *SHVAL::GetShortString(char *p, int n)
-  {
-  sprintf(p, "%*hd", n, Sval);
-  return p;
-  } // end of GetShortString
-
-/***********************************************************************/
-/*  SHVAL GetIntString: get int representation of a short value.       */
-/***********************************************************************/
-char *SHVAL::GetIntString(char *p, int n)
-  {
-  sprintf(p, "%*d", n, (int)Sval);
-  return p;
-  } // end of GetIntString
-
-/***********************************************************************/
-/*  SHVAL GetBigintString: get big int representation of a short value.*/
-/***********************************************************************/
-char *SHVAL::GetBigintString(char *p, int n)
-  {
-  sprintf(p, "%*lld", n, (longlong)Sval);
-  return p;
-  } // end of GetBigintString
-
-/***********************************************************************/
-/*  SHVAL GetFloatString: get double representation of a short value.  */
-/***********************************************************************/
-char *SHVAL::GetFloatString(char *p, int n, int prec)
-  {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Sval);
-  return p;
-  } // end of GetFloatString
-
-/***********************************************************************/
-/*  SHVAL compare value with another Value.                            */
-/***********************************************************************/
-bool SHVAL::IsEqual(PVAL vp, bool chktype)
-  {
-  if (this == vp)
-    return true;
-  else if (chktype && Type != vp->GetType())
-    return false;
-  else if (Null || vp->IsNull())
-    return false;
-  else
-    return (Sval == vp->GetShortValue());
-
-  } // end of IsEqual
-
-#if 0
-/***********************************************************************/
-/*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of short integer filters.     */
-/***********************************************************************/
-int SHVAL::CompareValue(PVAL vp)
-  {
-//assert(vp->GetType() == Type);
-
-  // Process filtering on short integers.
-  short n = vp->GetShortValue();
-
-  if (trace > 1)
-    htrc(" Comparing: val=%hd,%hd\n", Sval, n);
-
-  return (Sval > n) ? 1 : (Sval < n) ? (-1) : 0;
-  } // end of CompareValue
-
-/***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
-/***********************************************************************/
-short SHVAL::SafeAdd(short n1, short n2)
-  {
-  PGLOBAL& g = Global;
-  short    n = n1 + n2;
-
-  if ((n2 > 0) && (n < n1)) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if ((n2 < 0) && (n > n1)) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return n;
-  } // end of SafeAdd
-
-/***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
-/***********************************************************************/
-short SHVAL::SafeMult(short n1, short n2)
-  {
-  PGLOBAL& g = Global;
-  double   n = (double)n1 * (double)n2;
-
-  if (n > 32767.0) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if (n < -32768.0) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return (short)n;
-  } // end of SafeMult
-
-/***********************************************************************/
-/*  Compute a function on a int integers.                             */
-/***********************************************************************/
-bool SHVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  if (op == OP_LEN) {
-    assert(np == 1);
-    char buf[32];
-    char *p = vp[0]->GetCharString(buf);
-
-    Sval = strlen(p);
-
-    if (trace)
-      htrc("Compute result=%hd val=%s op=%d\n", Sval, p, op);
-
-  } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
-    char *p, *tp = g->Message;
-    char *p1, val1[32];
-    char *p2, val2[32];
-    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
-
-    assert(np == 2);
-
-    p1 = vp[0]->GetCharString(val1);
-    p2 = vp[1]->GetCharString(val2);
-
-    if (op != OP_LIKE) {
-      if (!strcmp(p2, "\\t"))
-        p2 = "\t";
-
-      if (b) {                        // Case insensitive
-        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
-          strcpy(g->Message, MSG(NEW_RETURN_NULL));
-          return true;
-          } // endif p
-    
-        // Make a lower case copy of p1 and p2
-        p1 = strlwr(strcpy(tp, p1));     
-        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-        } // endif Ci
-
-      if (op == OP_CNTIN) {
-        size_t t2 = strlen(p2);
-
-        for (Sval = 0; (p = strstr(p1, p2)); Sval++, p1 = p + t2) ;
-
-      } else                 // OP_INSTR
-        Sval = (p = strstr(p1, p2)) ? 1 + (short)(p - p1) : 0;
-
-      if (tp != g->Message)  // If working space was obtained
-        delete [] tp;        // by the use of new, delete it.
-
-    } else                   // OP_LIKE
-      Sval = (PlugEvalLike(g, p1, p2, b)) ? 1 : 0;
-
-
-    if (trace)
-      htrc("Compute result=%hd val=%s,%s op=%d\n", Sval, p1, p2, op);
-
-  } else {
-    short val[2];
-
-    assert(np <= 2);
-
-    for (int i = 0; i < np; i++)
-      val[i] = vp[i]->GetShortValue();
-
-    switch (op) {
-      case OP_ABS:
-        assert(np == 1);
-        Sval = abs(*val);
-        break;
-      case OP_SIGN:
-        assert(np == 1);
-        Sval = (*val < 0) ? (-1) : 1;
-        break;
-      case OP_CEIL:
-      case OP_FLOOR:
-        assert(np == 1);
-        Sval = *val;
-        break;
-      case OP_ADD:
-        assert(np == 2);
-        Sval = SafeAdd(val[0], val[1]);
-        break;
-      case OP_SUB:
-        assert(np == 2);
-        Sval = SafeAdd(val[0], -val[1]);
-        break;
-      case OP_MULT:
-        assert(np == 2);
-        Sval = SafeMult(val[0], val[1]);
-        break;
-      case OP_MIN:
-        assert(np == 2);
-        Sval = min(val[0], val[1]);
-        break;
-      case OP_MAX:
-        assert(np == 2);
-        Sval = max(val[0], val[1]);
-        break;
-      case OP_DIV:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Sval = val[0] / val[1];
-        break;
-      case OP_MOD:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Sval = val[0] % val[1];
-        break;
-      case OP_BITAND:
-        assert(np == 2);
-        Sval = val[0] & val[1];
-        break;
-      case OP_BITOR:
-        assert(np == 2);
-        Sval = val[0] | val[1];
-        break;
-      case OP_BITXOR:
-        assert(np == 2);
-        Sval = val[0] ^ val[1];
-        break;
-      case OP_BITNOT:
-        assert(np == 1);
-        Sval = ~val[0];
-        break;
-      case OP_DELTA:
-//      assert(np == 1);
-        Sval = val[0] - Sval;
-        break;
-      default:
-        sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-        return true;
-      } // endswitch op
-
-  if (trace) {
-    if (np = 1)
-      htrc(" result=%hd val=%hd op=%d\n", Sval, val[0], op);
-    else
-      htrc(" result=%hd val=%hd,%hd op=%d\n",
-            Sval, val[0], val[1], op);
-    } // endif trace
-
-  } // endif op
-
-  return false;
-  } // end of Compute
-
-/***********************************************************************/
-/*  Divide: used by aggregate functions when calculating average.      */
-/***********************************************************************/
-void SHVAL::Divide(int cnt)
-  {
-  Sval /= (short)cnt;
-  } // end of Divide
-
-/***********************************************************************/
-/*  StdVar: used by aggregate functions for Stddev and Variance.       */
-/***********************************************************************/
-void SHVAL::StdVar(PVAL vp, int cnt, bool b)
-  {
-  short lv2 = vp->GetShortValue(), scnt = (short)cnt;
-
-  Sval = (scnt == 1) ? 0
-       : (SafeAdd(lv2, -(SafeMult(Sval, Sval) / scnt)) / (scnt - 1));
-
-  if (b) // Builtin == FNC_STDDEV
-    Sval = (short)sqrt((double)Sval);
-
-  } // end of StdVar
-
-/***********************************************************************/
-/*  Times: used by aggregate functions for Stddev and Variance.        */
-/***********************************************************************/
-void SHVAL::Times(PVAL vp)
-  {
-  Sval = SafeMult(Sval, vp->GetShortValue());
-  } // end of Times
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void SHVAL::Add(PVAL vp)
-  {
-  Sval = SafeAdd(Sval, vp->GetShortValue());
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void SHVAL::Add(PVBLK vbp, int i)
-  {
-  Sval = SafeAdd(Sval, vbp->GetShortValue(i));
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void SHVAL::Add(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Sval = SafeAdd(Sval, lp[i]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void SHVAL::Add(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Sval = SafeAdd(Sval, lp[x[i]]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void SHVAL::AddSquare(PVAL vp)
-  {
-  short val = vp->GetShortValue();
-
-  Sval = SafeAdd(Sval, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void SHVAL::AddSquare(PVBLK vbp, int i)
-  {
-  short val = vbp->GetShortValue(i);
-
-  Sval = SafeAdd(Sval, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void SHVAL::AddSquare(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Sval = SafeAdd(Sval, SafeMult(lp[i], lp[i]));
-
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  SetMin: used by the aggregate function MIN.                        */
-/***********************************************************************/
-void SHVAL::SetMin(PVAL vp)
-  {
-  short val = vp->GetShortValue();
-
-  if (val < Sval)
-    Sval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void SHVAL::SetMin(PVBLK vbp, int i)
-  {
-  short val = vbp->GetShortValue(i);
-
-  if (val < Sval)
-    Sval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void SHVAL::SetMin(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] < Sval)
-      Sval = lp[i];
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void SHVAL::SetMin(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  short  val;
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val < Sval)
-      Sval = val;
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by the aggregate function MAX.                        */
-/***********************************************************************/
-void SHVAL::SetMax(PVAL vp)
-  {
-  short val = vp->GetShortValue();
-
-  if (val > Sval)
-    Sval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void SHVAL::SetMax(PVBLK vbp, int i)
-  {
-  short val = vbp->GetShortValue(i);
-
-  if (val > Sval)
-    Sval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void SHVAL::SetMax(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] > Sval)
-      Sval = lp[i];
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void SHVAL::SetMax(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  short  val;
-  short *lp = (short *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val > Sval)
-      Sval = val;
-
-    } // endfor i
-
-  } // end of SetMax
-#endif // 0
-
-/***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool SHVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Sval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
-/*  SHVAL  SetFormat function (used to set SELECT output format).      */
-/***********************************************************************/
-bool SHVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
-  {
-  char c[16];
-
-  fmt.Type[0] = 'S';
-  fmt.Length = sprintf(c, "%hd", Sval);
-  fmt.Prec = 0;
-  return false;
-  } // end of SetConstFormat
-
-/***********************************************************************/
-/*  Make file output of a short object.                                */
-/***********************************************************************/
-void SHVAL::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  fprintf(f, "%s%hd\n", m, Sval);
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a short object.                              */
-/***********************************************************************/
-void SHVAL::Print(PGLOBAL g, char *ps, uint z)
-  {
-  sprintf(ps, "%hd", Sval);
-  } /* end of Print */
-
-/* -------------------------- Class INTVAL ---------------------------- */
-
-/***********************************************************************/
-/*  INTVAL  public constructor from char.                               */
-/***********************************************************************/
-INTVAL::INTVAL(PSZ s) : VALUE(TYPE_INT)
-  {
-  Ival = atol(s);
-  Clen = sizeof(int);
-  } // end of INTVAL constructor
-
-/***********************************************************************/
-/*  INTVAL  public constructor from short.                              */
-/***********************************************************************/
-INTVAL::INTVAL(short n) : VALUE(TYPE_INT)
-  {
-  Ival = (int)n;
-  Clen = sizeof(int);
-  } // end of INTVAL constructor
-
-/***********************************************************************/
-/*  INTVAL  public constructor from int.                               */
-/***********************************************************************/
-INTVAL::INTVAL(int n) : VALUE(TYPE_INT)
-  {
-  Ival = n;
-  Clen = sizeof(int);
-  } // end of INTVAL constructor
-
-/***********************************************************************/
-/*  INTVAL  public constructor from big int.                           */
-/***********************************************************************/
-INTVAL::INTVAL(longlong n) : VALUE(TYPE_INT)
-  {
-  Ival = (int)n;
-  Clen = sizeof(int);
-  } // end of INTVAL constructor
-
-/***********************************************************************/
-/*  INTVAL  public constructor from double.                            */
-/***********************************************************************/
-INTVAL::INTVAL(double f) : VALUE(TYPE_INT)
-  {
-  Ival = (int)f;
-  Clen = sizeof(int);
-  } // end of INTVAL constructor
-
-/***********************************************************************/
-/*  INTVAL GetValLen: returns the print length of the int object.      */
-/***********************************************************************/
-int INTVAL::GetValLen(void)
-  {
-  char c[16];
-
-  return sprintf(c, "%d", Ival);
-  } // end of GetValLen
-
-/***********************************************************************/
-/*  INTVAL SetValue: copy the value of another Value object.           */
-/*  This function allows conversion if chktype is false.               */
-/***********************************************************************/
-bool INTVAL::SetValue_pval(PVAL valp, bool chktype)
-  {
-  if (chktype && Type != valp->GetType())
-    return true;
-
-  if (!(Null = valp->IsNull() && Nullable))
-    Ival = valp->GetIntValue();
-  else
-    Reset();
-
-  return false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  INTVAL SetValue: convert chars extracted from a line to int value. */
-/***********************************************************************/
-void INTVAL::SetValue_char(char *p, int n)
-  {
-  char *p2;
-  bool  minus;
-
-  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
-
-  for (Ival = 0, minus = false; p < p2; p++)
-    switch (*p) {
-      case '-':
-        minus = true;
-      case '+':
-        break;
-      case '0': Ival = Ival * 10;      break;
-      case '1': Ival = Ival * 10 + 1; break;
-      case '2': Ival = Ival * 10 + 2; break;
-      case '3': Ival = Ival * 10 + 3; break;
-      case '4': Ival = Ival * 10 + 4; break;
-      case '5': Ival = Ival * 10 + 5; break;
-      case '6': Ival = Ival * 10 + 6; break;
-      case '7': Ival = Ival * 10 + 7; break;
-      case '8': Ival = Ival * 10 + 8; break;
-      case '9': Ival = Ival * 10 + 9; break;
-      default:
-        p = p2;
-      } // endswitch *p
-
-  if (minus && Ival)
-    Ival = - Ival;
-
-  if (trace)
-    htrc(" setting int to: %d\n", Ival);
-
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  INTVAL SetValue: fill a int value from a string.                   */
-/***********************************************************************/
-void INTVAL::SetValue_psz(PSZ s)
-  {
-  Ival = atol(s);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  INTVAL SetValue: set value with a int extracted from a block.      */
-/***********************************************************************/
-void INTVAL::SetValue_pvblk(PVBLK blk, int n)
-  {
-  Ival = blk->GetIntValue(n);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  INTVAL SetBinValue: with bytes extracted from a line.               */
-/***********************************************************************/
-void INTVAL::SetBinValue(void *p)
-  {
-  Ival = *(int *)p;
-  Null = false;
-  } // end of SetBinValue
-
-/***********************************************************************/
-/*  GetBinValue: fill a buffer with the internal binary value.         */
-/*  This function checks whether the buffer length is enough and       */
-/*  returns true if not. Actual filling occurs only if go is true.     */
-/*  Currently used by WriteColumn of binary files.                     */
-/***********************************************************************/
-bool INTVAL::GetBinValue(void *buf, int buflen, bool go)
+template <class TYPE>
+bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
   {
   // Test on length was removed here until a variable in column give the
   // real field length. For BIN files the field length logically cannot
@@ -2227,83 +772,138 @@ bool INTVAL::GetBinValue(void *buf, int buflen, bool go)
 //#endif
 
   if (go)
-    *(int *)buf = Ival;
+    *(TYPE *)buf = Tval;
 
   Null = false;
   return false;
   } // end of GetBinValue
 
-#if 0
-/***********************************************************************/
-/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
-/*  This is a fast implementation that does not do any checking.       */
-/***********************************************************************/
-void INTVAL::GetBinValue(void *buf, int buflen)
+bool TYPVAL<PSZ>::GetBinValue(void *buf, int buflen, bool go)
   {
-  assert(buflen == sizeof(int));
+  int len = (Null) ? 0 : strlen(Tval);
 
-  *(int *)buf = Ival;
+  if (len > buflen)
+    return true;
+  else if (go) {
+    memset(buf, ' ', buflen);
+    memcpy(buf, Tval, len);
+    } // endif go
+
+  return false;
   } // end of GetBinValue
-#endif // 0
 
 /***********************************************************************/
-/*  INTVAL ShowValue: get string representation of a int value.        */
+/*  TYPVAL ShowValue: get string representation of a typed value.      */
 /***********************************************************************/
-char *INTVAL::ShowValue(char *buf, int len)
+template <class TYPE>
+char *TYPVAL<TYPE>::ShowValue(char *buf, int len)
   {
-  sprintf(buf, "%*d", len, Ival);
+  sprintf(buf, Xfmt, len, Tval);
+  return buf;
+  } // end of ShowValue
+
+char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
+  {
+  return Tval;
+  } // end of ShowValue
+
+char *TYPVAL<double>::ShowValue(char *buf, int len)
+  {
+  // TODO: use snprintf to avoid possible overflow
+  sprintf(buf, Xfmt, len, Prec, Tval);
   return buf;
   } // end of ShowValue
 
 /***********************************************************************/
-/*  INTVAL GetCharString: get string representation of a int value.    */
+/*  TYPVAL GetCharString: get string representation of a typed value.  */
 /***********************************************************************/
-char *INTVAL::GetCharString(char *p)
+template <class TYPE>
+char *TYPVAL<TYPE>::GetCharString(char *p)
   {
-  sprintf(p, "%d", Ival);
+  sprintf(p, Fmt, Tval);
+  return p;
+  } // end of GetCharString
+
+char *TYPVAL<PSZ>::GetCharString(char *p)
+  {
+  return Tval;
+  } // end of GetCharString
+
+char *TYPVAL<double>::GetCharString(char *p)
+  {
+  sprintf(p, Fmt, Prec, Tval);
   return p;
   } // end of GetCharString
 
 /***********************************************************************/
-/*  INTVAL GetShortString: get short representation of a int value.    */
+/*  TYPVAL GetShortString: get short representation of a typed value.  */
 /***********************************************************************/
-char *INTVAL::GetShortString(char *p, int n)
+template <class TYPE>
+char *TYPVAL<TYPE>::GetShortString(char *p, int n)
   {
-  sprintf(p, "%*hd", n, (short)Ival);
+  sprintf(p, "%*hd", n, (short)Tval);
+  return p;
+  } // end of GetShortString
+
+char *TYPVAL<PSZ>::GetShortString(char *p, int n)
+  {
+  sprintf(p, "%*hd", n, (short)(Null ? 0 : atoi(Tval)));
   return p;
   } // end of GetShortString
 
 /***********************************************************************/
-/*  INTVAL GetIntString: get int representation of a int value.        */
+/*  TYPVAL GetIntString: get int representation of a typed value.      */
 /***********************************************************************/
-char *INTVAL::GetIntString(char *p, int n)
+template <class TYPE>
+char *TYPVAL<TYPE>::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*d", n, Ival);
+  sprintf(p, "%*d", n, (int)Tval);
+  return p;
+  } // end of GetIntString
+
+char *TYPVAL<PSZ>::GetIntString(char *p, int n)
+  {
+  sprintf(p, "%*ld", n, (Null) ? 0 : atol(Tval));
   return p;
   } // end of GetIntString
 
 /***********************************************************************/
-/*  INTVAL GetBigintString: get big int representation of a int value. */
+/*  TYPVAL GetBigintString: get big int representation of a TYPE value.*/
 /***********************************************************************/
-char *INTVAL::GetBigintString(char *p, int n)
+template <class TYPE>
+char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
   {
-  sprintf(p, "%*lld", n, (longlong)Ival);
+  sprintf(p, "%*lld", n, (longlong)Tval);
+  return p;
+  } // end of GetBigintString
+
+char *TYPVAL<PSZ>::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, (Null) ? 0 : atoll(Tval));
   return p;
   } // end of GetBigintString
 
 /***********************************************************************/
-/*  INTVAL GetFloatString: get double representation of a int value.   */
+/*  TYPVAL GetFloatString: get double representation of a typed value. */
 /***********************************************************************/
-char *INTVAL::GetFloatString(char *p, int n, int prec)
+template <class TYPE>
+char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
   {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Ival);
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
+  return p;
+  } // end of GetFloatString
+
+char *TYPVAL<PSZ>::GetFloatString(char *p, int n, int prec)
+  {
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Tval));
   return p;
   } // end of GetFloatString
 
 /***********************************************************************/
-/*  INTVAL compare value with another Value.                           */
+/*  TYPVAL compare value with another Value.                           */
 /***********************************************************************/
-bool INTVAL::IsEqual(PVAL vp, bool chktype)
+template <class TYPE>
+bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
   {
   if (this == vp)
     return true;
@@ -2312,544 +912,75 @@ bool INTVAL::IsEqual(PVAL vp, bool chktype)
   else if (Null || vp->IsNull())
     return false;
   else
-    return (Ival == vp->GetIntValue());
+    return (Tval == GetTypedValue(vp, (TYPE)0));
 
   } // end of IsEqual
-
-#if 0
-/***********************************************************************/
-/*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of int integer filters.       */
-/***********************************************************************/
-int INTVAL::CompareValue(PVAL vp)
-  {
-//assert(vp->GetType() == Type);
-
-  // Process filtering on int integers.
-  int n = vp->GetIntValue();
-
-  if (trace > 1)
-    htrc(" Comparing: val=%d,%d\n", Ival, n);
-
-  return (Ival > n) ? 1 : (Ival < n) ? (-1) : 0;
-  } // end of CompareValue
-
-/***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
-/***********************************************************************/
-int INTVAL::SafeAdd(int n1, int n2)
-  {
-  PGLOBAL& g = Global;
-  int     n = n1 + n2;
-
-  if ((n2 > 0) && (n < n1)) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if ((n2 < 0) && (n > n1)) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return n;
-  } // end of SafeAdd
-
-/***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
-/***********************************************************************/
-int INTVAL::SafeMult(int n1, int n2)
-  {
-  PGLOBAL& g = Global;
-  double   n = (double)n1 * (double)n2;
-
-  if (n > 2147483647.0) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if (n < -2147483648.0) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return (int)n;
-  } // end of SafeMult
-
-/***********************************************************************/
-/*  Compute a function on a int integers.                             */
-/***********************************************************************/
-bool INTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  if (op == OP_LEN) {
-    assert(np == 1);
-    char buf[32];
-    char *p = vp[0]->GetCharString(buf);
-
-    Ival = strlen(p);
-
-    if (trace)
-      htrc("Compute result=%d val=%s op=%d\n", Ival, p, op);
-
-  } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
-    char *p, *tp = g->Message;
-    char *p1, val1[32];
-    char *p2, val2[32];
-    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
-
-    assert(np == 2);
-
-    p1 = vp[0]->GetCharString(val1);
-    p2 = vp[1]->GetCharString(val2);
-
-    if (op != OP_LIKE) {
-      if (!strcmp(p2, "\\t"))
-        p2 = "\t";
-
-      if (b) {                          // Case insensitive
-        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
-          strcpy(g->Message, MSG(NEW_RETURN_NULL));
-          return true;
-          } // endif p
-    
-        // Make a lower case copy of p1 and p2
-        p1 = strlwr(strcpy(tp, p1));     
-        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-        } // endif b
-
-      if (op == OP_CNTIN) {
-        size_t t2 = strlen(p2);
-
-        for (Ival = 0; (p = strstr(p1, p2)); Ival++, p1 = p + t2) ;
-
-      } else                 // OP_INSTR
-        Ival = (p = strstr(p1, p2)) ? 1 + (int)(p - p1) : 0;
-
-      if (tp != g->Message)  // If working space was obtained
-        delete [] tp;        // by the use of new, delete it.
-
-    } else                   // OP_LIKE
-      Ival = (PlugEvalLike(g, p1, p2, b)) ? 1 : 0;
-
-    if (trace)
-      htrc("Compute result=%d val=%s,%s op=%d\n", Ival, p1, p2, op);
-
-  } else if (op == OP_MDAY || op == OP_MONTH || op == OP_YEAR ||
-             op == OP_WDAY || op == OP_QUART || op == OP_YDAY) {
-    assert(np == 1 && vp[0]->GetType() == TYPE_DATE);
-
-    if (((DTVAL*)vp[0])->GetTmMember(op, Ival)) {
-      sprintf(g->Message, MSG(COMPUTE_ERROR), op);
-      return true;
-      } // endif
-
-  } else if (op == OP_NWEEK) {
-    // Week number of the year for the internal date value
-    assert((np == 1 || np == 2) && vp[0]->GetType() == TYPE_DATE);
-
-    // Start of the week SUN=0, MON=1, etc.
-    Ival = (np == 2) ? vp[1]->GetIntValue() : 1;
-
-    // This function sets Ival to nweek
-    if (((DTVAL*)vp[0])->WeekNum(g, Ival))
-      return true;
-
-  } else if (op == OP_DBTWN || op == OP_MBTWN || op == OP_YBTWN) {
-    assert(np == 2 && vp[0]->GetType() == TYPE_DATE
-                   && vp[1]->GetType() == TYPE_DATE);
-
-    if (((DTVAL*)vp[0])->DateDiff((DTVAL*)vp[1], op, Ival)) {
-      sprintf(g->Message, MSG(COMPUTE_ERROR), op);
-      return true;
-      } // endif
-
-  } else if (op == OP_TIME) {
-    Ival = vp[0]->GetTime(g, (np == 1) ? NULL : vp + 1, np - 1);
-  } else {
-    int val[2];
-
-    assert(np <= 2);
-
-    for (int i = 0; i < np; i++)
-      val[i] = vp[i]->GetIntValue();
-
-    switch (op) {
-      case OP_ABS:
-        assert(np == 1);
-        Ival = labs(*val);
-        break;
-      case OP_SIGN:
-        assert(np == 1);
-        Ival = (*val < 0) ? (-1) : 1;
-        break;
-      case OP_CEIL:
-      case OP_FLOOR:
-        assert(np == 1);
-        Ival = *val;
-        break;
-      case OP_ADD:
-        assert(np == 2);
-        Ival = SafeAdd(val[0], val[1]);
-        break;
-      case OP_SUB:
-        assert(np == 2);
-        Ival = SafeAdd(val[0], -val[1]);
-        break;
-      case OP_MULT:
-        assert(np == 2);
-        Ival = SafeMult(val[0], val[1]);
-        break;
-      case OP_MIN:
-        assert(np == 2);
-        Ival = min(val[0], val[1]);
-        break;
-      case OP_MAX:
-        assert(np == 2);
-        Ival = max(val[0], val[1]);
-        break;
-      case OP_DIV:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Ival = val[0] / val[1];
-        break;
-      case OP_MOD:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Ival = val[0] % val[1];
-        break;
-      case OP_BITAND:
-        assert(np == 2);
-        Ival = val[0] & val[1];
-        break;
-      case OP_BITOR:
-        assert(np == 2);
-        Ival = val[0] | val[1];
-        break;
-      case OP_BITXOR:
-        assert(np == 2);
-        Ival = val[0] ^ val[1];
-        break;
-      case OP_BITNOT:
-        assert(np == 1);
-        Ival = ~val[0];
-        break;
-      case OP_DELTA:
-//      assert(np == 1);
-        Ival = val[0] - Ival;
-        break;
-      default:
-        sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-        return true;
-      } // endswitch op
-
-  if (trace) {
-    if (np = 1)
-      htrc(" result=%d val=%d op=%d\n", Ival, val[0], op);
-    else
-      htrc(" result=%d val=%d,%d op=%d\n",
-             Ival, val[0], val[1], op);
-    } // endif trace
-
-  } // endif op
-
-  return false;
-  } // end of Compute
-
-/***********************************************************************/
-/*  GetTime: convert HR/MIN/SEC in a number of seconds.                */
-/***********************************************************************/
-int INTVAL::GetTime(PGLOBAL g, PVAL *vp, int np)
-  {
-  int sec = Ival;
-
-  for (int i = 0; i < 2; i++) {
-    sec *= 60;
-
-    if (np > i)
-      sec += vp[i]->GetIntValue();
-
-    } // endfor i
-
-  return sec;
-  } // end of GetTime
-
-/***********************************************************************/
-/*  Divide: used by aggregate functions when calculating average.      */
-/***********************************************************************/
-void INTVAL::Divide(int cnt)
-  {
-  Ival /= cnt;
-  } // end of Divide
-
-/***********************************************************************/
-/*  StdVar: used by aggregate functions for Stddev and Variance.       */
-/***********************************************************************/
-void INTVAL::StdVar(PVAL vp, int cnt, bool b)
-  {
-  int lv2 = vp->GetIntValue();
-
-  Ival = (cnt == 1) ? 0
-       : (SafeAdd(lv2, -(SafeMult(Ival, Ival) / cnt)) / (cnt - 1));
-
-  if (b)    // Builtin == FNC_STDDEV
-    Ival = (int)sqrt((double)Ival);
-
-  } // end of StdVar
-
-/***********************************************************************/
-/*  Times: used by aggregate functions for Stddev and Variance.        */
-/***********************************************************************/
-void INTVAL::Times(PVAL vp)
-  {
-  Ival = SafeMult(Ival, vp->GetIntValue());
-  } // end of Times
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void INTVAL::Add(PVAL vp)
-  {
-  Ival = SafeAdd(Ival, vp->GetIntValue());
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void INTVAL::Add(PVBLK vbp, int i)
-  {
-  Ival = SafeAdd(Ival, vbp->GetIntValue(i));
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void INTVAL::Add(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Ival = SafeAdd(Ival, lp[i]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void INTVAL::Add(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Ival = SafeAdd(Ival, lp[x[i]]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void INTVAL::AddSquare(PVAL vp)
-  {
-  int val = vp->GetIntValue();
-
-  Ival = SafeAdd(Ival, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void INTVAL::AddSquare(PVBLK vbp, int i)
-  {
-  int val = vbp->GetIntValue(i);
-
-  Ival = SafeAdd(Ival, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void INTVAL::AddSquare(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Ival = SafeAdd(Ival, SafeMult(lp[i], lp[i]));
-
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  SetMin: used by the aggregate function MIN.                        */
-/***********************************************************************/
-void INTVAL::SetMin(PVAL vp)
-  {
-  int val = vp->GetIntValue();
-
-  if (val < Ival)
-    Ival = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void INTVAL::SetMin(PVBLK vbp, int i)
-  {
-  int val = vbp->GetIntValue(i);
-
-  if (val < Ival)
-    Ival = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void INTVAL::SetMin(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] < Ival)
-      Ival = lp[i];
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void INTVAL::SetMin(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  register int val;
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val < Ival)
-      Ival = val;
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by the aggregate function MAX.                        */
-/***********************************************************************/
-void INTVAL::SetMax(PVAL vp)
-  {
-  int val = vp->GetIntValue();
-
-  if (val > Ival)
-    Ival = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void INTVAL::SetMax(PVBLK vbp, int i)
-  {
-  int val = vbp->GetIntValue(i);
-
-  if (val > Ival)
-    Ival = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void INTVAL::SetMax(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] > Ival)
-      Ival = lp[i];
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void INTVAL::SetMax(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  register int val;
-  int *lp = (int *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val > Ival)
-      Ival = val;
-
-    } // endfor i
-
-  } // end of SetMax
-#endif // 0
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
 /*  constructed from its own value formated using the fmt format.      */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
-bool INTVAL::FormatValue(PVAL vp, char *fmt)
+template <class TYPE>
+bool TYPVAL<TYPE>::FormatValue(PVAL vp, char *fmt)
   {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Ival);
+  int   n = sprintf(buf, fmt, Tval);
 
   return (n > vp->GetValLen());
   } // end of FormatValue
 
 /***********************************************************************/
-/*  INTVAL  SetFormat function (used to set SELECT output format).      */
+/*  TYPVAL  SetFormat function (used to set SELECT output format).     */
 /***********************************************************************/
-bool INTVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+template <class TYPE>
+bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   {
-  char c[16];
+  char c[32];
 
-  fmt.Type[0] = 'N';
-  fmt.Length = sprintf(c, "%d", Ival);
+  fmt.Type[0] = *GetFormatType(Type);
+  fmt.Length = sprintf(c, Fmt, Tval);
+  fmt.Prec = Prec;
+  return false;
+  } // end of SetConstFormat
+
+bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+  {
+  fmt.Type[0] = 'C';
+  fmt.Length = Len;
   fmt.Prec = 0;
   return false;
   } // end of SetConstFormat
 
 /***********************************************************************/
-/*  Make file output of a int object.                                  */
+/*  Make file output of a typed object.                                */
 /***********************************************************************/
-void INTVAL::Print(PGLOBAL g, FILE *f, uint n)
+template <class TYPE>
+void TYPVAL<TYPE>::Print(PGLOBAL g, FILE *f, uint n)
   {
-  char m[64];
+  char m[64], buf[12];
 
   memset(m, ' ', n);                             /* Make margin string */
   m[n] = '\0';
 
-  fprintf(f, "%s%d\n", m, Ival);
+  if (Null)
+    fprintf(f, "%s<null>\n", m);
+  else
+    fprintf(f, strcat(strcat(strcpy(buf, "%s"), Fmt), "\n"), m, Tval);
+
   } /* end of Print */
 
 /***********************************************************************/
 /*  Make string output of a int object.                                */
 /***********************************************************************/
-void INTVAL::Print(PGLOBAL g, char *ps, uint z)
+template <class TYPE>
+void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
   {
-  sprintf(ps, "%d", Ival);
+  if (Null)
+    strcpy(ps, "<null>");
+  else
+    sprintf(ps, Fmt, Tval);
+
   } /* end of Print */
 
 /* -------------------------- Class DTVAL ---------------------------- */
@@ -2857,7 +988,8 @@ void INTVAL::Print(PGLOBAL g, char *ps, uint z)
 /***********************************************************************/
 /*  DTVAL  public constructor for new void values.                     */
 /***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt) : INTVAL((int)0)
+DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt)
+      : TYPVAL<int>((int)0, TYPE_DATE)
   {
   if (!fmt) {
     Pdtp = NULL;
@@ -2867,53 +999,17 @@ DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt) : INTVAL((int)0)
   } else
     SetFormat(g, fmt, n, prec);
 
-  Type = TYPE_DATE;
+//Type = TYPE_DATE;
   } // end of DTVAL constructor
 
 /***********************************************************************/
-/*  DTVAL  public constructor from char.                               */
+/*  DTVAL  public constructor from int.                                */
 /***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, PSZ s, int n) : INTVAL((s) ? s : (char *)"0")
-  {
-  Pdtp = NULL;
-  Len = n;
-  Type = TYPE_DATE;
-  Sdate = NULL;
-  DefYear = 0;
-  } // end of DTVAL constructor
-
-/***********************************************************************/
-/*  DTVAL  public constructor from short.                              */
-/***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, short n) : INTVAL((int)n)
+DTVAL::DTVAL(PGLOBAL g, int n) : TYPVAL<int>(n, TYPE_DATE)
   {
   Pdtp = NULL;
   Len = 19;
-  Type = TYPE_DATE;
-  Sdate = NULL;
-  DefYear = 0;
-  } // end of DTVAL constructor
-
-/***********************************************************************/
-/*  DTVAL  public constructor from int.                               */
-/***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, int n) : INTVAL(n)
-  {
-  Pdtp = NULL;
-  Len = 19;
-  Type = TYPE_DATE;
-  Sdate = NULL;
-  DefYear = 0;
-  } // end of DTVAL constructor
-
-/***********************************************************************/
-/*  DTVAL  public constructor from double.                             */
-/***********************************************************************/
-DTVAL::DTVAL(PGLOBAL g, double f) : INTVAL(f)
-  {
-  Pdtp = NULL;
-  Len = 19;
-  Type = TYPE_DATE;
+//Type = TYPE_DATE;
   Sdate = NULL;
   DefYear = 0;
   } // end of DTVAL constructor
@@ -2973,9 +1069,9 @@ void DTVAL::SetTimeShift(void)
 struct tm *DTVAL::GetGmTime(void)
   {
   struct tm *datm;
-  time_t t = (time_t)Ival;
+  time_t t = (time_t)Tval;
 
-  if (Ival < 0) {
+  if (Tval < 0) {
     int    n;
 
     for (n = 0; t < 0; n += 4)
@@ -3022,12 +1118,12 @@ bool DTVAL::MakeTime(struct tm *ptm)
     if ((t -= (n * FOURYEARS + Shift)) > 2000000000)
       return true;
 
-    Ival = (int)t;
+    Tval = (int)t;
   } else
-    Ival = (int)t - Shift;
+    Tval = (int)t - Shift;
 
   if (trace)
-    htrc("MakeTime Ival=%d\n", Ival); 
+    htrc("MakeTime Ival=%d\n", Tval); 
 
   return false;
   } // end of MakeTime
@@ -3117,7 +1213,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
       strcpy(g->Message, MSG(BAD_DATETIME));
       rc = true;
     } else
-      Ival = 0;
+      Tval = 0;
 
   return rc;
   } // end of MakeDate
@@ -3139,7 +1235,7 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
       ndv = ExtractDate(valp->GetCharValue(), Pdtp, DefYear, dval);
       MakeDate(NULL, dval, ndv);
     } else
-      Ival = valp->GetIntValue();
+      Tval = valp->GetIntValue();
 
   } else
     Reset();
@@ -3168,11 +1264,11 @@ void DTVAL::SetValue_char(char *p, int n)
     MakeDate(NULL, dval, ndv);
 
     if (trace)
-      htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
+      htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
   } else
-    INTVAL::SetValue_char(p, n);
+    TYPVAL<int>::SetValue_char(p, n);
 
   } // end of SetValue
 
@@ -3192,11 +1288,11 @@ void DTVAL::SetValue_psz(PSZ p)
     MakeDate(NULL, dval, ndv);
 
     if (trace)
-      htrc(" setting date: '%s' -> %d\n", Sdate, Ival);
+      htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
   } else
-    INTVAL::SetValue_psz(p);
+    TYPVAL<int>::SetValue_psz(p);
 
   } // end of SetValue
 
@@ -3212,7 +1308,7 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
     ndv = ExtractDate(blk->GetCharValue(n), Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
   } else
-    Ival = blk->GetIntValue(n);
+    Tval = blk->GetIntValue(n);
 
   } // end of SetValue
 
@@ -3235,7 +1331,7 @@ char *DTVAL::GetCharString(char *p)
 
     return Sdate;
   } else
-    sprintf(p, "%d", Ival);
+    sprintf(p, "%d", Tval);
 
   Null = false;
   return p;
@@ -3269,74 +1365,9 @@ char *DTVAL::ShowValue(char *buf, int len)
 
     return p;
   } else
-    return INTVAL::ShowValue(buf, len);
+    return TYPVAL<int>::ShowValue(buf, len);
 
   } // end of ShowValue
-
-#if 0
-/***********************************************************************/
-/*  Compute a function on a date time stamp.                           */
-/***********************************************************************/
-bool DTVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  bool rc = false;
-
-  if (op == OP_DATE) {
-    int val[6];
-    int  nval = min(np, 6);
-
-    for (int i = 0; i < nval; i++)
-      val[i] = vp[i]->GetIntValue();
-
-    rc = MakeDate(g, val, nval);
-  } else if (op == OP_ADDAY || op == OP_ADDMTH ||
-             op == OP_ADDYR || op == OP_NXTDAY) {
-    struct tm *ptm;
-    int        n = (op != OP_NXTDAY) ? (int)vp[1]->GetIntValue() : 1;
-
-    INTVAL::SetValue_pval(vp[0], true);
-    Ival -= Shift;
-    ptm = GetGmTime();
-
-    switch (op) {
-      case OP_ADDAY:
-      case OP_NXTDAY:
-        ptm->tm_mday += n;
-        break;
-      case OP_ADDMTH:
-        ptm->tm_mon += n;
-        break;
-      case OP_ADDYR:
-        ptm->tm_year += n;
-        break;
-      default:
-        sprintf(g->Message, MSG(BAD_DATE_OPER), op);
-        return true;
-      } // endswitch op
-
-    if (MakeTime(ptm)) {
-      strcpy(g->Message, MSG(BAD_DATETIME));
-      rc = true;
-      } // endif MakeTime
-
-  } else if (op == OP_SYSDT) {
-    Ival = (int)time(NULL) - Shift;
-  } else if (op == OP_CURDT) {
-    Ival = (((int)time(NULL) - Shift) / 86400) * 86400;
-  } else
-    rc = INTVAL::Compute(g, vp, np, op);
-
-  return rc;
-  } // end of Compute
-
-/***********************************************************************/
-/*  GetTime: extract the time info from a date stamp.                  */
-/***********************************************************************/
-int DTVAL::GetTime(PGLOBAL g, PVAL *vp, int np)
-  {
-  return (Ival % 86400);
-  } // end of GetTime
-#endif // 0
 
 /***********************************************************************/
 /*  Returns a member of the struct tm representation of the date.      */
@@ -3388,84 +1419,6 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
   return false;
   } // end of WeekNum
 
-#if 0
-/***********************************************************************/
-/*  This covers days, months and years between two dates.              */
-/***********************************************************************/
-bool DTVAL::DateDiff(DTVAL *dtp, OPVAL op, int& tdif)
-  {
-  bool      rc = false;
-  int       lv1, lv2, t1, t2;
-  int       s = CompareValue(dtp);
-  struct tm dat1, dat2, *ptm = dtp->GetGmTime();
-
-  if (!ptm)
-    return true;
-
-  if (s == 0) {
-    // Dates are equal
-    tdif = 0;
-    return rc;
-  } else if (s > 0) {
-    // This Date is greater than dtp->Date
-    dat1 = *ptm;
-    lv1 = dtp->GetIntValue();
-    lv2 = Ival;
-
-    if ((ptm = GetGmTime()))
-      dat2 = *ptm;
-
-  } else {
-    // This Date is less than dtp->Date
-    dat2 = *ptm;
-    lv2 = dtp->GetIntValue();
-    lv1 = Ival;
-
-    if ((ptm = GetGmTime()))
-      dat1 = *ptm;
-
-  } // endif's s
-
-  if (!ptm)
-    return true;
-
-  // Both dates are valid and dat2 is greater than dat1
-  t1 = lv1 % 86400; if (t1 < 0) t1 += 86400;
-  t2 = lv2 % 86400; if (t2 < 0) t2 += 86400;
-
-  if (t1 > t2) {
-    lv1 += 86400;
-    dat1.tm_mday++;
-    } // endif
-
-  if (dat1.tm_mday > dat2.tm_mday)
-    dat1.tm_mon++;
-
-  switch (op) {
-    case OP_DBTWN:
-      tdif = (lv2 / 86400) - (lv1 / 86400);
-      break;
-    case OP_MBTWN:
-      tdif = (dat2.tm_year - dat1.tm_year) * 12
-           + (dat2.tm_mon  - dat1.tm_mon);
-      break;
-    case OP_YBTWN:
-      if (dat1.tm_mon > dat2.tm_mon)
-        dat1.tm_year++;
-
-      tdif = dat2.tm_year - dat1.tm_year;
-      break;
-    default:
-      rc = true;
-    } // endswitch op
-
-  if (!rc && s < 0)
-    tdif = -tdif;
-
-  return rc;
-  } // end of DateDiff
-#endif // 0
-
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
 /*  constructed from its own value formated using the fmt format.      */
@@ -3490,1436 +1443,5 @@ bool DTVAL::FormatValue(PVAL vp, char *fmt)
     return true;
 
   } // end of FormatValue
-
-/* -------------------------- Class BIGVAL ---------------------------- */
-
-/***********************************************************************/
-/*  BIGVAL  public constructor from char.                              */
-/***********************************************************************/
-BIGVAL::BIGVAL(PSZ s) : VALUE(TYPE_BIGINT)
-  {
-  Lval = atoll(s);
-  Clen = sizeof(longlong);
-  } // end of BIGVAL constructor
-
-/***********************************************************************/
-/*  BIGVAL  public constructor from short.                             */
-/***********************************************************************/
-BIGVAL::BIGVAL(short n) : VALUE(TYPE_BIGINT)
-  {
-  Lval = (longlong)n;
-  Clen = sizeof(longlong);
-  } // end of BIGVAL constructor
-
-/***********************************************************************/
-/*  BIGVAL  public constructor from int.                               */
-/***********************************************************************/
-BIGVAL::BIGVAL(int n) : VALUE(TYPE_BIGINT)
-  {
-  Lval = (longlong)n;
-  Clen = sizeof(longlong);
-  } // end of BIGVAL constructor
-
-/***********************************************************************/
-/*  BIGVAL  public constructor from big int.                           */
-/***********************************************************************/
-BIGVAL::BIGVAL(longlong n) : VALUE(TYPE_BIGINT)
-  {
-  Lval = n;
-  Clen = sizeof(longlong);
-  } // end of BIGVAL constructor
-
-/***********************************************************************/
-/*  BIGVAL  public constructor from double.                            */
-/***********************************************************************/
-BIGVAL::BIGVAL(double f) : VALUE(TYPE_BIGINT)
-  {
-  Lval = (longlong)f;
-  Clen = sizeof(longlong);
-  } // end of BIGVAL constructor
-
-/***********************************************************************/
-/*  BIGVAL GetValLen: returns the print length of the int object.      */
-/***********************************************************************/
-int BIGVAL::GetValLen(void)
-  {
-  char c[24];
-
-  return sprintf(c, "%lld", Lval);
-  } // end of GetValLen
-
-/***********************************************************************/
-/*  BIGVAL SetValue: copy the value of another Value object.           */
-/*  This function allows conversion if chktype is false.               */
-/***********************************************************************/
-bool BIGVAL::SetValue_pval(PVAL valp, bool chktype)
-  {
-  if (chktype && Type != valp->GetType())
-    return true;
-
-  if (!(Null = valp->IsNull() && Nullable))
-    Lval = valp->GetBigintValue();
-  else
-    Reset();
-
-  return false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  BIGVAL SetValue: convert chars extracted from a line to a big int. */
-/***********************************************************************/
-void BIGVAL::SetValue_char(char *p, int n)
-  {
-  char *p2;
-  bool  minus;
-
-  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
-
-  for (Lval = 0LL, minus = false; p < p2; p++)
-    switch (*p) {
-      case '-':
-        minus = true;
-      case '+':
-        break;
-      case '0': Lval = Lval * 10LL;       break;
-      case '1': Lval = Lval * 10LL + 1LL; break;
-      case '2': Lval = Lval * 10LL + 2LL; break;
-      case '3': Lval = Lval * 10LL + 3LL; break;
-      case '4': Lval = Lval * 10LL + 4LL; break;
-      case '5': Lval = Lval * 10LL + 5LL; break;
-      case '6': Lval = Lval * 10LL + 6LL; break;
-      case '7': Lval = Lval * 10LL + 7LL; break;
-      case '8': Lval = Lval * 10LL + 8LL; break;
-      case '9': Lval = Lval * 10LL + 9LL; break;
-      default:
-        p = p2;
-      } // endswitch *p
-
-  if (minus && Lval)
-    Lval = - Lval;
-
-  if (trace)
-    htrc(" setting big int to: %lld\n", Lval);
-
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  BIGVAL SetValue: fill a big int value from a string.               */
-/***********************************************************************/
-void BIGVAL::SetValue_psz(PSZ s)
-  {
-  Lval = atoll(s);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  BIGVAL SetValue: set value with a int extracted from a block.      */
-/***********************************************************************/
-void BIGVAL::SetValue_pvblk(PVBLK blk, int n)
-  {
-  Lval = blk->GetBigintValue(n);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  BIGVAL SetBinValue: with bytes extracted from a line.               */
-/***********************************************************************/
-void BIGVAL::SetBinValue(void *p)
-  {
-  Lval = *(longlong *)p;
-  Null = false;
-  } // end of SetBinValue
-
-/***********************************************************************/
-/*  GetBinValue: fill a buffer with the internal binary value.         */
-/*  This function checks whether the buffer length is enough and       */
-/*  returns true if not. Actual filling occurs only if go is true.     */
-/*  Currently used by WriteColumn of binary files.                     */
-/***********************************************************************/
-bool BIGVAL::GetBinValue(void *buf, int buflen, bool go)
-  {
-  // Test on length was removed here until a variable in column give the
-  // real field length. For BIN files the field length logically cannot
-  // be different from the variable length because no conversion is done.
-  // Therefore this test is useless anyway.
-//#if defined(_DEBUG)
-//  if (sizeof(int) > buflen)
-//    return true;
-//#endif
-
-  if (go)
-    *(longlong *)buf = Lval;
-
-  return false;
-  } // end of GetBinValue
-
-#if 0
-/***********************************************************************/
-/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
-/*  This is a fast implementation that does not do any checking.       */
-/***********************************************************************/
-void BIGVAL::GetBinValue(void *buf, int buflen)
-  {
-  assert(buflen == sizeof(longlong));
-
-  *(longlong *)buf = Lval;
-  } // end of GetBinValue
-#endif // 0
-
-/***********************************************************************/
-/*  BIGVAL ShowValue: get string representation of a big int value.    */
-/***********************************************************************/
-char *BIGVAL::ShowValue(char *buf, int len)
-  {
-  sprintf(buf, "%*lld", len, Lval);
-  return buf;
-  } // end of ShowValue
-
-/***********************************************************************/
-/*  BIGVAL GetCharString: get string representation of a big int value.*/
-/***********************************************************************/
-char *BIGVAL::GetCharString(char *p)
-  {
-  sprintf(p, "%lld", Lval);
-  return p;
-  } // end of GetCharString
-
-/***********************************************************************/
-/*  BIGVAL GetShortString: get short representation of a int value.    */
-/***********************************************************************/
-char *BIGVAL::GetShortString(char *p, int n)
-  {
-  sprintf(p, "%*hd", n, (short)Lval);
-  return p;
-  } // end of GetShortString
-
-/***********************************************************************/
-/*  BIGVAL GetIntString: get int representation of a int value.        */
-/***********************************************************************/
-char *BIGVAL::GetIntString(char *p, int n)
-  {
-  sprintf(p, "%*d", n, (int)Lval);
-  return p;
-  } // end of GetIntString
-
-/***********************************************************************/
-/*  BIGVAL GetBigintString: get big int representation of a int value. */
-/***********************************************************************/
-char *BIGVAL::GetBigintString(char *p, int n)
-  {
-  sprintf(p, "%*lld", n, Lval);
-  return p;
-  } // end of GetBigintString
-
-/***********************************************************************/
-/*  BIGVAL GetFloatString: get double representation of a int value.   */
-/***********************************************************************/
-char *BIGVAL::GetFloatString(char *p, int n, int prec)
-  {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Lval);
-  return p;
-  } // end of GetFloatString
-
-/***********************************************************************/
-/*  BIGVAL compare value with another Value.                           */
-/***********************************************************************/
-bool BIGVAL::IsEqual(PVAL vp, bool chktype)
-  {
-  if (this == vp)
-    return true;
-  else if (chktype && Type != vp->GetType())
-    return false;
-  else if (vp->IsNull() || Null)
-    return false;
-  else
-    return (Lval == vp->GetBigintValue());
-
-  } // end of IsEqual
-
-#if 0
-/***********************************************************************/
-/*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of big int integer filters.   */
-/***********************************************************************/
-int BIGVAL::CompareValue(PVAL vp)
-  {
-//assert(vp->GetType() == Type);
-
-  // Process filtering on big int integers.
-  longlong n = vp->GetBigintValue();
-
-  if (trace > 1)
-    htrc(" Comparing: val=%lld,%lld\n", Lval, n);
-
-  return (Lval > n) ? 1 : (Lval < n) ? (-1) : 0;
-  } // end of CompareValue
-
-/***********************************************************************/
-/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
-/***********************************************************************/
-longlong BIGVAL::SafeAdd(longlong n1, longlong n2)
-  {
-  PGLOBAL& g = Global;
-  longlong n = n1 + n2;
-
-  if ((n2 > 0LL) && (n < n1)) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if ((n2 < 0LL) && (n > n1)) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return n;
-  } // end of SafeAdd
-
-/***********************************************************************/
-/*  SafeMult: multiply values and test whether overflow occured.       */
-/***********************************************************************/
-longlong BIGVAL::SafeMult(longlong n1, longlong n2)
-  {
-  PGLOBAL& g = Global;
-  double   n = (double)n1 * (double)n2;
-
-  if (n > LLONG_MAX) {
-    // Overflow
-    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } else if (n < LLONG_MIN) {
-    // Underflow
-    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
-    longjmp(g->jumper[g->jump_level], 138);
-  } // endif's n2
-
-  return n1 * n2;
-  } // end of SafeMult
-
-/***********************************************************************/
-/*  Compute a function on a int integers.                             */
-/***********************************************************************/
-bool BIGVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  if (op == OP_LEN) {
-    assert(np == 1);
-    char buf[32];
-    char *p = vp[0]->GetCharString(buf);
-
-    Lval = strlen(p);
-
-    if (trace)
-      htrc("Compute result=%lld val=%s op=%d\n", Lval, p, op);
-
-  } else if (op == OP_INSTR || op == OP_LIKE || op == OP_CNTIN) {
-    char *p, *tp = g->Message;
-    char *p1, val1[32];
-    char *p2, val2[32];
-    bool  b = (vp[0]->IsCi() || vp[1]->IsCi());
-
-    assert(np == 2);
-
-    p1 = vp[0]->GetCharString(val1);
-    p2 = vp[1]->GetCharString(val2);
-
-    if (op != OP_LIKE) {
-      if (!strcmp(p2, "\\t"))
-        p2 = "\t";
-
-      if (b) {                          // Case insensitive
-        if (strlen(p1) + strlen(p2) + 1 >= MAX_STR &&
-            !(tp = new char[strlen(p1) + strlen(p2) + 2])) {
-          strcpy(g->Message, MSG(NEW_RETURN_NULL));
-          return true;
-          } // endif p
-    
-        // Make a lower case copy of p1 and p2
-        p1 = strlwr(strcpy(tp, p1));     
-        p2 = strlwr(strcpy(tp + strlen(p1) + 1, p2));
-        } // endif b
-
-      if (op == OP_CNTIN) {
-        size_t t2 = strlen(p2);
-
-        for (Lval = 0LL; (p = strstr(p1, p2)); Lval++, p1 = p + t2) ;
-
-      } else                 // OP_INSTR
-        Lval = (p = strstr(p1, p2)) ? 1LL + (longlong)(p - p1) : 0LL;
-
-      if (tp != g->Message)  // If working space was obtained
-        delete [] tp;        // by the use of new, delete it.
-
-    } else                   // OP_LIKE
-      Lval = (PlugEvalLike(g, p1, p2, b)) ? 1LL : 0LL;
-
-    if (trace)
-      htrc("Compute result=%lld val=%s,%s op=%d\n", Lval, p1, p2, op);
-
-  } else {
-    longlong val[2];
-
-    assert(np <= 2);
-
-    for (int i = 0; i < np; i++)
-      val[i] = vp[i]->GetBigintValue();
-
-    switch (op) {
-      case OP_ABS:
-        assert(np == 1);
-        Lval = (*val >= 0LL) ? *val : -*val;
-        break;
-      case OP_SIGN:
-        assert(np == 1);
-        Lval = (*val < 0LL) ? (-1) : 1;
-        break;
-      case OP_CEIL:
-      case OP_FLOOR:
-        assert(np == 1);
-        Lval = *val;
-        break;
-      case OP_ADD:
-        assert(np == 2);
-        Lval = SafeAdd(val[0], val[1]);
-        break;
-      case OP_SUB:
-        assert(np == 2);
-        Lval = SafeAdd(val[0], -val[1]);
-        break;
-      case OP_MULT:
-        assert(np == 2);
-        Lval = SafeMult(val[0], val[1]);
-        break;
-      case OP_MIN:
-        assert(np == 2);
-        Lval = min(val[0], val[1]);
-        break;
-      case OP_MAX:
-        assert(np == 2);
-        Lval = max(val[0], val[1]);
-        break;
-      case OP_DIV:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Lval = val[0] / val[1];
-        break;
-      case OP_MOD:
-        assert(np == 2);
-
-        if (!val[1]) {
-          strcpy(g->Message, MSG(ZERO_DIVIDE));
-          return true;
-          } // endif
-
-        Lval = val[0] % val[1];
-        break;
-      case OP_BITAND:
-        assert(np == 2);
-        Lval = val[0] & val[1];
-        break;
-      case OP_BITOR:
-        assert(np == 2);
-        Lval = val[0] | val[1];
-        break;
-      case OP_BITXOR:
-        assert(np == 2);
-        Lval = val[0] ^ val[1];
-        break;
-      case OP_BITNOT:
-        assert(np == 1);
-        Lval = ~val[0];
-        break;
-      case OP_DELTA:
-//      assert(np == 1);
-        Lval = val[0] - Lval;
-        break;
-      default:
-        sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-        return true;
-      } // endswitch op
-
-    if (trace)
-      if (np = 1)
-        htrc(" result=%lld val=%lld op=%d\n", Lval, val[0], op);
-      else
-        htrc(" result=%lld val=%lld,%lld op=%d\n",
-               Lval, val[0], val[1], op);
-
-  } // endif op
-
-  return false;
-  } // end of Compute
-
-/***********************************************************************/
-/*  Divide: used by aggregate functions when calculating average.      */
-/***********************************************************************/
-void BIGVAL::Divide(int cnt)
-  {
-  Lval /= cnt;
-  } // end of Divide
-
-/***********************************************************************/
-/*  StdVar: used by aggregate functions for Stddev and Variance.       */
-/***********************************************************************/
-void BIGVAL::StdVar(PVAL vp, int cnt, bool b)
-  {
-  longlong lv2 = vp->GetBigintValue();
-
-  Lval = (cnt == 1) ? 0
-       : (SafeAdd(lv2, -(SafeMult(Lval, Lval) / cnt)) / (cnt - 1));
-
-  if (b)    // Builtin == FNC_STDDEV
-    Lval = (longlong)sqrt((double)Lval);
-
-  } // end of StdVar
-
-/***********************************************************************/
-/*  Times: used by aggregate functions for Stddev and Variance.        */
-/***********************************************************************/
-void BIGVAL::Times(PVAL vp)
-  {
-  Lval = SafeMult(Lval, vp->GetBigintValue());
-  } // end of Times
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void BIGVAL::Add(PVAL vp)
-  {
-  Lval = SafeAdd(Lval, vp->GetBigintValue());
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void BIGVAL::Add(PVBLK vbp, int i)
-  {
-  Lval = SafeAdd(Lval, vbp->GetBigintValue(i));
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void BIGVAL::Add(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Lval = SafeAdd(Lval, lp[i]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by QUERY for function Sum and other functions.           */
-/***********************************************************************/
-void BIGVAL::Add(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Lval = SafeAdd(Lval, lp[x[i]]);
-
-  } // end of Add
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void BIGVAL::AddSquare(PVAL vp)
-  {
-  longlong val = vp->GetBigintValue();
-
-  Lval = SafeAdd(Lval, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void BIGVAL::AddSquare(PVBLK vbp, int i)
-  {
-  longlong val = vbp->GetBigintValue(i);
-
-  Lval = SafeAdd(Lval, SafeMult(val, val));
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by QUERY for functions Stddev and Variance.        */
-/***********************************************************************/
-void BIGVAL::AddSquare(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Lval = SafeAdd(Lval, SafeMult(lp[i], lp[i]));
-
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  SetMin: used by the aggregate function MIN.                        */
-/***********************************************************************/
-void BIGVAL::SetMin(PVAL vp)
-  {
-  longlong val = vp->GetBigintValue();
-
-  if (val < Lval)
-    Lval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void BIGVAL::SetMin(PVBLK vbp, int i)
-  {
-  longlong val = vbp->GetBigintValue(i);
-
-  if (val < Lval)
-    Lval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void BIGVAL::SetMin(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] < Lval)
-      Lval = lp[i];
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void BIGVAL::SetMin(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  longlong  val;
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val < Lval)
-      Lval = val;
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by the aggregate function MAX.                        */
-/***********************************************************************/
-void BIGVAL::SetMax(PVAL vp)
-  {
-  longlong val = vp->GetBigintValue();
-
-  if (val > Lval)
-    Lval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void BIGVAL::SetMax(PVBLK vbp, int i)
-  {
-  longlong val = vbp->GetBigintValue(i);
-
-  if (val > Lval)
-    Lval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void BIGVAL::SetMax(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (lp[i] > Lval)
-      Lval = lp[i];
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void BIGVAL::SetMax(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  longlong  val;
-  longlong *lp = (longlong *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = lp[x[i]];
-
-    if (val > Lval)
-      Lval = val;
-
-    } // endfor i
-
-  } // end of SetMax
-#endif // 0
-
-/***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool BIGVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Lval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
-/*  BIGVAL  SetFormat function (used to set SELECT output format).     */
-/***********************************************************************/
-bool BIGVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
-  {
-  char c[16];
-
-  fmt.Type[0] = 'L';
-  fmt.Length = sprintf(c, "%lld", Lval);
-  fmt.Prec = 0;
-  return false;
-  } // end of SetConstFormat
-
-/***********************************************************************/
-/*  Make file output of a big int object.                              */
-/***********************************************************************/
-void BIGVAL::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  fprintf(f, "%s%lld\n", m, Lval);
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a int object.                                */
-/***********************************************************************/
-void BIGVAL::Print(PGLOBAL g, char *ps, uint z)
-  {
-  sprintf(ps, "%lld", Lval);
-  } /* end of Print */
-
-/* -------------------------- Class DFVAL ---------------------------- */
-
-/***********************************************************************/
-/*  DFVAL  public constructor from char.                               */
-/***********************************************************************/
-DFVAL::DFVAL(PSZ s, int prec) : VALUE(TYPE_FLOAT)
-  {
-  Fval = atof(s);
-  Prec = prec;
-  Clen = sizeof(double);
-  } // end of DFVAL constructor
-
-/***********************************************************************/
-/*  DFVAL  public constructor from short.                              */
-/***********************************************************************/
-DFVAL::DFVAL(short n, int prec) : VALUE(TYPE_FLOAT)
-  {
-  Fval = (double)n;
-  Prec = prec;
-  Clen = sizeof(double);
-  } // end of DFVAL constructor
-
-/***********************************************************************/
-/*  DFVAL  public constructor from int.                                */
-/***********************************************************************/
-DFVAL::DFVAL(int n, int prec) : VALUE(TYPE_FLOAT)
-  {
-  Fval = (double)n;
-  Prec = prec;
-  Clen = sizeof(double);
-  } // end of DFVAL constructor
-
-/***********************************************************************/
-/*  DFVAL  public constructor from big int.                            */
-/***********************************************************************/
-DFVAL::DFVAL(longlong n, int prec) : VALUE(TYPE_FLOAT)
-  {
-  Fval = (double)n;
-  Prec = prec;
-  Clen = sizeof(double);
-  } // end of DFVAL constructor
-
-/***********************************************************************/
-/*  DFVAL  public constructor from double.                             */
-/***********************************************************************/
-DFVAL::DFVAL(double f, int prec) : VALUE(TYPE_FLOAT)
-  {
-  Fval = f;
-  Prec = prec;
-  Clen = sizeof(double);
-  } // end of DFVAL constructor
-
-/***********************************************************************/
-/*  DFVAL GetValLen: returns the print length of the double object.    */
-/***********************************************************************/
-int DFVAL::GetValLen(void)
-  {
-  char c[32];
-
-  return sprintf(c, "%.*lf", Prec, Fval);
-  } // end of GetValLen
-
-/***********************************************************************/
-/*  DFVAL SetValue: copy the value of another Value object.            */
-/*  This function allows conversion if chktype is false.               */
-/***********************************************************************/
-bool DFVAL::SetValue_pval(PVAL valp, bool chktype)
-  {
-  if (chktype && Type != valp->GetType())
-    return true;
-
-  if (!(Null = valp->IsNull() && Nullable))
-    Fval = valp->GetFloatValue();
-  else
-    Reset();
-
-  return false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SetValue: convert chars extracted from a line to double value.     */
-/***********************************************************************/
-void DFVAL::SetValue_char(char *p, int n)
-  {
-  char *p2, buf[32];
-
-  for (p2 = p + n; p < p2 && *p == ' '; p++) ;
-
-  n = min(p2 - p, 31);
-  memcpy(buf, p, n);
-  buf[n] = '\0';
-  Fval = atof(buf);
-
-  if (trace)
-    htrc(" setting double: '%s' -> %lf\n", buf, Fval);
-
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  DFVAL SetValue: fill a double float value from a string.           */
-/***********************************************************************/
-void DFVAL::SetValue_psz(PSZ s)
-  {
-  Fval = atof(s);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  DFVAL SetValue: set value with a double extracted from a block.    */
-/***********************************************************************/
-void DFVAL::SetValue_pvblk(PVBLK blk, int n)
-  {
-  Fval = blk->GetFloatValue(n);
-  Null = false;
-  } // end of SetValue
-
-/***********************************************************************/
-/*  SetBinValue: with bytes extracted from a line.                     */
-/***********************************************************************/
-void DFVAL::SetBinValue(void *p)
-  {
-  Fval = *(double *)p;
-  Null = false;
-  } // end of SetBinValue
-
-/***********************************************************************/
-/*  GetBinValue: fill a buffer with the internal binary value.         */
-/*  This function checks whether the buffer length is enough and       */
-/*  returns true if not. Actual filling occurs only if go is true.     */
-/*  Currently used by WriteColumn of binary files.                     */
-/***********************************************************************/
-bool DFVAL::GetBinValue(void *buf, int buflen, bool go)
-  {
-  // Test on length was removed here until a variable in column give the
-  // real field length. For BIN files the field length logically cannot
-  // be different from the variable length because no conversion is done.
-  // Therefore this test is useless anyway.
-//#if defined(_DEBUG)
-//  if (sizeof(double) > buflen)
-//    return true;
-//#endif
-
-  if (go)
-    *(double *)buf = Fval;
-
-  return false;
-  } // end of GetBinValue
-
-#if 0
-/***********************************************************************/
-/*  GetBinValue: used by SELECT when called from QUERY and KINDEX.     */
-/*  This is a fast implementation that does not do any checking.       */
-/*  Note: type is not needed here and just kept for compatibility.     */
-/***********************************************************************/
-void DFVAL::GetBinValue(void *buf, int buflen)
-  {
-  assert(buflen == sizeof(double));
-
-  *(double *)buf = Fval;
-  } // end of GetBinValue
-#endif // 0
-
-/***********************************************************************/
-/*  DFVAL ShowValue: get string representation of a double value.      */
-/***********************************************************************/
-char *DFVAL::ShowValue(char *buf, int len)
-  {
-  // TODO: use snprintf to avoid possible overflow
-  sprintf(buf, "%*.*lf", len, Prec, Fval);
-  return buf;
-  } // end of ShowValue
-
-/***********************************************************************/
-/*  DFVAL GetCharString: get string representation of a double value.  */
-/***********************************************************************/
-char *DFVAL::GetCharString(char *p)
-  {
-  sprintf(p, "%.*lf", Prec, Fval);
-  return p;
-  } // end of GetCharString
-
-/***********************************************************************/
-/*  DFVAL GetShortString: get short representation of a double value.  */
-/***********************************************************************/
-char *DFVAL::GetShortString(char *p, int n)
-  {
-  sprintf(p, "%*hd", n, (short)Fval);
-  return p;
-  } // end of GetShortString
-
-/***********************************************************************/
-/*  DFVAL GetIntString: get int representation of a double value.    */
-/***********************************************************************/
-char *DFVAL::GetIntString(char *p, int n)
-  {
-  sprintf(p, "%*ld", n, (long) Fval);
-  return p;
-  } // end of GetIntString
-
-/***********************************************************************/
-/*  DFVAL GetBigintString: get big int representation of a double val. */
-/***********************************************************************/
-char *DFVAL::GetBigintString(char *p, int n)
-  {
-  sprintf(p, "%*lld", n, (longlong)Fval);
-  return p;
-  } // end of GetBigintString
-
-/***********************************************************************/
-/*  DFVAL GetFloatString: get double representation of a double value. */
-/***********************************************************************/
-char *DFVAL::GetFloatString(char *p, int n, int prec)
-  {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? Prec : prec, Fval);
-  return p;
-  } // end of GetFloatString
-
-/***********************************************************************/
-/*  DFVAL compare value with another Value.                            */
-/***********************************************************************/
-bool DFVAL::IsEqual(PVAL vp, bool chktype)
-  {
-  if (this == vp)
-    return true;
-  else if (chktype && Type != vp->GetType())
-    return false;
-  else if (Null || vp->IsNull())
-    return false;
-  else
-    return (Fval == vp->GetFloatValue());
-
-  } // end of IsEqual
-
-#if 0
-/***********************************************************************/
-/*  Compare values and returns 1, 0 or -1 according to comparison.     */
-/*  This function is used for evaluation of double float filters.      */
-/***********************************************************************/
-int DFVAL::CompareValue(PVAL vp)
-  {
-//assert(vp->GetType() == Type);
-
-  // Process filtering on int integers.
-  double d = vp->GetFloatValue();
-
-  if (trace)
-    htrc(" Comparing: val=%.2f,%.2f\n", Fval, d);
-
-  return (Fval > d) ? 1 : (Fval < d) ? (-1) : 0;
-  } // end of CompareValue
-
-/***********************************************************************/
-/*  Compute a function on double floats.                               */
-/***********************************************************************/
-bool DFVAL::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
-  {
-  double val[2];
-
-  assert(np <= 2);
-
-  for (int i = 0; i < np; i++)
-    val[i] = vp[i]->GetFloatValue();
-
-  switch (op) {
-    case OP_ABS:
-      assert(np == 1);
-      Fval = fabs(*val);
-      break;
-    case OP_CEIL:
-      assert(np == 1);
-      Fval = ceil(*val);
-      break;
-    case OP_FLOOR:
-      assert(np == 1);
-      Fval = floor(*val);
-      break;
-    case OP_SIGN:
-      assert(np == 1);
-      Fval = (*val < 0.0) ? (-1.0) : 1.0;
-      break;
-    case OP_ADD:
-      assert(np == 2);
-      Fval = val[0] + val[1];
-      break;
-    case OP_SUB:
-      assert(np == 2);
-      Fval = val[0] - val[1];
-      break;
-    case OP_MULT:
-      assert(np == 2);
-      Fval = val[0] * val[1];
-      break;
-    case OP_MIN:
-      assert(np == 2);
-      Fval = min(val[0], val[1]);
-      break;
-    case OP_MAX:
-      assert(np == 2);
-      Fval = max(val[0], val[1]);
-      break;
-    case OP_DIV:
-      assert(np == 2);
-      if (!val[1]) {
-        strcpy(g->Message, MSG(ZERO_DIVIDE));
-        return true;
-        } // endif
-
-      Fval = val[0] / val[1];
-      break;
-    case OP_MOD:
-      assert(np == 2);
-      Fval = fmod(val[0], val[1]);
-      break;
-    case OP_SQRT:
-      assert(np == 1);
-      Fval = sqrt(*val);
-      break;
-    case OP_LN:
-      assert(np == 1);
-      Fval = log(*val);
-      break;
-    case OP_EXP:
-      assert(np == 1);
-      Fval = exp(*val);
-      break;
-    case OP_COS:
-      assert(np == 1);
-      Fval = cos(*val);
-      break;
-    case OP_SIN:
-      assert(np == 1);
-      Fval = sin(*val);
-      break;
-    case OP_TAN:
-      assert(np == 1);
-      Fval = tan(*val);
-      break;
-    case OP_COSH:
-      assert(np == 1);
-      Fval = cosh(*val);
-      break;
-    case OP_SINH:
-      assert(np == 1);
-      Fval = sinh(*val);
-      break;
-    case OP_TANH:
-      assert(np == 1);
-      Fval = tanh(*val);
-      break;
-    case OP_LOG:
-      assert(np > 0);
-
-      if (np > 1 && val[1] != 10.0) {
-        strcpy(g->Message, MSG(ONLY_LOG10_IMPL));
-        return true;
-        } // endif Numarg
-
-      Fval = log10(val[0]);
-      break;
-    case OP_POWER:
-      assert(np == 2);
-      Fval = pow(val[0], val[1]);
-      break;
-    case OP_ROUND:
-      assert(np > 0);
-
-      if (np > 1) {
-        double dx, dy = val[1];
-
-        modf(dy, &dx);                 // Get integral part of arg
-        dx = pow(10.0, dx);
-        modf(val[0] * dx + 0.5, &dy);
-        Fval = dy / dx;
-      } else
-        modf(val[0] + 0.5, &Fval);
-
-      break;
-    case OP_DELTA:
-//    assert(np == 1);
-      Fval = val[0] - Fval;
-      break;
-    default:
-      sprintf(g->Message, MSG(BAD_EXP_OPER), op);
-      return true;
-    } // endswitch op
-
-  if (trace) {
-    if (np == 1)
-      htrc("Compute result=%lf val=%lf op=%d\n", Fval, val[0], op);
-    else
-      htrc("Compute result=%lf val=%lf,%lf op=%d\n",
-                    Fval, val[0], val[1], op);
-    } // endif trace
-
-  return false;
-  } // end of Compute
-
-/***********************************************************************/
-/*  GetTime: convert HR/MIN/SEC in a number of seconds.                */
-/***********************************************************************/
-int DFVAL::GetTime(PGLOBAL g, PVAL *vp, int np)
-  {
-  double sec = Fval;
-
-  for (int i = 0; i < 2; i++) {
-    sec *= 60.0;
-
-    if (np > i)
-      sec += vp[i]->GetFloatValue();
-
-    } // endfor i
-
-  return (int)sec;
-  } // end of GetTime
-
-/***********************************************************************/
-/*  Divide: used by aggregate functions when calculating average.      */
-/***********************************************************************/
-void DFVAL::Divide(int cnt)
-  {
-  Fval /= (double)cnt;
-  } // end of Divide
-
-/***********************************************************************/
-/*  StdVar: used by aggregate functions for Stddev and Variance.       */
-/***********************************************************************/
-void DFVAL::StdVar(PVAL vp, int cnt, bool b)
-  {
-  double fv2 = vp->GetFloatValue();
-  double cnd = (double)cnt;
-
-  Fval = (cnt == 1) ? 0.0 : ((fv2 - (Fval * Fval) / cnd) / (cnd - 1.0));
-
-  if (b)    // Builtin == FNC_STDDEV
-    Fval = sqrt(Fval);
-
-  } // end of StdVar
-
-/***********************************************************************/
-/*  Times: used by aggregate functions for Stddev and Variance.        */
-/***********************************************************************/
-void DFVAL::Times(PVAL vp)
-  {
-  Fval *= vp->GetFloatValue();
-  } // end of Times
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void DFVAL::Add(PVAL vp)
-  {
-  Fval += vp->GetFloatValue();
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void DFVAL::Add(PVBLK vbp, int i)
-  {
-  Fval += vbp->GetFloatValue(i);
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void DFVAL::Add(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Fval += dp[i];
-
-  } // end of Add
-
-/***********************************************************************/
-/*  Add: used by aggregate functions for Sum and other functions.      */
-/***********************************************************************/
-void DFVAL::Add(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Fval += dp[x[i]];
-
-  } // end of Add
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void DFVAL::AddSquare(PVAL vp)
-  {
-  double val = vp->GetFloatValue();
-
-  Fval += (val * val);
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void DFVAL::AddSquare(PVBLK vbp, int i)
-  {
-  double val = vbp->GetFloatValue(i);
-
-  Fval += (val * val);
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  AddSquare: used by aggregate functions for Stddev and Variance.    */
-/***********************************************************************/
-void DFVAL::AddSquare(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    Fval += (dp[i] * dp[i]);
-
-  } // end of AddSquare
-
-/***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool DFVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Fval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
-/*  SetMin: used by the aggregate function MIN.                        */
-/***********************************************************************/
-void DFVAL::SetMin(PVAL vp)
-  {
-  double val = vp->GetFloatValue();
-
-  if (val < Fval)
-    Fval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void DFVAL::SetMin(PVBLK vbp, int i)
-  {
-  double val = vbp->GetFloatValue(i);
-
-  if (val < Fval)
-    Fval = val;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMin: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void DFVAL::SetMin(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (dp[i] < Fval)
-      Fval = dp[i];
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void DFVAL::SetMin(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  register double val;
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = dp[x[i]];
-
-    if (val < Fval)
-      Fval = val;
-
-    } // endfor i
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  SetMax: used by the aggregate function MAX.                        */
-/***********************************************************************/
-void DFVAL::SetMax(PVAL vp)
-  {
-  double val = vp->GetFloatValue();
-
-  if (val > Fval)
-    Fval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MAX.              */
-/***********************************************************************/
-void DFVAL::SetMax(PVBLK vbp, int i)
-  {
-  double val = vbp->GetFloatValue(i);
-
-  if (val > Fval)
-    Fval = val;
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void DFVAL::SetMax(PVBLK vbp, int j, int k)
-  {
-  CheckType(vbp)
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++)
-    if (dp[i] > Fval)
-      Fval = dp[i];
-
-  } // end of SetMax
-
-/***********************************************************************/
-/*  SetMax: used by QUERY for the aggregate function MIN.              */
-/***********************************************************************/
-void DFVAL::SetMax(PVBLK vbp, int *x, int j, int k)
-  {
-  CheckType(vbp)
-  register double val;
-  double *dp = (double *)vbp->GetValPointer();
-
-  for (register int i = j; i < k; i++) {
-    val = dp[x[i]];
-
-    if (val > Fval)
-      Fval = val;
-
-    } // endfor i
-
-  } // end of SetMax
-#endif // 0
-
-/***********************************************************************/
-/*  FormatValue: This function set vp (a STRING value) to the string   */
-/*  constructed from its own value formated using the fmt format.      */
-/*  This function assumes that the format matches the value type.      */
-/***********************************************************************/
-bool DFVAL::FormatValue(PVAL vp, char *fmt)
-  {
-  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Fval);
-
-  return (n > vp->GetValLen());
-  } // end of FormatValue
-
-/***********************************************************************/
-/*  DFVAL  SetFormat function (used to set SELECT output format).      */
-/***********************************************************************/
-bool DFVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
-  {
-  char c[32];
-
-  fmt.Type[0] = 'F';
-  fmt.Length = sprintf(c, "%.*lf", Prec, Fval);
-  fmt.Prec = Prec;
-  return false;
-  } // end of SetConstFormat
-
-/***********************************************************************/
-/*  Make file output of a double object.                               */
-/***********************************************************************/
-void DFVAL::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  fprintf(f, "%s%.*lf\n", m, Prec, Fval);
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a double object.                             */
-/***********************************************************************/
-void DFVAL::Print(PGLOBAL g, char *ps, uint z)
-  {
-  sprintf(ps, "%.*lf", Prec, Fval);
-  } /* end of Print */
-
-#endif // __VALUE_H
 
 /* -------------------------- End of Value --------------------------- */

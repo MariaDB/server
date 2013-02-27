@@ -455,7 +455,7 @@ bool INICOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
     } else if (Buf_Type == TYPE_FLOAT)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      ((DFVAL *)value)->SetPrec(GetPrecision());
+      value->SetPrec(GetPrecision());
 
     Value = value;            // Directly access the external value
   } else {

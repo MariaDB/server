@@ -19,7 +19,7 @@
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
 /***********************************************************************/
-typedef struct _tabdesc  *PTABD;        // For friend setting
+//typedef struct _tabdesc  *PTABD;        // For friend setting
 
 /***********************************************************************/
 /*  The pointer to the one and only needed void object.                */
