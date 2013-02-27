@@ -1,6 +1,5 @@
 let $PORT= `select @@port`;
 
-# TODO: NULLs do not work
 # TODO: remote VARCHAR is displayed as CHAR
 
 CREATE TABLE t1 (a int, b char(10));
