@@ -14,7 +14,7 @@
 /*  block.h      is header containing Block    global declarations.    */
 /***********************************************************************/
 #include "block.h"
-#include "value.h"
+#include "valblk.h"             // includes value.h
 
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
