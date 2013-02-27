@@ -43,10 +43,11 @@
 #include "unireg.h"
 #include "sql_class.h"
 
+#include "my_dbug.h"
+
 #define OQGRAPH_STATS_UPDATE_THRESHOLD 10
 
 using namespace open_query;
-
 
 struct oqgraph_table_option_struct
 {
@@ -114,6 +115,7 @@ static bool oqgraph_init_done= 0;
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
+  DBUG_PRINT( "oq-debug", ("oqgraph_create_handler"));
   return new (mem_root) ha_oqgraph(hton, table);
 }
 
@@ -127,6 +129,9 @@ static bool oqgraph_init()
     return 1;
 #endif
 
+  DBUG_PRINT( "oq-debug", ("oqgraph_init"));
+
+
 #if MYSQL_VERSION_ID >= 50100
   hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
@@ -139,6 +144,7 @@ static bool oqgraph_init()
 
 static int oqgraph_fini(void *)
 {
+  DBUG_PRINT( "oq-debug", ("oqgraph_fini"));
   oqgraph_init_done= FALSE;
 #endif
   return 0;
@@ -317,9 +323,32 @@ void ha_oqgraph::fprint_error(const char* fmt, ...)
 
 int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
+  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d)", name, mode));
+
   THD* thd = current_thd;
   oqgraph_table_option_struct *options=
     reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+
+  // Catch cases where table was not constructed properly
+  if (!options) {
+    fprint_error("Invalid oqgraph backing store (null attributes)");
+    return -1;
+  }
+  if (!options->table_name) {
+    fprint_error("Invalid oqgraph backing store (unspecified data_table attribute)");
+    // if table_name if present but doesnt actually exist, we will fail out below
+    // when we call open_table_def(). same probably applies for the id fields
+    return -1;
+  }
+  if (!options->origid) {
+    fprint_error("Invalid oqgraph backing store (unspecified origid attribute)");
+    return -1;
+  }
+  if (!options->destid) {
+    fprint_error("Invalid oqgraph backing store (unspecified destid attribute)");
+    return -1;
+  }
+  // weight is optional
 
   error_message.length(0);
 
