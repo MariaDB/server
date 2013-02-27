@@ -991,7 +991,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
     } else if (Buf_Type == TYPE_FLOAT)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      ((DFVAL *)value)->SetPrec(GetPrecision());
+      value->SetPrec(GetPrecision());
 
     Value = value;            // Directly access the external value
   } else {
@@ -1031,7 +1031,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   {
   char   *p;
   int     i, rc;
-  int    field;
+  int     field;
+  double  dval;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
   if (trace > 1)
@@ -1066,14 +1067,17 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (Nod) switch (Buf_Type) {
         case TYPE_INT:
         case TYPE_SHORT:
+        case TYPE_BIGINT:
           Value->SetValue_char(p, field - Dcm);
           break;
         case TYPE_FLOAT:
           Value->SetValue_char(p, field);
+          dval = Value->GetFloatValue();
 
           for (i = 0; i < Dcm; i++)
-            ((DFVAL*)Value)->Divide(10.0);
+            dval /= 10.0;
 
+          Value->SetValue(dval);
           break;
         default:
           Value->SetValue_char(p, field);

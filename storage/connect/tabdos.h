@@ -13,7 +13,7 @@
 #include "colblk.h"                       // Column base class declares
 #include "xindex.h"
 
-typedef struct _tabdesc   *PTABD;         // For friend setting
+//pedef struct _tabdesc   *PTABD;         // For friend setting
 typedef class TXTFAM      *PTXF;
 
 /***********************************************************************/
