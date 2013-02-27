@@ -6579,6 +6579,8 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
       return 1;
     truncate_hash();
   }
+  if (state_from_master == end)
+    return 0;
   for (;;)
   {
     rpl_gtid gtid;
@@ -6856,6 +6858,8 @@ slave_connection_state::load(char *slave_request, size_t len)
   my_hash_reset(&hash);
   p= slave_request;
   end= slave_request + len;
+  if (p == end)
+    return 0;
   for (;;)
   {
     if (!(rec= (uchar *)my_malloc(sizeof(*gtid), MYF(MY_WME))))
