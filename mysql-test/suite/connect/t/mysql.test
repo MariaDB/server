@@ -73,6 +73,15 @@ SELECT * FROM t2;
 DROP TABLE t2;
 
 
+# Explicit table structure: remote NULL, local NOT NULL
+--replace_result $PORT PORT
+--eval CREATE TABLE t2 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
+--replace_result $PORT PORT
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
+
 # Explicit table structure with wrong column types
 --replace_result $PORT PORT
 --eval CREATE TABLE t2 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=MYSQL TABNAME='t1' OPTION_LIST='host=localhost,user=root,port=$PORT'
