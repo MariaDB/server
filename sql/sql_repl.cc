@@ -1292,7 +1292,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     }
     if ((errmsg= gtid_find_binlog_file(&gtid_state, search_file_name)))
     {
-      my_errno= ER_UNKNOWN_ERROR;
+      my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       goto err;
     }
     pos= 4;
