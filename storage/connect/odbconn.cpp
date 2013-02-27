@@ -491,9 +491,11 @@ PQRYRES ODBCDrivers(PGLOBAL g, bool info)
 /***********************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   {
-  static int dbtype[] = {DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR};
-  static int buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
+  static int dbtype[]  = {DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR, DB_CHAR};
+  static int buftyp[]  = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                          TYPE_STRING, TYPE_STRING};
+  static XFLD fldtyp[] = {FLD_QUALIF, FLD_OWNER, FLD_NAME,
+                          FLD_TYPE,   FLD_REM};
   static unsigned int length[] = {0, 0, 0, 16, 128};
   int      n, ncol = 5;
   int     maxres;
@@ -517,9 +519,9 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
     n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
     length[0] = (n) ? (n + 1) : 128;
     n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);
-    length[0] = (n) ? (n + 1) : 128;
-    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
     length[1] = (n) ? (n + 1) : 128;
+    n = ocp->GetMaxValue(SQL_MAX_TABLE_NAME_LEN);
+    length[2] = (n) ? (n + 1) : 128;
   } else {
     maxres = 0;
     length[0] = 128;
@@ -534,7 +536,7 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *tabpat, bool info)
   /*  Allocate the structures used to refer to the result set.            */
   /************************************************************************/
   qrp = PlgAllocResult(g, ncol, maxres, IDS_TABLES, dbtype, buftyp,
-                                        NULL, length, true, true);
+                                        fldtyp, length, true, true);
 
   if (info)
     return qrp;
