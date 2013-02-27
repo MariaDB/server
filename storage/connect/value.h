@@ -183,16 +183,16 @@ class DllExport TYPVAL : public VALUE {
   TYPVAL(void) : VALUE(TYPE_ERROR) {}
 
   // Specialized functions
-  template <class TYPE>
-  TYPE     GetTypedValue(PVAL vp, TYPE t) {return vp->GetIntValue();}
+  template <class T>
+  T        GetTypedValue(PVAL vp, T t) {return vp->GetIntValue();}
   PSZ      GetTypedValue(PVAL vp, PSZ t)
            {char buf[32]; return strncpy(Tval, vp->GetCharString(buf), Len);}
   short    GetTypedValue(PVAL vp, short t) {return vp->GetShortValue();}
   longlong GetTypedValue(PVAL vp, longlong t) {return vp->GetBigintValue();}
   double   GetTypedValue(PVAL vp, double t) {return vp->GetFloatValue();}
 
-  template <class TYPE>
-  TYPE     GetTypedValue(PVBLK blk, int n, TYPE t)
+  template <class T>
+  T        GetTypedValue(PVBLK blk, int n, T t)
                         {return blk->GetIntValue(n);}
   PSZ      GetTypedValue(PVBLK blk, int n, PSZ t) 
                         {return strncpy(Tval, blk->GetCharValue(n), Len);}
@@ -203,8 +203,8 @@ class DllExport TYPVAL : public VALUE {
   double   GetTypedValue(PVBLK blk, int n, double t)
                         {return blk->GetFloatValue(n);}
 
-  template <class TYPE>
-  TYPE     GetTypedValue(PSZ s, TYPE n) {return atol(s);}
+  template <class T>
+  T        GetTypedValue(PSZ s, T n) {return atol(s);}
   PSZ      GetTypedValue(PSZ s, PSZ n) {return strncpy(Tval, s, Len);}
   short    GetTypedValue(PSZ s, short n) {return atoi(s);}
   longlong GetTypedValue(PSZ s, longlong n) {return atoll(s);}
