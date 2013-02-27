@@ -41,7 +41,7 @@
 #include "plgdbsem.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
-#include "value.h"
+//#include "value.h"
 #include "valblk.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 #include "myconn.h"
