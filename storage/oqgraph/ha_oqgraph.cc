@@ -342,7 +342,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
     return -1;
   }
-  if (!options->destid || !*options->origid) {
+  if (!options->destid || !*options->destid) {
     fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
     return -1;
   }
