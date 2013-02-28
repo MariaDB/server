@@ -353,7 +353,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   const char* p= strend(name)-1;
   while (p > name && *p != '\\' && *p != '/')
     --p;
-
+    
   init_tmp_table_share(
       thd, share, table->s->db.str, table->s->db.length,
       options->table_name, "");
@@ -455,6 +455,14 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     break;
   }
 
+  if (!origid) {
+    fprint_error("Invalid OQGRAPH backing store ('%s'.origid attribute not set to a valid column of '%s')", p, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    return -1;
+  }
+
+
   for (Field **field= edges->field; *field; ++field)
   {
     if (strcmp(options->destid, (*field)->field_name))
@@ -470,6 +478,13 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     }
     destid = *field;
     break;
+  }
+
+  if (!destid) {
+    fprint_error("Invalid OQGRAPH backing store ('%s'.destid attribute not set to a valid column of '%s')", p, options->table_name);
+    closefrm(edges, 0);
+    free_table_share(share);
+    return -1;
   }
 
   for (Field **field= edges->field; options->weight && *field; ++field)
@@ -489,9 +504,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
     break;
   }
 
-  if (!origid || !destid || (!weight && options->weight))
-  {
-    fprint_error("Data columns missing on table '%s'", options->table_name);
+  if (!weight && options->weight) {
+    fprint_error("Invalid OQGRAPH backing store ('%s'.weight attribute not set to a valid column of '%s')", p, options->table_name);
     closefrm(edges, 0);
     free_table_share(share);
     return -1;
