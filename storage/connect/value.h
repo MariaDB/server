@@ -123,10 +123,8 @@ class DllExport VALUE : public BLOCK {
   const char *Xfmt;
   bool        Nullable;             // True if value can be null
   bool        Null;                 // True if value is null
-  bool        Ci;                   // true if case insensitive
   int         Type;                 // The value type
   int         Clen;                 // Internal value length
-  int         Len;
   int         Prec;
   }; // end of class VALUE
 
@@ -139,7 +137,6 @@ class DllExport TYPVAL : public VALUE {
   // Constructors
   TYPVAL(TYPE n, int type);
   TYPVAL(TYPE n, int prec, int type);
-  TYPVAL(PGLOBAL g, PSZ s, int n, int c, int type);
 
   // Implementation
   virtual bool   IsTypeNum(void) {return true;}
@@ -159,10 +156,10 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual void   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
-  virtual void   SetValue(short i);
-  virtual void   SetValue(int n);
-  virtual void   SetValue(longlong n);
-  virtual void   SetValue(double f);
+  virtual void   SetValue(short i) {Tval = (TYPE)i; Null = false;}
+  virtual void   SetValue(int n) {Tval = (TYPE)n; Null = false;}
+  virtual void   SetValue(longlong n) {Tval = (TYPE)n; Null = false;}
+  virtual void   SetValue(double f) {Tval = (TYPE)f; Null = false;}
   virtual void   SetValue_pvblk(PVBLK blk, int n);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
@@ -183,51 +180,72 @@ class DllExport TYPVAL : public VALUE {
   TYPVAL(void) : VALUE(TYPE_ERROR) {}
 
   // Specialized functions
-  template <class T>
-  T        GetTypedValue(PVAL vp, T t) {return vp->GetIntValue();}
-  PSZ      GetTypedValue(PVAL vp, PSZ t)
-           {char buf[32]; return strncpy(Tval, vp->GetCharString(buf), Len);}
-  short    GetTypedValue(PVAL vp, short t) {return vp->GetShortValue();}
-  longlong GetTypedValue(PVAL vp, longlong t) {return vp->GetBigintValue();}
-  double   GetTypedValue(PVAL vp, double t) {return vp->GetFloatValue();}
-
-  template <class T>
-  T        GetTypedValue(PVBLK blk, int n, T t)
-                        {return blk->GetIntValue(n);}
-  PSZ      GetTypedValue(PVBLK blk, int n, PSZ t) 
-                        {return strncpy(Tval, blk->GetCharValue(n), Len);}
-  short    GetTypedValue(PVBLK blk, int n, short t) 
-                        {return blk->GetShortValue(n);}
-  longlong GetTypedValue(PVBLK blk, int n, longlong t)
-                        {return blk->GetBigintValue(n);}
-  double   GetTypedValue(PVBLK blk, int n, double t)
-                        {return blk->GetFloatValue(n);}
-
-  template <class T>
-  T        GetTypedValue(PSZ s, T n) {return atol(s);}
-  PSZ      GetTypedValue(PSZ s, PSZ n) {return strncpy(Tval, s, Len);}
-  short    GetTypedValue(PSZ s, short n) {return atoi(s);}
-  longlong GetTypedValue(PSZ s, longlong n) {return atoll(s);}
-  double   GetTypedValue(PSZ s, double n) {return atof(s);}
+  TYPE GetTypedValue(PVAL vp);
+  TYPE GetTypedValue(PVBLK blk, int n);
+  TYPE GetTypedValue(PSZ s);
 
   // Members
   TYPE        Tval;
   }; // end of class TYPVAL
 
 /***********************************************************************/
-/*  Specific STRING functions.                                         */
+/*  Specific STRING class.                                             */
 /***********************************************************************/
-bool   TYPVAL<PSZ>::IsTypeNum(void) {return false;}
-bool   TYPVAL<PSZ>::IsZero(void) {return *Tval == 0;}
-void   TYPVAL<PSZ>::Reset(void) {*Tval = 0;}
-int    TYPVAL<PSZ>::GetValPrec() {return (Ci) ? 1 : 0;}
-int    TYPVAL<PSZ>::GetSize(void) {return (Tval) ? strlen(Tval) : 0;}
-PSZ    TYPVAL<PSZ>::GetCharValue(void) {return Tval;}
-short  TYPVAL<PSZ>::GetShortValue(void) {return (short)atoi(Tval);}
-int    TYPVAL<PSZ>::GetIntValue(void) {return atol(Tval);}
-longlong TYPVAL<PSZ>::GetBigintValue(void) {return atoll(Tval);}
-double TYPVAL<PSZ>::GetFloatValue(void) {return atof(Tval);}
-void  *TYPVAL<PSZ>::GetTo_Val(void) {return Tval;}
+template <>
+class DllExport TYPVAL<PSZ>: public VALUE { 
+ public:
+  // Constructors
+  TYPVAL(PSZ s);
+  TYPVAL(PGLOBAL g, PSZ s, int n, int c);
+
+  // Implementation
+  virtual bool   IsTypeNum(void) {return false;}
+  virtual bool   IsZero(void) {return *Strp == 0;}
+  virtual void   Reset(void) {*Strp = 0;}
+  virtual int    GetValLen(void) {return Len;};
+  virtual int    GetValPrec() {return (Ci) ? 1 : 0;}
+  virtual int    GetSize(void) {return (Strp) ? strlen(Strp) : 0;}
+  virtual PSZ    GetCharValue(void) {return Strp;}
+  virtual short  GetShortValue(void) {return (short)atoi(Strp);}
+  virtual int    GetIntValue(void) {return atol(Strp);}
+  virtual longlong GetBigintValue(void) {return atoll(Strp);}
+  virtual double GetFloatValue(void) {return atof(Strp);}
+  virtual void  *GetTo_Val(void) {return Strp;}
+
+  // Methods
+  virtual bool   SetValue_pval(PVAL valp, bool chktype);
+  virtual void   SetValue_char(char *p, int n);
+  virtual void   SetValue_psz(PSZ s);
+  virtual void   SetValue_pvblk(PVBLK blk, int n);
+  virtual void   SetValue(short i);
+  virtual void   SetValue(int n);
+  virtual void   SetValue(longlong n);
+  virtual void   SetValue(double f);
+  virtual void   SetBinValue(void *p);
+  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+  virtual char  *ShowValue(char *buf, int);
+  virtual char  *GetCharString(char *p);
+  virtual char  *GetShortString(char *p, int n);
+  virtual char  *GetIntString(char *p, int n);
+  virtual char  *GetBigintString(char *p, int n);
+  virtual char  *GetFloatString(char *p, int n, int prec = -1);
+  virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual bool   FormatValue(PVAL vp, char *fmt);
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+
+  // Specialized functions
+  template <class T>
+  T      GetValue_as(T type) {return Strp;}
+  int    GetValue_as(int type) {return atol(Strp);}
+  short  GetValue_as(short type) {return (short)atoi(Strp);}
+  longlong GetValue_as(longlong type) {return atoll(Strp);}
+  double GetValue_as(double type) {return atof(Strp);}
+
+  // Members
+  PSZ         Strp;
+  bool        Ci;                   // true if case insensitive
+  int         Len;
+  }; // end of class TYPVAL<PSZ>
 
 /***********************************************************************/
 /*  Class DTVAL: represents a time stamp value.                        */
@@ -274,6 +292,7 @@ class DllExport DTVAL : public TYPVAL<int> {
   PDTP          Pdtp;         // To the DATPAR structure
   char         *Sdate;        // Utility char buffer
   int           DefYear;      // Used by ExtractDate
+  int           Len;          // Used by CHAR scalar function
   }; // end of class DTVAL
 
 #endif // __VALUE__H__

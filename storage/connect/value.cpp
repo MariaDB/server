@@ -319,7 +319,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
 
   switch (type) {
     case TYPE_STRING:
-      valp = new(g) TYPVAL<PSZ>(NULL, (PSZ)value, 0, 0, TYPE_STRING);
+      valp = new(g) TYPVAL<PSZ>((PSZ)value);
       break;
     case TYPE_SHORT:
       valp = new(g) TYPVAL<short>(*(short*)value, TYPE_SHORT);
@@ -352,7 +352,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
 
   switch (type) {
     case TYPE_STRING:
-      valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec, TYPE_STRING);
+      valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec);
       break;
     case TYPE_DATE: 
       valp = new(g) DTVAL(g, len, prec, dom);
@@ -396,8 +396,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
       if ((sp = valp->GetCharString(p)) != p)
         strcpy (p, sp);
 
-      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), 
-                                      valp->GetValPrec(), TYPE_STRING);
+      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
     case TYPE_SHORT:  
       valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
@@ -435,9 +434,7 @@ VALUE::VALUE(int type) : Type(type)
   Xfmt = GetXfmt();
   Null = false;
   Nullable = false; 
-  Ci = false;
   Clen = 0;
-  Len = 0;
   Prec = 0;
   } // end of VALUE constructor
 
@@ -489,26 +486,6 @@ TYPVAL<TYPE>::TYPVAL(TYPE n, int type) : VALUE(type)
   } // end of TYPVAL constructor
 
 /***********************************************************************/
-/*  STRING public constructor from char.                               */
-/***********************************************************************/
-template <class TYPE>
-TYPVAL<TYPE>::TYPVAL(PGLOBAL g, PSZ s, int n, int c, int type)
-            : VALUE(type)
-  {
-  assert(Type == TYPE_STRING && (g || s));
-  Len = (g) ? n : strlen(s);
-
-  if (g && !s) {
-    Tval = (char *)PlugSubAlloc(g, NULL, Len + 1);
-    Tval[Len] = '\0';
-  } else
-    Tval = s;
-
-  Clen = Len;
-  Ci = (c != 0);
-  } // end of STRING constructor
-
-/***********************************************************************/
 /*  TYPVAL  public constructor from typed value.                       */
 /***********************************************************************/
 template <class TYPE>
@@ -531,8 +508,6 @@ int TYPVAL<TYPE>::GetValLen(void)
   return sprintf(c, Fmt, Tval);
   } // end of GetValLen
 
-int TYPVAL<PSZ>::GetValLen(void) {return Len;};
-
 int TYPVAL<double>::GetValLen(void)
   {
   char c[32];
@@ -552,12 +527,24 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
 
   if (!(Null = valp->IsNull() && Nullable))
 //  Tval = (TYPE)valp->GetBigintValue();
-    Tval = GetTypedValue(valp, (TYPE)0);
+    Tval = GetTypedValue(valp);
   else
     Reset();
 
   return false;
   } // end of SetValue
+
+short TYPVAL<short>::GetTypedValue(PVAL valp)
+  {return valp->GetShortValue();}
+
+int TYPVAL<int>::GetTypedValue(PVAL valp)
+  {return valp->GetIntValue();}
+
+longlong TYPVAL<longlong>::GetTypedValue(PVAL valp)
+  {return valp->GetBigintValue();}
+
+double TYPVAL<double>::GetTypedValue(PVAL valp)
+  {return valp->GetFloatValue();}
 
 /***********************************************************************/
 /*  TYPVAL SetValue: convert chars extracted from a line to TYPE value.*/
@@ -600,21 +587,6 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
   Null = false;
   } // end of SetValue
 
-void TYPVAL<PSZ>::SetValue_char(char *p, int n)
-  {
-  n = min(n, Len);
-  strncpy(Tval, p, n);
-
-  for (p = Tval + n - 1; (*p == ' ' || *p == '\0') && p >= Tval; p--) ;
-
-  *(++p) = '\0';
-
-  if (trace)
-    htrc(" Setting string to: '%s'\n", Tval);
-
-  Null = false;
-  } // end of SetValue_char
-
 void TYPVAL<double>::SetValue_char(char *p, int n)
   {
   char *p2, buf[32];
@@ -638,9 +610,15 @@ void TYPVAL<double>::SetValue_char(char *p, int n)
 template <class TYPE>
 void TYPVAL<TYPE>::SetValue_psz(PSZ s)
   {
-  Tval = GetTypedValue(s, (TYPE)0);
+  Tval = GetTypedValue(s);
   Null = false;
   } // end of SetValue
+
+int TYPVAL<int>::GetTypedValue(PSZ s) {return atol(s);}
+short TYPVAL<short>::GetTypedValue(PSZ s) {return (short)atoi(s);}
+longlong TYPVAL<longlong>::GetTypedValue(PSZ s) {return atoll(s);}
+double TYPVAL<double>::GetTypedValue(PSZ s) {return atof(s);}
+
 
 /***********************************************************************/
 /*  TYPVAL SetValue: set value with a TYPE extracted from a block.     */
@@ -648,24 +626,290 @@ void TYPVAL<TYPE>::SetValue_psz(PSZ s)
 template <class TYPE>
 void TYPVAL<TYPE>::SetValue_pvblk(PVBLK blk, int n)
   {
-  Tval = GetTypedValue(blk, n, (TYPE)0);
+  Tval = GetTypedValue(blk, n);
   Null = false;
   } // end of SetValue
 
+int TYPVAL<int>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetIntValue(n);}
+
+short TYPVAL<short>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetShortValue(n);}
+
+longlong TYPVAL<longlong>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetBigintValue(n);}
+
+double TYPVAL<double>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetFloatValue(n);}
+
 /***********************************************************************/
-/*  Set Tval to a coerced object.                                      */
+/*  TYPVAL SetBinValue: with bytes extracted from a line.              */
 /***********************************************************************/
 template <class TYPE>
-void TYPVAL<TYPE>::SetValue(short i) {Tval = (TYPE)i; Null = false;}
+void TYPVAL<TYPE>::SetBinValue(void *p)
+  {
+  Tval = *(TYPE *)p;
+  Null = false;
+  } // end of SetBinValue
 
+/***********************************************************************/
+/*  GetBinValue: fill a buffer with the internal binary value.         */
+/*  This function checks whether the buffer length is enough and       */
+/*  returns true if not. Actual filling occurs only if go is true.     */
+/*  Currently used by WriteColumn of binary files.                     */
+/***********************************************************************/
 template <class TYPE>
-void TYPVAL<TYPE>::SetValue(int n) {Tval = (TYPE)n; Null = false;}
+bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
+  {
+  // Test on length was removed here until a variable in column give the
+  // real field length. For BIN files the field length logically cannot
+  // be different from the variable length because no conversion is done.
+  // Therefore this test is useless anyway.
+//#if defined(_DEBUG)
+//  if (sizeof(int) > buflen)
+//    return true;
+//#endif
 
-template <class TYPE>
-void TYPVAL<TYPE>::SetValue(longlong n) {Tval = (TYPE)n; Null = false;}
+  if (go)
+    *(TYPE *)buf = Tval;
 
+  Null = false;
+  return false;
+  } // end of GetBinValue
+
+/***********************************************************************/
+/*  TYPVAL ShowValue: get string representation of a typed value.      */
+/***********************************************************************/
 template <class TYPE>
-void TYPVAL<TYPE>::SetValue(double f) {Tval = (TYPE)f; Null = false;}
+char *TYPVAL<TYPE>::ShowValue(char *buf, int len)
+  {
+  sprintf(buf, Xfmt, len, Tval);
+  return buf;
+  } // end of ShowValue
+
+char *TYPVAL<double>::ShowValue(char *buf, int len)
+  {
+  // TODO: use snprintf to avoid possible overflow
+  sprintf(buf, Xfmt, len, Prec, Tval);
+  return buf;
+  } // end of ShowValue
+
+/***********************************************************************/
+/*  TYPVAL GetCharString: get string representation of a typed value.  */
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetCharString(char *p)
+  {
+  sprintf(p, Fmt, Tval);
+  return p;
+  } // end of GetCharString
+
+char *TYPVAL<double>::GetCharString(char *p)
+  {
+  sprintf(p, Fmt, Prec, Tval);
+  return p;
+  } // end of GetCharString
+
+/***********************************************************************/
+/*  TYPVAL GetShortString: get short representation of a typed value.  */
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetShortString(char *p, int n)
+  {
+  sprintf(p, "%*hd", n, (short)Tval);
+  return p;
+  } // end of GetShortString
+
+/***********************************************************************/
+/*  TYPVAL GetIntString: get int representation of a typed value.      */
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetIntString(char *p, int n)
+  {
+  sprintf(p, "%*d", n, (int)Tval);
+  return p;
+  } // end of GetIntString
+
+/***********************************************************************/
+/*  TYPVAL GetBigintString: get big int representation of a TYPE value.*/
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
+  {
+  sprintf(p, "%*lld", n, (longlong)Tval);
+  return p;
+  } // end of GetBigintString
+
+/***********************************************************************/
+/*  TYPVAL GetFloatString: get double representation of a typed value. */
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
+  {
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
+  return p;
+  } // end of GetFloatString
+
+/***********************************************************************/
+/*  TYPVAL compare value with another Value.                           */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
+  {
+  if (this == vp)
+    return true;
+  else if (chktype && Type != vp->GetType())
+    return false;
+  else if (Null || vp->IsNull())
+    return false;
+  else
+    return (Tval == GetTypedValue(vp));
+
+  } // end of IsEqual
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Tval);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
+
+/***********************************************************************/
+/*  TYPVAL  SetFormat function (used to set SELECT output format).     */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+  {
+  char c[32];
+
+  fmt.Type[0] = *GetFormatType(Type);
+  fmt.Length = sprintf(c, Fmt, Tval);
+  fmt.Prec = Prec;
+  return false;
+  } // end of SetConstFormat
+
+/***********************************************************************/
+/*  Make file output of a typed object.                                */
+/***********************************************************************/
+template <class TYPE>
+void TYPVAL<TYPE>::Print(PGLOBAL g, FILE *f, uint n)
+  {
+  char m[64], buf[12];
+
+  memset(m, ' ', n);                             /* Make margin string */
+  m[n] = '\0';
+
+  if (Null)
+    fprintf(f, "%s<null>\n", m);
+  else
+    fprintf(f, strcat(strcat(strcpy(buf, "%s"), Fmt), "\n"), m, Tval);
+
+  } /* end of Print */
+
+/***********************************************************************/
+/*  Make string output of a int object.                                */
+/***********************************************************************/
+template <class TYPE>
+void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
+  {
+  if (Null)
+    strcpy(ps, "<null>");
+  else
+    sprintf(ps, Fmt, Tval);
+
+  } /* end of Print */
+
+/* -------------------------- Class STRING --------------------------- */
+
+/***********************************************************************/
+/*  STRING  public constructor from a constant string.                 */
+/***********************************************************************/
+TYPVAL<PSZ>::TYPVAL(PSZ s) : VALUE(TYPE_STRING)
+  {
+  Strp = s;
+  Len = strlen(s);
+  Clen = Len;
+  Ci = false;
+  } // end of STRING constructor
+
+/***********************************************************************/
+/*  STRING public constructor from char.                               */
+/***********************************************************************/
+TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
+           : VALUE(TYPE_STRING)
+  {
+  assert(Type == TYPE_STRING && (g || s));
+  Len = (g) ? n : strlen(s);
+
+  if (g && !s) {
+    Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
+    Strp[Len] = '\0';
+  } else
+    Strp = s;
+
+  Clen = Len;
+  Ci = (c != 0);
+  } // end of STRING constructor
+
+/***********************************************************************/
+/*  STRING SetValue: copy the value of another Value object.           */
+/***********************************************************************/
+bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
+  {
+  if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
+    return true;
+
+  char buf[32];
+
+  if (!(Null = valp->IsNull() && Nullable))
+    strncpy(Strp, valp->GetCharString(buf), Len);
+  else
+    Reset();
+
+  return false;
+  } // end of SetValue_pval
+
+/***********************************************************************/
+/*  STRING SetValue: fill string with chars extracted from a line.     */
+/***********************************************************************/
+void TYPVAL<PSZ>::SetValue_char(char *p, int n)
+  {
+  n = min(n, Len);
+  strncpy(Strp, p, n);
+
+  for (p = Strp + n - 1; (*p == ' ' || *p == '\0') && p >= Strp; p--) ;
+
+  *(++p) = '\0';
+
+  if (trace)
+    htrc(" Setting string to: '%s'\n", Strp);
+
+  Null = false;
+  } // end of SetValue_char
+
+/***********************************************************************/
+/*  STRING SetValue: fill string with another string.                  */
+/***********************************************************************/
+void TYPVAL<PSZ>::SetValue_psz(PSZ s)
+  {
+  strncpy(Strp, s, Len);
+  Null = false;
+  } // end of SetValue_psz
+
+/***********************************************************************/
+/*  STRING SetValue: fill string with a string extracted from a block. */
+/***********************************************************************/
+void TYPVAL<PSZ>::SetValue_pvblk(PVBLK blk, int n)
+  {
+  strncpy(Strp, blk->GetCharValue(n), Len);
+  } // end of SetValue_pvblk
 
 /***********************************************************************/
 /*  STRING SetValue: get the character representation of an integer.   */
@@ -738,15 +982,8 @@ void TYPVAL<PSZ>::SetValue(double f)
   } // end of SetValue
 
 /***********************************************************************/
-/*  TYPVAL SetBinValue: with bytes extracted from a line.              */
+/*  STRING SetBinValue: fill string with chars extracted from a line.  */
 /***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::SetBinValue(void *p)
-  {
-  Tval = *(TYPE *)p;
-  Null = false;
-  } // end of SetBinValue
-
 void TYPVAL<PSZ>::SetBinValue(void *p)
   {
   SetValue_char((char *)p, Len);
@@ -759,151 +996,76 @@ void TYPVAL<PSZ>::SetBinValue(void *p)
 /*  returns true if not. Actual filling occurs only if go is true.     */
 /*  Currently used by WriteColumn of binary files.                     */
 /***********************************************************************/
-template <class TYPE>
-bool TYPVAL<TYPE>::GetBinValue(void *buf, int buflen, bool go)
-  {
-  // Test on length was removed here until a variable in column give the
-  // real field length. For BIN files the field length logically cannot
-  // be different from the variable length because no conversion is done.
-  // Therefore this test is useless anyway.
-//#if defined(_DEBUG)
-//  if (sizeof(int) > buflen)
-//    return true;
-//#endif
-
-  if (go)
-    *(TYPE *)buf = Tval;
-
-  Null = false;
-  return false;
-  } // end of GetBinValue
-
 bool TYPVAL<PSZ>::GetBinValue(void *buf, int buflen, bool go)
   {
-  int len = (Null) ? 0 : strlen(Tval);
+  int len = (Null) ? 0 : strlen(Strp);
 
   if (len > buflen)
     return true;
   else if (go) {
     memset(buf, ' ', buflen);
-    memcpy(buf, Tval, len);
+    memcpy(buf, Strp, len);
     } // endif go
 
   return false;
   } // end of GetBinValue
 
 /***********************************************************************/
-/*  TYPVAL ShowValue: get string representation of a typed value.      */
+/*  STRING ShowValue: get string representation of a char value.       */
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::ShowValue(char *buf, int len)
-  {
-  sprintf(buf, Xfmt, len, Tval);
-  return buf;
-  } // end of ShowValue
-
 char *TYPVAL<PSZ>::ShowValue(char *buf, int len)
   {
-  return Tval;
-  } // end of ShowValue
-
-char *TYPVAL<double>::ShowValue(char *buf, int len)
-  {
-  // TODO: use snprintf to avoid possible overflow
-  sprintf(buf, Xfmt, len, Prec, Tval);
-  return buf;
+  return Strp;
   } // end of ShowValue
 
 /***********************************************************************/
-/*  TYPVAL GetCharString: get string representation of a typed value.  */
+/*  STRING GetCharString: get string representation of a char value.   */
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::GetCharString(char *p)
-  {
-  sprintf(p, Fmt, Tval);
-  return p;
-  } // end of GetCharString
-
 char *TYPVAL<PSZ>::GetCharString(char *p)
   {
-  return Tval;
-  } // end of GetCharString
-
-char *TYPVAL<double>::GetCharString(char *p)
-  {
-  sprintf(p, Fmt, Prec, Tval);
-  return p;
+  return Strp;
   } // end of GetCharString
 
 /***********************************************************************/
-/*  TYPVAL GetShortString: get short representation of a typed value.  */
+/*  STRING GetShortString: get short representation of a char value.   */
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::GetShortString(char *p, int n)
-  {
-  sprintf(p, "%*hd", n, (short)Tval);
-  return p;
-  } // end of GetShortString
-
 char *TYPVAL<PSZ>::GetShortString(char *p, int n)
   {
-  sprintf(p, "%*hd", n, (short)(Null ? 0 : atoi(Tval)));
+  sprintf(p, "%*hd", n, (short)(Null ? 0 : atoi(Strp)));
   return p;
   } // end of GetShortString
 
 /***********************************************************************/
-/*  TYPVAL GetIntString: get int representation of a typed value.      */
+/*  STRING GetIntString: get int representation of a char value.       */
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::GetIntString(char *p, int n)
-  {
-  sprintf(p, "%*d", n, (int)Tval);
-  return p;
-  } // end of GetIntString
-
 char *TYPVAL<PSZ>::GetIntString(char *p, int n)
   {
-  sprintf(p, "%*ld", n, (Null) ? 0 : atol(Tval));
+  sprintf(p, "%*ld", n, (Null) ? 0 : atol(Strp));
   return p;
   } // end of GetIntString
 
 /***********************************************************************/
-/*  TYPVAL GetBigintString: get big int representation of a TYPE value.*/
+/*  STRING GetBigintString: get big int representation of a char value.*/
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::GetBigintString(char *p, int n)
-  {
-  sprintf(p, "%*lld", n, (longlong)Tval);
-  return p;
-  } // end of GetBigintString
-
 char *TYPVAL<PSZ>::GetBigintString(char *p, int n)
   {
-  sprintf(p, "%*lld", n, (Null) ? 0 : atoll(Tval));
+  sprintf(p, "%*lld", n, (Null) ? 0 : atoll(Strp));
   return p;
   } // end of GetBigintString
 
 /***********************************************************************/
-/*  TYPVAL GetFloatString: get double representation of a typed value. */
+/*  STRING GetFloatString: get double representation of a char value.  */
 /***********************************************************************/
-template <class TYPE>
-char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
-  {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
-  return p;
-  } // end of GetFloatString
-
 char *TYPVAL<PSZ>::GetFloatString(char *p, int n, int prec)
   {
-  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Tval));
+  sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Strp));
   return p;
   } // end of GetFloatString
 
 /***********************************************************************/
-/*  TYPVAL compare value with another Value.                           */
+/*  STRING compare value with another Value.                           */
 /***********************************************************************/
-template <class TYPE>
-bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
+bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
   {
   if (this == vp)
     return true;
@@ -911,8 +1073,10 @@ bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
     return false;
   else if (Null || vp->IsNull())
     return false;
-  else
-    return (Tval == GetTypedValue(vp, (TYPE)0));
+  else if (Ci || vp->IsCi())
+    return !stricmp(Strp, vp->GetCharValue());
+  else // (!Ci)
+    return !strcmp(Strp, vp->GetCharValue());
 
   } // end of IsEqual
 
@@ -921,29 +1085,17 @@ bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
 /*  constructed from its own value formated using the fmt format.      */
 /*  This function assumes that the format matches the value type.      */
 /***********************************************************************/
-template <class TYPE>
-bool TYPVAL<TYPE>::FormatValue(PVAL vp, char *fmt)
+bool TYPVAL<PSZ>::FormatValue(PVAL vp, char *fmt)
   {
   char *buf = (char*)vp->GetTo_Val();        // Should be big enough
-  int   n = sprintf(buf, fmt, Tval);
+  int   n = sprintf(buf, fmt, Strp);
 
   return (n > vp->GetValLen());
   } // end of FormatValue
 
 /***********************************************************************/
-/*  TYPVAL  SetFormat function (used to set SELECT output format).     */
+/*  STRING SetFormat function (used to set SELECT output format).      */
 /***********************************************************************/
-template <class TYPE>
-bool TYPVAL<TYPE>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
-  {
-  char c[32];
-
-  fmt.Type[0] = *GetFormatType(Type);
-  fmt.Length = sprintf(c, Fmt, Tval);
-  fmt.Prec = Prec;
-  return false;
-  } // end of SetConstFormat
-
 bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   {
   fmt.Type[0] = 'C';
@@ -952,44 +1104,13 @@ bool TYPVAL<PSZ>::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   return false;
   } // end of SetConstFormat
 
-/***********************************************************************/
-/*  Make file output of a typed object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, FILE *f, uint n)
-  {
-  char m[64], buf[12];
-
-  memset(m, ' ', n);                             /* Make margin string */
-  m[n] = '\0';
-
-  if (Null)
-    fprintf(f, "%s<null>\n", m);
-  else
-    fprintf(f, strcat(strcat(strcpy(buf, "%s"), Fmt), "\n"), m, Tval);
-
-  } /* end of Print */
-
-/***********************************************************************/
-/*  Make string output of a int object.                                */
-/***********************************************************************/
-template <class TYPE>
-void TYPVAL<TYPE>::Print(PGLOBAL g, char *ps, uint z)
-  {
-  if (Null)
-    strcpy(ps, "<null>");
-  else
-    sprintf(ps, Fmt, Tval);
-
-  } /* end of Print */
-
 /* -------------------------- Class DTVAL ---------------------------- */
 
 /***********************************************************************/
 /*  DTVAL  public constructor for new void values.                     */
 /***********************************************************************/
 DTVAL::DTVAL(PGLOBAL g, int n, int prec, PSZ fmt)
-      : TYPVAL<int>((int)0, TYPE_DATE)
+     : TYPVAL<int>((int)0, TYPE_DATE)
   {
   if (!fmt) {
     Pdtp = NULL;
