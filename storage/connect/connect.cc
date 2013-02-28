@@ -82,6 +82,7 @@ PGLOBAL CntExit(PGLOBAL g)
       } // endif
 
     free(dup);
+    free(g->Activityp);
     g= NULL;
     } // endif g
 

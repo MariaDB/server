@@ -508,6 +508,7 @@ int TYPVAL<TYPE>::GetValLen(void)
   return sprintf(c, Fmt, Tval);
   } // end of GetValLen
 
+template <>
 int TYPVAL<double>::GetValLen(void)
   {
   char c[32];
@@ -534,15 +535,19 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
   return false;
   } // end of SetValue
 
+template <>
 short TYPVAL<short>::GetTypedValue(PVAL valp)
   {return valp->GetShortValue();}
 
+template <>
 int TYPVAL<int>::GetTypedValue(PVAL valp)
   {return valp->GetIntValue();}
 
+template <>
 longlong TYPVAL<longlong>::GetTypedValue(PVAL valp)
   {return valp->GetBigintValue();}
 
+template <>
 double TYPVAL<double>::GetTypedValue(PVAL valp)
   {return valp->GetFloatValue();}
 
@@ -587,6 +592,7 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
   Null = false;
   } // end of SetValue
 
+template <>
 void TYPVAL<double>::SetValue_char(char *p, int n)
   {
   char *p2, buf[32];
@@ -614,9 +620,13 @@ void TYPVAL<TYPE>::SetValue_psz(PSZ s)
   Null = false;
   } // end of SetValue
 
+template <>
 int TYPVAL<int>::GetTypedValue(PSZ s) {return atol(s);}
+template <>
 short TYPVAL<short>::GetTypedValue(PSZ s) {return (short)atoi(s);}
+template <>
 longlong TYPVAL<longlong>::GetTypedValue(PSZ s) {return atoll(s);}
+template <>
 double TYPVAL<double>::GetTypedValue(PSZ s) {return atof(s);}
 
 
@@ -630,15 +640,19 @@ void TYPVAL<TYPE>::SetValue_pvblk(PVBLK blk, int n)
   Null = false;
   } // end of SetValue
 
+template <>
 int TYPVAL<int>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetIntValue(n);}
 
+template <>
 short TYPVAL<short>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetShortValue(n);}
 
+template <>
 longlong TYPVAL<longlong>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetBigintValue(n);}
 
+template <>
 double TYPVAL<double>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetFloatValue(n);}
 
@@ -687,6 +701,7 @@ char *TYPVAL<TYPE>::ShowValue(char *buf, int len)
   return buf;
   } // end of ShowValue
 
+template <>
 char *TYPVAL<double>::ShowValue(char *buf, int len)
   {
   // TODO: use snprintf to avoid possible overflow
@@ -704,6 +719,7 @@ char *TYPVAL<TYPE>::GetCharString(char *p)
   return p;
   } // end of GetCharString
 
+template <>
 char *TYPVAL<double>::GetCharString(char *p)
   {
   sprintf(p, Fmt, Prec, Tval);
@@ -1173,7 +1189,7 @@ bool DTVAL::SetFormat(PGLOBAL g, PVAL valp)
 /***********************************************************************/
 void DTVAL::SetTimeShift(void)
   {
-  struct tm dtm = {0,0,0,2,0,70,0,0,0};
+  struct tm dtm = {0,0,0,2,0,70,0,0,0,0,0};
 
   Shift = (int)mktime(&dtm) - 86400;
 
@@ -1257,7 +1273,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   int       i, m;
   int      n;
   bool      rc = false;
-  struct tm datm = {0,0,0,1,0,70,0,0,0};
+  struct tm datm = {0,0,0,1,0,70,0,0,0,0,0};
 
   if (trace)
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
