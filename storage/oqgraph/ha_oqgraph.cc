@@ -194,7 +194,7 @@ static int error_code(int res)
     KEY (latch, origid, destid) USING HASH,
     KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH
-    READ_TABLE=bar
+    DATA_TABLE=bar
     ORIGID=src_id
     DESTID=tgt_id
 
@@ -329,21 +329,21 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   // Catch cases where table was not constructed properly
   if (!options) {
-    fprint_error("Invalid oqgraph backing store (null attributes)");
+    fprint_error("Invalid OQGRAPH backing store (null attributes)");
     return -1;
   }
-  if (!options->table_name) {
-    fprint_error("Invalid oqgraph backing store (unspecified data_table attribute)");
+  if (!options->table_name || !*options->table_name) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty data_table attribute)");
     // if table_name if present but doesnt actually exist, we will fail out below
     // when we call open_table_def(). same probably applies for the id fields
     return -1;
   }
-  if (!options->origid) {
-    fprint_error("Invalid oqgraph backing store (unspecified origid attribute)");
+  if (!options->origid || !*options->origid) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
     return -1;
   }
-  if (!options->destid) {
-    fprint_error("Invalid oqgraph backing store (unspecified destid attribute)");
+  if (!options->destid || !*options->origid) {
+    fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
     return -1;
   }
   // weight is optional
@@ -402,7 +402,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   {
     open_table_error(share, 1, EMFILE, 0);
     free_table_share(share);
-    fprint_error("VIEWs are not supported for a backing store");
+    fprint_error("VIEWs are not supported for an OQGRAPH backing store");
     return -1;
   }
 
@@ -870,7 +870,7 @@ static struct st_mysql_show_var oqgraph_status[]=
 {
   { "OQGraph_Boost_Version", (char*) &oqgraph_boost_version, SHOW_CHAR_PTR },
   /*{ "OQGraph_Judy_Version",  (char*) &oqgraph_judy_version, SHOW_CHAR_PTR },*/
-  { 0, 0 }
+  { 0, 0, SHOW_UNDEF }
 };
 
 maria_declare_plugin(oqgraph)
