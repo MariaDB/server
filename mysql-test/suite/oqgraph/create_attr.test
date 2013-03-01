@@ -1,0 +1,127 @@
+DROP TABLE IF EXISTS not_backing;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS oqtable;
+
+CREATE TABLE `not_backing` (
+  id int(10) unsigned NOT NULL DEFAULT '0',
+  info varchar(20) DEFAULT NULL,
+  KEY name (info)
+) DEFAULT CHARSET=latin1;
+
+CREATE TABLE backing (
+  id int(10) unsigned NOT NULL DEFAULT '0',
+  parent int(10) unsigned DEFAULT NULL,
+  weight real(10,4) NOT NULL DEFAULT 0.0,
+  info varchar(20) DEFAULT NULL,
+  not_id_type varchar(20) DEFAULT NULL,
+  not_weight_type varchar(20) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY name (info)
+) DEFAULT CHARSET=latin1;
+
+# oqgraph v2 create table should fail (missing attributes)
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH;
+--error 1296
+DESCRIBE oqtable;
+
+# attributes test
+# empty table reference
+DROP TABLE IF EXISTS `oqtable`;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='';
+--error 1296
+DESCRIBE oqtable;
+
+# non-existent table reference
+DROP TABLE IF EXISTS `oqtable`;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='bogus';
+--error 1296
+DESCRIBE oqtable;
+
+# invalid table reference
+DROP TABLE IF EXISTS `oqtable`;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='not_backing';
+--error 1296
+DESCRIBE oqtable;
+
+# empty origid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='';
+--error 1296
+DESCRIBE oqtable;
+
+# invalid origid reference
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='bogus';
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type origid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='not_id_type';
+--error 1296
+DESCRIBE oqtable;
+
+# missing destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id';
+--error 1296
+DESCRIBE oqtable;
+
+# empty destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='';
+--error 1296
+DESCRIBE oqtable;
+
+# invalid destid reference
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='bogus';
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='not_id_type';
+--error 1296
+DESCRIBE oqtable;
+
+# invalid origid with valid destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='bogus',DESTID='id';
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type origid with valid destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='not_id_type',DESTID='id';
+--error 1296
+DESCRIBE oqtable;
+
+# same origid and destid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id';
+# this should fail when we put a check in for ORIGID != DESTID
+# --error 1296
+DESCRIBE oqtable;
+
+# invalid weight reference
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id',WEIGHT='bogus';
+--error 1296
+DESCRIBE oqtable;
+
+# wrong type weight
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id',WEIGHT='not_weight_type';
+--error 1296
+DESCRIBE oqtable;
+
+# all valid
+DROP TABLE IF EXISTS oqtable;
+CREATE TABLE oqtable ( latch SMALLINT UNSIGNED NULL, origid BIGINT UNSIGNED NULL, destid BIGINT UNSIGNED NULL, weight DOUBLE NULL, seq BIGINT UNSIGNED NULL, linkid BIGINT UNSIGNED NULL, KEY (latch, origid, destid) USING HASH, KEY (latch, destid, origid) USING HASH ) ENGINE=OQGRAPH, DATA_TABLE='backing',ORIGID='id',DESTID='id',WEIGHT='weight';
+DESCRIBE oqtable;
+
+# cleanup
+DROP TABLE IF EXISTS oqtable;
+DROP TABLE IF EXISTS backing;
+DROP TABLE IF EXISTS not_backing;
