@@ -263,6 +263,23 @@ bool IsTypeNum(int type)
   } // end of IsTypeNum
 
 /***********************************************************************/
+/*  GetFmt: returns the format to use with a typed value.              */
+/***********************************************************************/
+const char *GetFmt(int type)
+  {
+  const char *fmt = "%d";;
+
+  switch (type) {
+    case TYPE_STRING: fmt = "%s";    break;
+    case TYPE_SHORT:  fmt = "%hd";   break;
+    case TYPE_BIGINT: fmt = "%lld";  break;
+    case TYPE_FLOAT:  fmt = "%.*lf"; break;
+    } // endswitch Type
+
+  return fmt;
+  } // end of GetFmt
+
+/***********************************************************************/
 /*  ConvertType: what this function does is to determine the type to   */
 /*  which should be converted a value so no precision would be lost.   */
 /*  This can be a numeric type if num is true or non numeric if false. */
@@ -430,30 +447,13 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
 /***********************************************************************/
 VALUE::VALUE(int type) : Type(type)
   {
-  Fmt = GetFmt();
+  Fmt = GetFmt(Type);
   Xfmt = GetXfmt();
   Null = false;
   Nullable = false; 
   Clen = 0;
   Prec = 0;
   } // end of VALUE constructor
-
-/***********************************************************************/
-/*  VALUE GetFmt: returns the format to use with typed value.          */
-/***********************************************************************/
-const char *VALUE::GetFmt(void)
-  {
-  const char *fmt = "%d";;
-
-  switch (Type) {
-    case TYPE_STRING: fmt = "%s";    break;
-    case TYPE_SHORT:  fmt = "%hd";   break;
-    case TYPE_BIGINT: fmt = "%lld";  break;
-    case TYPE_FLOAT:  fmt = "%.*lf"; break;
-    } // endswitch Type
-
-  return fmt;
-  } // end of GetFmt
 
 /***********************************************************************/
 /* VALUE GetXfmt: returns the extended format to use with typed value. */
@@ -1278,9 +1278,9 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   int       n;
   bool      rc = false;
 #if defined(WIN32)
-  struct tm datm = {0,0,0,2,0,70,0,0,0};
+  struct tm datm = {0,0,0,1,0,70,0,0,0};
 #else   // !WIN32
-  struct tm datm = {0,0,0,2,0,70,0,0,0,0,0};
+  struct tm datm = {0,0,0,1,0,70,0,0,0,0,0};
 #endif  // !WIN32
 
   if (trace)

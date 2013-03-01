@@ -111,7 +111,6 @@ class DllExport VALUE : public BLOCK {
 
  protected:
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&) = 0;
-  const   char  *GetFmt(void);
   const   char  *GetXfmt(void);
 
   // Constructor used by derived classes
