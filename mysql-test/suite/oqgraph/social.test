@@ -1,0 +1,65 @@
+CREATE TABLE rsb (
+  f INT UNSIGNED NOT NULL,
+  t INT UNSIGNED NOT NULL,
+  weight FLOAT NOT NULL,
+  PRIMARY KEY (`f`,`t`),
+  KEY `t` (`t`)
+) ENGINE=MyISAM;
+
+CREATE TABLE rsb_graph (
+  latch SMALLINT UNSIGNED DEFAULT NULL,
+  origid BIGINT UNSIGNED DEFAULT NULL,
+  destid BIGINT UNSIGNED DEFAULT NULL,
+  weight DOUBLE DEFAULT NULL,
+  seq BIGINT UNSIGNED DEFAULT NULL,
+  linkid BIGINT UNSIGNED DEFAULT NULL,
+  KEY (latch,origid,destid) USING HASH,
+  KEY (latch,destid,origid) USING HASH
+) ENGINE=OQGRAPH data_table='rsb' origid='f' destid='t' weight='weight';
+
+# this graph generator is designed to be deterministic
+# (so we don't need to ship a large test dataset)
+--source suite/oqgraph/randgraphproc.inc
+
+# generate social graph of 10000 people having 5 friends (two-way) and being fan of 2 others (one-way)), max weight 3
+CALL randgraphproc(10000,5,2,3);
+
+# some random paths
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1 AND destid=20;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1595 AND destid=8358;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=1 AND destid=9999;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=6841 AND destid=615;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=369 AND destid=1845;
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=73 AND destid=914;
+
+# nonexistent origin
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=12345 AND destid=500;
+
+# noexistent destination
+SELECT GROUP_CONCAT(linkid ORDER BY seq) FROM rsb_graph WHERE latch=1 AND origid=300 AND destid=54321;
+
+# how many possible destinations from here
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=8365;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=976;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND origid=74;
+
+# how many possible sources to here
+# this doesn't appear to work right now in v3 ? comes up empty but the dataset is not
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=1;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=9999;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=52;
+SELECT COUNT(*) FROM rsb_graph WHERE latch=1 AND destid=6483;
+
+# breadth first
+# other algorithms
+# joins
+
+# cleaning up our tables
+DROP TABLE IF EXISTS rsb_graph;
+DROP TABLE IF EXISTS rsb;
+
+# cleaning up procs from randgraphproc.inc
+DROP PROCEDURE randgraphproc;
+DROP PROCEDURE randnotx;
+
