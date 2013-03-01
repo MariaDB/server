@@ -3,7 +3,7 @@
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
 if ($mysql_errno)
 {
-  Skip No ODBC support
+  Skip No ODBC support;
 }
 if (!`SELECT count(*) FROM t1 WHERE Name='ConnectEngineXLS'`)
 {
