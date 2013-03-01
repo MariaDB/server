@@ -1,4 +1,57 @@
-This is a release of MariaDB.
+This is a release of MariaDB Galera Cluster.
+
+  * https://kb.askmonty.org/en/galera/
+  * https://kb.askmonty.org/en/what-is-mariadb-galera-cluster/
+
+MariaDB Galera Cluster is a synchronous multi-master cluster for MariaDB.
+
+Features:
+
+ * Synchronous replication
+ * Active-active multi-master topology
+ * Read and write to any cluster node
+ * Automatic membership control, failed nodes drop from the cluster
+ * Automatic node joining
+ * True parallel replication, on row level
+ * Direct client connections, native MySQL look & feel
+
+Benefits:
+
+The above features yield several benefits for a DBMS clustering solution,
+including:
+
+* No slave lag
+* No lost transactions
+* Both read and write scalability
+* Smaller client latencies
+* Technology
+
+MariaDB Galera Cluster uses the Galera library for the replication
+implementation. To interface with Galera replication, we have enhanced MariaDB
+to support the replication API definition in the wsrep API project.
+
+  * http://codership.com/products/galera_replication
+  * https://launchpad.net/wsrep
+
+The implementation of the replication API in MariaDB happens in the open source
+MySQL-wsrep project.
+
+  * http://www.codership.com/products/mysql-write-set-replication-project
+
+See Also:
+
+* About Galera Replication:
+    https://kb.askmonty.org/en/about-galera-replication/
+* Codership: Using Galera Cluster:
+    http://codership.com/content/using-galera-cluster
+* Galera Use Cases:
+    https://kb.askmonty.org/en/galera-use-cases/
+* Getting Started with MariaDB Galera Cluster:
+    https://kb.askmonty.org/en/getting-started-with-mariadb-galera-cluster/
+
+***************************************************************************
+
+About MariaDB
 
 MariaDB is designed as a drop-in replacement of MySQL(R) with more
 features, new storage engines, fewer bugs, and better performance.
