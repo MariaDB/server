@@ -1,5 +1,5 @@
 /*************** Valblk H Declares Source Code File (.H) ***************/
-/*  Name: VALBLK.H    Version 1.7                                      */
+/*  Name: VALBLK.H    Version 1.8                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -19,6 +19,7 @@
 /*  Utility used to allocate value blocks.                             */
 /***********************************************************************/
 DllExport PVBLK AllocValBlock(PGLOBAL, void*, int, int, int, int, bool, bool);
+const char *GetFmt(int type);
 
 /***********************************************************************/
 /*  Class VALBLK represent a base class for variable blocks.           */
@@ -59,6 +60,7 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(short sval, int n) {assert(false);}
   virtual void   SetValue(int lval, int n) {assert(false);}
   virtual void   SetValue(longlong lval, int n) {assert(false);}
+  virtual void   SetValue(double fval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
@@ -78,22 +80,72 @@ class VALBLK : public BLOCK {
           bool   Locate(PVAL vp, int& i);
 
  protected:
-#if defined(_DEBUG) || defined(DEBTRACE)
   void ChkIndx(int n);
-  void ChkPrm(PVAL v, int n);
   void ChkTyp(PVAL v);
   void ChkTyp(PVBLK vb);
-#endif   // _DEBUG) ||         DEBTRACE
 
   // Members
   PGLOBAL Global;           // Used for messages and allocation
   char   *To_Nulls;         // Null values array
   void   *Blkp;             // To value block
-  int     Type;             // Type of individual values
-  int     Nval;             // Max number of values in block
   bool    Check;            // If true SetValue types must match
   bool    Nullable;         // True if values can be null
+  int     Type;             // Type of individual values
+  int     Nval;             // Max number of values in block
+  int     Prec;             // Precision of float values
   }; // end of class VALBLK
+
+/***********************************************************************/
+/*  Class TYPBLK: represents a block of typed values.                  */
+/***********************************************************************/
+template <class TYPE>
+class TYPBLK : public VALBLK {
+ public:
+  // Constructors
+  TYPBLK(void *mp, int size, int type);
+  TYPBLK(void *mp, int size, int prec, int type);
+
+  // Implementation
+  virtual void   Init(PGLOBAL g, bool check);
+  virtual int    GetVlen(void) {return sizeof(int);}
+//virtual PSZ    GetCharValue(int n);
+  virtual short  GetShortValue(int n) {return (short)Typp[n];}
+  virtual int    GetIntValue(int n) {return (int)Typp[n];}
+  virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
+  virtual double GetFloatValue(int n) {return (double)Typp[n];}
+  virtual void   Reset(int n) {Typp[n] = 0;}
+
+  // Methods
+  virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(short sval, int n)
+                  {Typp[n] = (TYPE)sval; SetNull(n, false);}
+  virtual void   SetValue(int lval, int n)
+                  {Typp[n] = (TYPE)lval; SetNull(n, false);}
+  virtual void   SetValue(longlong lval, int n)
+                  {Typp[n] = (TYPE)lval; SetNull(n, false);}
+  virtual void   SetValue(double fval, int n)
+                  {Typp[n] = (TYPE)fval; SetNull(n, false);}
+  virtual void   SetValue(PVAL valp, int n);
+  virtual void   SetValue(PVBLK pv, int n1, int n2);
+//virtual void   SetValues(PVBLK pv, int k, int n);
+  virtual void   Move(int i, int j);
+  virtual int    CompVal(PVAL vp, int n);
+  virtual int    CompVal(int i1, int i2);
+  virtual void  *GetValPtr(int n);
+  virtual void  *GetValPtrEx(int n);
+  virtual int    Find(PVAL vp);
+  virtual int    GetMaxLength(void);
+
+ protected:
+  // Specialized functions
+  TYPE GetTypedValue(PVAL vp);
+  TYPE GetTypedValue(PVBLK blk, int n);
+  TYPE GetTypedValue(PSZ s);
+
+  // Members
+  TYPE* const &Typp;
+  const char  *Fmt;
+  }; // end of class TYPBLK
 
 /***********************************************************************/
 /*  Class CHRBLK: represent a block of fixed length strings.           */
@@ -119,11 +171,7 @@ class CHRBLK : public VALBLK {
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -168,11 +216,7 @@ class STRBLK : public VALBLK {
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -186,8 +230,9 @@ class STRBLK : public VALBLK {
   PSZ* const &Strp;              // Pointer to PSZ buffer
   }; // end of class STRBLK
 
+#if 0
 /***********************************************************************/
-/*  Class SHRBLK: represents a block of int integer values.           */
+/*  Class SHRBLK: represents a block of short integer values.          */
 /***********************************************************************/
 class SHRBLK : public VALBLK {
  public:
@@ -214,12 +259,7 @@ class SHRBLK : public VALBLK {
                   {Shrp[n] = (short)lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-  virtual void   AddMinus1(PVBLK pv, int n1, int n2);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -261,12 +301,7 @@ class LNGBLK : public VALBLK {
                   {Lngp[n] = (int)lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-  virtual void   AddMinus1(PVBLK pv, int n1, int n2);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -279,11 +314,12 @@ class LNGBLK : public VALBLK {
   // Members
   int* const &Lngp;
   }; // end of class LNGBLK
+#endif // 0
 
 /***********************************************************************/
 /*  Class DATBLK: represents a block of time stamp values.             */
 /***********************************************************************/
-class DATBLK : public LNGBLK {
+class DATBLK : public TYPBLK<int> {
  public:
   // Constructor
   DATBLK(void *mp, int size);
@@ -299,6 +335,7 @@ class DATBLK : public LNGBLK {
   PVAL Dvalp;                    // Date value used to convert string
   }; // end of class DATBLK
 
+#if 0
 /***********************************************************************/
 /*  Class BIGBLK: represents a block of big integer values.            */
 /***********************************************************************/
@@ -327,12 +364,7 @@ class BIGBLK : public VALBLK {
                   {Lngp[n] = lval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-  virtual void   AddMinus1(PVBLK pv, int n1, int n2);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -369,11 +401,7 @@ class DBLBLK : public VALBLK {
   virtual void   SetValue(PSZ sp, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-#if 0
-  virtual void   SetMin(PVAL valp, int n);
-  virtual void   SetMax(PVAL valp, int n);
-  virtual void   SetValues(PVBLK pv, int k, int n);
-#endif // 0
+//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -385,8 +413,8 @@ class DBLBLK : public VALBLK {
  protected:
   // Members
   double* const &Dblp;
-  int      Prec;
   }; // end of class DBLBLK
+#endif // 0
 
 #endif // __VALBLK__H__
 

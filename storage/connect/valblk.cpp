@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 1.5                                      */
+/*  Name: VALBLK.CPP  Version 1.6                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -14,8 +14,9 @@
 /*  to avoid too complicated classes and unuseful duplication of many  */
 /*  functions used on one family only. The drawback is that for new    */
 /*  types of objects, we shall have more classes to update.            */
-/*  Currently the only implemented types are STRING, int and DOUBLE.   */
-/*  Shortly we should add at least int VARCHAR and DATE.               */
+/*  This is why we are now using a template class for many types.      */
+/*  Currently the only implemented types are PSZ, chars, int, short,   */
+/*  DATE, longlong, and double. Shortly we should add more types.      */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -39,49 +40,7 @@
 #include "plgdbsem.h"
 #include "valblk.h"
 
-/***********************************************************************/
-/*  Check macro's.                                                     */
-/***********************************************************************/
-#if defined(_DEBUG) || defined(DEBTRACE)
-#define CheckIndex(N)   ChkIndx(N);
-void VALBLK::ChkIndx(int n) {
-  if (n >= Nval) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_VALBLK_INDX));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif N
-  } // end of ChkIndx
-#define CheckParms(V,N) ChkPrm(V,N);
-void VALBLK::ChkPrm(PVAL v, int n) {
-  ChkIndx(n);
-  if (Check && Type != v->GetType()) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Check
-  } // end of ChkPrm
 #define CheckBlanks     assert(!Blanks);
-#define CheckType(V)    ChkTyp(V);
-void VALBLK::ChkTyp(PVAL v) {
-  if (Type != v->GetType()) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Type
-  } // end of ChkTyp
-void VALBLK::ChkTyp(PVBLK vb) {
-  if (Type != vb->GetType()) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Type
-  } // end of ChkTyp
-#else
-#define CheckIndex(N)
-#define CheckParms(V,N)
-#define CheckBlanks
-#define CheckType(V)
-#endif
 
 /***********************************************************************/
 /*  AllocValBlock: allocate a VALBLK according to type.                */
@@ -105,19 +64,19 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 
       break;
     case TYPE_SHORT:
-      blkp = new(g) SHRBLK(mp, nval);
+      blkp = new(g) TYPBLK<short>(mp, nval, type);
       break;
     case TYPE_INT:
-      blkp = new(g) LNGBLK(mp, nval);
+      blkp = new(g) TYPBLK<int>(mp, nval, type);
       break;
     case TYPE_DATE:        // ?????
       blkp = new(g) DATBLK(mp, nval);
       break;
     case TYPE_BIGINT:
-      blkp = new(g) BIGBLK(mp, nval);
+      blkp = new(g) TYPBLK<longlong>(mp, nval, type);
       break;
     case TYPE_FLOAT:
-      blkp = new(g) DBLBLK(mp, nval, prec);
+      blkp = new(g) TYPBLK<double>(mp, nval, prec, type);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
@@ -137,10 +96,11 @@ VALBLK::VALBLK(void *mp, int type, int nval)
   {
   Blkp = mp;
   To_Nulls = NULL;
-  Type = type;
-  Nval = nval;
   Check = true;
   Nullable = false;
+  Type = type;
+  Nval = nval;
+  Prec = 0;
   } // end of VALBLK constructor
 
 /***********************************************************************/
@@ -172,7 +132,7 @@ bool VALBLK::SetFormat(PGLOBAL g, PSZ fmt, int len, int year)
 /***********************************************************************/
 bool VALBLK::Locate(PVAL vp, int& i)
   {
-  CheckType(vp)
+  ChkTyp(vp);
 
   int n = 1;
 
@@ -187,14 +147,289 @@ bool VALBLK::Locate(PVAL vp, int& i)
 /*  Set Nullable and allocate the Null array.                          */
 /***********************************************************************/
 void VALBLK::SetNullable(bool b)
-{
+  {
   if ((Nullable = b)) {
     To_Nulls = (char*)PlugSubAlloc(Global, NULL, Nval);
     memset(To_Nulls, 0, Nval);
   } else
     To_Nulls = NULL;
 
-} // end of SetNullable
+  } // end of SetNullable
+
+/***********************************************************************/
+/*  Check functions.                                                   */
+/***********************************************************************/
+void VALBLK::ChkIndx(int n)
+  {
+  if (n < 0 || n >= Nval) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(BAD_VALBLK_INDX));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif n
+
+  } // end of ChkIndx
+
+void VALBLK::ChkTyp(PVAL v)
+  {
+  if (Check && Type != v->GetType()) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Type
+
+  } // end of ChkTyp
+
+void VALBLK::ChkTyp(PVBLK vb)
+  {
+  if (Check && Type != vb->GetType()) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Type
+
+  } // end of ChkTyp
+
+/* -------------------------- Class TYPBLK --------------------------- */
+
+/***********************************************************************/
+/*  Constructors.                                                      */
+/***********************************************************************/
+template <class TYPE>
+TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type)
+            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
+  {
+  Fmt = GetFmt(Type);
+  } // end of TYPBLK constructor
+
+template <class TYPE>
+TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int prec, int type)
+            : VALBLK(mp, type, nval), Typp((TYPE*&)Blkp)
+  {
+  DBUG_ASSERT(Type == TYPE_FLOAT);
+  Prec = prec;
+  Fmt = GetFmt(Type);
+  } // end of DBLBLK constructor
+
+/***********************************************************************/
+/*  Initialization routine.                                            */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
+  {
+  if (!Blkp)
+    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(TYPE));
+
+  Check = check;
+  Global = g;
+  } // end of Init
+
+/***********************************************************************/
+/*  Set one value in a block.                                          */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetValue(PVAL valp, int n)
+  {
+  bool b;
+
+  ChkIndx(n);
+  ChkTyp(valp);
+
+  if (!(b = valp->IsNull() && Nullable))
+    Typp[n] = GetTypedValue(valp);
+  else
+    Reset(n);
+
+  SetNull(n, b);
+  } // end of SetValue
+
+template <>
+int TYPBLK<int>::GetTypedValue(PVAL valp)
+  {return valp->GetIntValue();}
+
+template <>
+short TYPBLK<short>::GetTypedValue(PVAL valp)
+  {return valp->GetShortValue();}
+
+template <>
+longlong TYPBLK<longlong>::GetTypedValue(PVAL valp)
+  {return valp->GetBigintValue();}
+
+template <>
+double TYPBLK<double>::GetTypedValue(PVAL valp)
+  {return valp->GetFloatValue();}
+
+/***********************************************************************/
+/*  Set one value in a block.                                          */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetValue(PSZ p, int n)
+  {
+  ChkIndx(n);
+
+  if (Check) {
+    PGLOBAL& g = Global;
+    strcpy(g->Message, MSG(BAD_SET_STRING));
+    longjmp(g->jumper[g->jump_level], Type);
+    } // endif Check
+
+  Typp[n] = GetTypedValue(p);
+  SetNull(n, false);
+  } // end of SetValue
+
+template <>
+int TYPBLK<int>::GetTypedValue(PSZ p) {return atol(p);}
+template <>
+short TYPBLK<short>::GetTypedValue(PSZ p) {return (short)atoi(p);}
+template <>
+longlong TYPBLK<longlong>::GetTypedValue(PSZ p) {return atoll(p);}
+template <>
+double TYPBLK<double>::GetTypedValue(PSZ p) {return atof(p);}
+
+/***********************************************************************/
+/*  Set one value in a block from a value in another block.            */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetValue(PVBLK pv, int n1, int n2)
+  {
+  bool b;
+
+  ChkIndx(n1);
+  ChkTyp(pv);
+
+  if (!(b = pv->IsNull(n2) && Nullable))
+    Typp[n1] = GetTypedValue(pv, n2);
+  else
+    Reset(n1);
+
+  SetNull(n1, b);
+  } // end of SetValue
+
+template <>
+int TYPBLK<int>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetIntValue(n);}
+
+template <>
+short TYPBLK<short>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetShortValue(n);}
+
+template <>
+longlong TYPBLK<longlong>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetBigintValue(n);}
+
+template <>
+double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetFloatValue(n);}
+
+#if 0
+/***********************************************************************/
+/*  Set many values in a block from values in another block.           */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetValues(PVBLK pv, int k, int n)
+  {
+  CheckType(pv)
+  TYPE *lp = ((TYPBLK*)pv)->Typp;
+
+  for (register int i = k; i < n; i++)          // TODO
+    Typp[i] = lp[i];
+
+  } // end of SetValues
+#endif // 0
+
+/***********************************************************************/
+/*  Move one value from i to j.                                        */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::Move(int i, int j)
+  {
+  Typp[j] = Typp[i];
+  MoveNull(i, j);
+  } // end of Move
+
+/***********************************************************************/
+/*  Compare a Value object with the nth value of the block.            */
+/***********************************************************************/
+template <class TYPE>
+int TYPBLK<TYPE>::CompVal(PVAL vp, int n)
+  {
+#if defined(_DEBUG)
+  ChkIndx(n);
+  ChkTyp(vp);
+#endif   // _DEBUG
+  TYPE mlv = Typp[n];
+  TYPE vlv = GetTypedValue(vp);
+
+  return (vlv > mlv) ? 1 : (vlv < mlv) ? (-1) : 0;
+  } // end of CompVal
+
+/***********************************************************************/
+/*  Compare two values of the block.                                   */
+/***********************************************************************/
+template <class TYPE>
+int TYPBLK<TYPE>::CompVal(int i1, int i2)
+  {
+  TYPE lv1 = Typp[i1];
+  TYPE lv2 = Typp[i2];
+
+  return (lv1 > lv2) ? 1 : (lv1 < lv2) ? (-1) : 0;
+  } // end of CompVal
+
+/***********************************************************************/
+/*  Get a pointer on the nth value of the block.                       */
+/***********************************************************************/
+template <class TYPE>
+void *TYPBLK<TYPE>::GetValPtr(int n)
+  {
+  ChkIndx(n);
+  return Typp + n;
+  } // end of GetValPtr
+
+/***********************************************************************/
+/*  Get a pointer on the nth value of the block.                       */
+/***********************************************************************/
+template <class TYPE>
+void *TYPBLK<TYPE>::GetValPtrEx(int n)
+  {
+  ChkIndx(n);
+  return Typp + n;
+  } // end of GetValPtrEx
+
+/***********************************************************************/
+/*  Returns index of matching value in block or -1.                    */
+/***********************************************************************/
+template <class TYPE>
+int TYPBLK<TYPE>::Find(PVAL vp)
+  {
+  ChkTyp(vp);
+
+  int  i;
+  TYPE n = GetTypedValue(vp);
+
+  for (i = 0; i < Nval; i++)
+    if (n == Typp[i])
+      break;
+
+  return (i < Nval) ? i : (-1);
+  } // end of Find
+
+/***********************************************************************/
+/*  Returns the length of the longest string in the block.             */
+/***********************************************************************/
+template <class TYPE>
+int TYPBLK<TYPE>::GetMaxLength(void)
+  {
+  char buf[12];
+  int i, n;
+
+  for (i = n = 0; i < Nval; i++) {
+    sprintf(buf, Fmt, Typp[i]);
+
+    n = max(n, (signed)strlen(buf));
+    } // endfor i
+
+  return n;
+  } // end of GetMaxLength
+
 
 /* -------------------------- Class CHRBLK --------------------------- */
 
@@ -282,8 +517,10 @@ double CHRBLK::GetFloatValue(int n)
 /***********************************************************************/
 void CHRBLK::SetValue(PVAL valp, int n)
   {
-  CheckParms(valp, n)
   bool b;
+
+  ChkIndx(n);
+  ChkTyp(valp);
 
   if (!(b = valp->IsNull() && Nullable))
     SetValue((PSZ)valp->GetCharValue(), n);
@@ -327,14 +564,13 @@ void CHRBLK::SetValue(PSZ sp, int n)
 /***********************************************************************/
 void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
   {
-#if defined(_DEBUG) || defined(DEBTRACE)
+  bool b;
+
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Type
-#endif
-  bool b;
 
   if (!(b = pv->IsNull(n2) && Nullable))
     memcpy(Chrp + n1 * Long, ((CHRBLK*)pv)->Chrp + n2 * Long, Long);
@@ -365,36 +601,6 @@ void CHRBLK::SetValues(PVBLK pv, int k, int n)
     memcpy(Chrp + k * Long, p + k * Long, Long * (n - k));
 
   } // end of SetValues
-
-/***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void CHRBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  CheckBlanks
-  char *vp = valp->GetCharValue();
-  char *bp = Chrp + n * Long;
-
-  if (((Ci) ? strnicmp(vp, bp, Long) : strncmp(vp, bp, Long)) < 0)
-    memcpy(bp, vp, Long);
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void CHRBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  CheckBlanks
-  char *vp = valp->GetCharValue();
-  char *bp = Chrp + n * Long;
-
-  if (((Ci) ? strnicmp(vp, bp, Long) : strncmp(vp, bp, Long)) > 0)
-    memcpy(bp, vp, Long);
-
-  } // end of SetMax
 #endif // 0
 
 /***********************************************************************/
@@ -411,7 +617,9 @@ void CHRBLK::Move(int i, int j)
 /***********************************************************************/
 int CHRBLK::CompVal(PVAL vp, int n)
   {
-  CheckParms(vp, n)
+  ChkIndx(n);
+  ChkTyp(vp);
+
   char *xvp = vp->GetCharValue(); // Get Value zero ended string
   bool ci = Ci || vp->IsCi();     // true if is case insensitive
 
@@ -433,7 +641,7 @@ int CHRBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *CHRBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Chrp + n * Long;
   } // end of GetValPtr
 
@@ -442,7 +650,7 @@ void *CHRBLK::GetValPtr(int n)
 /***********************************************************************/
 void *CHRBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   memcpy(Valp, Chrp + n * Long, Long);
 
   if (IsNull(n))
@@ -468,7 +676,8 @@ void *CHRBLK::GetValPtrEx(int n)
 /***********************************************************************/
 int CHRBLK::Find(PVAL vp)
   {
-  CheckType(vp)
+  ChkTyp(vp);
+
   int  i;
   bool ci = Ci || vp->IsCi();
   PSZ  s = vp->GetCharValue();
@@ -536,8 +745,7 @@ void STRBLK::Init(PGLOBAL g, bool check)
 /***********************************************************************/
 void STRBLK::SetValue(PVBLK pv, int n1, int n2)
   {
-  CheckType(pv)
-
+  ChkTyp(pv);
   Strp[n1] = (!pv->IsNull(n2)) ? ((STRBLK*)pv)->Strp[n2] : NULL;
   } // end of SetValue
 
@@ -561,7 +769,8 @@ void STRBLK::SetValues(PVBLK pv, int k, int n)
 /***********************************************************************/
 void STRBLK::SetValue(PVAL valp, int n)
   {
-  CheckParms(valp, n)
+  ChkIndx(n);
+  ChkTyp(valp);
 
   if (!valp->IsNull())
     SetValue((PSZ)valp->GetCharValue(), n);
@@ -579,36 +788,6 @@ void STRBLK::SetValue(PSZ p, int n)
   strcpy(Strp[n], p);
   } // end of SetValue
 
-#if 0
-/***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void STRBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  char *vp = valp->GetCharValue();
-  char *bp = Strp[n];
-
-  if (strcmp(vp, bp) < 0)
-    SetValue(valp, n);
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void STRBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  char *vp = valp->GetCharValue();
-  char *bp = Strp[n];
-
-  if (strcmp(vp, bp) > 0)
-    SetValue(valp, n);
-
-  } // end of SetMax
-#endif // 0
-
 /***********************************************************************/
 /*  Move one value from i to j.                                        */
 /***********************************************************************/
@@ -622,7 +801,8 @@ void STRBLK::Move(int i, int j)
 /***********************************************************************/
 int STRBLK::CompVal(PVAL vp, int n)
   {
-  CheckParms(vp, n)
+  ChkIndx(n);
+  ChkTyp(vp);
 
   if (vp->IsNull() || !Strp[n])
     DBUG_ASSERT(false);
@@ -635,7 +815,7 @@ int STRBLK::CompVal(PVAL vp, int n)
 /***********************************************************************/
 int STRBLK::CompVal(int i1, int i2)
   {
-  if (!Strp[i1] || Strp[i2])
+  if (!Strp[i1] || !Strp[i2])
     DBUG_ASSERT(false);
 
   return (strcmp(Strp[i1], Strp[i2]));
@@ -646,7 +826,7 @@ int STRBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *STRBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Strp + n;
   } // end of GetValPtr
 
@@ -655,7 +835,7 @@ void *STRBLK::GetValPtr(int n)
 /***********************************************************************/
 void *STRBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return (Strp[n]) ? Strp[n] : "";
   } // end of GetValPtrEx
 
@@ -664,9 +844,10 @@ void *STRBLK::GetValPtrEx(int n)
 /***********************************************************************/
 int STRBLK::Find(PVAL vp)
   {
-  CheckType(vp)
   int i;
   PSZ s;
+
+  ChkTyp(vp);
   
   if (vp->IsNull())
     return -1;
@@ -694,7 +875,7 @@ int STRBLK::GetMaxLength(void)
   return n;
   } // end of GetMaxLength
 
-
+#if 0
 /* -------------------------- Class SHRBLK --------------------------- */
 
 /***********************************************************************/
@@ -767,34 +948,6 @@ void SHRBLK::SetValue(PVBLK pv, int n1, int n2)
 
 #if 0
 /***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void SHRBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  short  sval = valp->GetShortValue();
-  short& smin = Shrp[n];
-
-  if (sval < smin)
-    smin = sval;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void SHRBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  short  sval = valp->GetShortValue();
-  short& smin = Shrp[n];
-
-  if (sval > smin)
-    smin = sval;
-
-  } // end of SetMax
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void SHRBLK::SetValues(PVBLK pv, int k, int n)
@@ -806,15 +959,6 @@ void SHRBLK::SetValues(PVBLK pv, int k, int n)
     Shrp[i] = sp[i];
 
   } // end of SetValues
-
-/***********************************************************************/
-/*  This function is used by class RESCOL when calculating COUNT.      */
-/***********************************************************************/
-void SHRBLK::AddMinus1(PVBLK pv, int n1, int n2)
-  {
-  assert(Type == pv->GetType());
-  Shrp[n1] += (((SHRBLK*)pv)->Shrp[n2] - 1);
-  } // end of AddMinus1
 #endif // 0
 
 /***********************************************************************/
@@ -854,7 +998,7 @@ int SHRBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *SHRBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Shrp + n;
   } // end of GetValPtr
 
@@ -863,7 +1007,7 @@ void *SHRBLK::GetValPtr(int n)
 /***********************************************************************/
 void *SHRBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Shrp + n;
   } // end of GetValPtrEx
 
@@ -973,34 +1117,6 @@ void LNGBLK::SetValue(PVBLK pv, int n1, int n2)
 
 #if 0
 /***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void LNGBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  int  lval = valp->GetIntValue();
-  int& lmin = Lngp[n];
-
-  if (lval < lmin)
-    lmin = lval;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void LNGBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  int  lval = valp->GetIntValue();
-  int& lmax = Lngp[n];
-
-  if (lval > lmax)
-    lmax = lval;
-
-  } // end of SetMax
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void LNGBLK::SetValues(PVBLK pv, int k, int n)
@@ -1012,15 +1128,6 @@ void LNGBLK::SetValues(PVBLK pv, int k, int n)
     Lngp[i] = lp[i];
 
   } // end of SetValues
-
-/***********************************************************************/
-/*  This function is used by class RESCOL when calculating COUNT.      */
-/***********************************************************************/
-void LNGBLK::AddMinus1(PVBLK pv, int n1, int n2)
-  {
-  assert(Type == pv->GetType());
-  Lngp[n1] += (((LNGBLK*)pv)->Lngp[n2] - 1);
-  } // end of AddMinus1
 #endif // 0
 
 /***********************************************************************/
@@ -1060,7 +1167,7 @@ int LNGBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *LNGBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Lngp + n;
   } // end of GetValPtr
 
@@ -1069,7 +1176,7 @@ void *LNGBLK::GetValPtr(int n)
 /***********************************************************************/
 void *LNGBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Lngp + n;
   } // end of GetValPtrEx
 
@@ -1105,14 +1212,14 @@ int LNGBLK::GetMaxLength(void)
 
   return n;
   } // end of GetMaxLength
-
+#endif // 0
 
 /* -------------------------- Class DATBLK --------------------------- */
 
 /***********************************************************************/
 /*  Constructor.                                                       */
 /***********************************************************************/
-DATBLK::DATBLK(void *mp, int nval) : LNGBLK(mp, nval)
+DATBLK::DATBLK(void *mp, int nval) : TYPBLK<int>(mp, nval, TYPE_INT)
   {
   Type = TYPE_DATE;
   Dvalp = NULL;
@@ -1137,13 +1244,13 @@ void DATBLK::SetValue(PSZ p, int n)
   if (Dvalp) {
     // Decode the string according to format
     Dvalp->SetValue_psz(p);
-    Lngp[n] = Dvalp->GetIntValue();
+    Typp[n] = Dvalp->GetIntValue();
   } else
-    LNGBLK::SetValue(p, n);
+    TYPBLK<int>::SetValue(p, n);
 
   } // end of SetValue
 
-
+#if 0
 /* -------------------------- Class BIGBLK --------------------------- */
 
 /***********************************************************************/
@@ -1216,34 +1323,6 @@ void BIGBLK::SetValue(PVBLK pv, int n1, int n2)
 
 #if 0
 /***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void BIGBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  longlong  lval = valp->GetIntValue();
-  longlong& lmin = Lngp[n];
-
-  if (lval < lmin)
-    lmin = lval;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void BIGBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  longlong  lval = valp->GetIntValue();
-  longlong& lmax = Lngp[n];
-
-  if (lval > lmax)
-    lmax = lval;
-
-  } // end of SetMax
-
-/***********************************************************************/
 /*  Set many values in a block from values in another block.           */
 /***********************************************************************/
 void BIGBLK::SetValues(PVBLK pv, int k, int n)
@@ -1255,15 +1334,6 @@ void BIGBLK::SetValues(PVBLK pv, int k, int n)
     Lngp[i] = lp[i];
 
   } // end of SetValues
-
-/***********************************************************************/
-/*  This function is used by class RESCOL when calculating COUNT.      */
-/***********************************************************************/
-void BIGBLK::AddMinus1(PVBLK pv, int n1, int n2)
-  {
-  assert(Type == pv->GetType());
-  Lngp[n1] += (((BIGBLK*)pv)->Lngp[n2] - 1);
-  } // end of AddMinus1
 #endif // 0
 
 /***********************************************************************/
@@ -1303,7 +1373,7 @@ int BIGBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *BIGBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Lngp + n;
   } // end of GetValPtr
 
@@ -1312,7 +1382,7 @@ void *BIGBLK::GetValPtr(int n)
 /***********************************************************************/
 void *BIGBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Lngp + n;
   } // end of GetValPtrEx
 
@@ -1434,34 +1504,6 @@ void DBLBLK::SetValues(PVBLK pv, int k, int n)
     Dblp[i] = dp[i];
 
   } // end of SetValues
-
-/***********************************************************************/
-/*  Set one value in a block if val is less than the current value.    */
-/***********************************************************************/
-void DBLBLK::SetMin(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  double  fval = valp->GetFloatValue();
-  double& fmin = Dblp[n];
-
-  if (fval < fmin)
-    fmin = fval;
-
-  } // end of SetMin
-
-/***********************************************************************/
-/*  Set one value in a block if val is greater than the current value. */
-/***********************************************************************/
-void DBLBLK::SetMax(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  double  fval = valp->GetFloatValue();
-  double& fmax = Dblp[n];
-
-  if (fval > fmax)
-    fmax = fval;
-
-  } // end of SetMax
 #endif // 0
 
 /***********************************************************************/
@@ -1501,7 +1543,7 @@ int DBLBLK::CompVal(int i1, int i2)
 /***********************************************************************/
 void *DBLBLK::GetValPtr(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Dblp + n;
   } // end of GetValPtr
 
@@ -1510,7 +1552,7 @@ void *DBLBLK::GetValPtr(int n)
 /***********************************************************************/
 void *DBLBLK::GetValPtrEx(int n)
   {
-  CheckIndex(n)
+  ChkIndx(n);
   return Dblp + n;
   } // end of GetValPtrEx
 
@@ -1546,6 +1588,7 @@ int DBLBLK::GetMaxLength(void)
 
   return n;
   } // end of GetMaxLength
+#endif // 0
 
 /* ------------------------- End of Valblk --------------------------- */
 
