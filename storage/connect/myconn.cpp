@@ -148,9 +148,10 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /*  Now get the results into blocks.                                  */
   /**********************************************************************/
   for (i = 0; i < n; i++) {
-    if ((rc = myc.Fetch(g, -1) == RC_FX))
+    if ((rc = myc.Fetch(g, -1) == RC_FX)) {
+      myc.Close();
       return NULL;
-    else if (rc == RC_NF)
+    } else if (rc == RC_NF)
       break;
 
     // Get column name
@@ -165,12 +166,14 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
 
     if ((nf = sscanf(fld, "%[^(](%d,%d", cmd, &len, &prec)) < 1) {
       sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);
+      myc.Close();
       return NULL;
     } else
       qrp->Nblin++;
 
     if ((type = MYSQLtoPLG(cmd)) == TYPE_ERROR) {
       sprintf(g->Message, "Unsupported column type %s", cmd);
+      myc.Close();
       return NULL;
       } // endif type
 
