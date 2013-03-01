@@ -173,13 +173,10 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 /***********************************************************************/
 int PlugExit(PGLOBAL g)
   {
-  int       rc = 0;
-  PACTIVITY ap;
+  int rc = 0;
 
   if (!g)
     return rc;
-  else
-    ap = g->ActivityStart;
 
   free(g->Sarea);
   free(g);

@@ -74,15 +74,12 @@ PGLOBAL CntExit(PGLOBAL g)
     PDBUSER dup= PlgGetUser(g);
 
     CntEndDB(g);
-    PlugExit(g);
-
-    if (dup->Catalog) {
-      delete dup->Catalog;
-      dup->Catalog= NULL;
-      } // endif
-
     free(dup);
-    free(g->Activityp);
+
+    if (g->Activityp)
+      delete g->Activityp;
+
+    PlugExit(g);
     g= NULL;
     } // endif g
 
