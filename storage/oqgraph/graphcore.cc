@@ -674,15 +674,6 @@ namespace open_query
   {
       optional<Vertex> orig, dest;
       int op= 0, seq= 0;
-      enum {
-        NO_SEARCH = 0,
-        DIJKSTRAS = 1,
-        BREADTH_FIRST = 2,
-
-	ALGORITHM = 0x0ffff,
-        HAVE_ORIG = 0x10000,
-        HAVE_DEST = 0x20000,
-      };
 
       delete cursor; cursor= 0;
       row_info= empty_row;

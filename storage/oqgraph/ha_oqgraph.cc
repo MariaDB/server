@@ -47,6 +47,17 @@
 
 using namespace open_query;
 
+// Table of varchar latch operations.
+// In the future this needs to be refactactored to somewhere else
+struct oqgraph_latch_op_table { const char *key; int latch; };
+static const oqgraph_latch_op_table latch_ops_table[] = {
+  { "no_search", oqgraph::NO_SEARCH } , 
+  { "dijkstras", oqgraph::DIJKSTRAS } ,
+  { "breadth_first", oqgraph::BREADTH_FIRST } , 
+  { NULL, -1 }  
+};
+
+
 struct oqgraph_table_option_struct
 {
   char *table_name;
@@ -176,7 +187,7 @@ static int error_code(int res)
  *
  *    ColName    Type      Attributes
  *    =======    ========  =============
- *    latch     SMALLINT  UNSIGNED NULL
+ *    latch     VARCHAR   NULL
  *    origid    BIGINT    UNSIGNED NULL
  *    destid    BIGINT    UNSIGNED NULL
  *    weight    DOUBLE    NULL
@@ -184,8 +195,12 @@ static int error_code(int res)
  *    linkid    BIGINT    UNSIGNED NULL
  *    =================================
  *
+ 
+  The latch may be a varchar of any length, however if it is too short,
+  then some of the OQGRAPH graph operations will not be able to be executed.
+ 
   CREATE TABLE foo (
-    latch   SMALLINT  UNSIGNED NULL,
+    latch   VARCHAR(255)   NULL,
     origid  BIGINT    UNSIGNED NULL,
     destid  BIGINT    UNSIGNED NULL,
     weight  DOUBLE    NULL,
@@ -203,7 +218,7 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
 {
   int i;
   struct { const char *colname; int coltype; } skel[] = {
-    { "latch" , MYSQL_TYPE_SHORT },
+    { "latch" , MYSQL_TYPE_STRING },
     { "origid", MYSQL_TYPE_LONGLONG },
     { "destid", MYSQL_TYPE_LONGLONG },
     { "weight", MYSQL_TYPE_DOUBLE },
@@ -600,6 +615,51 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   return error_code(res);
 }
 
+/**
+ * This function parse the VARCHAR(n) latch specification into an integer operation specification compatible with 
+ * v1-v3 oqgraph::search().
+ *
+ * If the string contains a number, this is directly converted from a decimal integer.
+ *
+ * Otherwise, a lookup table is used to convert from a string constant.
+ *
+ * It is anticipated that this function (and this file and class oqgraph) will be refactored to do this in a nicer way.
+ *
+ * FIXME: For the time being, only handles latin1 character set.
+ * @return false if parsing fails.
+ */   
+static bool parse_latch_string_to_legacy_int(const String& value, int &latch)
+{
+  // attempt to parse as an integer first.
+  // to be nice we trim whitespace
+  LEX_STRING lex = value.lex_string();
+  trim_whitespace( &my_charset_latin1, &lex);
+  if (!strlen(lex.str)) {
+    // treat an empty string same as (LATCH=NULL) in query
+    latch = oqgraph::NO_SEARCH;
+    return true;
+  }
+  char *eptr;
+  unsigned long int v = strtoul( lex.str, &eptr, 10);
+  if (!*eptr) {
+    // we had an unsigned number. 
+    if (v > 0 && v < oqgraph::NUM_SEARCH_OP) {
+      latch = v;
+      return true;
+    }
+    // fall through  and test as a string (although it is unlikely we might have an operator starting with a number)    
+  }
+
+  const oqgraph_latch_op_table* entry = latch_ops_table;
+  for ( ; entry->key ; entry++) {
+    if (0 == strcmp(entry->key, lex.str)) {
+      latch = entry->latch;
+      return true;
+    }
+  }
+  return false;
+}
+
 int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 			    uint key_len, enum ha_rkey_function find_flag)
 {
@@ -608,8 +668,8 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   int res;
   VertexID orig_id, dest_id;
   int latch;
+  int* latchp;
   VertexID *orig_idp=0, *dest_idp=0;
-  int *latchp=0;
   open_query::row row;
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
@@ -627,7 +687,15 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   if (!field[0]->is_null())
   {
-    latch= (int) field[0]->val_int();
+    //latch= (int) field[0]->val_int();
+    String value;
+    field[0]->val_str(&value, &value);
+    if (!parse_latch_string_to_legacy_int(value, latch)) {
+      // Invalid, so warn & fail
+      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
+      table->status = STATUS_NOT_FOUND;
+      return error_code(oqgraph::NO_MORE_DATA);
+    }
     latchp= &latch;
   }
 
