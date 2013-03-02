@@ -308,6 +308,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 #else   // !_DEBUG
     sprintf(g->Message, "(%d) %s", mysql_errno(m_DB), mysql_error(m_DB));
 #endif  // !_DEBUG
+    mysql_close(m_DB);
     m_DB = NULL;
     return RC_FX;
     } // endif mysql_real_connect
