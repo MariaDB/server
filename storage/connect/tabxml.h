@@ -102,9 +102,7 @@ class DllExport TDBXML : public TDBASE {
   virtual void  CloseDB(PGLOBAL g);
   virtual int   CheckWrite(PGLOBAL g) {Checked = true; return 0;}
   virtual const CHARSET_INFO *data_charset()
-  {
-    return &my_charset_utf8_general_ci;
-  }
+                  {return &my_charset_utf8_general_ci;}
 
  protected:
   // Members
