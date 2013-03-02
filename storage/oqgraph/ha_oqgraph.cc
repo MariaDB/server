@@ -668,8 +668,8 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   int res;
   VertexID orig_id, dest_id;
   int latch;
-  int* latchp;
   VertexID *orig_idp=0, *dest_idp=0;
+  int* latchp=0;
   open_query::row row;
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
