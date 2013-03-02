@@ -463,8 +463,10 @@ PXNODE XML2NODE::GetChild(PGLOBAL g)
 /******************************************************************/
 /*  Return the content of a node and subnodes.                    */
 /******************************************************************/
-char *XML2NODE::GetText(char *buf, int len)
+RCODE XML2NODE::GetContent(PGLOBAL g, char *buf, int len)
   {
+  RCODE rc = RC_OK;
+
   if (Content)
     xmlFree(Content);
 
@@ -474,18 +476,24 @@ char *XML2NODE::GetText(char *buf, int len)
     bool  b = false;
 
     // Copy content eliminating extra characters
-    for (; *p1 && (p2 - buf) < len; p1++)
-      if (strchr(extra, *p1)) {
-        if (b) {
-          // This to have one blank between sub-nodes
-          *p2++ = ' ';
-          b = false;
-          }  // endif b
+    for (; *p1; p1++)
+      if ((p2 - buf) < len) {
+        if (strchr(extra, *p1)) {
+          if (b) {
+            // This to have one blank between sub-nodes
+            *p2++ = ' ';
+            b = false;
+            }  // endif b
+    
+        } else {
+          *p2++ = *p1;
+          b = true;
+        } // endif p1
 
       } else {
-        *p2++ = *p1;
-        b = true;
-      } // endif p1
+        sprintf(g->Message, "Truncated %s content", Nodep->name);
+        rc = RC_INFO;
+      } // endif len
 
     *p2 = 0;
 
@@ -497,7 +505,7 @@ char *XML2NODE::GetText(char *buf, int len)
   } else
     *buf = '\0';
 
-  return buf;
+  return rc;
   } // end of GetText
 
 /******************************************************************/

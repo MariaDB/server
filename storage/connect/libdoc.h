@@ -80,7 +80,7 @@ class XML2NODE : public XMLNODE {
   virtual PXNODE GetChild(PGLOBAL g);
 
   // Methods
-  virtual char  *GetText(char *buf, int len);
+  virtual RCODE  GetContent(PGLOBAL g, char *buf, int len);
   virtual bool   SetContent(PGLOBAL g, char *txtp, int len);
   virtual PXNODE Clone(PGLOBAL g, PXNODE np);
   virtual PXLIST GetChildElements(PGLOBAL g, char *xp, PXLIST lp);

@@ -295,16 +295,41 @@ PXNODE DOMNODE::GetChild(PGLOBAL g)
 /******************************************************************/
 /*  Return the content of a node and subnodes.                    */
 /******************************************************************/
-char *DOMNODE::GetText(char *buf, int len)
+RCODE DOMNODE::GetContent(PGLOBAL g, char *buf, int len)
   {
+  RCODE rc = RC_OK;
+
   // Nodep can be null for a missing HTML table column
-  if (Nodep) 
-    strncpy(buf, Nodep->text, len);
-  else
+  if (Nodep) {                                                
+    if (!WideCharToMultiByte(CP_UTF8, 0, Nodep->text, -1,
+                             buf, len, NULL, NULL)) {
+      DWORD lsr = GetLastError();
+
+      switch (lsr) {
+        case 0:
+        case ERROR_INSUFFICIENT_BUFFER:      // 122L
+          sprintf(g->Message, "Truncated %s content", GetName(g));
+          rc = RC_INFO;
+          break;
+        case ERROR_NO_UNICODE_TRANSLATION:   // 1113L
+          sprintf(g->Message, "Invalid character(s) in %s content",
+                              GetName(g));
+          rc = RC_INFO;
+          break;
+        default:
+          sprintf(g->Message, "System error getting %s content",
+                              GetName(g));
+          rc = RC_FX;
+          break;
+        } // endswitch
+
+      } // endif
+
+  } else
     *buf = '\0';
 
-  return buf;
-  } // end of GetText
+  return rc;
+  } // end of GetContent
 
 /******************************************************************/
 /*  Set the text content of an attribute.                         */
@@ -319,8 +344,8 @@ bool DOMNODE::SetContent(PGLOBAL g, char *txtp, int len)
     Len = len;
     } // endif len
 
-  if (!MultiByteToWideChar(CP_ACP, 0, txtp, strlen(txtp) + 1,
-                                      Ws, Len + 1)) {
+  if (!MultiByteToWideChar(CP_UTF8, 0, txtp, strlen(txtp) + 1,
+                                       Ws, Len + 1)) {
     sprintf(g->Message, MSG(WS_CONV_ERR), txtp);
     return true;
     } // endif

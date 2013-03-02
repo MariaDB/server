@@ -335,7 +335,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key);
   int delete_table(const char *from);
+#if defined(MARIADB)
   bool pre_create(THD *thd, HA_CREATE_INFO *crt_info, void *alt_info);
+#endif   // MARIADB
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
@@ -347,6 +349,7 @@ const char *GetValStr(OPVAL vop, bool neg);
 
 protected:
   char *GetListOption(const char *opname, const char *oplist, const char *def= NULL);
+#if defined(MARIADB)
   char *encode(PGLOBAL g, char *cnm);
   bool  add_fields(THD *thd, void *alter_info, 
            LEX_STRING *field_name,
@@ -361,6 +364,7 @@ protected:
 //         uint uint_geom_type,
            void *vcol_info,
            engine_option_value *create_options);
+#endif   // MARIADB
 
   // Members
   static ulong  num;                  // Tracable handler number

@@ -110,7 +110,7 @@ class XMLNODE : public BLOCK {
   virtual PXNODE GetChild(PGLOBAL) = 0;
 
   // Methods
-  virtual char  *GetText(char *, int) = 0;
+  virtual RCODE  GetContent(PGLOBAL, char *, int) = 0;
   virtual bool   SetContent(PGLOBAL, char *, int) = 0;
   virtual PXNODE Clone(PGLOBAL, PXNODE) = 0;
   virtual PXLIST GetChildElements(PGLOBAL, char * = NULL, PXLIST = NULL) = 0;
