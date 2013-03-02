@@ -1,9 +1,5 @@
 DROP TABLE IF EXISTS graph_base;
-Warnings:
-Note	1051	Unknown table 'graph_base'
 DROP TABLE IF EXISTS graph;
-Warnings:
-Note	1051	Unknown table 'graph'
 CREATE TABLE graph_base (
 from_id INT UNSIGNED NOT NULL,
 to_id INT UNSIGNED NOT NULL,
@@ -62,5 +58,4 @@ latch	origid	destid	weight	seq	linkid
 DELETE FROM graph_base;
 FLUSH TABLES;
 TRUNCATE TABLE graph_base;
-DROP TABLE graph;
-DROP TABLE graph_base;
+DROP TABLE graph, graph_base;
