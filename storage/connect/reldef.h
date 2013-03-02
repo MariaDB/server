@@ -76,10 +76,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   virtual PIXDEF GetIndx(void) {return NULL;}
   virtual void   SetIndx(PIXDEF xp) {}
   virtual bool   IsHuge(void) {return false;}
-  const CHARSET_INFO *data_charset()
-  {
-    return m_data_charset;
-  }
+  const CHARSET_INFO *data_charset() {return m_data_charset;}
 
   // Methods
           bool DropTable(PGLOBAL g, PSZ name);
