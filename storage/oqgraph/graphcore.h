@@ -62,6 +62,18 @@ namespace open_query
     inline ~oqgraph() throw();
   public:
 
+    // Integer operation flags
+    enum {
+      NO_SEARCH = 0,
+      DIJKSTRAS = 1,
+      BREADTH_FIRST = 2,
+      NUM_SEARCH_OP = 3,
+
+      ALGORITHM = 0x0ffff,
+      HAVE_ORIG = 0x10000,
+      HAVE_DEST = 0x20000,
+      };
+
     enum error_code
     {
       OK= 0,
