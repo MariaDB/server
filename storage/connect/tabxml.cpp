@@ -1212,7 +1212,16 @@ void XMLCOL::ReadColumn(PGLOBAL g)
       } // endif type
 
     // Get the Xname value from the XML file
-    ValNode->GetText(Valbuf, Long);
+    switch (ValNode->GetContent(g, Valbuf, Long + 1)) {
+      case RC_OK:
+        break;
+      case RC_INFO:
+        PushWarning(g, Tdbp);
+        break;
+      default:
+        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+      } // endswitch
+
   } else
     *Valbuf = '\0';
 
@@ -1405,7 +1414,15 @@ void XMULCOL::ReadColumn(PGLOBAL g)
       } // endif type
 
     // Get the Xname value from the XML file
-    ValNode->GetText(p, len);
+    switch (ValNode->GetContent(g, p, len + 1)) {
+      case RC_OK:
+        break;
+      case RC_INFO:
+        PushWarning(g, Tdbp);
+        break;
+      default:
+        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+      } // endswitch
 
     if (!Tdbp->Xpand) {
       // Concatenate all values
@@ -1627,7 +1644,15 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
 
   if ((ValNode = Tdbp->Clist->GetItem(g, Rank, Vxnp)))
     // Get the column value from the XML file
-    ValNode->GetText(Valbuf, Long);
+    switch (ValNode->GetContent(g, Valbuf, Long + 1)) {
+      case RC_OK:
+        break;
+      case RC_INFO:
+        PushWarning(g, Tdbp);
+        break;
+      default:
+        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+      } // endswitch
 
   Value->SetValue_psz(Valbuf);
   Nx = Tdbp->Irow;

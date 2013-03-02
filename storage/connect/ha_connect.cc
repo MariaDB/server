@@ -153,7 +153,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0002 February 19, 2013";
+       char  version[]= "Version 1.01.0003 March 02, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -3195,6 +3195,7 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   DBUG_RETURN(rows);
 } // end of records_in_range
 
+#if defined(MARIADB)
 /**
   Convert an ISO-8859-1 column name to UTF-8
 */
@@ -3657,6 +3658,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
   my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
   return true;
 } // end of pre_create
+#endif   // MARIADB
 
 /**
   @brief
