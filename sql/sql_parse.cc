@@ -2431,9 +2431,6 @@ mysql_execute_command(THD *thd)
     break;
   case SQLCOM_SHOW_STATUS:
   {
-#ifdef WITH_WSREP
-    if (lex->sql_command == SQLCOM_SHOW_STATUS) wsrep_free_status(thd);
-#endif /* WITH_WSREP */
     execute_show_status(thd, all_tables);
     break;
   }
@@ -5021,6 +5018,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   if (!thd->sent_row_count)
     status_var_increment(thd->status_var.empty_queries);
   status_var_add(thd->status_var.rows_sent, thd->sent_row_count);
+#ifdef WITH_WSREP
+    if (lex->sql_command == SQLCOM_SHOW_STATUS) wsrep_free_status(thd);
+#endif /* WITH_WSREP */
   return res;
 }
 
