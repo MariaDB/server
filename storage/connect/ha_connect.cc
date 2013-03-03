@@ -532,7 +532,8 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= NULL;         // Tested in next call
   xp= (table) ? GetUser(table->in_use) : NULL;
   tdbp= NULL;
-  sdval= NULL;
+  sdvalin= NULL;
+  sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
 //*tname= '\0';
@@ -1388,7 +1389,8 @@ int ha_connect::CloseTable(PGLOBAL g)
 {
   int rc= CntCloseTable(g, tdbp);
   tdbp= NULL;
-  sdval=NULL;
+  sdvalin=NULL;
+  sdvalout=NULL;
   valid_info= false;
   indexing= -1;
   return rc;
@@ -1459,8 +1461,8 @@ int ha_connect::MakeRecord(char *buf)
       if (!value->IsNull()) {
         switch (value->GetType()) {
           case TYPE_DATE:
-            if (!sdval)
-              sdval= AllocateValue(xp->g, TYPE_STRING, 20);
+            if (!sdvalout)
+              sdvalout= AllocateValue(xp->g, TYPE_STRING, 20);
       
             switch (fp->type()) {
               case MYSQL_TYPE_DATE:
@@ -1474,8 +1476,8 @@ int ha_connect::MakeRecord(char *buf)
               } // endswitch type
       
             // Get date in the format required by MySQL fields
-            value->FormatValue(sdval, fmt);
-            p= sdval->GetCharValue();
+            value->FormatValue(sdvalout, fmt);
+            p= sdvalout->GetCharValue();
             break;
           case TYPE_FLOAT:
             p= NULL;
@@ -1567,16 +1569,16 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
-          if (!sdval) {
-            sdval= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+          if (!sdvalin) {
+            sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
 
             // Get date in the format produced by MySQL fields
-            ((DTVAL*)sdval)->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
-            } // endif sdval
+            ((DTVAL*)sdvalin)->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
+            } // endif sdvalin
 
           fp->val_str(&attribute);
-          sdval->SetValue_psz(attribute.c_ptr_safe());
-          value->SetValue_pval(sdval);
+          sdvalin->SetValue_psz(attribute.c_ptr_safe());
+          value->SetValue_pval(sdvalin);
           break;
         default:
           fp->val_str(&attribute);

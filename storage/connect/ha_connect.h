@@ -368,18 +368,19 @@ protected:
 
   // Members
   static ulong  num;                  // Tracable handler number
-  PCONNECT      xp;                    // To user_connect associated class
-  ulong         hnum;                  // The number of this handler
-  query_id_t    valid_query_id;         // The one when tdbp was allocated
-  query_id_t    creat_query_id;         // The one when handler was allocated
-  PTDB          tdbp;                  // To table class object
-  PVAL          sdval;                // Used to convert date values
+  PCONNECT      xp;                   // To user_connect associated class
+  ulong         hnum;                 // The number of this handler
+  query_id_t    valid_query_id;       // The one when tdbp was allocated
+  query_id_t    creat_query_id;       // The one when handler was allocated
+  PTDB          tdbp;                 // To table class object
+  PVAL          sdvalin;              // Used to convert date values
+  PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
 //char          tname[64];            // The table name
   MODE          xmod;                 // Table mode
   XINFO         xinfo;                // The table info structure
-  bool          valid_info;            // True if xinfo is valid
-  bool          stop;                  // Used when creating index
+  bool          valid_info;           // True if xinfo is valid
+  bool          stop;                 // Used when creating index
 //bool          hascond;              // Too late for Delete
   int           indexing;             // Type of indexing for CONNECT
 #if !defined(MARIADB)
