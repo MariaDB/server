@@ -402,7 +402,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
  htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 #endif
 
-  } else {
+  } else if (To_Fb) {                 // Can be NULL for deleted files
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
     /*  We must firstly Unmap the view and use the saved file handle   */
