@@ -47,8 +47,14 @@
 
 using namespace open_query;
 
+
+// Allow int latch for now
+#define RETAIN_INT_LATCH_COMPATIBILITY
+
+#define MIN_VARCHAR_LATCH_LEN 32
+
 // Table of varchar latch operations.
-// In the future this needs to be refactactored to somewhere else
+// In the future this needs to be refactactored to live somewhere else
 struct oqgraph_latch_op_table { const char *key; int latch; };
 static const oqgraph_latch_op_table latch_ops_table[] = {
   { "no_search", oqgraph::NO_SEARCH } , 
@@ -198,9 +204,10 @@ static int error_code(int res)
  
   The latch may be a varchar of any length, however if it is too short,
   then some of the OQGRAPH graph operations will not be able to be executed.
+  A size of 32 seems reasonable at this point in time.
  
   CREATE TABLE foo (
-    latch   VARCHAR(255)   NULL,
+    latch   VARCHAR(32)   NULL,
     origid  BIGINT    UNSIGNED NULL,
     destid  BIGINT    UNSIGNED NULL,
     weight  DOUBLE    NULL,
@@ -214,11 +221,13 @@ static int error_code(int res)
     DESTID=tgt_id
 
  */
-static int oqgraph_check_table_structure (TABLE *table_arg)
+int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 {
+  // Changed from static so we can do decent error reporting.
+
   int i;
   struct { const char *colname; int coltype; } skel[] = {
-    { "latch" , MYSQL_TYPE_STRING },
+    { "latch" , MYSQL_TYPE_VARCHAR },
     { "origid", MYSQL_TYPE_LONGLONG },
     { "destid", MYSQL_TYPE_LONGLONG },
     { "weight", MYSQL_TYPE_DOUBLE },
@@ -227,28 +236,75 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
   { NULL    , 0}
   };
 
-  DBUG_ENTER("ha_oqgraph::table_structure_ok");
+  DBUG_ENTER("oqgraph_check_table_structure");
+
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+  DBUG_PRINT( "oq-debug", ("With integer latch compatibility mode."));
+#endif
+
+  DBUG_PRINT( "oq-debug", ("Checking structure."));
 
   Field **field= table_arg->field;
   for (i= 0; *field && skel[i].colname; i++, field++) {
+    DBUG_PRINT( "oq-debug", ("Column %d: name='%s', expected '%s'; type=%d, expected %d.", i, (*field)->field_name, skel[i].colname, (*field)->type(), skel[i].coltype));
+    bool badColumn = false;
+    bool isLatchColumn = strcmp(skel[i].colname, "latch")==0;
+    bool isStringLatch = true;
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    if (isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
+    {
+      isStringLatch = false;
+      /* Make a warning */
+      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, 
+            ER_WARN_DEPRECATED_SYNTAX, ER(ER_WARN_DEPRECATED_SYNTAX),
+            "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
+    } else
+#endif
     /* Check Column Type */
-    if ((*field)->type() != skel[i].coltype)
-      DBUG_RETURN(-1);
-    if (skel[i].coltype != MYSQL_TYPE_DOUBLE) {
+    if ((*field)->type() != skel[i].coltype) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is wrong type.", i);
+    }
+
+    // TODO: check latch size >= MIN_VARCHAR_LATCH_LEN
+    
+    if (!badColumn) if (skel[i].coltype != MYSQL_TYPE_DOUBLE && (!isLatchColumn || !isStringLatch)) {
       /* Check Is UNSIGNED */
-      if (!((*field)->flags & UNSIGNED_FLAG ))
-        DBUG_RETURN(-1);
+      if ( (!((*field)->flags & UNSIGNED_FLAG ))) {
+        badColumn = true;
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be UNSIGNED.", i);
+      }
     }
     /* Check THAT  NOT NULL isn't set */
-    if ((*field)->flags & NOT_NULL_FLAG)
-      DBUG_RETURN(-1);
+    if (!badColumn) if ((*field)->flags & NOT_NULL_FLAG) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be NULL.", i);
+    }
     /* Check the column name */
-    if (strcmp(skel[i].colname,(*field)->field_name))
+    if (!badColumn) if (strcmp(skel[i].colname,(*field)->field_name)) {
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d must be named '%s'.", i, skel[i].colname);
+    }
+    if (badColumn) {
       DBUG_RETURN(-1);
+    }
   }
 
-  if (skel[i].colname || *field || !table_arg->key_info || !table_arg->s->keys)
+  if (skel[i].colname) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Not enough columns.");
     DBUG_RETURN(-1);
+  }
+  if (*field) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Too many columns.");
+    DBUG_RETURN(-1);
+  }
+
+  if (!table_arg->key_info || !table_arg->s->keys) {
+    push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "No vaild key specification.");
+    DBUG_RETURN(-1);
+  }
+
+  DBUG_PRINT( "oq-debug", ("Checking keys."));
 
   KEY *key= table_arg->key_info;
   for (uint i= 0; i < table_arg->s->keys; ++i, ++key)
@@ -256,8 +312,10 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
     Field **field= table_arg->field;
     /* check that the first key part is the latch and it is a hash key */
     if (!(field[0] == key->key_part[0].field &&
-          HA_KEY_ALG_HASH == key->algorithm))
+          HA_KEY_ALG_HASH == key->algorithm)) {
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Incorrect keys algorithm on key %d.", i);
       DBUG_RETURN(-1);
+    }
     if (key->key_parts == 3)
     {
       /* KEY (latch, origid, destid) USING HASH */
@@ -266,10 +324,15 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
             field[2] == key->key_part[2].field) &&
           !(field[1] == key->key_part[2].field &&
             field[2] == key->key_part[1].field))
+      {
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Keys parts mismatch on key %d.", i);
         DBUG_RETURN(-1);
+      }
     }
-    else
+    else {
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Too many key parts on key %d.", i);
       DBUG_RETURN(-1);
+    }
   }
 
   DBUG_RETURN(0);
@@ -687,15 +750,22 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   if (!field[0]->is_null())
   {
-    //latch= (int) field[0]->val_int();
-    String value;
-    field[0]->val_str(&value, &value);
-    if (!parse_latch_string_to_legacy_int(value, latch)) {
-      // Invalid, so warn & fail
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
-      table->status = STATUS_NOT_FOUND;
-      return error_code(oqgraph::NO_MORE_DATA);
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    if (field[0]->type() == MYSQL_TYPE_SHORT) {
+      latch= (int) field[0]->val_int();
+    } else 
+#endif
+    {
+      String value;
+      field[0]->val_str(&value, &value);
+      if (!parse_latch_string_to_legacy_int(value, latch)) {
+        // Invalid, so warn & fail
+        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
+        table->status = STATUS_NOT_FOUND;
+        return error_code(oqgraph::NO_MORE_DATA);
+      }
     }
+    DBUG_PRINT( "oq-debug", ("latch:%d", latch));
     latchp= &latch;
   }
 
@@ -900,7 +970,10 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
     if (min_key->length == key->key_part[0].store_length)
     {
       // If latch is not null and equals 0, return # nodes
+      
+      // This assertion is not valid anymore if we are using a VARCHAR latch.
       DBUG_ASSERT(key->key_part[0].store_length == 3);
+      
       if (key->key_part[0].null_bit && !min_key->key[0] &&
           !min_key->key[1] && !min_key->key[2])
         return graph->vertices_count();
@@ -926,14 +999,15 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
   oqgraph_table_option_struct *options=
     reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
 
+	DBUG_ENTER("ha_oqgraph::create");
   DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
 
-
-  if (int res = oqgraph_check_table_structure(table_arg))
-    return error_code(res);
+  if (int res = oqgraph_check_table_structure(table_arg)) {
+    DBUG_RETURN(HA_WRONG_CREATE_OPTION);
+  }
 
   (void)(options);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
