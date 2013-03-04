@@ -29,7 +29,7 @@ block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
 filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
 global.h ha_connect.h maputil.h msgid.h mycat.h myutil.h os.h
 osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
-tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h  
+tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h
 user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
 
 #
@@ -76,7 +76,7 @@ IF(UNIX)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.c)
   SET(IPHLPAPI_LIBRARY "")
 ELSE(NOT UNIX)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
@@ -131,22 +131,22 @@ IF(WIN32)
       add_definitions(-DMSX6 -DDOMDOC_SUPPORT)
       message(STATUS "MSXML library version: msxml6")
       SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
     ELSEIF(MSXML_LIBRARY MATCHES .*msxml4[.].*)
       add_definitions(-DMSX4 -DDOMDOC_SUPPORT)
       message("MSXML library version: msxml4")
       SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
     ELSEIF(MSXML_LIBRARY MATCHES .*msxml3[.].*)
       message("MSXML library version: msxml3")
       add_definitions(-DMSX3 -DDOMDOC_SUPPORT)
       SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
     ELSEIF(MSXML_LIBRARY MATCHES .*msxml2[.].*)
       message("MSXML library version: msxml2")
       add_definitions(-DMXS2 -DDOMDOC_SUPPORT)
       SET(MSXML_FOUND 1)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
     ELSE()
       message(STATUS "msxml? library not found")
     ENDIF()
@@ -154,7 +154,7 @@ IF(WIN32)
 ENDIF(WIN32)
 
 IF(LIBXML2_FOUND OR MSXML_FOUND)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   tabxml.cpp tabxml.h plgxml.cpp plgxml.h)
 ENDIF()
 
@@ -167,7 +167,7 @@ OPTION(CONNECT_WITH_MYSQL
        ON)
 
 IF(CONNECT_WITH_MYSQL)
-  SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+  SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   myconn.cpp myconn.h tabmysql.cpp tabxml.h)
   add_definitions(-DMYSQL_SUPPORT)
   IF(NOT UNIX)
@@ -195,7 +195,7 @@ IF(CONNECT_WITH_ODBC)
     # the library 'libodbc' gets compiled with 'isql.h' and
     # the library 'libiodbc' gets compiled with 'sql'h.
     # This will also need changes in the sources (e.g. #include <isql.h>).
-  
+
     find_path(ODBC_INCLUDE_DIR sql.h
     /usr/include
     /usr/include/odbc
@@ -208,7 +208,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/include"
     DOC "Specify the directory containing sql.h."
     )
-  
+
     find_library(ODBC_LIBRARY
     NAMES odbc odbcinst odbc32
     PATHS
@@ -224,7 +224,7 @@ IF(CONNECT_WITH_ODBC)
     #"C:/Program Files (x86)/Microsoft SDKs/Windows/v7.0A/Lib"
     DOC "Specify the ODBC driver manager library here."
     )
-  
+
     IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
       INCLUDE_DIRECTORIES(${ODBC_INCLUDE_DIR})
       add_definitions(-DODBC_SUPPORT)
@@ -235,7 +235,7 @@ IF(CONNECT_WITH_ODBC)
   ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
     SET(ODBC_LIBRARY "odbc32.lib odbccp32.lib")
-    SET(CONNECT_SOURCES ${CONNECT_SOURCES} 
+    SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
