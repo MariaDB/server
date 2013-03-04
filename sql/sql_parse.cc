@@ -8073,7 +8073,7 @@ static inline wsrep_status_t wsrep_apply_rbr(
   char *buf= (char *)rbr_buf;
   int rcode= 0;
   int event= 1;
-
+  Format_description_log_event *description_event = wsrep_format_desc;
   DBUG_ENTER("wsrep_apply_rbr");
 
   if (thd->killed == KILL_CONNECTION)
@@ -8100,7 +8100,7 @@ static inline wsrep_status_t wsrep_apply_rbr(
   {
     int exec_res;
     int error = 0;
-    Log_event* ev=  wsrep_read_log_event(&buf, &buf_len, wsrep_format_desc);
+    Log_event* ev=  wsrep_read_log_event(&buf, &buf_len, description_event);
 
     if (!ev)
     {
@@ -8115,6 +8115,9 @@ static inline wsrep_status_t wsrep_apply_rbr(
     case DELETE_ROWS_EVENT:
       DBUG_ASSERT(buf_len != 0 ||
                   ((Rows_log_event *) ev)->get_flags(Rows_log_event::STMT_END_F));
+      break;
+    case FORMAT_DESCRIPTION_EVENT:
+      description_event = (Format_description_log_event *)ev;
       break;
     default:
       break;
@@ -8174,7 +8177,9 @@ static inline wsrep_status_t wsrep_apply_rbr(
         WSREP_ERROR("Error in %s event: commit of row events failed: %lld",
                     ev->get_type_str(), (long long)thd->wsrep_trx_seqno);
     }
-    delete ev;
+
+    if (description_event != ev)
+      delete ev;
   }
 
  error:
