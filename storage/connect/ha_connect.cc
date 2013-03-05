@@ -270,7 +270,7 @@ struct ha_field_option_struct
   int offset;
   int freq;      // Not used by this version
   int opt;       // Not used by this version
-  int buflen;
+  int fldlen;
   const char *dateformat;
   const char *fieldformat;
   char *special;
@@ -282,7 +282,7 @@ ha_create_table_option connect_field_option_list[]=
   HA_FOPTION_NUMBER("FLAG", offset, -1, 0, INT_MAX32, 1),
   HA_FOPTION_NUMBER("FREQUENCY", freq, 0, 0, INT_MAX32, 1), // not used
   HA_FOPTION_NUMBER("OPT_VALUE", opt, 0, 0, 2, 1),  // used for indexing
-  HA_FOPTION_NUMBER("BUF_LENGTH", buflen, 0, 0, INT_MAX32, 1),
+  HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),
   HA_FOPTION_STRING("DATE_FORMAT", dateformat),
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
   HA_FOPTION_STRING("SPECIAL", special),
@@ -319,12 +319,12 @@ static uchar* connect_get_key(CONNECT_SHARE *share, size_t *length,
 }
 
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key ex_key_mutex_connect, ex_key_mutex_CONNECT_SHARE_mutex;
+static PSI_mutex_key con_key_mutex_connect, con_key_mutex_CONNECT_SHARE_mutex;
 
 static PSI_mutex_info all_connect_mutexes[]=
 {
-  { &ex_key_mutex_connect, "connect", PSI_FLAG_GLOBAL},
-  { &ex_key_mutex_CONNECT_SHARE_mutex, "CONNECT_SHARE::mutex", 0}
+  { &con_key_mutex_connect, "connect", PSI_FLAG_GLOBAL},
+  { &con_key_mutex_CONNECT_SHARE_mutex, "CONNECT_SHARE::mutex", 0}
 };
 
 static void init_connect_psi_keys()
@@ -376,7 +376,7 @@ static int connect_init_func(void *p)
 #endif
 
   connect_hton= (handlerton *)p;
-  mysql_mutex_init(ex_key_mutex_connect, &connect_mutex, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(con_key_mutex_connect, &connect_mutex, MY_MUTEX_INIT_FAST);
 //VOID(mysql_mutex_init(&connect_mutex, MY_MUTEX_INIT_FAST));
   (void) my_hash_init(&connect_open_tables, system_charset_info, 32, 0, 0,
                    (my_hash_get_key) connect_get_key, 0, 0);
@@ -469,7 +469,7 @@ static CONNECT_SHARE *get_share(const char *table_name, TABLE *table)
       goto error;
 
     thr_lock_init(&share->lock);
-    mysql_mutex_init(ex_key_mutex_CONNECT_SHARE_mutex,
+    mysql_mutex_init(con_key_mutex_CONNECT_SHARE_mutex,
                      &share->mutex, MY_MUTEX_INIT_FAST);
     } // endif share
 
@@ -999,8 +999,8 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
         fp->freq= atoi(val);
       } else if (!stricmp(pk, "opt")) {
         fp->opt= atoi(val);
-      } else if (!stricmp(pk, "buflen")) {
-        fp->buflen= atoi(val);
+      } else if (!stricmp(pk, "fldlen") || !stricmp(pk, "field_length")) {
+        fp->fldlen= atoi(val);
       } // endif's
 
       if (!pn)
@@ -1026,7 +1026,6 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 {
   const char *cp;
-  int     len;
   ha_field_option_struct *fop;
   Field*  fp;
   Field* *fldp;
@@ -1095,6 +1094,11 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     case MYSQL_TYPE_DATETIME:
     case MYSQL_TYPE_TIMESTAMP:
       pcf->Type= TYPE_DATE;
+
+      // Field_length is only used for DATE columns
+      if (fop->fldlen)
+        pcf->Length= fop->fldlen;
+
       break;
     case MYSQL_TYPE_LONGLONG:
       pcf->Type= TYPE_BIGINT;
@@ -1121,11 +1125,6 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 //  pcf->Freq= fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
-
-    // This is useful in particular for date columns
-    if ((len= fop->buflen) > pcf->Length)
-      pcf->Length= len;
-
   } else {
     pcf->Offset= -1;
 //  pcf->Freq= 0;
@@ -1524,6 +1523,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
 {
   char    attr_buffer[1024];
   char    data_buffer[1024];
+  char   *fmt;
   int     rc= 0;
   PCOL    colp;
   PVAL    value;
@@ -1573,7 +1573,18 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
             sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
 
             // Get date in the format produced by MySQL fields
-            ((DTVAL*)sdvalin)->SetFormat(g, "YYYY-MM-DD hh:mm:ss", 19);
+            switch (fp->type()) {
+              case MYSQL_TYPE_DATE:
+                fmt= "YYYY-MM-DD";
+                break;
+              case MYSQL_TYPE_TIME:
+                fmt= "hh:mm:ss";
+                break;
+              default:
+                fmt= "YYYY-MM-DD hh:mm:ss";
+              } // endswitch type
+
+            ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
             } // endif sdvalin
 
           fp->val_str(&attribute);
@@ -2266,7 +2277,7 @@ int ha_connect::index_init(uint idx, bool sorted)
   if (indexing <= 0) {
     DBUG_PRINT("index_init", (g->Message));
     printf("index_init CONNECT: %s\n", g->Message);
-    active_index= (uint)-1;
+    active_index= MAX_KEY;
     rc= -1;
   } else {
     if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
@@ -2289,7 +2300,7 @@ int ha_connect::index_init(uint idx, bool sorted)
 int ha_connect::index_end()
 {
   DBUG_ENTER("index_end");
-  active_index= -1;
+  active_index= MAX_KEY;
   DBUG_RETURN(rnd_end());
 } // end of index_end
 
