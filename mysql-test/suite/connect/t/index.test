@@ -14,8 +14,8 @@ CREATE TABLE t1
   sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
   aanais    INT(4) NOT NULL,
   mmnais    INT(2) NOT NULL,
-  ddentree  DATE NOT NULL buf_length=10 date_format='YYMM',
-  ddnom     DATE NOT NULL buf_length=10 date_format='YYMM',
+  ddentree  DATE NOT NULL field_length=6 date_format='YYYYMM',
+  ddnom     DATE NOT NULL field_length=6 date_format='YYYYMM',
   brut      INT(5) NOT NULL,
   net       DOUBLE(8,2) NOT NULL,
   service   INT(2) NOT NULL,
@@ -42,15 +42,12 @@ SELECT * FROM t1 WHERE nom = 'FOCH';
 SELECT * FROM t1 WHERE nom = 'FOCH' and prenom = 'DENIS';
 
 --echo #
---echo # Testing UPDATE (This currently fails
+--echo # Testing UPDATE
 --echo #
-UPDATE t1 SET ddentree = '1980-07-01' WHERE matricule = '0091';
-SELECT * FROM t1 WHERE matricule = '0091';
---echo # Skipping next 4 commands (This currently fails in test mode
---echo # skipped: UPDATE t1 SET aanais = aanais + 16;
---echo # skipped: UPDATE t1 SET ddentree = adddate(ddentree, interval 16 year);
---echo # skipped: UPDATE t1 SET ddnom = adddate(ddnom, interval 16 year);
---echo # skipped: SELECT * FROM t1 WHERE nom = 'FOCH';
+UPDATE t1 SET aanais = aanais + 16;
+UPDATE t1 SET ddentree = adddate(ddentree, interval 16 year);
+UPDATE t1 SET ddnom = adddate(ddnom, interval 16 year);
+SELECT * FROM t1 WHERE nom = 'FOCH';
 
 --echo #
 --echo # Testing JOIN

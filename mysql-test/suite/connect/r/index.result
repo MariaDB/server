@@ -9,8 +9,8 @@ prenom    VARCHAR(20) NOT NULL,
 sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
 aanais    INT(4) NOT NULL,
 mmnais    INT(2) NOT NULL,
-ddentree  DATE NOT NULL buf_length=10 date_format='YYMM',
-ddnom     DATE NOT NULL buf_length=10 date_format='YYMM',
+ddentree  DATE NOT NULL field_length=6 date_format='YYYYMM',
+ddnom     DATE NOT NULL field_length=6 date_format='YYYYMM',
 brut      INT(5) NOT NULL,
 net       DOUBLE(8,2) NOT NULL,
 service   INT(2) NOT NULL,
@@ -75,17 +75,19 @@ SELECT * FROM t1 WHERE nom = 'FOCH' and prenom = 'DENIS';
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 5707	FOCH	DENIS	1	1977	7	1996-07-01	1995-07-01	7803	7679.36	15	C	COMPT
 #
-# Testing UPDATE (This currently fails
+# Testing UPDATE
 #
-UPDATE t1 SET ddentree = '1980-07-01' WHERE matricule = '0091';
-SELECT * FROM t1 WHERE matricule = '0091';
+UPDATE t1 SET aanais = aanais + 16;
+UPDATE t1 SET ddentree = adddate(ddentree, interval 16 year);
+UPDATE t1 SET ddnom = adddate(ddnom, interval 16 year);
+SELECT * FROM t1 WHERE nom = 'FOCH';
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
-91	THIVERNAL	DIDIER JEAN	1	1951	10	1980-07-01	1991-10-01	14715	12024.71	1	M	SANS
-# Skipping next 4 commands (This currently fails in test mode
-# skipped: UPDATE t1 SET aanais = aanais + 16;
-# skipped: UPDATE t1 SET ddentree = adddate(ddentree, interval 16 year);
-# skipped: UPDATE t1 SET ddnom = adddate(ddnom, interval 16 year);
-# skipped: SELECT * FROM t1 WHERE nom = 'FOCH';
+1977	FOCH	BERNADETTE	2	1974	3	2008-02-01	2007-02-01	8656	8145.03	1	.	SANS
+5707	FOCH	DENIS	1	1993	7	2012-07-01	2011-07-01	7803	7679.36	15	C	COMPT
+2552	FOCH	FRANCK	1	1978	12	2002-06-01	2006-11-01	12882	10745.81	13	M	SANS
+2634	FOCH	JOCELYNE	2	1969	3	2012-01-01	2011-01-01	12499	10473.09	41	M	INFOR
+5765	FOCH	ROBERT	1	1973	1	1997-03-01	2009-03-01	16081	12916.32	52	M	ALLEM
+4080	FOCH	SERGE	1	1975	3	1997-03-01	1997-05-01	11131	9658.24	5	M	SANS
 #
 # Testing JOIN
 #
