@@ -36,7 +36,7 @@ SUM(brut)
 #
 # Testing file mapping
 #
-ALTER TABLE T1 MAPPED=yes;
+ALTER TABLE t1 MAPPED=yes;
 Warnings:
 Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
 SELECT * FROM t1 LIMIT 10;
