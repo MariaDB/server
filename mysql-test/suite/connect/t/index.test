@@ -29,7 +29,7 @@ SELECT SUM(brut) from t1;
 --echo #
 --echo # Testing file mapping
 --echo #
-ALTER TABLE T1 MAPPED=yes;
+ALTER TABLE t1 MAPPED=yes;
 SELECT * FROM t1 LIMIT 10;
 SELECT SUM(brut) FROM t1;
 
