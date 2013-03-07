@@ -133,6 +133,7 @@
 #include "ha_connect.h"
 #include "mycat.h"
 #include "myutil.h"
+#include "preparse.h"
 
 #define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
@@ -1061,6 +1062,18 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
   if ((pcf->Length= fp->field_length) < 0)
     pcf->Length= 256;            // BLOB?
 
+  if (fop) {
+    pcf->Offset= fop->offset;
+//  pcf->Freq= fop->freq;
+    pcf->Datefmt= (char*)fop->dateformat;
+    pcf->Fieldfmt= (char*)fop->fieldformat;
+  } else {
+    pcf->Offset= -1;
+//  pcf->Freq= 0;
+    pcf->Datefmt= NULL;
+    pcf->Fieldfmt= NULL;
+  } // endif fop
+
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_VARCHAR:
@@ -1098,6 +1111,22 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
       // Field_length is only used for DATE columns
       if (fop->fldlen)
         pcf->Length= fop->fldlen;
+      else if (pcf->Datefmt) {
+        // Find the (max) length produced by the date format
+        char    buf[256];
+        int     len;
+        PGLOBAL g= GetPlug(table->in_use);
+#if defined(WIN32)
+        struct tm datm= {0,0,0,12,11,112,0,0,0};
+#else   // !WIN32
+        struct tm datm= {0,0,0,12,11,112,0,0,0,0,0};
+#endif  // !WIN32
+        PDTP    pdtp= MakeDateFormat(g, pcf->Datefmt, false, true, 0);
+
+        if ((len= strftime(buf, 256, pdtp->OutFmt, &datm)))
+          pcf->Length= len;
+
+        } // endif Datefmt
 
       break;
     case MYSQL_TYPE_LONGLONG:
@@ -1119,19 +1148,6 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 
   pcf->Key= 0;   // Not used when called from MySQL
   pcf->Remark= fp->comment.str;
-
-  if (fop) {
-    pcf->Offset= fop->offset;
-//  pcf->Freq= fop->freq;
-    pcf->Datefmt= (char*)fop->dateformat;
-    pcf->Fieldfmt= (char*)fop->fieldformat;
-  } else {
-    pcf->Offset= -1;
-//  pcf->Freq= 0;
-    pcf->Datefmt= NULL;
-    pcf->Fieldfmt= NULL;
-  } // endif fop
-
   return fldp;
 } // end of GetColumnOption
 
