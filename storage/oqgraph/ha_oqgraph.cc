@@ -43,6 +43,14 @@
 
 #include "my_dbug.h"
 
+// Uncomment this for extra debug, but expect a performance hit in large queries
+#define VERBOSE_DEBUG
+#ifdef VERBOSE_DEBUG
+#else
+#undef DBUG_PRINT
+#define DBUG_PRINT(x)
+#endif
+
 #define OQGRAPH_STATS_UPDATE_THRESHOLD 10
 
 using namespace open_query;
@@ -63,6 +71,14 @@ static const oqgraph_latch_op_table latch_ops_table[] = {
   { NULL, -1 }  
 };
 
+static const char *latchToCode(int latch) {
+  for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
+    if (k->latch == latch) {
+      return k->key;
+    }
+  }
+  return "unknown";
+}
 
 struct oqgraph_table_option_struct
 {
@@ -704,7 +720,7 @@ static bool parse_latch_string_to_legacy_int(const String& value, int &latch)
   }
   char *eptr;
   unsigned long int v = strtoul( lex.str, &eptr, 10);
-  if (!*eptr) {
+  if (!*eptr || eptr == lex.str + lex.length) { // strtoul will 'fail' if non-zero terminated string followed by not 0x0
     // we had an unsigned number. 
     if (v > 0 && v < oqgraph::NUM_SEARCH_OP) {
       latch = v;
@@ -715,7 +731,7 @@ static bool parse_latch_string_to_legacy_int(const String& value, int &latch)
 
   const oqgraph_latch_op_table* entry = latch_ops_table;
   for ( ; entry->key ; entry++) {
-    if (0 == strcmp(entry->key, lex.str)) {
+    if (0 == strncmp(entry->key, lex.str, lex.length)) {
       latch = entry->latch;
       return true;
     }
@@ -765,7 +781,6 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
         return error_code(oqgraph::NO_MORE_DATA);
       }
     }
-    DBUG_PRINT( "oq-debug", ("latch:%d", latch));
     latchp= &latch;
   }
 
@@ -789,7 +804,13 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
 
+  
+  DBUG_PRINT( "oq-debug", ("index_read_idx ::>> search(latch:%s,%ld,%ld)", 
+          latchToCode(latch), orig_idp?(long)*orig_idp:-1, dest_idp?(long)*dest_idp:-1));
+  
   res= graph->search(latchp, orig_idp, dest_idp);
+
+  DBUG_PRINT( "oq-debug", ("search() = %d", res));
 
   if (!res && !(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
@@ -816,11 +837,29 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     field[5]->move_field_offset(ptrdiff);
   }
 
+  DBUG_PRINT( "oq-debug", ("fill_record() ::>> %s,%ld,%ld,%lf,%ld,%ld", 
+          row.latch_indicator ? latchToCode((int)row.latch) : "-",
+          row.orig_indicator ? (long)row.orig : -1,
+          row.dest_indicator ? (long)row.dest : -1,
+          row.weight_indicator ? (double)row.weight : -1,
+          row.seq_indicator ? (long)row.seq : -1,
+          row.link_indicator ? (long)row.link : -1));
+
   // just each field specifically, no sense iterating
   if (row.latch_indicator)
   {
     field[0]->set_notnull();
-    field[0]->store((longlong) row.latch, 0);
+    // Convert the latch back to a varchar32
+    if (field[0]->type() == MYSQL_TYPE_VARCHAR) {
+      const char *code = latchToCode(row.latch); // Presumably this could be modified to return a String
+      field[0]->store(code, strlen(code), &my_charset_latin1);
+    }
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+    else if (field[0]->type() == MYSQL_TYPE_SHORT) {
+      field[0]->store((longlong) row.latch, 0);    
+    }
+#endif
+    
   }
 
   if (row.orig_indicator)
@@ -960,6 +999,15 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
                                   key_range *max_key)
 {
   KEY *key=table->key_info+inx;
+#ifdef VERBOSE_DEBUG  
+  {
+    String temp;
+    key->key_part[0].field->val_str(&temp);  
+    temp.c_ptr_safe();
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> inx=%u", inx));
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> key0=%s.", temp.c_ptr())); // for some reason when I had  ...inx=%u key=%s", inx, temp.c_ptr_safe()) it printed nothing ...
+  }
+#endif
 
   if (!min_key || !max_key ||
       min_key->length != max_key->length ||
@@ -969,14 +1017,70 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
   {
     if (min_key->length == key->key_part[0].store_length)
     {
-      // If latch is not null and equals 0, return # nodes
+      // If latch is not null and equals 0, return # nodes      
+        
+      // How to decode the key,  For VARCHAR(32), from empirical observation using the debugger
+      // and information gleaned from:
+      //   http://grokbase.com/t/mysql/internals/095h6ch1q7/parsing-key-information
+      //   http://dev.mysql.com/doc/internals/en/support-for-indexing.html#parsing-key-information
+      //   comments in opt_range.cc
+      // POSSIBLY ONLY VALID FOR INNODB!
+        
+      // For a the following query:
+      //     SELECT * FROM graph2 WHERE latch = 'breadth_first' AND origid = 123 AND weight = 1;
+      // key->key_part[0].field->ptr  is the value of latch, which is a 1-byte string length followed by the value ('breadth_first')
+      // key->key_part[2].field->ptr  is the value of origid (123)
+      // key->key_part[1].field->ptr  is the value of destid which is not specified in the query so we ignore it in this case
+      // so given this ordering we seem to be using the second key specified in create table (aka KEY (latch, destid, origid) USING HASH ))
       
-      // This assertion is not valid anymore if we are using a VARCHAR latch.
-      DBUG_ASSERT(key->key_part[0].store_length == 3);
+      // min_key->key[0] is the 'null' bit and contains 0 in this instance
+      // min_key->key[1..2] seems to be 16-bit string length
+      // min_key->key[3..34] hold the varchar(32) value which is that specified in the query
+      // min_key->key[35] is the null bit of origid
+      // min_key->key[36..43] is the value in the query (123)
       
-      if (key->key_part[0].null_bit && !min_key->key[0] &&
-          !min_key->key[1] && !min_key->key[2])
-        return graph->vertices_count();
+      // max_key->key[0] is the ;null' bit and contains 0 in this instance
+      // max_key->key[1..2] seems to be 16-bit string length
+      // max_key->key[3..34] hold the varchar(32) value which is that specified in the query
+      // max_key->key[35] is the null bit of origid
+      // max_key->key[36..43] is the value in the query (123)
+
+      // But after knowing all that, all we care about is the latch value
+      
+      // First draft - ignore most of the stuff, but will likely break if query altered
+      
+      // It turns out there is a better way though, to access the string,
+      // as demonstrated in key_unpack() of sql/key.cc
+      String latchCode;
+      int latch = -1;
+      if (key->key_part[0].field->type() == MYSQL_TYPE_VARCHAR) {
+
+        key->key_part[0].field->val_str(&latchCode);
+        
+        parse_latch_string_to_legacy_int( latchCode, latch);
+      }
+      
+      // what if someone did something dumb, like mismatching the latches?
+      
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+      else if (key->key_part[0].field->type() == MYSQL_TYPE_SHORT) {
+        // If not null, and zero ...
+        // Note, the following code relies on the fact that the three bytes
+        // at beginning of min_key just happen to be the null indicator and the
+        // 16-bit value of the latch ...
+        // this will fall through if the user alter-tabled to not null
+        if (key->key_part[0].null_bit && !min_key->key[0] &&
+          !min_key->key[1] && !min_key->key[2]) {
+          latch = oqgraph::NO_SEARCH;
+        }
+      }
+#endif     
+      if (latch != oqgraph::NO_SEARCH) {
+        // Invalid key type... 
+        // Don't assert, in case the user used alter table on us
+        return HA_POS_ERROR;			// Can only use exact keys
+      }
+      return graph->vertices_count();
     }
     return HA_POS_ERROR;			// Can only use exact keys
   }
@@ -1002,7 +1106,7 @@ int ha_oqgraph::create(const char *name, TABLE *table_arg,
 	DBUG_ENTER("ha_oqgraph::create");
   DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
 
-  if (int res = oqgraph_check_table_structure(table_arg)) {
+  if (oqgraph_check_table_structure(table_arg)) {
     DBUG_RETURN(HA_WRONG_CREATE_OPTION);
   }
 
