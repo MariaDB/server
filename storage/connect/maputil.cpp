@@ -133,7 +133,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
     case MODE_UPDATE:
     case MODE_DELETE:
       openMode = (del) ? (O_RDWR | O_TRUNC) : O_RDWR;
-      protmode = PROT_WRITE;
+      protmode = PROT_READ | PROT_WRITE;
       break;
     case MODE_INSERT:
       openMode = (O_WRONLY | O_CREAT | O_APPEND);
@@ -167,15 +167,23 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
     } else {
       strcpy(g->Message, "Memory mapping failed");
       return INVALID_HANDLE_VALUE;
+    } // endif memory
+
     }  /* endif fd */
   
-    // mmap() call was successful. ??????????
-    return fd;
+  // mmap() call was successful. ??????????
+  return fd;
   }  // end of CreateFileMap
 
 bool CloseMemMap(void *memory, size_t dwSize) 
   {
-  return (memory) ? ((munmap(memory, dwSize)) ? true : false) : false;
+  if (memory) {
+    // All this must be redesigned
+    int rc = msync(memory, dwSize, MS_SYNC);
+    return (munmap(memory, dwSize)) ? true : false;
+  } else
+    return false;
+
   }  // end of CloseMemMap
 
 #endif   // UNIX
