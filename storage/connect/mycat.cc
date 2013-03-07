@@ -124,6 +124,32 @@ TABTYPE GetTypeID(const char *type)
   } // end of GetTypeID
 
 /***********************************************************************/
+/*  Return true for table types based on file.                         */
+/***********************************************************************/
+bool IsFileType(TABTYPE type)
+  {
+  bool isfile;
+
+  switch (type) {                      
+    case TAB_DOS:
+    case TAB_FIX:
+    case TAB_BIN:
+	  case TAB_CSV:
+    case TAB_FMT:
+    case TAB_DBF:
+    case TAB_XML:
+    case TAB_VEC:
+      isfile= true;
+      break;
+    default:
+      isfile= false;
+      break;
+    } // endswitch type
+
+  return isfile;
+  } // end of IsFileType
+
+/***********************************************************************/
 /*  Get a unique enum catalog function ID.                             */
 /***********************************************************************/
 uint GetFuncID(const char *func)

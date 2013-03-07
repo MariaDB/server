@@ -1111,22 +1111,27 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
       // Field_length is only used for DATE columns
       if (fop->fldlen)
         pcf->Length= fop->fldlen;
-      else if (pcf->Datefmt) {
-        // Find the (max) length produced by the date format
-        char    buf[256];
-        int     len;
-        PGLOBAL g= GetPlug(table->in_use);
+      else { 
+        int len;
+
+        if (pcf->Datefmt) {
+          // Find the (max) length produced by the date format
+          char    buf[256];
+          PGLOBAL g= GetPlug(table->in_use);
 #if defined(WIN32)
-        struct tm datm= {0,0,0,12,11,112,0,0,0};
+          struct tm datm= {0,0,0,12,11,112,0,0,0};
 #else   // !WIN32
-        struct tm datm= {0,0,0,12,11,112,0,0,0,0,0};
+          struct tm datm= {0,0,0,12,11,112,0,0,0,0,0};
 #endif  // !WIN32
-        PDTP    pdtp= MakeDateFormat(g, pcf->Datefmt, false, true, 0);
+          PDTP    pdtp= MakeDateFormat(g, pcf->Datefmt, false, true, 0);
 
-        if ((len= strftime(buf, 256, pdtp->OutFmt, &datm)))
-          pcf->Length= len;
+          len= strftime(buf, 256, pdtp->OutFmt, &datm);
+        } else
+          len= 0;
 
-        } // endif Datefmt
+        // 11 is for signed numeric representation of the date
+        pcf->Length= (len) ? len : 11;
+        } // endelse
 
       break;
     case MYSQL_TYPE_LONGLONG:
@@ -3520,6 +3525,19 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
                         fncn, typn);
     ok= false;
     } // endif supfnc
+
+  // If file name is not specified, set a default file name
+  // in the database directory from alias.type.
+  if (IsFileType(ttp) && !fn) {
+    char buf[256];
+
+    strcat(strcat(strcpy(buf, (char*)create_info->alias), "."), typn); 
+    name= thd->make_lex_string(NULL, "file_name", 9, true);
+    val= thd->make_lex_string(NULL, buf, strlen(buf), true);
+    pov= new(mem) engine_option_value(*name, *val, false, &start, &end);
+    sprintf(g->Message, "Unspecified file name was set to %s", buf);
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    } // endif ttp && fn
 
   // Test whether columns must be specified
   if (alter_info->create_list.elements)

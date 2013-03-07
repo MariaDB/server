@@ -35,6 +35,7 @@
 typedef class ha_connect     *PHC;
 
 TABTYPE GetTypeID(const char *type);
+bool    IsFileType(TABTYPE type);
 uint    GetFuncID(const char *func);
 
 /***********************************************************************/
