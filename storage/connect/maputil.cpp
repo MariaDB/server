@@ -117,6 +117,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
                          MEMMAP *mm, MODE mode, bool del) 
   {
   unsigned int openMode;
+  int          protmode;
   HANDLE       fd;
   size_t       filesize;
   struct stat  st; 
@@ -127,13 +128,16 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
   switch (mode) {
     case MODE_READ:
       openMode = O_RDONLY;
+      protmode = PROT_READ;
       break;
     case MODE_UPDATE:
     case MODE_DELETE:
       openMode = (del) ? (O_RDWR | O_TRUNC) : O_RDWR;
+      protmode = PROT_WRITE;
       break;
     case MODE_INSERT:
       openMode = (O_WRONLY | O_CREAT | O_APPEND);
+      protmode = PROT_WRITE;
       break;
      default:
       sprintf(g->Message, MSG(BAD_FUNC_MODE), "CreateFileMap", mode);
@@ -155,13 +159,20 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
     
     // Now we are ready to load the file.  If mmap() is available we try
     //   this first.  If not available or it failed we try to load it.
-    mm->memory = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
-    mm->lenL = (mm->memory != 0) ? filesize : 0;
-    mm->lenH = 0;
+    mm->memory = mmap(NULL, filesize, protmode, MAP_PRIVATE, fd, 0);
+
+    if (mm->memory) {
+      mm->lenL = (mm->memory != 0) ? filesize : 0;
+      mm->lenH = 0;
+    } else {
+      strcpy(g->Message, "Memory mapping failed");
+      return INVALID_HANDLE_VALUE;
+    } endif // memory
+
     }  /* endif fd */
   
-  // mmap() call was successful. ??????????
-   return fd;
+    // mmap() call was successful. ??????????
+    return fd;
   }  // end of CreateFileMap
 
 bool CloseMemMap(void *memory, size_t dwSize) 
