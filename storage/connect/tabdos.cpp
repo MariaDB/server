@@ -284,15 +284,11 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   {
   // Mapping not used for insert
   USETEMP tmp = PlgGetUser(g)->UseTemp;
-#if defined(WIN32)
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && Recfm == RECFM_VAR
-                       && mode == MODE_UPDATE) &&
+                                && mode == MODE_UPDATE) &&
                 !(tmp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
-#else   // !WIN32
-  bool    map = Mapped && mode == MODE_READ;
-#endif  // !WIN32
   PTXF    txfp;
   PTDBASE tdbp;
 

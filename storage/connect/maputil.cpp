@@ -159,9 +159,9 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
     
     // Now we are ready to load the file.  If mmap() is available we try
     //   this first.  If not available or it failed we try to load it.
-    mm->memory = mmap(NULL, filesize, protmode, MAP_PRIVATE, fd, 0);
+    mm->memory = mmap(NULL, filesize, protmode, MAP_SHARED, fd, 0);
 
-    if (mm->memory) {
+    if (mm->memory != MAP_FAILED) {
       mm->lenL = (mm->memory != 0) ? filesize : 0;
       mm->lenH = 0;
     } else {
@@ -180,7 +180,7 @@ bool CloseMemMap(void *memory, size_t dwSize)
   if (memory) {
     // All this must be redesigned
     int rc = msync(memory, dwSize, MS_SYNC);
-    return (munmap(memory, dwSize)) ? true : false;
+    return (munmap(memory, dwSize) < 0) ? true : false;
   } else
     return false;
 

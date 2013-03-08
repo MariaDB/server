@@ -197,13 +197,9 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   /*********************************************************************/
   // Mapping not used for insert (except for true VEC not split tables)
   // or when UseTemp is forced
-#if defined(WIN32)
   bool map = Mapped && (Estimate || mode != MODE_INSERT) &&
              !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
              (mode == MODE_UPDATE || mode == MODE_DELETE));
-#else   // !WIN32
-  bool map = Mapped && mode == MODE_READ;
-#endif  // !WIN32
   PTXF txfp;
   PTDB tdbp;
 
