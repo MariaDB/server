@@ -5,9 +5,10 @@ CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
 Warnings:
 Warning	1105	Unknown Table_type 'NON_EXISTING'
 Warning	1105	Using Table_type DOS
+Warning	1105	Unspecified file name was set to t1.DOS
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=DOS
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=DOS `file_name`=t1.DOS
 DROP TABLE t1;
