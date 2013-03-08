@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
+DROP TABLE IF EXISTS graph2;
 
 CREATE TABLE graph_base (
     from_id INT UNSIGNED NOT NULL,
@@ -8,6 +9,7 @@ CREATE TABLE graph_base (
     INDEX (to_id)
   ) ENGINE=MyISAM;
 
+-- Backwards compat test - should provide a deprecation warning if we do show warnings
 CREATE TABLE graph (
     latch   SMALLINT  UNSIGNED NULL,
     origid  BIGINT    UNSIGNED NULL,
@@ -19,6 +21,18 @@ CREATE TABLE graph (
     KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
 
+CREATE TABLE graph2 (
+    latch   VARCHAR(32) NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+
 INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);
@@ -26,13 +40,43 @@ INSERT INTO graph_base(from_id, to_id) VALUES (5,6), (6,5);
 
 SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND weight = 1;
 
+
+-- expected:
+-- +-------+--------+--------+--------+------+--------+
+-- | latch | origid | destid | weight | seq  | linkid |
+-- +-------+--------+--------+--------+------+--------+
+-- |     2 |      1 |   NULL |      1 |    3 |      3 |
+-- |     2 |      1 |   NULL |      1 |    2 |      2 |
+-- +-------+--------+--------+--------+------+--------+
+-- reset query cache ; flush query cache;
+
+SELECT * FROM graph2 WHERE latch = 'breadth_first' AND origid = 1 AND weight = 1;   -- works
+SELECT * FROM graph2 WHERE latch = '2' AND origid = 1 AND weight = 1;               -- as above
+SELECT * FROM graph2 WHERE latch = 2 AND origid = 1 AND weight = 1;                 -- currently, FAILs - empty set should be as above
+
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=1 AND destid=6;
+SELECT * FROM graph2 WHERE latch='1' AND origid=1 AND destid=6;
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=1 AND destid=4;
+SELECT * FROM graph2 WHERE latch='1' AND origid=1 AND destid=4;
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=4 AND destid=1;
+SELECT * FROM graph2 WHERE latch='1' AND origid=4 AND destid=1;
+
+SELECT * FROM graph2 WHERE latch='no_search' and destid=2 and origid=1;  -- works
+SELECT * FROM graph2 WHERE latch=0 and destid=2 and origid=1;            -- current FAIL - empty set
+SELECT * FROM graph2 WHERE latch='0' and destid=2 and origid=1;          -- causes assertion (at least in debug build, havent tested normal)
+
+SELECT * FROM graph2 WHERE latch=NULL and destid=2 and origid=1;
+
 SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND weight = 2;
 
 SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND (weight = 1 OR weight = 2);
+SELECT * FROM graph2 WHERE latch = 'breadth_first' AND origid = 1 AND (weight = 1 OR weight = 2);
 
 SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=6;
 SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=4;
 SELECT * FROM graph WHERE latch=1 AND origid=4 AND destid=1;
+
+
 
 INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
 
@@ -41,6 +85,9 @@ DELETE FROM graph_base WHERE from_id=3 AND to_id=5;
 
 SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=6;
 SELECT * FROM graph WHERE latch=1 AND origid=6 AND destid=1;
+
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=1 AND destid=6;
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=6 AND destid=1;
 
 DELETE FROM graph_base;
 FLUSH TABLES;

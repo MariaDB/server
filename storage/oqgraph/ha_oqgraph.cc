@@ -694,6 +694,9 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   return error_code(res);
 }
 
+#define LATCH_WAS CODE 0
+#define LATCH_WAS_NUMBER 1
+
 /**
  * This function parse the VARCHAR(n) latch specification into an integer operation specification compatible with 
  * v1-v3 oqgraph::search().
@@ -707,20 +710,22 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
  * FIXME: For the time being, only handles latin1 character set.
  * @return false if parsing fails.
  */   
-static bool parse_latch_string_to_legacy_int(const String& value, int &latch)
+static int parse_latch_string_to_legacy_int(const String& value, int &latch)
 {
-  // attempt to parse as an integer first.
-  // to be nice we trim whitespace
-  LEX_STRING lex = value.lex_string();
-  trim_whitespace( &my_charset_latin1, &lex);
-  if (!strlen(lex.str)) {
-    // treat an empty string same as (LATCH=NULL) in query
-    latch = oqgraph::NO_SEARCH;
-    return true;
-  }
+  // Attempt to parse as exactly an integer first.
+  
+  // Note: we are strict about not having whitespace, or garbage characters,
+  // so that the query result gets returned properly: 
+  // Because of the way the result is built and used in fill_result,
+  // we have to exactly return in the latch column what was in the latch= clause
+  // otherwise the rows get filtered out by the query optimiser.
+  
+  // For the same reason, we cant simply treat latch='' as NO_SEARCH either.
+  
+  String latchValue = value;
   char *eptr;
-  unsigned long int v = strtoul( lex.str, &eptr, 10);
-  if (!*eptr || eptr == lex.str + lex.length) { // strtoul will 'fail' if non-zero terminated string followed by not 0x0
+  unsigned long int v = strtoul( latchValue.c_ptr_safe(), &eptr, 10);
+  if (!*eptr) {
     // we had an unsigned number. 
     if (v > 0 && v < oqgraph::NUM_SEARCH_OP) {
       latch = v;
@@ -731,7 +736,7 @@ static bool parse_latch_string_to_legacy_int(const String& value, int &latch)
 
   const oqgraph_latch_op_table* entry = latch_ops_table;
   for ( ; entry->key ; entry++) {
-    if (0 == strncmp(entry->key, lex.str, lex.length)) {
+    if (0 == strncmp(entry->key, latchValue.c_ptr_safe(), latchValue.length())) {
       latch = entry->latch;
       return true;
     }
@@ -764,6 +769,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     field[2]->move_field_offset(ptrdiff);
   }
 
+  String latchFieldValue;
   if (!field[0]->is_null())
   {
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
@@ -772,9 +778,8 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
     } else 
 #endif
     {
-      String value;
-      field[0]->val_str(&value, &value);
-      if (!parse_latch_string_to_legacy_int(value, latch)) {
+      field[0]->val_str(&latchFieldValue, &latchFieldValue);
+      if (!parse_latch_string_to_legacy_int(latchFieldValue, latch)) {
         // Invalid, so warn & fail
         push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
         table->status = STATUS_NOT_FOUND;
@@ -804,6 +809,14 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   }
   dbug_tmp_restore_column_map(table->read_set, old_map);
 
+  // Keep the latch around so we can use it in the query result later -
+  // See fill_record().
+  // at the moment our best option is to associate it with the graph
+  // so we pass the string now.
+  // In the future we should refactor parse_latch_string_to_legacy_int()
+  // into oqgraph instead.
+  graph->retainLatchFieldValue(latchFieldValue.c_ptr_safe());
+    
   
   DBUG_PRINT( "oq-debug", ("index_read_idx ::>> search(latch:%s,%ld,%ld)", 
           latchToCode(latch), orig_idp?(long)*orig_idp:-1, dest_idp?(long)*dest_idp:-1));
@@ -812,8 +825,9 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   DBUG_PRINT( "oq-debug", ("search() = %d", res));
 
-  if (!res && !(res= graph->fetch_row(row)))
+  if (!res && !(res= graph->fetch_row(row))) {
     res= fill_record(buf, row);
+  }
   table->status = res ? STATUS_NOT_FOUND : 0;
   return error_code(res);
 }
@@ -851,8 +865,7 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
     field[0]->set_notnull();
     // Convert the latch back to a varchar32
     if (field[0]->type() == MYSQL_TYPE_VARCHAR) {
-      const char *code = latchToCode(row.latch); // Presumably this could be modified to return a String
-      field[0]->store(code, strlen(code), &my_charset_latin1);
+      field[0]->store(row.latchStringValue, row.latchStringValueLen, &my_charset_latin1);
     }
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
     else if (field[0]->type() == MYSQL_TYPE_SHORT) {
@@ -1080,18 +1093,23 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
         // Don't assert, in case the user used alter table on us
         return HA_POS_ERROR;			// Can only use exact keys
       }
-      return graph->vertices_count();
+      unsigned N = graph->vertices_count();
+      DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (vertices)", N));
+      return N;
     }
     return HA_POS_ERROR;			// Can only use exact keys
   }
 
-  if (stats.records <= 1)
+  if (stats.records <= 1) {
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (stats)", stats.records));
     return stats.records;
+  }
 
   /* Assert that info() did run. We need current statistics here. */
   //DBUG_ASSERT(key_stat_version == share->key_stat_version);
   //ha_rows result= key->rec_per_key[key->key_parts-1];
   ha_rows result= 10;
+  DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", result));
 
   return result;
 }
