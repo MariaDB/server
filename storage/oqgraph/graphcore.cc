@@ -23,6 +23,7 @@
 */
 
 #include <string.h>
+#include <cstdlib>
 
 #include "graphcore-config.h"
 #include "graphcore-graph.h"
@@ -46,7 +47,7 @@
 using namespace open_query;
 using namespace boost;
 
-static const row empty_row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+static const row empty_row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 extern "C" const char* const oqgraph_boost_version= BOOST_LIB_VERSION;
 
@@ -411,11 +412,12 @@ namespace open_query {
 namespace open_query
 {
   inline oqgraph::oqgraph(oqgraph_share *arg) throw()
-    : share(arg), cursor(0)
+    : share(arg), cursor(0), lastRetainedLatch(NULL)
   { }
 
   inline oqgraph::~oqgraph() throw()
   {
+    std::free(lastRetainedLatch);
     delete cursor;
   }
 
@@ -669,6 +671,20 @@ namespace open_query
   }
 #endif
 
+  // THIS IS UGLY - refactor later
+  // Update the retained latch string value, for later retrieval by
+  // fetch_row() as a workaround for making sure we return the correct
+  // string to match the latch='' clause
+  // (This is a hack for mariadb mysql compatibility)
+  // IT SHOULD ONLY BE CALLED IMMEIDATELY BEFORE search)(
+  void oqgraph::retainLatchFieldValue(const char *retainedLatch) 
+  {
+    // attempting to use std::string broke lots of stuff
+    // Probably more efficient to use mysql String class, FIXME later
+    if (lastRetainedLatch) { std::free(lastRetainedLatch); lastRetainedLatch = NULL; }
+    if (retainedLatch) { lastRetainedLatch = strdup(retainedLatch); }
+  }
+
 
   int oqgraph::search(int *latch, VertexID *orig_id, VertexID *dest_id) throw()
   {
@@ -677,8 +693,11 @@ namespace open_query
 
       delete cursor; cursor= 0;
       row_info= empty_row;
-      if ((row_info.latch_indicator= latch))
+      if ((row_info.latch_indicator= latch)) {
         op= ALGORITHM & (row_info.latch= *latch);
+        row_info.latchStringValue = lastRetainedLatch;
+        row_info.latchStringValueLen = strlen(lastRetainedLatch);
+      }
       if ((row_info.orig_indicator= orig_id) && (op|= HAVE_ORIG))
         orig= share->find_vertex((row_info.orig= *orig_id));
       if ((row_info.dest_indicator= dest_id) && (op|= HAVE_DEST))
