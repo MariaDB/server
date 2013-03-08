@@ -249,6 +249,12 @@ bool TDBFIX::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
+    // Delete all lines. Not handled in MAP mode
+    Txfp = new(g) FIXFAM((PDOSDEF)To_Def);
+    Txfp->SetTdbp(this);
+    } // endif Mode
+
   /*********************************************************************/
   /*  Call Cardinality to calculate Block in the case of Func queries. */
   /*  and also in the case of multiple tables.                         */

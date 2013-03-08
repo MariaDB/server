@@ -299,18 +299,11 @@ bool TDBVCT::OpenDB(PGLOBAL g)
     } // endif Use
 
   /*********************************************************************/
-  /*  Insert is not handled using file mapping.                        */
+  /*  Delete all is not handled using file mapping.                    */
   /*********************************************************************/
-  if (Mode == MODE_INSERT && !((PVCTDEF)To_Def)->GetEstimate() && 
-              Txfp->GetAmType() == TYPE_AM_VMP) {
-    if (!((PVCTFAM)Txfp)->Split) {
-      Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
-      Txfp->SetTdbp(this);
-    } else {
-      Txfp = new(g) VECFAM((PVCTDEF)To_Def);
-      Txfp->SetTdbp(this);
-    } // endif Split
-
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
+    Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
+    Txfp->SetTdbp(this);
     } // endif Mode
 
   /*********************************************************************/
