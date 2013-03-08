@@ -444,10 +444,14 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 
   if (Catfunc != FNC_COL) {
     USETEMP tmp = PlgGetUser(g)->UseTemp;
+#if defined(WIN32)
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                   !(tmp == TMP_FORCE &&
                   (mode == MODE_UPDATE || mode == MODE_DELETE));
+#else   // !WIN32
+    bool    map = Mapped && mode == MODE_READ;
+#endif  // !WIN32
     PTXF    txfp;
 
     /*******************************************************************/
