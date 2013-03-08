@@ -721,7 +721,11 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
-  if (Txfp->Blocked && (Mode == MODE_DELETE ||
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS) {
+    // Delete all lines. Not handled in MAP or block mode
+    Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
+    Txfp->SetTdbp(this);
+  } else if (Txfp->Blocked && (Mode == MODE_DELETE ||
       (Mode == MODE_UPDATE && PlgGetUser(g)->UseTemp != TMP_NO))) {
     /*******************************************************************/
     /*  Delete is not currently handled in block mode neither Update   */
