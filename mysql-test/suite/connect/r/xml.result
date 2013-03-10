@@ -16,7 +16,7 @@ DATEPUB INT(4)
 SELECT * FROM t1;
 AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
-TRANSLATOR	
+TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 AUTHOR	William J. Pardi
@@ -38,12 +38,12 @@ DATEPUB INT(4)
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   OPTION_LIST='xmlsup=libxml2';
 SELECT * FROM t1;
-author	
+author	NULL
 TITLE	Construire une application XML
-TRANSLATOR	
+TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1999
-author	
+author	NULL
 TITLE	XML en Action
 TRANSLATOR	James Guerin
 PUBLISHER	Microsoft Press Paris
@@ -76,10 +76,10 @@ SUBJECT CHAR(32)
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   OPTION_LIST='Coltype=@,xmlsup=libxml2';
 SELECT * FROM t1;
-isbn	
+isbn	NULL
 LANG	fr
 SUBJECT	applications
-isbn	
+isbn	NULL
 LANG	fr
 SUBJECT	applications
 DROP TABLE t1;
@@ -104,7 +104,7 @@ LANG	fr
 SUBJECT	applications
 AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
-TRANSLATOR	
+TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 ISBN	9782840825685
@@ -140,7 +140,7 @@ LANG	fr
 SUBJECT	applications
 AUTHOR	Jean-Christophe Bernadac
 TITLE	Construire une application XML
-TRANSLATOR	
+TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1999
 ISBN	9782840825685
@@ -156,7 +156,7 @@ LANG	fr
 SUBJECT	général
 AUTHOR	Alain Michard
 TITLE	XML, Langage et Applications
-TRANSLATOR	
+TRANSLATOR	NULL
 PUBLISHER	Eyrolles Paris
 DATEPUB	1998
 SELECT LOAD_FILE('test/xsample2.xml');
@@ -228,9 +228,9 @@ subject	applications
 authorfn	Jean-Christophe
 authorln	Bernadac
 title	Construire une application XML
-translated	
-tranfn	
-tranln	
+translated	NULL
+tranfn	NULL
+tranln	NULL
 publisher	Eyrolles
 location	Paris
 year	1999
@@ -264,8 +264,8 @@ isbn       CHAR(15) FIELD_FORMAT='@isbn'
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=libxml2';
 SELECT * FROM t1;
-isbn	
-isbn	
+isbn	NULL
+isbn	NULL
 DROP TABLE t1;
 #
 # Testing character sets

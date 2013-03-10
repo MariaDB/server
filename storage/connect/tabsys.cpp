@@ -507,12 +507,20 @@ void INICOL::ReadColumn(PGLOBAL g)
       Valbuf[Long] = '\0';
       break;
     default:
-      GetPrivateProfileString(tdbp->Section, Name, "",
+      GetPrivateProfileString(tdbp->Section, Name, "µ",
                                         Valbuf, Long + 1, tdbp->Ifile);
       break;
     } // endswitch Flag
 
-  Value->SetValue_psz(Valbuf);
+  // Missing keys are interpreted as null values
+  if (!strcmp(Valbuf, "µ")) {
+    if (Nullable)
+      Value->SetNull(true);
+
+    Value->Reset();              // Null value
+  } else
+    Value->SetValue_psz(Valbuf);
+
   } // end of ReadColumn
 
 /***********************************************************************/

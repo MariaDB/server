@@ -258,8 +258,9 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *table,
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
+    // We fix a MySQL limit because some data sources return 32767
     n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-    maxres = (n) ? (int)n : 250;
+    maxres = (n) ? min(n, 4096) : 4096;
     n = ocp->GetMaxValue(SQL_MAX_QUALIFIER_NAME_LEN);
     length[0] = (n) ? (n + 1) : 128;
     n = ocp->GetMaxValue(SQL_MAX_USER_NAME_LEN);

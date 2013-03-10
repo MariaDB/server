@@ -2761,10 +2761,10 @@ int ha_connect::info(uint flag)
 
   if (!valid_info) {
     // tdbp must be available to get updated info
-    if (!tdbp || xp->CheckQuery(valid_query_id)) {
+    if (xp->CheckQuery(valid_query_id) || !tdbp) {
       if (xmod == MODE_ANY) {               // Pure info, not a query
         pure= true;
-//      xmod= MODE_READ;
+        xp->CheckCleanup();
         } // endif xmod
 
 //    tdbp= OpenTable(g, xmod == MODE_DELETE);

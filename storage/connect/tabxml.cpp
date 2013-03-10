@@ -1222,10 +1222,14 @@ void XMLCOL::ReadColumn(PGLOBAL g)
         longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
       } // endswitch
 
-  } else
-    *Valbuf = '\0';
+    Value->SetValue_psz(Valbuf);
+  } else {
+    if (Nullable)
+      Value->SetNull(true);
 
-  Value->SetValue_psz(Valbuf);
+    Value->Reset();              // Null value
+  } // endif ValNode
+
   Nx = Tdbp->Irow;
   } // end of ReadColumn
 
@@ -1400,45 +1404,50 @@ void XMULCOL::ReadColumn(PGLOBAL g)
   else if (Sx == Tdbp->Nsub)
     return;                                 // Same row
 
-  n = Nl->GetLength();
-  *(p = Valbuf) = '\0';
-  len = Long;
+  if ((n = Nl->GetLength())) {
+    *(p = Valbuf) = '\0';
+    len = Long;
 
-  for (i = Tdbp->Nsub; i < n; i++) {
-    ValNode = Nl->GetItem(g, i, Vxnp);
+    for (i = Tdbp->Nsub; i < n; i++) {
+      ValNode = Nl->GetItem(g, i, Vxnp);
 
-    if (ValNode->GetType() != XML_ELEMENT_NODE &&
-        ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-      sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-      longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endif type
-
-    // Get the Xname value from the XML file
-    switch (ValNode->GetContent(g, p, len + 1)) {
-      case RC_OK:
-        break;
-      case RC_INFO:
-        PushWarning(g, Tdbp);
-        break;
-      default:
+      if (ValNode->GetType() != XML_ELEMENT_NODE &&
+          ValNode->GetType() != XML_ATTRIBUTE_NODE) {
+        sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
         longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-      } // endswitch
+        } // endif type
 
-    if (!Tdbp->Xpand) {
-      // Concatenate all values
-      if (n - i > 1)
-        strncat(Valbuf, ", ", Long + 1);
+      // Get the Xname value from the XML file
+      switch (ValNode->GetContent(g, p, len + 1)) {
+        case RC_OK:
+          break;
+        case RC_INFO:
+          PushWarning(g, Tdbp);
+          break;
+        default:
+          longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+        } // endswitch
 
-      len -= strlen(p);
-      p += strlen(p);
-    } else
-      break;
+      if (!Tdbp->Xpand) {
+        // Concatenate all values
+        if (n - i > 1)
+          strncat(Valbuf, ", ", Long + 1);
 
-    } // endfor i
+        len -= strlen(p);
+        p += strlen(p);
+      } else
+        break;
 
-//  } // endif Nx
+      } // endfor i
 
-  Value->SetValue_psz(Valbuf);
+    Value->SetValue_psz(Valbuf);
+  } else {
+    if (Nullable)
+      Value->SetNull(true);
+
+    Value->Reset();              // Null value
+  } // endif ValNode
+
   Nx = Tdbp->Irow;
   Sx = Tdbp->Nsub;
   Tdbp->NextSame = (Tdbp->Xpand && Nl->GetLength() - Sx > 1);
@@ -1640,9 +1649,7 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
     longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
     } // endif Clist
 
-  *Valbuf = '\0';
-
-  if ((ValNode = Tdbp->Clist->GetItem(g, Rank, Vxnp)))
+  if ((ValNode = Tdbp->Clist->GetItem(g, Rank, Vxnp))) {
     // Get the column value from the XML file
     switch (ValNode->GetContent(g, Valbuf, Long + 1)) {
       case RC_OK:
@@ -1654,7 +1661,14 @@ void XPOSCOL::ReadColumn(PGLOBAL g)
         longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
       } // endswitch
 
-  Value->SetValue_psz(Valbuf);
+    Value->SetValue_psz(Valbuf);
+  } else {
+    if (Nullable)
+      Value->SetNull(true);
+
+    Value->Reset();              // Null value
+  } // endif ValNode
+
   Nx = Tdbp->Irow;
   } // end of ReadColumn
 
