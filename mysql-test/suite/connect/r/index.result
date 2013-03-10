@@ -55,11 +55,8 @@ SELECT SUM(brut) FROM t1;
 SUM(brut)
 64319029
 #
-# Make the indexes
+# Test the indexes (made when creating the table)
 #
-OPTIMIZE TABLE t1;
-Table	Op	Msg_type	Msg_text
-test.t1	optimize	status	OK
 SELECT * FROM t1 WHERE matricule = '0091';
 matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
 91	THIVERNAL	DIDIER JEAN	1	1951	10	1980-05-01	1991-10-01	14715	12024.71	1	M	SANS
@@ -95,15 +92,12 @@ create table t2
 (
 sexe  INT(1) KEY,
 genre CHAR(8) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' MAPPED=yes ENDING=2;
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sexe.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t2;
 sexe	genre
 0	Inconnu
 1	Masculin
 2	Feminin
-OPTIMIZE TABLE t2;
-Table	Op	Msg_type	Msg_text
-test.t2	optimize	status	OK
 SELECT nom, prenom, genre FROM t1 NATURAL JOIN t2 LIMIT 10;
 nom	prenom	genre
 ESCOURCHE	BENEDICTE	Feminin
@@ -122,7 +116,7 @@ LONES	GERARD	Masculin
 CREATE TABLE t3 (
 sitmat    CHAR(1) KEY,
 situation CHAR(12) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' MAPPED=yes ENDING=2;
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='sitmat.csv' SEP_CHAR=';' ENDING=2;
 SELECT * FROM t3;
 sitmat	situation
 .	Inconnu
@@ -132,9 +126,6 @@ L	Union libre
 M	Marie
 S	Separe
 V	Veuf
-OPTIMIZE TABLE t3;
-Table	Op	Msg_type	Msg_text
-test.t3	optimize	status	OK
 SELECT nom, prenom, genre, situation FROM t1 NATURAL JOIN t2 NATURAL JOIN t3 WHERE nom = 'FOCH';
 nom	prenom	genre	situation
 FOCH	BERNADETTE	Feminin	Inconnu

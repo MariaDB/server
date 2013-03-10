@@ -426,6 +426,9 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dox)
 
   if (dox) {
     // Remake eventual indexes
+    if (Mode != MODE_UPDATE)
+      To_SetCols = NULL;                // Only used on Update
+
     Columns = NULL;                     // Not used anymore
     Txfp->Reset();                      // New start
     Use = USE_READY;                    // So the table can be reopened
@@ -450,7 +453,7 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dox)
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
   int     k, n;
-  bool    fixed, b = (pxdf != NULL);
+  bool    fixed, doit, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -514,13 +517,25 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
         // Auto increment key and fixed file: use an XXROW index
         continue;      // XXROW index doesn't need to be made
 
+      // On Update, redo only indexes that are modified
+      doit = !To_SetCols;
       n = 0;
 
       if (sxp)
         xdp->SetID(sxp->GetID() + 1);
 
-      for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext())
+      for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
+        // Check whether this column was updated
+        for (colp = To_SetCols; !doit && colp; colp = colp->GetNext())
+          if (!stricmp(kdp->GetName(), colp->GetName()))
+            doit = true;
+
         keycols[n++] = ColDB(g, kdp->GetName(), 0);
+        } // endfor kdp
+
+      // If no indexed columns were updated, don't remake the index
+      if (!doit)
+        continue;
 
       k = xdp->GetNparts();
 
