@@ -24,21 +24,21 @@ tel CHAR(16)
 ) ENGINE=CONNECT TABLE_TYPE=INI FILE_NAME='contact.ini';
 SELECT contact, name, hired, city, tel FROM t1;
 contact	name	hired	city	tel
-BER	Bertrand	1970-01-01	Issy-les-Mlx	09.54.36.29.60
+BER	Bertrand	NULL	Issy-les-Mlx	09.54.36.29.60
 WEL	Schmitt	1985-02-19	Berlin	03.43.377.360
-UK1	Smith	2003-11-08	London	
+UK1	Smith	2003-11-08	London	NULL
 UPDATE t1 SET forename= 'Harry' where contact='UK1';
 SELECT * FROM t1 WHERE contact='UK1';
 contact	name	forename	hired	address	city	zipcode	tel
-UK1	Smith	Harry	2003-11-08	143 Blum Rd.	London	NW1 2BP	
+UK1	Smith	Harry	2003-11-08	143 Blum Rd.	London	NW1 2BP	NULL
 INSERT INTO t1 (contact,forename) VALUES ('UK1','Harrison');
 SELECT * FROM t1 WHERE contact='UK1';
 contact	name	forename	hired	address	city	zipcode	tel
-UK1	Smith	Harrison	2003-11-08	143 Blum Rd.	London	NW1 2BP	
+UK1	Smith	Harrison	2003-11-08	143 Blum Rd.	London	NW1 2BP	NULL
 INSERT INTO t1 (contact,forename) VALUES ('UK2','John');
 SELECT * FROM t1 WHERE contact='UK2';
 contact	name	forename	hired	address	city	zipcode	tel
-UK2		John	1970-01-01				
+UK2	NULL	John	NULL	NULL	NULL	NULL	NULL
 DROP TABLE t1;
 SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n');;
 REPLACE(REPLACE(LOAD_FILE('DATADIR/test/contact.ini'),'\r\n','\n'),'\n\n','\n')
