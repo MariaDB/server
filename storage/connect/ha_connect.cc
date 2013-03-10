@@ -2100,9 +2100,10 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   if (tdbp || (tdbp= GetTDB(g))) {
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
       sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
-      rc= RC_INFO;
+      rc= HA_ERR_INTERNAL_ERROR;
     } else
-      rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true);
+      if (((PTDBASE)tdbp)->ResetTableOpt(g, true))
+        rc = HA_ERR_INTERNAL_ERROR;
 
   } else
     rc= HA_ERR_INTERNAL_ERROR;
@@ -2299,7 +2300,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     DBUG_PRINT("index_init", (g->Message));
     printf("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
   } else {
     if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
       if (((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
@@ -2402,7 +2403,7 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
   if (indexing > 0)
     rc= ReadIndexed(buf, op, key, key_len);
   else
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
 } // end of index_read
@@ -2423,7 +2424,7 @@ int ha_connect::index_next(uchar *buf)
   else if (!indexing)
     rc= rnd_next(buf);
   else
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
 } // end of index_next
@@ -2460,10 +2461,10 @@ int ha_connect::index_first(uchar *buf)
   if (indexing > 0)
     rc= ReadIndexed(buf, OP_FIRST);
   else if (indexing < 0)
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
   else if (CntRewindTable(xp->g, tdbp)) {
     table->status= STATUS_NOT_FOUND;
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
   } else
     rc= rnd_next(buf);
 
@@ -2504,7 +2505,7 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
   else if (indexing > 0)
     rc= ReadIndexed(buf, OP_SAME);
   else
-    rc= -1;
+    rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
 } // end of index_next_same
@@ -2911,7 +2912,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     printf("%p external_lock: lock_type=%d\n", this, lock_type);
 
   if (!g)
-    DBUG_RETURN(-99);
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
   switch (lock_type) {

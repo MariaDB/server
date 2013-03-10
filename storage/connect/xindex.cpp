@@ -588,6 +588,10 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
  err:
   // We don't need the index anymore
   Close();
+
+  if (brc)
+    printf("%s\n", g->Message);
+
   return brc;
   } // end of Make
 
