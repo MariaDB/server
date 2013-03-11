@@ -37,9 +37,6 @@ static int count_relay_log_space(Relay_log_info* rli);
 */
 rpl_slave_state rpl_global_gtid_slave_state;
 
-const LEX_STRING rpl_gtid_slave_state_table_name=
-  { STRING_WITH_LEN("rpl_slave_state") };
-
 
 // Defined in slave.cc
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
