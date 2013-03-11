@@ -3738,6 +3738,46 @@ Table_check_intact::check(TABLE *table, const TABLE_FIELD_DEF *table_def)
     }
   }
 
+  if (table_def->primary_key_parts)
+  {
+    if (table->s->primary_key == MAX_KEY)
+    {
+      report_error(0, "Incorrect definition of table %s.%s: "
+                   "missing primary key.", table->s->db.str,
+                   table->alias.c_ptr());
+      error= TRUE;
+    }
+    else
+    {
+      KEY *pk= &table->s->key_info[table->s->primary_key];
+      if (pk->key_parts != table_def->primary_key_parts)
+      {
+        report_error(0, "Incorrect definition of table %s.%s: "
+                     "Expected primary key to have %u columns, but instead "
+                     "found %u columns.", table->s->db.str,
+                     table->alias.c_ptr(), table_def->primary_key_parts,
+                     pk->key_parts);
+        error= TRUE;
+      }
+      else
+      {
+        for (i= 0; i < pk->key_parts; ++i)
+        {
+          if (table_def->primary_key_columns[i] + 1 != pk->key_part[i].fieldnr)
+          {
+            report_error(0, "Incorrect definition of table %s.%s: Expected "
+                         "primary key part %u to refer to column %u, but "
+                         "instead found column %u.", table->s->db.str,
+                         table->alias.c_ptr(), i + 1,
+                         table_def->primary_key_columns[i] + 1,
+                         pk->key_part[i].fieldnr);
+            error= TRUE;
+          }
+        }
+      }
+    }
+  }
+
   if (! error)
     table->s->table_field_def_cache= table_def;
 
