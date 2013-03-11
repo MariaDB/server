@@ -1424,6 +1424,22 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1), DEFAULT(1), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
+       "optimizer_use_condition_selectivity",
+       "Controls selectivity of which conditions the optimizer takes into "
+       "account to calculate cardinality of a partial join when it searches "
+       "for the best execution plan "
+       "Meaning: "
+       "1 - use selectivity of index backed range conditions to calculate "
+       "cardinality of the partial join if the last joined table is "
+       "accessed by full table scan or an index scan "
+       "2 - use selectivity of index backed range conditions to calculate "
+       "cardinality of the partial join in any case "
+       "3 - additionally always use selectivity of range conditions that are "
+       "not backed by any index to calculate cardinality of the partial join",
+       SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 3), DEFAULT(1), BLOCK_SIZE(1));
+
 /** Warns about deprecated value 63 */
 static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
                                        enum_var_type type)

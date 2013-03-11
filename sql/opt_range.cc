@@ -117,6 +117,7 @@
 #include "records.h"          // init_read_record, end_read_record
 #include <m_ctype.h>
 #include "sql_select.h"
+#include "sql_statistics.h"
 #include "filesort.h"         // filesort_free_buffers
 
 #ifndef EXTRA_DEBUG
@@ -3210,6 +3211,224 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   */
   DBUG_RETURN(records ? test(quick) : -1);
 }
+
+/****************************************************************************
+ * Condition selectivity module
+ ****************************************************************************/
+
+static
+bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
+                                         MY_BITMAP *used_fields)
+{
+  Field **field_ptr;
+  TABLE *table= param->table;
+  uint parts= 0;
+
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+      parts++;
+  }
+
+  KEY_PART *key_part;
+  uint keys= 0;
+
+  if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
+                                           sizeof(KEY_PART) * parts)))
+    return TRUE;
+
+  param->key_parts= key_part;
+
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    {
+      Field *field= *field_ptr;
+      uint16 store_length;
+      key_part->key= keys;
+      key_part->part= 0;
+      key_part->length= (uint16) field->key_length();
+      store_length= key_part->length;
+      if (field->real_maybe_null())
+        store_length+= HA_KEY_NULL_LENGTH;
+      if (field->real_type() == MYSQL_TYPE_VARCHAR)
+        store_length+= HA_KEY_BLOB_LENGTH;
+      key_part->store_length= store_length; 
+      key_part->field= field; 
+      key_part->image_type= Field::itRAW;
+      param->key[keys]= key_part;
+      keys++;
+      key_part++;
+    }
+  }
+  param->keys= keys;
+  param->key_parts_end= key_part;
+
+  return FALSE;
+}
+
+
+static
+double records_in_column_ranges(PARAM *param, uint idx, 
+                                SEL_ARG *tree)
+{
+  SEL_ARG_RANGE_SEQ seq;
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  double rows;
+  Field *field;
+  uint flags= 0;
+  double total_rows= 0;
+  RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init, 
+                         sel_arg_range_seq_next, 0, 0};
+  
+  /* Handle cases when we don't have a valid non-empty list of range */
+  if (!tree)
+    return HA_POS_ERROR;
+  if (tree->type == SEL_ARG::IMPOSSIBLE)
+    return (0L);
+
+  field= tree->field;
+
+  seq.keyno= idx;
+  seq.real_keyno= MAX_KEY;
+  seq.param= param;
+  seq.start= tree;
+
+  seq_it= seq_if.init((void *) &seq, 0, flags);
+
+  while (!seq_if.next(seq_it, &range))
+  {
+    key_range *min_endp, *max_endp;
+    min_endp= range.start_key.length? &range.start_key : NULL;
+    max_endp= range.end_key.length? &range.end_key : NULL;
+    rows= get_column_range_cardinality(field, min_endp, max_endp);
+    if (HA_POS_ERROR == rows)
+    {
+      total_rows= HA_POS_ERROR;
+      break;
+    }
+    total_rows += rows;
+  }    
+  return total_rows;
+} 
+
+
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
+{
+  uint keynr;
+  uint max_quick_key_parts= 0;
+  MY_BITMAP *used_fields= &table->cond_set;
+  double table_records= table->stat_records(); 
+  DBUG_ENTER("calculate_cond_selectivity_for_table");
+
+  table->cond_selectivity= 1.0;
+  
+  if (bitmap_is_clear_all(used_fields))
+    DBUG_RETURN(FALSE);
+
+  PARAM param;
+  MEM_ROOT alloc;
+  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                 MYF(MY_THREAD_SPECIFIC));
+  param.thd= thd;
+  param.mem_root= &alloc;
+  param.old_root= thd->mem_root;
+  param.table= table;
+  param.is_ror_scan= FALSE;
+
+  if (create_key_parts_for_pseudo_indexes(&param, used_fields))
+  {
+    free_root(&alloc, MYF(0));
+    DBUG_RETURN(FALSE);
+  }
+
+  param.prev_tables= param.read_tables= 0;
+  param.current_table= table->map;
+  param.using_real_indexes= FALSE;
+  param.real_keynr[0]= 0;
+  param.alloced_sel_args= 0;
+
+  thd->no_errors=1;				// Don't warn about NULL
+
+  SEL_TREE *tree;
+  SEL_ARG **key, **end;
+  uint idx= 0;
+  
+  tree= get_mm_tree(&param, cond);
+
+  if (!tree)
+    goto end;
+    
+
+  for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
+  {
+    double rows;
+    if (*key)
+    {
+      rows= records_in_column_ranges(&param, idx, *key);
+      if (rows != HA_POS_ERROR)
+        (*key)->field->cond_selectivity= rows/table_records; 
+    }
+  }
+
+  for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    Field *table_field= *field_ptr;   
+    if (bitmap_is_set(table->read_set, table_field->field_index) &&
+        table_field->cond_selectivity < 1.0)
+      table->cond_selectivity*= table_field->cond_selectivity;
+  }
+
+  /* Calculate the selectivity of the range conditions supported by indexes */
+
+  bitmap_clear_all(used_fields);
+
+  for (keynr= 0;  keynr < table->s->keys; keynr++)
+  {
+    if (table->quick_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+  }
+
+  for (uint quick_key_parts= max_quick_key_parts;
+       quick_key_parts; quick_key_parts--)
+  {
+    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    {
+      if (table->quick_keys.is_set(keynr) &&
+          table->quick_key_parts[keynr] == quick_key_parts)
+      {
+        uint i;
+        uint used_key_parts= table->quick_key_parts[keynr];
+        double quick_cond_selectivity= table->quick_rows[keynr] / 
+	                               table_records;
+        KEY *key_info= table->key_info + keynr;
+        KEY_PART_INFO* key_part= key_info->key_part;
+        for (i= 0; i < used_key_parts; i++, key_part++)
+        {
+          if (bitmap_is_set(used_fields, key_part->fieldnr-1))
+	    break; 
+          bitmap_set_bit(used_fields, key_part->fieldnr-1);
+        }
+        if (i)
+        {
+          double f1= key_info->actual_rec_per_key(i-1);
+          double f2= key_info->actual_rec_per_key(i);
+          table->cond_selectivity*= quick_cond_selectivity * f1 / f2;
+        }
+      } 
+    }
+  } 
+
+end:
+  thd->mem_root= param.old_root;
+  free_root(&alloc, MYF(0));
+  DBUG_RETURN(FALSE);
+}
+
+/****************************************************************************
+ * Condition selectivity code ends
+ ****************************************************************************/
 
 /****************************************************************************
  * Partition pruning module

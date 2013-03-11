@@ -1026,6 +1026,7 @@ public:
   my_bitmap_map	*bitmap_init_value;
   MY_BITMAP     def_read_set, def_write_set, def_vcol_set, tmp_set; 
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
+  MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
   MY_BITMAP     *read_set, *write_set, *vcol_set; /* Active column sets */
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1077,6 +1078,8 @@ public:
     this table and constants)
   */
   ha_rows       quick_condition_rows;
+
+  double cond_selectivity;
 
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 
