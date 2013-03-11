@@ -487,7 +487,8 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
 #ifdef DEBTRACE
  htrc("%s\n", g->Message);
 #endif
-    return (errno == ENOENT) ? PushWarning(g, Tdbp) : true;
+    return (mode == MODE_READ && errno == ENOENT)
+            ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
 #ifdef DEBTRACE
