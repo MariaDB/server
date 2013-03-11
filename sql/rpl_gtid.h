@@ -19,6 +19,8 @@
 /* Definitions for MariaDB global transaction ID (GTID). */
 
 
+extern const LEX_STRING rpl_gtid_slave_state_table_name;
+
 class String;
 
 struct rpl_gtid
@@ -165,6 +167,6 @@ struct slave_connection_state
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
                                             bool *first);
-extern const LEX_STRING rpl_gtid_slave_state_table_name;
+extern int gtid_check_rpl_slave_state_table(TABLE *table);
 
 #endif  /* RPL_GTID_H */
