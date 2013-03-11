@@ -26,6 +26,7 @@
 #include "sql_base.h"
 #include "key.h"
 #include "sql_statistics.h"
+#include "opt_range.h"
 #include "my_atomic.h"
 
 /*
@@ -3053,4 +3054,52 @@ void set_statistics_for_table(THD *thd, TABLE *table)
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
+}
+
+
+double get_column_avg_frequency(Field * field)
+{
+  double res;
+  TABLE *table= field->table;
+  Column_statistics *col_stats= table->s->field[field->field_index]->read_stats;
+
+  if (!col_stats)
+    res= table->stat_records();
+  else
+    res= col_stats->get_avg_frequency();
+  return res;
+} 
+
+
+double get_column_range_cardinality(Field *field,
+                                    key_range *min_endp,
+                                    key_range *max_endp)
+{
+  double res;
+  TABLE *table= field->table;
+  Column_statistics *col_stats= table->field[field->field_index]->read_stats;
+
+  if (!col_stats)
+    res= table->stat_records();
+  else if (min_endp->length == max_endp->length &&
+      !memcmp(min_endp->key, max_endp->key, min_endp->length))
+  {   
+    res= col_stats->get_avg_frequency();
+  }  
+  else 
+  {
+    if (col_stats->min_value && col_stats->max_value)
+    {
+      store_key_image_to_rec(field, (uchar *) min_endp->key, min_endp->length);
+      double min_mp_pos= field->middle_point_pos(col_stats->min_value,
+                                                 col_stats->max_value);
+      store_key_image_to_rec(field, (uchar *) max_endp->key, max_endp->length);
+      double max_mp_pos= field->middle_point_pos(col_stats->min_value,
+                                                 col_stats->max_value);
+      res= table->stat_records() * (max_mp_pos - min_mp_pos);
+    }
+    else
+      res= table->stat_records();
+  }
+  return res;
 }

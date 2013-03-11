@@ -292,6 +292,8 @@ typedef struct st_join_table {
   /* psergey-todo: make the below have type double, like POSITION::records_read? */
   ha_rows       records_read;
   
+  double        cond_selectivity;
+  
   /* Startup cost for execution */
   double        startup_cost;
     
@@ -761,6 +763,8 @@ typedef struct st_position :public Sql_alloc
     previous tables.
   */
   double records_read;
+
+  double cond_selectivity;
 
   /* 
     Cost accessing the table in course of the entire complete join execution,
@@ -1803,6 +1807,8 @@ void eliminate_tables(JOIN *join);
 
 /* Index Condition Pushdown entry point function */
 void push_index_cond(JOIN_TAB *tab, uint keyno);
+
+#define OPT_LINK_EQUAL_FIELDS    1
 
 /****************************************************************************
   Temporary table support for SQL Runtime

@@ -500,6 +500,18 @@ The following options may be given as the first argument:
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys,
  exists_to_in } and val is one of {on, off, default}
+ --optimizer-use-condition-selectivity=# 
+ Controls selectivity of which conditions the optimizer
+ takes into account to calculate cardinality of a partial
+ join when it searches for the best execution plan
+ Meaning: 1 - use selectivity of index backed range
+ conditions to calculate cardinality of the partial join
+ if the last joined table is accessed by full table scan
+ or an index scan 2 - use selectivity of index backed
+ range conditions to calculate cardinality of the partial
+ join in any case 3 - additionally always use selectivity
+ of range conditions that are not backed by any index to
+ calculate cardinality of the partial join
  --performance-schema 
  Enable the performance schema.
  --performance-schema-events-waits-history-long-size=# 
@@ -1004,6 +1016,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
+optimizer-use-condition-selectivity 1
 performance-schema FALSE
 performance-schema-events-waits-history-long-size 10000
 performance-schema-events-waits-history-size 10

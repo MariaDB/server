@@ -1273,6 +1273,20 @@ out_of_range:
   return 1;
 }
 
+
+double Field_num::middle_point_pos(Field *min, Field *max)
+{
+  double n, d;
+  n= val_real() - min->val_real();
+  if (n < 0)
+    return 0.0;
+  d= max->val_real() - min->val_real();
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
+}
+
+
 /**
   Process decimal library return codes and issue warnings for overflow and
   truncation.
@@ -1344,6 +1358,8 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   comment.length=0;
   field_index= 0;   
   is_stat_field= FALSE;
+  cond_selectivity= 1.0;
+  next_equal_field= NULL;
 }
 
 
@@ -6165,6 +6181,46 @@ int Field_str::store(double nr)
       set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, WARN_DATA_TRUNCATED, 1);
   }
   return store(buff, length, &my_charset_numeric);
+}
+
+static
+inline ulonglong char_prefix_to_ulonglong(uchar *src)
+{
+  uint sz= sizeof(ulonglong);
+  for (uint i= 0; i < sz/2; i++)
+  {
+    uchar tmp= src[i];
+    src[i]= src[sz-1-i];
+    src[sz-1-i]= tmp;
+  }
+  return uint8korr(src); 
+}
+
+double Field_str::middle_point_pos(Field *min, Field *max)
+{
+  uchar mp_prefix[sizeof(ulonglong)];
+  uchar minp_prefix[sizeof(ulonglong)];
+  uchar maxp_prefix[sizeof(ulonglong)];
+  ulonglong mp, minp, maxp;
+  my_strnxfrm(charset(), mp_prefix, sizeof(mp),
+              ptr + length_size(), sizeof(mp) * charset()->mbmaxlen);
+  my_strnxfrm(charset(), minp_prefix, sizeof(minp),
+              min->ptr + length_size(),
+              sizeof(minp) * charset()->mbmaxlen);
+  my_strnxfrm(charset(), maxp_prefix, sizeof(maxp),
+              max->ptr + length_size(),
+              sizeof(maxp) * charset()->mbmaxlen);
+  mp= char_prefix_to_ulonglong(mp_prefix);
+  minp= char_prefix_to_ulonglong(minp_prefix);
+  maxp= char_prefix_to_ulonglong(maxp_prefix);
+  double n, d;
+  n= mp - minp;
+  if (n < 0)
+    return 0.0;
+  d= maxp - minp;
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
 }
 
 

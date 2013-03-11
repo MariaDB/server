@@ -3889,7 +3889,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
                         &tmpname, (uint) strlen(path)+1,
                         &group_buff, (!using_unique_constraint ?
                                       uniq_tuple_length_arg : 0),
-                        &bitmaps, bitmap_buffer_size(1)*3,
+                        &bitmaps, bitmap_buffer_size(1)*5,
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)

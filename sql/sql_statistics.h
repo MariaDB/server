@@ -90,6 +90,12 @@ int rename_column_in_stat_tables(THD *thd, TABLE *tab, Field *col,
                                   const char *new_name);
 void set_statistics_for_table(THD *thd, TABLE *table);
 
+double get_column_avg_frequency(Field * field);
+
+double get_column_range_cardinality(Field *field,
+                                    key_range *min_endp,
+                                    key_range *max_endp);
+
 class Columns_statistics;
 class Index_statistics;
 

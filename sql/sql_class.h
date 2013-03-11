@@ -499,6 +499,7 @@ typedef struct system_variables
   ulong net_write_timeout;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
+  ulong optimizer_use_condition_selectivity;
   ulong use_stat_tables;
   ulong preload_buff_size;
   ulong profiling_history_size;

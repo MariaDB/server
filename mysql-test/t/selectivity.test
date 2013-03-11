@@ -1,0 +1,65 @@
+--source include/have_stat_tables.inc
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+
+set use_stat_tables='preferably';
+
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+
+ANALYZE TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+FLUSH TABLE
+customer, lineitem, nation, orders, part, partsupp, region, supplier;
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+let $Q20=
+select sql_calc_found_rows
+       s_name, s_address
+from supplier, nation
+where s_suppkey in (select ps_suppkey from partsupp
+                    where ps_partkey in (select p_partkey from part
+                                         where p_name like 'g%')
+                          and ps_availqty >
+                              (select 0.5 * sum(l_quantity)
+                               from lineitem
+                               where l_partkey = ps_partkey
+                                     and l_suppkey = ps_suppkey
+                                     and l_shipdate >= date('1993-01-01')
+                                     and l_shipdate < date('1993-01-01') +
+                                         interval '1' year ))
+and s_nationkey = n_nationkey
+and n_name = 'UNITED STATES'
+order by s_name
+limit 10;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20;
+
+set optimizer_use_condition_selectivity=3;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20;
+
+DROP DATABASE dbt3_s001;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+set use_stat_tables=@save_use_stat_tables;

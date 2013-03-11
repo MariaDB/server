@@ -89,12 +89,14 @@ void best_access_path(JOIN *join, JOIN_TAB *s,
                              POSITION *pos, POSITION *loose_scan_pos);
 static void optimize_straight_join(JOIN *join, table_map join_tables);
 static bool greedy_search(JOIN *join, table_map remaining_tables,
-                          uint depth, uint prune_level);
+                          uint depth, uint prune_level,
+                          uint use_cond_selectivity);
 static bool best_extension_by_limited_search(JOIN *join,
                                              table_map remaining_tables,
                                              uint idx, double record_count,
                                              double read_time, uint depth,
-                                             uint prune_level);
+                                             uint prune_level,
+                                             uint use_cond_selectivity);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
 static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
@@ -133,7 +135,8 @@ static int return_zero_rows(JOIN *join, select_result *res,
 static COND *build_equal_items(THD *thd, COND *cond,
                                COND_EQUAL *inherited,
                                List<TABLE_LIST> *join_list,
-                               COND_EQUAL **cond_equal_ref);
+                               COND_EQUAL **cond_equal_ref,
+                               bool link_equal_fields= FALSE);
 static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
                                              COND *cond,
                                              COND_EQUAL *cond_equal,
@@ -149,7 +152,8 @@ static uint build_bitmap_for_nested_joins(List<TABLE_LIST> *join_list,
 static COND *optimize_cond(JOIN *join, COND *conds,
                            List<TABLE_LIST> *join_list,
                            Item::cond_result *cond_value, 
-                           COND_EQUAL **cond_equal);
+                           COND_EQUAL **cond_equal,
+                           int flags= 0);
 bool const_expression_in_where(COND *conds,Item *item, Item **comp_item);
 static bool create_internal_tmp_table_from_heap2(THD *, TABLE *,
                                      ENGINE_COLUMNDEF *, ENGINE_COLUMNDEF **, 
@@ -277,6 +281,8 @@ enum enum_exec_or_opt {WALK_OPTIMIZATION_TABS , WALK_EXECUTION_TABS};
 JOIN_TAB *first_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind);
 JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
                                  JOIN_TAB *tab);
+static double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+                                     table_map rem_tables);
 
 #ifndef DBUG_OFF
 
@@ -1155,7 +1161,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if (setup_jtbm_semi_joins(this, join_list, &conds))
     DBUG_RETURN(1);
 
-  conds= optimize_cond(this, conds, join_list, &cond_value, &cond_equal);
+  conds= optimize_cond(this, conds, join_list, &cond_value, &cond_equal,
+                       OPT_LINK_EQUAL_FIELDS);
      
   if (thd->is_error())
   {
@@ -3350,6 +3357,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     table->pos_in_table_list= tables;
     error= tables->fetch_number_of_rows();
     set_statistics_for_table(join->thd, table);
+    bitmap_clear_all(&table->cond_set);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     const bool no_partitions_used= table->no_partitions_used;
@@ -3837,6 +3845,11 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       }
       delete select;
     }
+
+    if (join->thd->variables.optimizer_use_condition_selectivity > 1)
+      calculate_cond_selectivity_for_table(join->thd, s->table, 
+                                           *s->on_expr_ref ?
+                                           *s->on_expr_ref : conds);
   }
 
   if (pull_out_semijoin_tables(join))
@@ -4190,11 +4203,12 @@ add_key_field(JOIN *join,
   else if (!(field->flags & PART_KEY_FLAG))
   {
     // Don't remove column IS NULL on a LEFT JOIN table
-    if (!eq_func || (*value)->type() != Item::NULL_ITEM ||
-        !field->table->maybe_null || field->null_ptr)
-      return;					// Not a key. Skip it
-    optimize= KEY_OPTIMIZE_EXISTS;
-    DBUG_ASSERT(num_values == 1);
+    if (eq_func && (*value)->type() == Item::NULL_ITEM &&
+        field->table->maybe_null && !field->null_ptr)
+    {
+      optimize= KEY_OPTIMIZE_EXISTS;
+      DBUG_ASSERT(num_values == 1);
+    }
   }
   if (optimize != KEY_OPTIMIZE_EXISTS)
   {
@@ -4243,7 +4257,11 @@ add_key_field(JOIN *join,
           break;
       }
       if (is_const)
+      {
         stat[0].const_keys.merge(possible_keys);
+        if (possible_keys.is_clear_all())
+          bitmap_set_bit(&field->table->cond_set, field->field_index);
+      }
       else if (!eq_func)
       {
         /* 
@@ -5313,6 +5331,7 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
   join->positions[idx].table= table;
   join->positions[idx].key=key;
   join->positions[idx].records_read=1.0;	/* This is a const table */
+  join->positions[idx].cond_selectivity= 1.0;
   join->positions[idx].ref_depend_map= 0;
 
 //  join->positions[idx].loosescan_key= MAX_KEY; /* Not a LooseScan */
@@ -6127,6 +6146,8 @@ choose_plan(JOIN *join, table_map join_tables)
 {
   uint search_depth= join->thd->variables.optimizer_search_depth;
   uint prune_level=  join->thd->variables.optimizer_prune_level;
+  uint use_cond_selectivity= 
+         join->thd->variables.optimizer_use_condition_selectivity;
   bool straight_join= test(join->select_options & SELECT_STRAIGHT_JOIN);
   DBUG_ENTER("choose_plan");
 
@@ -6191,7 +6212,8 @@ choose_plan(JOIN *join, table_map join_tables)
       if (search_depth == 0)
         /* Automatically determine a reasonable value for 'search_depth' */
         search_depth= determine_search_depth(join);
-      if (greedy_search(join, join_tables, search_depth, prune_level))
+      if (greedy_search(join, join_tables, search_depth, prune_level,
+                        use_cond_selectivity))
         DBUG_RETURN(TRUE);
     }
   }
@@ -6465,6 +6487,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
   bool disable_jbuf= join->thd->variables.join_cache_level == 0;
   double    record_count= 1.0;
   double    read_time=    0.0;
+  uint use_cond_selectivity= 
+         join->thd->variables.optimizer_use_condition_selectivity;
   POSITION  loose_scan_pos;
 
   for (JOIN_TAB **pos= join->best_ref + idx ; (s= *pos) ; pos++)
@@ -6481,6 +6505,11 @@ optimize_straight_join(JOIN *join, table_map join_tables)
                      &loose_scan_pos);
 
     join_tables&= ~(s->table->map);
+    double pushdown_cond_selectivity= 1.0;
+    if (use_cond_selectivity > 1)
+      pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
+                                                        join_tables);
+    join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
     ++idx;
   }
 
@@ -6568,6 +6597,8 @@ optimize_straight_join(JOIN *join, table_map join_tables)
   @param search_depth     controlls the exhaustiveness of the search
   @param prune_level      the pruning heuristics that should be applied during
                           search
+  @param use_cond_selectivity  specifies how the selectivity of the conditions
+                          pushed to a table should be taken into account
 
   @retval
     FALSE       ok
@@ -6579,7 +6610,8 @@ static bool
 greedy_search(JOIN      *join,
               table_map remaining_tables,
               uint      search_depth,
-              uint      prune_level)
+              uint      prune_level,
+              uint      use_cond_selectivity)
 {
   double    record_count= 1.0;
   double    read_time=    0.0;
@@ -6604,7 +6636,8 @@ greedy_search(JOIN      *join,
     /* Find the extension of the current QEP with the lowest cost */
     join->best_read= DBL_MAX;
     if (best_extension_by_limited_search(join, remaining_tables, idx, record_count,
-                                         read_time, search_depth, prune_level))
+                                         read_time, search_depth, prune_level,
+                                         use_cond_selectivity))
       DBUG_RETURN(TRUE);
     /*
       'best_read < DBL_MAX' means that optimizer managed to find
@@ -6843,6 +6876,158 @@ double JOIN::get_examined_rows()
 }
 
 
+static 
+double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+                                             table_map rem_tables, TABLE_REF *ref)
+{
+  double sel= 1.0;
+  COND_EQUAL *cond_equal= join->cond_equal;
+
+  if (!cond_equal || !cond_equal->current_level.elements)
+    return sel;
+
+  Item_equal *item_equal;
+  List_iterator_fast<Item_equal> it(cond_equal->current_level);
+  table_map table_bit= s->table->map;
+  
+  if (!s->keyuse)
+    return sel;
+
+  KEY *key_info= s->get_keyinfo_by_key_no(s->ref.key); 
+
+  while ((item_equal= it++))
+  { 
+    /* 
+      Check whether we need to take into account the selectivity of
+      multiple equality item_equal. If this is the case multiply
+      the current value of sel by this selectivity
+    */
+    table_map used_tables= item_equal->used_tables();
+    if (!(used_tables & table_bit))
+      continue;
+    if (item_equal->get_const())
+      continue;
+
+    Field *fld;
+    bool adjust_sel= FALSE;
+    Item_equal_fields_iterator fi(*item_equal);
+    while((fi++) && !adjust_sel)
+    {
+      Field *fld= fi.get_curr_field();
+      if (fld->table->map != table_bit)
+        continue;
+      if (ref == 0)
+        adjust_sel= TRUE;
+      else
+      {
+        uint i;
+        for (i= 0; i < ref->key_parts; i++)
+	{
+          if (fld->field_index == key_info->key_part[i].fieldnr - 1)
+            break;
+        }
+        if (i == ref->key_parts)
+	{
+          /* 
+            Field fld is included in multiple equality item_equal
+            and is not a part of the ref key.
+            The selectivity of the multiple equality must be taken
+            into account unless one of the ref arguments is
+            equal to fld.  
+	  */
+          adjust_sel= TRUE;
+          for (uint j= 0; j < ref->key_parts && adjust_sel; j++)
+	  {
+	    if (ref->items[j]->real_item()->type() == Item::FIELD_ITEM)
+	    {
+              Item_field *field_item= (Item_field *) (ref->items[j]);
+              if (item_equal->contains(field_item->field))
+                adjust_sel= FALSE;              
+	    }
+          }
+        }          
+      }
+    }
+    if (adjust_sel)
+    {
+      /* 
+        If ref == 0 and there are no fields in the multiple equality
+        item_equal that belong to the tables joined prior to s
+        then the selectivity of multiple equality will be set to 1.0.
+      */
+      double eq_fld_sel= 1.0;
+      fi.rewind();
+      while ((fi++))
+      {
+        double curr_eq_fld_sel;
+        fld= fi.get_curr_field();
+        if (!fld->table->map & ~(table_bit | rem_tables))
+          continue;
+        curr_eq_fld_sel= get_column_avg_frequency(fld) /
+                         fld->table->stat_records();
+        if (curr_eq_fld_sel < 1.0)
+          set_if_bigger(eq_fld_sel, curr_eq_fld_sel);
+      }
+      sel*= eq_fld_sel;
+    }
+  } 
+  return sel;
+}
+
+static
+double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
+                              table_map rem_tables)
+{
+  Field *field;
+  TABLE *table= s->table;
+  MY_BITMAP *read_set= table->read_set;
+  double sel= s->table->cond_selectivity;
+  double table_records= table->stat_records();
+  TABLE_REF *ref= s->type == JT_REF || s->type == JT_EQ_REF ? &s->ref : NULL;
+
+  /* Discount the selectivity of the access method used to join table s */
+  if (s->quick && s->quick->index != MAX_KEY)
+  {
+    /* A range scan by index s->quick->index is used to access table s */
+    sel*= table_records/table->quick_rows[s->quick->index];
+  }
+  else if (ref)
+  {
+    /* A ref/ access or hash join is used to join table s */ 
+    KEY *key_info= s->get_keyinfo_by_key_no(ref->key);
+    for (uint i= 0; i < ref->key_parts; i++)
+    {
+      if (ref->items[i]->const_item())
+      {
+        uint fldno= key_info->key_part[i].fieldnr - 1;
+        sel*= table->field[fldno]->cond_selectivity;
+      }
+    }
+  }
+    
+  for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
+  {
+    if (!bitmap_is_set(read_set, field->field_index) ||
+        !field->next_equal_field)
+      continue; 
+    for (Field *next_field= field->next_equal_field; 
+         next_field != field; 
+         next_field= next_field->next_equal_field)
+    {
+      if (!(next_field->table->map & rem_tables) && next_field->table != table)
+      { 
+        sel/= field->cond_selectivity;
+        break;
+      }
+    }
+  }
+
+  sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables, ref);
+
+  return sel;
+}
+
+
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
   exhaustive search.
@@ -6953,6 +7138,8 @@ double JOIN::get_examined_rows()
   @param prune_level      pruning heuristics that should be applied during
                           optimization
                           (values: 0 = EXHAUSTIVE, 1 = PRUNE_BY_TIME_OR_ROWS)
+  @param use_cond_selectivity  specifies how the selectivity of the conditions
+                          pushed to a table should be taken into account
 
   @retval
     FALSE       ok
@@ -6967,7 +7154,8 @@ best_extension_by_limited_search(JOIN      *join,
                                  double    record_count,
                                  double    read_time,
                                  uint      search_depth,
-                                 uint      prune_level)
+                                 uint      prune_level,
+                                 uint      use_cond_selectivity)
 {
   DBUG_ENTER("best_extension_by_limited_search");
 
@@ -7070,16 +7258,25 @@ best_extension_by_limited_search(JOIN      *join,
         }
       }
 
+      double pushdown_cond_selectivity= 1.0;
+      if (use_cond_selectivity > 1)
+        pushdown_cond_selectivity= table_cond_selectivity(join, idx, s,
+				                          remaining_tables &
+                                                          ~real_table_bit);
+      join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
+      double partial_join_cardinality= current_record_count *
+                                        pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
       { /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
         if (best_extension_by_limited_search(join,
                                              remaining_tables & ~real_table_bit,
                                              idx + 1,
-                                             current_record_count,
+                                             partial_join_cardinality,
                                              current_read_time,
                                              search_depth - 1,
-                                             prune_level))
+                                             prune_level,
+                                             use_cond_selectivity))
           DBUG_RETURN(TRUE);
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
       }
@@ -7097,7 +7294,7 @@ best_extension_by_limited_search(JOIN      *join,
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
                  sizeof(POSITION) * (idx + 1));
-          join->record_count= current_record_count;
+          join->record_count= partial_join_cardinality;
           join->best_read= current_read_time - 0.001;
         }
         DBUG_EXECUTE("opt", print_plan(join, idx+1,
@@ -7742,6 +7939,7 @@ get_best_combination(JOIN *join)
       */
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
       j->records= j->records_read= (ha_rows)(sjm->is_sj_scan? sjm->rows : 1);
+      j->cond_selectivity= 1.0;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
       if (!(jt= (JOIN_TAB*)join->thd->alloc(sizeof(JOIN_TAB)*sjm->tables)) ||
@@ -7805,6 +8003,7 @@ get_best_combination(JOIN *join)
       to access join->best_positions[]. 
     */
     j->records_read= (ha_rows)join->best_positions[tablenr].records_read;
+    j->cond_selectivity= join->best_positions[tablenr].cond_selectivity;
     join->map2table[j->table->tablenr]= j;
 
     /* If we've reached the end of sjm nest, switch back to main sequence */
@@ -11779,7 +11978,8 @@ static bool check_equality(THD *thd, Item *item, COND_EQUAL *cond_equal,
 */
 
 static COND *build_equal_items_for_cond(THD *thd, COND *cond,
-                                        COND_EQUAL *inherited)
+                                        COND_EQUAL *inherited,
+                                        bool link_item_fields)
 {
   Item_equal *item_equal;
   COND_EQUAL cond_equal;
@@ -11826,6 +12026,7 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
       List_iterator_fast<Item_equal> it(cond_equal.current_level);
       while ((item_equal= it++))
       {
+        item_equal->set_link_equal_fields(link_item_fields);
         item_equal->fix_fields(thd, NULL);
         item_equal->update_used_tables();
         set_if_bigger(thd->lex->current_select->max_equal_elems,
@@ -11843,7 +12044,8 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
     while ((item= li++))
     { 
       Item *new_item;
-      if ((new_item= build_equal_items_for_cond(thd, item, inherited)) != item)
+      if ((new_item= build_equal_items_for_cond(thd, item, inherited, FALSE))
+          != item)
       {
         /* This replacement happens only for standalone equalities */
         /*
@@ -12000,13 +12202,14 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
    
 static COND *build_equal_items(THD *thd, COND *cond, COND_EQUAL *inherited,
                                List<TABLE_LIST> *join_list,
-                               COND_EQUAL **cond_equal_ref)
+                               COND_EQUAL **cond_equal_ref,
+                               bool link_equal_fields)
 {
   COND_EQUAL *cond_equal= 0;
 
   if (cond) 
   {
-    cond= build_equal_items_for_cond(thd, cond, inherited);
+    cond= build_equal_items_for_cond(thd, cond, inherited, link_equal_fields);
     cond->update_used_tables();
     if (cond->type() == Item::COND_ITEM &&
         ((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
@@ -13454,7 +13657,8 @@ void optimize_wo_join_buffering(JOIN *join, uint first_tab, uint last_tab,
 
 static COND *
 optimize_cond(JOIN *join, COND *conds, List<TABLE_LIST> *join_list,
-              Item::cond_result *cond_value, COND_EQUAL **cond_equal)
+              Item::cond_result *cond_value, COND_EQUAL **cond_equal,
+              int flags)
 {
   THD *thd= join->thd;
   DBUG_ENTER("optimize_cond");
@@ -13475,8 +13679,9 @@ optimize_cond(JOIN *join, COND *conds, List<TABLE_LIST> *join_list,
       multiple equality contains a constant.
     */ 
     DBUG_EXECUTE("where", print_where(conds, "original", QT_ORDINARY););
-    conds= build_equal_items(join->thd, conds, NULL, join_list, cond_equal);
-     DBUG_EXECUTE("where",print_where(conds,"after equal_items", QT_ORDINARY););
+    conds= build_equal_items(join->thd, conds, NULL, join_list, cond_equal,
+                             test(flags & OPT_LINK_EQUAL_FIELDS));
+    DBUG_EXECUTE("where",print_where(conds,"after equal_items", QT_ORDINARY););
 
     /* change field = field to field = const for each found field = const */
     propagate_cond_constants(thd, (I_List<COND_CMP> *) 0, conds, conds);
@@ -14258,6 +14463,9 @@ void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
   bitmap_init(&table->eq_join_set,
               (my_bitmap_map*) (bitmaps+ 3*bitmap_buffer_size(field_count)),
               field_count, FALSE);
+  bitmap_init(&table->cond_set,
+              (my_bitmap_map*) (bitmaps+ 4*bitmap_buffer_size(field_count)),
+              field_count, FALSE);
   /* write_set and all_set are copies of read_set */
   table->def_write_set= table->def_read_set;
   table->s->all_set= table->def_read_set;
@@ -14421,7 +14629,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                         &tmpname, (uint) strlen(path)+1,
                         &group_buff, (group && ! using_unique_constraint ?
                                       param->group_length : 0),
-                        &bitmaps, bitmap_buffer_size(field_count)*4,
+                        &bitmaps, bitmap_buffer_size(field_count)*5,
                         NullS))
   {
     if (temp_pool_slot != MY_BIT_NONE)
@@ -15176,7 +15384,7 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list)
                         &share, sizeof(*share),
                         &field, (field_count + 1) * sizeof(Field*),
                         &blob_field, (field_count+1) *sizeof(uint),
-                        &bitmaps, bitmap_buffer_size(field_count)*4,
+                        &bitmaps, bitmap_buffer_size(field_count)*5,
                         NullS))
     return 0;
 
@@ -22068,7 +22276,13 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         {
           float f= 0.0; 
           if (examined_rows)
-            f= (float) (100.0 * tab->records_read / examined_rows);
+	  {
+            double pushdown_cond_selectivity= tab->cond_selectivity;	      
+            if (pushdown_cond_selectivity == 1.0)
+              f= (float) (100.0 * tab->records_read / examined_rows);
+            else
+              f= (float) (100.0 * pushdown_cond_selectivity);
+          }
  	  set_if_smaller(f, 100.0);
           item_list.push_back(new Item_float(f, 2));
         }
