@@ -1086,6 +1086,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       if (Nod) switch (Buf_Type) {
         case TYPE_INT:
         case TYPE_SHORT:
+        case TYPE_TINY:
         case TYPE_BIGINT:
           Value->SetValue_char(p, field - Dcm);
           break;
@@ -1175,7 +1176,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           len = sprintf(Buf, fmt, field - i, Value->GetShortValue());
           break;
         case TYPE_INT:
-          strcpy(fmt, (Ldz) ? "%0*ld" : "%*.ld");
+          strcpy(fmt, (Ldz) ? "%0*d" : "%*.d");
           i = 0;
 
           if (Nod)
@@ -1183,6 +1184,16 @@ void DOSCOL::WriteColumn(PGLOBAL g)
               strcat(fmt, "0");
 
           len = sprintf(Buf, fmt, field - i, Value->GetIntValue());
+          break;
+        case TYPE_TINY:
+          strcpy(fmt, (Ldz) ? "%0*d" : "%*.d");
+          i = 0;
+
+          if (Nod)
+            for (; i < Dcm; i++)
+              strcat(fmt, "0");
+
+          len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
           break;
         case TYPE_FLOAT:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");

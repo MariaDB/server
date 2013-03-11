@@ -1,5 +1,5 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 1.8                                       */
+/*  Name: VALUE.H    Version 1.9                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
@@ -76,6 +76,7 @@ class DllExport VALUE : public BLOCK {
   virtual int    GetValPrec(void) = 0;
   virtual int    GetLength(void) {return 1;}
   virtual PSZ    GetCharValue(void) {assert(false); return NULL;}
+  virtual char   GetTinyValue(void) {assert(false); return 0;}
   virtual short  GetShortValue(void) {assert(false); return 0;}
   virtual int    GetIntValue(void) = 0;
   virtual longlong GetBigintValue(void) = 0;
@@ -93,6 +94,7 @@ class DllExport VALUE : public BLOCK {
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
   virtual void   SetValue_char(char *p, int n) = 0;
   virtual void   SetValue_psz(PSZ s) = 0;
+  virtual void   SetValue(char c) {assert(false);}
   virtual void   SetValue(short i) {assert(false);}
   virtual void   SetValue(int n) {assert(false);}
   virtual void   SetValue(longlong n) {assert(false);}
@@ -106,6 +108,7 @@ class DllExport VALUE : public BLOCK {
   virtual char  *GetIntString(char *p, int n) = 0;
   virtual char  *GetBigintString(char *p, int n) = 0;
   virtual char  *GetFloatString(char *p, int n, int prec) = 0;
+  virtual char  *GetTinyString(char *p, int n) {return "?";}
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
 
@@ -145,6 +148,7 @@ class DllExport TYPVAL : public VALUE {
   virtual int    GetValPrec() {return 0;}
   virtual int    GetSize(void) {return sizeof(TYPE);}
   virtual PSZ    GetCharValue(void) {return VALUE::GetCharValue();}
+  virtual char   GetTinyValue(void) {return (char)Tval;}
   virtual short  GetShortValue(void) {return (short)Tval;}
   virtual int    GetIntValue(void) {return (int)Tval;}
   virtual longlong GetBigintValue(void) {return (longlong)Tval;}
@@ -155,6 +159,7 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual void   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
+  virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(short i) {Tval = (TYPE)i; Null = false;}
   virtual void   SetValue(int n) {Tval = (TYPE)n; Null = false;}
   virtual void   SetValue(longlong n) {Tval = (TYPE)n; Null = false;}
@@ -168,6 +173,7 @@ class DllExport TYPVAL : public VALUE {
   virtual char  *GetIntString(char *p, int n);
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
+  virtual char  *GetTinyString(char *p, int n);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
@@ -205,6 +211,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual int    GetValPrec() {return (Ci) ? 1 : 0;}
   virtual int    GetSize(void) {return (Strp) ? strlen(Strp) : 0;}
   virtual PSZ    GetCharValue(void) {return Strp;}
+  virtual char   GetTinyValue(void) {return (char)atoi(Strp);}
   virtual short  GetShortValue(void) {return (short)atoi(Strp);}
   virtual int    GetIntValue(void) {return atol(Strp);}
   virtual longlong GetBigintValue(void) {return atoll(Strp);}
@@ -216,6 +223,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
+  virtual void   SetValue(char c);
   virtual void   SetValue(short i);
   virtual void   SetValue(int n);
   virtual void   SetValue(longlong n);
@@ -228,6 +236,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual char  *GetIntString(char *p, int n);
   virtual char  *GetBigintString(char *p, int n);
   virtual char  *GetFloatString(char *p, int n, int prec = -1);
+  virtual char  *GetTinyString(char *p, int n);
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
