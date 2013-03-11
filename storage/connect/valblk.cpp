@@ -1,5 +1,5 @@
 /************ Valblk C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALBLK.CPP  Version 1.6                                      */
+/*  Name: VALBLK.CPP  Version 1.7                                      */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -77,6 +77,9 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
       break;
     case TYPE_FLOAT:
       blkp = new(g) TYPBLK<double>(mp, nval, prec, type);
+      break;
+    case TYPE_TINY:
+      blkp = new(g) TYPBLK<char>(mp, nval, type);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
@@ -258,6 +261,10 @@ template <>
 double TYPBLK<double>::GetTypedValue(PVAL valp)
   {return valp->GetFloatValue();}
 
+template <>
+char TYPBLK<char>::GetTypedValue(PVAL valp)
+  {return valp->GetTinyValue();}
+
 /***********************************************************************/
 /*  Set one value in a block.                                          */
 /***********************************************************************/
@@ -284,6 +291,8 @@ template <>
 longlong TYPBLK<longlong>::GetTypedValue(PSZ p) {return atoll(p);}
 template <>
 double TYPBLK<double>::GetTypedValue(PSZ p) {return atof(p);}
+template <>
+char TYPBLK<char>::GetTypedValue(PSZ p) {return (char)atoi(p);}
 
 /***********************************************************************/
 /*  Set one value in a block from a value in another block.            */
@@ -319,6 +328,10 @@ longlong TYPBLK<longlong>::GetTypedValue(PVBLK blk, int n)
 template <>
 double TYPBLK<double>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetFloatValue(n);}
+
+template <>
+char TYPBLK<char>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetTinyValue(n);}
 
 #if 0
 /***********************************************************************/
@@ -486,7 +499,7 @@ char *CHRBLK::GetCharValue(int n)
 short CHRBLK::GetShortValue(int n)
   {
   return (short)atoi((char *)GetValPtrEx(n));
-  } // end of GetIntValue
+  } // end of GetShortValue
 
 /***********************************************************************/
 /*  Return the value of the nth element converted to int.              */
@@ -502,7 +515,7 @@ int CHRBLK::GetIntValue(int n)
 longlong CHRBLK::GetBigintValue(int n)
   {
   return atoll((char *)GetValPtrEx(n));
-  } // end of GetIntValue
+  } // end of GetBigintValue
 
 /***********************************************************************/
 /*  Return the value of the nth element converted to double.           */
@@ -511,6 +524,14 @@ double CHRBLK::GetFloatValue(int n)
   {
   return atof((char *)GetValPtrEx(n));
   } // end of GetFloatValue
+
+/***********************************************************************/
+/*  Return the value of the nth element converted to tiny int.         */
+/***********************************************************************/
+char CHRBLK::GetTinyValue(int n)
+  {
+  return (char)atoi((char *)GetValPtrEx(n));
+  } // end of GetTinyValue
 
 /***********************************************************************/
 /*  Set one value in a block.                                          */
@@ -875,345 +896,6 @@ int STRBLK::GetMaxLength(void)
   return n;
   } // end of GetMaxLength
 
-#if 0
-/* -------------------------- Class SHRBLK --------------------------- */
-
-/***********************************************************************/
-/*  Constructor.                                                       */
-/***********************************************************************/
-SHRBLK::SHRBLK(void *mp, int nval)
-      : VALBLK(mp, TYPE_SHORT, nval), Shrp((short*&)Blkp)
-  {
-  } // end of SHRBLK constructor
-
-/***********************************************************************/
-/*  Initialization routine.                                            */
-/***********************************************************************/
-void SHRBLK::Init(PGLOBAL g, bool check)
-  {
-  if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(short));
-
-  Check = check;
-  Global = g;
-  } // end of Init
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void SHRBLK::SetValue(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  bool b;
-
-  if (!(b = valp->IsNull() && Nullable))
-    Shrp[n] = valp->GetShortValue();
-  else
-    Reset(n);
-
-  SetNull(n, b);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void SHRBLK::SetValue(PSZ p, int n)
-  {
-#if defined(_DEBUG) || defined(DEBTRACE)
-  if (Check) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Check
-#endif
-  Shrp[n] = (short)atoi(p);
-  SetNull(n, false);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void SHRBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-  bool b;
-
-  if (!(b = pv->IsNull(n2) && Nullable))
-    Shrp[n1] = ((SHRBLK*)pv)->Shrp[n2];
-  else
-    Reset(n1);
-
-  SetNull(n1, b);
-  } // end of SetValue
-
-#if 0
-/***********************************************************************/
-/*  Set many values in a block from values in another block.           */
-/***********************************************************************/
-void SHRBLK::SetValues(PVBLK pv, int k, int n)
-  {
-  CheckType(pv)
-  short *sp = ((SHRBLK*)pv)->Shrp;
-
-  for (register int i = k; i < n; i++)
-    Shrp[i] = sp[i];
-
-  } // end of SetValues
-#endif // 0
-
-/***********************************************************************/
-/*  Move one value from i to j.                                        */
-/***********************************************************************/
-void SHRBLK::Move(int i, int j)
-  {
-  Shrp[j] = Shrp[i];
-  MoveNull(i, j);
-  } // end of Move
-
-/***********************************************************************/
-/*  Compare a Value object with the nth value of the block.            */
-/***********************************************************************/
-int SHRBLK::CompVal(PVAL vp, int n)
-  {
-  CheckParms(vp, n)
-  short msv = Shrp[n];
-  short vsv = vp->GetShortValue();
-
-  return (vsv > msv) ? 1 : (vsv < msv) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Compare two values of the block.                                   */
-/***********************************************************************/
-int SHRBLK::CompVal(int i1, int i2)
-  {
-  short sv1 = Shrp[i1];
-  short sv2 = Shrp[i2];
-
-  return (sv1 > sv2) ? 1 : (sv1 < sv2) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *SHRBLK::GetValPtr(int n)
-  {
-  ChkIndx(n);
-  return Shrp + n;
-  } // end of GetValPtr
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *SHRBLK::GetValPtrEx(int n)
-  {
-  ChkIndx(n);
-  return Shrp + n;
-  } // end of GetValPtrEx
-
-/***********************************************************************/
-/*  Returns index of matching value in block or -1.                    */
-/***********************************************************************/
-int SHRBLK::Find(PVAL vp)
-  {
-  CheckType(vp)
-  int   i;
-  short n = vp->GetShortValue();
-
-  for (i = 0; i < Nval; i++)
-    if (n == Shrp[i])
-      break;
-
-  return (i < Nval) ? i : (-1);
-  } // end of Find
-
-/***********************************************************************/
-/*  Returns the length of the longest string in the block.             */
-/***********************************************************************/
-int SHRBLK::GetMaxLength(void)
-  {
-  char buf[12];
-  int i, n;
-
-  for (i = n = 0; i < Nval; i++) {
-    sprintf(buf, "%hd", Shrp[i]);
-
-    n = max(n, (signed)strlen(buf));
-    } // endfor i
-
-  return n;
-  } // end of GetMaxLength
-
-
-/* -------------------------- Class LNGBLK --------------------------- */
-
-/***********************************************************************/
-/*  Constructor.                                                       */
-/***********************************************************************/
-LNGBLK::LNGBLK(void *mp, int nval)
-      : VALBLK(mp, TYPE_INT, nval), Lngp((int*&)Blkp)
-  {
-  } // end of LNGBLK constructor
-
-/***********************************************************************/
-/*  Initialization routine.                                            */
-/***********************************************************************/
-void LNGBLK::Init(PGLOBAL g, bool check)
-  {
-  if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(int));
-
-  Check = check;
-  Global = g;
-  } // end of Init
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void LNGBLK::SetValue(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  bool b;
-
-  if (!(b = valp->IsNull() && Nullable))
-    Lngp[n] = valp->GetIntValue();
-  else
-    Reset(n);
-
-  SetNull(n, b);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void LNGBLK::SetValue(PSZ p, int n)
-  {
-#if defined(_DEBUG) || defined(DEBTRACE)
-  if (Check) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Check
-#endif
-
-  Lngp[n] = atol(p);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void LNGBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-  bool b;
-
-  if (!(b = pv->IsNull(n2) && Nullable))
-    Lngp[n1] = ((LNGBLK*)pv)->Lngp[n2];
-  else
-    Reset(n1);
-
-  SetNull(n1, b);
-  } // end of SetValue
-
-#if 0
-/***********************************************************************/
-/*  Set many values in a block from values in another block.           */
-/***********************************************************************/
-void LNGBLK::SetValues(PVBLK pv, int k, int n)
-  {
-  CheckType(pv)
-  int *lp = ((LNGBLK*)pv)->Lngp;
-
-  for (register int i = k; i < n; i++)
-    Lngp[i] = lp[i];
-
-  } // end of SetValues
-#endif // 0
-
-/***********************************************************************/
-/*  Move one value from i to j.                                        */
-/***********************************************************************/
-void LNGBLK::Move(int i, int j)
-  {
-  Lngp[j] = Lngp[i];
-  MoveNull(i, j);
-  } // end of Move
-
-/***********************************************************************/
-/*  Compare a Value object with the nth value of the block.            */
-/***********************************************************************/
-int LNGBLK::CompVal(PVAL vp, int n)
-  {
-  CheckParms(vp, n)
-  register int mlv = Lngp[n];
-  register int vlv = vp->GetIntValue();
-
-  return (vlv > mlv) ? 1 : (vlv < mlv) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Compare two values of the block.                                   */
-/***********************************************************************/
-int LNGBLK::CompVal(int i1, int i2)
-  {
-  register int lv1 = Lngp[i1];
-  register int lv2 = Lngp[i2];
-
-  return (lv1 > lv2) ? 1 : (lv1 < lv2) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *LNGBLK::GetValPtr(int n)
-  {
-  ChkIndx(n);
-  return Lngp + n;
-  } // end of GetValPtr
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *LNGBLK::GetValPtrEx(int n)
-  {
-  ChkIndx(n);
-  return Lngp + n;
-  } // end of GetValPtrEx
-
-/***********************************************************************/
-/*  Returns index of matching value in block or -1.                    */
-/***********************************************************************/
-int LNGBLK::Find(PVAL vp)
-  {
-  CheckType(vp)
-  int  i;
-  int n = vp->GetIntValue();
-
-  for (i = 0; i < Nval; i++)
-    if (n == Lngp[i])
-      break;
-
-  return (i < Nval) ? i : (-1);
-  } // end of Find
-
-/***********************************************************************/
-/*  Returns the length of the longest string in the block.             */
-/***********************************************************************/
-int LNGBLK::GetMaxLength(void)
-  {
-  char buf[12];
-  int i, n;
-
-  for (i = n = 0; i < Nval; i++) {
-    sprintf(buf, "%d", Lngp[i]);
-
-    n = max(n, (signed)strlen(buf));
-    } // endfor i
-
-  return n;
-  } // end of GetMaxLength
-#endif // 0
-
 /* -------------------------- Class DATBLK --------------------------- */
 
 /***********************************************************************/
@@ -1249,346 +931,6 @@ void DATBLK::SetValue(PSZ p, int n)
     TYPBLK<int>::SetValue(p, n);
 
   } // end of SetValue
-
-#if 0
-/* -------------------------- Class BIGBLK --------------------------- */
-
-/***********************************************************************/
-/*  Constructor.                                                       */
-/***********************************************************************/
-BIGBLK::BIGBLK(void *mp, int nval)
-      : VALBLK(mp, TYPE_BIGINT, nval), Lngp((longlong*&)Blkp)
-  {
-  } // end of BIGBLK constructor
-
-/***********************************************************************/
-/*  Initialization routine.                                            */
-/***********************************************************************/
-void BIGBLK::Init(PGLOBAL g, bool check)
-  {
-  if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(longlong));
-
-  Check = check;
-  Global = g;
-  } // end of Init
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void BIGBLK::SetValue(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  bool b;
-
-  if (!(b = valp->IsNull() && Nullable))
-    Lngp[n] = valp->GetBigintValue();
-  else
-    Reset(n);
-
-  SetNull(n, b);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void BIGBLK::SetValue(PSZ p, int n)
-  {
-#if defined(_DEBUG) || defined(DEBTRACE)
-  if (Check) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Check
-#endif
-
-  Lngp[n] = atoll(p);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void BIGBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-  bool b;
-
-  if (!(b = pv->IsNull(n2) && Nullable))
-    Lngp[n1] = ((BIGBLK*)pv)->Lngp[n2];
-  else
-    Reset(n1);
-
-  SetNull(n1, b);
-  } // end of SetValue
-
-#if 0
-/***********************************************************************/
-/*  Set many values in a block from values in another block.           */
-/***********************************************************************/
-void BIGBLK::SetValues(PVBLK pv, int k, int n)
-  {
-  CheckType(pv)
-  longlong *lp = ((BIGBLK*)pv)->Lngp;
-
-  for (register int i = k; i < n; i++)
-    Lngp[i] = lp[i];
-
-  } // end of SetValues
-#endif // 0
-
-/***********************************************************************/
-/*  Move one value from i to j.                                        */
-/***********************************************************************/
-void BIGBLK::Move(int i, int j)
-  {
-  Lngp[j] = Lngp[i];
-  MoveNull(i, j);
-  } // end of Move
-
-/***********************************************************************/
-/*  Compare a Value object with the nth value of the block.            */
-/***********************************************************************/
-int BIGBLK::CompVal(PVAL vp, int n)
-  {
-  CheckParms(vp, n)
-  longlong mlv = Lngp[n];
-  longlong vlv = vp->GetBigintValue();
-
-  return (vlv > mlv) ? 1 : (vlv < mlv) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Compare two values of the block.                                   */
-/***********************************************************************/
-int BIGBLK::CompVal(int i1, int i2)
-  {
-  longlong lv1 = Lngp[i1];
-  longlong lv2 = Lngp[i2];
-
-  return (lv1 > lv2) ? 1 : (lv1 < lv2) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *BIGBLK::GetValPtr(int n)
-  {
-  ChkIndx(n);
-  return Lngp + n;
-  } // end of GetValPtr
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *BIGBLK::GetValPtrEx(int n)
-  {
-  ChkIndx(n);
-  return Lngp + n;
-  } // end of GetValPtrEx
-
-/***********************************************************************/
-/*  Returns index of matching value in block or -1.                    */
-/***********************************************************************/
-int BIGBLK::Find(PVAL vp)
-  {
-  CheckType(vp)
-  int      i;
-  longlong n = vp->GetBigintValue();
-
-  for (i = 0; i < Nval; i++)
-    if (n == Lngp[i])
-      break;
-
-  return (i < Nval) ? i : (-1);
-  } // end of Find
-
-/***********************************************************************/
-/*  Returns the length of the longest string in the block.             */
-/***********************************************************************/
-int BIGBLK::GetMaxLength(void)
-  {
-  char buf[24];
-  int i, n;
-
-  for (i = n = 0; i < Nval; i++) {
-    sprintf(buf, "%lld", Lngp[i]);
-
-    n = max(n, (signed)strlen(buf));
-    } // endfor i
-
-  return n;
-  } // end of GetMaxLength
-
-
-/* -------------------------- Class DBLBLK --------------------------- */
-
-/***********************************************************************/
-/*  Constructor.                                                       */
-/***********************************************************************/
-DBLBLK::DBLBLK(void *mp, int nval, int prec)
-      : VALBLK(mp, TYPE_FLOAT, nval), Dblp((double*&)Blkp)
-  {
-  Prec = prec;
-  } // end of DBLBLK constructor
-
-/***********************************************************************/
-/*  Initialization routine.                                            */
-/***********************************************************************/
-void DBLBLK::Init(PGLOBAL g, bool check)
-  {
-  if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(double));
-
-  Check = check;
-  Global = g;
-  } // end of Init
-
-/***********************************************************************/
-/*  Set one value in a block from a value in another block.            */
-/***********************************************************************/
-void DBLBLK::SetValue(PVBLK pv, int n1, int n2)
-  {
-  CheckType(pv)
-  bool b;
-
-  if (!(b = pv->IsNull(n2) && Nullable))
-    Dblp[n1] = ((DBLBLK*)pv)->Dblp[n2];
-  else
-    Reset(n1);
-
-  SetNull(n1, b);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void DBLBLK::SetValue(PVAL valp, int n)
-  {
-  CheckParms(valp, n)
-  bool b;
-
-  if (!(b = valp->IsNull() && Nullable))
-    Dblp[n] = valp->GetFloatValue();
-  else
-    Reset(n);
-
-  SetNull(n, b);
-  } // end of SetValue
-
-/***********************************************************************/
-/*  Set one value in a block.                                          */
-/***********************************************************************/
-void DBLBLK::SetValue(PSZ p, int n)
-  {
-#if defined(_DEBUG) || defined(DEBTRACE)
-  if (Check) {
-    PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(BAD_SET_STRING));
-    longjmp(g->jumper[g->jump_level], Type);
-    } // endif Check
-#endif
-
-  Dblp[n] = atof(p);
-  } // end of SetValue
-
-#if 0
-/***********************************************************************/
-/*  Set many values in a block from values in another block.           */
-/***********************************************************************/
-void DBLBLK::SetValues(PVBLK pv, int k, int n)
-  {
-  CheckType(pv)
-  double *dp = ((DBLBLK*)pv)->Dblp;
-
-  for (register int i = k; i < n; i++)
-    Dblp[i] = dp[i];
-
-  } // end of SetValues
-#endif // 0
-
-/***********************************************************************/
-/*  Move one value from i to j.                                        */
-/***********************************************************************/
-void DBLBLK::Move(int i, int j)
-  {
-  Dblp[j] = Dblp[i];
-  MoveNull(i, j);
-  } // end of Move
-
-/***********************************************************************/
-/*  Compare a Value object with the nth value of the block.            */
-/***********************************************************************/
-int DBLBLK::CompVal(PVAL vp, int n)
-  {
-  CheckParms(vp, n)
-  double mfv = Dblp[n];
-  double vfv = vp->GetFloatValue();
-
-  return (vfv > mfv) ? 1 : (vfv < mfv) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Compare two values of the block.                                   */
-/***********************************************************************/
-int DBLBLK::CompVal(int i1, int i2)
-  {
-  register double dv1 = Dblp[i1];
-  register double dv2 = Dblp[i2];
-
-  return (dv1 > dv2) ? 1 : (dv1 < dv2) ? (-1) : 0;
-  } // end of CompVal
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *DBLBLK::GetValPtr(int n)
-  {
-  ChkIndx(n);
-  return Dblp + n;
-  } // end of GetValPtr
-
-/***********************************************************************/
-/*  Get a pointer on the nth value of the block.                       */
-/***********************************************************************/
-void *DBLBLK::GetValPtrEx(int n)
-  {
-  ChkIndx(n);
-  return Dblp + n;
-  } // end of GetValPtrEx
-
-/***********************************************************************/
-/*  Returns index of matching value in block or -1.                    */
-/***********************************************************************/
-int DBLBLK::Find(PVAL vp)
-  {
-  CheckType(vp)
-  int    i;
-  double d = vp->GetFloatValue();
-
-  for (i = 0; i < Nval; i++)
-    if (d == Dblp[i])
-      break;
-
-  return (i < Nval) ? i : (-1);
-  } // end of Find
-
-/***********************************************************************/
-/*  Returns the length of the longest string in the block.             */
-/***********************************************************************/
-int DBLBLK::GetMaxLength(void)
-  {
-  char buf[32];
-  int i, n;
-
-  for (i = n = 0; i < Nval; i++) {
-    sprintf(buf, "%lf", Dblp[i]);
-
-    n = max(n, (signed)strlen(buf));
-    } // endfor i
-
-  return n;
-  } // end of GetMaxLength
-#endif // 0
 
 /* ------------------------- End of Valblk --------------------------- */
 

@@ -153,6 +153,12 @@ bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
     case TYPE_FLOAT:
       sprintf(work + strlen(work), "%lf", Value->GetFloatValue());
       break;
+    case TYPE_BIGINT:
+      sprintf(work + strlen(work), "%lld", Value->GetBigintValue());
+      break;
+    case TYPE_TINY:
+      sprintf(work + strlen(work), "%d", Value->GetTinyValue());
+      break;
     default:
       sprintf(g->Message, MSG(BAD_CONST_TYPE), Value->GetType());
       return false;

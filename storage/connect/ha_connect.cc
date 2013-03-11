@@ -1097,6 +1097,9 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     case MYSQL_TYPE_SHORT:
       pcf->Type= TYPE_SHORT;
       break;
+    case MYSQL_TYPE_TINY:
+      pcf->Type= TYPE_TINY;
+      break;
     case MYSQL_TYPE_DOUBLE:
     case MYSQL_TYPE_FLOAT:
       pcf->Type= TYPE_FLOAT;
@@ -3797,6 +3800,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_NEWDATE:
       case MYSQL_TYPE_VARCHAR:
       case MYSQL_TYPE_LONGLONG:
+      case MYSQL_TYPE_TINY:
         break;                     // Ok
       case MYSQL_TYPE_VAR_STRING:
       case MYSQL_TYPE_STRING:
@@ -3804,7 +3808,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case MYSQL_TYPE_NEWDECIMAL:
       case MYSQL_TYPE_INT24:
         break;                     // To be checked
-      case MYSQL_TYPE_TINY:
       case MYSQL_TYPE_BIT:
       case MYSQL_TYPE_NULL:
       case MYSQL_TYPE_ENUM:

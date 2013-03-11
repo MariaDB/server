@@ -256,10 +256,13 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
       case CIM_UINT32:
       case CIM_BOOLEAN:
         typ = TYPE_INT;
-        lng = 9;
+        lng = 11;
         break;
       case CIM_SINT8:
       case CIM_UINT8:
+        typ = TYPE_TINY;
+        lng = 4;
+        break;
       case CIM_SINT16:
       case CIM_UINT16:
         typ = TYPE_SHORT;
@@ -268,10 +271,13 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
       case CIM_REAL64:
       case CIM_REAL32:
         prec = 2;
-      case CIM_SINT64:
-      case CIM_UINT64:
         typ = TYPE_FLOAT;
         lng = 15;
+        break;
+      case CIM_SINT64:
+      case CIM_UINT64:
+        typ = TYPE_BIGINT;
+        lng = 20;
         break;
       case CIM_DATETIME:
         typ = TYPE_DATE;

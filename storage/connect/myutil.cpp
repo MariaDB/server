@@ -1,7 +1,7 @@
 /************** MyUtil C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYUTIL                                                 */
 /* -------------                                                        */
-/*  Version 1.0                                                         */
+/*  Version 1.1                                                         */
 /*                                                                      */
 /*  Author Olivier BERTRAND                               2013          */
 /*                                                                      */
@@ -35,7 +35,7 @@ int MYSQLtoPLG(char *typname)
   if (!stricmp(typname, "int") || !stricmp(typname, "mediumint") ||
       !stricmp(typname, "integer"))
     type = TYPE_INT;
-  else if (!stricmp(typname, "tinyint") || !stricmp(typname, "smallint"))
+  else if (!stricmp(typname, "smallint"))
     type = TYPE_SHORT;
   else if (!stricmp(typname, "char") || !stricmp(typname, "varchar") ||
            !stricmp(typname, "text") || !stricmp(typname, "blob"))
@@ -50,6 +50,8 @@ int MYSQLtoPLG(char *typname)
     type = TYPE_DATE;
   else if (!stricmp(typname, "bigint") || !stricmp(typname, "longlong"))
     type = TYPE_BIGINT;
+  else if (!stricmp(typname, "tinyint"))
+    type = TYPE_TINY;
   else
     type = TYPE_ERROR;
 
@@ -82,6 +84,9 @@ enum enum_field_types PLGtoMYSQL(int type, bool dbf)
     case TYPE_BIGINT:
       mytype = MYSQL_TYPE_LONGLONG;
       break;
+    case TYPE_TINY:
+      mytype = MYSQL_TYPE_TINY;
+      break;
     default:
       mytype = MYSQL_TYPE_NULL;
     } // endswitch mytype
@@ -97,7 +102,6 @@ int MYSQLtoPLG(int mytype)
   int type;
 
   switch (mytype) {
-    case MYSQL_TYPE_TINY:
     case MYSQL_TYPE_SHORT:
       type = TYPE_SHORT;
       break;
@@ -108,6 +112,9 @@ int MYSQLtoPLG(int mytype)
       break;
     case MYSQL_TYPE_LONGLONG:
       type = TYPE_BIGINT;
+      break;
+    case MYSQL_TYPE_TINY:
+      type = TYPE_TINY;
       break;
     case MYSQL_TYPE_DECIMAL:
 #if !defined(ALPHA)

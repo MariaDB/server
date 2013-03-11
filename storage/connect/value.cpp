@@ -1,5 +1,5 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.1                                       */
+/*  Name: VALUE.CPP  Version 2.2                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
 /*                                                                     */
@@ -19,8 +19,8 @@
 /*  to avoid too complicated classes and unuseful duplication of many  */
 /*  functions used on one family only. The drawback is that for new    */
 /*  types of objects, we shall have more classes to update.            */
-/*  Currently the only implemented types are STRING, INT, DOUBLE, DATE */
-/*  and LONGLONG. Shortly we should add at least TINY and VARCHAR.     */
+/*  Currently the only implemented types are STRING, INT, SHORT, TINY, */
+/*  DATE and LONGLONG. Shortly we should add at least UNSIGNED types.  */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -128,6 +128,7 @@ PSZ GetTypeName(int type)
     case TYPE_BIGINT: name = "BIGINT";   break;
     case TYPE_DATE:   name = "DATE";     break;
     case TYPE_FLOAT:  name = "FLOAT";    break;
+    case TYPE_TINY:   name = "TINY";     break;
     } // endswitch type
 
   return name;
@@ -145,6 +146,7 @@ int GetTypeSize(int type, int len)
     case TYPE_BIGINT: len = sizeof(longlong);   break;
     case TYPE_DATE:   len = sizeof(int);        break;
     case TYPE_FLOAT:  len = sizeof(double);     break;
+    case TYPE_TINY:   len = sizeof(char);       break;
       break;
     default:          len = 0;
     } // endswitch type
@@ -206,6 +208,7 @@ char *GetFormatType(int type)
     case TYPE_BIGINT: c = "L"; break;
     case TYPE_FLOAT:  c = "F"; break;
     case TYPE_DATE:   c = "D"; break;
+    case TYPE_TINY:   c = "T"; break;
     } // endswitch type
 
   return c;
@@ -225,6 +228,7 @@ int GetFormatType(char c)
     case 'L': type = TYPE_BIGINT; break;
     case 'F': type = TYPE_FLOAT;  break;
     case 'D': type = TYPE_DATE;   break;
+    case 'T': type = TYPE_TINY;   break;
     } // endswitch type
 
   return type;
@@ -256,6 +260,7 @@ bool IsTypeNum(int type)
     case TYPE_FLOAT:
     case TYPE_SHORT:
     case TYPE_NUM:
+    case TYPE_TINY:
       return true;
     } // endswitch type
 
@@ -267,13 +272,14 @@ bool IsTypeNum(int type)
 /***********************************************************************/
 const char *GetFmt(int type)
   {
-  const char *fmt = "%d";;
+  const char *fmt;
 
   switch (type) {
     case TYPE_STRING: fmt = "%s";    break;
     case TYPE_SHORT:  fmt = "%hd";   break;
     case TYPE_BIGINT: fmt = "%lld";  break;
     case TYPE_FLOAT:  fmt = "%.*lf"; break;
+    default:          fmt = "%d";    break;
     } // endswitch Type
 
   return fmt;
@@ -304,7 +310,8 @@ int ConvertType(int target, int type, CONV kind, bool match)
            : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
            : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
-                                                            : TYPE_SHORT;
+           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
+                                                            : TYPE_TINY;
     default:
       if (target == TYPE_ERROR || target == type)
         return type;
@@ -319,6 +326,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
            : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
            : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
            : (target == TYPE_STRING || type == TYPE_STRING) ? TYPE_STRING
+           : (target == TYPE_TINY   || type == TYPE_TINY)   ? TYPE_TINY
                                                             : TYPE_ERROR;
     } // endswitch kind
 
@@ -349,6 +357,9 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
       break;
     case TYPE_FLOAT:
       valp = new(g) TYPVAL<double>(*(double *)value, TYPE_FLOAT);
+      break;
+    case TYPE_TINY:
+      valp = new(g) TYPVAL<char>(*(char *)value, TYPE_TINY);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
@@ -385,6 +396,9 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
       break;
     case TYPE_FLOAT:
       valp = new(g) TYPVAL<double>(0.0, prec, TYPE_FLOAT);
+      break;
+    case TYPE_TINY:
+      valp = new(g) TYPVAL<char>((char)0, TYPE_SHORT);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
@@ -430,6 +444,9 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype)
     case TYPE_FLOAT:
       valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_FLOAT);
       break;
+    case TYPE_TINY:  
+      valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
       return NULL;
@@ -460,13 +477,14 @@ VALUE::VALUE(int type) : Type(type)
 /***********************************************************************/
 const char *VALUE::GetXfmt(void)
   {
-  const char *fmt = "%*d";;
+  const char *fmt;
 
   switch (Type) {
     case TYPE_STRING: fmt = "%*s";    break;
     case TYPE_SHORT:  fmt = "%*hd";   break;
     case TYPE_BIGINT: fmt = "%*lld";  break;
     case TYPE_FLOAT:  fmt = "%*.*lf"; break;
+    default:          fmt = "%*d";    break;
     } // endswitch Type
 
   return fmt;
@@ -527,7 +545,6 @@ bool TYPVAL<TYPE>::SetValue_pval(PVAL valp, bool chktype)
     return true;
 
   if (!(Null = valp->IsNull() && Nullable))
-//  Tval = (TYPE)valp->GetBigintValue();
     Tval = GetTypedValue(valp);
   else
     Reset();
@@ -550,6 +567,10 @@ longlong TYPVAL<longlong>::GetTypedValue(PVAL valp)
 template <>
 double TYPVAL<double>::GetTypedValue(PVAL valp)
   {return valp->GetFloatValue();}
+
+template <>
+char TYPVAL<char>::GetTypedValue(PVAL valp)
+  {return valp->GetTinyValue();}
 
 /***********************************************************************/
 /*  TYPVAL SetValue: convert chars extracted from a line to TYPE value.*/
@@ -628,7 +649,8 @@ template <>
 longlong TYPVAL<longlong>::GetTypedValue(PSZ s) {return atoll(s);}
 template <>
 double TYPVAL<double>::GetTypedValue(PSZ s) {return atof(s);}
-
+template <>
+char TYPVAL<char>::GetTypedValue(PSZ s) {return (char)atoi(s);}
 
 /***********************************************************************/
 /*  TYPVAL SetValue: set value with a TYPE extracted from a block.     */
@@ -655,6 +677,10 @@ longlong TYPVAL<longlong>::GetTypedValue(PVBLK blk, int n)
 template <>
 double TYPVAL<double>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetFloatValue(n);}
+
+template <>
+char TYPVAL<char>::GetTypedValue(PVBLK blk, int n)
+  {return blk->GetTinyValue(n);}
 
 /***********************************************************************/
 /*  TYPVAL SetBinValue: with bytes extracted from a line.              */
@@ -765,6 +791,16 @@ char *TYPVAL<TYPE>::GetFloatString(char *p, int n, int prec)
   sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, (double)Tval);
   return p;
   } // end of GetFloatString
+
+/***********************************************************************/
+/*  TYPVAL GetTinyString: get char representation of a typed value.    */
+/***********************************************************************/
+template <class TYPE>
+char *TYPVAL<TYPE>::GetTinyString(char *p, int n)
+  {
+  sprintf(p, "%*d", n, (int)(char)Tval);
+  return p;
+  } // end of GetIntString
 
 /***********************************************************************/
 /*  TYPVAL compare value with another Value.                           */
@@ -998,6 +1034,15 @@ void TYPVAL<PSZ>::SetValue(double f)
   } // end of SetValue
 
 /***********************************************************************/
+/*  STRING SetValue: get the character representation of a tiny int.   */
+/***********************************************************************/
+void TYPVAL<PSZ>::SetValue(char c)
+  {
+  SetValue((int)c);
+  Null = false;
+  } // end of SetValue
+
+/***********************************************************************/
 /*  STRING SetBinValue: fill string with chars extracted from a line.  */
 /***********************************************************************/
 void TYPVAL<PSZ>::SetBinValue(void *p)
@@ -1077,6 +1122,15 @@ char *TYPVAL<PSZ>::GetFloatString(char *p, int n, int prec)
   sprintf(p, "%*.*lf", n, (prec < 0) ? 2 : prec, Null ? 0 : atof(Strp));
   return p;
   } // end of GetFloatString
+
+/***********************************************************************/
+/*  STRING GetTinyString: get tiny int representation of a char value. */
+/***********************************************************************/
+char *TYPVAL<PSZ>::GetTinyString(char *p, int n)
+  {
+  sprintf(p, "%*d", n, (Null) ? 0 : (char)atoi(Strp));
+  return p;
+  } // end of GetIntString
 
 /***********************************************************************/
 /*  STRING compare value with another Value.                           */

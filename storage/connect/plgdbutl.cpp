@@ -1529,6 +1529,10 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
       fprintf(f, "%s%hd\n", m, *(short *)v);
       break;
 
+    case TYPE_TINY:
+      fprintf(f, "%s%d\n", m, (int)*(char *)v);
+      break;
+
     case TYPE_VOID:
       break;
 
