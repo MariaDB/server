@@ -3076,17 +3076,11 @@ rpl_load_gtid_slave_state(THD *thd)
     goto end;
   table_opened= true;
   table= tlist.table;
-  table->no_replicate= 1;
 
-  /*
-    ToDo: Check the table definition, error if not as expected.
-    We need the correct first 4 columns with correct type, and the primary key.
-  */
+  if ((err= gtid_check_rpl_slave_state_table(table)))
+    goto end;
 
-  bitmap_set_bit(table->read_set, table->field[0]->field_index);
-  bitmap_set_bit(table->read_set, table->field[1]->field_index);
-  bitmap_set_bit(table->read_set, table->field[2]->field_index);
-  bitmap_set_bit(table->read_set, table->field[3]->field_index);
+  bitmap_set_all(table->read_set);
   if ((err= table->file->ha_rnd_init_with_error(1)))
     goto end;
   table_scanned= true;

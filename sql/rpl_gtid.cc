@@ -50,7 +50,8 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid)
   {
     sql_print_warning("Slave: Out of memory during slave state maintenance. "
                       "Some no longer necessary rows in table "
-                      "mysql.rpl_slave_state may be left undeleted.");
+                      "mysql.%s may be left undeleted.",
+                      rpl_gtid_slave_state_table_name.str);
     /*
       Such failure is not fatal. We will fail to delete the row for this
       GTID, but it will do no harm and will be removed automatically on next
@@ -254,6 +255,21 @@ protected:
 static Gtid_db_intact gtid_table_intact;
 
 /*
+  Check that the mysql.rpl_slave_state table has the correct definition.
+*/
+int
+gtid_check_rpl_slave_state_table(TABLE *table)
+{
+  int err;
+
+  if ((err= gtid_table_intact.check(table, &mysql_rpl_slave_state_tabledef)))
+    my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+  return err;
+}
+
+
+/*
   Write a gtid to the replication slave state table.
 
   Do it as part of the transaction, to get slave crash safety, or as a separate
@@ -290,22 +306,14 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   table_opened= true;
   table= tlist.table;
 
-  if ((err= gtid_table_intact.check(table, &mysql_rpl_slave_state_tabledef)))
-  {
-    my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0), "mysql",
-             rpl_gtid_slave_state_table_name.str);
+  if ((err= gtid_check_rpl_slave_state_table(table)))
     goto end;
-  }
 
   table->no_replicate= 1;
   if (!in_transaction)
     thd->variables.option_bits&=
       ~(ulonglong)(OPTION_NOT_AUTOCOMMIT|OPTION_BEGIN);
 
-  /*
-    ToDo: Check the table definition, error if not as expected.
-    We need the correct first 4 columns with correct type, and the primary key.
-  */
   bitmap_set_all(table->write_set);
 
   table->field[0]->store((ulonglong)gtid->domain_id, true);
