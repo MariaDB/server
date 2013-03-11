@@ -287,7 +287,8 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       return true;
 
     if (mode == MODE_INSERT)
-      if (colp->SetBuffer(g, colp->GetValue(), true, true))
+      // Allow type conversion
+      if (colp->SetBuffer(g, colp->GetValue(), true, false))
         return true;
 
     colp->AddColUse(U_P);           // For PLG tables
@@ -344,7 +345,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
       if (colp->InitValue(g))
         return true;
 
-      if (colp->SetBuffer(g, colp->GetValue(), true, true))
+      if (colp->SetBuffer(g, colp->GetValue(), true, false))
         return true;
 
       } // endfor colp
