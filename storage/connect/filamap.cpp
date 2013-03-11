@@ -192,7 +192,11 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
       return true;
       } // endif Memory
 
+#if defined(WIN32)
     if (mode != MODE_DELETE) {
+#else   // !WIN32
+    if (mode == MODE_READ) {
+#endif  // !WIN32
       CloseFileHandle(hFile);                    // Not used anymore
       hFile = INVALID_HANDLE_VALUE;              // For Fblock
       } // endif Mode
