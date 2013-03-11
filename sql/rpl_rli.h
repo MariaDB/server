@@ -592,7 +592,6 @@ private:
 int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 
-extern const LEX_STRING rpl_gtid_slave_state_table_name;
 extern struct rpl_slave_state rpl_global_gtid_slave_state;
 
 

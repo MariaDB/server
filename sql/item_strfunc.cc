@@ -2737,6 +2737,11 @@ void Item_func_binlog_gtid_pos::fix_length_and_dec()
 String *Item_func_binlog_gtid_pos::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
+#ifndef HAVE_REPLICATION
+  null_value= 0;
+  str->copy("", 0, system_charset_info);
+  return str;
+#else
   String name_str, *name;
   longlong pos;
 
@@ -2757,6 +2762,7 @@ String *Item_func_binlog_gtid_pos::val_str(String *str)
 err:
   null_value= 1;
   return NULL;
+#endif  /* !HAVE_REPLICATION */
 }
 
 
