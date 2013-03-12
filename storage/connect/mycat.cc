@@ -316,7 +316,12 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
 	if (s) {
 		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
 		strcpy(sval, s);
-	} else
+  } else if (!stricmp(what, "filename")) {
+    // Return default file name
+    sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 8);
+    strcat(strcpy(sval, Hc->GetTableName()), ".");
+    strcat(sval, Hc->GetStringOption("Type", "DOS"));
+  } else
 		sval = NULL;
 
 	return sval;

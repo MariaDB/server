@@ -126,6 +126,7 @@
 #include "tabcol.h"
 #include "xindex.h"
 #if defined(WIN32)
+#include <io.h>
 #include "tabwmi.h"
 #endif   // WIN32
 #include "connect.h"
@@ -3388,7 +3389,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
   MEM_ROOT   *mem= thd->mem_root;
   CHARSET_INFO *cs;
   Alter_info *alter_info= (Alter_info*)alt_info;
-  engine_option_value *pov, *start= create_info->option_list, *end= NULL;
+  engine_option_value *pov, **start= &create_info->option_list, *end= NULL;
   PQRYRES     qrp;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd);
@@ -3400,7 +3401,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
   user= NULL;
 
   // Get the useful create options
-  for (pov= start; pov; pov= pov->next) {
+  for (pov= *start; pov; pov= pov->next) {
     if (!stricmp(pov->name.str, "table_type")) {
       typn= pov->value.str;
       ttp= GetTypeID(typn);
@@ -3447,15 +3448,13 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
 
   // Check table type
   if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
-    sprintf(g->Message, "Unknown Table_type '%s'", typn);
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-    strcpy(g->Message, "Using Table_type DOS");
+    strcpy(g->Message, "No table_type. Was set to DOS");
     push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
     ttp= TAB_DOS;
     typn= "DOS";
     name= thd->make_lex_string(NULL, "table_type", 10, true);
     val= thd->make_lex_string(NULL, typn, strlen(typn), true);
-    pov= new(mem) engine_option_value(*name, *val, false, &start, &end);
+    pov= new(mem) engine_option_value(*name, *val, false, start, &end);
     } // endif ttp
 
   if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
@@ -3477,7 +3476,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       dbf= true;
       // Passthru
     case TAB_CSV:
-      if (!fn)
+      if (!fn && fnc != FNC_NO)
         sprintf(g->Message, "Missing %s file name", typn);
       else
         ok= true;
@@ -3529,19 +3528,6 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
                         fncn, typn);
     ok= false;
     } // endif supfnc
-
-  // If file name is not specified, set a default file name
-  // in the database directory from alias.type.
-  if (IsFileType(ttp) && !fn) {
-    char buf[256];
-
-    strcat(strcat(strcpy(buf, (char*)create_info->alias), "."), typn); 
-    name= thd->make_lex_string(NULL, "file_name", 9, true);
-    val= thd->make_lex_string(NULL, buf, strlen(buf), true);
-    pov= new(mem) engine_option_value(*name, *val, false, &start, &end);
-    sprintf(g->Message, "Unspecified file name was set to %s", buf);
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-    } // endif ttp && fn
 
   // Test whether columns must be specified
   if (alter_info->create_list.elements)
@@ -3849,42 +3835,69 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     } // endfor field
 
-  // Check whether indexes were specified
-  table= table_arg;       // Used by called functions
+  if (IsFileType(GetTypeID(options->type))) {
+    table= table_arg;       // Used by called functions
 
-  // Get the index definitions
-  for (int n= 0; (unsigned)n < table->s->keynames.count; n++) {
-    if (xtrace)
-      printf("Getting created index %d info\n", n + 1);
+    if (!options->filename) {
+      // The file name is not specified, create a default file in
+      // the database directory named table_name.table_type.
+      char buf[256], fn[_MAX_PATH], dbpath[128];
+      int  h;
 
-    xdp= GetIndexInfo(n);
+      strcat(strcat(strcpy(buf, GetTableName()), "."), options->type);
+      sprintf(g->Message, "No file name. Table will use %s", buf);
+      push_warning(table->in_use, 
+                   MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+      PlugSetPath(fn, buf, dbpath);
 
-    if (pxd)
-      pxd->SetNext(xdp);
-    else
-      toidx= xdp;
+      if ((h= ::open(fn, _O_CREAT, 0666)) == -1) {  
+        sprintf(g->Message, "Cannot create file %s", fn);
+        push_warning(table->in_use, 
+                     MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      } else
+        ::close(h);
 
-    pxd= xdp;
-    } // endfor n
+    } else {
+      // Check whether indexes were specified
 
-  if (toidx) {
-    PDBUSER dup= PlgGetUser(g);
-    PCATLG  cat= (dup) ? dup->Catalog : NULL;
+      // Get the index definitions
+      for (int n= 0; (unsigned)n < table->s->keynames.count; n++) {
+        if (xtrace)
+          printf("Getting created index %d info\n", n + 1);
 
-    DBUG_ASSERT(cat);
+        xdp= GetIndexInfo(n);
 
-    if (cat)
-      cat->SetDataPath(g, table_arg->in_use->db);
+        if (pxd)
+          pxd->SetNext(xdp);
+        else
+          toidx= xdp;
 
-    if ((rc= optimize(NULL, NULL))) {
-      printf("Create rc=%d %s\n", rc, g->Message);
-      rc= HA_ERR_INTERNAL_ERROR;
-    } else
-      CloseTable(g);
+        pxd= xdp;
+        } // endfor n
 
-    } // endif toidx
+      if (toidx) {
+        PDBUSER dup= PlgGetUser(g);
+        PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-  table= st;
+        DBUG_ASSERT(cat);
+
+        if (cat)
+          cat->SetDataPath(g, table_arg->in_use->db);
+
+        if ((rc= optimize(NULL, NULL))) {
+          printf("Create rc=%d %s\n", rc, g->Message);
+          rc= HA_ERR_INTERNAL_ERROR;
+        } else
+          CloseTable(g);
+
+        } // endif toidx
+
+    } // endif filename
+
+    table= st;
+    } // endif type
+
   DBUG_RETURN(rc);
 } // end of create
 

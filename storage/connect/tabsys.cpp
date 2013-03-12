@@ -83,7 +83,7 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   else
     strcpy(ds, "I");                 // INI tables default to I(ni)
 
-  Fn = Cat->GetStringCatInfo(g, Name, "Filename", "?");
+  Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
   Cat->GetCharCatInfo(Name, "Subtype", ds, buf, sizeof(buf));
   Subtype = toupper(*buf);
   Cat->GetCharCatInfo(Name, "Layout", "C", buf, sizeof(buf));
