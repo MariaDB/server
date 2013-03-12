@@ -93,7 +93,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 //void  *memp = Cat->GetDescp();
 //PSZ    dbfile = Cat->GetDescFile();
 
-  Fn = Cat->GetStringCatInfo(g, Name, "Filename", "?");
+  Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
   Encoding = Cat->GetStringCatInfo(g, Name, "Encoding", "UTF-8");
 
   if (*Fn == '?') {

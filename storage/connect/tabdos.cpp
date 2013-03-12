@@ -231,7 +231,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-  Desc = Fn = Cat->GetStringCatInfo(g, Name, "Filename", "");
+  Desc = Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
   Ofn = Cat->GetStringCatInfo(g, Name, "Optname", Fn);
   Cat->GetCharCatInfo(Name, "Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
