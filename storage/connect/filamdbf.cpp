@@ -575,6 +575,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
         switch ((c = *GetFormatType(cdp->GetType()))) {
           case 'S':           // Short integer
           case 'L':           // Large (big) integer
+          case 'T':           // Tiny integer
             c = 'N';          // Numeric
           case 'N':           // Numeric (integer)
           case 'F':           // Float (double)
