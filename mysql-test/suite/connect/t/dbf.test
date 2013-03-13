@@ -208,21 +208,17 @@ DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
-#
-# TODO: TINYINT is not supported
-#
 --echo #
 --echo # Testing TINYINT
 --echo #
---error ER_UNKNOWN_ERROR
 CREATE TABLE t1
 (
   a TINYINT DEFAULT NULL
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-#INSERT INTO t1 VALUES (123);
-#SELECT * FROM t1;
-#DROP TABLE t1;
-#--remove_file $MYSQLD_DATADIR/test/t1.dbf
+INSERT INTO t1 VALUES (123);
+SELECT * FROM t1;
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.dbf
 
 
 --echo #
@@ -371,7 +367,7 @@ eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.dbf
 #
-# TODO: this return error: 
+# TODO: this return error:
 # Got error 122 'Value 123.0000000000 too long for column a of length 12'
 # from CONNECT
 #
@@ -441,7 +437,7 @@ DROP TABLE IF EXISTS t1;
 # Testing with no FILE_NAME specified
 # Currently it returns:
 # ERROR 1296 (HY000): Got error 174 'Open(a+) error 21
-# on /opt/mariadb-5.5/data/: Is a directory' from CONNECT 
+# on /opt/mariadb-5.5/data/: Is a directory' from CONNECT
 #CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=DBF;
 
 --echo #
