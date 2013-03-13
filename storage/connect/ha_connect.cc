@@ -3180,6 +3180,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 {
   DBUG_ENTER("ha_connect::delete_or_rename_table");
   /* We have to retrieve the information about this table options. */
+  ha_table_option_struct *pos;
 #if defined(WIN32)
   const char  *fmt= ".\\%[^\\]\\%s";
 #else   // !WIN32
@@ -3193,7 +3194,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   THD         *thd= current_thd;
 
   if (sscanf(name, fmt, db, tabname) != 2)
-    DBUG_RETURN(0);
+    goto fin;
 
   table_list.db=         (char*) db;
   table_list.table_name= (char*) tabname;
@@ -3201,14 +3202,14 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
   // share contains the option struct that we need
   if (!(share= alloc_table_share(&table_list, key, key_length)))
-    DBUG_RETURN(0);
+    goto fin;
 
   // Get the share info from the .frm file
   if (open_table_def(thd, share, db_flags))
     goto err;
 
   // Now we can work
-  ha_table_option_struct *pos= share->option_struct;
+  pos= share->option_struct;
 
   if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
     // This is a table whose files must be erased or renamed */
@@ -3253,6 +3254,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   // Done no more need for this
  err:
   free_table_share(share);
+ fin:
   DBUG_RETURN(0);
 } // end of delete_or_rename_table
 
@@ -3937,7 +3939,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
       PlugSetPath(fn, buf, dbpath);
 
-      if ((h= ::open(fn, _O_CREAT, 0666)) == -1) {  
+      if ((h= ::open(fn, O_CREAT, 0666)) == -1) {  
         sprintf(g->Message, "Cannot create file %s", fn);
         push_warning(table->in_use, 
                      MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
