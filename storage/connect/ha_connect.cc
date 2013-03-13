@@ -105,6 +105,7 @@
 #include "mysql_com.h"
 #include "field.h"
 #include "sql_parse.h"
+#include "sql_base.h"
 #undef  OFFSET
 
 #define NOPARSE
@@ -551,8 +552,8 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   enable_activate_all_index= 0;
   int_table_flags= (HA_NO_TRANSACTIONS | HA_NO_PREFIX_CHAR_KEYS);
   ref_length= sizeof(int);
-#if !defined(MARIADB)
   share= NULL;
+#if !defined(MARIADB)
   table_options= NULL;
   field_options= NULL;
 #endif   // !MARIADB
@@ -2029,10 +2030,11 @@ bool ha_connect::get_error_message(int error, String* buf)
   rename_table method in handler.cc and
   delete_table method in handler.cc
 */
-static const char *ha_connect_exts[]= {
+static const char *ha_connect_null_exts[]= {
   NullS
 };
 
+static const char* *ha_connect_exts= ha_connect_null_exts;
 
 const char **ha_connect::bas_ext() const
 {
@@ -3155,10 +3157,12 @@ THR_LOCK_DATA **ha_connect::store_lock(THD *thd,
 
 /**
   @brief
-  Used to delete a table. By the time delete_table() has been called all
-  opened references to this table will have been closed (and your globally
-  shared references released). The variable name will just be the name of
-  the table. You will need to remove any files you have created at this point.
+  Used to delete or rename a table. By the time delete_table() has been
+  called all opened references to this table will have been closed 
+  (and your globally shared references released) ===> too bad!!!
+  The variable name will just be the name of the table.
+  You will need to remove or rename any files you have created at 
+  this point.
 
     @details
   If you do not implement this, the default delete_table() is called from
@@ -3172,13 +3176,95 @@ THR_LOCK_DATA **ha_connect::store_lock(THD *thd,
     @see
   delete_table and ha_create_table() in handler.cc
 */
+int ha_connect::delete_or_rename_table(const char *name, const char *to)
+{
+  DBUG_ENTER("ha_connect::delete_or_rename_table");
+  /* We have to retrieve the information about this table options. */
+#if defined(WIN32)
+  const char  *fmt= ".\\%[^\\]\\%s";
+#else   // !WIN32
+  const char  *fmt= "./%[^/]/%s";
+#endif  // !WIN32
+  char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
+  int          rc, i = 0;
+  uint         key_length, db_flags= 0;
+  TABLE_LIST   table_list;
+  TABLE_SHARE *share;
+  THD         *thd= current_thd;
+
+  if (sscanf(name, fmt, db, tabname) != 2)
+    DBUG_RETURN(0);
+
+  table_list.db=         (char*) db;
+  table_list.table_name= (char*) tabname;
+  key_length= create_table_def_key(thd, key, &table_list, 0);
+
+  // share contains the option struct that we need
+  if (!(share= alloc_table_share(&table_list, key, key_length)))
+    DBUG_RETURN(0);
+
+  // Get the share info from the .frm file
+  if (open_table_def(thd, share, db_flags))
+    goto err;
+
+  // Now we can work
+  ha_table_option_struct *pos= share->option_struct;
+
+  if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
+    // This is a table whose files must be erased or renamed */
+    char ftype[8], *new_exts[2];
+#if 0  // This does not work with sepindex and causes a DBUG_ASSERT failure
+    char ftype[8], *xtype, *new_exts[3];
+
+    switch (GetTypeID(pos->type)) {
+      case TAB_CSV:
+      case TAB_FMT:
+      case TAB_DOS: xtype= ".dnx"; break;
+      case TAB_FIX: xtype= ".fnx"; break;
+      case TAB_BIN: xtype= ".bnx"; break;
+      case TAB_VEC: xtype= ".vnx"; break;
+      case TAB_DBF: xtype= ".dbx"; break;
+      default:
+        xtype= NULL;
+        return true;
+      } // endswitch Ftype
+
+    if (xtype)
+      new_exts[i++]= xtype;
+#endif // 0
+    strcat(strcpy(ftype, "."), pos->type);
+
+    new_exts[i++]= ftype;
+    new_exts[i]= NULL;
+
+    // This will be answered by bas_ext()
+    ha_connect_exts= (const char**)new_exts;
+
+    // Let the base handler do the job
+    if (to)
+      rc= handler::rename_table(name, to);
+    else
+      rc= handler::delete_table(name);
+
+    // Reset the ext list to null. 
+    ha_connect_exts= ha_connect_null_exts;
+    } // endif filename
+
+  // Done no more need for this
+ err:
+  free_table_share(share);
+  DBUG_RETURN(0);
+} // end of delete_or_rename_table
+
 int ha_connect::delete_table(const char *name)
 {
-  DBUG_ENTER("ha_connect::delete_table");
-  /* This is not implemented but we want someone to be able that it works. */
-  DBUG_RETURN(0);
-}
+  return delete_or_rename_table(name, NULL);
+} // end of delete_table
 
+int ha_connect::rename_table(const char *from, const char *to)
+{
+  return delete_or_rename_table(from, to);
+} // end of rename_table
 
 /**
   @brief
