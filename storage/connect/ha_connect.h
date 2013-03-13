@@ -334,7 +334,20 @@ const char *GetValStr(OPVAL vop, bool neg);
   int delete_all_rows(void);
   ha_rows records_in_range(uint inx, key_range *min_key,
                            key_range *max_key);
-  int delete_table(const char *from);
+  /**
+    These methods can be overridden, but their default implementation
+    provide useful functionality.
+  */
+  int rename_table(const char *from, const char *to);
+  /**
+    Delete a table in the engine. Called for base as well as temporary
+    tables.
+  */
+  int delete_table(const char *name);
+  /**
+    Called by delete_table and rename_table
+  */
+  int delete_or_rename_table(const char *from, const char *to);
 #if defined(MARIADB)
   bool pre_create(THD *thd, HA_CREATE_INFO *crt_info, void *alt_info);
 #endif   // MARIADB
