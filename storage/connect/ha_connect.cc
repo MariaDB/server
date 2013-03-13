@@ -3193,7 +3193,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   TABLE_SHARE *share;
   THD         *thd= current_thd;
 
-  if (sscanf(name, fmt, db, tabname) != 2)
+  if (sscanf(name, fmt, db, tabname) != 2 || *tabname == '#')
     goto fin;
 
   table_list.db=         (char*) db;
