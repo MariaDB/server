@@ -2,8 +2,8 @@ CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_
 CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
 start all slaves;
 Warnings:
-Note	1936	SLAVE 'slave2' started
-Note	1936	SLAVE 'slave1' started
+Note	1937	SLAVE 'slave2' started
+Note	1937	SLAVE 'slave1' started
 set default_master_connection = 'slave1';
 include/wait_for_slave_to_start.inc
 set default_master_connection = 'slave2';
@@ -12,7 +12,7 @@ set default_master_connection = '';
 CHANGE MASTER TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root';
 start all slaves;
 Warnings:
-Note	1936	SLAVE '' started
+Note	1937	SLAVE '' started
 include/wait_for_slave_to_start.inc
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
@@ -81,7 +81,7 @@ Gtid_Pos	1-1-4,2-2-3
 *** Now move slave2 to replicate from both master1 and master2 instead of just slave1 ***
 STOP ALL SLAVES;
 Warnings:
-Note	1937	SLAVE '' stopped
+Note	1938	SLAVE '' stopped
 INSERT INTO t1 VALUES (2, "switch1");
 INSERT INTO t3 VALUES (102, "switch1 a");
 INSERT INTO t2 VALUES (2, "switch1");
@@ -135,13 +135,13 @@ DROP TABLE t3;
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:
-Note	1937	SLAVE '' stopped
+Note	1938	SLAVE '' stopped
 include/reset_master_slave.inc
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:
-Note	1937	SLAVE 'slave2' stopped
-Note	1937	SLAVE 'slave1' stopped
+Note	1938	SLAVE 'slave2' stopped
+Note	1938	SLAVE 'slave1' stopped
 include/reset_master_slave.inc
 SET GLOBAL gtid_domain_id=0;
 include/reset_master_slave.inc
