@@ -3193,6 +3193,10 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   TABLE_SHARE *share;
   THD         *thd= current_thd;
 
+  if (to)
+    if (sscanf(to, fmt, db, tabname) != 2 || *tabname == '#')
+      goto fin;
+
   if (sscanf(name, fmt, db, tabname) != 2 || *tabname == '#')
     goto fin;
 
@@ -3932,19 +3936,24 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       char buf[256], fn[_MAX_PATH], dbpath[128];
       int  h;
 
-      strcat(strcat(strcpy(buf, GetTableName()), "."), options->type);
-      sprintf(g->Message, "No file name. Table will use %s", buf);
-      push_warning(table->in_use, 
-                   MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
-      PlugSetPath(fn, buf, dbpath);
+      strcpy(buf, GetTableName());
 
-      if ((h= ::open(fn, O_CREAT, 0666)) == -1) {  
-        sprintf(g->Message, "Cannot create file %s", fn);
+      if (*buf != '#') {
+        strcat(strcat(buf, "."), options->type);
+        sprintf(g->Message, "No file name. Table will use %s", buf);
         push_warning(table->in_use, 
                      MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      } else
-        ::close(h);
+        strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+        PlugSetPath(fn, buf, dbpath);
+    
+        if ((h= ::open(fn, O_CREAT, 0666)) == -1) {  
+          sprintf(g->Message, "Cannot create file %s", fn);
+          push_warning(table->in_use, 
+                       MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        } else
+          ::close(h);
+    
+        } // endif buf
 
     } else {
       // Check whether indexes were specified
