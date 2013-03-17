@@ -789,10 +789,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %pure_parser                                    /* We have threads */
 /*
-  Currently there are 174 shift/reduce conflicts.
+  Currently there are 173 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 174
+%expect 173
 
 /*
    Comments for TOKENS.
@@ -1623,7 +1623,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         clear_privileges flush_options flush_option
         opt_with_read_lock flush_options_list
         equal optional_braces
-        opt_mi_check_type opt_to mi_check_types normal_join
+        opt_mi_check_type opt_to mi_check_types 
         table_to_table_list table_to_table opt_table_list opt_as
         handler_rkey_function handler_read_or_scan
         single_multi table_wild_list table_wild_one opt_wild
@@ -1680,7 +1680,11 @@ END_OF_INPUT
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM OR_OR_SYM BETWEEN_SYM CASE_SYM
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
+
+%type <num> normal_join inner_join
+
 %%
+
 
 /*
   Indentation of grammar rules:
@@ -9752,9 +9756,7 @@ join_table:
             left-associative joins.
           */
           table_ref normal_join table_ref %prec TABLE_REF_PRIORITY
-          { MYSQL_YYABORT_UNLESS($1 && ($$=$3)); }
-        | table_ref STRAIGHT_JOIN table_factor
-          { MYSQL_YYABORT_UNLESS($1 && ($$=$3)); $3->straight=1; }
+          { MYSQL_YYABORT_UNLESS($1 && ($$=$3)); $3->straight=$2; }
         | table_ref normal_join table_ref
           ON
           {
@@ -9766,22 +9768,7 @@ join_table:
           }
           expr
           {
-            add_join_on($3,$6);
-            Lex->pop_context();
-            Select->parsing_place= NO_MATTER;
-          }
-        | table_ref STRAIGHT_JOIN table_factor
-          ON
-          {
-            MYSQL_YYABORT_UNLESS($1 && $3);
-            /* Change the current name resolution context to a local context. */
-            if (push_new_name_resolution_context(YYTHD, $1, $3))
-              MYSQL_YYABORT;
-            Select->parsing_place= IN_ON;
-          }
-          expr
-          {
-            $3->straight=1;
+	    $3->straight=$2;
             add_join_on($3,$6);
             Lex->pop_context();
             Select->parsing_place= NO_MATTER;
@@ -9792,10 +9779,15 @@ join_table:
             MYSQL_YYABORT_UNLESS($1 && $3);
           }
           '(' using_list ')'
-          { add_join_natural($1,$3,$7,Select); $$=$3; }
-        | table_ref NATURAL JOIN_SYM table_factor
+          { 
+	    $3->straight=$2;
+            add_join_natural($1,$3,$7,Select); 
+	    $$=$3; 
+          }
+        | table_ref NATURAL inner_join table_factor
           {
             MYSQL_YYABORT_UNLESS($1 && ($$=$4));
+	    $4->straight=$3;
             add_join_natural($1,$4,NULL,Select);
           }
 
@@ -9875,10 +9867,16 @@ join_table:
           }
         ;
 
+
+inner_join: /* $$ set if using STRAIGHT_JOIN, false otherwise */
+          JOIN_SYM           { $$ = 0; }
+        | INNER_SYM JOIN_SYM { $$ = 0; }
+        | STRAIGHT_JOIN      { $$ = 1; }
+        ;
+
 normal_join:
-          JOIN_SYM {}
-        | INNER_SYM JOIN_SYM {}
-        | CROSS JOIN_SYM {}
+          inner_join         { $$ = $1; }
+        | CROSS JOIN_SYM     { $$ = 0; }
         ;
 
 /* 
