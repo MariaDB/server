@@ -1,13 +1,13 @@
 #
 # Testing features not specific to any TABLE_TYPE
 #
-CREATE TABLE t1 (a INT) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
 Warnings:
 Warning	1105	No table_type. Was set to DOS
 Warning	1105	No file name. Table will use t1.DOS
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL
+  `a` int(11) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=DOS
 DROP TABLE t1;

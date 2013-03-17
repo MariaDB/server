@@ -6,7 +6,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo #
 CREATE TABLE t1
 (
-  ID INT
+  ID INT NOT NULL
 ) Engine=CONNECT TABLE_TYPE=BIN FILE_NAME='nonexistent.txt';
 --replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
 # TODO: check why this is needed for Windows

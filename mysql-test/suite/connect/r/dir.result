@@ -1,8 +1,8 @@
 CREATE TABLE t1 (
-path VARCHAR(256) flag=1,
-fname VARCHAR(256),
-ftype CHAR(4),
-size DOUBLE(12,0) flag=5
+path VARCHAR(256) NOT NULL flag=1,
+fname VARCHAR(256) NOT NULL,
+ftype CHAR(4) NOT NULL,
+size DOUBLE(12,0) NOT NULL flag=5
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt'
   OPTION_LIST='subdir=1';
 SELECT * FROM t1;
@@ -18,10 +18,10 @@ Warning	1105	The current version of CONNECT did not check what you changed in AL
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `path` varchar(256) DEFAULT NULL `flag`=1,
-  `fname` varchar(256) DEFAULT NULL,
-  `ftype` char(4) DEFAULT NULL,
-  `size` double(12,0) DEFAULT NULL `flag`=5
+  `path` varchar(256) NOT NULL `flag`=1,
+  `fname` varchar(256) NOT NULL,
+  `ftype` char(4) NOT NULL,
+  `size` double(12,0) NOT NULL `flag`=5
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DIR `FILE_NAME`='*.txt' `OPTION_LIST`='subdir=0'
 SELECT fname, ftype, size FROM t1 ORDER BY fname, ftype, size;
 fname	ftype	size
