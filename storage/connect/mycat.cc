@@ -150,6 +150,28 @@ bool IsFileType(TABTYPE type)
   } // end of IsFileType
 
 /***********************************************************************/
+/*  Return true for table types accepting null fields.                 */
+/***********************************************************************/
+bool IsTypeNullable(TABTYPE type)
+  {
+  bool nullable;
+
+  switch (type) {                      
+    case TAB_ODBC:
+    case TAB_MYSQL:
+    case TAB_INI:
+    case TAB_XML:
+      nullable= true;
+      break;
+    default:
+      nullable= false;
+      break;
+    } // endswitch type
+
+  return nullable;
+  } // end of IsTypeNullable
+
+/***********************************************************************/
 /*  Get a unique enum catalog function ID.                             */
 /***********************************************************************/
 uint GetFuncID(const char *func)
