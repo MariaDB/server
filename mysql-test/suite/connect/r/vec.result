@@ -1,19 +1,19 @@
 CREATE TABLE dir1 (
-spath VARCHAR(256) flag=1,
-fname VARCHAR(256),
-ftype CHAR(4),
-size DOUBLE(12,0) flag=5
+spath VARCHAR(256) NOT NULL flag=1,
+fname VARCHAR(256) NOT NULL,
+ftype CHAR(4) NOT NULL,
+size DOUBLE(12,0) NOT NULL flag=5
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*vec*';
 CREATE TABLE t1
 (
-a INT,
-b CHAR(10)
+a INT NOT NULL,
+b CHAR(10) NOT NULL
 ) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` char(10) DEFAULT NULL
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec'
 SELECT * FROM t1;
 a	b
@@ -46,14 +46,14 @@ t1vec2		40
 DROP TABLE t1;
 CREATE TABLE t1
 (
-a INT,
-b CHAR(10)
+a INT NOT NULL,
+b CHAR(10) NOT NULL
 ) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1vec' MAX_ROWS=10;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` char(10) DEFAULT NULL
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec'
 SELECT * FROM t1;
 a	b
@@ -99,8 +99,8 @@ Warning	1105	The current version of CONNECT did not check what you changed in AL
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` char(10) DEFAULT NULL
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec' `READONLY`=yes
 INSERT INTO t1 VALUES (4,'test04');
 ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
@@ -116,8 +116,8 @@ Warning	1105	The current version of CONNECT did not check what you changed in AL
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` char(10) DEFAULT NULL
+  `a` int(11) NOT NULL,
+  `b` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 MAX_ROWS=10 `TABLE_TYPE`=VEC `FILE_NAME`='t1vec' `READONLY`=no
 INSERT INTO t1 VALUES (4,'test04');
 UPDATE t1 SET b='test04a' WHERE a=4;

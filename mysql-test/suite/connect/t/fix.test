@@ -8,7 +8,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --echo #
 CREATE TABLE t1
 (
-  ID INT
+  ID INT NOT NULL
 ) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
 --replace_regex /on .*test.nonexistent.txt/on DATADIR\/test\/nonexistent.txt/
 # TODO: check why this is needed for Windows
@@ -21,7 +21,7 @@ DROP TABLE t1;
 --echo #
 CREATE TABLE t1
 (
-  id INT
+  id INT NOT NULL
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
 INSERT INTO t1 VALUES (10);
 SELECT * FROM t1;
@@ -49,30 +49,30 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   number   CHAR(4) not null,
-  location CHAR(15) flag=5,
-  director CHAR(5) flag=20,
-  function CHAR(12) flag=26,
-  name     CHAR(22) flag=38
+  location CHAR(15) NOT NULL flag=5,
+  director CHAR(5) NOT NULL flag=20,
+  function CHAR(12) NOT NULL flag=26,
+  name     CHAR(22) NOT NULL flag=38
 ) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
 SELECT * FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1
 (
-  name char(12),
-  city char(12),
-  birth date date_format='DD/MM/YYYY',
-  hired date date_format='DD/MM/YYYY' flag=36
+  name char(12) not null,
+  city char(12) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1
 (
-  name char(12),
-  city char(12),
-  birth date date_format='DD/MM/YYYY',
-  hired date date_format='DD/MM/YYYY' flag=36
+  name char(12) not null,
+  city char(12) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
 SELECT * FROM t1;
 DROP TABLE t1;
@@ -80,20 +80,20 @@ DROP TABLE t1;
 
 CREATE TABLE t1
 (
-  name char(12),
-  city char(12),
-  birth date date_format='DD/MM/YYYY',
-  hired date date_format='DD/MM/YYYY' flag=36
+  name char(12) not null,
+  city char(12) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
 SELECT * FROM t1;
 DROP TABLE t1;
 
 CREATE TABLE t1
 (
-  name char(12),
-  city char(12),
-  birth date date_format='DD/MM/YYYY',
-  hired date date_format='DD/MM/YYYY' flag=36
+  name char(12) not null,
+  city char(12) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
 SELECT * FROM t1;
 DROP TABLE t1;

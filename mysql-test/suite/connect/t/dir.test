@@ -1,10 +1,10 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
 CREATE TABLE t1 (
-  path VARCHAR(256) flag=1,
-  fname VARCHAR(256),
-  ftype CHAR(4),
-  size DOUBLE(12,0) flag=5
+  path VARCHAR(256) NOT NULL flag=1,
+  fname VARCHAR(256) NOT NULL,
+  ftype CHAR(4) NOT NULL,
+  size DOUBLE(12,0) NOT NULL flag=5
 ) ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt'
   OPTION_LIST='subdir=1';
 

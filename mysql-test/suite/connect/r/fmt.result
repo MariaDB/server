@@ -3,7 +3,7 @@
 #
 CREATE TABLE t1
 (
-ID INT field_format=' %n%d%n'
+ID INT NOT NULL field_format=' %n%d%n'
 ) Engine=CONNECT table_type=FMT file_name='nonexistent.txt';
 SELECT * FROM t1;
 ID
@@ -15,7 +15,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1
 (
-id INT field_format=' %n%d%n'
+id INT NOT NULL field_format=' %n%d%n'
 ) ENGINE=CONNECT TABLE_TYPE=FMT FILE_NAME='t1.txt';
 INSERT INTO t1 VALUES (10),(20);
 ERROR HY000: Got error 122 'Writing FMT files is not implemented yet' from CONNECT
@@ -25,10 +25,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1
 (
-ID Integer(5) field_format=' %n%d%n',
-NAME Char(16) field_format=" , '%n%[^']%n'",
-DEPNO Integer(4) field_format=' , #%n%d%n',
-SALARY Double(12,2) field_format=' ; %n%f%n'
+ID Integer(5) not null field_format=' %n%d%n',
+NAME Char(16) not null field_format=" , '%n%[^']%n'",
+DEPNO Integer(4) not null field_format=' , #%n%d%n',
+SALARY Double(12,2) not null field_format=' ; %n%f%n'
 ) Engine=CONNECT table_type=FMT file_name='funny.txt';
 SELECT * FROM t1;
 ID	NAME	DEPNO	SALARY
@@ -38,20 +38,20 @@ ID	NAME	DEPNO	SALARY
 DROP TABLE t1;
 CREATE TABLE t1
 (
-ID Integer(5) field_format=' %n%d%n',
-NAME Char(16) field_format=" , '%n%[^']%n'",
-DEPNO Integer(4) field_format=' , #%n%d%n',
-SALARY Double(12,2) field_format=' ; %n%f%n'
+ID Integer(5) not null field_format=' %n%d%n',
+NAME Char(16) not null field_format=" , '%n%[^']%n'",
+DEPNO Integer(4) not null field_format=' , #%n%d%n',
+SALARY Double(12,2) not null field_format=' ; %n%f%n'
 ) Engine=CONNECT table_type=FMT file_name='funny2.txt';
 SELECT * FROM t1;
 ERROR HY000: Got error 122 'Bad format line 2 field 3 of t1' from CONNECT
 DROP TABLE t1;
 CREATE TABLE t1
 (
-ID Integer(5) field_format=' %n%d%n',
-NAME Char(16) field_format=' , ''%n%[^'']%m',
-DEPNO Integer(4) field_format=''' , #%n%d%m',
-SALARY Double(12,2) field_format=' ; %n%f%n'
+ID Integer(5) not null field_format=' %n%d%n',
+NAME Char(16) not null field_format=' , ''%n%[^'']%m',
+DEPNO Integer(4) not null field_format=''' , #%n%d%m',
+SALARY Double(12,2) not null field_format=' ; %n%f%n'
 ) Engine=CONNECT table_type=FMT file_name='funny2.txt';
 SELECT * FROM t1;
 ID	NAME	DEPNO	SALARY

@@ -3,7 +3,7 @@
 #
 CREATE TABLE t1
 (
-ID INT
+ID INT NOT NULL
 ) Engine=CONNECT TABLE_TYPE=BIN FILE_NAME='nonexistent.txt';
 SELECT * FROM t1;
 ID
