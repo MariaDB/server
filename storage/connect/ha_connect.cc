@@ -3255,7 +3255,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     ha_connect_exts= ha_connect_null_exts;
     } // endif filename
 
-  // Done no more need for this
+    // Done no more need for this
  err:
   free_table_share(share);
  fin:
@@ -3821,6 +3821,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   bool    dbf;
   Field* *field;
   Field  *fp;
+  TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
@@ -3830,25 +3831,25 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   // CONNECT engine specific table options:
   DBUG_ASSERT(options);
+  type= GetTypeID(options->type);
 
-  if (options->data_charset)
-  {
+  if (options->data_charset) {
     const CHARSET_INFO *data_charset;
+
     if (!(data_charset= get_charset_by_csname(options->data_charset,
-                                              MY_CS_PRIMARY, MYF(0))))
-    {
+                                              MY_CS_PRIMARY, MYF(0)))) {
       my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), options->data_charset);
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-    }
-    if (GetTypeID(options->type) == TAB_XML &&
-        data_charset != &my_charset_utf8_general_ci)
-    {
+      } // endif charset
+
+    if (type == TAB_XML && data_charset != &my_charset_utf8_general_ci) {
       my_printf_error(ER_UNKNOWN_ERROR,
                       "DATA_CHARSET='%s' is not supported for TABLE_TYPE=XML",
                         MYF(0), options->data_charset);
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-    }
-  }
+      } // endif utf8
+
+    } // endif charset
 
   if (!g) {
     rc= HA_ERR_INTERNAL_ERROR;
@@ -3906,6 +3907,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         DBUG_RETURN(rc);
       } // endswitch type
 
+    if ((fp)->real_maybe_null() && !IsTypeNullable(type)) {
+      my_printf_error(ER_UNKNOWN_ERROR, 
+                "Table type %s does not support nullable columns",
+                MYF(0), options->type);
+      DBUG_RETURN(HA_ERR_UNSUPPORTED);
+      } // endif !nullable
 
     if (dbf) {
       bool b= false;
@@ -3927,7 +3934,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     } // endfor field
 
-  if (IsFileType(GetTypeID(options->type))) {
+  if (IsFileType(type)) {
     table= table_arg;       // Used by called functions
 
     if (!options->filename) {
