@@ -6989,7 +6989,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   if (s->quick && s->quick->index != MAX_KEY)
   {
     /* A range scan by index s->quick->index is used to access table s */
-    sel*= table_records/table->quick_rows[s->quick->index];
+    sel*= table->quick_rows[s->quick->index]/table_records;
   }
   else if (ref)
   {
