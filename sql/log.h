@@ -775,6 +775,10 @@ public:
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  bool find_in_binlog_state(uint32 domain_id, uint32 server_id,
+                            rpl_gtid *out_gtid);
+  bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);
+  void bump_seq_no_counter_if_needed(uint64 seq_no);
 };
 
 class Log_event_handler

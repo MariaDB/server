@@ -1,0 +1,52 @@
+include/rpl_init.inc [topology=1->2]
+select @@global.log_slave_updates;
+@@global.log_slave_updates
+0
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+INSERT INTO t1 VALUES (1, 1);
+INSERT INTO t1 VALUES (2, 1);
+select @@global.log_slave_updates;
+@@global.log_slave_updates
+0
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+include/stop_slave.inc
+INSERT INTO t1 VALUES (3, 2);
+INSERT INTO t1 VALUES (4, 2);
+show binlog events from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Binlog_checkpoint	#	#	slave-bin.000001
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID 0-2-4
+slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (3, 2)
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID 0-2-5
+slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4, 2)
+slave-bin.000001	#	Query	#	#	COMMIT
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
+master_user = 'root', master_gtid_pos = AUTO;
+START SLAVE;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	2
+4	2
+include/stop_slave.inc
+RESET SLAVE;
+INSERT INTO t1 VALUES (5, 1);
+INSERT INTO t1 VALUES (6, 1);
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+master_gtid_pos = AUTO;
+START SLAVE;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1
+2	1
+3	2
+4	2
+5	1
+6	1
+DROP TABLE t1;
+include/rpl_end.inc

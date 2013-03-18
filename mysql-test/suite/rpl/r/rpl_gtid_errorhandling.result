@@ -29,5 +29,49 @@ include/start_slave.inc
 SELECT * FROM t1;
 a
 1
+*** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
+include/stop_slave.inc
+RESET MASTER;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (4);
+SET sql_log_bin = 0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin = 1;
+INSERT INTO t1 VALUES (3);
+CHANGE MASTER TO master_gtid_pos = "0-1-1";
+ERROR HY000: Requested MASTER_GTID_POS 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-11. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+RESET MASTER;
+CHANGE MASTER TO master_gtid_pos = "0-1-1";
+START SLAVE;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+*** Test slave requesting a GTID that is not present in the master's binlog ***
+include/stop_slave.inc
+CHANGE MASTER TO master_gtid_pos = "0-1-3";
+START SLAVE;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Got fatal error .* from master when reading data from binary log: 'Error: connecting slave requested to start from GTID .*, which is not in the master's binlog'");
+SET sql_log_bin=1;
+include/wait_for_slave_io_error.inc [errno=1236]
+Slave_IO_State = ''
+Last_IO_Errno = '1236'
+Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'Error: connecting slave requested to start from GTID 0-1-3, which is not in the master's binlog''
+Using_Gtid = '1'
+include/stop_slave.inc
+CHANGE MASTER TO master_gtid_pos = "0-1-2";
+START SLAVE;
+include/wait_for_slave_to_start.inc
+INSERT INTO t1 VALUES (5);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
 DROP TABLE t1;
 include/rpl_end.inc

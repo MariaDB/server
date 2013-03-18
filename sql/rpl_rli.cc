@@ -1365,4 +1365,136 @@ void Relay_log_info::slave_close_thread_tables(THD *thd)
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
 }
+
+
+int
+rpl_load_gtid_slave_state(THD *thd)
+{
+  TABLE_LIST tlist;
+  TABLE *table;
+  bool table_opened= false;
+  bool table_scanned= false;
+  struct local_element { uint64 sub_id; rpl_gtid gtid; };
+  struct local_element *entry;
+  HASH hash;
+  int err= 0;
+  uint32 i;
+  uint64 highest_seq_no= 0;
+  DBUG_ENTER("rpl_load_gtid_slave_state");
+
+  rpl_global_gtid_slave_state.lock();
+  bool loaded= rpl_global_gtid_slave_state.loaded;
+  rpl_global_gtid_slave_state.unlock();
+  if (loaded)
+    DBUG_RETURN(0);
+
+  my_hash_init(&hash, &my_charset_bin, 32,
+               offsetof(local_element, gtid) + offsetof(rpl_gtid, domain_id),
+               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+
+  mysql_reset_thd_for_next_command(thd, 0);
+
+  tlist.init_one_table(STRING_WITH_LEN("mysql"),
+                       rpl_gtid_slave_state_table_name.str,
+                       rpl_gtid_slave_state_table_name.length,
+                       NULL, TL_READ);
+  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
+    goto end;
+  table_opened= true;
+  table= tlist.table;
+
+  if ((err= gtid_check_rpl_slave_state_table(table)))
+    goto end;
+
+  bitmap_set_all(table->read_set);
+  if ((err= table->file->ha_rnd_init_with_error(1)))
+    goto end;
+  table_scanned= true;
+  for (;;)
+  {
+    uint32 domain_id, server_id;
+    uint64 sub_id, seq_no;
+    uchar *rec;
+
+    if ((err= table->file->ha_rnd_next(table->record[0])))
+    {
+      if (err == HA_ERR_RECORD_DELETED)
+        continue;
+      else if (err == HA_ERR_END_OF_FILE)
+        break;
+      else
+        goto end;
+    }
+    domain_id= (ulonglong)table->field[0]->val_int();
+    sub_id= (ulonglong)table->field[1]->val_int();
+    server_id= (ulonglong)table->field[2]->val_int();
+    seq_no= (ulonglong)table->field[3]->val_int();
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
+                        (unsigned)domain_id, (unsigned)server_id,
+                        (ulong)seq_no, (ulong)sub_id));
+    if (seq_no > highest_seq_no)
+      highest_seq_no= seq_no;
+
+    if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+    {
+      entry= (struct local_element *)rec;
+      if (entry->sub_id >= sub_id)
+        continue;
+    }
+    else
+    {
+      if (!(entry= (struct local_element *)my_malloc(sizeof(*entry),
+                                                     MYF(MY_WME))))
+      {
+        err= 1;
+        goto end;
+      }
+      if ((err= my_hash_insert(&hash, (uchar *)entry)))
+      {
+        my_free(entry);
+        goto end;
+      }
+    }
+
+    entry->sub_id= sub_id;
+    entry->gtid.domain_id= domain_id;
+    entry->gtid.server_id= server_id;
+    entry->gtid.seq_no= seq_no;
+  }
+
+  rpl_global_gtid_slave_state.lock();
+  for (i= 0; i < hash.records; ++i)
+  {
+    entry= (struct local_element *)my_hash_element(&hash, i);
+    if ((err= rpl_global_gtid_slave_state.update(entry->gtid.domain_id,
+                                                 entry->gtid.server_id,
+                                                 entry->sub_id,
+                                                 entry->gtid.seq_no)))
+    {
+      rpl_global_gtid_slave_state.unlock();
+      goto end;
+    }
+  }
+  rpl_global_gtid_slave_state.loaded= true;
+  rpl_global_gtid_slave_state.unlock();
+
+  err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
+
+end:
+  if (table_scanned)
+  {
+    table->file->ha_index_or_rnd_end();
+    ha_commit_trans(thd, FALSE);
+    ha_commit_trans(thd, TRUE);
+  }
+  if (table_opened)
+  {
+    close_thread_tables(thd);
+    thd->mdl_context.release_transactional_locks();
+  }
+  my_hash_free(&hash);
+  mysql_bin_log.bump_seq_no_counter_if_needed(highest_seq_no);
+  DBUG_RETURN(err);
+}
+
 #endif

@@ -3835,7 +3835,12 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
   }
 
   if (!is_relay_log)
+  {
     rpl_global_gtid_binlog_state.reset();
+    mysql_mutex_lock(&LOCK_gtid_counter);
+    global_gtid_counter= 0;
+    mysql_mutex_unlock(&LOCK_gtid_counter);
+  }
 
   /* Start logging with a new file */
   close(LOG_CLOSE_INDEX | LOG_CLOSE_TO_BE_OPENED);
@@ -5345,20 +5350,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     /*
       If we see a higher sequence number, use that one as the basis of any
       later generated sequence numbers.
-
-      This way, in simple tree replication topologies with just one master
-      generating events at any point in time, sequence number will always be
-      monotonic irrespectively of server_id. Only if events are produced in
-      parallel on multiple master servers will sequence id be non-monotonic
-      and server id needed to distinguish.
-
-      We will not rely on this in the server code, but it makes things
-      conceptually easier to understand for the DBA.
     */
-    mysql_mutex_lock(&LOCK_gtid_counter);
-    if (global_gtid_counter < seq_no)
-      global_gtid_counter= seq_no;
-    mysql_mutex_unlock(&LOCK_gtid_counter);
+    bump_seq_no_counter_if_needed(seq_no);
   }
   else
   {
@@ -5492,6 +5485,53 @@ int
 MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 {
   return rpl_global_gtid_binlog_state.get_most_recent_gtid_list(list, size);
+}
+
+
+bool
+MYSQL_BIN_LOG::find_in_binlog_state(uint32 domain_id, uint32 server_id,
+                                    rpl_gtid *out_gtid)
+{
+  rpl_gtid *gtid;
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  if ((gtid= rpl_global_gtid_binlog_state.find(domain_id, server_id)))
+    *out_gtid= *gtid;
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return gtid != NULL;
+}
+
+
+bool
+MYSQL_BIN_LOG::lookup_domain_in_binlog_state(uint32 domain_id,
+                                             rpl_gtid *out_gtid)
+{
+  rpl_binlog_state::element *elem;
+  bool res;
+
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  elem= (rpl_binlog_state::element *)
+    my_hash_search(&rpl_global_gtid_binlog_state.hash,
+                   (const uchar *)&domain_id, 0);
+  if (elem)
+  {
+    res= true;
+    *out_gtid= *elem->last_gtid;
+  }
+  else
+    res= false;
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+
+  return res;
+}
+
+
+void
+MYSQL_BIN_LOG::bump_seq_no_counter_if_needed(uint64 seq_no)
+{
+  mysql_mutex_lock(&LOCK_gtid_counter);
+  if (global_gtid_counter < seq_no)
+    global_gtid_counter= seq_no;
+  mysql_mutex_unlock(&LOCK_gtid_counter);
 }
 
 
@@ -8183,7 +8223,8 @@ int TC_LOG_BINLOG::open(const char *opt_name)
     else
       error= read_state_from_file();
     /* Pick the next unused seq_no from the loaded/recovered binlog state. */
-    global_gtid_counter= rpl_global_gtid_binlog_state.seq_no_from_state();
+    bump_seq_no_counter_if_needed(
+        rpl_global_gtid_binlog_state.seq_no_from_state());
 
     delete ev;
     end_io_cache(&log);
@@ -8433,6 +8474,26 @@ binlog_background_thread(void *arg __attribute__((unused)))
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->store_globals();
 
+  /*
+    Load the slave replication GTID state from the mysql.rpl_slave_state
+    table.
+
+    This is mostly so that we can start our seq_no counter from the highest
+    seq_no seen by a slave. This way, we have a way to tell if a transaction
+    logged by ourselves as master is newer or older than a replicated
+    transaction.
+  */
+#ifdef HAVE_REPLICATION
+  if (rpl_load_gtid_slave_state(thd))
+    sql_print_warning("Failed to load slave replication state from table "
+                      "%s.%s", "mysql", rpl_gtid_slave_state_table_name.str);
+#endif
+
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  binlog_background_thread_started= true;
+  mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
   for (;;)
   {
     /*
@@ -8515,7 +8576,16 @@ start_binlog_background_thread()
                           binlog_background_thread, NULL))
     return 1;
 
-  binlog_background_thread_started= true;
+  /*
+    Wait for the thread to have started (so we know that the slave replication
+    state is loaded and we have correct global_gtid_counter).
+  */
+  mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);
+  while (!binlog_background_thread_started)
+    mysql_cond_wait(&mysql_bin_log.COND_binlog_background_thread_end,
+                    &mysql_bin_log.LOCK_binlog_background_thread);
+  mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
   return 0;
 }
 

@@ -6611,3 +6611,9 @@ ER_DUPLICATE_GTID_DOMAIN
 ER_GTID_OPEN_TABLE_FAILED
         eng "Failed to open %s.%s"
         ger "Öffnen von %s.%s fehlgeschlagen"
+ER_GTID_POSITION_NOT_FOUND_IN_BINLOG
+	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog"
+ER_CANNOT_LOAD_SLAVE_GTID_STATE
+	eng "Failed to load replication slave GTID state from table %s.%s"
+ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+	eng "Requested MASTER_GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"

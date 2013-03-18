@@ -89,6 +89,7 @@ struct rpl_slave_state
                       bool in_transaction);
   uint64 next_subid(uint32 domain_id);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
+  bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
   int load(THD *thd, char *state_from_master, size_t len, bool reset);
   bool is_empty();
 
@@ -135,12 +136,13 @@ struct rpl_binlog_state
 
   void reset();
   int update(const struct rpl_gtid *gtid);
-  uint32 seq_no_from_state();
+  uint64 seq_no_from_state();
   int write_to_iocache(IO_CACHE *dest);
   int read_from_iocache(IO_CACHE *src);
   uint32 count();
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  rpl_gtid *find(uint32 domain_id, uint32 server_id);
 };
 
 
