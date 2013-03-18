@@ -50,6 +50,63 @@ ALTER TABLE mysql.rpl_slave_state ADD PRIMARY KEY (domain_id, sub_id);
 --connection slave
 SELECT * FROM t1;
 
+
+--echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+RESET MASTER;
+# This insert will be GTID 0-1-1
+INSERT INTO t1 VALUES (2);
+# And this will be GTID 0-1-2
+INSERT INTO t1 VALUES (4);
+
+--connection slave
+SET sql_log_bin = 0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin = 1;
+INSERT INTO t1 VALUES (3);
+
+--error ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+CHANGE MASTER TO master_gtid_pos = "0-1-1";
+RESET MASTER;
+CHANGE MASTER TO master_gtid_pos = "0-1-1";
+
+START SLAVE;
+--let $wait_condition= SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Test slave requesting a GTID that is not present in the master's binlog ***
+--source include/stop_slave.inc
+CHANGE MASTER TO master_gtid_pos = "0-1-3";
+START SLAVE;
+
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Got fatal error .* from master when reading data from binary log: 'Error: connecting slave requested to start from GTID .*, which is not in the master's binlog'");
+SET sql_log_bin=1;
+--let $slave_io_errno= 1236
+--source include/wait_for_slave_io_error.inc
+--let $status_items= Slave_IO_State, Last_IO_Errno, Last_IO_Error, Using_Gtid
+--source include/show_slave_status.inc
+
+--let $rpl_only_running_threads= 1
+--source include/stop_slave.inc
+CHANGE MASTER TO master_gtid_pos = "0-1-2";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+--connection master
+INSERT INTO t1 VALUES (5);
+
+--connection slave
+--let $wait_condition= SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+
 --connection master
 DROP TABLE t1;
 

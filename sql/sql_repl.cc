@@ -698,6 +698,17 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
 /*
   Check if every GTID requested by the slave is contained in this (or a later)
   binlog file. Return true if so, false if not.
+
+  We do the check with a single scan of the list of GTIDs, avoiding the need
+  to build an in-memory hash or stuff like that.
+
+  We need to check that slave did not request GTID D-S-N1, when the
+  Gtid_list_log_event for this binlog file has D-S-N2 with N2 >= N1.
+
+  In addition, we need to check that we do not have a GTID D-S-N3 in the
+  Gtid_list_log_event where D is not present in the requested slave state at
+  all. Since if D is not in requested slave state, it means that slave needs
+  to start at the very first GTID in domain D.
 */
 static bool
 contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
@@ -707,20 +718,188 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
   for (i= 0; i < glev->count; ++i)
   {
     const rpl_gtid *gtid= st->find(glev->list[i].domain_id);
-    if (gtid != NULL &&
-        gtid->server_id == glev->list[i].server_id &&
+    if (!gtid)
+    {
+      /*
+        The slave needs to start from the very beginning of this domain, which
+        is in an earlier binlog file. So we need to search back further.
+      */
+      return false;
+    }
+    if (gtid->server_id == glev->list[i].server_id &&
         gtid->seq_no <= glev->list[i].seq_no)
     {
       /*
         The slave needs to receive gtid, but it is contained in an earlier
-        binlog file. So we need to serch back further.
+        binlog file. So we need to search back further.
       */
       return false;
     }
   }
+
   return true;
 }
 
+
+/*
+  Check the start GTID state requested by the slave against our binlog state.
+
+  Give an error if the slave requests something that we do not have in our
+  binlog.
+
+  T
+*/
+
+static int
+check_slave_start_position(THD *thd, slave_connection_state *st,
+                           const char **errormsg, rpl_gtid *error_gtid)
+{
+  uint32 i;
+  bool found;
+  int err;
+  rpl_gtid **delete_list= NULL;
+  uint32 delete_idx= 0;
+  bool slave_state_loaded= false;
+  uint32 missing_domains= 0;
+  rpl_gtid missing_domain_gtid;
+
+  for (i= 0; i < st->hash.records; ++i)
+  {
+    rpl_gtid *slave_gtid= (rpl_gtid *)my_hash_element(&st->hash, i);
+    rpl_gtid master_gtid;
+    rpl_gtid master_replication_gtid;
+    rpl_gtid start_gtid;
+
+    if ((found= mysql_bin_log.find_in_binlog_state(slave_gtid->domain_id,
+                                                   slave_gtid->server_id,
+                                                   &master_gtid)) &&
+        master_gtid.seq_no >= slave_gtid->seq_no)
+      continue;
+
+    if (!slave_state_loaded)
+    {
+      if (rpl_load_gtid_slave_state(thd))
+      {
+        *errormsg= "Failed to load replication slave GTID state";
+        err= ER_CANNOT_LOAD_SLAVE_GTID_STATE;
+        goto end;
+      }
+      slave_state_loaded= true;
+    }
+
+    if (!rpl_global_gtid_slave_state.domain_to_gtid(slave_gtid->domain_id,
+                                                    &master_replication_gtid) ||
+        slave_gtid->server_id != master_replication_gtid.server_id ||
+        slave_gtid->seq_no != master_replication_gtid.seq_no)
+    {
+      rpl_gtid domain_gtid;
+
+      if (!mysql_bin_log.lookup_domain_in_binlog_state(slave_gtid->domain_id,
+                                                       &domain_gtid))
+      {
+        /*
+          We do not have anything in this domain, neither in the binlog nor
+          in the slave state. So we are probably one master in a multi-master
+          setup, and this domain is served by a different master.
+
+          This is not an error, however if we are missing _all_ domains
+          requested by the slave, then we still give error (below, after
+          the loop).
+        */
+        if (!(missing_domains++))
+          missing_domain_gtid= domain_gtid;
+        continue;
+      }
+      *errormsg= "Requested slave GTID state not found in binlog";
+      *error_gtid= *slave_gtid;
+      err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG;
+      goto end;
+    }
+
+    /*
+      Ok, so connecting slave asked to start at a GTID that we do not have in
+      our binlog, but it was in fact the last GTID we applied earlier, when we
+      were acting as a replication slave.
+
+      So this means that we were running as a replication slave without
+      --log-slave-updates, but now we switched to be a master. It is worth it
+      to handle this special case, as it allows users to run a simple
+      master -> slave without --log-slave-updates, and then exchange slave and
+      master, as long as they make sure the slave is caught up before switching.
+    */
+
+    /*
+      First check if we logged something ourselves as a master after being a
+      slave. This will be seen as a GTID with our own server_id and bigger
+      seq_no than what is in the slave state.
+
+      If we did not log anything ourselves, then start the connecting slave
+      replicating from the current binlog end position, which in this case
+      corresponds to our replication slave state and hence what the connecting
+      slave is requesting.
+    */
+    if (mysql_bin_log.find_in_binlog_state(slave_gtid->domain_id,
+                                           global_system_variables.server_id,
+                                           &start_gtid) &&
+        start_gtid.seq_no > slave_gtid->seq_no)
+    {
+      /*
+        Start replication within this domain at the first GTID that we logged
+        ourselves after becoming a master.
+      */
+      slave_gtid->server_id= global_system_variables.server_id;
+    }
+    else if (mysql_bin_log.lookup_domain_in_binlog_state(slave_gtid->domain_id,
+                                                         &start_gtid))
+    {
+      slave_gtid->server_id= start_gtid.server_id;
+      slave_gtid->seq_no= start_gtid.seq_no;
+    }
+    else
+    {
+      /*
+        We do not have _anything_ in our own binlog for this domain.  Just
+        delete the entry in the slave connection state, then it will pick up
+        anything new that arrives.
+
+        We just queue up the deletion and do it later, after the loop, so that
+        we do not mess up the iteration over the hash.
+      */
+      if (!delete_list)
+      {
+        if ((delete_list= (rpl_gtid **)my_malloc(sizeof(*delete_list),
+                                                 MYF(MY_WME))))
+        {
+          *errormsg= "Out of memory while checking slave start position";
+          err= ER_OUT_OF_RESOURCES;
+          goto end;
+        }
+      }
+      delete_list[delete_idx++]= slave_gtid;
+    }
+  }
+
+  if (missing_domains == st->hash.records && missing_domains > 0)
+  {
+    *errormsg= "Requested slave GTID state not found in binlog";
+    *error_gtid= missing_domain_gtid;
+    err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG;
+    goto end;
+  }
+
+  /* Do any delayed deletes from the hash. */
+  if (delete_list)
+  {
+    for (i= 0; i < delete_idx; ++i)
+      st->remove(delete_list[i]);
+  }
+  err= 0;
+
+end:
+  if (delete_list)
+    my_free(delete_list);
+  return err;
+}
 
 /*
   Find the name of the binlog file to start reading for a slave that connects
@@ -1217,6 +1396,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   String connect_gtid_state(str_buf, sizeof(str_buf), system_charset_info);
   bool using_gtid_state;
   slave_connection_state gtid_state, return_gtid_state;
+  rpl_gtid error_gtid;
   enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
@@ -1289,6 +1469,12 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
       errmsg= "Out of memory or malformed slave request when obtaining start "
         "position from GTID state";
       my_errno= ER_UNKNOWN_ERROR;
+      goto err;
+    }
+    if ((error= check_slave_start_position(thd, &gtid_state, &errmsg,
+                                           &error_gtid)))
+    {
+      my_errno= error;
       goto err;
     }
     if ((errmsg= gtid_find_binlog_file(&gtid_state, search_file_name)))
@@ -1812,6 +1998,22 @@ err:
                 my_basename(p_coord->file_name), p_coord->pos,
                 my_basename(log_file_name), my_b_tell(&log));
   }
+  else if (my_errno == ER_GTID_POSITION_NOT_FOUND_IN_BINLOG)
+  {
+    my_snprintf(error_text, sizeof(error_text),
+                "Error: connecting slave requested to start from GTID "
+                "%u-%u-%llu, which is not in the master's binlog",
+                error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
+    /* Use this error code so slave will know not to try reconnect. */
+    my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
+  }
+  else if (my_errno == ER_CANNOT_LOAD_SLAVE_GTID_STATE)
+  {
+    my_snprintf(error_text, sizeof(error_text),
+                "Failed to load replication slave GTID state from table %s.%s",
+                "mysql", rpl_gtid_slave_state_table_name.str);
+    my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
+  }
   else
     strcpy(error_text, errmsg);
   end_io_cache(&log);
@@ -2295,6 +2497,53 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     {
       ret= TRUE;
       goto err;
+    }
+
+    /*
+      Check our own binlog for any of our own transactions that are newer
+      than the GTID state the user is requesting. Any such transactions would
+      result in an out-of-order binlog, which could break anyone replicating
+      with us as master.
+
+      So give an error if this is found, requesting the user to do a
+      RESET MASTER (to clean up the binlog) if they really want this.
+    */
+    if (mysql_bin_log.is_open())
+    {
+      rpl_gtid *binlog_gtid_list= NULL;
+      uint32 num_binlog_gtids= 0;
+      uint32 i;
+
+      if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
+                                                  &num_binlog_gtids))
+      {
+        my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
+        ret= TRUE;
+        goto err;
+      }
+      for (i= 0; i < num_binlog_gtids; ++i)
+      {
+        rpl_gtid *binlog_gtid= &binlog_gtid_list[i];
+        rpl_gtid *slave_gtid;
+        if (binlog_gtid->server_id != global_system_variables.server_id)
+          continue;
+        if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
+          continue;
+        if (slave_gtid->seq_no < binlog_gtid->seq_no)
+        {
+          my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
+                   slave_gtid->domain_id, slave_gtid->server_id,
+                   slave_gtid->seq_no, binlog_gtid->domain_id,
+                   binlog_gtid->server_id, binlog_gtid->seq_no);
+          break;
+        }
+      }
+      my_free(binlog_gtid_list);
+      if (i != num_binlog_gtids)
+      {
+        ret= TRUE;
+        goto err;
+      }
     }
   }
 
@@ -3040,129 +3289,6 @@ void
 rpl_deinit_gtid_slave_state()
 {
   rpl_global_gtid_slave_state.deinit();
-}
-
-
-int
-rpl_load_gtid_slave_state(THD *thd)
-{
-  TABLE_LIST tlist;
-  TABLE *table;
-  bool table_opened= false;
-  bool table_scanned= false;
-  struct local_element { uint64 sub_id; rpl_gtid gtid; };
-  struct local_element *entry;
-  HASH hash;
-  int err= 0;
-  uint32 i;
-  DBUG_ENTER("rpl_load_gtid_slave_state");
-
-  my_hash_init(&hash, &my_charset_bin, 32,
-               offsetof(local_element, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
-
-  rpl_global_gtid_slave_state.lock();
-  bool loaded= rpl_global_gtid_slave_state.loaded;
-  rpl_global_gtid_slave_state.unlock();
-  if (loaded)
-    goto end;
-
-  mysql_reset_thd_for_next_command(thd, 0);
-
-  tlist.init_one_table(STRING_WITH_LEN("mysql"),
-                       rpl_gtid_slave_state_table_name.str,
-                       rpl_gtid_slave_state_table_name.length,
-                       NULL, TL_READ);
-  if ((err= open_and_lock_tables(thd, &tlist, FALSE, 0)))
-    goto end;
-  table_opened= true;
-  table= tlist.table;
-
-  if ((err= gtid_check_rpl_slave_state_table(table)))
-    goto end;
-
-  bitmap_set_all(table->read_set);
-  if ((err= table->file->ha_rnd_init_with_error(1)))
-    goto end;
-  table_scanned= true;
-  for (;;)
-  {
-    uint32 domain_id, server_id;
-    uint64 sub_id, seq_no;
-    uchar *rec;
-
-    if ((err= table->file->ha_rnd_next(table->record[0])))
-    {
-      if (err == HA_ERR_RECORD_DELETED)
-        continue;
-      else if (err == HA_ERR_END_OF_FILE)
-        break;
-      else
-        goto end;
-    }
-    domain_id= (ulonglong)table->field[0]->val_int();
-    sub_id= (ulonglong)table->field[1]->val_int();
-    server_id= (ulonglong)table->field[2]->val_int();
-    seq_no= (ulonglong)table->field[3]->val_int();
-    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
-                        (unsigned)domain_id, (unsigned)server_id,
-                        (ulong)seq_no, (ulong)sub_id));
-    if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))
-    {
-      entry= (struct local_element *)rec;
-      if (entry->sub_id >= sub_id)
-        continue;
-    }
-    else
-    {
-      if (!(entry= (struct local_element *)my_malloc(sizeof(*entry),
-                                                     MYF(MY_WME))))
-      {
-        err= 1;
-        goto end;
-      }
-      if ((err= my_hash_insert(&hash, (uchar *)entry)))
-      {
-        my_free(entry);
-        goto end;
-      }
-    }
-
-    entry->sub_id= sub_id;
-    entry->gtid.domain_id= domain_id;
-    entry->gtid.server_id= server_id;
-    entry->gtid.seq_no= seq_no;
-  }
-
-  rpl_global_gtid_slave_state.lock();
-  for (i= 0; i < hash.records; ++i)
-  {
-    entry= (struct local_element *)my_hash_element(&hash, i);
-    if ((err= rpl_global_gtid_slave_state.update(entry->gtid.domain_id,
-                                                 entry->gtid.server_id,
-                                                 entry->sub_id,
-                                                 entry->gtid.seq_no)))
-    {
-      rpl_global_gtid_slave_state.unlock();
-      goto end;
-    }
-  }
-  rpl_global_gtid_slave_state.loaded= true;
-  rpl_global_gtid_slave_state.unlock();
-
-  err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
-
-end:
-  if (table_scanned)
-  {
-    table->file->ha_index_or_rnd_end();
-    ha_commit_trans(thd, FALSE);
-    ha_commit_trans(thd, TRUE);
-  }
-  if (table_opened)
-    close_thread_tables(thd);
-  my_hash_free(&hash);
-  DBUG_RETURN(err);
 }
 
 #endif /* HAVE_REPLICATION */

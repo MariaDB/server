@@ -210,6 +210,7 @@ rpl_slave_state::truncate_state_table(THD *thd)
       close_thread_tables(thd);
       ha_commit_trans(thd, TRUE);
     }
+    thd->mdl_context.release_transactional_locks();
   }
 
   return err;
@@ -360,6 +361,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   }
   table->file->ha_index_end();
 
+  mysql_bin_log.bump_seq_no_counter_if_needed(gtid->seq_no);
+
 end:
 
   if (table_opened)
@@ -378,6 +381,10 @@ end:
       ha_commit_trans(thd, FALSE);
       close_thread_tables(thd);
     }
+    if (in_transaction)
+      thd->mdl_context.release_statement_locks();
+    else
+      thd->mdl_context.release_transactional_locks();
   }
   thd->variables.option_bits= thd_saved_option;
   return err;
@@ -423,6 +430,14 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
 
   The state consists of the most recently applied GTID for each domain_id,
   ie. the one with the highest sub_id within each domain_id.
+
+  Optinally, extra_gtids is a list of GTIDs from the binlog. This is used when
+  a server was previously a master and now needs to connect to a new master as
+  a slave. For each domain_id, if the GTID in the binlog was logged with our
+  own server_id _and_ has a higher seq_no than what is in the slave state,
+  then this should be used as the position to start replicating at. This
+  allows to promote a slave as new master, and connect the old master as a
+  slave with MASTER_GTID_POS=AUTO.
 */
 
 int
@@ -438,7 +453,8 @@ rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
   my_hash_init(&gtid_hash, &my_charset_bin, 32, offsetof(rpl_gtid, domain_id),
                sizeof(uint32), NULL, NULL, HASH_UNIQUE);
   for (i= 0; i < num_extra; ++i)
-    if (my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
+    if (extra_gtids[i].server_id == global_system_variables.server_id &&
+        my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
       goto err;
 
   lock();
@@ -504,6 +520,47 @@ err:
   my_hash_free(&gtid_hash);
 
   return res;
+}
+
+
+/*
+  Lookup a domain_id in the current replication slave state.
+
+  Returns false if the domain_id has no entries in the slave state.
+  Otherwise returns true, and fills in out_gtid with the corresponding
+  GTID.
+*/
+bool
+rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
+{
+  element *elem;
+  list_element *list;
+  uint64 best_sub_id;
+
+  lock();
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  if (!elem || !(list= elem->list))
+  {
+    unlock();
+    return false;
+  }
+
+  out_gtid->domain_id= domain_id;
+  out_gtid->server_id= list->server_id;
+  out_gtid->seq_no= list->seq_no;
+  best_sub_id= list->sub_id;
+
+  while ((list= list->next))
+  {
+    if (best_sub_id > list->sub_id)
+      continue;
+    best_sub_id= list->sub_id;
+    out_gtid->server_id= list->server_id;
+    out_gtid->seq_no= list->seq_no;
+  }
+
+  unlock();
+  return true;
 }
 
 
@@ -719,7 +776,7 @@ rpl_binlog_state::update(const struct rpl_gtid *gtid)
 }
 
 
-uint32
+uint64
 rpl_binlog_state::seq_no_from_state()
 {
   ulong i, j;
@@ -801,6 +858,16 @@ rpl_binlog_state::read_from_iocache(IO_CACHE *src)
       return 1;
   }
   return 0;
+}
+
+
+rpl_gtid *
+rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
+{
+  element *elem;
+  if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+    return NULL;
+  return (rpl_gtid *)my_hash_search(&elem->hash, (const uchar *)&server_id, 0);
 }
 
 

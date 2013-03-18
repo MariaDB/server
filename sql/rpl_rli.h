@@ -594,5 +594,6 @@ int init_relay_log_info(Relay_log_info* rli, const char* info_fname);
 
 extern struct rpl_slave_state rpl_global_gtid_slave_state;
 
+int rpl_load_gtid_slave_state(THD *thd);
 
 #endif /* RPL_RLI_H */
