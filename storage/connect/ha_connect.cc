@@ -1322,52 +1322,55 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
         break;
       } // endswitch xmode
 
-  // Get the list of used fields (columns)
-  char        *p;
-  unsigned int k1, k2, n1, n2;
-  Field*      *field;
-  MY_BITMAP   *map= (xmod != MODE_INSERT) ? table->read_set  : table->write_set;
-  MY_BITMAP   *ump= (xmod == MODE_UPDATE) ? table->write_set : NULL;
+  if (xmod != MODE_INSERT) {
+    // Get the list of used fields (columns)
+    char        *p;
+    unsigned int k1, k2, n1, n2;
+    Field*      *field;
+    MY_BITMAP   *map= table->read_set;
+    MY_BITMAP   *ump= (xmod == MODE_UPDATE) ? table->write_set : NULL;
 
-  k1= k2= 0;
-  n1= n2= 1;         // 1 is space for final null character
+    k1= k2= 0;
+    n1= n2= 1;         // 1 is space for final null character
 
-  for (field= table->field; *field; field++) {
-    if (bitmap_is_set(map, (*field)->field_index)) {
-      n1+= (GetColNameLen(*field) + 1);
-      k1++;
-      } // endif
-
-    if (ump && bitmap_is_set(ump, (*field)->field_index)) {
-      n2+= GetColNameLen(*field);
-      k2++;
-      } // endif
-
-    } // endfor field
-
-  if (k1) {
-    p= c1= (char*)PlugSubAlloc(g, NULL, n1);
-
-    for (field= table->field; *field; field++)
+    for (field= table->field; *field; field++) {
       if (bitmap_is_set(map, (*field)->field_index)) {
-        AddColName(p, *field);
-        p+= (strlen(p) + 1);
-        } // endif used field
+        n1+= (GetColNameLen(*field) + 1);
+        k1++;
+        } // endif
 
-    *p= '\0';          // mark end of list
-    } // endif k1
+      if (ump && bitmap_is_set(ump, (*field)->field_index)) {
+        n2+= GetColNameLen(*field);
+        k2++;
+        } // endif
 
-  if (k2) {
-    p= c2= (char*)PlugSubAlloc(g, NULL, n2);
+      } // endfor field
 
-    for (field= table->field; *field; field++)
-      if (bitmap_is_set(ump, (*field)->field_index)) {
-        AddColName(p, *field);
-        p+= (strlen(p) + 1);
-        } // endif used field
+    if (k1) {
+      p= c1= (char*)PlugSubAlloc(g, NULL, n1);
 
-    *p= '\0';          // mark end of list
-    } // endif k2
+      for (field= table->field; *field; field++)
+        if (bitmap_is_set(map, (*field)->field_index)) {
+          AddColName(p, *field);
+          p+= (strlen(p) + 1);
+          } // endif used field
+
+      *p= '\0';          // mark end of list
+      } // endif k1
+
+    if (k2) {
+      p= c2= (char*)PlugSubAlloc(g, NULL, n2);
+
+      for (field= table->field; *field; field++)
+        if (bitmap_is_set(ump, (*field)->field_index)) {
+          AddColName(p, *field);
+          p+= (strlen(p) + 1);
+          } // endif used field
+
+      *p= '\0';          // mark end of list
+      } // endif k2
+
+    } // endif xmod
 
   // Open the table
   if (!(rc= CntOpenTable(g, tdbp, xmod, c1, c2, del, this))) {
@@ -1571,7 +1574,8 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
       continue;            // Is a virtual column possible here ???
 #endif   // MARIADB
 
-    if (bitmap_is_set(table->write_set, fp->field_index)) {
+    if (xmod == MODE_INSERT ||
+        bitmap_is_set(table->write_set, fp->field_index)) {
       for (colp= tp->GetSetCols(); colp; colp= colp->GetNext())
         if (!stricmp(colp->GetName(), fp->field_name))
           break;
