@@ -81,7 +81,6 @@ XMLDEF::XMLDEF(void)
   Limit = 0;
   Xpand = false;
   Usedom = false;
-  Skipnull = false;
   } // end of XMLDEF constructor
 
 /***********************************************************************/
@@ -144,7 +143,6 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   DefNs = Cat->GetStringCatInfo(g, Name, "DefNs", "");
   Limit = Cat->GetIntCatInfo(Name, "Limit", 2);
   Xpand = (Cat->GetIntCatInfo(Name, "Expand", 0) != 0);
-  Skipnull = (Cat->GetIntCatInfo(Name, "Skipnull", 0) != 0);
   Header = Cat->GetIntCatInfo(Name, "Header", 0);
   Cat->GetCharCatInfo(Name, "Xmlsup", "*", buf, sizeof(buf));
 
@@ -227,7 +225,6 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Coltype = tdp->Coltype;
   Limit = tdp->Limit;
   Xpand = tdp->Xpand;
-  Skipnull = tdp->Skipnull;
   Changed = false;
   Checked = false;
   NextSame = false;
@@ -272,7 +269,6 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   Coltype = tdbp->Coltype;
   Limit = tdbp->Limit;
   Xpand = tdbp->Xpand;
-  Skipnull = tdbp->Skipnull;
   Changed = tdbp->Changed;
   Checked = tdbp->Checked;
   NextSame = tdbp->NextSame;
@@ -733,7 +729,6 @@ bool TDBXML::OpenDB(PGLOBAL g)
   /*  OpenDB: initialize the XML file processing.                      */
   /*********************************************************************/
   Write = (Mode == MODE_INSERT || Mode == MODE_UPDATE);
-  Skipnull = (Skipnull && Mode == MODE_INSERT);
 
   if (Initialize(g))
     return true;
@@ -1256,7 +1251,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Tdbp->Skipnull && Value->IsZero())
+  if (Value->IsNull())
     return;
 
   /*********************************************************************/
@@ -1476,7 +1471,7 @@ void XMULCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Tdbp->Skipnull && Value->IsZero())
+  if (Value->IsNull())
     return;
 
   /*********************************************************************/
@@ -1692,7 +1687,7 @@ void XPOSCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Tdbp->Skipnull && Value->IsZero())
+  if (Value->IsNull())
     return;
 
   /*********************************************************************/
