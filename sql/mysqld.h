@@ -56,6 +56,7 @@ void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
+void delete_running_thd(THD *thd);
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
@@ -89,7 +90,6 @@ extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern bool volatile abort_loop;
 extern bool in_bootstrap;
-extern uint volatile thread_count;
 extern uint connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
@@ -352,7 +352,8 @@ extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
 extern int32 thread_running;
-extern my_atomic_rwlock_t thread_running_lock;
+extern int32 thread_count;
+extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
             *opt_ssl_key;
@@ -479,42 +480,30 @@ inline void table_case_convert(char * name, uint length)
                                      name, length, name, length);
 }
 
-inline ulong sql_rnd_with_mutex()
+inline void thread_safe_increment32(int32 *value, my_atomic_rwlock_t *lock)
 {
-  mysql_mutex_lock(&LOCK_thread_count);
-  ulong tmp=(ulong) (my_rnd(&sql_rand) * 0xffffffff); /* make all bits random */
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return tmp;
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add32(value, 1);
+  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline int32
+inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add32(value, -1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void
 inc_thread_running()
 {
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_add32(&thread_running, 1);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return (num_thread_running+1);
+  thread_safe_increment32(&thread_running, &thread_running_lock);
 }
 
-inline int32
+inline void
 dec_thread_running()
 {
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_add32(&thread_running, -1);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return (num_thread_running-1);
-}
-
-inline int32
-get_thread_running()
-{
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_load32(&thread_running);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return num_thread_running;
+  thread_safe_decrement32(&thread_running, &thread_running_lock);
 }
 
 void set_server_version(void);
