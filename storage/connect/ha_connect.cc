@@ -1377,15 +1377,10 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     istable= true;
 //  strmake(tname, table_name, sizeof(tname)-1);
 
-    if (xmod == MODE_ANY && stop && *tdbp->GetName() != '#') {
-      // We are in a create index query
-      if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
-        sprintf(g->Message, "Table %s cannot be indexed", tdbp->GetName());
-        rc= true;
-      } else if (xp) // xp can be null when called from create
+    if (xmod == MODE_ANY && *tdbp->GetName() != '#')
+      // We may be in a create index query
+      if (xp) // xp can be null when called from create
         xp->tabp= (PTDBDOS)tdbp;  // The table on which the index is created
-
-      } // endif xmod
 
 //  tdbp->SetOrig((PTBX)table);  // used by CheckCond
   } else
@@ -2942,8 +2937,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     if (xp->CheckQueryID())
       rc= 2;          // Logical error ???
     else if (tdbp) {
-      if (tdbp->GetMode() == MODE_ANY && *tdbp->GetName() == '#'
-                                      && xp->tabp) {
+      if (tdbp->GetMode() == MODE_ANY && *tdbp->GetName() == '#' &&
+          xp->tabp && ((PTDBASE)tdbp)->GetDef()->Indexable()) {
         PDOSDEF defp1= (PDOSDEF)((PTDBASE)tdbp)->GetDef();
         PDOSDEF defp2= (PDOSDEF)xp->tabp->GetDef();
         PIXDEF  xp1, xp2, sxp;
@@ -3033,7 +3028,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       case SQLCOM_DROP_INDEX:
       case SQLCOM_CREATE_INDEX:
         newmode= MODE_ANY;
-        stop= true;
+//      stop= true;
         break;
       default:
         printf("Unsupported sql_command=%d", thd->lex->sql_command);
@@ -3059,7 +3054,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         break;
       case SQLCOM_DROP_INDEX:
       case SQLCOM_CREATE_INDEX:
-        stop= true;
+//      stop= true;
       case SQLCOM_DROP_TABLE:
       case SQLCOM_RENAME_TABLE:
       case SQLCOM_ALTER_TABLE:
