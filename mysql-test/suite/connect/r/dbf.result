@@ -605,7 +605,7 @@ INSERT INTO t1 VALUES ('30',DEFAULT,30,DEFAULT);
 SELECT * FROM t1;
 c1	c2	i1	i2
 10	10	10	10
-20		20	0
+20	def	20	123
 30	def	30	123
 CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
 --------	--------

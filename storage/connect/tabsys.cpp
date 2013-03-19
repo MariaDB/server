@@ -543,6 +543,10 @@ void INICOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
+  // Null key are missing keys
+  if (Value->IsNull())
+    return;
+
   p = Value->GetCharString(Valbuf);
 
   if (strlen(p) > (unsigned)Long) {

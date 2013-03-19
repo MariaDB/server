@@ -52,7 +52,6 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   int     Header;                 /* n first rows are header rows      */
   bool    Xpand;                  /* Put multiple tags in several rows */
   bool    Usedom;                 /* True: DOM, False: libxml2         */
-  bool    Skipnull;               /* True: skip writing null nodes     */
   }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
@@ -127,7 +126,6 @@ class DllExport TDBXML : public TDBASE {
   bool    Usedom;                   // True for DOM, False for libxml2
   bool    Bufdone;                  // True when column buffers allocated
   bool    Nodedone;                 // True when column nodes allocated
-  bool    Skipnull;                 // True to skip writing nullnodes
   bool    Void;                     // True if the file does not exist
   char   *Xfile;                    // The XML file
   char   *Enc;                      // New XML table file encoding
