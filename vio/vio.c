@@ -213,9 +213,7 @@ Vio *vio_new(my_socket sd, enum enum_vio_type type, uint flags)
   if ((vio = (Vio*) my_malloc(sizeof(*vio),MYF(MY_WME))))
   {
     vio_init(vio, type, sd, 0, flags);
-    sprintf(vio->desc,
-	    (vio->type == VIO_TYPE_SOCKET ? "socket (%d)" : "TCP/IP (%d)"),
-	    vio->sd);
+    vio->desc= (vio->type == VIO_TYPE_SOCKET ? "socket" : "TCP/IP");
 #if !defined(__WIN__)
 #if !defined(NO_FCNTL_NONBLOCK)
     /*
@@ -257,7 +255,7 @@ Vio *vio_new_win32pipe(HANDLE hPipe)
   if ((vio = (Vio*) my_malloc(sizeof(Vio),MYF(MY_WME))))
   {
     vio_init(vio, VIO_TYPE_NAMEDPIPE, 0, hPipe, VIO_LOCALHOST);
-    strmov(vio->desc, "named pipe");
+    vio->desc= "named pipe";
   }
   DBUG_RETURN(vio);
 }
@@ -282,7 +280,7 @@ Vio *vio_new_win32shared_memory(HANDLE handle_file_map, HANDLE handle_map,
     vio->event_conn_closed= event_conn_closed;
     vio->shared_memory_remain= 0;
     vio->shared_memory_pos= handle_map;
-    strmov(vio->desc, "shared memory");
+    vio->desc= "shared memory";
   }
   DBUG_RETURN(vio);
 }
