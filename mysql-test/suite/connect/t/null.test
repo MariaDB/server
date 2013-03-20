@@ -1,0 +1,60 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Testing FIX null columns
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+
+--echo #
+--echo # Testing CSV null columns
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+
+--echo #
+--echo # Testing VEC null columns
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1.vec';
+
+--echo #
+--echo # Testing DOS null columns
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT FILE_NAME='t1.txt';
+
+--echo #
+--echo # Testing DBF null columns
+--echo #
+--error ER_UNKNOWN_ERROR
+CREATE TABLE t1
+(
+  id INT
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+
+--echo #
+--echo # Testing INI null columns
+--echo #
+CREATE TABLE t1
+(
+  `sec` char(8) NOT NULL flag=1,
+  `key` char(12)
+) ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1(sec) values('S1');
+SELECT * FROM t1;
+INSERT INTO t1 values('S1','Newval');
+SELECT * FROM t1;
+DROP TABLE t1;

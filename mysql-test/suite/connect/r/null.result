@@ -1,0 +1,56 @@
+#
+# Testing FIX null columns
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+ERROR HY000: Table type FIX does not support nullable columns
+#
+# Testing CSV null columns
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=CSV FILE_NAME='t1.csv';
+ERROR HY000: Table type CSV does not support nullable columns
+#
+# Testing VEC null columns
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=VEC FILE_NAME='t1.vec';
+ERROR HY000: Table type VEC does not support nullable columns
+#
+# Testing DOS null columns
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT FILE_NAME='t1.txt';
+ERROR HY000: Table type DOS does not support nullable columns
+#
+# Testing DBF null columns
+#
+CREATE TABLE t1
+(
+id INT
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+ERROR HY000: Table type DBF does not support nullable columns
+#
+# Testing INI null columns
+#
+CREATE TABLE t1
+(
+`sec` char(8) NOT NULL flag=1,
+`key` char(12)
+) ENGINE=CONNECT TABLE_TYPE=INI;
+INSERT INTO t1(sec) values('S1');
+SELECT * FROM t1;
+sec	key
+INSERT INTO t1 values('S1','Newval');
+SELECT * FROM t1;
+sec	key
+S1	Newval
+DROP TABLE t1;
