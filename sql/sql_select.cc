@@ -6988,7 +6988,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   /* Discount the selectivity of the access method used to join table s */
   if (s->quick && s->quick->index != MAX_KEY)
   {
-    if (!ref)
+    if (join->positions[idx].key == 0)
     {
       /* A range scan by index s->quick->index is used to access table s */
       sel*= table_records/table->quick_rows[s->quick->index];
