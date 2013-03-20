@@ -3324,60 +3324,64 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
   
-  if (bitmap_is_clear_all(used_fields))
-    DBUG_RETURN(FALSE);
-
-  PARAM param;
-  MEM_ROOT alloc;
-  init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
-                 MYF(MY_THREAD_SPECIFIC));
-  param.thd= thd;
-  param.mem_root= &alloc;
-  param.old_root= thd->mem_root;
-  param.table= table;
-  param.is_ror_scan= FALSE;
-
-  if (create_key_parts_for_pseudo_indexes(&param, used_fields))
+  if (!bitmap_is_clear_all(used_fields))
   {
-    free_root(&alloc, MYF(0));
-    DBUG_RETURN(FALSE);
-  }
+    PARAM param;
+    MEM_ROOT alloc;
+    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
+    param.thd= thd;
+    param.mem_root= &alloc;
+    param.old_root= thd->mem_root;
+    param.table= table;
+    param.is_ror_scan= FALSE;
 
-  param.prev_tables= param.read_tables= 0;
-  param.current_table= table->map;
-  param.using_real_indexes= FALSE;
-  param.real_keynr[0]= 0;
-  param.alloced_sel_args= 0;
-
-  thd->no_errors=1;				// Don't warn about NULL
-
-  SEL_TREE *tree;
-  SEL_ARG **key, **end;
-  uint idx= 0;
-  
-  tree= get_mm_tree(&param, cond);
-
-  if (!tree)
-    goto end;
-    
-
-  for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
-  {
-    double rows;
-    if (*key)
+    if (create_key_parts_for_pseudo_indexes(&param, used_fields))
     {
-      rows= records_in_column_ranges(&param, idx, *key);
-      if (rows != HA_POS_ERROR)
-        (*key)->field->cond_selectivity= rows/table_records; 
+      free_root(&alloc, MYF(0));
+      DBUG_RETURN(FALSE);
     }
-  }
 
-  for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
-  {
-    Field *table_field= *field_ptr;   
-    if (bitmap_is_set(table->read_set, table_field->field_index) &&
-        table_field->cond_selectivity < 1.0)
-      table->cond_selectivity*= table_field->cond_selectivity;
+    param.prev_tables= param.read_tables= 0;
+    param.current_table= table->map;
+    param.using_real_indexes= FALSE;
+    param.real_keynr[0]= 0;
+    param.alloced_sel_args= 0;
+
+    thd->no_errors=1;				// Don't warn about NULL
+
+    SEL_TREE *tree;
+    SEL_ARG **key, **end;
+    uint idx= 0;
+  
+    tree= get_mm_tree(&param, cond);
+
+    if (!tree)
+      goto free_alloc;
+    
+    for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
+    {
+      double rows;
+      if (*key)
+      {
+        rows= records_in_column_ranges(&param, idx, *key);
+        if (rows != HA_POS_ERROR)
+          (*key)->field->cond_selectivity= rows/table_records; 
+      }
+    }
+
+    for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
+    {
+      Field *table_field= *field_ptr;   
+      if (bitmap_is_set(table->read_set, table_field->field_index) &&
+          table_field->cond_selectivity < 1.0)
+        table->cond_selectivity*= table_field->cond_selectivity;
+    }
+
+  free_alloc:
+    thd->mem_root= param.old_root;
+    free_root(&alloc, MYF(0));
+
   }
 
   /* Calculate the selectivity of the range conditions supported by indexes */
@@ -3412,17 +3416,18 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
         }
         if (i)
         {
-          double f1= key_info->actual_rec_per_key(i-1);
-          double f2= key_info->actual_rec_per_key(i);
-          table->cond_selectivity*= quick_cond_selectivity * f1 / f2;
+          table->cond_selectivity*= quick_cond_selectivity;
+          if (i != used_key_parts)
+	  {
+            double f1= key_info->actual_rec_per_key(i-1);
+            double f2= key_info->actual_rec_per_key(i);
+            table->cond_selectivity*= f1 / f2;
+          }
         }
       } 
     }
   } 
 
-end:
-  thd->mem_root= param.old_root;
-  free_root(&alloc, MYF(0));
   DBUG_RETURN(FALSE);
 }
 
