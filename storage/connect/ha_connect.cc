@@ -3538,7 +3538,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     db= thd->db;                     // Default value
 
   // Check table type
-  if (ttp == TAB_UNDEF || ttp == TAB_NIY) {
+  if (ttp == TAB_UNDEF) {
     strcpy(g->Message, "No table_type. Was set to DOS");
     push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
     ttp= TAB_DOS;
@@ -3546,7 +3546,11 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     name= thd->make_lex_string(NULL, "table_type", 10, true);
     val= thd->make_lex_string(NULL, typn, strlen(typn), true);
     pov= new(mem) engine_option_value(*name, *val, false, start, &end);
-    } // endif ttp
+  } else if (ttp == TAB_NIY) {
+    sprintf(g->Message, "Unsupported table type %s", typn);
+    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    return true;
+  } // endif ttp
 
   if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
     tab= (char*)create_info->alias;

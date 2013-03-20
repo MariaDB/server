@@ -2,12 +2,17 @@
 # Testing features not specific to any TABLE_TYPE
 #
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=NON_EXISTING;
+ERROR HY000: Unsupported table type NON_EXISTING
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=FIX;
 Warnings:
-Warning	1105	No table_type. Was set to DOS
-Warning	1105	No file name. Table will use t1.DOS
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `table_type`=DOS
+Warning	1105	No file name. Table will use t1.FIX
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+ALTER TABLE t1 TABLE_TYPE=NON_EXISTING;
+ERROR HY000: Unsupported table type NON_EXISTING
+SELECT * FROM t1;
+a
+10
 DROP TABLE t1;
