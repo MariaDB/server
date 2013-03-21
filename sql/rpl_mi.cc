@@ -37,7 +37,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
    slave_running(0), slave_run_id(0), sync_counter(0),
-   heartbeat_period(0), received_heartbeats(0), master_id(0), gtid_pos_auto(0)
+   heartbeat_period(0), received_heartbeats(0), master_id(0), using_gtid(0)
 {
   host[0] = 0; user[0] = 0; password[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
@@ -436,8 +436,8 @@ file '%s')", fname);
         */
         while (!init_strvar_from_file(buf, sizeof(buf), &mi->file, 0))
         {
-          if (0 == strncmp(buf, STRING_WITH_LEN("gtid_pos_auto=")))
-            mi->gtid_pos_auto= (0 != atoi(buf + sizeof("gtid_pos_auto")));
+          if (0 == strncmp(buf, STRING_WITH_LEN("using_gtid=")))
+            mi->using_gtid= (0 != atoi(buf + sizeof("using_gtid")));
         }
       }
     }
@@ -581,14 +581,14 @@ int flush_master_info(Master_info* mi,
   my_b_printf(file,
               "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n"
               "\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-              "gtid_pos_auto=%d\n",
+              "using_gtid=%d\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
               mi->host, mi->user,
               mi->password, mi->port, mi->connect_retry,
               (int)(mi->ssl), mi->ssl_ca, mi->ssl_capath, mi->ssl_cert,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
-              heartbeat_buf, "", ignore_server_ids_buf, mi->gtid_pos_auto);
+              heartbeat_buf, "", ignore_server_ids_buf, mi->using_gtid);
   my_free(ignore_server_ids_buf);
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err && 

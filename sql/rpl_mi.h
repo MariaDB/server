@@ -126,8 +126,11 @@ class Master_info : public Slave_reporting_capability
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
-  /* If last CHANGE MASTER was MASTER_GTID_POS=AUTO. */
-  bool gtid_pos_auto;
+  /*
+    True if slave position is set using GTID state rather than old-style
+    file/offset binlog position.
+  */
+  bool using_gtid;
 };
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,

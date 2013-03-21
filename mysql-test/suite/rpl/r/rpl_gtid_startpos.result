@@ -67,4 +67,25 @@ a
 3
 4
 DROP TABLE t1;
+*** MDEV-4275: I/O thread restart duplicates events in relay log ***
+include/stop_slave.inc
+RESET SLAVE ALL;
+RESET MASTER;
+RESET MASTER;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_gtid_pos='';
+include/start_slave.inc
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+a
+1
+include/stop_slave_io.inc
+START SLAVE IO_THREAD;
+include/wait_for_slave_io_to_start.inc
+INSERT INTO t1 VALUES (2);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+DROP TABLE t1;
 include/rpl_end.inc

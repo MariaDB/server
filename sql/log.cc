@@ -3702,7 +3702,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
   const char* save_name;
   DBUG_ENTER("reset_logs");
 
-  ha_reset_logs(thd);
+  if (thd)
+    ha_reset_logs(thd);
   /*
     We need to get both locks to be sure that no one is trying to
     write to the index log file.
@@ -8486,7 +8487,9 @@ binlog_background_thread(void *arg __attribute__((unused)))
 #ifdef HAVE_REPLICATION
   if (rpl_load_gtid_slave_state(thd))
     sql_print_warning("Failed to load slave replication state from table "
-                      "%s.%s", "mysql", rpl_gtid_slave_state_table_name.str);
+                      "%s.%s: %u: %s", "mysql",
+                      rpl_gtid_slave_state_table_name.str,
+                      thd->stmt_da->sql_errno(), thd->stmt_da->message());
 #endif
 
   mysql_mutex_lock(&mysql_bin_log.LOCK_binlog_background_thread);

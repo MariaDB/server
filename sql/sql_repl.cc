@@ -806,8 +806,9 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
           requested by the slave, then we still give error (below, after
           the loop).
         */
-        if (!(missing_domains++))
-          missing_domain_gtid= domain_gtid;
+        if (!missing_domains)
+          missing_domain_gtid= *slave_gtid;
+        ++missing_domains;
         continue;
       }
       *errormsg= "Requested slave GTID state not found in binlog";
@@ -1176,10 +1177,6 @@ gtid_state_from_binlog_pos(const char *in_name, uint32 pos, String *out_str)
 }
 
 
-enum enum_gtid_skip_type {
-  GTID_SKIP_NOT, GTID_SKIP_STANDALONE, GTID_SKIP_TRANSACTION
-};
-
 /*
   Helper function for mysql_binlog_send() to write an event down the slave
   connection.
@@ -1234,12 +1231,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   switch (*gtid_skip_group)
   {
   case GTID_SKIP_STANDALONE:
-    if (event_type != GTID_EVENT &&
-        event_type != INTVAR_EVENT &&
-        event_type != RAND_EVENT &&
-        event_type != USER_VAR_EVENT &&
-        event_type != TABLE_MAP_EVENT &&
-        event_type != ANNOTATE_ROWS_EVENT)
+    if (!Log_event::is_part_of_group(event_type))
       *gtid_skip_group= GTID_SKIP_NOT;
     return NULL;
   case GTID_SKIP_TRANSACTION:
@@ -2713,11 +2705,11 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   }
 
   if (lex_mi->gtid_pos_auto || lex_mi->gtid_pos_str.str)
-    mi->gtid_pos_auto= true;
+    mi->using_gtid= true;
   else if (lex_mi->gtid_pos_str.str ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
-    mi->gtid_pos_auto= false;
+    mi->using_gtid= false;
 
   /*
     If user did specify neither host nor port nor any log name nor any log
@@ -2782,6 +2774,16 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       my_error(ER_RELAY_LOG_FAIL, MYF(0), errmsg);
       ret= TRUE;
       goto err;
+    }
+
+    if (mi->using_gtid)
+    {
+      /*
+        Clear the position in the master binlogs, so that we request the
+        correct GTID position.
+      */
+      mi->master_log_name[0]= 0;
+      mi->master_log_pos= 0;
     }
   }
   else
