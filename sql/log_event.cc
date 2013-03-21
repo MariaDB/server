@@ -3814,26 +3814,6 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
     */
     const_cast<Relay_log_info*>(rli)->inc_event_relay_log_pos();
     const_cast<Relay_log_info*>(rli)->clear_flag(Relay_log_info::IN_STMT);
-
-    /*
-      Record any GTID in the same transaction, so slave state is
-      transactionally consistent.
-    */
-    if ((sub_id= rli->gtid_sub_id))
-    {
-      /* Clear the GTID from the RLI so we don't accidentally reuse it. */
-      const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
-
-      gtid= rli->current_gtid;
-      error= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
-      if (error)
-      {
-        my_error(ER_CANNOT_UPDATE_GTID_STATE, MYF(0));
-        trans_rollback(thd);
-        sub_id= 0;
-        goto compare_errors;
-      }
-    }
   }
   else
   {
@@ -3958,6 +3938,30 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
       else
         thd->variables.collation_database= thd->db_charset;
       
+      /*
+        Record any GTID in the same transaction, so slave state is
+        transactionally consistent.
+      */
+      if (strcmp("COMMIT", query) == 0 && (sub_id= rli->gtid_sub_id))
+      {
+        /* Clear the GTID from the RLI so we don't accidentally reuse it. */
+        const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+
+        gtid= rli->current_gtid;
+        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true))
+        {
+          rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                      "Error during COMMIT: failed to update GTID state in "
+                    "%s.%s: %d: %s",
+                      "mysql", rpl_gtid_slave_state_table_name.str,
+                      thd->stmt_da->sql_errno(), thd->stmt_da->message());
+          trans_rollback(thd);
+          sub_id= 0;
+          thd->is_slave_error= 1;
+          goto end;
+        }
+      }
+
       thd->table_map_for_update= (table_map)table_map_for_update;
       thd->set_invoker(&user, &host);
       /*
@@ -6842,7 +6846,13 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
     err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
     if (err)
     {
+      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                  "Error during XID COMMIT: failed to update GTID state in "
+                  "%s.%s: %d: %s",
+                  "mysql", rpl_gtid_slave_state_table_name.str,
+                  thd->stmt_da->sql_errno(), thd->stmt_da->message());
       trans_rollback(thd);
+      thd->is_slave_error= 1;
       return err;
     }
   }

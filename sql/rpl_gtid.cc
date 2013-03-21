@@ -29,7 +29,7 @@
 
 
 const LEX_STRING rpl_gtid_slave_state_table_name=
-  { STRING_WITH_LEN("rpl_slave_state") };
+  { C_STRING_WITH_LEN("rpl_slave_state") };
 
 
 void
@@ -298,6 +298,12 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
 
   mysql_reset_thd_for_next_command(thd, 0);
 
+  DBUG_EXECUTE_IF("gtid_inject_record_gtid",
+                  {
+                    my_error(ER_CANNOT_UPDATE_GTID_STATE, MYF(0));
+                    return 1;
+                  } );
+
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
@@ -328,6 +334,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   if ((elem= get_element(gtid->domain_id)) == NULL)
   {
     unlock();
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     err= 1;
     goto end;
   }

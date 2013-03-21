@@ -1232,7 +1232,20 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   else
   {
     inc_group_relay_log_pos(event_master_log_pos);
-    rpl_global_gtid_slave_state.record_and_update_gtid(thd, this);
+    if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, this))
+    {
+      report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+             "Failed to update GTID state in %s.%s, slave state may become "
+             "inconsistent: %d: %s",
+             "mysql", rpl_gtid_slave_state_table_name.str,
+             thd->stmt_da->sql_errno(), thd->stmt_da->message());
+      /*
+        At this point we are not in a transaction (for example after DDL),
+        so we can not roll back. Anyway, normally updates to the slave
+        state table should not fail, and if they do, at least we made the
+        DBA aware of the problem in the error log.
+      */
+    }
     flush_relay_log_info(this);
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
