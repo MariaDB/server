@@ -107,6 +107,33 @@ INSERT INTO t1 VALUES (5);
 SELECT * FROM t1 ORDER BY a;
 
 
+--echo *** MDEV-4278: Slave does not detect that master is not GTID-aware ***
+
+--connection slave
+--source include/stop_slave.inc
+
+--connection master
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,simulate_non_gtid_aware_master";
+
+--connection slave
+START SLAVE;
+--let $slave_io_errno= 1233
+--source include/wait_for_slave_io_error.inc
+
+--connection master
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (6);
+--save_master_pos
+
+--connection slave
+START SLAVE;
+--sync_with_master
+SET sql_log_bin=0;
+CALL mtr.add_suppression("The slave I/O thread stops because master does not support MariaDB global transaction id");
+SET sql_log_bin=1;
+
+
 --connection master
 DROP TABLE t1;
 

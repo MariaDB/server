@@ -1823,6 +1823,27 @@ after_set_capability:
     rpl_gtid *binlog_gtid_list= NULL;
     uint32 num_binlog_gtids= 0;
 
+    /*
+      Read the master @@GLOBAL.gtid_domain_id variable.
+      This is mostly to check that master is GTID aware, but we could later
+      perhaps use it to check that different multi-source masters are correctly
+      configured with distinct domain_id.
+    */
+    if (mysql_real_query(mysql,
+                         STRING_WITH_LEN("SELECT @@GLOBAL.gtid_domain_id")) ||
+        !(master_res= mysql_store_result(mysql)) ||
+        !(master_row= mysql_fetch_row(master_res)))
+    {
+      err_code= mysql_errno(mysql);
+      errmsg= "The slave I/O thread stops because master does not support "
+        "MariaDB global transaction id. A fatal error is encountered when "
+        "it tries to SELECT @@GLOBAL.gtid_domain_id.";
+      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+      goto err;
+    }
+    mysql_free_result(master_res);
+    master_res= NULL;
+
     if (opt_bin_log)
     {
       int err= mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,

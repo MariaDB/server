@@ -73,5 +73,17 @@ a
 3
 4
 5
+*** MDEV-4278: Slave does not detect that master is not GTID-aware ***
+include/stop_slave.inc
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,simulate_non_gtid_aware_master";
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1233]
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (6);
+START SLAVE;
+SET sql_log_bin=0;
+CALL mtr.add_suppression("The slave I/O thread stops because master does not support MariaDB global transaction id");
+SET sql_log_bin=1;
 DROP TABLE t1;
 include/rpl_end.inc
