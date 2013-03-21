@@ -31,6 +31,11 @@ struct rpl_gtid
 };
 
 
+enum enum_gtid_skip_type {
+  GTID_SKIP_NOT, GTID_SKIP_STANDALONE, GTID_SKIP_TRANSACTION
+};
+
+
 /*
   Replication slave state.
 

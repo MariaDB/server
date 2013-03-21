@@ -1,0 +1,71 @@
+--source include/have_innodb.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
+     MASTER_GTID_POS=AUTO;
+
+--connection server_1
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+
+--connection server_2
+--source include/start_slave.inc
+
+--connection server_1
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-rpl_gtid_crash.test
+EOF
+
+let $1=200;
+--disable_query_log
+while ($1)
+{
+  eval INSERT INTO t1 VALUES ($1 + 10, 2);
+  dec $1;
+}
+--enable_query_log
+
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart-rpl_gtid_crash.test
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_2
+--let $wait_condition= SELECT COUNT(*) = 200 FROM t1 WHERE b=2
+--source include/wait_condition.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (1000, 3);
+
+--connection server_2
+--let $wait_condition= SELECT COUNT(*) = 1 FROM t1 WHERE b=3
+--source include/wait_condition.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/rpl_end.inc

@@ -398,32 +398,6 @@ int init_recovery(Master_info* mi, const char** errmsg)
   DBUG_RETURN(0);
 }
 
-
-/*
-  When connecting a slave to a master with GTID, we reset the relay log
-  coordinates of the SQL thread and clear the master coordinates of SQL and IO
-  threads.
-
-  This way we ensure that we start from the correct place even after a change
-  to new master or a crash where relay log coordinates may be wrong (GTID
-  state is crash safe but master.info is not). And we get the correct master
-  coordinates set upon reading the initial fake rotate event sent from master.
-*/
-static void
-reset_coordinates_for_gtid(Master_info *mi, Relay_log_info *rli)
-{
-  mi->master_log_pos= 0;
-  mi->master_log_name[0]= 0;
-  rli->group_master_log_pos= 0;
-  rli->group_master_log_name[0]= 0;
-  rli->group_relay_log_pos= BIN_LOG_HEADER_SIZE;
-  strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(rli->group_relay_log_name)-1);
-  rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-  strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
-          sizeof(mi->rli.event_relay_log_name)-1);
-}
-
  
 /**
   Convert slave skip errors bitmap into a printable string.
@@ -811,6 +785,7 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
   mysql_mutex_t *lock_io=0, *lock_sql=0, *lock_cond_io=0, *lock_cond_sql=0;
   mysql_cond_t* cond_io=0, *cond_sql=0;
   int error=0;
+  const char *errmsg;
   DBUG_ENTER("start_slave_threads");
 
   if (need_slave_mutex)
@@ -824,6 +799,22 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
     cond_sql = &mi->rli.start_cond;
     lock_cond_io = &mi->run_lock;
     lock_cond_sql = &mi->rli.run_lock;
+  }
+
+  /*
+    If we are using GTID and both SQL and IO threads are stopped, then get
+    rid of all relay logs.
+
+    Relay logs are not very useful when using GTID, except as a buffer
+    between the fetch in the IO thread and the apply in SQL thread. However
+    while one of the threads is running, they are in use and cannot be
+    removed.
+  */
+  if (mi->using_gtid && !mi->slave_running && !mi->rli.slave_running)
+  {
+    purge_relay_logs(&mi->rli, NULL, 0, &errmsg);
+    mi->master_log_name[0]= 0;
+    mi->master_log_pos= 0;
   }
 
   if (thread_mask & SLAVE_IO)
@@ -1813,9 +1804,17 @@ past_checksum:
 after_set_capability:
 #endif
 
-  /* Request dump start from slave replication GTID state. */
+  /*
+    Request dump start from slave replication GTID state.
 
-  if (mi->gtid_pos_auto)
+    Only request GTID position the first time we connect after CHANGE MASTER
+    or after starting both IO or SQL thread.
+
+    Otherwise, if the IO thread was ahead of the SQL thread before the
+    restart or reconnect, we might end up re-fetching and hence re-applying
+    the same event(s) again.
+  */
+  if (mi->using_gtid && !mi->master_log_name[0])
   {
     int rc;
     char str_buf[256];
@@ -1866,7 +1865,7 @@ after_set_capability:
       }
     }
   }
-  else
+  if (!mi->using_gtid)
   {
     /*
       If we are not using GTID to connect this time, then instead request
@@ -2435,7 +2434,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     }
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
-    protocol->store((uint32) (mi->gtid_pos_auto != 0));
+    protocol->store((uint32) (mi->using_gtid != 0));
     if (full)
     {
       protocol->store((uint32)    mi->rli.retried_trans);
@@ -3412,8 +3411,6 @@ connected:
   if (ret == 1)
     /* Fatal error */
     goto err;
-  if (mi->gtid_pos_auto)
-    reset_coordinates_for_gtid(mi, rli);
 
   if (ret == 2) 
   { 

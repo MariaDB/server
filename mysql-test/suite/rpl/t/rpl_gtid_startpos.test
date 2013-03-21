@@ -98,9 +98,54 @@ START SLAVE;
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER by a;
 
-# Clean up.
-
 --connection server_1
 DROP TABLE t1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+
+--echo *** MDEV-4275: I/O thread restart duplicates events in relay log ***
+
+--connection server_2
+--source include/stop_slave.inc
+RESET SLAVE ALL;
+RESET MASTER;
+
+--connection server_1
+RESET MASTER;
+
+--connection server_2
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$MASTER_MYPORT, master_user='root', master_gtid_pos='';
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1;
+
+--source include/stop_slave_io.inc
+START SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_start.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (2);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+SELECT * FROM t1 ORDER BY a;
+
+# Clean up.
+--connection server_1
+DROP TABLE t1;
+
 
 --source include/rpl_end.inc

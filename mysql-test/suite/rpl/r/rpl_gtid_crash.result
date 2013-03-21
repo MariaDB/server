@@ -1,0 +1,16 @@
+include/rpl_init.inc [topology=1->2]
+*** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+include/stop_slave.inc
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
+MASTER_GTID_POS=AUTO;
+INSERT INTO t1 VALUES (2,1);
+INSERT INTO t1 VALUES (3,1);
+include/start_slave.inc
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+SELECT 1;
+Got one of the listed errors
+INSERT INTO t1 VALUES (1000, 3);
+DROP TABLE t1;
+include/rpl_end.inc

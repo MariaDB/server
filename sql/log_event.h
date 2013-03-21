@@ -1319,6 +1319,35 @@ public:
     return do_shall_skip(rli);
   }
 
+
+  /*
+    Check if an event is non-final part of a stand-alone event group,
+    such as Intvar_log_event (such events should be processed as part
+    of the following event group, not individually).
+  */
+  static bool is_part_of_group(enum Log_event_type ev_type)
+  {
+    switch (ev_type)
+    {
+    case GTID_EVENT:
+    case INTVAR_EVENT:
+    case RAND_EVENT:
+    case USER_VAR_EVENT:
+    case TABLE_MAP_EVENT:
+    case ANNOTATE_ROWS_EVENT:
+      return true;
+    case DELETE_ROWS_EVENT:
+    case UPDATE_ROWS_EVENT:
+    case WRITE_ROWS_EVENT:
+    /*
+      ToDo: also check for non-final Rows_log_event (though such events
+      are usually in a BEGIN-COMMIT group).
+    */
+    default:
+      return false;
+    }
+  }
+
 protected:
 
   /**
