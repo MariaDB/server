@@ -1419,6 +1419,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   connect_gtid_state.length(0);
   using_gtid_state= get_slave_connect_state(thd, &connect_gtid_state);
+  DBUG_EXECUTE_IF("simulate_non_gtid_aware_master", using_gtid_state= false;);
 
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
