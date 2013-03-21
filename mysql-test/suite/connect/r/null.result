@@ -46,6 +46,8 @@ CREATE TABLE t1
 `sec` char(8) NOT NULL flag=1,
 `key` char(12)
 ) ENGINE=CONNECT TABLE_TYPE=INI;
+Warnings:
+Warning	1105	No file name. Table will use t1.INI
 INSERT INTO t1(sec) values('S1');
 SELECT * FROM t1;
 sec	key

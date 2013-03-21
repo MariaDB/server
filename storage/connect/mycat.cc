@@ -115,10 +115,14 @@ TABTYPE GetTypeID(const char *type)
 #ifdef ODBC_SUPPORT
                  : (!stricmp(type, "ODBC"))  ? TAB_ODBC
 #endif
+#ifdef MYSQL_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+#endif
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
+#ifdef WIN32
 	               : (!stricmp(type, "MAC"))   ? TAB_MAC
 	               : (!stricmp(type, "WMI"))   ? TAB_WMI
+#endif
 	               : (!stricmp(type, "TBL"))   ? TAB_TBL
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
@@ -138,6 +142,7 @@ bool IsFileType(TABTYPE type)
     case TAB_FMT:
     case TAB_DBF:
     case TAB_XML:
+    case TAB_INI:
     case TAB_VEC:
       isfile= true;
       break;
