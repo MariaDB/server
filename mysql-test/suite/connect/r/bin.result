@@ -48,6 +48,8 @@ ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 ALTER TABLE t1 READONLY=1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 DROP TABLE t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DROP TABLE t1;
 DROP USER user@localhost;
 #
 # Testing errors

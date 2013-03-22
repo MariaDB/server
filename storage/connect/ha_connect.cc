@@ -2884,9 +2884,8 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, TABLE *table_arg)
+bool ha_connect::check_privileges(THD *thd, PTOS options)
 {
-  PTOS  options= GetTableOptionStruct(table_arg);
   if (!options || !options->type)
     goto err;
 
@@ -2967,7 +2966,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  if (lock_type != F_UNLCK && check_privileges(thd, table))
+  PTOS options= GetTableOptionStruct(table);
+  if (lock_type != F_UNLCK && check_privileges(thd, options))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
@@ -3264,6 +3264,12 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
   // Now we can work
   pos= share->option_struct;
+
+  if (check_privileges(thd, pos))
+  {
+    free_table_share(share);
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  }
 
   if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
     // This is a table whose files must be erased or renamed */
@@ -3887,7 +3893,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   DBUG_ASSERT(options);
   type= GetTypeID(options->type);
 
-  if (check_privileges(current_thd, table_arg))
+  if (check_privileges(current_thd, options))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {
