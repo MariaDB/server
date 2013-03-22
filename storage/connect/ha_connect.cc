@@ -4097,9 +4097,10 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 //ha_table_option_struct *param_old, *param_new;
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
   // TO DO: implement it.
-  if (table)
-    push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
-      "The current version of CONNECT did not check what you changed in ALTER. Use on your own risk");
+  THD *thd= current_thd;
+
+  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
+      "The current version of CONNECT did not check what you changed in ALTER. Use at your own risk");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 }
 
