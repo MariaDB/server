@@ -840,8 +840,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
-  { &key_LOCK_slave_state, "key_LOCK_slave_state", 0},
-  { &key_LOCK_binlog_state, "key_LOCK_binlog_state", 0}
+  { &key_LOCK_slave_state, "LOCK_slave_state", 0},
+  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
