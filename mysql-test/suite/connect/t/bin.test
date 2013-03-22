@@ -1,4 +1,9 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
+
+let $FILE_TYPE=BIN;
+let $FILE_EXT=BIN;
+--source grant.inc
+
 --copy_file $MYSQL_TEST_DIR/suite/connect/std_data/Testbal.dat $MYSQLD_DATADIR/test/Testbal.dat
 
 --echo #

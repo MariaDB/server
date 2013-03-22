@@ -1,0 +1,49 @@
+--echo #
+--echo # Testing grants
+--echo #
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+--connect(user,localhost,user,,)
+--connection user
+SELECT user();
+--eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=$FILE_TYPE
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+UPDATE t1 SET a=20;
+SELECT * FROM t1;
+DELETE FROM t1;
+SELECT * FROM t1;
+INSERT INTO t1 VALUES(10);
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+#   TODO: VIEW, LOCK, UNLOCK, REFERENCES, INDEX
+DROP TABLE t1;
+# Making sure DROP erased the data file
+--error 1
+--remove_file $MYSQLD_DATADIR/test/t1.$FILE_EXT
+--error ER_ACCESS_DENIED_ERROR
+--eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=$FILE_TYPE FILE_NAME='t1.EXT'
+--connection default
+SELECT user();
+--eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=$FILE_TYPE FILE_NAME='t1.EXT'
+INSERT INTO t1 VALUES (10);
+--connection user
+SELECT user();
+--error ER_ACCESS_DENIED_ERROR
+INSERT INTO t1 VALUES (10);
+--error ER_ACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_ACCESS_DENIED_ERROR
+UPDATE t1 SET a=20;
+--error ER_ACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_ACCESS_DENIED_ERROR
+TRUNCATE TABLE t1;
+--error ER_ACCESS_DENIED_ERROR
+ALTER TABLE t1 READONLY=1;
+# TODO: DROP
+--disconnect user
+--connection default
+DROP TABLE t1;
+--remove_file $MYSQLD_DATADIR/test/t1.EXT
+DROP USER user@localhost;
