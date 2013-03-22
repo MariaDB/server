@@ -6126,6 +6126,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     seq_no(seq_no_arg), domain_id(domain_id_arg),
     flags2(standalone ? FL_STANDALONE : 0)
 {
+  cache_type= Log_event::EVENT_NO_CACHE;
 }
 
 
@@ -6354,6 +6355,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
 Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
   : count(gtid_set->count()), list(0)
 {
+  cache_type= EVENT_NO_CACHE;
   /* Failure to allocate memory will be caught by is_valid() returning false. */
   if (count < (1<<28) &&
       (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
@@ -6419,16 +6421,16 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     uint32 i;
 
     print_header(&cache, print_event_info, FALSE);
+    my_b_printf(&cache, "\tGtid list [");
     for (i= 0; i < count; ++i)
     {
       longlong10_to_str(list[i].seq_no, buf, 10);
       my_b_printf(&cache, "%u-%u-%s", list[i].domain_id,
                   list[i].server_id, buf);
       if (i < count-1)
-        my_b_printf(&cache, "\n# ");
-      else
-        my_b_printf(&cache, "\n");
+        my_b_printf(&cache, ",\n# ");
     }
+    my_b_printf(&cache, "]\n");
   }
 }
 

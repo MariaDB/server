@@ -1420,6 +1420,17 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   connect_gtid_state.length(0);
   using_gtid_state= get_slave_connect_state(thd, &connect_gtid_state);
   DBUG_EXECUTE_IF("simulate_non_gtid_aware_master", using_gtid_state= false;);
+  /*
+    We want to corrupt the first event, in Log_event::read_log_event().
+    But we do not want the corruption to happen early, eg. when client does
+    BINLOG_GTID_POS(). So test case sets a DBUG trigger which causes us to
+    set the real DBUG injection here.
+  */
+  DBUG_EXECUTE_IF("corrupt_read_log_event2_set",
+                  {
+                    DBUG_SET("-d,corrupt_read_log_event2_set");
+                    DBUG_SET("+d,corrupt_read_log_event2");
+                  });
 
   if (global_system_variables.log_warnings > 1)
     sql_print_information("Start binlog_dump to slave_server(%d), pos(%s, %lu)",
