@@ -2897,6 +2897,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_JCT:
     case TAB_DMY:
     case TAB_NIY:
+    case TAB_PIVOT:
       goto err;
 
     case TAB_DOS:
@@ -2920,7 +2921,6 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
       return check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0);
 
     case TAB_TBL:
-    case TAB_PIVOT:
       return false;
   }
 
@@ -2954,9 +2954,10 @@ err:
 */
 int ha_connect::external_lock(THD *thd, int lock_type)
 {
-  int rc= 0;
-  bool del= false;
-  MODE newmode;
+  int     rc= 0;
+  bool    del= false;
+  MODE    newmode;
+  PTOS    options= GetTableOptionStruct(table);
   PGLOBAL g= GetPlug(thd);
   DBUG_ENTER("ha_connect::external_lock");
 
@@ -2966,9 +2967,11 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
-  PTOS options= GetTableOptionStruct(table);
-  if (lock_type != F_UNLCK && check_privileges(thd, options))
+  if (lock_type != F_UNLCK && check_privileges(thd, options)) {
+    strcpy(g->Message, "This operation requires the FILE privilege");
+    printf("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+    } // endif check_privileges
 
   // Action will depend on lock_type
   switch (lock_type) {
@@ -3081,6 +3084,10 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         newmode= MODE_ANY;
 //      stop= true;
         break;
+      case SQLCOM_CREATE_VIEW:
+      case SQLCOM_DROP_VIEW:
+        newmode= MODE_ANY;
+        break;
       default:
         printf("Unsupported sql_command=%d", thd->lex->sql_command);
         sprintf(g->Message, "Unsupported sql_command=%d", thd->lex->sql_command);
@@ -3109,6 +3116,10 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       case SQLCOM_DROP_TABLE:
       case SQLCOM_RENAME_TABLE:
       case SQLCOM_ALTER_TABLE:
+        newmode= MODE_ANY;
+        break;
+      case SQLCOM_CREATE_VIEW:
+      case SQLCOM_DROP_VIEW:
         newmode= MODE_ANY;
         break;
       default:
