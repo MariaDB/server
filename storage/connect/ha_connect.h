@@ -361,6 +361,7 @@ const char *GetValStr(OPVAL vop, bool neg);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
+  bool check_privileges(THD *thd, TABLE *table_arg);
   char *GetListOption(const char *opname, const char *oplist, const char *def= NULL);
 #if defined(MARIADB)
   char *encode(PGLOBAL g, char *cnm);

@@ -2883,6 +2883,54 @@ int ha_connect::delete_all_rows()
   DBUG_RETURN(rc);
 } // end of delete_all_rows
 
+
+bool ha_connect::check_privileges(THD *thd, TABLE *table_arg)
+{
+  PTOS  options= GetTableOptionStruct(table_arg);
+  if (!options || !options->type)
+    goto err;
+
+  switch (GetTypeID(options->type))
+  {
+    case TAB_UNDEF:
+    case TAB_CATLG:
+    case TAB_PLG:
+    case TAB_JCT:
+    case TAB_DMY:
+    case TAB_NIY:
+      goto err;
+
+    case TAB_DOS:
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_CSV:
+    case TAB_FMT:
+    case TAB_DBF:
+    case TAB_XML:
+    case TAB_INI:
+    case TAB_VEC:
+      return options->filename ?
+             check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0) : false;
+
+    case TAB_ODBC:
+    case TAB_MYSQL:
+    case TAB_DIR:
+    case TAB_MAC:
+    case TAB_WMI:
+    case TAB_OEM:
+      return check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0);
+
+    case TAB_TBL:
+    case TAB_PIVOT:
+      return false;
+  }
+
+err:
+    my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
+    return true;
+}
+
+
 /**
   @brief
   This create a lock on the table. If you are implementing a storage engine
@@ -2917,6 +2965,9 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     printf("%p external_lock: lock_type=%d\n", this, lock_type);
 
   if (!g)
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  if (lock_type != F_UNLCK && check_privileges(thd, table))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   // Action will depend on lock_type
@@ -3835,6 +3886,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   // CONNECT engine specific table options:
   DBUG_ASSERT(options);
   type= GetTypeID(options->type);
+
+  if (check_privileges(current_thd, table_arg))
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;
