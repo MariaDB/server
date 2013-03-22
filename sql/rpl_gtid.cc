@@ -295,6 +295,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   list_element *elist= 0, *next;
   element *elem;
   ulonglong thd_saved_option= thd->variables.option_bits;
+  Query_tables_list lex_backup;
 
   mysql_reset_thd_for_next_command(thd, 0);
 
@@ -304,6 +305,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                     return 1;
                   } );
 
+  thd->lex->reset_n_backup_query_tables_list(&lex_backup);
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
@@ -393,6 +395,7 @@ end:
     else
       thd->mdl_context.release_transactional_locks();
   }
+  thd->lex->restore_backup_query_tables_list(&lex_backup);
   thd->variables.option_bits= thd_saved_option;
   return err;
 }
