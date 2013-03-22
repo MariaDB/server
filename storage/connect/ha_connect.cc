@@ -2909,7 +2909,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_INI:
     case TAB_VEC:
       return options->filename ?
-             check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0) : false;
+             check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0) : false;
 
     case TAB_ODBC:
     case TAB_MYSQL:
@@ -2917,7 +2917,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_MAC:
     case TAB_WMI:
     case TAB_OEM:
-      return check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0);
+      return check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0);
 
     case TAB_TBL:
     case TAB_PIVOT:
