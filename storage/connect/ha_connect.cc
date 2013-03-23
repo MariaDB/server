@@ -545,7 +545,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   valid_query_id= 0;
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
-//hascond= false;
+  createas= false;
   indexing= -1;
   data_file_name= NULL;
   index_file_name= NULL;
@@ -1065,7 +1065,8 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     pcf->Length= 256;            // BLOB?
 
   if (fop) {
-    pcf->Offset= fop->offset;
+    // Offset must be set to default when the table is created AS select 
+    pcf->Offset= (createas) ? -1 : fop->offset;
 //  pcf->Freq= fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
@@ -3050,8 +3051,9 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   if (newmode == MODE_WRITE) {
     switch (thd->lex->sql_command) {
-      case SQLCOM_INSERT:
       case SQLCOM_CREATE_TABLE:
+        createas= true;
+      case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
         newmode= MODE_INSERT;
