@@ -186,7 +186,7 @@ FR	20
 RU	30
 ALTER TABLE t1 READONLY=1;
 Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -203,7 +203,7 @@ TRUNCATE TABLE t1;
 ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 ALTER TABLE t1 READONLY=0;
 Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
