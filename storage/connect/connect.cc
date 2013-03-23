@@ -294,31 +294,6 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     colp->AddColUse(U_P);           // For PLG tables
     } // endfor colp
 
-  // Now do open the physical table
-  tdbp->SetMode(mode);
-
-  if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {  
-    // To avoid erasing the table when doing a partial delete
-    // make a fake Next
-    PDOSDEF ddp= new(g) DOSDEF;
-    PTDB tp= new(g) TDBDOS(ddp, NULL);
-    tdbp->SetNext(tp);
-    dup->Check &= ~CHK_DELETE;
-    } // endif del
-
-
-  if (xtrace)
-    printf("About to open the table: tdbp=%p\n", tdbp);
-
-  if (mode != MODE_ANY) {
-    if (tdbp->OpenDB(g)) {
-      printf("%s\n", g->Message);
-      return true;
-    } else
-      tdbp->SetNext(NULL);
-
-  } // endif mode
-
   /*********************************************************************/
   /*  In Update mode, the updated column blocks must be distinct from  */
   /*  the read column blocks. So make a copy of the TDB and allocate   */
@@ -355,9 +330,34 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
   } else if (tdbp && mode == MODE_INSERT)
     ((PTDBASE)tdbp)->SetSetCols(tdbp->GetColumns());
 
+  // Now do open the physical table
   if (xtrace)
     printf("Opening table %s in mode %d tdbp=%p\n",
            tdbp->GetName(), mode, tdbp);
+
+  tdbp->SetMode(mode);
+
+  if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {  
+    // To avoid erasing the table when doing a partial delete
+    // make a fake Next
+    PDOSDEF ddp= new(g) DOSDEF;
+    PTDB tp= new(g) TDBDOS(ddp, NULL);
+    tdbp->SetNext(tp);
+    dup->Check &= ~CHK_DELETE;
+    } // endif del
+
+
+  if (xtrace)
+    printf("About to open the table: tdbp=%p\n", tdbp);
+
+  if (mode != MODE_ANY) {
+    if (tdbp->OpenDB(g)) {
+      printf("%s\n", g->Message);
+      return true;
+    } else
+      tdbp->SetNext(NULL);
+
+  } // endif mode
 
   return false;
   } // end of CntOpenTable
