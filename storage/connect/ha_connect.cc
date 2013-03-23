@@ -545,7 +545,6 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   valid_query_id= 0;
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
-  createas= false;
   indexing= -1;
   data_file_name= NULL;
   index_file_name= NULL;
@@ -1065,8 +1064,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     pcf->Length= 256;            // BLOB?
 
   if (fop) {
-    // Offset must be set to default when the table is created AS select 
-    pcf->Offset= (createas) ? -1 : fop->offset;
+    pcf->Offset= fop->offset;
 //  pcf->Freq= fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
@@ -3052,7 +3050,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (newmode == MODE_WRITE) {
     switch (thd->lex->sql_command) {
       case SQLCOM_CREATE_TABLE:
-        createas= true;
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
@@ -3098,8 +3095,9 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   } else if (newmode == MODE_READ) {
     switch (thd->lex->sql_command) {
-      case SQLCOM_INSERT:
       case SQLCOM_CREATE_TABLE:
+        g->Createas= 1;       // To tell created table to ignore FLAG
+      case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
 //    case SQLCOM_REPLACE:
@@ -3695,8 +3693,32 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     } // endif supfnc
 
   // Test whether columns must be specified
-  if (alter_info->create_list.elements)
+  if (alter_info->create_list.elements) {
+    if (g->Createas) {
+      // This table is created AS SELECT
+      // The sourcetable FLAG values have been passed to the created
+      // table columns but they must be removed to get default offsets.
+      List_iterator<Create_field> it(alter_info->create_list);
+      Create_field        *field;
+      engine_option_value *vop, *pop;
+
+      while ((field= it++))
+        for (pop= NULL, vop= field->option_list; vop; vop= vop->next)
+          if (!stricmp(vop->name.str, "FLAG")) {
+            if (pop)
+              pop->next= vop->next;
+            else
+              field->option_list= vop->next;
+
+            break;
+          } else
+            pop= vop;
+
+      g->Createas= 0;
+      } // endif Createas
+
     return false;
+    } // endif elements
 
   if (ok) {
     char *length, *decimals, *cnm, *rem;

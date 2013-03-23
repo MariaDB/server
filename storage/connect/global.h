@@ -219,6 +219,7 @@ typedef struct _global {            /* Global structure                */
   PACTIVITY Activityp, ActivityStart;
   char      Message[MAX_STR];
   short     Trace;
+  int       Createas;               /* To pass info to created table   */
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

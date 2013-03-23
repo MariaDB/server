@@ -150,6 +150,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
   } else {
     g->Sarea_Size = worksize;
     g->Trace = 0;
+    g->Createas = 0;
     g->Activityp = g->ActivityStart = NULL;
     strcpy(g->Message, "");
 

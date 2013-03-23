@@ -395,7 +395,6 @@ protected:
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
-  bool          createas;             // True for CREATE TABLE ... AS SELECT
   int           indexing;             // Type of indexing for CONNECT
 #if !defined(MARIADB)
   PTOS          table_options;
