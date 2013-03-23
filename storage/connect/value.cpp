@@ -398,7 +398,7 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
       valp = new(g) TYPVAL<double>(0.0, prec, TYPE_FLOAT);
       break;
     case TYPE_TINY:
-      valp = new(g) TYPVAL<char>((char)0, TYPE_SHORT);
+      valp = new(g) TYPVAL<char>((char)0, TYPE_TINY);
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
