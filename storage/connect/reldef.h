@@ -70,7 +70,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   int     GetPseudo(void) {return Pseudo;}
   PSZ     GetPath(void) 
             {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
-  bool    SepIndex(void) {return Cat->GetSepIndex();}
+  bool    SepIndex(void) {return Cat->GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}

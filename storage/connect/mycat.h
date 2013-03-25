@@ -54,12 +54,12 @@ class MYCAT : public CATALOG {
   void    Reset(void);
   void    SetDataPath(PGLOBAL g, const char *path) 
               {SetPath(g, &DataPath, path);}
-  bool    GetBoolCatInfo(LPCSTR name, PSZ what, bool bdef);
-  bool    SetIntCatInfo(LPCSTR name, PSZ what, int ival);
-  int     GetIntCatInfo(LPCSTR name, PSZ what, int idef);
-  int     GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef);
-  int     GetCharCatInfo(LPCSTR name, PSZ what, PSZ sdef, char *buf, int size);
-  char   *GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef);
+  bool    GetBoolCatInfo(PSZ what, bool bdef);
+  bool    SetIntCatInfo(PSZ what, int ival);
+  int     GetIntCatInfo(PSZ what, int idef);
+  int     GetSizeCatInfo(PSZ what, PSZ sdef);
+  int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
+  char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
   int     GetColCatInfo(PGLOBAL g, PTABDEF defp); 
   bool    GetIndexInfo(PGLOBAL g, PTABDEF defp);
   bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}  // Temporary

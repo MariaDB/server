@@ -235,7 +235,7 @@ MYCAT::MYCAT(PHC hc) : CATALOG()
 	Hc= hc;
   To_Desc= NULL;
   DefHuge= false;
-	SepIndex= true;			// Temporay until we can store offet and size
+//SepIndex= true;			// Temporay until we can store offet and size
   } // end of MYCAT constructor
 
 /***********************************************************************/
@@ -273,7 +273,7 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 /***********************************************************************/
 /*  This function sets an integer MYCAT information.                   */
 /***********************************************************************/
-bool MYCAT::SetIntCatInfo(LPCSTR name, PSZ what, int n)
+bool MYCAT::SetIntCatInfo(PSZ what, int n)
 	{
 	return Hc->SetIntegerOption(what, n);
 	} // end of SetIntCatInfo
@@ -281,7 +281,7 @@ bool MYCAT::SetIntCatInfo(LPCSTR name, PSZ what, int n)
 /***********************************************************************/
 /*  This function returns integer MYCAT information.                   */
 /***********************************************************************/
-int MYCAT::GetIntCatInfo(LPCSTR name, PSZ what, int idef)
+int MYCAT::GetIntCatInfo(PSZ what, int idef)
 	{
 	int n= Hc->GetIntegerOption(what);
 
@@ -291,7 +291,7 @@ int MYCAT::GetIntCatInfo(LPCSTR name, PSZ what, int idef)
 /***********************************************************************/
 /*  This function returns Boolean MYCAT information.                   */
 /***********************************************************************/
-bool MYCAT::GetBoolCatInfo(LPCSTR name, PSZ what, bool bdef)
+bool MYCAT::GetBoolCatInfo(PSZ what, bool bdef)
 	{
 	bool b= Hc->GetBooleanOption(what, bdef);
 
@@ -301,7 +301,7 @@ bool MYCAT::GetBoolCatInfo(LPCSTR name, PSZ what, bool bdef)
 /***********************************************************************/
 /*  This function returns size catalog information.                    */
 /***********************************************************************/
-int MYCAT::GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef)
+int MYCAT::GetSizeCatInfo(PSZ what, PSZ sdef)
 	{
 	char * s, c;
   int  i, n= 0;
@@ -323,8 +323,7 @@ int MYCAT::GetSizeCatInfo(LPCSTR name, PSZ what, PSZ sdef)
 /***********************************************************************/
 /*  This function sets char MYCAT information in buf.                  */
 /***********************************************************************/
-int MYCAT::GetCharCatInfo(LPCSTR name, PSZ what, 
-																			 PSZ sdef, char *buf, int size)
+int MYCAT::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 	{
 	char *s= Hc->GetStringOption(what);
 
@@ -336,7 +335,7 @@ int MYCAT::GetCharCatInfo(LPCSTR name, PSZ what,
 /*  This function returns string MYCAT information.                    */
 /*  Default parameter is "*" to get the handler default.               */
 /***********************************************************************/
-char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
+char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	{
 	char *sval, *s= Hc->GetStringOption(what, sdef);
 	
@@ -359,7 +358,7 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ name, PSZ what, PSZ sdef)
 /***********************************************************************/
 int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	{
-	char		*type= GetStringCatInfo(g, NULL, "Type", "DOS");
+	char		*type= GetStringCatInfo(g, "Type", "DOS");
 	int      i, loff, poff, nof, nlg;
 	void    *field= NULL;
   TABTYPE  tc;

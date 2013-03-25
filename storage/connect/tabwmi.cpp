@@ -337,8 +337,8 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
 /***********************************************************************/
 bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  Nspace = Cat->GetStringCatInfo(g, Name, "Namespace", "Root\\CimV2");
-  Wclass = Cat->GetStringCatInfo(g, Name, "Class",
+  Nspace = Cat->GetStringCatInfo(g, "Namespace", "Root\\CimV2");
+  Wclass = Cat->GetStringCatInfo(g, "Class",
           (!stricmp(Nspace, "root\\cimv2") ? "ComputerSystemProduct" : 
            !stricmp(Nspace, "root\\cli")   ? "Msft_CliAlias" : ""));
 
@@ -351,7 +351,7 @@ bool WMIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   } // endif Wclass
 
   if (Catfunc == FNC_NO)
-    Ems = Cat->GetIntCatInfo(Name, "Estimate", 100);
+    Ems = Cat->GetIntCatInfo("Estimate", 100);
 
   return false;
   } // end of DefineAM

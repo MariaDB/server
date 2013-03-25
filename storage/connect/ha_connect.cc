@@ -224,6 +224,7 @@ struct ha_table_option_struct {
   bool huge;
   bool split;
   bool readonly;
+  bool sepindex;
   };
 
 #if defined(MARIADB)
@@ -257,6 +258,7 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_BOOL("HUGE", huge, 0),
   HA_TOPTION_BOOL("SPLIT", split, 0),
   HA_TOPTION_BOOL("READONLY", readonly, 0),
+  HA_TOPTION_BOOL("SEPINDEX", sepindex, 0),
   HA_TOPTION_END
 };
 #endif   // MARIADB
@@ -870,6 +872,8 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
     opval= options->split;
   else if (!stricmp(opname, "Readonly"))
     opval= options->readonly;
+  else if (!stricmp(opname, "SepIndex"))
+    opval= options->sepindex;
   else if (options->oplist)
     if ((pv= GetListOption(opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
@@ -4035,9 +4039,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (IsFileType(type)) {
     table= table_arg;       // Used by called functions
 
-    if (!options->filename) {
+    if (!options->filename && type != TAB_XML) {
       // The file name is not specified, create a default file in
       // the database directory named table_name.table_type.
+      // (temporarily not done for XML because a void file causes
+      // the XML parsers to report an error on the first Insert)
       char buf[256], fn[_MAX_PATH], dbpath[128];
       int  h;
 

@@ -723,7 +723,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
       return true;
     } // endswitch Ftype
 
-  if (dup->Catalog->GetSepIndex()) {
+  if (dup->Catalog->GetBoolCatInfo("SepIndex", false)) {
     // Index is saved in a separate file
 #if !defined(UNIX)
     char drive[_MAX_DRIVE];

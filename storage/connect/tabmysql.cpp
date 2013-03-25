@@ -249,7 +249,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
       Hostname = "localhost";
 
     if (!Database || !*Database)
-      Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
+      Database = Cat->GetStringCatInfo(g, "Database", "*");
 
     if (!Tabname || !*Tabname)
       Tabname = Name;
@@ -272,24 +272,24 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
 /***********************************************************************/
 bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *url = Cat->GetStringCatInfo(g, Name, "Connect", NULL);
+  char *url = Cat->GetStringCatInfo(g, "Connect", NULL);
 
   Desc = "MySQL Table";
 
   if (!url || !*url) { 
     // Not using the connection URL
-    Hostname = Cat->GetStringCatInfo(g, Name, "Host", "localhost");
-    Database = Cat->GetStringCatInfo(g, Name, "Database", "*");
-    Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name); // Deprecated
-    Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
-    Username = Cat->GetStringCatInfo(g, Name, "User", "root");
-    Password = Cat->GetStringCatInfo(g, Name, "Password", NULL);
-    Portnumber = Cat->GetIntCatInfo(Name, "Port", MYSQL_PORT);
+    Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+    Database = Cat->GetStringCatInfo(g, "Database", "*");
+    Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
+    Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
+    Username = Cat->GetStringCatInfo(g, "User", "root");
+    Password = Cat->GetStringCatInfo(g, "Password", NULL);
+    Portnumber = Cat->GetIntCatInfo("Port", MYSQL_PORT);
   } else if (ParseURL(g, url))
     return TRUE;
 
-  Bind = !!Cat->GetIntCatInfo(Name, "Bind", 0);
-  Delayed = !!Cat->GetIntCatInfo(Name, "Delayed", 0);
+  Bind = !!Cat->GetIntCatInfo("Bind", 0);
+  Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
   return FALSE;
   } // end of DefineAM
 

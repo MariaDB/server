@@ -97,12 +97,12 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   Name = (PSZ)PlugSubAlloc(g, memp, strlen(name) + 1);
   strcpy(Name, name);
   Cat = cat;
-  Catfunc = GetFuncID(Cat->GetStringCatInfo(g, Name, "Catfunc", NULL));
-  Elemt = cat->GetIntCatInfo(name, "Elements", 0);
-  Multiple = cat->GetIntCatInfo(name, "Multiple", 0);
-  Degree = cat->GetIntCatInfo(name, "Degree", 0);
-  Read_Only = cat->GetBoolCatInfo(name, "ReadOnly", false);
-  const char *data_charset_name= cat->GetStringCatInfo(g, Name, "Data_charset", NULL);
+  Catfunc = GetFuncID(Cat->GetStringCatInfo(g, "Catfunc", NULL));
+  Elemt = cat->GetIntCatInfo("Elements", 0);
+  Multiple = cat->GetIntCatInfo("Multiple", 0);
+  Degree = cat->GetIntCatInfo("Degree", 0);
+  Read_Only = cat->GetBoolCatInfo("ReadOnly", false);
+  const char *data_charset_name= cat->GetStringCatInfo(g, "Data_charset", NULL);
   m_data_charset= data_charset_name ?
                   get_charset_by_csname(data_charset_name, MY_CS_PRIMARY, 0):
                   NULL;
@@ -195,7 +195,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   // Have the external class do its complete definition
   if (!cat->Cbuf) {
     // Suballocate a temporary buffer for the entire column section
-    cat->Cblen = cat->GetSizeCatInfo("Database", "Colsize", "8K");
+    cat->Cblen = cat->GetSizeCatInfo("Colsize", "8K");
     cat->Cbuf = (char*)PlugSubAlloc(g, NULL, cat->Cblen);
     } // endif Cbuf
 
@@ -225,8 +225,8 @@ bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   void *memp = Cat->Descp;
 
-  Module = Cat->GetStringCatInfo(g, Name, "Module", "");
-  Subtype = Cat->GetStringCatInfo(g, Name, "Subtype", Module);
+  Module = Cat->GetStringCatInfo(g, "Module", "");
+  Subtype = Cat->GetStringCatInfo(g, "Subtype", Module);
 
   if (!*Module)
     Module = Subtype;
