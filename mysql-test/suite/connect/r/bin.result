@@ -103,7 +103,7 @@ INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
 ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 ALTER TABLE t1 READONLY=NO;
 Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -124,7 +124,7 @@ fig	name	birth	id	salary	dept
 7777	BILL	1973-06-30	4444	5555.56	777
 ALTER TABLE t1 READONLY=YES;
 Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use on your own risk
+Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
