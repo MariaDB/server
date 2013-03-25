@@ -450,7 +450,7 @@ inline query_id_t next_query_id()
   my_atomic_rwlock_wrlock(&global_query_id_lock);
   id= my_atomic_add64(&global_query_id, 1);
   my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return (id+1);
+  return (id);
 }
 
 inline query_id_t get_query_id()

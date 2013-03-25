@@ -2529,7 +2529,7 @@ void unlink_thd(THD *thd)
     cache_thread()
 
   NOTES
-    LOCK_thread_cache has to be locked
+    LOCK_thread_cache is used to protect the cache variables
 
   RETURN
     0  Thread was not put in cache
@@ -2542,7 +2542,7 @@ static bool cache_thread()
 {
   DBUG_ENTER("cache_thread");
 
-  mysql_mutex_assert_owner(&LOCK_thread_cache);
+  mysql_mutex_lock(&LOCK_thread_cache);
   if (cached_thread_count < thread_cache_size &&
       ! abort_loop && !kill_cached_threads)
   {
@@ -2569,6 +2569,8 @@ static bool cache_thread()
       THD *thd;
       wake_thread--;
       thd= thread_cache.get();
+      mysql_mutex_unlock(&LOCK_thread_cache);
+
       thd->thread_stack= (char*) &thd;          // For store_globals
       (void) thd->store_globals();
 
@@ -2594,10 +2596,15 @@ static bool cache_thread()
       thd->mysys_var->abort= 0;
       thd->thr_create_utime= microsecond_interval_timer();
       thd->start_utime= thd->thr_create_utime;
+
+      /* Link thd into list of all active threads (THD's) */
+      mysql_mutex_lock(&LOCK_thread_count);
       threads.append(thd);
+      mysql_mutex_unlock(&LOCK_thread_count);
       DBUG_RETURN(1);
     }
   }
+  mysql_mutex_unlock(&LOCK_thread_cache);
   DBUG_RETURN(0);
 }
 
@@ -2627,14 +2634,8 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   unlink_thd(thd);
   /* Mark that current_thd is not valid anymore */
   set_current_thd(0);
-  if (put_in_cache)
-  {
-    mysql_mutex_lock(&LOCK_thread_cache);
-    put_in_cache= cache_thread();
-    mysql_mutex_unlock(&LOCK_thread_cache);
-    if (put_in_cache)
-      DBUG_RETURN(0);                             // Thread is reused
-  }
+  if (put_in_cache && cache_thread())
+    DBUG_RETURN(0);                             // Thread is reused
 
   /*
     It's safe to check for thread_count outside of the mutex

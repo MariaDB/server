@@ -4530,11 +4530,15 @@ end:
   @see check_access
   @see check_table_access
 
-  @note This functions assumes that either number of tables to be inspected
+  @note
+     This functions assumes that either number of tables to be inspected
      by it is limited explicitly (i.e. is is not UINT_MAX) or table list
      used and thd->lex->query_tables_own_last value correspond to each
      other (the latter should be either 0 or point to next_global member
      of one of elements of this table list).
+
+     We delay locking of LOCK_grant until we really need it as we assume that
+     most privileges be resolved with user or db level accesses.
 
    @return Access status
      @retval FALSE Access granted; But column privileges might need to be
@@ -4552,6 +4556,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
   Security_context *sctx= thd->security_ctx;
   uint i;
   ulong orig_want_access= want_access;
+  my_bool locked= 0;
+  GRANT_TABLE *grant_table;
   DBUG_ENTER("check_grant");
   DBUG_ASSERT(number > 0);
 
@@ -4575,11 +4581,9 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     */
     tl->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
   }
+  number= i;
 
-  mysql_rwlock_rdlock(&LOCK_grant);
-  for (tl= tables;
-       tl && number-- && tl != first_not_own_table;
-       tl= tl->next_global)
+  for (tl= tables; number-- ; tl= tl->next_global)
   {
     sctx = test(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
 
@@ -4632,13 +4636,18 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       }
       continue;
     }
-    GRANT_TABLE *grant_table= table_hash_search(sctx->host, sctx->ip,
-                                                tl->get_db_name(),
-                                                sctx->priv_user,
-                                                tl->get_table_name(),
-                                                FALSE);
 
-    if (!grant_table)
+    if (!locked)
+    {
+      locked= 1;
+      mysql_rwlock_rdlock(&LOCK_grant);
+    }
+
+    if (!(grant_table= table_hash_search(sctx->host, sctx->ip,
+                                         tl->get_db_name(),
+                                         sctx->priv_user,
+                                         tl->get_table_name(),
+                                         FALSE)))
     {
       want_access &= ~tl->grant.privilege;
       goto err;					// No grants
@@ -4665,11 +4674,13 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       goto err;					// impossible
     }
   }
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (locked)
+    mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(FALSE);
 
 err:
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (locked)
+    mysql_rwlock_unlock(&LOCK_grant);
   if (!no_errors)				// Not a silent skip of table
   {
     char command[128];
