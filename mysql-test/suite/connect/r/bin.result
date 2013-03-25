@@ -24,6 +24,10 @@ INSERT INTO t1 VALUES(10);
 TRUNCATE TABLE t1;
 SELECT * FROM t1;
 a
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+a
+DROP VIEW v1;
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=BIN FILE_NAME='t1.EXT';
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
@@ -49,6 +53,25 @@ ALTER TABLE t1 READONLY=1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 DROP TABLE t1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE VIEW v1 AS SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+# Testing a VIEW created with FILE privileges but accessed with no FILE
+SELECT user();
+user()
+root@localhost
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT user();
+user()
+user@localhost
+SELECT * FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO v1 VALUES (2);
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE v1 SET a=123;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DROP VIEW v1;
 DROP TABLE t1;
 DROP USER user@localhost;
 #
