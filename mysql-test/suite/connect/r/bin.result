@@ -1,5 +1,5 @@
 #
-# Testing grants
+# Beginning of grant.inc
 #
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
@@ -74,6 +74,9 @@ ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 DROP VIEW v1;
 DROP TABLE t1;
 DROP USER user@localhost;
+#
+# End of grant.inc
+#
 #
 # Testing errors
 #
