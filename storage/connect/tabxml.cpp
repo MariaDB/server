@@ -92,21 +92,21 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 //void  *memp = Cat->GetDescp();
 //PSZ    dbfile = Cat->GetDescFile();
 
-  Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
-  Encoding = Cat->GetStringCatInfo(g, Name, "Encoding", "UTF-8");
+  Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
+  Encoding = Cat->GetStringCatInfo(g, "Encoding", "UTF-8");
 
   if (*Fn == '?') {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return true;
     } // endif fn
 
-  if ((signed)Cat->GetIntCatInfo(Name, "Flag", -1) != -1) {
+  if ((signed)Cat->GetIntCatInfo("Flag", -1) != -1) {
     strcpy(g->Message, MSG(DEPREC_FLAG));
     return true;
     } // endif flag
 
   defrow = defcol = "";
-  Cat->GetCharCatInfo(Name, "Coltype", "", buf, sizeof(buf));
+  Cat->GetCharCatInfo("Coltype", "", buf, sizeof(buf));
 
   switch (toupper(*buf)) {
     case 'A':                          // Attribute
@@ -133,32 +133,39 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       return true;
     } // endswitch typname
 
-  Tabname = Cat->GetStringCatInfo(g, Name, "Name", Name);  // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, Name, "Table_name", Tabname);
-  Rowname = Cat->GetStringCatInfo(g, Name, "Rownode", defrow);
-  Colname = Cat->GetStringCatInfo(g, Name, "Colnode", defcol);
-  Mulnode = Cat->GetStringCatInfo(g, Name, "Mulnode", "");
-  XmlDB = Cat->GetStringCatInfo(g, Name, "XmlDB", "");
-  Nslist = Cat->GetStringCatInfo(g, Name, "Nslist", "");
-  DefNs = Cat->GetStringCatInfo(g, Name, "DefNs", "");
-  Limit = Cat->GetIntCatInfo(Name, "Limit", 2);
-  Xpand = (Cat->GetIntCatInfo(Name, "Expand", 0) != 0);
-  Header = Cat->GetIntCatInfo(Name, "Header", 0);
-  Cat->GetCharCatInfo(Name, "Xmlsup", "*", buf, sizeof(buf));
+  Tabname = Cat->GetStringCatInfo(g, "Name", Name);  // Deprecated
+  Tabname = Cat->GetStringCatInfo(g, "Table_name", Tabname);
+  Rowname = Cat->GetStringCatInfo(g, "Rownode", defrow);
+  Colname = Cat->GetStringCatInfo(g, "Colnode", defcol);
+  Mulnode = Cat->GetStringCatInfo(g, "Mulnode", "");
+  XmlDB = Cat->GetStringCatInfo(g, "XmlDB", "");
+  Nslist = Cat->GetStringCatInfo(g, "Nslist", "");
+  DefNs = Cat->GetStringCatInfo(g, "DefNs", "");
+  Limit = Cat->GetIntCatInfo("Limit", 2);
+  Xpand = (Cat->GetIntCatInfo("Expand", 0) != 0);
+  Header = Cat->GetIntCatInfo("Header", 0);
+  Cat->GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
 
-  if (*buf == '*')           // Try the old (deprecated) option
-    Cat->GetCharCatInfo(Name, "Method", "*", buf, sizeof(buf));
+//if (*buf == '*')           // Try the old (deprecated) option
+//  Cat->GetCharCatInfo("Method", "*", buf, sizeof(buf));
 
-  if (*buf == '*')           // Is there a default for the database?
-    Cat->GetCharCatInfo("Database", "Defxml", XMLSUP,
-                                    buf, sizeof(buf));
+//if (*buf == '*')           // Is there a default for the database?
+//  Cat->GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
 
   // Note that if no support is specified, the default is MS-DOM
-  Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
+  // on Windows and libxml2 otherwise
+  if (*buf == '*')
+#if defined(WIN32)
+    Usedom = true;
+#else   // !WIN32
+    Usedom = false;
+#endif  // !WIN32
+  else
+    Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
-  Attrib = Cat->GetStringCatInfo(g, Name, "Attribute", "");
-  Hdattr = Cat->GetStringCatInfo(g, Name, "HeadAttr", "");
+  Attrib = Cat->GetStringCatInfo(g, "Attribute", "");
+  Hdattr = Cat->GetStringCatInfo(g, "HeadAttr", "");
 
   return false;
   } // end of DefineAM

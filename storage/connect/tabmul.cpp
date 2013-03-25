@@ -560,9 +560,9 @@ void TDBMUL::CloseDB(PGLOBAL g)
 /***********************************************************************/
 bool DIRDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  Desc = Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
-  Incl = (Cat->GetIntCatInfo(Name, "Subdir", 0) != 0);
-  Huge = (Cat->GetIntCatInfo(Name, "Huge", 0) != 0);
+  Desc = Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
+  Incl = (Cat->GetIntCatInfo("Subdir", 0) != 0);
+  Huge = (Cat->GetIntCatInfo("Huge", 0) != 0);
   return false;
   } // end of DefineAM
 

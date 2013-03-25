@@ -1118,8 +1118,8 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
       defp->SetBlock(Block);
       defp->SetLast(Last);
   
-      if (!cat->SetIntCatInfo(name, "Blocks", Block) ||
-          !cat->SetIntCatInfo(name, "Last", Last)) {
+      if (!cat->SetIntCatInfo("Blocks", Block) ||
+          !cat->SetIntCatInfo("Last", Last)) {
         sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
         rc = true;
         } // endif

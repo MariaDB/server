@@ -160,7 +160,8 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   if (!pxdf)
     return false;           // No index
 
-  sep = Cat->GetSepIndex(); // If true indexes are in separate files
+  // If true indexes are in separate files
+  sep = Cat->GetBoolCatInfo("SepIndex", false); 
 
   if (!sep && To_Indx) {
     strcpy(g->Message, MSG(NO_RECOV_SPACE));
@@ -231,35 +232,35 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-  Desc = Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
-  Ofn = Cat->GetStringCatInfo(g, Name, "Optname", Fn);
-  Cat->GetCharCatInfo(Name, "Recfm", (PSZ)dfm, buf, sizeof(buf));
+  Desc = Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
+  Ofn = Cat->GetStringCatInfo(g, "Optname", Fn);
+  Cat->GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
           (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
-  Lrecl = Cat->GetIntCatInfo(Name, "Lrecl", 0);
+  Lrecl = Cat->GetIntCatInfo("Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
-    Compressed = Cat->GetIntCatInfo(Name, "Compressed", 0);
+    Compressed = Cat->GetIntCatInfo("Compressed", 0);
 
-  Mapped = Cat->GetBoolCatInfo(Name, "Mapped", map);
-  Block = Cat->GetIntCatInfo(Name, "Blocks", 0);
-  Last = Cat->GetIntCatInfo(Name, "Last", 0);
-  Ending = Cat->GetIntCatInfo(Name, "Ending", CRLF);
+  Mapped = Cat->GetBoolCatInfo("Mapped", map);
+  Block = Cat->GetIntCatInfo("Blocks", 0);
+  Last = Cat->GetIntCatInfo("Last", 0);
+  Ending = Cat->GetIntCatInfo("Ending", CRLF);
 
   if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
     int defhuge = (Cat->GetDefHuge()) ? 1 : 0;
 
-    Huge = (Cat->GetIntCatInfo(Name, "Huge", defhuge) != 0);
-    Padded = (Cat->GetIntCatInfo(Name, "Padded", 0) != 0);
-    Blksize = Cat->GetIntCatInfo(Name, "Blksize", 0);
-    Eof = (Cat->GetIntCatInfo(Name, "EOF", 0) != 0);
+    Huge = (Cat->GetIntCatInfo("Huge", defhuge) != 0);
+    Padded = (Cat->GetIntCatInfo("Padded", 0) != 0);
+    Blksize = Cat->GetIntCatInfo("Blksize", 0);
+    Eof = (Cat->GetIntCatInfo("EOF", 0) != 0);
   } else if (Recfm == RECFM_DBF) {
-    Maxerr = Cat->GetIntCatInfo(Name, "Maxerr", 0);
-    Accept = (Cat->GetIntCatInfo(Name, "Accept", 0) != 0);
-    ReadMode = Cat->GetIntCatInfo(Name, "Readmode", 0);
+    Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
+    Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
+    ReadMode = Cat->GetIntCatInfo("Readmode", 0);
   } else // (Recfm == RECFM_VAR)
-    AvgLen = Cat->GetIntCatInfo(Name, "Avglen", 0);
+    AvgLen = Cat->GetIntCatInfo("Avglen", 0);
 
   // Ignore wrong Index definitions for catalog commands
   return (Cat->GetIndexInfo(g, this) /*&& !Cat->GetCatFnc()*/);

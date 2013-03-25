@@ -83,10 +83,10 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   else
     strcpy(ds, "I");                 // INI tables default to I(ni)
 
-  Fn = Cat->GetStringCatInfo(g, Name, "Filename", NULL);
-  Cat->GetCharCatInfo(Name, "Subtype", ds, buf, sizeof(buf));
+  Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
+  Cat->GetCharCatInfo("Subtype", ds, buf, sizeof(buf));
   Subtype = toupper(*buf);
-  Cat->GetCharCatInfo(Name, "Layout", "C", buf, sizeof(buf));
+  Cat->GetCharCatInfo("Layout", "C", buf, sizeof(buf));
   Layout = toupper(*buf);
 
   switch (Subtype) {
@@ -94,13 +94,13 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     case 'C':
     case 'T':
       // Restricted table
-      Xname = Cat->GetStringCatInfo(g, Name, "Name", "?");
+      Xname = Cat->GetStringCatInfo(g, "Name", "?");
 
       if (!strcmp(Xname, "?"))
         Xname = NULL;
 
       if (*Fn == '?')
-        Fn = Cat->GetStringCatInfo(g, Name, "Database", "?");
+        Fn = Cat->GetStringCatInfo(g, "Database", "?");
 
       if (*Fn != '?') {
         char *p = (char*)PlugSubAlloc(g, memp, _MAX_PATH);
@@ -125,7 +125,7 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
         return true;
       } // endif Fn
 
-      Ln = Cat->GetSizeCatInfo((char*)Name, "Secsize", "8K");
+      Ln = Cat->GetSizeCatInfo("Secsize", "8K");
       break;
     default:
       sprintf(g->Message, MSG(INV_SUBTYPE), buf);

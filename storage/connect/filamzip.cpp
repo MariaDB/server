@@ -614,8 +614,8 @@ int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
     defp->SetBlock(0);
     defp->SetLast(Nrec);
 
-    if (!cat->SetIntCatInfo(name, "Blocks", 0) ||
-        !cat->SetIntCatInfo(name, "Last", 0)) {
+    if (!cat->SetIntCatInfo("Blocks", 0) ||
+        !cat->SetIntCatInfo("Last", 0)) {
       sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
       return RC_FX;
     } else
@@ -653,8 +653,8 @@ void ZBKFAM::CloseTableFile(PGLOBAL g)
     if (rc != RC_FX) {
       defp->SetBlock(Block);
       defp->SetLast(Last);
-      cat->SetIntCatInfo(name, "Blocks", Block);
-      cat->SetIntCatInfo(name, "Last", Last);
+      cat->SetIntCatInfo("Blocks", Block);
+      cat->SetIntCatInfo("Last", Last);
       } // endif
 
     gzclose(Zfile);

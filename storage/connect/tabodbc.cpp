@@ -102,15 +102,15 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   int    dop = ODBConn::noOdbcDialog;    // Default for options
 
-  Desc = Connect = Cat->GetStringCatInfo(g, Name, "Connect", "");
-  Tabname = Cat->GetStringCatInfo(g, Name, "Name",
+  Desc = Connect = Cat->GetStringCatInfo(g, "Connect", "");
+  Tabname = Cat->GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
-  Tabname = Cat->GetStringCatInfo(g, Name, "Tabname", Tabname);
-  Tabowner = Cat->GetStringCatInfo(g, Name, "Owner", "");
-  Tabqual = Cat->GetStringCatInfo(g, Name, "Qualifier", "");
-  Qchar = Cat->GetStringCatInfo(g, Name, "Qchar", "");
-  Catver = Cat->GetIntCatInfo(Name, "Catver", 2);
-  Options = Cat->GetIntCatInfo(Name, "Options", dop);
+  Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
+  Tabowner = Cat->GetStringCatInfo(g, "Owner", "");
+  Tabqual = Cat->GetStringCatInfo(g, "Qualifier", "");
+  Qchar = Cat->GetStringCatInfo(g, "Qchar", "");
+  Catver = Cat->GetIntCatInfo("Catver", 2);
+  Options = Cat->GetIntCatInfo("Options", dop);
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
