@@ -1,5 +1,5 @@
 --echo #
---echo # Testing grants
+--echo # Beginning of grant.inc
 --echo #
 GRANT ALL PRIVILEGES ON *.* TO user@localhost;
 REVOKE FILE ON *.* FROM user@localhost;
@@ -68,3 +68,7 @@ DROP VIEW v1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.EXT
 DROP USER user@localhost;
+
+--echo #
+--echo # End of grant.inc
+--echo #
