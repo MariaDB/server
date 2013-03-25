@@ -563,7 +563,7 @@ public:
   const char *func_name() const { return "cast_as_unsigned"; }
   void fix_length_and_dec()
   {
-    fix_char_length(min(args[0]->max_char_length(),
+    fix_char_length(MY_MIN(args[0]->max_char_length(),
                         DECIMAL_MAX_PRECISION + 2));
     unsigned_flag=1;
   }

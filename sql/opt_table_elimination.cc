@@ -328,7 +328,7 @@ const size_t Dep_value_table::iterator_size=
   ALIGN_SIZE(sizeof(Dep_value_table::Module_iter));
 
 const size_t Dep_value::iterator_size=
-  max(Dep_value_table::iterator_size, Dep_value_field::iterator_size);
+  MY_MAX(Dep_value_table::iterator_size, Dep_value_field::iterator_size);
 
 
 /*
@@ -441,7 +441,7 @@ const size_t Dep_module_key::iterator_size=
   ALIGN_SIZE(sizeof(Dep_module_key::Value_iter));
 
 const size_t Dep_module::iterator_size=
-  max(Dep_module_expr::iterator_size, Dep_module_key::iterator_size);
+  MY_MAX(Dep_module_expr::iterator_size, Dep_module_key::iterator_size);
 
 
 /*

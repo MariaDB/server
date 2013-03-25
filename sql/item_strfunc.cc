@@ -585,7 +585,7 @@ String *Item_func_concat::val_str(String *str)
           }
           else
           {
-            uint new_len = max(tmp_value.alloced_length() * 2, concat_len);
+            uint new_len = MY_MAX(tmp_value.alloced_length() * 2, concat_len);
 
             if (tmp_value.realloc(new_len))
               goto null;
@@ -934,7 +934,7 @@ String *Item_func_concat_ws::val_str(String *str)
         }
         else
         {
-          uint new_len = max(tmp_value.alloced_length() * 2, concat_len);
+          uint new_len = MY_MAX(tmp_value.alloced_length() * 2, concat_len);
 
           if (tmp_value.realloc(new_len))
             goto null;
@@ -1426,7 +1426,7 @@ String *Item_func_substr::val_str(String *str)
 
   length= res->charpos((int) length, (uint32) start);
   tmp_length= res->length() - start;
-  length= min(length, tmp_length);
+  length= MY_MIN(length, tmp_length);
 
   if (!start && (longlong) res->length() == length)
     return res;
@@ -1449,7 +1449,7 @@ void Item_func_substr::fix_length_and_dec()
     else if (start < 0)
       max_length= ((uint)(-start) > max_length) ? 0 : (uint)(-start);
     else
-      max_length-= min((uint)(start - 1), max_length);
+      max_length-= MY_MIN((uint)(start - 1), max_length);
   }
   if (arg_count == 3 && args[2]->const_item())
   {
@@ -2143,7 +2143,7 @@ String *Item_func_soundex::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0; /* purecov: inspected */
 
-  if (tmp_value.alloc(max(res->length(), 4 * cs->mbminlen)))
+  if (tmp_value.alloc(MY_MAX(res->length(), 4 * cs->mbminlen)))
     return str; /* purecov: inspected */
   char *to= (char *) tmp_value.ptr();
   char *to_end= to + tmp_value.alloced_length();
@@ -3363,7 +3363,7 @@ String* Item_func_export_set::val_str(String* str)
   const ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
   const uint num_separators= num_set_values > 0 ? num_set_values - 1 : 0;
   const ulonglong max_total_length=
-    num_set_values * max(yes->length(), no->length()) +
+    num_set_values * MY_MAX(yes->length(), no->length()) +
     num_separators * sep->length();
 
   if (unlikely(max_total_length > max_allowed_packet))
@@ -3392,11 +3392,11 @@ String* Item_func_export_set::val_str(String* str)
 
 void Item_func_export_set::fix_length_and_dec()
 {
-  uint32 length= max(args[1]->max_char_length(), args[2]->max_char_length());
+  uint32 length= MY_MAX(args[1]->max_char_length(), args[2]->max_char_length());
   uint32 sep_length= (arg_count > 3 ? args[3]->max_char_length() : 1);
 
   if (agg_arg_charsets_for_string_result(collation,
-                                         args + 1, min(4, arg_count) - 1))
+                                         args + 1, MY_MIN(4, arg_count) - 1))
     return;
   fix_char_length(length * 64 + sep_length * 63);
 }
@@ -4464,7 +4464,7 @@ longlong Item_dyncol_get::val_int()
     if (end != org_end || error > 0)
     {
       char buff[80];
-      strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                               val.x.string.value.length));
       push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
@@ -4528,7 +4528,7 @@ double Item_dyncol_get::val_real()
         error)
     {
       char buff[80];
-      strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+      strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                               val.x.string.value.length));
       push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                           ER_BAD_DATA,
@@ -4584,7 +4584,7 @@ my_decimal *Item_dyncol_get::val_decimal(my_decimal *decimal_value)
     rc= str2my_decimal(0, val.x.string.value.str, val.x.string.value.length,
                        val.x.string.charset, decimal_value);
     char buff[80];
-    strmake(buff, val.x.string.value.str, min(sizeof(buff)-1,
+    strmake(buff, val.x.string.value.str, MY_MIN(sizeof(buff)-1,
                                             val.x.string.value.length));
     if (rc != E_DEC_OK)
     {

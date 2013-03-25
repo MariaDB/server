@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,16 +56,16 @@ typedef UT_LIST_BASE_NODE_T(fts_doc_item_t)     fts_doc_list_t;
 #define FTS_PLL_MERGE		1
 
 /** Sort information passed to each individual parallel sort thread */
-typedef struct fts_psort_struct		fts_psort_t;
+struct fts_psort_t;
 
 /** Common info passed to each parallel sort thread */
-struct fts_psort_common_struct {
-	struct TABLE*		table;		/*!< MySQL table */
+struct fts_psort_common_t {
+	row_merge_dup_t*	dup;		/*!< descriptor of FTS index */
 	dict_table_t*		new_table;	/*!< source table */
 	trx_t*			trx;		/*!< transaction */
-	dict_index_t*		sort_index;	/*!< FTS index */
 	fts_psort_t*		all_info;	/*!< all parallel sort info */
 	os_event_t		sort_event;	/*!< sort event */
+	os_event_t		merge_event;	/*!< merge event */
 	ibool			opt_doc_id_size;/*!< whether to use 4 bytes
 						instead of 8 bytes integer to
 						store Doc ID during sort, if
@@ -73,9 +73,7 @@ struct fts_psort_common_struct {
 						to use 8 bytes value */
 };
 
-typedef struct fts_psort_common_struct	fts_psort_common_t;
-
-struct fts_psort_struct {
+struct fts_psort_t {
 	ulint			psort_id;	/*!< Parallel sort ID */
 	row_merge_buf_t*	merge_buf[FTS_NUM_AUX_INDEX];
 						/*!< sort buffer */
@@ -89,6 +87,7 @@ struct fts_psort_struct {
 	ulint			state;		/*!< child thread state */
 	fts_doc_list_t		fts_doc_list;	/*!< doc list to process */
 	fts_psort_common_t*	psort_common;	/*!< ptr to all psort info */
+	os_thread_t		thread_hdl;	/*!< thread handler */
 };
 
 /** Structure stores information from string tokenization operation */
@@ -126,6 +125,7 @@ typedef struct fts_psort_insert	fts_psort_insert_t;
 /** status bit used for communication between parent and child thread */
 #define FTS_PARENT_COMPLETE	1
 #define FTS_CHILD_COMPLETE	1
+#define FTS_CHILD_EXITING	2
 
 /** Print some debug information */
 #define	FTSORT_PRINT
@@ -171,18 +171,19 @@ ibool
 row_fts_psort_info_init(
 /*====================*/
 	trx_t*			trx,	/*!< in: transaction */
-	struct TABLE*		table,	/*!< in: MySQL table object */
+	row_merge_dup_t*	dup,	/*!< in,own: descriptor of
+					FTS index being created */
 	const dict_table_t*	new_table,/*!< in: table where indexes are
 					created */
-	dict_index_t*		index,	/*!< in: FTS index to be created */
 	ibool			opt_doc_id_size,
 					/*!< in: whether to use 4 bytes
 					instead of 8 bytes integer to
 					store Doc ID during sort */
 	fts_psort_t**		psort,	/*!< out: parallel sort info to be
 					instantiated */
-	fts_psort_t**		merge);	/*!< out: parallel merge info
+	fts_psort_t**		merge)	/*!< out: parallel merge info
 					to be instantiated */
+	__attribute__((nonnull));
 /********************************************************************//**
 Clean up and deallocate FTS parallel sort structures, and close
 temparary merge sort files */
@@ -231,19 +232,6 @@ row_fts_start_parallel_merge(
 /*=========================*/
 	fts_psort_t*	merge_info);	/*!< in: parallel sort info */
 /********************************************************************//**
-Insert processed FTS data to the auxillary tables.
-@return DB_SUCCESS if insertion runs fine */
-UNIV_INTERN
-ulint
-row_merge_write_fts_word(
-/*=====================*/
-	trx_t*		trx,		/*!< in: transaction */
-	que_t**		ins_graph,	/*!< in: Insert query graphs */
-	fts_tokenizer_word_t*word,	/*!< in: sorted and tokenized
-					word */
-	fts_table_t*	fts_table,	/*!< in: fts aux table instance */
-	CHARSET_INFO*	charset);	/*!< in: charset */
-/********************************************************************//**
 Read sorted FTS data files and insert data tuples to auxillary tables.
 @return DB_SUCCESS or error number */
 UNIV_INTERN
@@ -275,13 +263,13 @@ Read sorted file containing index data tuples and insert these data
 tuples to the index
 @return DB_SUCCESS or error number */
 UNIV_INTERN
-ulint
+dberr_t
 row_fts_merge_insert(
 /*=================*/
 	dict_index_t*	index,		/*!< in: index */
 	dict_table_t*	table,		/*!< in: new table */
 	fts_psort_t*	psort_info,	/*!< parallel sort info */
-	ulint		id);		/* !< in: which auxiliary table's data
+	ulint		id)		/* !< in: which auxiliary table's data
 					to insert to */
-
+	__attribute__((nonnull));
 #endif /* row0ftsort_h */

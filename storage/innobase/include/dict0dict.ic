@@ -29,6 +29,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "rem0types.h"
 #include "fsp0fsp.h"
 #include "srv0srv.h"
+#include "sync0rw.h" /* RW_S_LATCH */
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
@@ -223,6 +224,22 @@ dict_table_get_first_index(
 }
 
 /********************************************************************//**
+Gets the last index on the table.
+@return	index, NULL if none exists */
+UNIV_INLINE
+dict_index_t*
+dict_table_get_last_index(
+/*=======================*/
+	const dict_table_t*	table)	/*!< in: table */
+{
+	ut_ad(table);
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+	return(UT_LIST_GET_LAST((const_cast<dict_table_t*>(table))
+				->indexes));
+}
+
+/********************************************************************//**
 Gets the next index on the table.
 @return	index, NULL if none left */
 UNIV_INLINE
@@ -365,6 +382,56 @@ dict_table_get_n_cols(
 	return(table->n_cols);
 }
 
+/********************************************************************//**
+Gets the approximately estimated number of rows in the table.
+@return	estimated number of rows */
+UNIV_INLINE
+ib_uint64_t
+dict_table_get_n_rows(
+/*==================*/
+	const dict_table_t*	table)	/*!< in: table */
+{
+	ut_ad(table->stat_initialized);
+
+	return(table->stat_n_rows);
+}
+
+/********************************************************************//**
+Increment the number of rows in the table by one.
+Notice that this operation is not protected by any latch, the number is
+approximate. */
+UNIV_INLINE
+void
+dict_table_n_rows_inc(
+/*==================*/
+	dict_table_t*	table)	/*!< in/out: table */
+{
+	if (table->stat_initialized) {
+		ib_uint64_t	n_rows = table->stat_n_rows;
+		if (n_rows < 0xFFFFFFFFFFFFFFFFULL) {
+			table->stat_n_rows = n_rows + 1;
+		}
+	}
+}
+
+/********************************************************************//**
+Decrement the number of rows in the table by one.
+Notice that this operation is not protected by any latch, the number is
+approximate. */
+UNIV_INLINE
+void
+dict_table_n_rows_dec(
+/*==================*/
+	dict_table_t*	table)	/*!< in/out: table */
+{
+	if (table->stat_initialized) {
+		ib_uint64_t	n_rows = table->stat_n_rows;
+		if (n_rows > 0) {
+			table->stat_n_rows = n_rows - 1;
+		}
+	}
+}
+
 #ifdef UNIV_DEBUG
 /********************************************************************//**
 Gets the nth column of a table.
@@ -458,12 +525,11 @@ dict_table_has_fts_index(
 }
 
 /********************************************************************//**
-Validate and return the table flags.
-@return	Same as input after validating it as dict_table_t::flags.
-If there is an error, trigger assertion failure. */
+Validate the table flags.
+@return	true if valid. */
 UNIV_INLINE
-ulint
-dict_tf_validate(
+bool
+dict_tf_is_valid(
 /*=============*/
 	ulint	flags)		/*!< in: table flags */
 {
@@ -473,31 +539,43 @@ dict_tf_validate(
 	ulint	unused = DICT_TF_GET_UNUSED(flags);
 
 	/* Make sure there are no bits that we do not know about. */
-	ut_a(unused == 0);
+	if (unused != 0) {
 
-	if (atomic_blobs) {
+		return(false);
+
+	} else if (atomic_blobs) {
 		/* Barracuda row formats COMPRESSED and DYNAMIC build on
 		the page structure introduced for the COMPACT row format
 		by allowing keys in secondary indexes to be made from
 		data stored off-page in the clustered index. */
-		ut_a(compact);
-	} else {
+
+		if (!compact) {
+			return(false);
+		}
+
+	} else if (zip_ssize) {
+
 		/* Antelope does not support COMPRESSED row format. */
-		ut_a(!zip_ssize);
+		return(false);
 	}
 
 	if (zip_ssize) {
-		/* COMPRESSED row format must have compact and atomic_blobs
-		bits set. */
-		ut_a(compact);
-		ut_a(atomic_blobs);
 
-		/* Validate the number is within allowed range. */
-		ut_a(zip_ssize <= PAGE_ZIP_SSIZE_MAX);
+		/* COMPRESSED row format must have compact and atomic_blobs
+		bits set and validate the number is within allowed range. */
+
+		if (!compact
+		    || !atomic_blobs
+		    || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
+
+			return(false);
+		}
 	}
 
-	/* Return the flags sent if we did not crash. */
-	return(flags);
+	/* CREATE TABLE ... DATA DIRECTORY is supported for any row format,
+	so the DATA_DIR flag is compatible with all other table flags. */
+
+	return(true);
 }
 
 /********************************************************************//**
@@ -517,9 +595,7 @@ dict_sys_tables_type_validate(
 	ulint	atomic_blobs = DICT_TF_HAS_ATOMIC_BLOBS(type);
 	ulint	unused = DICT_TF_GET_UNUSED(type);
 
-	/* If the format is UNIV_FORMAT_A, table->flags == 0, but
-	SYS_TABLES.TYPE == 1, which is defined as SYS_TABLE_TYPE_ANTELOPE.
-	The low order bit of SYS_TABLES.TYPE is always set to 1.
+	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
 	as dict_table_t::flags. Zero is not allowed here. */
 	if (!low_order_bit) {
@@ -527,12 +603,9 @@ dict_sys_tables_type_validate(
 	}
 
 	if (redundant) {
-		/* This is Redundant row format, only the first bit
-		should be set in SYS_TABLES.TYPE */
-		if (type != SYS_TABLE_TYPE_ANTELOPE) {
+		if (zip_ssize || atomic_blobs) {
 			return(ULINT_UNDEFINED);
 		}
-		return(DICT_TF_REDUNDANT);
 	}
 
 	/* Make sure there are no bits that we do not know about. */
@@ -569,6 +642,11 @@ dict_sys_tables_type_validate(
 		}
 	}
 
+	/* There is nothing to validate for the data_dir field.
+	CREATE TABLE ... DATA DIRECTORY is supported for any row
+	format, so the DATA_DIR flag is compatible with any other
+	table flags. However, it is not used with TEMPORARY tables.*/
+
 	/* Return the validated SYS_TABLES.TYPE. */
 	return(type);
 }
@@ -584,7 +662,7 @@ dict_tf_get_rec_format(
 /*===================*/
 	ulint		flags)	/*!< in: dict_table_t::flags */
 {
-	dict_tf_validate(flags);
+	ut_a(dict_tf_is_valid(flags));
 
 	if (!DICT_TF_GET_COMPACT(flags)) {
 		return(REC_FORMAT_REDUNDANT);
@@ -640,7 +718,8 @@ dict_tf_set(
 /*========*/
 	ulint*		flags,		/*!< in/out: table flags */
 	rec_format_t	format,		/*!< in: file format */
-	ulint		zip_ssize)	/*!< in: zip shift size */
+	ulint		zip_ssize,	/*!< in: zip shift size */
+	bool		use_data_dir)	/*!< in: table uses DATA DIRECTORY */
 {
 	switch (format) {
 	case REC_FORMAT_REDUNDANT:
@@ -662,6 +741,10 @@ dict_tf_set(
 		ut_ad(zip_ssize == 0);
 		break;
 	}
+
+	if (use_data_dir) {
+		*flags |= (1 << DICT_TF_POS_DATA_DIR);
+	}
 }
 
 /********************************************************************//**
@@ -679,15 +762,61 @@ UNIV_INLINE
 ulint
 dict_tf_to_fsp_flags(
 /*=================*/
-	ulint	flags)	/*!< in: dict_table_t::flags */
+	ulint	table_flags)	/*!< in: dict_table_t::flags */
 {
+	ulint fsp_flags;
+
+	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
+			return(ULINT_UNDEFINED););
+
 	/* Adjust bit zero. */
-	flags = (flags == DICT_TF_COMPACT) ? 0 : flags;
+	fsp_flags = DICT_TF_HAS_ATOMIC_BLOBS(table_flags) ? 1 : 0;
+
+	/* ZIP_SSIZE and ATOMIC_BLOBS are at the same position. */
+	fsp_flags |= table_flags & DICT_TF_MASK_ZIP_SSIZE;
+	fsp_flags |= table_flags & DICT_TF_MASK_ATOMIC_BLOBS;
 
 	/* In addition, tablespace flags also contain the page size. */
-	flags = fsp_flags_set_page_size(flags, UNIV_PAGE_SIZE);
+	fsp_flags |= fsp_flags_set_page_size(fsp_flags, UNIV_PAGE_SIZE);
 
-	return(fsp_flags_validate(flags));
+	/* The DATA_DIR flag is in a different position in fsp_flag */
+	fsp_flags |= DICT_TF_HAS_DATA_DIR(table_flags)
+		     ? FSP_FLAGS_MASK_DATA_DIR : 0;
+
+	ut_a(fsp_flags_is_valid(fsp_flags));
+
+	return(fsp_flags);
+}
+
+/********************************************************************//**
+Convert a 32 bit integer from SYS_TABLES.TYPE to dict_table_t::flags
+The following chart shows the translation of the low order bit.
+Other bits are the same.
+========================= Low order bit ==========================
+                    | REDUNDANT | COMPACT | COMPRESSED and DYNAMIC
+SYS_TABLES.TYPE     |     1     |    1    |     1
+dict_table_t::flags |     0     |    1    |     1
+==================================================================
+@return	ulint containing SYS_TABLES.TYPE */
+UNIV_INLINE
+ulint
+dict_sys_tables_type_to_tf(
+/*=======================*/
+	ulint	type,	/*!< in: SYS_TABLES.TYPE field */
+	ulint	n_cols)	/*!< in: SYS_TABLES.N_COLS field */
+{
+	ulint	flags;
+	ulint	redundant = !(n_cols & DICT_N_COLS_COMPACT);
+
+	/* Adjust bit zero. */
+	flags = redundant ? 0 : 1;
+
+	/* ZIP_SSIZE, ATOMIC_BLOBS & DATA_DIR are the same. */
+	flags |= type & (DICT_TF_MASK_ZIP_SSIZE
+			 | DICT_TF_MASK_ATOMIC_BLOBS
+			 | DICT_TF_MASK_DATA_DIR);
+
+	return(flags);
 }
 
 /********************************************************************//**
@@ -706,13 +835,19 @@ dict_tf_to_sys_tables_type(
 /*=======================*/
 	ulint	flags)	/*!< in: dict_table_t::flags */
 {
-	if (!DICT_TF_HAS_ATOMIC_BLOBS(flags)) {
-		ut_a(flags == DICT_TF_REDUNDANT
-		     || flags == DICT_TF_COMPACT);
-		return(SYS_TABLE_TYPE_ANTELOPE);
-	}
+	ulint type;
 
-	return(dict_tf_validate(flags));
+	ut_a(dict_tf_is_valid(flags));
+
+	/* Adjust bit zero. It is always 1 in SYS_TABLES.TYPE */
+	type = 1;
+
+	/* ZIP_SSIZE, ATOMIC_BLOBS & DATA_DIR are the same. */
+	type |= flags & (DICT_TF_MASK_ZIP_SSIZE
+			 | DICT_TF_MASK_ATOMIC_BLOBS
+			 | DICT_TF_MASK_DATA_DIR);
+
+	return(type);
 }
 
 /********************************************************************//**
@@ -1064,6 +1199,103 @@ dict_index_get_space_reserve(void)
 	return(UNIV_PAGE_SIZE / 16);
 }
 
+/********************************************************************//**
+Gets the status of online index creation.
+@return the status */
+UNIV_INLINE
+enum online_index_status
+dict_index_get_online_status(
+/*=========================*/
+	const dict_index_t*	index)	/*!< in: secondary index */
+{
+	enum online_index_status	status;
+
+	status = (enum online_index_status) index->online_status;
+
+	/* Without the index->lock protection, the online
+	status can change from ONLINE_INDEX_CREATION to
+	ONLINE_INDEX_COMPLETE (or ONLINE_INDEX_ABORTED) in
+	row_log_apply() once log application is done. So to make
+	sure the status is ONLINE_INDEX_CREATION or ONLINE_INDEX_COMPLETE
+	you should always do the recheck after acquiring index->lock */
+
+#ifdef UNIV_DEBUG
+	switch (status) {
+	case ONLINE_INDEX_COMPLETE:
+	case ONLINE_INDEX_CREATION:
+	case ONLINE_INDEX_ABORTED:
+	case ONLINE_INDEX_ABORTED_DROPPED:
+		return(status);
+	}
+	ut_error;
+#endif /* UNIV_DEBUG */
+	return(status);
+}
+
+/********************************************************************//**
+Sets the status of online index creation. */
+UNIV_INLINE
+void
+dict_index_set_online_status(
+/*=========================*/
+	dict_index_t*			index,	/*!< in/out: index */
+	enum online_index_status	status)	/*!< in: status */
+{
+	ut_ad(!(index->type & DICT_FTS));
+#ifdef UNIV_SYNC_DEBUG
+	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_EX));
+#endif /* UNIV_SYNC_DEBUG */
+#ifdef UNIV_DEBUG
+	switch (dict_index_get_online_status(index)) {
+	case ONLINE_INDEX_COMPLETE:
+	case ONLINE_INDEX_CREATION:
+		break;
+	case ONLINE_INDEX_ABORTED:
+		ut_ad(status == ONLINE_INDEX_ABORTED_DROPPED);
+		break;
+	case ONLINE_INDEX_ABORTED_DROPPED:
+		ut_error;
+	}
+#endif /* UNIV_DEBUG */
+
+	index->online_status = status;
+	ut_ad(dict_index_get_online_status(index) == status);
+}
+
+/********************************************************************//**
+Determines if a secondary index is being or has been created online,
+or if the table is being rebuilt online, allowing concurrent modifications
+to the table.
+@retval true if the index is being or has been built online, or
+if this is a clustered index and the table is being or has been rebuilt online
+@retval false if the index has been created or the table has been
+rebuilt completely */
+UNIV_INLINE
+bool
+dict_index_is_online_ddl(
+/*=====================*/
+	const dict_index_t*	index)	/*!< in: index */
+{
+#ifdef UNIV_DEBUG
+	if (dict_index_is_clust(index)) {
+		switch (dict_index_get_online_status(index)) {
+		case ONLINE_INDEX_CREATION:
+			return(true);
+		case ONLINE_INDEX_COMPLETE:
+			return(false);
+		case ONLINE_INDEX_ABORTED:
+		case ONLINE_INDEX_ABORTED_DROPPED:
+			break;
+		}
+		ut_ad(0);
+		return(false);
+	}
+#endif /* UNIV_DEBUG */
+
+	return(UNIV_UNLIKELY(dict_index_get_online_status(index)
+			     != ONLINE_INDEX_COMPLETE));
+}
+
 /**********************************************************************//**
 Check whether a column exists in an FTS index.
 @return ULINT_UNDEFINED if no match else the offset within the vector */
@@ -1145,6 +1377,30 @@ dict_index_is_corrupted(
 
 	return((index->type & DICT_CORRUPT)
 	       || (index->table && index->table->corrupted));
+}
+
+/********************************************************************//**
+Check if the tablespace for the table has been discarded.
+@return	true if the tablespace has been discarded. */
+UNIV_INLINE
+bool
+dict_table_is_discarded(
+/*====================*/
+	const dict_table_t*	table)	/*!< in: table to check */
+{
+	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_DISCARDED));
+}
+
+/********************************************************************//**
+Check if it is a temporary table.
+@return	true if temporary table flag is set. */
+UNIV_INLINE
+bool
+dict_table_is_temporary(
+/*====================*/
+	const dict_table_t*	table)	/*!< in: table to check */
+{
+	return(DICT_TF2_FLAG_IS_SET(table, DICT_TF2_TEMPORARY));
 }
 
 #endif /* !UNIV_HOTBACKUP */

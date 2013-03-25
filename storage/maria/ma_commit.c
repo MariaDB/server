@@ -39,11 +39,11 @@ int ma_commit(TRN *trn)
   /*
     - if COMMIT record is written before trnman_commit_trn():
     if Checkpoint comes in the middle it will see trn is not committed,
-    then if crash, Recovery might roll back trn (if min(rec_lsn) is after
+    then if crash, Recovery might roll back trn (if MY_MIN(rec_lsn) is after
     COMMIT record) and this is not an issue as
     * transaction's updates were not made visible to other transactions
     * "commit ok" was not sent to client
-    Alternatively, Recovery might commit trn (if min(rec_lsn) is before COMMIT
+    Alternatively, Recovery might commit trn (if MY_MIN(rec_lsn) is before COMMIT
     record), which is ok too. All in all it means that "trn committed" is not
     100% equal to "COMMIT record written".
     - if COMMIT record is written after trnman_commit_trn():

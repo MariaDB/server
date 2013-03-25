@@ -108,7 +108,8 @@ enum purge_state_t {
 	PURGE_STATE_INIT,		/*!< Purge instance created */
 	PURGE_STATE_RUN,		/*!< Purge should be running */
 	PURGE_STATE_STOP,		/*!< Purge should be stopped */
-	PURGE_STATE_EXIT		/*!< Purge has been shutdown */
+	PURGE_STATE_EXIT,		/*!< Purge has been shutdown */
+	PURGE_STATE_DISABLED		/*!< Purge was never started */
 };
 
 /*******************************************************************//**
@@ -121,16 +122,16 @@ trx_purge_state(void);
 
 /** This is the purge pointer/iterator. We need both the undo no and the
 transaction no up to which purge has parsed and applied the records. */
-typedef struct purge_iter_struct {
+struct purge_iter_t {
 	trx_id_t	trx_no;		/*!< Purge has advanced past all
 					transactions whose number is less
 					than this */
 	undo_no_t	undo_no;	/*!< Purge has advanced past all records
 					whose undo number is less than this */
-} purge_iter_t;
+};
 
 /** The control structure used in the purge operation */
-struct trx_purge_struct{
+struct trx_purge_t{
 	sess_t*		sess;		/*!< System session running the purge
 					query */
 	trx_t*		trx;		/*!< System transaction running the
@@ -146,7 +147,8 @@ struct trx_purge_struct{
 					protects state and running */
 	os_event_t	event;		/*!< State signal event */
 	ulint		n_stop;		/*!< Counter to track number stops */
-	bool		running;	/*!< true, if purge is active */
+	volatile bool	running;	/*!< true, if purge is active,
+					we check this without the latch too */
 	volatile purge_state_t	state;	/*!< Purge coordinator thread states,
 					we check this in several places
 					without holding the latch. */
@@ -171,6 +173,10 @@ struct trx_purge_struct{
 	purge_iter_t	limit;		/* The 'purge pointer' which advances
 					during a purge, and which is used in
 					history list truncation */
+#ifdef UNIV_DEBUG
+	purge_iter_t	done;		/* Indicate 'purge pointer' which have
+					purged already accurately. */
+#endif /* UNIV_DEBUG */
 	/*-----------------------------*/
 	ibool		next_stored;	/*!< TRUE if the info of the next record
 					to purge is stored below: if yes, then
@@ -196,16 +202,14 @@ struct trx_purge_struct{
 	ib_bh_t*	ib_bh;		/*!< Binary min-heap, ordered on
 					rseg_queue_t::trx_no. It is protected
 					by the bh_mutex */
-	mutex_t		bh_mutex;	/*!< Mutex protecting ib_bh */
+	ib_mutex_t		bh_mutex;	/*!< Mutex protecting ib_bh */
 };
 
 /** Info required to purge a record */
-struct trx_purge_rec_struct {
+struct trx_purge_rec_t {
 	trx_undo_rec_t*	undo_rec;	/*!< Record to purge */
 	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
 };
-
-typedef struct trx_purge_rec_struct trx_purge_rec_t;
 
 #ifndef UNIV_NONINL
 #include "trx0purge.ic"

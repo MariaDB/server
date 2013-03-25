@@ -38,7 +38,7 @@
 */
 struct st_debug_sync_action
 {
-  ulong         activation_count;       /* max(hit_limit, execute) */
+  ulong         activation_count;       /* MY_MAX(hit_limit, execute) */
   ulong         hit_limit;              /* hits before kill query */
   ulong         execute;                /* executes before self-clear */
   ulong         timeout;                /* wait_for timeout */
@@ -734,6 +734,11 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
 
 static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
 {
+  if(!thd)
+  {
+    return;
+  }
+
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   bool is_dsp_now= FALSE;
   DBUG_ENTER("debug_sync_set_action");
@@ -741,7 +746,7 @@ static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
   DBUG_ASSERT(action);
   DBUG_ASSERT(ds_control);
 
-  action->activation_count= max(action->hit_limit, action->execute);
+  action->activation_count= MY_MAX(action->hit_limit, action->execute);
   if (!action->activation_count)
   {
     debug_sync_remove_action(ds_control, action);
@@ -1521,9 +1526,10 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 static void debug_sync(THD *thd, const char *sync_point_name, size_t name_len)
 {
   if (!thd)
-    thd= current_thd;
-  if (!thd)
-    return;
+  {
+    if (!(thd= current_thd))
+      return;
+  }
 
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   st_debug_sync_action  *action;

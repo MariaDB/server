@@ -319,7 +319,11 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
 my_bool _ma_bitmap_end(MARIA_SHARE *share)
 {
   my_bool res;
-  mysql_mutex_assert_owner(&share->close_lock);
+
+#ifndef DBUG_OFF
+  if (! share->internal_table)
+    mysql_mutex_assert_owner(&share->close_lock);
+#endif
   DBUG_ASSERT(share->bitmap.non_flushable == 0);
   DBUG_ASSERT(share->bitmap.flush_all_requested == 0);
   DBUG_ASSERT(share->bitmap.waiting_for_non_flushable == 0 &&
@@ -1393,7 +1397,7 @@ found:
   IMPLEMENTATION
     We will return the smallest area >= size.  If there is no such
     block, we will return the biggest area that satisfies
-    area_size >= min(BLOB_SEGMENT_MIN_SIZE*full_page_size, size)
+    area_size >= MY_MIN(BLOB_SEGMENT_MIN_SIZE*full_page_size, size)
 
     To speed up searches, we will only consider areas that has at least 16 free
     pages starting on an even boundary.  When finding such an area, we will
@@ -1501,7 +1505,7 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
     DBUG_RETURN(0);                             /* No room on page */
 
   /*
-    Now allocate min(pages_needed, area_size), starting from
+    Now allocate MY_MIN(pages_needed, area_size), starting from
     best_start + best_prefix_area_size
   */
   if (best_area_size > pages_needed)

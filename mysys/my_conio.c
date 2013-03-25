@@ -165,13 +165,13 @@ char* my_cgets(char *buffer, size_t clen, size_t* plen)
     though it is known it should not be more than 64K               
     so we cut 64K and try first size of screen buffer               
     if it is still to large we cut half of it and try again         
-    later we may want to cycle from min(clen, 65535) to allowed size
+    later we may want to cycle from MY_MIN(clen, 65535) to allowed size
     with small decrement to determine exact allowed buffer           
   */
-  clen= min(clen, 65535);
+  clen= MY_MIN(clen, 65535);
   do
   {
-    clen= min(clen, (size_t) csbi.dwSize.X*csbi.dwSize.Y);
+    clen= MY_MIN(clen, (size_t) csbi.dwSize.X*csbi.dwSize.Y);
     if (!ReadConsole((HANDLE)my_coninpfh, (LPVOID)buffer, (DWORD) clen - 1, &plen_res,
                      NULL))
     {

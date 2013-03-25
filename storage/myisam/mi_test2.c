@@ -597,7 +597,7 @@ int main(int argc, char *argv[])
     goto err;
 
   bmove(read_record2,read_record,reclength);
-  for (i=min(2,keys) ; i-- > 0 ;)
+  for (i=MY_MIN(2,keys) ; i-- > 0 ;)
   {
     if (mi_rsame(file,read_record2,(int) i)) goto err;
     if (memcmp(read_record,read_record2,reclength) != 0)

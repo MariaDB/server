@@ -14,6 +14,7 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #include "mysys_priv.h"
+#include <my_rnd.h>
 #include <m_string.h>
 
 /*
@@ -53,3 +54,39 @@ double my_rnd(struct my_rnd_struct *rand_st)
   rand_st->seed2=(rand_st->seed1+rand_st->seed2+33) % rand_st->max_value;
   return (((double) rand_st->seed1)/rand_st->max_value_dbl);
 }
+
+
+/**
+  Generate a random number using the OpenSSL/yaSSL supplied
+  random number generator if available.
+
+  @param rand_st [INOUT] Structure used for number generation
+                         only if none of the SSL libraries are
+                         available.
+
+  @retval                Generated random number.
+*/
+
+double my_rnd_ssl(struct my_rnd_struct *rand_st)
+{
+
+#if defined(HAVE_YASSL) || defined(HAVE_OPENSSL)
+  int rc;
+  unsigned int res;
+
+#if defined(HAVE_YASSL)
+  rc= yaSSL::RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
+#else
+  rc= RAND_bytes((unsigned char *) &res, sizeof (unsigned int));
+#endif /* HAVE_YASSL */
+
+  if (rc)
+    return (double)res / (double)UINT_MAX;
+#endif /* defined(HAVE_YASSL) || defined(HAVE_OPENSSL) */
+
+  return my_rnd(rand_st);
+}
+
+#ifdef __cplusplus
+}
+#endif

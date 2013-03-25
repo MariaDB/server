@@ -1364,7 +1364,7 @@ READ_INFO::READ_INFO(File file_par, uint tot_length, CHARSET_INFO *cs,
   line_term_char= line_term_length ? (uchar) line_term_ptr[0] : INT_MAX;
 
   /* Set of a stack for unget if long terminators */
-  uint length= max(cs->mbmaxlen, max(field_term_length, line_term_length)) + 1;
+  uint length= MY_MAX(cs->mbmaxlen, MY_MAX(field_term_length, line_term_length)) + 1;
   set_if_bigger(length,line_start.length());
   stack=stack_pos=(int*) sql_alloc(sizeof(int)*length);
 

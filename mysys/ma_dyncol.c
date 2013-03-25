@@ -3853,20 +3853,19 @@ mariadb_dyncol_val_str(DYNAMIC_STRING *str, DYNAMIC_COLUMN_VALUE *val,
           if (!quote)
           {
             /* convert to the destination */
-            str->length+= copy_and_convert_extended(str->str, bufflen,
-                                                    cs,
-                                                    from, (uint32)len,
-                                                    val->x.string.charset,
-                                                    &dummy_errors);
+            str->length+= my_convert(str->str, bufflen,
+                                     cs,
+                                     from, (uint32)len,
+                                     val->x.string.charset,
+                                     &dummy_errors);
             return ER_DYNCOL_OK;
           }
           if ((alloc= (char *)my_malloc(bufflen, MYF(0))))
           {
-            len=
-              copy_and_convert_extended(alloc, bufflen, cs,
-                                        from, (uint32)len,
-                                        val->x.string.charset,
-                                        &dummy_errors);
+            len= my_convert(alloc, bufflen, cs,
+                            from, (uint32)len,
+                            val->x.string.charset,
+                            &dummy_errors);
             from= alloc;
           }
           else

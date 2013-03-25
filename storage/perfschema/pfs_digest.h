@@ -38,32 +38,26 @@ struct PFS_thread;
 /**
   Structure to store a MD5 hash value (digest) for a statement.
 */
-struct PFS_digest_hash
+struct PFS_digest_key
 {
   unsigned char m_md5[PFS_MD5_SIZE];
+  char m_schema_name[NAME_LEN];
+  uint m_schema_name_length;
 };
 
 /** A statement digest stat record. */
-struct PFS_statements_digest_stat
+struct PFS_ALIGNED PFS_statements_digest_stat
 {
-  /**
-    Digest MD5 Hash.
-  */
-  PFS_digest_hash m_digest_hash;
+  /** Digest Schema + MD5 Hash. */
+  PFS_digest_key m_digest_key;
 
-  /**
-    Digest Storage.
-  */
+  /** Digest Storage. */
   PSI_digest_storage m_digest_storage;
 
-  /**
-    Statement stat.
-  */
+  /** Statement stat. */
   PFS_statement_stat m_stat;
 
-  /**
-    First Seen/last seen.
-  */
+  /** First and last seen timestamps.*/
   ulonglong m_first_seen;
   ulonglong m_last_seen;
 
@@ -78,10 +72,12 @@ void cleanup_digest();
 
 int init_digest_hash(void);
 void cleanup_digest_hash(void);
-PFS_statement_stat* find_or_create_digest(PFS_thread*,
-                                          PSI_digest_storage*);
+PFS_statement_stat* find_or_create_digest(PFS_thread *thread,
+                                          PSI_digest_storage *digest_storage,
+                                          const char *schema_name,
+                                          uint schema_name_length);
 
-void get_digest_text(char* digest_text, PSI_digest_storage*);
+void get_digest_text(char *digest_text, PSI_digest_storage *digest_storage);
 
 void reset_esms_by_digest();
 
@@ -90,8 +86,8 @@ extern PFS_statements_digest_stat *statements_digest_stat_array;
 
 /* Instrumentation callbacks for pfs.cc */
 
-struct PSI_digest_locker* pfs_digest_start_v1(PSI_statement_locker *locker);
-PSI_digest_locker* pfs_digest_add_token_v1(PSI_digest_locker *locker,
+struct PSI_digest_locker *pfs_digest_start_v1(PSI_statement_locker *locker);
+PSI_digest_locker *pfs_digest_add_token_v1(PSI_digest_locker *locker,
                                            uint token,
                                            OPAQUE_LEX_YYSTYPE *yylval);
 
@@ -99,6 +95,7 @@ static inline void digest_reset(PSI_digest_storage *digest)
 {
   digest->m_full= false;
   digest->m_byte_count= 0;
+  digest->m_charset_number= 0;
 }
 
 static inline void digest_copy(PSI_digest_storage *to, const PSI_digest_storage *from)
@@ -107,20 +104,21 @@ static inline void digest_copy(PSI_digest_storage *to, const PSI_digest_storage 
   {
     to->m_full= from->m_full;
     to->m_byte_count= from->m_byte_count;
+    to->m_charset_number= from->m_charset_number;
     DBUG_ASSERT(to->m_byte_count <= PSI_MAX_DIGEST_STORAGE_SIZE);
     memcpy(to->m_token_array, from->m_token_array, to->m_byte_count);
   }
   else
   {
-    DBUG_ASSERT(! from->m_full);
     DBUG_ASSERT(from->m_byte_count == 0);
     to->m_full= false;
     to->m_byte_count= 0;
+    to->m_charset_number= 0;
   }
 }
 
 /** 
-  Function to read a single token from token array.
+  Read a single token from token array.
 */
 inline int read_token(PSI_digest_storage *digest_storage,
                       int index, uint *tok)
@@ -141,7 +139,7 @@ inline int read_token(PSI_digest_storage *digest_storage,
 }
 
 /**
-  Function to store a single token in token array.
+  Store a single token in token array.
 */
 inline void store_token(PSI_digest_storage* digest_storage, uint token)
 {
@@ -162,7 +160,7 @@ inline void store_token(PSI_digest_storage* digest_storage, uint token)
 }
 
 /**
-  Function to read an identifier from token array.
+  Read an identifier from token array.
 */
 inline int read_identifier(PSI_digest_storage* digest_storage,
                            int index, char ** id_string, int *id_length)
@@ -186,7 +184,7 @@ inline int read_identifier(PSI_digest_storage* digest_storage,
 }
 
 /**
-  Function to store an identifier in token array.
+  Store an identifier in token array.
 */
 inline void store_token_identifier(PSI_digest_storage* digest_storage,
                                    uint token,
@@ -207,9 +205,7 @@ inline void store_token_identifier(PSI_digest_storage* digest_storage,
     dest[3]= (id_length >> 8) & 0xff;
     /* Write the string data */
     if (id_length > 0)
-    {
-      strncpy((char *)(dest + 4), id_name, id_length);
-    }
+      memcpy((char *)(dest + 4), id_name, id_length);
     digest_storage->m_byte_count+= bytes_needed; 
   }
   else
@@ -217,5 +213,7 @@ inline void store_token_identifier(PSI_digest_storage* digest_storage,
     digest_storage->m_full= true;
   }
 }
+
+extern LF_HASH digest_hash;
 
 #endif

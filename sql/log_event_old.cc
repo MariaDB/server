@@ -1406,7 +1406,7 @@ int Old_rows_log_event::do_add_row_data(uchar *row_data, size_t length)
     trigger false warnings.
    */
 #ifndef HAVE_valgrind
-  DBUG_DUMP("row_data", row_data, min(length, 32));
+  DBUG_DUMP("row_data", row_data, MY_MIN(length, 32));
 #endif
 
   DBUG_ASSERT(m_rows_buf <= m_rows_cur);

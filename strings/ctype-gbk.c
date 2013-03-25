@@ -3470,7 +3470,7 @@ int my_strnncoll_gbk(CHARSET_INFO *cs __attribute__((unused)),
                      const uchar *b, size_t b_length,
                      my_bool b_is_prefix)
 {
-  size_t length= min(a_length, b_length);
+  size_t length= MY_MIN(a_length, b_length);
   int res= my_strnncoll_gbk_internal(&a, &b, length);
   return res ? res : (int) ((b_is_prefix ? length : a_length) - b_length);
 }
@@ -3481,7 +3481,7 @@ static int my_strnncollsp_gbk(CHARSET_INFO * cs __attribute__((unused)),
 			      const uchar *b, size_t b_length,
                               my_bool diff_if_only_endspace_difference)
 {
-  size_t length= min(a_length, b_length);
+  size_t length= MY_MIN(a_length, b_length);
   int res= my_strnncoll_gbk_internal(&a, &b, length);
 
 #ifndef VARCHAR_WITH_DIFF_ENDSPACE_ARE_DIFFERENT_FOR_UNIQUE

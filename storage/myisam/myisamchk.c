@@ -16,6 +16,7 @@
 /* Describe, check and repair of MyISAM tables */
 
 #include "fulltext.h"
+#include "my_default.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_getopt.h>

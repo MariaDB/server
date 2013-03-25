@@ -405,7 +405,7 @@ void bitmap_intersect(MY_BITMAP *map, const MY_BITMAP *map2)
 
   DBUG_ASSERT(map->bitmap && map2->bitmap);
 
-  end= to+min(len,len2);
+  end= to+MY_MIN(len,len2);
   while (to < end)
     *to++ &= *from++;
 

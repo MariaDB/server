@@ -362,7 +362,7 @@ unpack_row(Relay_log_info const *rli,
   /*
     throw away master's extra fields
   */
-  uint max_cols= min(tabledef->size(), cols->n_bits);
+  uint max_cols= MY_MIN(tabledef->size(), cols->n_bits);
   for (; i < max_cols; i++)
   {
     if (bitmap_is_set(cols, i))

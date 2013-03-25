@@ -4839,7 +4839,7 @@ that are reorganised.
             */
             start_part= 0;
             end_part= new_total_partitions - (upper_2n + 1);
-            end_part= max(lower_2n - 1, end_part);
+            end_part= MY_MAX(lower_2n - 1, end_part);
           }
           else if (new_total_partitions <= upper_2n)
           {

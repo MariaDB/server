@@ -80,7 +80,7 @@ static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
                                const uchar *t, size_t tlen,
                                my_bool t_is_prefix)
 {
-  size_t len=min(slen,tlen);
+  size_t len=MY_MIN(slen,tlen);
   int cmp= memcmp(s,t,len);
   return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
 }
@@ -131,7 +131,7 @@ static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  const uchar *t, size_t tlen,
                                  my_bool t_is_prefix)
 {
-  size_t len=min(slen,tlen);
+  size_t len=MY_MIN(slen,tlen);
   int cmp= memcmp(s,t,len);
   return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
 }
@@ -175,7 +175,7 @@ static int my_strnncollsp_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
   diff_if_only_endspace_difference= 0;
 #endif
 
-  end= a + (length= min(a_length, b_length));
+  end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
   {
     if (*a++ != *b++)
@@ -401,7 +401,7 @@ static size_t my_strnxfrm_bin(CHARSET_INFO *cs __attribute__((unused)),
                               const uchar *src, size_t srclen)
 {
   if (dest != src)
-    memcpy(dest, src, min(dstlen,srclen));
+    memcpy(dest, src, MY_MIN(dstlen,srclen));
   if (dstlen > srclen)
     bfill(dest + srclen, dstlen - srclen, 0);
   return dstlen;
@@ -414,7 +414,7 @@ size_t my_strnxfrm_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
                             const uchar *src, size_t srclen)
 {
   if (dest != src)
-    memcpy(dest, src, min(dstlen,srclen));
+    memcpy(dest, src, MY_MIN(dstlen,srclen));
   if (dstlen > srclen)
     bfill(dest + srclen, dstlen - srclen, ' ');
   return dstlen;

@@ -506,7 +506,7 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
                        move_length));
   DBUG_ASSERT(info->s->now_transactional);
   DBUG_ASSERT(move_length <= (int) changed_length);
-  DBUG_ASSERT(ma_page->org_size == min(org_page_length, max_page_size));
+  DBUG_ASSERT(ma_page->org_size == MY_MIN(org_page_length, max_page_size));
   DBUG_ASSERT(ma_page->size == org_page_length + move_length);
   DBUG_ASSERT(offset <= ma_page->org_size);
 
@@ -618,7 +618,7 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
   DBUG_ASSERT(current_size <= max_page_size && current_size <= ma_page->size);
   if (current_size != ma_page->size && current_size != max_page_size)
   {
-    uint length= min(ma_page->size, max_page_size) - current_size;
+    uint length= MY_MIN(ma_page->size, max_page_size) - current_size;
     uchar *data= ma_page->buff + current_size;
 
     log_pos[0]= KEY_OP_ADD_SUFFIX;
@@ -641,7 +641,7 @@ my_bool _ma_log_add(MARIA_PAGE *ma_page,
     overflow!
   */
   ma_page->org_size= current_size;
-  DBUG_ASSERT(ma_page->org_size == min(ma_page->size, max_page_size));
+  DBUG_ASSERT(ma_page->org_size == MY_MIN(ma_page->size, max_page_size));
 
   if (translog_write_record(&lsn, LOGREC_REDO_INDEX,
                             info->trn, info,
@@ -663,7 +663,7 @@ void _ma_log_key_changes(MARIA_PAGE *ma_page, LEX_CUSTRING *log_array,
                          uint *translog_parts)
 {
   MARIA_SHARE *share= ma_page->info->s;
-  int page_length= min(ma_page->size, share->max_index_block_size);
+  int page_length= MY_MIN(ma_page->size, share->max_index_block_size);
   uint org_length;
   ha_checksum crc;
 
@@ -1111,7 +1111,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
                           uint2korr(header), uint2korr(header+2)));
       DBUG_ASSERT(uint2korr(header) == page_length);
 #ifndef DBUG_OFF
-      new_page_length= min(uint2korr(header+2), max_page_size);
+      new_page_length= MY_MIN(uint2korr(header+2), max_page_size);
 #endif
       header+= 4;
       break;
@@ -1148,7 +1148,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
         from= uint2korr(header);
         header+= 2;
         /* "from" is a place in the existing page */
-        DBUG_ASSERT(max(from, to) < max_page_size);
+        DBUG_ASSERT(MY_MAX(from, to) < max_page_size);
         memcpy(buff + to, buff + from, full_length);
       }
       break;

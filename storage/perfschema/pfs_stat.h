@@ -140,13 +140,90 @@ struct PFS_byte_stat : public PFS_single_stat
   }
 };
 
+/** Statistics for mutex usage. */
+struct PFS_mutex_stat
+{
+  /** Wait statistics. */
+  PFS_single_stat m_wait_stat;
+  /**
+    Lock statistics.
+    This statistic is not exposed in user visible tables yet.
+  */
+  PFS_single_stat m_lock_stat;
+
+  inline void aggregate(const PFS_mutex_stat *stat)
+  {
+    m_wait_stat.aggregate(&stat->m_wait_stat);
+    m_lock_stat.aggregate(&stat->m_lock_stat);
+  }
+
+  inline void reset(void)
+  {
+    m_wait_stat.reset();
+    m_lock_stat.reset();
+  }
+};
+
+/** Statistics for rwlock usage. */
+struct PFS_rwlock_stat
+{
+  /** Wait statistics. */
+  PFS_single_stat m_wait_stat;
+  /**
+    RWLock read lock usage statistics.
+    This statistic is not exposed in user visible tables yet.
+  */
+  PFS_single_stat m_read_lock_stat;
+  /**
+    RWLock write lock usage statistics.
+    This statistic is not exposed in user visible tables yet.
+  */
+  PFS_single_stat m_write_lock_stat;
+
+  inline void aggregate(const PFS_rwlock_stat *stat)
+  {
+    m_wait_stat.aggregate(&stat->m_wait_stat);
+    m_read_lock_stat.aggregate(&stat->m_read_lock_stat);
+    m_write_lock_stat.aggregate(&stat->m_write_lock_stat);
+  }
+
+  inline void reset(void)
+  {
+    m_wait_stat.reset();
+    m_read_lock_stat.reset();
+    m_write_lock_stat.reset();
+  }
+};
+
 /** Statistics for COND usage. */
 struct PFS_cond_stat
 {
-  /** Number of times a condition was signalled. */
+  /** Wait statistics. */
+  PFS_single_stat m_wait_stat;
+  /**
+    Number of times a condition was signalled.
+    This statistic is not exposed in user visible tables yet.
+  */
   ulonglong m_signal_count;
-  /** Number of times a condition was broadcasted. */
+  /**
+    Number of times a condition was broadcast.
+    This statistic is not exposed in user visible tables yet.
+  */
   ulonglong m_broadcast_count;
+
+  inline void aggregate(const PFS_cond_stat *stat)
+  {
+    m_wait_stat.aggregate(&stat->m_wait_stat);
+    m_signal_count+= stat->m_signal_count;
+    m_broadcast_count+= stat->m_broadcast_count;
+  }
+
+  inline void reset(void)
+  {
+    m_wait_stat.reset();
+    m_signal_count= 0;
+    m_broadcast_count= 0;
+  }
 };
 
 /** Statistics for FILE IO. Used for both waits and byte counts. */
@@ -197,6 +274,11 @@ struct PFS_file_stat
   ulong m_open_count;
   /** File IO statistics. */
   PFS_file_io_stat m_io_stat;
+
+  inline void aggregate(const PFS_file_stat *stat)
+  {
+    m_io_stat.aggregate(&stat->m_io_stat);
+  }
 
   /** Reset file statistics. */
   inline void reset(void)
@@ -329,6 +411,7 @@ struct PFS_statement_stat
 /** Single table io statistic. */
 struct PFS_table_io_stat
 {
+  bool m_has_data;
   /** FETCH statistics */
   PFS_single_stat m_fetch;
   /** INSERT statistics */
@@ -338,8 +421,14 @@ struct PFS_table_io_stat
   /** DELETE statistics */
   PFS_single_stat m_delete;
 
+  PFS_table_io_stat()
+  {
+    m_has_data= false;
+  }
+
   inline void reset(void)
   {
+    m_has_data= false;
     m_fetch.reset();
     m_insert.reset();
     m_update.reset();
@@ -348,18 +437,25 @@ struct PFS_table_io_stat
 
   inline void aggregate(const PFS_table_io_stat *stat)
   {
-    m_fetch.aggregate(&stat->m_fetch);
-    m_insert.aggregate(&stat->m_insert);
-    m_update.aggregate(&stat->m_update);
-    m_delete.aggregate(&stat->m_delete);
+    if (stat->m_has_data)
+    {
+      m_has_data= true;
+      m_fetch.aggregate(&stat->m_fetch);
+      m_insert.aggregate(&stat->m_insert);
+      m_update.aggregate(&stat->m_update);
+      m_delete.aggregate(&stat->m_delete);
+    }
   }
 
   inline void sum(PFS_single_stat *result)
   {
-    result->aggregate(& m_fetch);
-    result->aggregate(& m_insert);
-    result->aggregate(& m_update);
-    result->aggregate(& m_delete);
+    if (m_has_data)
+    {
+      result->aggregate(& m_fetch);
+      result->aggregate(& m_insert);
+      result->aggregate(& m_update);
+      result->aggregate(& m_delete);
+    }
   }
 };
 
@@ -419,10 +515,10 @@ struct PFS_table_stat
 {
   /**
     Statistics, per index.
-    Each index stat is in [0, MAX_KEY-1],
-    stats when using no index are in [MAX_KEY].
+    Each index stat is in [0, MAX_INDEXES-1],
+    stats when using no index are in [MAX_INDEXES].
   */
-  PFS_table_io_stat m_index_stat[MAX_KEY + 1];
+  PFS_table_io_stat m_index_stat[MAX_INDEXES + 1];
 
   /**
     Statistics, per lock type.
@@ -433,7 +529,7 @@ struct PFS_table_stat
   inline void reset_io(void)
   {
     PFS_table_io_stat *stat= & m_index_stat[0];
-    PFS_table_io_stat *stat_last= & m_index_stat[MAX_KEY + 1];
+    PFS_table_io_stat *stat_last= & m_index_stat[MAX_INDEXES + 1];
     for ( ; stat < stat_last ; stat++)
       stat->reset();
   }
@@ -466,13 +562,25 @@ struct PFS_table_stat
     memcpy(this, & g_reset_template, sizeof(*this));
   }
 
-  inline void aggregate_io(const PFS_table_stat *stat)
+  inline void aggregate_io(const PFS_table_stat *stat, uint key_count)
   {
-    PFS_table_io_stat *to_stat= & m_index_stat[0];
-    PFS_table_io_stat *to_stat_last= & m_index_stat[MAX_KEY + 1];
-    const PFS_table_io_stat *from_stat= & stat->m_index_stat[0];
+    PFS_table_io_stat *to_stat;
+    PFS_table_io_stat *to_stat_last;
+    const PFS_table_io_stat *from_stat;
+
+    DBUG_ASSERT(key_count <= MAX_INDEXES);
+
+    /* Aggregate stats for each index, if any */
+    to_stat= & m_index_stat[0];
+    to_stat_last= to_stat + key_count;
+    from_stat= & stat->m_index_stat[0];
     for ( ; to_stat < to_stat_last ; from_stat++, to_stat++)
       to_stat->aggregate(from_stat);
+
+    /* Aggregate stats for the table */
+    to_stat= & m_index_stat[MAX_INDEXES];
+    from_stat= & stat->m_index_stat[MAX_INDEXES];
+    to_stat->aggregate(from_stat);
   }
 
   inline void aggregate_lock(const PFS_table_stat *stat)
@@ -480,18 +588,27 @@ struct PFS_table_stat
     m_lock_stat.aggregate(& stat->m_lock_stat);
   }
 
-  inline void aggregate(const PFS_table_stat *stat)
+  inline void aggregate(const PFS_table_stat *stat, uint key_count)
   {
-    aggregate_io(stat);
+    aggregate_io(stat, key_count);
     aggregate_lock(stat);
   }
 
-  inline void sum_io(PFS_single_stat *result)
+  inline void sum_io(PFS_single_stat *result, uint key_count)
   {
-    PFS_table_io_stat *stat= & m_index_stat[0];
-    PFS_table_io_stat *stat_last= & m_index_stat[MAX_KEY + 1];
+    PFS_table_io_stat *stat;
+    PFS_table_io_stat *stat_last;
+
+    DBUG_ASSERT(key_count <= MAX_INDEXES);
+
+    /* Sum stats for each index, if any */
+    stat= & m_index_stat[0];
+    stat_last= stat + key_count;
     for ( ; stat < stat_last ; stat++)
       stat->sum(result);
+
+    /* Sum stats for the table */
+    m_index_stat[MAX_INDEXES].sum(result);
   }
 
   inline void sum_lock(PFS_single_stat *result)
@@ -499,9 +616,9 @@ struct PFS_table_stat
     m_lock_stat.sum(result);
   }
 
-  inline void sum(PFS_single_stat *result)
+  inline void sum(PFS_single_stat *result, uint key_count)
   {
-    sum_io(result);
+    sum_io(result, key_count);
     sum_lock(result);
   }
 

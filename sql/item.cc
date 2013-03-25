@@ -105,7 +105,7 @@ void
 Hybrid_type_traits_decimal::fix_length_and_dec(Item *item, Item *arg) const
 {
   item->decimals= arg->decimals;
-  item->max_length= min(arg->max_length + DECIMAL_LONGLONG_DIGITS,
+  item->max_length= MY_MIN(arg->max_length + DECIMAL_LONGLONG_DIGITS,
                         DECIMAL_MAX_STR_LENGTH);
 }
 
@@ -531,9 +531,9 @@ uint Item::decimal_precision() const
     uint prec= 
       my_decimal_length_to_precision(max_char_length(), decimals,
                                      unsigned_flag);
-    return min(prec, DECIMAL_MAX_PRECISION);
+    return MY_MIN(prec, DECIMAL_MAX_PRECISION);
   }
-  return min(max_char_length(), DECIMAL_MAX_PRECISION);
+  return MY_MIN(max_char_length(), DECIMAL_MAX_PRECISION);
 }
 
 
@@ -977,7 +977,7 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
     {
       char buff[SAFE_NAME_LEN];
       strmake(buff, str_start,
-              min(sizeof(buff)-1, length + (int) (str-str_start)));
+              MY_MIN(sizeof(buff)-1, length + (int) (str-str_start)));
 
       if (length == 0)
         push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -998,7 +998,7 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
     name_length= res_length;
   }
   else
-    name= sql_strmake(str, (name_length= min(length,MAX_ALIAS_NAME)));
+    name= sql_strmake(str, (name_length= MY_MIN(length,MAX_ALIAS_NAME)));
 }
 
 
@@ -6157,7 +6157,7 @@ longlong Item_hex_string::val_int()
   // following assert is redundant, because fixed=1 assigned in constructor
   DBUG_ASSERT(fixed == 1);
   char *end=(char*) str_value.ptr()+str_value.length(),
-       *ptr=end-min(str_value.length(),sizeof(longlong));
+       *ptr=end-MY_MIN(str_value.length(),sizeof(longlong));
 
   ulonglong value=0;
   for (; ptr != end ; ptr++)
@@ -6212,7 +6212,7 @@ warn:
 void Item_hex_string::print(String *str, enum_query_type query_type)
 {
   char *end= (char*) str_value.ptr() + str_value.length(),
-       *ptr= end - min(str_value.length(), sizeof(longlong));
+       *ptr= end - MY_MIN(str_value.length(), sizeof(longlong));
   str->append("0x");
   for (; ptr != end ; ptr++)
   {
@@ -9295,14 +9295,14 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     /* fix variable decimals which always is NOT_FIXED_DEC */
     if (Field::result_merge_type(fld_type) == INT_RESULT)
       item_decimals= 0;
-    decimals= max(decimals, item_decimals);
+    decimals= MY_MAX(decimals, item_decimals);
   }
   if (Field::result_merge_type(fld_type) == DECIMAL_RESULT)
   {
-    decimals= min(max(decimals, item->decimals), DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(MY_MAX(decimals, item->decimals), DECIMAL_MAX_SCALE);
     int item_int_part= item->decimal_int_part();
-    int item_prec = max(prev_decimal_int_part, item_int_part) + decimals;
-    int precision= min(item_prec, DECIMAL_MAX_PRECISION);
+    int item_prec = MY_MAX(prev_decimal_int_part, item_int_part) + decimals;
+    int precision= MY_MIN(item_prec, DECIMAL_MAX_PRECISION);
     unsigned_flag&= item->unsigned_flag;
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
@@ -9333,7 +9333,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
      */
     if (collation.collation != &my_charset_bin)
     {
-      max_length= max(old_max_chars * collation.collation->mbmaxlen,
+      max_length= MY_MAX(old_max_chars * collation.collation->mbmaxlen,
                       display_length(item) /
                       item->collation.collation->mbmaxlen *
                       collation.collation->mbmaxlen);
@@ -9355,7 +9355,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
       {
         int delta1= max_length_orig - decimals_orig;
         int delta2= item->max_length - item->decimals;
-        max_length= max(delta1, delta2) + decimals;
+        max_length= MY_MAX(delta1, delta2) + decimals;
         if (fld_type == MYSQL_TYPE_FLOAT && max_length > FLT_DIG + 2)
         {
           max_length= MAX_FLOAT_STR_LENGTH;
@@ -9373,7 +9373,7 @@ bool Item_type_holder::join_types(THD *thd, Item *item)
     break;
   }
   default:
-    max_length= max(max_length, display_length(item));
+    max_length= MY_MAX(max_length, display_length(item));
   };
   maybe_null|= item->maybe_null;
   get_full_info(item);

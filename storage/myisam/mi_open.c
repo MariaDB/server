@@ -14,7 +14,18 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-/* open a isam-database */
+/*
+  open a isam-database
+
+  Internal temporary tables
+  -------------------------
+  Since only single instance of internal temporary table is required by
+  optimizer, such tables are not registered on myisam_open_list. In effect
+  it means (a) THR_LOCK_myisam is not held while such table is being created,
+  opened or closed; (b) no iteration through myisam_open_list while opening a
+  table. This optimization gives nice scalability benefit in concurrent
+  environment. MEMORY internal temporary tables are optimized similarly.
+*/
 
 #include "fulltext.h"
 #include "sp_defs.h"
@@ -74,10 +85,11 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
   int lock_error,kfile,open_mode,save_errno,have_rtree=0, realpath_err;
   uint i,j,len,errpos,head_length,base_pos,offset,info_length,keys,
     key_parts,unique_key_parts,base_key_parts,fulltext_keys,uniques;
+  uint internal_table= open_flags & HA_OPEN_INTERNAL_TABLE;
   char name_buff[FN_REFLEN], org_name[FN_REFLEN], index_name[FN_REFLEN],
        data_name[FN_REFLEN];
   uchar *UNINIT_VAR(disk_cache), *disk_pos, *end_pos;
-  MI_INFO info,*UNINIT_VAR(m_info),*old_info;
+  MI_INFO info,*UNINIT_VAR(m_info),*old_info= NULL;
   MYISAM_SHARE share_buff,*share;
   ulong *rec_per_key_part= 0;
   my_off_t *key_root, *key_del;
@@ -99,8 +111,13 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     DBUG_RETURN (NULL);
   }
 
-  mysql_mutex_lock(&THR_LOCK_myisam);
-  if (!(old_info=test_if_reopen(name_buff)))
+  if (!internal_table)
+  {
+    mysql_mutex_lock(&THR_LOCK_myisam);
+    old_info= test_if_reopen(name_buff);
+  }
+
+  if (!old_info)
   {
     share= &share_buff;
     bzero((uchar*) &share_buff,sizeof(share_buff));
@@ -311,7 +328,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     strmov(share->index_file_name,  index_name);
     strmov(share->data_file_name,   data_name);
 
-    share->blocksize=min(IO_SIZE,myisam_block_size);
+    share->blocksize=MY_MIN(IO_SIZE,myisam_block_size);
     {
       HA_KEYSEG *pos=share->keyparts;
       uint32 ftkey_nr= 1;
@@ -349,6 +366,12 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 	  }
 	  else if (pos->type == HA_KEYTYPE_BINARY)
 	    pos->charset= &my_charset_bin;
+          if (!(share->keyinfo[i].flag & HA_SPATIAL) &&
+              pos->start > share->base.reclength)
+          {
+            my_errno= HA_ERR_CRASHED;
+            goto err;
+          }
 	}
 	if (share->keyinfo[i].flag & HA_SPATIAL)
 	{
@@ -491,7 +514,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     share->base.margin_key_file_length=(share->base.max_key_file_length -
 					(keys ? MI_INDEX_BLOCK_MARGIN *
 					 share->blocksize * keys : 0));
-    share->blocksize=min(IO_SIZE,myisam_block_size);
+    share->blocksize=MY_MIN(IO_SIZE,myisam_block_size);
     share->data_file_type=STATIC_RECORD;
     if (share->options & HA_OPTION_COMPRESS_RECORD)
     {
@@ -638,10 +661,13 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 
   *m_info=info;
   thr_lock_data_init(&share->lock,&m_info->lock,(void*) m_info);
-  m_info->open_list.data=(void*) m_info;
-  myisam_open_list=list_add(myisam_open_list,&m_info->open_list);
 
-  mysql_mutex_unlock(&THR_LOCK_myisam);
+  if (!internal_table)
+  {
+    m_info->open_list.data= (void*) m_info;
+    myisam_open_list= list_add(myisam_open_list, &m_info->open_list);
+    mysql_mutex_unlock(&THR_LOCK_myisam);
+  }
 
   bzero(info.buff, share->base.max_key_block_length * 2);
   my_free(rec_per_key_part);
@@ -686,7 +712,8 @@ err:
   default:
     break;
   }
-  mysql_mutex_unlock(&THR_LOCK_myisam);
+  if (!internal_table)
+    mysql_mutex_unlock(&THR_LOCK_myisam);
   my_errno=save_errno;
   DBUG_RETURN (NULL);
 } /* mi_open */
@@ -706,10 +733,10 @@ uchar *mi_alloc_rec_buff(MI_INFO *info, ulong length, uchar **buf)
     if (length == (ulong) -1)
     {
       if (info->s->options & HA_OPTION_COMPRESS_RECORD)
-        length= max(info->s->base.pack_reclength, info->s->max_pack_length);
+        length= MY_MAX(info->s->base.pack_reclength, info->s->max_pack_length);
       else
         length= info->s->base.pack_reclength;
-      length= max(length, info->s->base.max_key_length);
+      length= MY_MAX(length, info->s->base.max_key_length);
       /* Avoid unnecessary realloc */
       if (newptr && length == old_length)
 	return newptr;

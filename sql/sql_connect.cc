@@ -431,7 +431,7 @@ void init_user_stats(USER_STATS *user_stats,
   DBUG_ENTER("init_user_stats");
   DBUG_PRINT("enter", ("user: %s  priv_user: %s", user, priv_user));
 
-  user_length= min(user_length, sizeof(user_stats->user)-1);
+  user_length= MY_MIN(user_length, sizeof(user_stats->user)-1);
   memcpy(user_stats->user, user, user_length);
   user_stats->user[user_length]= 0;
   user_stats->user_name_length= user_length;
@@ -934,7 +934,7 @@ static int check_connection(THD *thd)
       if (thd->main_security_ctx.host)
       {
         if (thd->main_security_ctx.host != my_localhost)
-          thd->main_security_ctx.host[min(strlen(thd->main_security_ctx.host),
+          thd->main_security_ctx.host[MY_MIN(strlen(thd->main_security_ctx.host),
                                           HOSTNAME_LENGTH)]= 0;
         thd->main_security_ctx.host_or_ip= thd->main_security_ctx.host;
       }

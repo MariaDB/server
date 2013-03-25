@@ -104,7 +104,7 @@ class QUICK_RANGE :public Sql_alloc {
   void make_min_endpoint(key_range *kr, uint prefix_length, 
                          key_part_map keypart_map) {
     make_min_endpoint(kr);
-    kr->length= min(kr->length, prefix_length);
+    kr->length= MY_MIN(kr->length, prefix_length);
     kr->keypart_map&= keypart_map;
   }
   
@@ -142,7 +142,7 @@ class QUICK_RANGE :public Sql_alloc {
   void make_max_endpoint(key_range *kr, uint prefix_length, 
                          key_part_map keypart_map) {
     make_max_endpoint(kr);
-    kr->length= min(kr->length, prefix_length);
+    kr->length= MY_MIN(kr->length, prefix_length);
     kr->keypart_map&= keypart_map;
   }
 

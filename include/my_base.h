@@ -46,7 +46,8 @@
 #define HA_OPEN_COPY			256     /* Open copy (for repair) */
 /* Internal temp table, used for temporary results */
 #define HA_OPEN_INTERNAL_TABLE          512
-#define HA_OPEN_MERGE_TABLE		1024
+#define HA_OPEN_NO_PSI_CALL             1024    /* Don't call/connect PSI */
+#define HA_OPEN_MERGE_TABLE		2048
 
 /* The following is parameter to ha_rkey() how to use key */
 
@@ -194,6 +195,11 @@ enum ha_extra_function {
   HA_EXTRA_ATTACH_CHILDREN,
   HA_EXTRA_IS_ATTACHED_CHILDREN,
   HA_EXTRA_DETACH_CHILDREN,
+  /*
+    Prepare table for export
+    (e.g. quiesce the table and write table metadata).
+  */
+  HA_EXTRA_EXPORT,
   HA_EXTRA_DETACH_CHILD,
   /* Inform handler we will force a close as part of flush */
   HA_EXTRA_PREPARE_FOR_FORCED_CLOSE
@@ -317,6 +323,23 @@ enum ha_base_keytype {
 #define HA_OPTION_RELIES_ON_SQL_LAYER   512
 #define HA_OPTION_NULL_FIELDS		1024
 #define HA_OPTION_PAGE_CHECKSUM		2048
+/*
+   STATS_PERSISTENT=1 has been specified in the SQL command (either CREATE
+   or ALTER TABLE). Table and index statistics that are collected by the
+   storage engine and used by the optimizer for query optimization will be
+   stored on disk and will not change after a server restart.
+*/
+#define HA_OPTION_STATS_PERSISTENT	4096
+/*
+  STATS_PERSISTENT=0 has been specified in CREATE/ALTER TABLE. Statistics
+  for the table will be wiped away on server shutdown and new ones recalculated
+  after the server is started again. If none of HA_OPTION_STATS_PERSISTENT or
+  HA_OPTION_NO_STATS_PERSISTENT is set, this means that the setting is not
+  explicitly set at table level and the corresponding table will use whatever
+  is the global server default.
+*/
+#define HA_OPTION_NO_STATS_PERSISTENT	8192
+
 /* .frm has extra create options in linked-list format */
 #define HA_OPTION_TEXT_CREATE_OPTIONS   (1L << 14)
 #define HA_OPTION_TEMP_COMPRESS_RECORD  (1L << 15)      /* set by isamchk */
@@ -334,7 +357,7 @@ enum ha_base_keytype {
 #define HA_CREATE_PAGE_CHECKSUM	32
 #define HA_CREATE_DELAY_KEY_WRITE 64
 #define HA_CREATE_RELIES_ON_SQL_LAYER 128
-
+#define HA_CREATE_INTERNAL_TABLE 256
 
 /* Flags used by start_bulk_insert */
 
@@ -458,7 +481,8 @@ enum ha_base_keytype {
 /* It is not possible to log this statement */
 #define HA_ERR_LOGGING_IMPOSSIBLE 170
 /* The event was corrupt, leading to illegal data being read */
-#define HA_ERR_CORRUPT_EVENT      171
+#define HA_ERR_CORRUPT_EVENT      171	 /* The event was corrupt, leading to
+                                            illegal data being read */
 #define HA_ERR_NEW_FILE	          172	 /* New file format */
 /* The event could not be processed no other handler error happened */
 #define HA_ERR_ROWS_EVENT_APPLY   173
@@ -466,16 +490,19 @@ enum ha_base_keytype {
 #define HA_ERR_FILE_TOO_SHORT	  175	 /* File too short */
 #define HA_ERR_WRONG_CRC	  176	 /* Wrong CRC on page */
 #define HA_ERR_TOO_MANY_CONCURRENT_TRXS 177 /*Too many active concurrent transactions */
+/* There's no explicitly listed partition in table for the given value */
 #define HA_ERR_NOT_IN_LOCK_PARTITIONS 178
 #define HA_ERR_INDEX_COL_TOO_LONG 179    /* Index column length exceeds limit */
 #define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
 #define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
-#define HA_ERR_TABLE_IN_FK_CHECK  182    /* Table being used in foreign key check */
-#define HA_FTS_INVALID_DOCID      183	 /* Invalid InnoDB Doc ID */
-#define HA_ERR_ROW_NOT_VISIBLE    184
-#define HA_ERR_ABORTED_BY_USER    185
-#define HA_ERR_DISK_FULL          186
-#define HA_ERR_LAST               186    /* Copy of last error nr */
+#define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
+#define HA_ERR_TABLE_IN_FK_CHECK  183    /* Table being used in foreign key check */
+#define HA_ERR_TABLESPACE_EXISTS  184    /* The tablespace existed in storage engine */
+#define HA_ERR_TOO_MANY_FIELDS    185    /* Table has too many columns */
+#define HA_ERR_ROW_NOT_VISIBLE    186
+#define HA_ERR_ABORTED_BY_USER    187
+#define HA_ERR_DISK_FULL          188
+#define HA_ERR_LAST               188    /* Copy of last error nr */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
@@ -607,5 +634,18 @@ typedef ulong		ha_rows;
 C_MODE_START
 typedef void (* invalidator_by_filename)(const char * filename);
 C_MODE_END
+
+
+enum durability_properties
+{
+  /*
+    Preserves the durability properties defined by the engine */
+  HA_REGULAR_DURABILITY= 0,
+  /* 
+     Ignore the durability properties defined by the engine and
+     write only in-memory entries.
+  */
+  HA_IGNORE_DURABILITY= 1
+};
 
 #endif /* _my_base_h */

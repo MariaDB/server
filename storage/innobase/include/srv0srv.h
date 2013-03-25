@@ -50,21 +50,90 @@ Created 10/10/1995 Heikki Tuuri
 #include "trx0types.h"
 #include "srv0conc.h"
 #include "buf0checksum.h"
+#include "ut0counter.h"
+
+/* Global counters used inside InnoDB. */
+struct srv_stats_t {
+	typedef ib_counter_t<lsn_t, 1, single_indexer_t> lsn_ctr_1_t;
+	typedef ib_counter_t<ulint, 1, single_indexer_t> ulint_ctr_1_t;
+	typedef ib_counter_t<lint, 1, single_indexer_t> lint_ctr_1_t;
+	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
+	typedef ib_counter_t<ib_int64_t, 1, single_indexer_t> ib_int64_ctr_1_t;
+
+	/** Count the amount of data written in total (in bytes) */
+	ulint_ctr_1_t		data_written;
+
+	/** Number of the log write requests done */
+	ulint_ctr_1_t		log_write_requests;
+
+	/** Number of physical writes to the log performed */
+	ulint_ctr_1_t		log_writes;
+
+	/** Amount of data written to the log files in bytes */
+	lsn_ctr_1_t		os_log_written;
+
+	/** Number of writes being done to the log files */
+	lint_ctr_1_t		os_log_pending_writes;
+
+	/** We increase this counter, when we don't have enough
+	space in the log buffer and have to flush it */
+	ulint_ctr_1_t		log_waits;
+
+	/** Count the number of times the doublewrite buffer was flushed */
+	ulint_ctr_1_t		dblwr_writes;
+
+	/** Store the number of pages that have been flushed to the
+	doublewrite buffer */
+	ulint_ctr_1_t		dblwr_pages_written;
+
+	/** Store the number of write requests issued */
+	ulint_ctr_1_t		buf_pool_write_requests;
+
+	/** Store the number of times when we had to wait for a free page
+	in the buffer pool. It happens when the buffer pool is full and we
+	need to make a flush, in order to be able to read or create a page. */
+	ulint_ctr_1_t		buf_pool_wait_free;
+
+	/** Count the number of pages that were written from buffer
+	pool to the disk */
+	ulint_ctr_1_t		buf_pool_flushed;
+
+	/** Number of buffer pool reads that led to the reading of
+	a disk page */
+	ulint_ctr_1_t		buf_pool_reads;
+
+	/** Number of data read in total (in bytes) */
+	ulint_ctr_1_t		data_read;
+
+	/** Wait time of database locks */
+	ib_int64_ctr_1_t	n_lock_wait_time;
+
+	/** Number of database lock waits */
+	ulint_ctr_1_t		n_lock_wait_count;
+
+	/** Number of threads currently waiting on database locks */
+	lint_ctr_1_t		n_lock_wait_current_count;
+
+	/** Number of rows read. */
+	ulint_ctr_64_t		n_rows_read;
+
+	/** Number of rows updated */
+	ulint_ctr_64_t		n_rows_updated;
+
+	/** Number of rows deleted */
+	ulint_ctr_64_t		n_rows_deleted;
+
+	/** Number of rows inserted */
+	ulint_ctr_64_t		n_rows_inserted;
+};
 
 extern const char*	srv_main_thread_op_info;
 
 /** Prefix used by MySQL to indicate pre-5.1 table name encoding */
 extern const char	srv_mysql50_table_name_prefix[10];
 
-/* When this event is set the lock timeout and InnoDB monitor
-thread starts running */
-extern os_event_t	srv_lock_timeout_thread_event;
-
 /* The monitor thread waits on this event. */
 extern os_event_t	srv_monitor_event;
-
-/* The lock timeout thread waits on this event. */
-extern os_event_t	srv_timeout_event;
 
 /* The error monitor thread waits on this event. */
 extern os_event_t	srv_error_event;
@@ -89,20 +158,20 @@ at a time */
 #define SRV_AUTO_EXTEND_INCREMENT	\
 	(srv_auto_extend_increment * ((1024 * 1024) / UNIV_PAGE_SIZE))
 
-/* Mutex for locking srv_monitor_file */
-extern mutex_t	srv_monitor_file_mutex;
+/* Mutex for locking srv_monitor_file. Not created if srv_read_only_mode */
+extern ib_mutex_t	srv_monitor_file_mutex;
 /* Temporary file for innodb monitor output */
 extern FILE*	srv_monitor_file;
-/* Mutex for locking srv_dict_tmpfile.
+/* Mutex for locking srv_dict_tmpfile. Only created if !srv_read_only_mode.
 This mutex has a very high rank; threads reserving it should not
 be holding any InnoDB latches. */
-extern mutex_t	srv_dict_tmpfile_mutex;
+extern ib_mutex_t	srv_dict_tmpfile_mutex;
 /* Temporary file for output from the data dictionary */
 extern FILE*	srv_dict_tmpfile;
-/* Mutex for locking srv_misc_tmpfile.
+/* Mutex for locking srv_misc_tmpfile. Only created if !srv_read_only_mode.
 This mutex has a very low rank; threads reserving it should not
 acquire any further latches or sleep before releasing this one. */
-extern mutex_t	srv_misc_tmpfile_mutex;
+extern ib_mutex_t	srv_misc_tmpfile_mutex;
 /* Temporary file for miscellanous diagnostic output */
 extern FILE*	srv_misc_tmpfile;
 
@@ -114,6 +183,10 @@ extern char*	srv_data_home;
 extern char*	srv_arch_dir;
 #endif /* UNIV_LOG_ARCHIVE */
 
+/** Set if InnoDB must operate in read-only mode. We don't do any
+recovery and open all tables in RO mode instead of RW mode. We don't
+sync the max trx id to disk either. */
+extern my_bool	srv_read_only_mode;
 /** store to its own file each table created by an user; data
 dictionary tables are in the system tablespace 0 */
 extern my_bool	srv_file_per_table;
@@ -134,8 +207,10 @@ extern ulint	srv_max_file_format_at_startup;
 on duplicate key checking and foreign key checking */
 extern ibool	srv_locks_unsafe_for_binlog;
 
-/* Variable specifying the FTS parallel sort buffer size */
+/** Sort buffer size in index creation */
 extern ulong	srv_sort_buf_size;
+/** Maximum modification log file size for online index creation */
+extern unsigned long long	srv_online_max_size;
 
 /* If this flag is TRUE, then we will use the native aio of the
 OS (provided we compiled Innobase with it in), otherwise we will
@@ -153,6 +228,9 @@ extern char*	srv_undo_dir;
 /** Number of undo tablespaces to use. */
 extern ulong	srv_undo_tablespaces;
 
+/** The number of UNDO tablespaces that are open and ready to use. */
+extern ulint	srv_undo_tablespaces_open;
+
 /* The number of undo segments to use */
 extern ulong	srv_undo_logs;
 
@@ -163,17 +241,20 @@ extern ulint*	srv_data_file_is_raw_partition;
 
 extern ibool	srv_auto_extend_last_data_file;
 extern ulint	srv_last_file_size_max;
-extern char**	srv_log_group_home_dirs;
+extern char*	srv_log_group_home_dir;
 #ifndef UNIV_HOTBACKUP
 extern ulong	srv_auto_extend_increment;
 
 extern ibool	srv_created_new_raw;
 
-extern ulint	srv_n_log_groups;
-extern ulint	srv_n_log_files;
+/** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
+#define SRV_N_LOG_FILES_MAX 100
+extern ulong	srv_n_log_files;
 extern ib_uint64_t	srv_log_file_size;
+extern ib_uint64_t	srv_log_file_size_requested;
 extern ulint	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
+extern uint	srv_flush_log_at_timeout;
 extern char	srv_adaptive_flushing;
 
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
@@ -195,7 +276,7 @@ extern ulong	srv_n_page_hash_locks;	/*!< number of locks to
 					protect buf_pool->page_hash */
 extern ulong	srv_LRU_scan_depth;	/*!< Scan depth for LRU
 					flush batch */
-extern my_bool	srv_flush_neighbors;	/*!< whether or not to flush
+extern ulong	srv_flush_neighbors;	/*!< whether or not to flush
 					neighbors of a block */
 extern ulint	srv_buf_pool_old_size;	/*!< previously requested size */
 extern ulint	srv_buf_pool_curr_size;	/*!< current size in bytes */
@@ -210,6 +291,12 @@ extern ulint	srv_n_write_io_threads;
 
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
+
+/* We use this dummy default value at startup for max_io_capacity.
+The real value is set based on the value of io_capacity. */
+#define SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT	(~0UL)
+#define SRV_MAX_IO_CAPACITY_LIMIT		(~0UL)
+extern ulong    srv_max_io_capacity;
 /* Returns the number of IO operations that is X percent of the
 capacity. PCT_IO(5) -> returns the number of IO operations that
 is 5% of the max where max is srv_io_capacity.  */
@@ -232,9 +319,16 @@ extern ulint	srv_win_file_flush_method;
 
 extern ulint	srv_max_n_open_files;
 
-extern ulint	srv_max_dirty_pages_pct;
+extern ulong	srv_max_dirty_pages_pct;
+extern ulong	srv_max_dirty_pages_pct_lwm;
 
-extern ulint	srv_force_recovery;
+extern ulong	srv_adaptive_flushing_lwm;
+extern ulong	srv_flushing_avg_loops;
+
+extern ulong	srv_force_recovery;
+#ifndef DBUG_OFF
+extern ulong	srv_force_recovery_crash;
+#endif /* !DBUG_OFF */
 
 extern ulint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 					purge and index buffer merge.
@@ -246,7 +340,9 @@ extern ulint	srv_fast_shutdown;	/*!< If this is 1, do not do a
 extern ibool	srv_innodb_status;
 
 extern unsigned long long	srv_stats_transient_sample_pages;
+extern my_bool			srv_stats_persistent;
 extern unsigned long long	srv_stats_persistent_sample_pages;
+extern my_bool			srv_stats_auto_recalc;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
@@ -259,11 +355,6 @@ extern ulong	srv_max_purge_lag_delay;
 extern ulong	srv_replication_delay;
 /*-------------------------------------------*/
 
-extern ulint	srv_n_rows_inserted;
-extern ulint	srv_n_rows_updated;
-extern ulint	srv_n_rows_deleted;
-extern ulint	srv_n_rows_read;
-
 extern ibool	srv_print_innodb_monitor;
 extern ibool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_innodb_tablespace_monitor;
@@ -274,20 +365,20 @@ extern ibool	srv_print_verbose_log;
 	"tables instead, see " REFMAN "innodb-i_s-tables.html"
 extern ibool	srv_print_innodb_table_monitor;
 
-extern ibool	srv_lock_timeout_active;
 extern ibool	srv_monitor_active;
 extern ibool	srv_error_monitor_active;
 
 /* TRUE during the lifetime of the buffer pool dump/load thread */
 extern ibool	srv_buf_dump_thread_active;
 
+/* TRUE during the lifetime of the stats thread */
+extern ibool	srv_dict_stats_thread_active;
+
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
 extern ulong	srv_thread_sleep_delay;
 extern ulong	srv_spin_wait_delay;
 extern ibool	srv_priority_boost;
-
-extern ulint	srv_n_lock_wait_count;
 
 extern ulint	srv_truncated_status_writes;
 extern ulint	srv_available_undo_logs;
@@ -309,12 +400,21 @@ extern	ibool	srv_print_latch_waits;
 # define srv_print_latch_waits		FALSE
 #endif /* UNIV_DEBUG */
 
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+extern my_bool	srv_ibuf_disable_background_merge;
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+#ifdef UNIV_DEBUG
+extern my_bool	srv_purge_view_update_only_debug;
+#endif /* UNIV_DEBUG */
+
 extern ulint	srv_fatal_semaphore_wait_threshold;
+#define SRV_SEMAPHORE_WAIT_EXTENSION	7200
 extern ulint	srv_dml_needed_delay;
 
 #ifndef HAVE_ATOMIC_BUILTINS
 /** Mutex protecting some server global variables. */
-extern mutex_t	server_mutex;
+extern ib_mutex_t	server_mutex;
 #endif /* !HAVE_ATOMIC_BUILTINS */
 
 #define SRV_MAX_N_IO_THREADS	130
@@ -323,22 +423,6 @@ extern mutex_t	server_mutex;
 i/o handler thread */
 extern const char* srv_io_thread_op_info[];
 extern const char* srv_io_thread_function[];
-
-/* the number of the log write requests done */
-extern ulint srv_log_write_requests;
-
-/* the number of physical writes to the log performed */
-extern ulint srv_log_writes;
-
-/* amount of data written to the log files in bytes */
-extern lsn_t srv_os_log_written;
-
-/* amount of writes being done to the log files */
-extern ulint srv_os_log_pending_writes;
-
-/* we increase this counter, when there we don't have enough space in the
-log buffer and have to flush it */
-extern ulint srv_log_waits;
 
 /* the number of purge threads to use from the worker pool (currently 0 or 1) */
 extern ulong srv_n_purge_threads;
@@ -349,50 +433,16 @@ extern ulong srv_purge_batch_size;
 /* the number of sync wait arrays */
 extern ulong srv_sync_array_size;
 
-/* variable that counts amount of data read in total (in bytes) */
-extern ulint srv_data_read;
-
-/* here we count the amount of data written in total (in bytes) */
-extern ulint srv_data_written;
-
-/* this variable counts the amount of times, when the doublewrite buffer
-was flushed */
-extern ulint srv_dblwr_writes;
-
-/* here we store the number of pages that have been flushed to the
-doublewrite buffer */
-extern ulint srv_dblwr_pages_written;
-
-/* in this variable we store the number of write requests issued */
-extern ulint srv_buf_pool_write_requests;
-
-/* here we store the number of times when we had to wait for a free page
-in the buffer pool. It happens when the buffer pool is full and we need
-to make a flush, in order to be able to read or create a page. */
-extern ulint srv_buf_pool_wait_free;
-
-/* variable to count the number of pages that were written from the
-buffer pool to disk */
-extern ulint srv_buf_pool_flushed;
-
-/** Number of buffer pool reads that led to the
-reading of a disk page */
-extern ulint srv_buf_pool_reads;
-
 /* print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
 
-/** Status variables to be passed to MySQL */
-typedef struct export_var_struct export_struc;
-
-/** Thread slot in the thread table */
-typedef struct srv_slot_struct	srv_slot_t;
-
-/** Thread table is an array of slots */
-typedef srv_slot_t	srv_table_t;
+extern my_bool	srv_cmp_per_index_enabled;
 
 /** Status variables to be passed to MySQL */
-extern export_struc export_vars;
+extern struct export_var_t export_vars;
+
+/** Global counters */
+extern srv_stats_t	srv_stats;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -404,19 +454,20 @@ extern mysql_pfs_key_t	srv_error_monitor_thread_key;
 extern mysql_pfs_key_t	srv_monitor_thread_key;
 extern mysql_pfs_key_t	srv_master_thread_key;
 extern mysql_pfs_key_t	srv_purge_thread_key;
+extern mysql_pfs_key_t	recv_writer_thread_key;
 
 /* This macro register the current thread and its key with performance
 schema */
 #  define pfs_register_thread(key)			\
 do {								\
-	struct PSI_thread* psi = PSI_CALL(new_thread)(key, NULL, 0);\
-	PSI_CALL(set_thread)(psi);				\
+	struct PSI_thread* psi = PSI_THREAD_CALL(new_thread)(key, NULL, 0);\
+	PSI_THREAD_CALL(set_thread)(psi);			\
 } while (0)
 
 /* This macro delist the current thread from performance schema */
 #  define pfs_delete_thread()				\
 do {								\
-	PSI_CALL(delete_current_thread)();			\
+	PSI_THREAD_CALL(delete_current_thread)();		\
 } while (0)
 # endif /* UNIV_PFS_THREAD */
 
@@ -439,8 +490,19 @@ enum {
 				when writing data files, but do flush
 				after writing to log files */
 	SRV_UNIX_NOSYNC,	/*!< do not flush after writing */
-	SRV_UNIX_O_DIRECT	/*!< invoke os_file_set_nocache() on
-				data files */
+	SRV_UNIX_O_DIRECT,	/*!< invoke os_file_set_nocache() on
+				data files. This implies using
+				non-buffered IO but still using fsync,
+				the reason for which is that some FS
+				do not flush meta-data when
+				unbuffered IO happens */
+	SRV_UNIX_O_DIRECT_NO_FSYNC
+				/*!< do not use fsync() when using
+				direct IO i.e.: it can be set to avoid
+				the fsync() call that we make when
+				using SRV_UNIX_O_DIRECT. However, in
+				this case user/DBA should be sure about
+				the integrity of the meta-data */
 };
 
 /** Alternatives for file i/o in Windows */
@@ -499,10 +561,9 @@ enum srv_thread_type {
 };
 
 /*********************************************************************//**
-Boots Innobase server.
-@return	DB_SUCCESS or error code */
+Boots Innobase server. */
 UNIV_INTERN
-ulint
+void
 srv_boot(void);
 /*==========*/
 /*********************************************************************//**
@@ -533,6 +594,12 @@ srv_set_io_thread_op_info(
 	ulint		i,	/*!< in: the 'segment' of the i/o thread */
 	const char*	str);	/*!< in: constant char string describing the
 				state */
+/*********************************************************************//**
+Resets the info describing an i/o thread current state. */
+UNIV_INTERN
+void
+srv_reset_io_thread_op_info();
+/*=========================*/
 /*******************************************************************//**
 Tells the purge thread that there has been activity in the database
 and wakes up the purge thread if it is suspended (not sleeping).  Note
@@ -714,7 +781,7 @@ srv_purge_wakeup(void);
 /*==================*/
 
 /** Status variables to be passed to MySQL */
-struct export_var_struct{
+struct export_var_t{
 	ulint innodb_data_pending_reads;	/*!< Pending reads */
 	ulint innodb_data_pending_writes;	/*!< Pending writes */
 	ulint innodb_data_pending_fsyncs;	/*!< Pending fsyncs */
@@ -727,7 +794,9 @@ struct export_var_struct{
 	char  innodb_buffer_pool_load_status[512];/*!< Buf pool load status */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_pages_data;	/*!< Data pages */
+	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
 	ulint innodb_buffer_pool_pages_dirty;	/*!< Dirty data pages */
+	ulint innodb_buffer_pool_bytes_dirty;	/*!< File bytes modified */
 	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellanous pages */
 	ulint innodb_buffer_pool_pages_free;	/*!< Free pages */
 #ifdef UNIV_DEBUG
@@ -771,10 +840,15 @@ struct export_var_struct{
 	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */
+#ifdef UNIV_DEBUG
+	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
+	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
+						- purged view's min trx_id */
+#endif /* UNIV_DEBUG */
 };
 
 /** Thread slot in the thread table.  */
-struct srv_slot_struct{
+struct srv_slot_t{
 	srv_thread_type type;			/*!< thread type: user,
 						utility etc. */
 	ibool		in_use;			/*!< TRUE if this slot
@@ -803,6 +877,7 @@ struct srv_slot_struct{
 # define srv_use_native_aio			FALSE
 # define srv_force_recovery			0UL
 # define srv_set_io_thread_op_info(t,info)	((void) 0)
+# define srv_reset_io_thread_op_info()		((void) 0)
 # define srv_is_being_started			0
 # define srv_win_file_flush_method		SRV_WIN_IO_UNBUFFERED
 # define srv_unix_file_flush_method		SRV_UNIX_O_DSYNC

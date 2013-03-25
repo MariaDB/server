@@ -132,7 +132,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
           Don't copy data for null values
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min(key_length, (uint) key_part->store_length-1);
+        length= MY_MIN(key_length, (uint) key_part->store_length-1);
         if (with_zerofill)
           bzero((char*) to_key, length);
         continue;
@@ -142,7 +142,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -150,7 +150,7 @@ void key_copy(uchar *to_key, uchar *from_record, KEY *key_info,
     }
     else
     {
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
       uint bytes= field->get_key_image(to_key, length, Field::itRAW);
@@ -202,7 +202,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
           Don't copy data for null bytes
           The -1 below is to subtract the null byte which is already handled
         */
-        length= min(key_length, (uint) key_part->store_length-1);
+        length= MY_MIN(key_length, (uint) key_part->store_length-1);
         continue;
       }
     }
@@ -244,7 +244,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
       my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
       field->move_field_offset(ptrdiff);
       key_length-= HA_KEY_BLOB_LENGTH;
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       old_map= dbug_tmp_use_all_columns(field->table, field->table->write_set);
       field->set_key_image(from_key, length);
       dbug_tmp_restore_column_map(field->table->write_set, old_map);
@@ -253,7 +253,7 @@ void key_restore(uchar *to_record, uchar *from_key, KEY *key_info,
     }
     else
     {
-      length= min(key_length, key_part->length);
+      length= MY_MIN(key_length, key_part->length);
       /* skip the byte with 'uneven' bits, if used */
       memcpy(to_record + key_part->offset, from_key + used_uneven_bits
              , (size_t) length - used_uneven_bits);
@@ -311,7 +311,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
 	return 1;
       continue;
     }
-    length= min((uint) (key_end-key), store_length);
+    length= MY_MIN((uint) (key_end-key), store_length);
     if (!(key_part->key_type & (FIELDFLAG_NUMBER+FIELDFLAG_BINARY+
                                 FIELDFLAG_PACK)))
     {
@@ -403,7 +403,7 @@ void key_unpack(String *to,TABLE *table,uint idx)
           tmp.length(charpos);
       }
       if (key_part->length < field->pack_length())
-	tmp.length(min(tmp.length(),key_part->length));
+	tmp.length(MY_MIN(tmp.length(),key_part->length));
       ErrConvString err(&tmp);
       to->append(err.ptr());
     }
@@ -558,8 +558,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       if (key_part->null_bit)
       {
         /* The key_part can contain NULL values */
-        bool first_is_null= field->is_null_in_record_with_offset(first_diff);
-        bool sec_is_null= field->is_null_in_record_with_offset(sec_diff);
+        bool first_is_null= field->is_real_null(first_diff);
+        bool sec_is_null= field->is_real_null(sec_diff);
         /*
           NULL is smaller then everything so if first is NULL and the other
           not then we know that we should return -1 and for the opposite

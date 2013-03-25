@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2009, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,20 +33,20 @@ extern ulint	data_mysql_default_charset_coll;
 #define DATA_MYSQL_BINARY_CHARSET_COLL 63
 
 /* SQL data type struct */
-typedef struct dtype_struct		dtype_t;
+struct dtype_t;
 
 /* SQL Like operator comparison types */
-enum ib_like_enum {
+enum ib_like_t {
 	IB_LIKE_EXACT,                  /* e.g.  STRING */
 	IB_LIKE_PREFIX,                 /* e.g., STRING% */
 	IB_LIKE_SUFFIX,                 /* e.g., %STRING */
 	IB_LIKE_SUBSTR,                 /* e.g., %STRING% */
 	IB_LIKE_REGEXP                  /* Future */
 };
-typedef enum ib_like_enum               ib_like_t;
 
 /*-------------------------------------------*/
 /* The 'MAIN TYPE' of a column */
+#define DATA_MISSING	0	/* missing column */
 #define	DATA_VARCHAR	1	/* character varying of the
 				latin1_swedish_ci charset-collation; note
 				that the MySQL format for this, DATA_BINARY,
@@ -508,7 +508,7 @@ dtype_read_for_order_and_null_size()
 dtype_new_read_for_order_and_null_size()
 sym_tab_add_null_lit() */
 
-struct dtype_struct{
+struct dtype_t{
 	unsigned	prtype:32;	/*!< precise type; MySQL data
 					type, charset code, flags to
 					indicate nullability,

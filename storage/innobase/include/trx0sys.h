@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -426,7 +426,7 @@ trx_sys_file_format_max_get(void);
 Check for the max file format tag stored on disk.
 @return	DB_SUCCESS or error code */
 UNIV_INTERN
-ulint
+dberr_t
 trx_sys_file_format_max_check(
 /*==========================*/
 	ulint		max_format_id);	/*!< in: the max format id to check */
@@ -600,18 +600,28 @@ identifier is added to this 64-bit constant. */
 
 #ifndef UNIV_HOTBACKUP
 /** The transaction system central memory data structure. */
-struct trx_sys_struct{
+struct trx_sys_t{
 
-	mutex_t		mutex;		/*!< mutex protecting most fields in
+	ib_mutex_t		mutex;		/*!< mutex protecting most fields in
 					this structure except when noted
 					otherwise */
-	ulint		n_mysql_trx;	/*!< Number of transactions currently
-					allocated for MySQL */
 	ulint		n_prepared_trx;	/*!< Number of transactions currently
 					in the XA PREPARED state */
+	ulint		n_prepared_recovered_trx; /*!< Number of transactions
+					currently in XA PREPARED state that are
+					also recovered. Such transactions cannot
+					be added during runtime. They can only
+					occur after recovery if mysqld crashed
+					while there were XA PREPARED
+					transactions. We disable query cache
+					if such transactions exist. */
 	trx_id_t	max_trx_id;	/*!< The smallest number not yet
 					assigned as a transaction id or
 					transaction number */
+#ifdef UNIV_DEBUG
+	trx_id_t	rw_max_trx_id;	/*!< Max trx id of read-write transactions
+					which exist or existed */
+#endif
 	trx_list_t	rw_trx_list;	/*!< List of active and committed in
 					memory read-write transactions, sorted
 					on trx id, biggest first. Recovered

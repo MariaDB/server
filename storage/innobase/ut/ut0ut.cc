@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +28,7 @@ Created 5/11/1994 Heikki Tuuri
 #ifndef UNIV_INNOCHECKSUM
 
 #include "ut0sort.h"
+#include "os0thread.h" /* thread-ID */
 
 #ifdef UNIV_NONINL
 #include "ut0ut.ic"
@@ -218,18 +219,25 @@ ut_print_timestamp(
 /*===============*/
 	FILE*  file) /*!< in: file where to print */
 {
+	ulint thread_id = 0;
+
+#ifndef UNIV_INNOCHECKSUM
+	thread_id = os_thread_pf(os_thread_get_curr_id());
+#endif
+
 #ifdef __WIN__
 	SYSTEMTIME cal_tm;
 
 	GetLocalTime(&cal_tm);
 
-	fprintf(file,"%02d%02d%02d %2d:%02d:%02d",
-		(int) cal_tm.wYear % 100,
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+		(int) cal_tm.wYear,
 		(int) cal_tm.wMonth,
 		(int) cal_tm.wDay,
 		(int) cal_tm.wHour,
 		(int) cal_tm.wMinute,
-		(int) cal_tm.wSecond);
+		(int) cal_tm.wSecond,
+		thread_id);
 #else
 	struct tm* cal_tm_ptr;
 	time_t	   tm;
@@ -243,13 +251,14 @@ ut_print_timestamp(
 	time(&tm);
 	cal_tm_ptr = localtime(&tm);
 #endif
-	fprintf(file,"%02d%02d%02d %2d:%02d:%02d",
-		cal_tm_ptr->tm_year % 100,
+	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %lx",
+		cal_tm_ptr->tm_year + 1900,
 		cal_tm_ptr->tm_mon + 1,
 		cal_tm_ptr->tm_mday,
 		cal_tm_ptr->tm_hour,
 		cal_tm_ptr->tm_min,
-		cal_tm_ptr->tm_sec);
+		cal_tm_ptr->tm_sec,
+		thread_id);
 #endif
 }
 
@@ -515,7 +524,7 @@ void
 ut_print_name(
 /*==========*/
 	FILE*		f,	/*!< in: output stream */
-	trx_t*		trx,	/*!< in: transaction */
+	const trx_t*	trx,	/*!< in: transaction */
 	ibool		table_id,/*!< in: TRUE=print a table name,
 				FALSE=print other identifier */
 	const char*	name)	/*!< in: name to print */
@@ -533,7 +542,7 @@ void
 ut_print_namel(
 /*===========*/
 	FILE*		f,	/*!< in: output stream */
-	trx_t*		trx,	/*!< in: transaction (NULL=no quotes) */
+	const trx_t*	trx,	/*!< in: transaction (NULL=no quotes) */
 	ibool		table_id,/*!< in: TRUE=print a table name,
 				FALSE=print other identifier */
 	const char*	name,	/*!< in: name to print */
@@ -550,6 +559,50 @@ ut_print_namel(
 				       table_id);
 
 	fwrite(buf, 1, bufend - buf, f);
+}
+
+/**********************************************************************//**
+Formats a table or index name, quoted as an SQL identifier. If the name
+contains a slash '/', the result will contain two identifiers separated by
+a period (.), as in SQL database_name.identifier.
+@return pointer to 'formatted' */
+UNIV_INTERN
+char*
+ut_format_name(
+/*===========*/
+	const char*	name,		/*!< in: table or index name, must be
+					'\0'-terminated */
+	ibool		is_table,	/*!< in: if TRUE then 'name' is a table
+					name */
+	char*		formatted,	/*!< out: formatted result, will be
+					'\0'-terminated */
+	ulint		formatted_size)	/*!< out: no more than this number of
+					bytes will be written to 'formatted' */
+{
+	switch (formatted_size) {
+	case 1:
+		formatted[0] = '\0';
+		/* FALL-THROUGH */
+	case 0:
+		return(formatted);
+	}
+
+	char*	end;
+
+	end = innobase_convert_name(formatted, formatted_size,
+				    name, strlen(name), NULL, is_table);
+
+	/* If the space in 'formatted' was completely used, then sacrifice
+	the last character in order to write '\0' at the end. */
+	if ((ulint) (end - formatted) == formatted_size) {
+		end--;
+	}
+
+	ut_a((ulint) (end - formatted) < formatted_size);
+
+	*end = '\0';
+
+	return(formatted);
 }
 
 /**********************************************************************//**
@@ -648,7 +701,7 @@ UNIV_INTERN
 const char*
 ut_strerr(
 /*======*/
-	enum db_err	num)	/*!< in: error number */
+	dberr_t	num)	/*!< in: error number */
 {
 	switch (num) {
 	case DB_SUCCESS:
@@ -703,10 +756,12 @@ ut_strerr(
 		return("Cannot drop constraint");
 	case DB_NO_SAVEPOINT:
 		return("No such savepoint");
-	case DB_TABLESPACE_ALREADY_EXISTS:
+	case DB_TABLESPACE_EXISTS:
 		return("Tablespace already exists");
 	case DB_TABLESPACE_DELETED:
-		return("No such tablespace");
+		return("Tablespace deleted or being deleted");
+	case DB_TABLESPACE_NOT_FOUND:
+		return("Tablespace not found");
 	case DB_LOCK_TABLE_FULL:
 		return("Lock structs have exhausted the buffer pool");
 	case DB_FOREIGN_DUPLICATE_KEY:
@@ -717,8 +772,8 @@ ut_strerr(
 		return("Too many concurrent transactions");
 	case DB_UNSUPPORTED:
 		return("Unsupported");
-	case DB_PRIMARY_KEY_IS_NULL:
-		return("Primary key is NULL");
+	case DB_INVALID_NULL:
+		return("NULL value encountered in NOT NULL column");
 	case DB_STATS_DO_NOT_EXIST:
 		return("Persistent statistics do not exist");
 	case DB_FAIL:
@@ -745,6 +800,21 @@ ut_strerr(
 		return("Undo record too big");
 	case DB_END_OF_INDEX:
 		return("End of index");
+	case DB_IO_ERROR:
+		return("I/O error");
+	case DB_TABLE_IN_FK_CHECK:
+		return("Table is being used in foreign key check");
+	case DB_DATA_MISMATCH:
+		return("data mismatch");
+	case DB_SCHEMA_NOT_LOCKED:
+		return("schema not locked");
+	case DB_NOT_FOUND:
+		return("not found");
+	case DB_ONLINE_LOG_TOO_BIG:
+		return("Log size exceeded during online index creation");
+	case DB_DICT_CHANGED:
+		return("Table dictionary has changed");
+
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */
 	}

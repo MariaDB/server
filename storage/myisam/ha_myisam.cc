@@ -247,8 +247,8 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
       pos->algorithm;
     keydef[i].block_length= pos->block_size;
     keydef[i].seg= keyseg;
-    keydef[i].keysegs= pos->key_parts;
-    for (j= 0; j < pos->key_parts; j++)
+    keydef[i].keysegs= pos->user_defined_key_parts;
+    for (j= 0; j < pos->user_defined_key_parts; j++)
     {
       Field *field= pos->key_part[j].field;
       type= field->key_type();
@@ -310,7 +310,7 @@ int table2myisam(TABLE *table_arg, MI_KEYDEF **keydef_out,
                                           (uchar*) table_arg->record[0]);
       }
     }
-    keyseg+= pos->key_parts;
+    keyseg+= pos->user_defined_key_parts;
   }
   if (table_arg->found_next_number_field)
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -1136,8 +1136,8 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
-          print_keydup_error(share->state.dupp_key, 
-                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
+        print_keydup_error(table, &table->key_info[share->state.dupp_key],
+                           MYF(0));
     }
     else
     {
@@ -1527,8 +1527,8 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
 {
   DBUG_ENTER("ha_myisam::start_bulk_insert");
   THD *thd= current_thd;
-  ulong size= min(thd->variables.read_buff_size,
-                  (ulong) (table->s->avg_row_length*rows));
+  ulong size= MY_MIN(thd->variables.read_buff_size,
+                     (ulong) (table->s->avg_row_length*rows));
   DBUG_PRINT("info",("start_bulk_insert: rows %lu size %lu",
                      (ulong) rows, size));
 
@@ -1539,36 +1539,33 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
   can_enable_indexes= mi_is_all_keys_active(file->s->state.key_map,
                                             file->s->base.keys);
 
-  if (!(specialflag & SPECIAL_SAFE_MODE))
+  /*
+    Only disable old index if the table was empty and we are inserting
+    a lot of rows.
+    Note that in end_bulk_insert() we may truncate the table if
+    enable_indexes() failed, thus it's essential that indexes are
+    disabled ONLY for an empty table.
+  */
+  if (file->state->records == 0 && can_enable_indexes &&
+      (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES))
   {
-    /*
-      Only disable old index if the table was empty and we are inserting
-      a lot of rows.
-      Note that in end_bulk_insert() we may truncate the table if
-      enable_indexes() failed, thus it's essential that indexes are
-      disabled ONLY for an empty table.
-    */
-    if (file->state->records == 0 && can_enable_indexes &&
-        (!rows || rows >= MI_MIN_ROWS_TO_DISABLE_INDEXES))
+    if (file->open_flag & HA_OPEN_INTERNAL_TABLE)
     {
-      if (file->open_flag & HA_OPEN_INTERNAL_TABLE)
-      {
-        file->update|= HA_STATE_CHANGED;
-        mi_clear_all_keys_active(file->s->state.key_map);
-      }
-      else
-      {
-        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
-        mi_disable_indexes_for_rebuild(file, rows, all_keys);
-      }
+      file->update|= HA_STATE_CHANGED;
+      mi_clear_all_keys_active(file->s->state.key_map);
     }
     else
+    {
+      my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+      mi_disable_indexes_for_rebuild(file, rows, all_keys);
+    }
+  }
+  else
     if (!file->bulk_insert &&
         (!rows || rows >= MI_MIN_ROWS_TO_USE_BULK_INSERT))
     {
       mi_init_bulk_insert(file, thd->variables.bulk_insert_buff_size, rows);
     }
-  }
   DBUG_VOID_RETURN;
 }
 
@@ -1846,7 +1843,7 @@ int ha_myisam::info(uint flag)
       number of records in the buffer results in a different number of buffer
       refills and in a different order of records in the result set.
     */
-    stats.mrr_length_per_rec= misam_info.reflength + 8; // 8=max(sizeof(void *))
+    stats.mrr_length_per_rec= misam_info.reflength + 8; // 8=MY_MAX(sizeof(void *))
 
     ref_length= misam_info.reflength;
     share->db_options_in_use= misam_info.options;
@@ -1896,8 +1893,6 @@ int ha_myisam::info(uint flag)
 
 int ha_myisam::extra(enum ha_extra_function operation)
 {
-  if ((specialflag & SPECIAL_SAFE_MODE) && operation == HA_EXTRA_KEYREAD)
-    return 0;
   if (operation == HA_EXTRA_MMAP && !opt_myisam_use_mmap)
     return 0;
   return mi_extra(file, operation, 0);
@@ -1915,8 +1910,6 @@ int ha_myisam::reset(void)
 
 int ha_myisam::extra_opt(enum ha_extra_function operation, ulong cache_size)
 {
-  if ((specialflag & SPECIAL_SAFE_MODE) && operation == HA_EXTRA_WRITE_CACHE)
-    return 0;
   return mi_extra(file, operation, (void*) &cache_size);
 }
 

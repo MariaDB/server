@@ -329,8 +329,8 @@ int maria_rtree_d_mbr(const HA_KEYSEG *keyseg, const uchar *a,
   bmin= korr_func(b); \
   amax= korr_func(a+len); \
   bmax= korr_func(b+len); \
-  amin= min(amin, bmin); \
-  amax= max(amax, bmax); \
+  amin= MY_MIN(amin, bmin); \
+  amax= MY_MAX(amax, bmax); \
   store_func(c, amin); \
   store_func(c+len, amax); \
 }
@@ -342,8 +342,8 @@ int maria_rtree_d_mbr(const HA_KEYSEG *keyseg, const uchar *a,
   get_func(bmin, b); \
   get_func(amax, a+len); \
   get_func(bmax, b+len); \
-  amin= min(amin, bmin); \
-  amax= max(amax, bmax); \
+  amin= MY_MIN(amin, bmin); \
+  amax= MY_MAX(amax, bmax); \
   store_func(c, amin); \
   store_func(c+len, amax); \
 }
@@ -422,8 +422,8 @@ int maria_rtree_combine_rect(const HA_KEYSEG *keyseg, const uchar* a,
   bmin= korr_func(b); \
   amax= korr_func(a+len); \
   bmax= korr_func(b+len); \
-  amin= max(amin, bmin); \
-  amax= min(amax, bmax); \
+  amin= MY_MAX(amin, bmin); \
+  amax= MY_MIN(amax, bmax); \
   if (amin >= amax) \
     return 0; \
   res *= amax - amin; \
@@ -436,8 +436,8 @@ int maria_rtree_combine_rect(const HA_KEYSEG *keyseg, const uchar* a,
   get_func(bmin, b); \
   get_func(amax, a+len); \
   get_func(bmax, b+len); \
-  amin= max(amin, bmin); \
-  amax= min(amax, bmax); \
+  amin= MY_MAX(amin, bmin); \
+  amax= MY_MIN(amax, bmax); \
   if (amin >= amax)  \
     return 0; \
   res *= amax - amin; \
@@ -513,7 +513,7 @@ double maria_rtree_overlapping_area(HA_KEYSEG *keyseg, uchar* a, uchar* b,
    amax= korr_func(a+len); \
    bmax= korr_func(b+len); \
    a_area *= (((double)amax) - ((double)amin)); \
-   loc_ab_area *= ((double)max(amax, bmax) - (double)min(amin, bmin)); \
+   loc_ab_area *= ((double)MY_MAX(amax, bmax) - (double)MY_MIN(amin, bmin)); \
 }
 
 #define RT_AREA_INC_GET(type, get_func, len)\
@@ -524,7 +524,7 @@ double maria_rtree_overlapping_area(HA_KEYSEG *keyseg, uchar* a, uchar* b,
    get_func(amax, a+len); \
    get_func(bmax, b+len); \
    a_area *= (((double)amax) - ((double)amin)); \
-   loc_ab_area *= ((double)max(amax, bmax) - (double)min(amin, bmin)); \
+   loc_ab_area *= ((double)MY_MAX(amax, bmax) - (double)MY_MIN(amin, bmin)); \
 }
 
 /*
@@ -612,7 +612,7 @@ safe_end:
    amax= korr_func(a+len); \
    bmax= korr_func(b+len); \
    a_perim+= (((double)amax) - ((double)amin)); \
-   *ab_perim+= ((double)max(amax, bmax) - (double)min(amin, bmin)); \
+   *ab_perim+= ((double)MY_MAX(amax, bmax) - (double)MY_MIN(amin, bmin)); \
 }
 
 #define RT_PERIM_INC_GET(type, get_func, len)\
@@ -623,7 +623,7 @@ safe_end:
    get_func(amax, a+len); \
    get_func(bmax, b+len); \
    a_perim+= (((double)amax) - ((double)amin)); \
-   *ab_perim+= ((double)max(amax, bmax) - (double)min(amin, bmin)); \
+   *ab_perim+= ((double)MY_MAX(amax, bmax) - (double)MY_MIN(amin, bmin)); \
 }
 
 /*

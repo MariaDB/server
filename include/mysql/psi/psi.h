@@ -899,6 +899,10 @@ struct PSI_file_locker_state_v1
   enum PSI_file_operation m_operation;
   /** Current file. */
   struct PSI_file *m_file;
+  /** Current file name. */
+  const char *m_name;
+  /** Current file class. */
+  void *m_class;
   /** Current thread. */
   struct PSI_thread *m_thread;
   /** Operation number of bytes. */
@@ -958,6 +962,8 @@ struct PSI_digest_storage
 {
   my_bool m_full;
   int m_byte_count;
+  /** Character set number. */
+  uint m_charset_number;
   unsigned char m_token_array[PSI_MAX_DIGEST_STORAGE_SIZE];
 };
 typedef struct PSI_digest_storage PSI_digest_storage;
@@ -968,6 +974,9 @@ struct PSI_digest_locker_state
   PSI_digest_storage m_digest_storage;
 };
 typedef struct PSI_digest_locker_state PSI_digest_locker_state;
+
+/* Duplicate of NAME_LEN, to avoid dependency on mysql_com.h */
+#define PSI_SCHEMA_NAME_LEN (64 * 3)
 
 /**
   State data storage for @c get_thread_statement_locker_v1_t,
@@ -1029,6 +1038,10 @@ struct PSI_statement_locker_state_v1
   ulong m_sort_scan;
   /** Statement digest. */
   PSI_digest_locker_state m_digest_state;
+  /** Current schema name. */
+  char m_schema_name[PSI_SCHEMA_NAME_LEN];
+  /** Length in bytes of @c m_schema_name. */
+  uint m_schema_name_length;
 };
 
 /**
@@ -1187,10 +1200,13 @@ typedef void (*destroy_cond_v1_t)(struct PSI_cond *cond);
   Socket instrumentation initialisation API.
   @param key the registered mutex key
   @param socket descriptor
+  @param addr the socket ip address
+  @param addr_len length of socket ip address
   @return an instrumented socket
 */
 typedef struct PSI_socket* (*init_socket_v1_t)
-  (PSI_socket_key key, const my_socket *fd);
+  (PSI_socket_key key, const my_socket *fd,
+  const struct sockaddr *addr, socklen_t addr_len);
 
 /**
   socket instrumentation destruction API.
@@ -1290,7 +1306,7 @@ typedef int (*spawn_thread_v1_t)(PSI_thread_key key,
   @return an instrumented thread
 */
 typedef struct PSI_thread* (*new_thread_v1_t)
-  (PSI_thread_key key, const void *identity, ulong thread_id);
+  (PSI_thread_key key, const void *identity, ulonglong thread_id);
 
 /**
   Assign an id to an instrumented thread.
@@ -1298,7 +1314,7 @@ typedef struct PSI_thread* (*new_thread_v1_t)
   @param id the id to assign
 */
 typedef void (*set_thread_id_v1_t)(struct PSI_thread *thread,
-                                   unsigned long id);
+                                   ulonglong id);
 
 /**
   Get the instrumentation for the running thread.
@@ -1570,16 +1586,18 @@ typedef void (*end_table_lock_wait_v1_t)(struct PSI_table_locker *locker);
   @param op the operation to perform
   @param src_file the source file name
   @param src_line the source line number
-  @return an instrumented file handle
 */
-typedef struct PSI_file* (*start_file_open_wait_v1_t)
+typedef void (*start_file_open_wait_v1_t)
   (struct PSI_file_locker *locker, const char *src_file, uint src_line);
 
 /**
   End a file instrumentation open operation, for file streams.
   @param locker the file locker.
+  @param result the opened file (NULL indicates failure, non NULL success).
+  @return an instrumented file handle
 */
-typedef void (*end_file_open_wait_v1_t)(struct PSI_file_locker *locker);
+typedef struct PSI_file* (*end_file_open_wait_v1_t)
+  (struct PSI_file_locker *locker, void *result);
 
 /**
   End a file instrumentation open operation, for non stream files.
@@ -1617,6 +1635,25 @@ typedef void (*end_file_wait_v1_t)
   (struct PSI_file_locker *locker, size_t count);
 
 /**
+  Start a file instrumentation close operation.
+  @param locker the file locker
+  @param op the operation to perform
+  @param src_file the source file name
+  @param src_line the source line number
+*/
+typedef void (*start_file_close_wait_v1_t)
+  (struct PSI_file_locker *locker, const char *src_file, uint src_line);
+
+/**
+  End a file instrumentation close operation.
+  @param locker the file locker.
+  @param rc the close operation return code (0 for success).
+  @return an instrumented file handle
+*/
+typedef void (*end_file_close_wait_v1_t)
+  (struct PSI_file_locker *locker, int rc);
+
+/**
   Start a new stage, and implicitly end the previous stage.
   @param key the key of the new stage
   @param src_file the source file name
@@ -1632,11 +1669,12 @@ typedef void (*end_stage_v1_t) (void);
   Get a statement instrumentation locker.
   @param state data storage for the locker
   @param key the statement instrumentation key
+  @param charset client character set
   @return a statement locker, or NULL
 */
 typedef struct PSI_statement_locker* (*get_thread_statement_locker_v1_t)
   (struct PSI_statement_locker_state_v1 *state,
-   PSI_statement_key key);
+   PSI_statement_key key, const void *charset);
 
 /**
   Refine a statement locker to a more specific key.
@@ -1871,6 +1909,19 @@ typedef struct PSI_digest_locker* (*digest_add_token_v1_t)
   (struct PSI_digest_locker *locker, uint token, struct OPAQUE_LEX_YYSTYPE *yylval);
 
 /**
+  Stores an array of connection attributes
+  @param buffer         char array of length encoded connection attributes
+                        in network format
+  @param length         legnth of the data in buffer
+  @param from_cs        charset in which @buffer is encodded
+  @return state
+    @retval  non-0    attributes truncated
+    @retval  0        stored the attribute
+*/
+typedef int (*set_thread_connect_attrs_v1_t)(const char *buffer, uint length,
+                                             const void *from_cs);
+
+/**
   Performance Schema Interface, version 1.
   @since PSI_VERSION_1
 */
@@ -2005,6 +2056,10 @@ struct PSI_v1
   start_file_wait_v1_t start_file_wait;
   /** @sa end_file_wait_v1_t. */
   end_file_wait_v1_t end_file_wait;
+  /** @sa start_file_close_wait_v1_t. */
+  start_file_close_wait_v1_t start_file_close_wait;
+  /** @sa end_file_close_wait_v1_t. */
+  end_file_close_wait_v1_t end_file_close_wait;
   /** @sa start_stage_v1_t. */
   start_stage_v1_t start_stage;
   /** @sa end_stage_v1_t. */
@@ -2065,6 +2120,8 @@ struct PSI_v1
   digest_start_v1_t digest_start;
   /** @sa digest_add_token_v1_t. */
   digest_add_token_v1_t digest_add_token;
+  /** @sa set_thread_connect_attrs_v1_t. */
+  set_thread_connect_attrs_v1_t set_thread_connect_attrs;
 };
 
 /** @} (end of group Group_PSI_v1) */
@@ -2318,7 +2375,54 @@ typedef struct PSI_stage_info_none PSI_stage_info;
 
 extern MYSQL_PLUGIN_IMPORT PSI *PSI_server;
 
-#define PSI_CALL(M) PSI_server->M
+/*
+  Allow to override PSI_XXX_CALL at compile time
+  with more efficient implementations, if available.
+  If nothing better is available,
+  make a dynamic call using the PSI_server function pointer.
+*/
+
+#ifndef PSI_MUTEX_CALL
+#define PSI_MUTEX_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_RWLOCK_CALL
+#define PSI_RWLOCK_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_COND_CALL
+#define PSI_COND_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_THREAD_CALL
+#define PSI_THREAD_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_FILE_CALL
+#define PSI_FILE_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_SOCKET_CALL
+#define PSI_SOCKET_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_STAGE_CALL
+#define PSI_STAGE_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_STATEMENT_CALL
+#define PSI_STATEMENT_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_TABLE_CALL
+#define PSI_TABLE_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_IDLE_CALL
+#define PSI_IDLE_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#define PSI_DYNAMIC_CALL(M) PSI_server->M
 
 /** @} */
 

@@ -787,8 +787,8 @@ static int handle_request_for_tables(char *tables, uint length)
 
     org= ptr= strmov(strmov(query, op), " TABLE ");
     ptr= fix_table_name(ptr, tables);
-    strmake(table_name_buff, org, min((int) sizeof(table_name_buff)-1,
-                                      (int) (ptr - org)));
+    strmake(table_name_buff, org, MY_MIN((int) sizeof(table_name_buff)-1,
+                                         (int) (ptr - org)));
     table_name= table_name_buff;
     ptr= strxmov(ptr, " ", options, NullS);
     query_length= (uint) (ptr - query);

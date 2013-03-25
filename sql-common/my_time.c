@@ -126,7 +126,7 @@ static int get_number(uint *val, uint *number_of_fields, const char **str,
 static int get_digits(uint *val, uint *number_of_fields, const char **str,
                       const char *end, uint length)
 {
-  return get_number(val, number_of_fields, str, min(end, *str + length));
+  return get_number(val, number_of_fields, str, MY_MIN(end, *str + length));
 }
 
 static int get_punct(const char **str, const char *end)

@@ -3621,7 +3621,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  if ((length=column->length) > max_key_length ||
 	      length > file->max_key_part_length())
 	  {
-	    length=min(max_key_length, file->max_key_part_length());
+	    length=MY_MIN(max_key_length, file->max_key_part_length());
 	    if (key->type == Key::MULTIPLE)
 	    {
 	      /* not a critical problem */
