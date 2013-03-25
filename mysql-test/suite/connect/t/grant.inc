@@ -16,7 +16,10 @@ SELECT * FROM t1;
 INSERT INTO t1 VALUES(10);
 TRUNCATE TABLE t1;
 SELECT * FROM t1;
-#   TODO: VIEW, LOCK, UNLOCK, REFERENCES, INDEX
+#   TODO: LOCK, UNLOCK, REFERENCES, INDEX
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+DROP VIEW v1;
 DROP TABLE t1;
 # Making sure DROP erased the data file
 --error 1
@@ -43,8 +46,25 @@ TRUNCATE TABLE t1;
 ALTER TABLE t1 READONLY=1;
 --error ER_ACCESS_DENIED_ERROR
 DROP TABLE t1;
+--error ER_ACCESS_DENIED_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1;
+--echo # Testing a VIEW created with FILE privileges but accessed with no FILE
+--connection default
+SELECT user();
+CREATE VIEW v1 AS SELECT * FROM t1;
+--connection user
+SELECT user();
+--error ER_ACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_ACCESS_DENIED_ERROR
+INSERT INTO v1 VALUES (2);
+--error ER_ACCESS_DENIED_ERROR
+UPDATE v1 SET a=123;
+--error ER_ACCESS_DENIED_ERROR
+DELETE FROM v1;
 --disconnect user
 --connection default
+DROP VIEW v1;
 DROP TABLE t1;
 --remove_file $MYSQLD_DATADIR/test/t1.EXT
 DROP USER user@localhost;
