@@ -3079,7 +3079,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     group_trp= get_best_group_min_max(&param, tree, best_read_time);
     if (group_trp)
     {
-      param.table->quick_condition_rows= min(group_trp->records,
+      param.table->quick_condition_rows= MY_MIN(group_trp->records,
                                              head->stat_records());
       if (group_trp->read_cost < best_read_time)
       {
@@ -4757,7 +4757,7 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     {
       imerge_trp->read_cost= imerge_cost;
       imerge_trp->records= non_cpk_scan_records + cpk_scan_records;
-      imerge_trp->records= min(imerge_trp->records,
+      imerge_trp->records= MY_MIN(imerge_trp->records,
                                param->table->stat_records());
       imerge_trp->range_scans= range_scans;
       imerge_trp->range_scans_end= range_scans + n_child_scans;
@@ -5345,7 +5345,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   this number by #r.
 
   If we do not make any assumptions then we can only state that
-     #r<=min(#r1,#r2).
+     #r<=MY_MIN(#r1,#r2).
   With this estimate we can't say that the index intersection scan will be 
   cheaper than the cheapest index scan.
 
@@ -5378,7 +5378,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   #rt2_0 of the same range for sub-index idx2_0(dept) of the index idx2.
   The current code does not make an estimate either for #rt1_0, or for #rt2_0,
   but it can be adjusted to provide those numbers.
-  Alternatively, min(rec_per_key) for (dept) could be used to get an upper 
+  Alternatively, MY_MIN(rec_per_key) for (dept) could be used to get an upper 
   bound for the value of sel(Rt1&Rt2). Yet this statistics is not provided
   now.  
  
@@ -5389,7 +5389,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
   sel(Rt1&Rt2)=sel(dept=5)*sel(last_name='Sm5')*sel(first_name='Robert')
   =sel(Rt2)*sel(dept=5)
-  Here max(rec_per_key) for (dept) could be used to get an upper bound for
+  Here MY_MAX(rec_per_key) for (dept) could be used to get an upper bound for
   the value of sel(Rt1&Rt2).
   
   When the intersected indexes have different major columns, but some
@@ -5442,9 +5442,9 @@ bool prepare_search_best_index_intersect(PARAM *param,
     f_1 = rec_per_key[first_name]/rec_per_key[last_name].
   The the number of records in the range tree:
     Rt_0:  (first_name='Robert' OR first_name='Bob')
-  for the sub-index (first_name) is not greater than max(#r*f_1, #t).
+  for the sub-index (first_name) is not greater than MY_MAX(#r*f_1, #t).
   Strictly speaking, we can state only that it's not greater than 
-  max(#r*max_f_1, #t), where
+  MY_MAX(#r*max_f_1, #t), where
     max_f_1= max_rec_per_key[first_name]/min_rec_per_key[last_name].
   Yet, if #r/#t is big enough (and this is the case of an index intersection,
   because using this index range with a single index scan is cheaper than
@@ -8641,7 +8641,7 @@ and_all_keys(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2,
   if (!key1)
     return &null_element;			// Impossible ranges
   key1->use_count++;
-  key1->max_part_no= max(key2->max_part_no, key2->part+1);
+  key1->max_part_no= MY_MAX(key2->max_part_no, key2->part+1);
   return key1;
 }
 
@@ -8734,7 +8734,7 @@ key_and(RANGE_OPT_PARAM *param, SEL_ARG *key1, SEL_ARG *key2, uint clone_flag)
   key1->use_count--;
   key2->use_count--;
   SEL_ARG *e1=key1->first(), *e2=key2->first(), *new_tree=0;
-  uint max_part_no= max(key1->max_part_no, key2->max_part_no);
+  uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
   while (e1 && e2)
   {
@@ -8932,7 +8932,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         b:      [----
    */
 
-  uint max_part_no= max(key1->max_part_no, key2->max_part_no);
+  uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
   for (key2=key2->first(); key2; )
   {
@@ -9142,11 +9142,11 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
           are merged into one range by deleting first...last-1 from
           the key1 tree. In the figure, this applies to first and the
           two consecutive ranges. The range of last is then extended:
-            * last.min: Set to min(key2.min, first.min)
+            * last.min: Set to MY_MIN(key2.min, first.min)
             * last.max: If there is a last->next that overlaps key2 (i.e.,
                         last->next has a different next_key_part):
                                         Set adjacent to last->next.min
-                        Otherwise:      Set to max(key2.max, last.max)
+                        Otherwise:      Set to MY_MAX(key2.max, last.max)
 
           Result:
           key2:  [****----------------------*******]
@@ -9200,7 +9200,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                      ^                 ^
                      last              different next_key_part
 
-              Extend range of last up to max(last.max, key2.max):
+              Extend range of last up to MY_MAX(last.max, key2.max):
               key2:    [--------*****]
               key1:  [***----------**] [xxxx]
              */
@@ -10041,7 +10041,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->quick_key_parts[keynr]= param->max_key_part+1;
       param->table->quick_n_ranges[keynr]= param->range_count;
       param->table->quick_condition_rows=
-        min(param->table->quick_condition_rows, rows);
+        MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
     }
   }
@@ -11814,7 +11814,7 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
 
   TODO
   - What happens if the query groups by the MIN/MAX field, and there is no
-    other field as in: "select min(a) from t1 group by a" ?
+    other field as in: "select MY_MIN(a) from t1 group by a" ?
   - We assume that the general correctness of the GROUP-BY query was checked
     before this point. Is this correct, or do we have to check it completely?
   - Lift the limitation in condition (B3), that is, make this access method 
@@ -12075,7 +12075,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         cur_group_prefix_len+= cur_part->store_length;
         used_key_parts_map.set_bit(key_part_nr);
         ++cur_group_key_parts;
-        max_key_part= max(max_key_part,key_part_nr);
+        max_key_part= MY_MAX(max_key_part,key_part_nr);
       }
       /*
         Check that used key parts forms a prefix of the index.
@@ -12741,9 +12741,9 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     {
       double blocks_per_group= (double) num_blocks / (double) num_groups;
       p_overlap= (blocks_per_group * (keys_per_subgroup - 1)) / keys_per_group;
-      p_overlap= min(p_overlap, 1.0);
+      p_overlap= MY_MIN(p_overlap, 1.0);
     }
-    io_cost= (double) min(num_groups * (1 + p_overlap), num_blocks);
+    io_cost= (double) MY_MIN(num_groups * (1 + p_overlap), num_blocks);
   }
   else
     io_cost= (keys_per_group > keys_per_block) ?

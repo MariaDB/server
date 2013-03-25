@@ -195,8 +195,8 @@ struct MBR
     if (d != mbr->dimension() || d <= 0 || contains(mbr) || within(mbr))
       return 0;
 
-    MBR intersection(max(xmin, mbr->xmin), max(ymin, mbr->ymin),
-                     min(xmax, mbr->xmax), min(ymax, mbr->ymax));
+    MBR intersection(MY_MAX(xmin, mbr->xmin), MY_MAX(ymin, mbr->ymin),
+                     MY_MIN(xmax, mbr->xmax), MY_MIN(ymax, mbr->ymax));
 
     return (d == intersection.dimension());
   }

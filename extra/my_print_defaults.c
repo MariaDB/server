@@ -26,7 +26,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
-
+#include <my_default.h>
 
 const char *config_file="my";			/* Default config file */
 uint verbose= 0, opt_defaults_file_used= 0;

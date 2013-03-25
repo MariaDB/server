@@ -834,7 +834,7 @@ uint32 convert_error_message(char *to, uint32 to_length, CHARSET_INFO *to_cs,
 
   if (!to_cs || from_cs == to_cs || to_cs == &my_charset_bin)
   {
-    length= min(to_length, from_length);
+    length= MY_MIN(to_length, from_length);
     memmove(to, from, length);
     to[length]= 0;
     return length;

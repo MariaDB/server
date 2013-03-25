@@ -851,7 +851,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
 	uint tmp=MY_ALIGN(reclength - length + 3 +
 			  test(reclength >= 65520L),MARIA_DYN_ALIGN_SIZE);
 	/* Don't create a block bigger than MARIA_MAX_BLOCK_LENGTH */
-	tmp= min(length+tmp, MARIA_MAX_BLOCK_LENGTH)-length;
+	tmp= MY_MIN(length+tmp, MARIA_MAX_BLOCK_LENGTH)-length;
 	/* Check if we can extend this block */
 	if (block_info.filepos + block_info.block_len ==
 	    info->state->data_file_length &&

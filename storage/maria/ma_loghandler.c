@@ -4808,7 +4808,7 @@ static my_bool translog_advance_pointer(int pages, uint16 last_page_data)
     }
 #endif
 
-    min_offset= min(buffer_end_offset, file_end_offset);
+    min_offset= MY_MIN(buffer_end_offset, file_end_offset);
     /* TODO: check is it ptr or size enough */
     log_descriptor.bc.buffer->size+= min_offset;
     log_descriptor.bc.ptr+= min_offset;
@@ -6833,7 +6833,7 @@ translog_variable_length_header(uchar *page, translog_size_t page_offset,
     page_rest= (uint16) (TRANSLOG_PAGE_SIZE - (src - page));
 
     base_lsn= buff->lsn;
-    body_len= min(page_rest, buff->record_length);
+    body_len= MY_MIN(page_rest, buff->record_length);
   }
   else
   {
@@ -7396,7 +7396,7 @@ translog_size_t translog_read_record(LSN lsn,
                       data->scanner.fixed_horizon));
   if (offset < data->read_header)
   {
-    uint16 len= min(data->read_header, end) - offset;
+    uint16 len= MY_MIN(data->read_header, end) - offset;
     DBUG_PRINT("info",
                ("enter header offset: %lu  length: %lu",
                 (ulong) offset, (ulong) length));

@@ -84,8 +84,10 @@ static const char *handler_error_messages[]=
   "Index column length exceeds limit",
   "Index corrupted",
   "Undo record too big",
-  "Table is being used in foreign key check",
   "Invalid InnoDB FTS Doc ID",
+  "Table is being used in foreign key check",
+  "Tablespace already exists",
+  "Too many columns",
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
   "Disk full"

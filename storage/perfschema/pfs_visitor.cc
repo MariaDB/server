@@ -666,7 +666,7 @@ void PFS_connection_wait_visitor::visit_global()
     it is more efficient.
   */
   DBUG_ASSERT(m_index == global_idle_class.m_event_name_index);
-  m_stat.aggregate(& global_instr_class_waits_array[m_index]);
+  m_stat.aggregate(& global_idle_stat);
 }
 
 void PFS_connection_wait_visitor::visit_host(PFS_host *pfs)
@@ -883,54 +883,44 @@ PFS_instance_wait_visitor::PFS_instance_wait_visitor()
 PFS_instance_wait_visitor::~PFS_instance_wait_visitor()
 {}
 
-void PFS_instance_wait_visitor::visit_mutex_class(PFS_mutex_class *pfs) 
+void PFS_instance_wait_visitor::visit_mutex_class(PFS_mutex_class *pfs)
 {
-  uint index= pfs->m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  m_stat.aggregate(&pfs->m_mutex_stat.m_wait_stat);
 }
 
-void PFS_instance_wait_visitor::visit_rwlock_class(PFS_rwlock_class *pfs) 
+void PFS_instance_wait_visitor::visit_rwlock_class(PFS_rwlock_class *pfs)
 {
-  uint index= pfs->m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  m_stat.aggregate(&pfs->m_rwlock_stat.m_wait_stat);
 }
 
-void PFS_instance_wait_visitor::visit_cond_class(PFS_cond_class *pfs) 
+void PFS_instance_wait_visitor::visit_cond_class(PFS_cond_class *pfs)
 {
-  uint index= pfs->m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  m_stat.aggregate(&pfs->m_cond_stat.m_wait_stat);
 }
 
-void PFS_instance_wait_visitor::visit_file_class(PFS_file_class *pfs) 
+void PFS_instance_wait_visitor::visit_file_class(PFS_file_class *pfs)
 {
-  uint index= pfs->m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  pfs->m_file_stat.m_io_stat.sum_waits(&m_stat);
 }
 
-void PFS_instance_wait_visitor::visit_socket_class(PFS_socket_class *pfs) 
+void PFS_instance_wait_visitor::visit_socket_class(PFS_socket_class *pfs)
 {
-  /* Collect global wait stats */
-  uint index= pfs->m_event_name_index;
-  m_stat.aggregate(&global_instr_class_waits_array[index]);
-
-  /* If deferred, then pull wait stats directly from the socket class. */
-  if (pfs->is_deferred())
-    pfs->m_socket_stat.m_io_stat.sum_waits(&m_stat);
+  pfs->m_socket_stat.m_io_stat.sum_waits(&m_stat);
 }
 
-void PFS_instance_wait_visitor::visit_mutex(PFS_mutex *pfs) 
+void PFS_instance_wait_visitor::visit_mutex(PFS_mutex *pfs)
 {
-  m_stat.aggregate(& pfs->m_wait_stat);
+  m_stat.aggregate(& pfs->m_mutex_stat.m_wait_stat);
 }
 
-void PFS_instance_wait_visitor::visit_rwlock(PFS_rwlock *pfs) 
+void PFS_instance_wait_visitor::visit_rwlock(PFS_rwlock *pfs)
 {
-  m_stat.aggregate(& pfs->m_wait_stat);
+  m_stat.aggregate(& pfs->m_rwlock_stat.m_wait_stat);
 }
 
-void PFS_instance_wait_visitor::visit_cond(PFS_cond *pfs) 
+void PFS_instance_wait_visitor::visit_cond(PFS_cond *pfs)
 {
-  m_stat.aggregate(& pfs->m_wait_stat);
+  m_stat.aggregate(& pfs->m_cond_stat.m_wait_stat);
 }
 
 void PFS_instance_wait_visitor::visit_file(PFS_file *pfs) 
@@ -959,23 +949,24 @@ PFS_object_wait_visitor::~PFS_object_wait_visitor()
 
 void PFS_object_wait_visitor::visit_global()
 {
-  uint index;
-
-  index= global_table_io_class.m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
-
-  index= global_table_lock_class.m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  global_table_io_stat.sum(& m_stat);
+  global_table_lock_stat.sum(& m_stat);
 }
 
 void PFS_object_wait_visitor::visit_table_share(PFS_table_share *pfs)
 {
-  pfs->m_table_stat.sum(& m_stat);
+  uint safe_key_count= sanitize_index_count(pfs->m_key_count);
+  pfs->m_table_stat.sum(& m_stat, safe_key_count);
 }
 
 void PFS_object_wait_visitor::visit_table(PFS_table *pfs)
 {
-  pfs->m_table_stat.sum(& m_stat);
+  PFS_table_share *table_share= sanitize_table_share(pfs->m_share);
+  if (table_share != NULL)
+  {
+    uint safe_key_count= sanitize_index_count(table_share->m_key_count);
+    pfs->m_table_stat.sum(& m_stat, safe_key_count);
+  }
 }
 
 PFS_table_io_wait_visitor::PFS_table_io_wait_visitor()
@@ -986,21 +977,21 @@ PFS_table_io_wait_visitor::~PFS_table_io_wait_visitor()
 
 void PFS_table_io_wait_visitor::visit_global()
 {
-  uint index= global_table_io_class.m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  global_table_io_stat.sum(& m_stat);
 }
 
 void PFS_table_io_wait_visitor::visit_table_share(PFS_table_share *pfs)
 {
   PFS_table_io_stat io_stat;
+  uint safe_key_count= sanitize_index_count(pfs->m_key_count);
   uint index;
 
   /* Aggregate index stats */
-  for (index= 0; index < pfs->m_key_count; index++)
+  for (index= 0; index < safe_key_count; index++)
     io_stat.aggregate(& pfs->m_table_stat.m_index_stat[index]);
 
   /* Aggregate global stats */
-  io_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_KEY]);
+  io_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_INDEXES]);
 
   io_stat.sum(& m_stat);
 }
@@ -1012,14 +1003,15 @@ void PFS_table_io_wait_visitor::visit_table(PFS_table *pfs)
   if (likely(safe_share != NULL))
   {
     PFS_table_io_stat io_stat;
+    uint safe_key_count= sanitize_index_count(safe_share->m_key_count);
     uint index;
 
     /* Aggregate index stats */
-    for (index= 0; index < safe_share->m_key_count; index++)
+    for (index= 0; index < safe_key_count; index++)
       io_stat.aggregate(& pfs->m_table_stat.m_index_stat[index]);
 
     /* Aggregate global stats */
-    io_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_KEY]);
+    io_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_INDEXES]);
 
     io_stat.sum(& m_stat);
   }
@@ -1035,14 +1027,15 @@ PFS_table_io_stat_visitor::~PFS_table_io_stat_visitor()
 
 void PFS_table_io_stat_visitor::visit_table_share(PFS_table_share *pfs)
 {
+  uint safe_key_count= sanitize_index_count(pfs->m_key_count);
   uint index;
 
   /* Aggregate index stats */
-  for (index= 0; index < pfs->m_key_count; index++)
+  for (index= 0; index < safe_key_count; index++)
     m_stat.aggregate(& pfs->m_table_stat.m_index_stat[index]);
 
   /* Aggregate global stats */
-  m_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_KEY]);
+  m_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_INDEXES]);
 }
 
 void PFS_table_io_stat_visitor::visit_table(PFS_table *pfs)
@@ -1051,14 +1044,15 @@ void PFS_table_io_stat_visitor::visit_table(PFS_table *pfs)
 
   if (likely(safe_share != NULL))
   {
+    uint safe_key_count= sanitize_index_count(safe_share->m_key_count);
     uint index;
 
     /* Aggregate index stats */
-    for (index= 0; index < safe_share->m_key_count; index++)
+    for (index= 0; index < safe_key_count; index++)
       m_stat.aggregate(& pfs->m_table_stat.m_index_stat[index]);
 
     /* Aggregate global stats */
-    m_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_KEY]);
+    m_stat.aggregate(& pfs->m_table_stat.m_index_stat[MAX_INDEXES]);
   }
 }
 
@@ -1090,8 +1084,7 @@ PFS_table_lock_wait_visitor::~PFS_table_lock_wait_visitor()
 
 void PFS_table_lock_wait_visitor::visit_global()
 {
-  uint index= global_table_lock_class.m_event_name_index;
-  m_stat.aggregate(& global_instr_class_waits_array[index]);
+  global_table_lock_stat.sum(& m_stat);
 }
 
 void PFS_table_lock_wait_visitor::visit_table_share(PFS_table_share *pfs)

@@ -1046,7 +1046,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   {
     field_list.push_back(new Item_empty_string("View",NAME_CHAR_LEN));
     field_list.push_back(new Item_empty_string("Create View",
-                                               max(buffer.length(),1024)));
+                                               MY_MAX(buffer.length(),1024)));
     field_list.push_back(new Item_empty_string("character_set_client",
                                                MY_CS_NAME_SIZE));
     field_list.push_back(new Item_empty_string("collation_connection",
@@ -1057,7 +1057,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     field_list.push_back(new Item_empty_string("Table",NAME_CHAR_LEN));
     // 1024 is for not to confuse old clients
     field_list.push_back(new Item_empty_string("Create Table",
-                                               max(buffer.length(),1024)));
+                                               MY_MAX(buffer.length(),1024)));
   }
 
   if (protocol->send_result_set_metadata(&field_list,
@@ -2249,7 +2249,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
         /* Lock THD mutex that protects its data when looking at it. */
         if (tmp->query())
         {
-          uint length= min(max_query_length, tmp->query_length());
+          uint length= MY_MIN(max_query_length, tmp->query_length());
           char *q= thd->strmake(tmp->query(),length);
           /* Safety: in case strmake failed, we set length to 0. */
           thd_info->query_string=
@@ -2262,7 +2262,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
         */
         if (tmp->progress.max_counter)
         {
-          uint max_stage= max(tmp->progress.max_stage, 1);
+          uint max_stage= MY_MAX(tmp->progress.max_stage, 1);
           thd_info->progress= (((tmp->progress.stage / (double) max_stage) +
                                 ((tmp->progress.counter /
                                   (double) tmp->progress.max_counter) /
@@ -2574,7 +2574,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
       if (tmp->query())
       {
         table->field[7]->store(tmp->query(),
-                               min(PROCESS_LIST_INFO_WIDTH,
+                               MY_MIN(PROCESS_LIST_INFO_WIDTH,
                                    tmp->query_length()), cs);
         table->field[7]->set_notnull();
       }
@@ -3003,7 +3003,7 @@ static int aggregate_user_stats(HASH *all_user_stats, HASH *agg_user_stats)
 {
   DBUG_ENTER("aggregate_user_stats");
   if (my_hash_init(agg_user_stats, system_charset_info,
-                max(all_user_stats->records, 1),
+                MY_MAX(all_user_stats->records, 1),
                 0, 0, (my_hash_get_key)get_key_user_stats,
                 (my_hash_free_key)free_user_stats, 0))
   {
@@ -4225,7 +4225,7 @@ uint get_table_open_method(TABLE_LIST *tables,
     for (ptr=tables->table->field; (field= *ptr) ; ptr++)
     {
       star_table_open_method=
-        min(star_table_open_method,
+        MY_MIN(star_table_open_method,
             schema_table->fields_info[field_indx].open_method);
       if (bitmap_is_set(tables->table->read_set, field->field_index))
       {
@@ -9107,7 +9107,7 @@ static bool show_create_trigger_impl(THD *thd,
 
     Item_empty_string *stmt_fld=
       new Item_empty_string("SQL Original Statement",
-                            max(trg_sql_original_stmt.length, 1024));
+                            MY_MAX(trg_sql_original_stmt.length, 1024));
 
     stmt_fld->maybe_null= TRUE;
 

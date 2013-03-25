@@ -90,7 +90,7 @@ rw_lock_set_waiter_flag(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	os_compare_and_swap_ulint(&lock->waiters, 0, 1);
+	(void) os_compare_and_swap_ulint(&lock->waiters, 0, 1);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 	lock->waiters = 1;
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
@@ -107,7 +107,7 @@ rw_lock_reset_waiter_flag(
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
 #ifdef INNODB_RW_LOCKS_USE_ATOMICS
-	os_compare_and_swap_ulint(&lock->waiters, 1, 0);
+	(void) os_compare_and_swap_ulint(&lock->waiters, 1, 0);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 	lock->waiters = 0;
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
@@ -128,7 +128,7 @@ rw_lock_get_writer(
 		/* return NOT_LOCKED in s-lock state, like the writer
 		member of the old lock implementation. */
 		return(RW_LOCK_NOT_LOCKED);
-	} else if (((-lock_word) % X_LOCK_DECR) == 0) {
+	} else if ((lock_word == 0) || (lock_word <= -X_LOCK_DECR)) {
 		return(RW_LOCK_EX);
 	} else {
 		ut_ad(lock_word > -X_LOCK_DECR);
@@ -158,7 +158,7 @@ rw_lock_get_reader_count(
 
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
 UNIV_INLINE
-mutex_t*
+ib_mutex_t*
 rw_lock_get_mutex(
 /*==============*/
 	rw_lock_t*	lock)
@@ -178,11 +178,10 @@ rw_lock_get_x_lock_count(
 	const rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 	lint lock_copy = lock->lock_word;
-	/* If there is a reader, lock_word is not divisible by X_LOCK_DECR */
-	if (lock_copy > 0 || (-lock_copy) % X_LOCK_DECR != 0) {
+	if ((lock_copy != 0) && (lock_copy > -X_LOCK_DECR)) {
 		return(0);
 	}
-	return(((-lock_copy) / X_LOCK_DECR) + 1);
+	return((lock_copy == 0) ? 1 : (2 - (lock_copy + X_LOCK_DECR)));
 }
 
 /******************************************************************//**
@@ -325,58 +324,6 @@ rw_lock_s_lock_low(
 }
 
 /******************************************************************//**
-Low-level function which locks an rw-lock in s-mode when we know that it
-is possible and none else is currently accessing the rw-lock structure.
-Then we can do the locking without reserving the mutex. */
-UNIV_INLINE
-void
-rw_lock_s_lock_direct(
-/*==================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	const char*	file_name,	/*!< in: file name where requested */
-	ulint		line)		/*!< in: line where lock requested */
-{
-	ut_ad(lock->lock_word == X_LOCK_DECR);
-
-	/* Indicate there is a new reader by decrementing lock_word */
-	lock->lock_word--;
-
-	lock->last_s_file_name = file_name;
-	lock->last_s_line = line;
-
-#ifdef UNIV_SYNC_DEBUG
-	rw_lock_add_debug_info(lock, 0, RW_LOCK_SHARED, file_name, line);
-#endif
-}
-
-/******************************************************************//**
-Low-level function which locks an rw-lock in x-mode when we know that it
-is not locked and none else is currently accessing the rw-lock structure.
-Then we can do the locking without reserving the mutex. */
-UNIV_INLINE
-void
-rw_lock_x_lock_direct(
-/*==================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	const char*	file_name,	/*!< in: file name where requested */
-	ulint		line)		/*!< in: line where lock requested */
-{
-	ut_ad(rw_lock_validate(lock));
-	ut_ad(lock->lock_word == X_LOCK_DECR);
-
-	lock->lock_word -= X_LOCK_DECR;
-	lock->writer_thread = os_thread_get_curr_id();
-	lock->recursive = TRUE;
-
-	lock->last_x_file_name = file_name;
-	lock->last_x_line = line;
-
-#ifdef UNIV_SYNC_DEBUG
-	rw_lock_add_debug_info(lock, 0, RW_LOCK_EX, file_name, line);
-#endif
-}
-
-/******************************************************************//**
 NOTE! Use the corresponding macro, not directly this function! Lock an
 rw-lock in shared mode for the current thread. If the rw-lock is locked
 in exclusive mode, or there is an exclusive lock request waiting, the
@@ -458,10 +405,11 @@ rw_lock_x_lock_func_nowait(
 		/* Relock: this lock_word modification is safe since no other
 		threads can modify (lock, unlock, or reserve) lock_word while
 		there is an exclusive writer and this is the writer thread. */
-		lock->lock_word -= X_LOCK_DECR;
-
-		/* Recursive x-locks must be multiples of X_LOCK_DECR. */
-		ut_ad(((-lock->lock_word) % X_LOCK_DECR) == 0);
+		if (lock->lock_word == 0) {
+			lock->lock_word = -X_LOCK_DECR;
+		} else {
+			lock->lock_word--;
+		}
 
 		/* Watch for too many recursive locks */
 		ut_ad(lock->lock_word < 0);
@@ -494,7 +442,9 @@ rw_lock_s_unlock_func(
 #endif
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	ut_ad((lock->lock_word % X_LOCK_DECR) != 0);
+	ut_ad(lock->lock_word > -X_LOCK_DECR);
+	ut_ad(lock->lock_word != 0);
+	ut_ad(lock->lock_word < X_LOCK_DECR);
 
 #ifdef UNIV_SYNC_DEBUG
 	rw_lock_remove_debug_info(lock, pass, RW_LOCK_SHARED);
@@ -530,7 +480,7 @@ rw_lock_x_unlock_func(
 #endif
 	rw_lock_t*	lock)	/*!< in/out: rw-lock */
 {
-	ut_ad((lock->lock_word % X_LOCK_DECR) == 0);
+	ut_ad(lock->lock_word == 0 || lock->lock_word <= -X_LOCK_DECR);
 
 	/* lock->recursive flag also indicates if lock->writer_thread is
 	valid or stale. If we are the last of the recursive callers
@@ -541,15 +491,23 @@ rw_lock_x_unlock_func(
 	if (lock->lock_word == 0) {
 		/* Last caller in a possible recursive chain. */
 		lock->recursive = FALSE;
-		UNIV_MEM_INVALID(&lock->writer_thread,
-				 sizeof lock->writer_thread);
 	}
 
 #ifdef UNIV_SYNC_DEBUG
 	rw_lock_remove_debug_info(lock, pass, RW_LOCK_EX);
 #endif
 
-	if (rw_lock_lock_word_incr(lock, X_LOCK_DECR) == X_LOCK_DECR) {
+	ulint x_lock_incr;
+	if (lock->lock_word == 0) {
+		x_lock_incr = X_LOCK_DECR;
+	} else if (lock->lock_word == -X_LOCK_DECR) {
+		x_lock_incr = X_LOCK_DECR;
+	} else {
+		ut_ad(lock->lock_word < -X_LOCK_DECR);
+		x_lock_incr = 1;
+	}
+
+	if (rw_lock_lock_word_incr(lock, x_lock_incr) == X_LOCK_DECR) {
 		/* Lock is now free. May have to signal read/write waiters.
 		We do not need to signal wait_ex waiters, since they cannot
 		exist when there is a writer. */
@@ -590,7 +548,7 @@ pfs_rw_lock_create_func(
 	ulint		cline)		/*!< in: file line where created */
 {
 	/* Initialize the rwlock for performance schema */
-	lock->pfs_psi = PSI_CALL(init_rwlock)(key, lock);
+	lock->pfs_psi = PSI_RWLOCK_CALL(init_rwlock)(key, lock);
 
 	/* The actual function to initialize an rwlock */
 	rw_lock_create_func(lock,
@@ -623,13 +581,13 @@ pfs_rw_lock_x_lock_func(
 		PSI_rwlock_locker_state	state;
 
 		/* Record the entry of rw x lock request in performance schema */
-		locker = PSI_CALL(start_rwlock_wrwait)(
+		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_WRITELOCK, file_name, line);
 
 		rw_lock_x_lock_func(lock, pass, file_name, line);
 
 		if (locker != NULL)
-			PSI_CALL(end_rwlock_wrwait)(locker, 0);
+			PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, 0);
 	}
 	else
 	{
@@ -659,13 +617,13 @@ pfs_rw_lock_x_lock_func_nowait(
 		PSI_rwlock_locker_state		state;
 
 		/* Record the entry of rw x lock request in performance schema */
-		locker = PSI_CALL(start_rwlock_wrwait)(
+		locker = PSI_RWLOCK_CALL(start_rwlock_wrwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_WRITELOCK, file_name, line);
 
 		ret = rw_lock_x_lock_func_nowait(lock, file_name, line);
 
 		if (locker != NULL)
-			PSI_CALL(end_rwlock_wrwait)(locker, ret);
+			PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, ret);
 	}
 	else
 	{
@@ -686,7 +644,7 @@ pfs_rw_lock_free_func(
 {
 	if (lock->pfs_psi != NULL)
 	{
-		PSI_CALL(destroy_rwlock)(lock->pfs_psi);
+		PSI_RWLOCK_CALL(destroy_rwlock)(lock->pfs_psi);
 		lock->pfs_psi = NULL;
 	}
 
@@ -714,13 +672,13 @@ pfs_rw_lock_s_lock_func(
 		PSI_rwlock_locker_state	state;
 
 		/* Instrumented to inform we are aquiring a shared rwlock */
-		locker = PSI_CALL(start_rwlock_rdwait)(
+		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_READLOCK, file_name, line);
 
 		rw_lock_s_lock_func(lock, pass, file_name, line);
 
 		if (locker != NULL)
-			PSI_CALL(end_rwlock_rdwait)(locker, 0);
+			PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
 	}
 	else
 	{
@@ -753,13 +711,13 @@ pfs_rw_lock_s_lock_low(
 		PSI_rwlock_locker_state	state;
 
 		/* Instrumented to inform we are aquiring a shared rwlock */
-		locker = PSI_CALL(start_rwlock_rdwait)(
+		locker = PSI_RWLOCK_CALL(start_rwlock_rdwait)(
 			&state, lock->pfs_psi, PSI_RWLOCK_READLOCK, file_name, line);
 
 		ret = rw_lock_s_lock_low(lock, pass, file_name, line);
 
 		if (locker != NULL)
-			PSI_CALL(end_rwlock_rdwait)(locker, ret);
+			PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, ret);
 	}
 	else
 	{
@@ -786,7 +744,7 @@ pfs_rw_lock_x_unlock_func(
 {
 	/* Inform performance schema we are unlocking the lock */
 	if (lock->pfs_psi != NULL)
-		PSI_CALL(unlock_rwlock)(lock->pfs_psi);
+		PSI_RWLOCK_CALL(unlock_rwlock)(lock->pfs_psi);
 
 	rw_lock_x_unlock_func(
 #ifdef UNIV_SYNC_DEBUG
@@ -812,7 +770,7 @@ pfs_rw_lock_s_unlock_func(
 {
 	/* Inform performance schema we are unlocking the lock */
 	if (lock->pfs_psi != NULL)
-		PSI_CALL(unlock_rwlock)(lock->pfs_psi);
+		PSI_RWLOCK_CALL(unlock_rwlock)(lock->pfs_psi);
 
 	rw_lock_s_unlock_func(
 #ifdef UNIV_SYNC_DEBUG

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -146,29 +146,32 @@ trx_rollback_step(
 Rollback a transaction used in MySQL.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
+dberr_t
 trx_rollback_for_mysql(
 /*===================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+	trx_t*	trx)	/*!< in/out: transaction */
+	__attribute__((nonnull));
 /*******************************************************************//**
 Rollback the latest SQL statement for MySQL.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
+dberr_t
 trx_rollback_last_sql_stat_for_mysql(
 /*=================================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+	trx_t*	trx)	/*!< in/out: transaction */
+	__attribute__((nonnull));
 /*******************************************************************//**
 Rollback a transaction to a given savepoint or do a complete rollback.
 @return	error code or DB_SUCCESS */
 UNIV_INTERN
-int
+dberr_t
 trx_rollback_to_savepoint(
 /*======================*/
 	trx_t*		trx,	/*!< in: transaction handle */
-	trx_savept_t*	savept);/*!< in: pointer to savepoint undo number, if
+	trx_savept_t*	savept)	/*!< in: pointer to savepoint undo number, if
 				partial rollback requested, or NULL for
 				complete rollback */
+	__attribute__((nonnull(1)));
 /*******************************************************************//**
 Rolls back a transaction back to a named savepoint. Modifications after the
 savepoint are undone but InnoDB does NOT release the corresponding locks
@@ -179,17 +182,18 @@ were set after this savepoint are deleted.
 @return if no savepoint of the name found then DB_NO_SAVEPOINT,
 otherwise DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_rollback_to_savepoint_for_mysql(
 /*================================*/
 	trx_t*		trx,			/*!< in: transaction handle */
 	const char*	savepoint_name,		/*!< in: savepoint name */
-	ib_int64_t*	mysql_binlog_cache_pos);/*!< out: the MySQL binlog cache
+	ib_int64_t*	mysql_binlog_cache_pos)	/*!< out: the MySQL binlog cache
 						position corresponding to this
 						savepoint; MySQL needs this
 						information to remove the
 						binlog entries of the queries
 						executed after the savepoint */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
 Creates a named savepoint. If the transaction is not yet started, starts it.
 If there is already a savepoint of the same name, this call erases that old
@@ -197,28 +201,28 @@ savepoint and replaces it with a new. Savepoints are deleted in a transaction
 commit or rollback.
 @return	always DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_savepoint_for_mysql(
 /*====================*/
 	trx_t*		trx,			/*!< in: transaction handle */
 	const char*	savepoint_name,		/*!< in: savepoint name */
-	ib_int64_t	binlog_cache_pos);	/*!< in: MySQL binlog cache
+	ib_int64_t	binlog_cache_pos)	/*!< in: MySQL binlog cache
 						position corresponding to this
 						connection at the time of the
 						savepoint */
-
+	__attribute__((nonnull));
 /*******************************************************************//**
 Releases a named savepoint. Savepoints which
 were set after this savepoint are deleted.
 @return if no savepoint of the name found then DB_NO_SAVEPOINT,
 otherwise DB_SUCCESS */
 UNIV_INTERN
-ulint
+dberr_t
 trx_release_savepoint_for_mysql(
 /*============================*/
 	trx_t*		trx,			/*!< in: transaction handle */
-	const char*	savepoint_name);	/*!< in: savepoint name */
-
+	const char*	savepoint_name)		/*!< in: savepoint name */
+	__attribute__((nonnull, warn_unused_result));
 /*******************************************************************//**
 Frees savepoint structs starting from savep. */
 UNIV_INTERN
@@ -230,8 +234,8 @@ trx_roll_savepoints_free(
 					if this is NULL, free all savepoints
 					of trx */
 
-/** A cell of trx_undo_arr_struct; used during a rollback and a purge */
-struct	trx_undo_inf_struct{
+/** A cell of trx_undo_arr_t; used during a rollback and a purge */
+struct	trx_undo_inf_t{
 	ibool		in_use;	/*!< true if cell is being used */
 	trx_id_t	trx_no;	/*!< transaction number: not defined during
 				a rollback */
@@ -241,7 +245,7 @@ struct	trx_undo_inf_struct{
 /** During a rollback and a purge, undo numbers of undo records currently being
 processed are stored in this array */
 
-struct trx_undo_arr_struct{
+struct trx_undo_arr_t{
 	ulint		n_cells;	/*!< number of cells in the array */
 	ulint		n_used;		/*!< number of cells in use */
 	trx_undo_inf_t*	infos;		/*!< the array of undo infos */
@@ -258,7 +262,7 @@ enum roll_node_state {
 };
 
 /** Rollback command node in a query graph */
-struct roll_node_struct{
+struct roll_node_t{
 	que_common_t		common;	/*!< node type: QUE_NODE_ROLLBACK */
 	enum roll_node_state	state;	/*!< node execution state */
 	ibool			partial;/*!< TRUE if we want a partial
@@ -270,7 +274,7 @@ struct roll_node_struct{
 };
 
 /** A savepoint set with SQL's "SAVEPOINT savepoint_id" command */
-struct trx_named_savept_struct{
+struct trx_named_savept_t{
 	char*		name;		/*!< savepoint name */
 	trx_savept_t	savept;		/*!< the undo number corresponding to
 					the savepoint */

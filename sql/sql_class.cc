@@ -361,18 +361,6 @@ void thd_lock_thread_count(THD *)
 }
 
 /**
-  Lock connection data for the set of connections this connection
-  belongs to
-
-  @param thd                       THD object
-*/
-void thd_unlock_thread_count(THD *)
-{
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-}
-
-/**
   Close the socket used by this connection
 
   @param thd                THD object
@@ -604,7 +592,7 @@ void THD::enter_stage(const PSI_stage_info *new_stage,
     proc_info= msg;
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_CALL(set_thread_state)(msg);
+    PSI_THREAD_CALL(set_thread_state)(msg);
     MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
 #endif
   }
@@ -782,7 +770,7 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
       if (max_query_len < 1)
         len= thd->query_length();
       else
-        len= min(thd->query_length(), max_query_len);
+        len= MY_MIN(thd->query_length(), max_query_len);
       str.append('\n');
       str.append(thd->query(), len);
     }
@@ -797,7 +785,7 @@ char *thd_security_context(THD *thd, char *buffer, unsigned int length,
     was reallocated to a larger buffer to be able to fit.
   */
   DBUG_ASSERT(buffer != NULL);
-  length= min(str.length(), length-1);
+  length= MY_MIN(str.length(), length-1);
   memcpy(buffer, str.c_ptr_quick(), length);
   /* Make sure that the new string is null terminated */
   buffer[length]= '\0';
@@ -937,6 +925,7 @@ THD::THD()
   mysys_var=0;
   binlog_evt_union.do_union= FALSE;
   enable_slow_log= 0;
+  durability_property= HA_REGULAR_DURABILITY;
 
 #ifndef DBUG_OFF
   dbug_sentry=THD_SENTRY_MAGIC;
@@ -1953,6 +1942,42 @@ void THD::cleanup_after_query()
   table_map_for_update= 0;
   m_binlog_invoker= FALSE;
 
+extern "C" enum durability_properties thd_get_durability_property(const MYSQL_THD thd)
+{
+  enum durability_properties ret= HA_REGULAR_DURABILITY;
+  
+  if (thd != NULL)
+    ret= thd->durability_property;
+
+  return ret;
+}
+
+/** Get the auto_increment_offset auto_increment_increment.
+Needed by InnoDB.
+@param thd	Thread object
+@param off	auto_increment_offset
+@param inc	auto_increment_increment */
+extern "C" void thd_get_autoinc(const MYSQL_THD thd, ulong* off, ulong* inc)
+{
+  *off = thd->variables.auto_increment_offset;
+  *inc = thd->variables.auto_increment_increment;
+}
+
+
+/**
+  Is strict sql_mode set.
+  Needed by InnoDB.
+  @param thd	Thread object
+  @return True if sql_mode has strict mode (all or trans).
+    @retval true  sql_mode has strict mode (all or trans).
+    @retval false sql_mode has not strict mode (all or trans).
+*/
+extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
+{
+  return thd->is_strict_mode();
+}
+
+
 #ifndef EMBEDDED_LIBRARY
   if (rli_slave)
     rli_slave->cleanup_after_query();
@@ -2826,7 +2851,7 @@ int select_export::send_data(List<Item> &items)
     else
     {
       if (fixed_row_size)
-	used_length=min(res->length(),item->max_length);
+	used_length=MY_MIN(res->length(),item->max_length);
       else
 	used_length=res->length();
       if ((result_type == STRING_RESULT || is_unsafe_field_sep) &&
@@ -4000,7 +4025,7 @@ static void thd_send_progress(THD *thd)
   ulonglong report_time= my_interval_timer();
   if (report_time > thd->progress.next_report_time)
   {
-    uint seconds_to_next= max(thd->variables.progress_report_time,
+    uint seconds_to_next= MY_MAX(thd->variables.progress_report_time,
                               global_system_variables.progress_report_time);
     if (seconds_to_next == 0)             // Turned off
       seconds_to_next= 1;                 // Check again after 1 second
@@ -4412,7 +4437,7 @@ void THD::inc_status_created_tmp_disk_tables()
 {
   status_var_increment(status_var.created_tmp_disk_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_created_tmp_disk_tables)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_created_tmp_disk_tables)(m_statement_psi, 1);
 #endif
 }
 
@@ -4420,7 +4445,7 @@ void THD::inc_status_created_tmp_tables()
 {
   status_var_increment(status_var.created_tmp_tables_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_created_tmp_tables)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_created_tmp_tables)(m_statement_psi, 1);
 #endif
 }
 
@@ -4428,7 +4453,7 @@ void THD::inc_status_select_full_join()
 {
   status_var_increment(status_var.select_full_join_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_select_full_join)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_select_full_join)(m_statement_psi, 1);
 #endif
 }
 
@@ -4436,7 +4461,7 @@ void THD::inc_status_select_full_range_join()
 {
   status_var_increment(status_var.select_full_range_join_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_select_full_range_join)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_select_full_range_join)(m_statement_psi, 1);
 #endif
 }
 
@@ -4444,7 +4469,7 @@ void THD::inc_status_select_range()
 {
   status_var_increment(status_var.select_range_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_select_range)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_select_range)(m_statement_psi, 1);
 #endif
 }
 
@@ -4452,7 +4477,7 @@ void THD::inc_status_select_range_check()
 {
   status_var_increment(status_var.select_range_check_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_select_range_check)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_select_range_check)(m_statement_psi, 1);
 #endif
 }
 
@@ -4460,7 +4485,7 @@ void THD::inc_status_select_scan()
 {
   status_var_increment(status_var.select_scan_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_select_scan)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_select_scan)(m_statement_psi, 1);
 #endif
 }
 
@@ -4468,7 +4493,7 @@ void THD::inc_status_sort_merge_passes()
 {
   status_var_increment(status_var.filesort_merge_passes_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_sort_merge_passes)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_sort_merge_passes)(m_statement_psi, 1);
 #endif
 }
 
@@ -4476,7 +4501,7 @@ void THD::inc_status_sort_range()
 {
   status_var_increment(status_var.filesort_range_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_sort_range)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_sort_range)(m_statement_psi, 1);
 #endif
 }
 
@@ -4484,7 +4509,7 @@ void THD::inc_status_sort_rows(ha_rows count)
 {
   statistic_add(status_var.filesort_rows_, count, &LOCK_status);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_sort_rows)(m_statement_psi, count);
+  PSI_STATEMENT_CALL(inc_statement_sort_rows)(m_statement_psi, count);
 #endif
 }
 
@@ -4492,7 +4517,7 @@ void THD::inc_status_sort_scan()
 {
   status_var_increment(status_var.filesort_scan_count_);
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(inc_statement_sort_scan)(m_statement_psi, 1);
+  PSI_STATEMENT_CALL(inc_statement_sort_scan)(m_statement_psi, 1);
 #endif
 }
 
@@ -4500,7 +4525,7 @@ void THD::set_status_no_index_used()
 {
   server_status|= SERVER_QUERY_NO_INDEX_USED;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(set_statement_no_index_used)(m_statement_psi);
+  PSI_STATEMENT_CALL(set_statement_no_index_used)(m_statement_psi);
 #endif
 }
 
@@ -4508,7 +4533,7 @@ void THD::set_status_no_good_index_used()
 {
   server_status|= SERVER_QUERY_NO_GOOD_INDEX_USED;
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
-  PSI_CALL(set_statement_no_good_index_used)(m_statement_psi);
+  PSI_STATEMENT_CALL(set_statement_no_good_index_used)(m_statement_psi);
 #endif
 }
 
@@ -4516,7 +4541,7 @@ void THD::set_command(enum enum_server_command command)
 {
   m_command= command;
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_CALL(set_thread_command)(m_command);
+  PSI_STATEMENT_CALL(set_thread_command)(m_command);
 #endif
 }
 
@@ -4529,7 +4554,7 @@ void THD::set_query(const CSET_STRING &string_arg)
   mysql_mutex_unlock(&LOCK_thd_data);
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
-  PSI_CALL(set_thread_info)(query(), query_length());
+  PSI_THREAD_CALL(set_thread_info)(query(), query_length());
 #endif
 }
 

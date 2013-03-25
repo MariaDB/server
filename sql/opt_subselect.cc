@@ -2175,7 +2175,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
           double rows= 1.0;
           while ((tableno = tm_it.next_bit()) != Table_map_iterator::BITMAP_END)
             rows *= join->map2table[tableno]->table->quick_condition_rows;
-          sjm->rows= min(sjm->rows, rows);
+          sjm->rows= MY_MIN(sjm->rows, rows);
         }
         memcpy(sjm->positions, join->best_positions + join->const_tables, 
                sizeof(POSITION) * n_tables);
@@ -4041,7 +4041,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 min(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_table_size) /
 			         share->reclength);
@@ -5153,7 +5153,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
           0 or 1 record. Examples of both cases:
 
             select * from ot where col in (select ... from it where 2>3) 
-            select * from ot where col in (select min(it.key) from it)
+            select * from ot where col in (select MY_MIN(it.key) from it)
           
           in this case, the subquery predicate has not been setup for
           materialization. In particular, there is no materialized temp.table.

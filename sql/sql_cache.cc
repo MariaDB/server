@@ -1221,7 +1221,7 @@ void Query_cache::end_of_result(THD *thd)
     }
     last_result_block= header->result()->prev;
     allign_size= ALIGN_SIZE(last_result_block->used);
-    len= max(query_cache.min_allocation_unit, allign_size);
+    len= MY_MAX(query_cache.min_allocation_unit, allign_size);
     if (last_result_block->length >= query_cache.min_allocation_unit + len)
       query_cache.split_block(last_result_block,len);
 
@@ -2875,7 +2875,7 @@ Query_cache::write_block_data(ulong data_len, uchar* data,
   DBUG_ENTER("Query_cache::write_block_data");
   DBUG_PRINT("qcache", ("data: %ld, header: %ld, all header: %ld",
 		      data_len, header_len, all_headers_len));
-  Query_cache_block *block= allocate_block(max(align_len,
+  Query_cache_block *block= allocate_block(MY_MAX(align_len,
                                            min_allocation_unit),1, 0);
   if (block != 0)
   {
@@ -2930,7 +2930,7 @@ Query_cache::append_result_data(Query_cache_block **current_block,
   ulong append_min = get_min_append_result_data_size();
   if (last_block_free_space < data_len &&
       append_next_free_block(last_block,
-			     max(tail, append_min)))
+			     MY_MAX(tail, append_min)))
     last_block_free_space = last_block->length - last_block->used;
   // If no space in last block (even after join) allocate new block
   if (last_block_free_space < data_len)
@@ -2958,7 +2958,7 @@ Query_cache::append_result_data(Query_cache_block **current_block,
   // Now finally write data to the last block
   if (success && last_block_free_space > 0)
   {
-    ulong to_copy = min(data_len,last_block_free_space);
+    ulong to_copy = MY_MIN(data_len,last_block_free_space);
     DBUG_PRINT("qcache", ("use free space %lub at block 0x%lx to copy %lub",
 			last_block_free_space, (ulong)last_block, to_copy));
     memcpy((uchar*) last_block + last_block->used, data, to_copy);
@@ -3046,8 +3046,8 @@ inline ulong Query_cache::get_min_first_result_data_size()
   if (queries_in_cache < QUERY_CACHE_MIN_ESTIMATED_QUERIES_NUMBER)
     return min_result_data_size;
   ulong avg_result = (query_cache_size - free_memory) / queries_in_cache;
-  avg_result = min(avg_result, query_cache_limit);
-  return max(min_result_data_size, avg_result);
+  avg_result = MY_MIN(avg_result, query_cache_limit);
+  return MY_MAX(min_result_data_size, avg_result);
 }
 
 inline ulong Query_cache::get_min_append_result_data_size()
@@ -3079,7 +3079,7 @@ my_bool Query_cache::allocate_data_chain(Query_cache_block **result_block,
     ulong len= data_len + all_headers_len;
     ulong align_len= ALIGN_SIZE(len);
 
-    if (!(new_block= allocate_block(max(min_size, align_len),
+    if (!(new_block= allocate_block(MY_MAX(min_size, align_len),
 				    min_result_data_size == 0,
 				    all_headers_len + min_result_data_size)))
     {
@@ -3088,7 +3088,7 @@ my_bool Query_cache::allocate_data_chain(Query_cache_block **result_block,
     }
 
     new_block->n_tables = 0;
-    new_block->used = min(len, new_block->length);
+    new_block->used = MY_MIN(len, new_block->length);
     new_block->type = Query_cache_block::RES_INCOMPLETE;
     new_block->next = new_block->prev = new_block;
     Query_cache_result *header = new_block->result();
@@ -3494,7 +3494,7 @@ Query_cache::allocate_block(ulong len, my_bool not_less, ulong min)
   DBUG_PRINT("qcache", ("len %lu, not less %d, min %lu",
              len, not_less,min));
 
-  if (len >= min(query_cache_size, query_cache_limit))
+  if (len >= MY_MIN(query_cache_size, query_cache_limit))
   {
     DBUG_PRINT("qcache", ("Query cache hase only %lu memory and limit %lu",
 			query_cache_size, query_cache_limit));

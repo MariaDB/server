@@ -29,7 +29,6 @@ Created 2011/12/19 Inaam Rana
 #include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
-#include "buf0types.h"
 
 #ifndef UNIV_HOTBACKUP
 
@@ -113,8 +112,8 @@ buf_dblwr_write_single_page(
 	buf_page_t*	bpage);	/*!< in: buffer block to write */
 
 /** Doublewrite control struct */
-struct buf_dblwr_struct{
-	mutex_t	mutex;		/*!< mutex protecting the first_free field and
+struct buf_dblwr_t{
+	ib_mutex_t	mutex;	/*!< mutex protecting the first_free field and
 				write_buf */
 	ulint	block1;		/*!< the page number of the first
 				doublewrite block (64 pages) */

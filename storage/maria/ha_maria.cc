@@ -512,7 +512,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
     keydef[i].block_length= pos->block_size;
     keydef[i].seg= keyseg;
     keydef[i].keysegs= pos->key_parts;
-    for (j= 0; j < pos->key_parts; j++)
+    for (j= 0; j < pos->user_defined_key_parts; j++)
     {
       Field *field= pos->key_part[j].field;
       type= field->key_type();
@@ -574,7 +574,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
                                           (uchar*) table_arg->record[0]);
       }
     }
-    keyseg+= pos->key_parts;
+    keyseg+= pos->user_defined_key_parts;
   }
   if (table_arg->found_next_number_field)
     keydef[share->next_number_index].flag|= HA_AUTO_KEY;
@@ -1042,7 +1042,7 @@ ulong ha_maria::index_flags(uint inx, uint part, bool all_parts) const
 double ha_maria::scan_time()
 {
   if (file->s->data_file_type == BLOCK_RECORD)
-    return ulonglong2double(stats.data_file_length - file->s->block_size) / max(file->s->block_size / 2, IO_SIZE) + 2;
+    return ulonglong2double(stats.data_file_length - file->s->block_size) / MY_MAX(file->s->block_size / 2, IO_SIZE) + 2;
   return handler::scan_time();
 }
 
@@ -2464,18 +2464,18 @@ int ha_maria::info(uint flag)
     ref_length= maria_info.reflength;
     share->db_options_in_use= maria_info.options;
     stats.block_size= maria_block_size;
-    stats.mrr_length_per_rec= maria_info.reflength + 8; // 8 = max(sizeof(void *))
+    stats.mrr_length_per_rec= maria_info.reflength + 8; // 8 = MY_MAX(sizeof(void *))
 
     /* Update share */
     share->keys_in_use.set_prefix(share->keys);
     share->keys_in_use.intersect_extended(maria_info.key_map);
     share->keys_for_keyread.intersect(share->keys_in_use);
     share->db_record_offset= maria_info.record_offset;
-    if (share->key_parts)
+    if (share->user_defined_key_parts)
     {
       ulong *to= table->key_info[0].rec_per_key, *end;
       double *from= maria_info.rec_per_key;
-      for (end= to+ share->key_parts ; to < end ; to++, from++)
+      for (end= to+ share->user_defined_key_parts ; to < end ; to++, from++)
         *to= (ulong) (*from + 0.5);
     }
 

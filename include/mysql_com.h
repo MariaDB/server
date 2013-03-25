@@ -45,6 +45,7 @@
 #define TABLE_COMMENT_MAXLEN 2048
 #define COLUMN_COMMENT_MAXLEN 1024
 #define INDEX_COMMENT_MAXLEN 1024
+#define TABLE_PARTITION_COMMENT_MAXLEN 1024
 
 /*
   USER_HOST_BUFF_SIZE -- length of string buffer, that is enough to contain
@@ -119,13 +120,19 @@ enum enum_server_command
 #define BINCMP_FLAG	131072		/* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1 << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1 << 19)/* Field part of partition func */
-#define FIELD_IN_ADD_INDEX (1<< 20)	/* Intern: Field used in ADD INDEX */
+
+/**
+  Intern: Field in TABLE object for new version of altered table,
+          which participates in a newly added index.
+*/
+#define FIELD_IN_ADD_INDEX (1 << 20)
 #define FIELD_IS_RENAMED (1<< 21)       /* Intern: Field is being renamed */
-#define FIELD_FLAGS_STORAGE_MEDIA 22    /* Field storage media, bit 22-23,
-                                           reserved by MySQL Cluster */
-#define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25,
-                                           reserved by MySQL Cluster */
-#define HAS_EXPLICIT_VALUE (1 << 26)    /* An INSERT/UPDATE operation supplied
+#define FIELD_FLAGS_STORAGE_MEDIA 22    /* Field storage media, bit 22-23 */
+#define FIELD_FLAGS_STORAGE_MEDIA_MASK (3 << FIELD_FLAGS_STORAGE_MEDIA)
+#define FIELD_FLAGS_COLUMN_FORMAT 24    /* Field column format, bit 24-25 */
+#define FIELD_FLAGS_COLUMN_FORMAT_MASK (3 << FIELD_FLAGS_COLUMN_FORMAT)
+#define FIELD_IS_DROPPED (1<< 26)       /* Intern: Field is being dropped */
+#define HAS_EXPLICIT_VALUE (1 << 27)    /* An INSERT/UPDATE operation supplied
                                           an explicit default value */
 
 #define REFRESH_GRANT           (1UL << 0)  /* Refresh grant tables */
@@ -154,12 +161,12 @@ enum enum_server_command
 #define REFRESH_QUERY_CACHE_FREE (1UL << 17) /* pack query cache */
 #define REFRESH_DES_KEY_FILE    (1UL << 18)
 #define REFRESH_USER_RESOURCES  (1UL << 19)
+#define REFRESH_FOR_EXPORT      (1UL << 20) /* FLUSH TABLES ... FOR EXPORT */
 
-#define REFRESH_TABLE_STATS     (1UL << 20) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1UL << 21) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1UL << 22) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1UL << 23) /* Refresh client stats hash table */
-
+#define REFRESH_TABLE_STATS     (1UL << 27) /* Refresh table stats hash table */
+#define REFRESH_INDEX_STATS     (1UL << 28) /* Refresh index stats hash table */
+#define REFRESH_USER_STATS      (1UL << 29) /* Refresh user stats hash table */
+#define REFRESH_CLIENT_STATS    (1UL << 30) /* Refresh client stats hash table */
 #define REFRESH_FAST            (1UL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
@@ -183,8 +190,15 @@ enum enum_server_command
 #define CLIENT_PS_MULTI_RESULTS (1UL << 18) /* Multi-results in PS-protocol */
 
 #define CLIENT_PLUGIN_AUTH  (1UL << 19) /* Client supports plugin authentication */
-#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
 
+#define CLIENT_PLUGIN_AUTH  (1UL << 19) /* Client supports plugin authentication */
+#define CLIENT_CONNECT_ATTRS (1UL << 20) /* Client supports connection attributes */
+/* Enable authentication response packet to be larger than 255 bytes. */
+#define CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA (1UL << 21)
+/* Don't close the connection for a connection with expired password. */
+#define CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS (1UL << 22)
+
+#define CLIENT_PROGRESS  (1UL << 29)   /* Client support progress indicator */
 #define CLIENT_SSL_VERIFY_SERVER_CERT (1UL << 30)
 /*
   It used to be that if mysql_real_connect() failed, it would delete any
@@ -227,6 +241,12 @@ enum enum_server_command
                            CLIENT_REMEMBER_OPTIONS | \
                            CLIENT_PROGRESS | \
                            CLIENT_PLUGIN_AUTH)
+
+/*
+  To be added later:
+  CLIENT_CONNECT_ATTRS, CLIENT_PLUGIN_AUTH_LENENC_CLIENT_DATA,
+  CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS
+*/
 
 /*
   Switch off the flags that are optional and depending on build flags

@@ -31,6 +31,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "ut0byte.h"
 #include "buf0types.h"
 
+// Forward declaration
+struct trx_t;
+
 /******************************************************************//**
 Returns TRUE if less than 25 % of the buffer pool is available. This can be
 used in heuristics to prevent huge transactions eating up the whole buffer
@@ -49,15 +52,19 @@ These are low-level functions
 #define BUF_LRU_OLD_MIN_LEN	512	/* 8 megabytes of 16k pages */
 
 /******************************************************************//**
-Invalidates all pages belonging to a given tablespace when we are deleting
-the data file(s) of that tablespace. A PROBLEM: if readahead is being started,
-what guarantees that it will not try to read in pages after this operation has
-completed? */
+Flushes all dirty pages or removes all pages belonging
+to a given tablespace. A PROBLEM: if readahead is being started, what
+guarantees that it will not try to read in pages after this operation
+has completed? */
 UNIV_INTERN
 void
-buf_LRU_invalidate_tablespace(
+buf_LRU_flush_or_remove_pages(
 /*==========================*/
-	ulint	id);	/*!< in: space id */
+	ulint		id,		/*!< in: space id */
+	buf_remove_t	buf_remove,	/*!< in: remove or flush strategy */
+	const trx_t*	trx);		/*!< to check if the operation must
+					be interrupted */
+
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**
 Insert a compressed block into buf_pool->zip_clean in the LRU order. */
@@ -157,7 +164,10 @@ buf_LRU_block_free_non_file_page(
 /*=============================*/
 	buf_block_t*	block);	/*!< in: block, must not contain a file page */
 /******************************************************************//**
-Adds a block to the LRU list. */
+Adds a block to the LRU list. Please make sure that the zip_size is
+already set into the page zip when invoking the function, so that we
+can get correct zip_size from the buffer page when adding a block
+into LRU */
 UNIV_INTERN
 void
 buf_LRU_add_block(
@@ -270,14 +280,11 @@ extern uint	buf_LRU_old_threshold_ms;
 These statistics are not 'of' LRU but 'for' LRU.  We keep count of I/O
 and page_zip_decompress() operations.  Based on the statistics we decide
 if we want to evict from buf_pool->unzip_LRU or buf_pool->LRU. */
-struct buf_LRU_stat_struct
+struct buf_LRU_stat_t
 {
 	ulint	io;	/**< Counter of buffer pool I/O operations. */
 	ulint	unzip;	/**< Counter of page_zip_decompress operations. */
 };
-
-/** Statistics for selecting the LRU list for eviction. */
-typedef struct buf_LRU_stat_struct buf_LRU_stat_t;
 
 /** Current operation counters.  Not protected by any mutex.
 Cleared by buf_LRU_stat_update(). */

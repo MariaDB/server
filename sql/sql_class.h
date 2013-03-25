@@ -232,11 +232,14 @@ public:
 
 class Alter_drop :public Sql_alloc {
 public:
-  enum drop_type {KEY, COLUMN };
+  enum drop_type {KEY, COLUMN, FOREIGN_KEY };
   const char *name;
   enum drop_type type;
   Alter_drop(enum drop_type par_type,const char *par_name)
-    :name(par_name), type(par_type) {}
+    :name(par_name), type(par_type)
+  {
+    DBUG_ASSERT(par_name != NULL);
+  }
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -309,17 +312,22 @@ public:
   enum fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
 		   FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_DEFAULT};
 
-  Table_ident *ref_table;
+  LEX_STRING ref_db;
+  LEX_STRING ref_table;
   List<Key_part_spec> ref_columns;
   uint delete_opt, update_opt, match_opt;
   Foreign_key(const LEX_STRING &name_arg, List<Key_part_spec> &cols,
-	      Table_ident *table,   List<Key_part_spec> &ref_cols,
+	      const LEX_STRING &ref_db_arg, const LEX_STRING &ref_table_arg,
+	      List<Key_part_spec> &ref_cols,
 	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg)
     :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL),
-    ref_table(table), ref_columns(ref_cols),
+    ref_db(ref_db_arg), ref_table(ref_table_arg), ref_columns(ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)
-  {}
+  {
+    // We don't check for duplicate FKs.
+    key_create_info.check_for_duplicate_indexes= false;
+  }
   Foreign_key(const Foreign_key &rhs, MEM_ROOT *mem_root);
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
@@ -327,8 +335,6 @@ public:
   */
   virtual Key *clone(MEM_ROOT *mem_root) const
   { return new (mem_root) Foreign_key(*this, mem_root); }
-  /* Used to validate foreign key options */
-  bool validate(List<Create_field> &table_fields);
 };
 
 typedef struct st_mysql_lock
@@ -2289,6 +2295,12 @@ public:
   MEM_ROOT      *user_var_events_alloc; /* Allocate above array elements here */
 
   /*
+    Define durability properties that engines may check to
+    improve performance. Not yet used in MariaDB
+  */
+  enum durability_properties durability_property;
+ 
+  /*
     If checking this in conjunction with a wait condition, please
     include a check after enter_cond() if you want to avoid a race
     condition. For details see the implementation of awake(),
@@ -2586,7 +2598,7 @@ public:
     start_time= hrtime_to_my_time(hrtime);
     start_time_sec_part= hrtime_sec_part(hrtime);
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_CALL(set_thread_start_time)(start_time);
+    PSI_THREAD_CALL(set_thread_start_time)(start_time);
 #endif
   }
   inline void set_start_time()
@@ -2596,7 +2608,7 @@ public:
       start_time= hrtime_to_my_time(user_time);
       start_time_sec_part= hrtime_sec_part(user_time);
 #ifdef HAVE_PSI_THREAD_INTERFACE
-      PSI_CALL(set_thread_start_time)(start_time);
+      PSI_THREAD_CALL(set_thread_start_time)(start_time);
 #endif
     }
     else
@@ -3032,7 +3044,7 @@ public:
     result= new_db && !db;
 #ifdef HAVE_PSI_THREAD_INTERFACE
     if (result)
-      PSI_CALL(set_thread_db)(new_db, new_db_len);
+      PSI_THREAD_CALL(set_thread_db)(new_db, new_db_len);
 #endif
     return result;
   }
@@ -3053,7 +3065,7 @@ public:
     db= new_db;
     db_length= new_db_len;
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_CALL(set_thread_db)(new_db, new_db_len);
+    PSI_THREAD_CALL(set_thread_db)(new_db, new_db_len);
 #endif
   }
   /*

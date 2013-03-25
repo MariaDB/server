@@ -5739,7 +5739,7 @@ bool check_stack_overrun(THD *thd, long margin,
     return 1;
   }
 #ifndef DBUG_OFF
-  max_stack_used= max(max_stack_used, stack_used);
+  max_stack_used= MY_MAX(max_stack_used, stack_used);
 #endif
   return 0;
 }
@@ -7217,7 +7217,7 @@ bool check_simple_select()
     char command[80];
     Lex_input_stream *lip= & thd->m_parser_state->m_lip;
     strmake(command, lip->yylval->symbol.str,
-	    min(lip->yylval->symbol.length, sizeof(command)-1));
+	    MY_MIN(lip->yylval->symbol.length, sizeof(command)-1));
     my_error(ER_CANT_USE_OPTION_HERE, MYF(0), command);
     return 1;
   }

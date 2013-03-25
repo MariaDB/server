@@ -50,11 +50,15 @@ to the two Barracuda row formats COMPRESSED and DYNAMIC. */
 #define FSP_FLAGS_WIDTH_ATOMIC_BLOBS	1
 /** Number of flag bits used to indicate the tablespace page size */
 #define FSP_FLAGS_WIDTH_PAGE_SSIZE	4
+/** Width of the DATA_DIR flag.  This flag indicates that the tablespace
+is found in a remote location, not the default data directory. */
+#define FSP_FLAGS_WIDTH_DATA_DIR	1
 /** Width of all the currently known tablespace flags */
 #define FSP_FLAGS_WIDTH		(FSP_FLAGS_WIDTH_POST_ANTELOPE	\
 				+ FSP_FLAGS_WIDTH_ZIP_SSIZE	\
 				+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS	\
-				+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
+				+ FSP_FLAGS_WIDTH_PAGE_SSIZE	\
+				+ FSP_FLAGS_WIDTH_DATA_DIR)
 
 /** A mask of all the known/used bits in tablespace flags */
 #define FSP_FLAGS_MASK		(~(~0 << FSP_FLAGS_WIDTH))
@@ -71,8 +75,11 @@ to the two Barracuda row formats COMPRESSED and DYNAMIC. */
 #define FSP_FLAGS_POS_PAGE_SSIZE	(FSP_FLAGS_POS_ATOMIC_BLOBS	\
 					+ FSP_FLAGS_WIDTH_ATOMIC_BLOBS)
 /** Zero relative shift position of the start of the UNUSED bits */
-#define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_PAGE_SSIZE	\
+#define FSP_FLAGS_POS_DATA_DIR		(FSP_FLAGS_POS_PAGE_SSIZE	\
 					+ FSP_FLAGS_WIDTH_PAGE_SSIZE)
+/** Zero relative shift position of the start of the UNUSED bits */
+#define FSP_FLAGS_POS_UNUSED		(FSP_FLAGS_POS_DATA_DIR	\
+					+ FSP_FLAGS_WIDTH_DATA_DIR)
 
 /** Bit mask of the POST_ANTELOPE field */
 #define FSP_FLAGS_MASK_POST_ANTELOPE				\
@@ -90,6 +97,10 @@ to the two Barracuda row formats COMPRESSED and DYNAMIC. */
 #define FSP_FLAGS_MASK_PAGE_SSIZE				\
 		((~(~0 << FSP_FLAGS_WIDTH_PAGE_SSIZE))		\
 		<< FSP_FLAGS_POS_PAGE_SSIZE)
+/** Bit mask of the DATA_DIR field */
+#define FSP_FLAGS_MASK_DATA_DIR					\
+		((~(~0 << FSP_FLAGS_WIDTH_DATA_DIR))		\
+		<< FSP_FLAGS_POS_DATA_DIR)
 
 /** Return the value of the POST_ANTELOPE field */
 #define FSP_FLAGS_GET_POST_ANTELOPE(flags)			\
@@ -107,6 +118,10 @@ to the two Barracuda row formats COMPRESSED and DYNAMIC. */
 #define FSP_FLAGS_GET_PAGE_SSIZE(flags)				\
 		((flags & FSP_FLAGS_MASK_PAGE_SSIZE)		\
 		>> FSP_FLAGS_POS_PAGE_SSIZE)
+/** Return the value of the DATA_DIR field */
+#define FSP_FLAGS_HAS_DATA_DIR(flags)				\
+		((flags & FSP_FLAGS_MASK_DATA_DIR)		\
+		>> FSP_FLAGS_POS_DATA_DIR)
 /** Return the contents of the UNUSED bits */
 #define FSP_FLAGS_GET_UNUSED(flags)				\
 		(flags >> FSP_FLAGS_POS_UNUSED)
@@ -555,6 +570,17 @@ fseg_free_page(
 	ulint		page,	/*!< in: page offset */
 	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 /**********************************************************************//**
+Checks if a single page of a segment is free.
+@return	true if free */
+UNIV_INTERN
+bool
+fseg_page_is_free(
+/*==============*/
+	fseg_header_t*	seg_header,	/*!< in: segment header */
+	ulint		space,		/*!< in: space id */
+	ulint		page)		/*!< in: page offset */
+	__attribute__((nonnull, warn_unused_result));
+/**********************************************************************//**
 Frees part of a segment. This function can be used to free a segment
 by repeatedly calling this function in different mini-transactions.
 Doing the freeing in a single mini-transaction might result in
@@ -643,12 +669,13 @@ tablespace header at offset FSP_SPACE_FLAGS.  They should be 0 for
 ROW_FORMAT=COMPACT and ROW_FORMAT=REDUNDANT. The newer row formats,
 COMPRESSED and DYNAMIC, use a file format > Antelope so they should
 have a file format number plus the DICT_TF_COMPACT bit set.
-@return	ulint containing the validated tablespace flags. */
+@return	true if check ok */
 UNIV_INLINE
-ulint
-fsp_flags_validate(
+bool
+fsp_flags_is_valid(
 /*===============*/
-	ulint	flags);		/*!< in: tablespace flags */
+	ulint	flags)		/*!< in: tablespace flags */
+	__attribute__((warn_unused_result, const));
 /********************************************************************//**
 Determine if the tablespace is compressed from dict_table_t::flags.
 @return	TRUE if compressed, FALSE if not compressed */
@@ -657,6 +684,40 @@ ibool
 fsp_flags_is_compressed(
 /*====================*/
 	ulint	flags);	/*!< in: tablespace flags */
+
+/********************************************************************//**
+Calculates the descriptor index within a descriptor page.
+@return	descriptor index */
+UNIV_INLINE
+ulint
+xdes_calc_descriptor_index(
+/*=======================*/
+	ulint	zip_size,	/*!< in: compressed page size in bytes;
+				0 for uncompressed pages */
+	ulint	offset);	/*!< in: page offset */
+
+/**********************************************************************//**
+Gets a descriptor bit of a page.
+@return	TRUE if free */
+UNIV_INLINE
+ibool
+xdes_get_bit(
+/*=========*/
+	const xdes_t*	descr,	/*!< in: descriptor */
+	ulint		bit,	/*!< in: XDES_FREE_BIT or XDES_CLEAN_BIT */
+	ulint		offset);/*!< in: page offset within extent:
+				0 ... FSP_EXTENT_SIZE - 1 */
+
+/********************************************************************//**
+Calculates the page where the descriptor of a page resides.
+@return	descriptor page offset */
+UNIV_INLINE
+ulint
+xdes_calc_descriptor_page(
+/*======================*/
+	ulint	zip_size,	/*!< in: compressed page size in bytes;
+				0 for uncompressed pages */
+	ulint	offset);	/*!< in: page offset */
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -669,7 +730,7 @@ UNIV_INLINE
 ulint
 fsp_flags_get_zip_size(
 /*====================*/
-	ulint	flags);	/*!< in: tablespace flags */
+	ulint	flags);		/*!< in: tablespace flags */
 /********************************************************************//**
 Extract the page size from tablespace flags.
 @return	page size of the tablespace in bytes */
@@ -677,16 +738,7 @@ UNIV_INLINE
 ulint
 fsp_flags_get_page_size(
 /*====================*/
-	ulint	flags);	/*!< in: tablespace flags */
-
-/********************************************************************//**
-Set page size */
-UNIV_INLINE
-ulint
-fsp_flags_set_page_size(
-/*====================*/
-	ulint	flags,		/*!< in: tablespace flags */
-	ulint	page_size);	/*!< in: page size in bytes */
+	ulint	flags);		/*!< in: tablespace flags */
 
 #ifndef UNIV_NONINL
 #include "fsp0fsp.ic"

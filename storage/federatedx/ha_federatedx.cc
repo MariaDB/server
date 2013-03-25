@@ -522,7 +522,7 @@ static int parse_url_error(FEDERATEDX_SHARE *share, TABLE *table, int error_num)
   int buf_len;
   DBUG_ENTER("ha_federatedx parse_url_error");
 
-  buf_len= min(table->s->connect_string.length,
+  buf_len= MY_MIN(table->s->connect_string.length,
                FEDERATEDX_QUERY_BUFFER_SIZE-1);
   strmake(buf, table->s->connect_string.str, buf_len);
   my_error(error_num, MYF(0), buf);
@@ -1246,7 +1246,7 @@ bool ha_federatedx::create_where_from_key(String *to,
     {
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
-      uint part_length= min(store_length, length);
+      uint part_length= MY_MIN(store_length, length);
       needs_quotes= field->str_needs_quotes();
       DBUG_DUMP("key, start of loop", ptr, length);
 

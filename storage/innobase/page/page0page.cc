@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -512,7 +513,8 @@ page_create_zip(
 	page = page_create_low(block, TRUE);
 	mach_write_to_2(page + PAGE_HEADER + PAGE_LEVEL, level);
 
-	if (UNIV_UNLIKELY(!page_zip_compress(page_zip, page, index, mtr))) {
+	if (!page_zip_compress(page_zip, page, index,
+	    page_compression_level, mtr)) {
 		/* The compression of a newly created page
 		should always succeed. */
 		ut_error;
@@ -658,7 +660,11 @@ page_copy_rec_list_end(
 	if (new_page_zip) {
 		mtr_set_log_mode(mtr, log_mode);
 
-		if (!page_zip_compress(new_page_zip, new_page, index, mtr)) {
+		if (!page_zip_compress(new_page_zip,
+				       new_page,
+				       index,
+				       page_compression_level,
+				       mtr)) {
 			/* Before trying to reorganize the page,
 			store the number of preceding records on the page. */
 			ulint	ret_pos
@@ -781,8 +787,9 @@ page_copy_rec_list_start(
 		DBUG_EXECUTE_IF("page_copy_rec_list_start_compress_fail",
 				goto zip_reorganize;);
 
-		if (UNIV_UNLIKELY
-		    (!page_zip_compress(new_page_zip, new_page, index, mtr))) {
+		if (!page_zip_compress(new_page_zip, new_page, index,
+				       page_compression_level, mtr)) {
+
 			ulint	ret_pos;
 #ifndef DBUG_OFF
 zip_reorganize:
@@ -793,8 +800,8 @@ zip_reorganize:
 			/* Before copying, "ret" was the predecessor
 			of the predefined supremum record.  If it was
 			the predefined infimum record, then it would
-			still be the infimum.  Thus, the assertion
-			ut_a(ret_pos > 0) would fail here. */
+			still be the infimum, and we would have
+			ret_pos == 0. */
 
 			if (UNIV_UNLIKELY
 			    (!page_zip_reorganize(new_block, index, mtr))) {
@@ -1049,6 +1056,7 @@ page_delete_rec_list_end(
 
 		n_owned = rec_get_n_owned_new(rec2) - count;
 		slot_index = page_dir_find_owner_slot(rec2);
+		ut_ad(slot_index > 0);
 		slot = page_dir_get_nth_slot(page, slot_index);
 	} else {
 		rec_t*	rec2	= rec;
@@ -1064,6 +1072,7 @@ page_delete_rec_list_end(
 
 		n_owned = rec_get_n_owned_old(rec2) - count;
 		slot_index = page_dir_find_owner_slot(rec2);
+		ut_ad(slot_index > 0);
 		slot = page_dir_get_nth_slot(page, slot_index);
 	}
 
@@ -1469,6 +1478,10 @@ page_rec_get_nth_const(
 	ulint			i;
 	ulint			n_owned;
 	const rec_t*		rec;
+
+	if (nth == 0) {
+		return(page_get_infimum_rec(page));
+	}
 
 	ut_ad(nth < UNIV_PAGE_SIZE / (REC_N_NEW_EXTRA_BYTES + 1));
 
@@ -2313,6 +2326,20 @@ page_validate(
 		}
 	}
 
+	if (dict_index_is_sec_or_ibuf(index) && page_is_leaf(page)
+	    && page_get_n_recs(page) > 0) {
+		trx_id_t	max_trx_id	= page_get_max_trx_id(page);
+		trx_id_t	sys_max_trx_id	= trx_sys_get_max_trx_id();
+
+		if (max_trx_id == 0 || max_trx_id > sys_max_trx_id) {
+			ib_logf(IB_LOG_LEVEL_ERROR,
+				"PAGE_MAX_TRX_ID out of bounds: "
+				TRX_ID_FMT ", " TRX_ID_FMT,
+				max_trx_id, sys_max_trx_id);
+			goto func_exit2;
+		}
+	}
+
 	heap = mem_heap_create(UNIV_PAGE_SIZE + 200);
 
 	/* The following buffer is used to check that the
@@ -2602,3 +2629,60 @@ page_find_rec_with_heap_no(
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/*******************************************************//**
+Removes the record from a leaf page. This function does not log
+any changes. It is used by the IMPORT tablespace functions.
+The cursor is moved to the next record after the deleted one.
+@return	true if success, i.e., the page did not become too empty */
+UNIV_INTERN
+bool
+page_delete_rec(
+/*============*/
+	const dict_index_t*	index,	/*!< in: The index that the record
+					belongs to */
+	page_cur_t*		pcur,	/*!< in/out: page cursor on record
+					to delete */
+	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
+	const ulint*		offsets)/*!< in: offsets for record */
+{
+	bool		no_compress_needed;
+	buf_block_t*	block = pcur->block;
+	page_t*		page = buf_block_get_frame(block);
+
+	ut_ad(page_is_leaf(page));
+
+	if (!rec_offs_any_extern(offsets)
+	    && ((page_get_data_size(page) - rec_offs_size(offsets)
+		< BTR_CUR_PAGE_COMPRESS_LIMIT)
+		|| (mach_read_from_4(page + FIL_PAGE_NEXT) == FIL_NULL
+		    && mach_read_from_4(page + FIL_PAGE_PREV) == FIL_NULL)
+		|| (page_get_n_recs(page) < 2))) {
+
+		ulint	root_page_no = dict_index_get_page(index);
+
+		/* The page fillfactor will drop below a predefined
+		minimum value, OR the level in the B-tree contains just
+		one page, OR the page will become empty: we recommend
+		compression if this is not the root page. */
+
+		no_compress_needed = page_get_page_no(page) == root_page_no;
+	} else {
+		no_compress_needed = true;
+	}
+
+	if (no_compress_needed) {
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+#endif /* UNIV_ZIP_DEBUG */
+
+		page_cur_delete_rec(pcur, index, offsets, 0);
+
+#ifdef UNIV_ZIP_DEBUG
+		ut_a(!page_zip || page_zip_validate(page_zip, page, index));
+#endif /* UNIV_ZIP_DEBUG */
+	}
+
+	return(no_compress_needed);
+}
+

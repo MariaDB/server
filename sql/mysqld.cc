@@ -3915,7 +3915,7 @@ static int init_common_variables()
       can't get max_connections*5 but still got no less than was
       requested (value of wanted_files).
     */
-    max_open_files= max(max(wanted_files,
+    max_open_files= MY_MAX(MY_MAX(wanted_files,
                             (max_connections + extra_max_connections)*5),
                         open_files_limit);
     files= my_set_max_open_files(max_open_files);
@@ -3928,15 +3928,15 @@ static int init_common_variables()
           If we have requested too much file handles than we bring
           max_connections in supported bounds.
         */
-        max_connections= (ulong) min(files-10-TABLE_OPEN_CACHE_MIN*2,
+        max_connections= (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2,
                                      max_connections);
         /*
           Decrease table_cache_size according to max_connections, but
-          not below TABLE_OPEN_CACHE_MIN.  Outer min() ensures that we
+          not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
           never increase table_cache_size automatically (that could
           happen if max_connections is decreased above).
         */
-        table_cache_size= (ulong) min(max((files-10-max_connections)/2,
+        table_cache_size= (ulong) MY_MIN(MY_MAX((files-10-max_connections)/2,
                                           TABLE_OPEN_CACHE_MIN),
                                       table_cache_size);
 	DBUG_PRINT("warning",

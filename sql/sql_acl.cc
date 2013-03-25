@@ -1328,7 +1328,7 @@ static ulong get_sort(uint count,...)
         chars= 128;                             // Marker that chars existed
       }
     }
-    sort= (sort << 8) + (wild_pos ? min(wild_pos, 127U) : chars);
+    sort= (sort << 8) + (wild_pos ? MY_MIN(wild_pos, 127U) : chars);
   }
   va_end(args);
   return sort;

@@ -1067,6 +1067,7 @@ vio/viotest.cpp
 ylwrap
 zlib/*.ds?
 sql-bench/test-table-elimination
+sql/share/bulgarian
 sql/share/czech
 sql/share/danish
 sql/share/dutch

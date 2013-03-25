@@ -32,9 +32,7 @@ Created 8/22/1994 Heikki Tuuri
 #ifdef UNIV_DEBUG
 # include "buf0buf.h"
 #endif /* UNIV_DEBUG */
-#ifndef UNIV_HOTBACKUP
 # include "btr0sea.h"
-#endif /* !UNIV_HOTBACKUP */
 #include "page0page.h"
 
 /*************************************************************//**
@@ -79,7 +77,6 @@ ha_create_func(
 		return(table);
 	}
 
-#ifndef UNIV_HOTBACKUP
 	if (type == MEM_HEAP_FOR_PAGE_HASH) {
 		/* We create a hash table protected by rw_locks for
 		buf_pool->page_hash. */
@@ -97,7 +94,6 @@ ha_create_func(
 		table->heaps[i] = mem_heap_create_typed(4096, type);
 		ut_a(table->heaps[i]);
 	}
-#endif /* !UNIV_HOTBACKUP */
 
 	return(table);
 }
@@ -120,7 +116,6 @@ ha_clear(
 	       || rw_lock_own(&btr_search_latch, RW_LOCK_EXCLUSIVE));
 #endif /* UNIV_SYNC_DEBUG */
 
-#ifndef UNIV_HOTBACKUP
 	/* Free the memory heaps. */
 	n = table->n_sync_obj;
 
@@ -151,7 +146,6 @@ ha_clear(
 	table->n_sync_obj = 0;
 	table->type = HASH_TABLE_SYNC_NONE;
 
-#endif /* !UNIV_HOTBACKUP */
 
 	/* Clear the hash table. */
 	n = hash_get_n_cells(table);
@@ -179,7 +173,7 @@ ha_insert_for_fold_func(
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	buf_block_t*	block,	/*!< in: buffer block containing the data */
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-	const rec_t*	data)	/*!< in: data, must not be NULL */
+	rec_t*		data)	/*!< in: data, must not be NULL */
 {
 	hash_cell_t*	cell;
 	ha_node_t*	node;
@@ -215,7 +209,7 @@ ha_insert_for_fold_func(
 
 			prev_node->block = block;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-			prev_node->data = (rec_t*) data;
+			prev_node->data = data;
 
 			return(TRUE);
 		}
@@ -237,7 +231,7 @@ ha_insert_for_fold_func(
 		return(FALSE);
 	}
 
-	ha_node_set_data(node, block, (rec_t*) data);
+	ha_node_set_data(node, block, data);
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	if (table->adaptive) {

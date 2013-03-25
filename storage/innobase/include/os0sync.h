@@ -54,22 +54,19 @@ typedef pthread_cond_t		os_cond_t;
 
 /** Structure that includes Performance Schema Probe pfs_psi
 in the os_fast_mutex structure if UNIV_PFS_MUTEX is defined */
-typedef struct os_fast_mutex_struct {
+struct os_fast_mutex_t {
 	fast_mutex_t		mutex;	/*!< os_fast_mutex */
 #ifdef UNIV_PFS_MUTEX
 	struct PSI_mutex*	pfs_psi;/*!< The performance schema
 					instrumentation hook */
 #endif
-} os_fast_mutex_t;
+};
 
-
-/** Operating system event */
-typedef struct os_event_struct	os_event_struct_t;
 /** Operating system event handle */
-typedef os_event_struct_t*	os_event_t;
+typedef struct os_event*	os_event_t;
 
 /** An asynchronous signal sent between threads */
-struct os_event_struct {
+struct os_event {
 #ifdef __WIN__
 	HANDLE		handle;		/*!< kernel event object, slow,
 					used on older Windows */
@@ -84,7 +81,7 @@ struct os_event_struct {
 					the event becomes signaled */
 	os_cond_t	cond_var;	/*!< condition variable is used in
 					waiting for the event */
-	UT_LIST_NODE_T(os_event_struct_t) os_event_list;
+	UT_LIST_NODE_T(os_event_t) os_event_list;
 					/*!< list of all created events */
 };
 
@@ -94,16 +91,11 @@ struct os_event_struct {
 /** Return value of os_event_wait_time() when the time is exceeded */
 #define OS_SYNC_TIME_EXCEEDED   1
 
-/** Operating system mutex */
-typedef struct os_mutex_struct	os_mutex_str_t;
 /** Operating system mutex handle */
-typedef os_mutex_str_t*		os_mutex_t;
-
-/** Return value of os_event_wait_time() when the time is exceeded */
-#define OS_SYNC_TIME_EXCEEDED	1
+typedef struct os_mutex_t*	os_ib_mutex_t;
 
 /** Mutex protecting counts and the event and OS 'slow' mutex lists */
-extern os_mutex_t	os_sync_mutex;
+extern os_ib_mutex_t	os_sync_mutex;
 
 /** This is incremented by 1 in os_thread_create and decremented by 1 in
 os_thread_exit */
@@ -132,10 +124,8 @@ explicitly by calling sync_os_reset_event.
 @return	the event handle */
 UNIV_INTERN
 os_event_t
-os_event_create(
-/*============*/
-	const char*	name);	/*!< in: the name of the event, if NULL
-				the event is created without a name */
+os_event_create(void);
+/*==================*/
 /**********************************************************//**
 Sets an event semaphore to the signaled state: lets waiting threads
 proceed. */
@@ -191,7 +181,7 @@ os_event_wait_low(
 					os_event_reset(). */
 
 #define os_event_wait(event) os_event_wait_low(event, 0)
-#define os_event_wait_time(e, t) os_event_wait_time_low(event, t, 0)
+#define os_event_wait_time(event, t) os_event_wait_time_low(event, t, 0)
 
 /**********************************************************//**
 Waits for an event object until it is in the signaled state or
@@ -210,10 +200,10 @@ os_event_wait_time_low(
 						os_event_reset(). */
 /*********************************************************//**
 Creates an operating system mutex semaphore. Because these are slow, the
-mutex semaphore of InnoDB itself (mutex_t) should be used where possible.
+mutex semaphore of InnoDB itself (ib_mutex_t) should be used where possible.
 @return	the mutex handle */
 UNIV_INTERN
-os_mutex_t
+os_ib_mutex_t
 os_mutex_create(void);
 /*=================*/
 /**********************************************************//**
@@ -222,21 +212,21 @@ UNIV_INTERN
 void
 os_mutex_enter(
 /*===========*/
-	os_mutex_t	mutex);	/*!< in: mutex to acquire */
+	os_ib_mutex_t	mutex);	/*!< in: mutex to acquire */
 /**********************************************************//**
 Releases ownership of a mutex. */
 UNIV_INTERN
 void
 os_mutex_exit(
 /*==========*/
-	os_mutex_t	mutex);	/*!< in: mutex to release */
+	os_ib_mutex_t	mutex);	/*!< in: mutex to release */
 /**********************************************************//**
 Frees an mutex object. */
 UNIV_INTERN
 void
 os_mutex_free(
 /*==========*/
-	os_mutex_t	mutex);	/*!< in: mutex to free */
+	os_ib_mutex_t	mutex);	/*!< in: mutex to free */
 /**********************************************************//**
 Acquires ownership of a fast mutex. Currently in Windows this is the same
 as os_fast_mutex_lock!
@@ -365,7 +355,11 @@ Atomic compare-and-swap and increment for InnoDB. */
 
 #if defined(HAVE_IB_GCC_ATOMIC_BUILTINS)
 
-#define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS
+
+# ifdef HAVE_IB_GCC_ATOMIC_BUILTINS_64
+#  define HAVE_ATOMIC_BUILTINS_64
+# endif
 
 /**********************************************************//**
 Returns true if swapped, ptr is pointer to target, old_val is value to
@@ -419,6 +413,9 @@ amount to decrement. */
 # define os_atomic_decrement_ulint(ptr, amount) \
 	os_atomic_decrement(ptr, amount)
 
+# define os_atomic_decrement_uint64(ptr, amount) \
+	os_atomic_decrement(ptr, amount)
+
 /**********************************************************//**
 Returns the old value of *ptr, atomically sets *ptr to new_val */
 
@@ -430,12 +427,13 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 
 #elif defined(HAVE_IB_SOLARIS_ATOMICS)
 
-#define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS_64
 
 /* If not compiling with GCC or GCC doesn't support the atomic
 intrinsics and running on Solaris >= 10 use Solaris atomics */
 
-#include <atomic.h>
+# include <atomic.h>
 
 /**********************************************************//**
 Returns true if swapped, ptr is pointer to target, old_val is value to
@@ -487,6 +485,9 @@ amount to decrement. */
 # define os_atomic_decrement_ulint(ptr, amount) \
 	os_atomic_increment_ulint(ptr, -(amount))
 
+# define os_atomic_decrement_uint64(ptr, amount) \
+	os_atomic_increment_uint64(ptr, -(amount))
+
 /**********************************************************//**
 Returns the old value of *ptr, atomically sets *ptr to new_val */
 
@@ -498,7 +499,11 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 
 #elif defined(HAVE_WINDOWS_ATOMICS)
 
-#define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS
+
+# ifndef _WIN32
+#  define HAVE_ATOMIC_BUILTINS_64
+# endif
 
 /**********************************************************//**
 Atomic compare and exchange of signed integers (both 32 and 64 bit).
@@ -574,8 +579,10 @@ amount of increment. */
 # define os_atomic_increment_ulint(ptr, amount) \
 	((ulint) (win_xchg_and_add((lint*) ptr, (lint) amount) + amount))
 
-# define os_atomic_increment_uint64(ptr, amount) \
-	((ulint) (win_xchg_and_add(ptr, (lint) amount) + amount))
+# define os_atomic_increment_uint64(ptr, amount)		\
+	((ib_uint64_t) (InterlockedExchangeAdd64(		\
+				(ib_int64_t*) ptr,		\
+				(ib_int64_t) amount) + amount))
 
 /**********************************************************//**
 Returns the resulting value, ptr is pointer to target, amount is the
@@ -586,6 +593,11 @@ amount to decrement. There is no atomic substract function on Windows */
 
 # define os_atomic_decrement_ulint(ptr, amount) \
 	((ulint) (win_xchg_and_add((lint*) ptr, -(lint) amount) - amount))
+
+# define os_atomic_decrement_uint64(ptr, amount)		\
+	((ib_uint64_t) (InterlockedExchangeAdd64(		\
+				(ib_int64_t*) ptr,		\
+				-(ib_int64_t) amount) - amount))
 
 /**********************************************************//**
 Returns the old value of *ptr, atomically sets *ptr to new_val.

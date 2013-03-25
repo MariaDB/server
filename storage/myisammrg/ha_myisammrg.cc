@@ -1304,7 +1304,7 @@ int ha_myisammrg::info(uint flag)
       memcpy((char*) table->key_info[0].rec_per_key,
 	     (char*) mrg_info.rec_per_key,
              sizeof(table->key_info[0].rec_per_key[0]) *
-             min(file->keys, table->s->key_parts));
+             MY_MIN(file->keys, table->s->key_parts));
     }
   }
   if (flag & HA_STATUS_ERRKEY)

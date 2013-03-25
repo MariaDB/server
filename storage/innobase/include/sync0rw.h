@@ -36,6 +36,7 @@ Created 9/11/1995 Heikki Tuuri
 #include "univ.i"
 #ifndef UNIV_HOTBACKUP
 #include "ut0lst.h"
+#include "ut0counter.h"
 #include "sync0sync.h"
 #include "os0sync.h"
 
@@ -43,6 +44,43 @@ Created 9/11/1995 Heikki Tuuri
 in MySQL: */
 #undef rw_lock_t
 #endif /* !UNIV_HOTBACKUP */
+
+/** Counters for RW locks. */
+struct rw_lock_stats_t {
+	typedef ib_counter_t<ib_int64_t, IB_N_SLOTS> ib_int64_counter_t;
+
+	/** number of spin waits on rw-latches,
+	resulted during shared (read) locks */
+	ib_int64_counter_t	rw_s_spin_wait_count;
+
+	/** number of spin loop rounds on rw-latches,
+	resulted during shared (read) locks */
+	ib_int64_counter_t	rw_s_spin_round_count;
+
+	/** number of OS waits on rw-latches,
+	resulted during shared (read) locks */
+	ib_int64_counter_t	rw_s_os_wait_count;
+
+	/** number of unlocks (that unlock shared locks),
+	set only when UNIV_SYNC_PERF_STAT is defined */
+	ib_int64_counter_t	rw_s_exit_count;
+
+	/** number of spin waits on rw-latches,
+	resulted during exclusive (write) locks */
+	ib_int64_counter_t	rw_x_spin_wait_count;
+
+	/** number of spin loop rounds on rw-latches,
+	resulted during exclusive (write) locks */
+	ib_int64_counter_t	rw_x_spin_round_count;
+
+	/** number of OS waits on rw-latches,
+	resulted during exclusive (write) locks */
+	ib_int64_counter_t	rw_x_os_wait_count;
+
+	/** number of unlocks (that unlock exclusive locks),
+	set only when UNIV_SYNC_PERF_STAT is defined */
+	ib_int64_counter_t	rw_x_exit_count;
+};
 
 /* Latch types; these are used also in btr0btr.h: keep the numerical values
 smaller than 30 and the order of the numerical values like below! */
@@ -57,22 +95,22 @@ of concurrent read locks before the rw_lock breaks. The current value of
 0x00100000 allows 1,048,575 concurrent readers and 2047 recursive writers.*/
 #define X_LOCK_DECR		0x00100000
 
-typedef struct rw_lock_struct		rw_lock_t;
+struct rw_lock_t;
 #ifdef UNIV_SYNC_DEBUG
-typedef struct rw_lock_debug_struct	rw_lock_debug_t;
+struct rw_lock_debug_t;
 #endif /* UNIV_SYNC_DEBUG */
 
 typedef UT_LIST_BASE_NODE_T(rw_lock_t)	rw_lock_list_t;
 
 extern rw_lock_list_t	rw_lock_list;
-extern mutex_t		rw_lock_list_mutex;
+extern ib_mutex_t		rw_lock_list_mutex;
 
 #ifdef UNIV_SYNC_DEBUG
 /* The global mutex which protects debug info lists of all rw-locks.
 To modify the debug info list of an rw-lock, this mutex has to be
 
 acquired in addition to the mutex protecting the lock. */
-extern mutex_t		rw_lock_debug_mutex;
+extern ib_mutex_t		rw_lock_debug_mutex;
 extern os_event_t	rw_lock_debug_event;	/*!< If deadlock detection does
 					not get immediately the mutex it
 					may wait for this event */
@@ -80,30 +118,8 @@ extern ibool		rw_lock_debug_waiters;	/*!< This is set to TRUE, if
 					there may be waiters for the event */
 #endif /* UNIV_SYNC_DEBUG */
 
-/** number of spin waits on rw-latches,
-resulted during exclusive (write) locks */
-extern	ib_int64_t	rw_s_spin_wait_count;
-/** number of spin loop rounds on rw-latches,
-resulted during exclusive (write) locks */
-extern	ib_int64_t	rw_s_spin_round_count;
-/** number of unlocks (that unlock shared locks),
-set only when UNIV_SYNC_PERF_STAT is defined */
-extern	ib_int64_t	rw_s_exit_count;
-/** number of OS waits on rw-latches,
-resulted during shared (read) locks */
-extern	ib_int64_t	rw_s_os_wait_count;
-/** number of spin waits on rw-latches,
-resulted during shared (read) locks */
-extern	ib_int64_t	rw_x_spin_wait_count;
-/** number of spin loop rounds on rw-latches,
-resulted during shared (read) locks */
-extern	ib_int64_t	rw_x_spin_round_count;
-/** number of OS waits on rw-latches,
-resulted during exclusive (write) locks */
-extern	ib_int64_t	rw_x_os_wait_count;
-/** number of unlocks (that unlock exclusive locks),
-set only when UNIV_SYNC_PERF_STAT is defined */
-extern	ib_int64_t	rw_x_exit_count;
+/** Counters for RW locks. */
+extern rw_lock_stats_t	rw_lock_stats;
 
 #ifdef UNIV_PFS_RWLOCK
 /* Following are rwlock keys used to register with MySQL
@@ -121,10 +137,10 @@ extern	mysql_pfs_key_t	checkpoint_lock_key;
 extern	mysql_pfs_key_t	fil_space_latch_key;
 extern	mysql_pfs_key_t	fts_cache_rw_lock_key;
 extern	mysql_pfs_key_t	fts_cache_init_rw_lock_key;
-extern	mysql_pfs_key_t	index_tree_rw_lock_key;
 extern	mysql_pfs_key_t	trx_i_s_cache_lock_key;
 extern	mysql_pfs_key_t	trx_purge_latch_key;
 extern	mysql_pfs_key_t	index_tree_rw_lock_key;
+extern	mysql_pfs_key_t	index_online_log_key;
 extern	mysql_pfs_key_t	dict_table_stats_latch_key;
 extern  mysql_pfs_key_t trx_sys_rw_lock_key;
 extern  mysql_pfs_key_t hash_table_rw_lock_key;
@@ -159,6 +175,9 @@ unlocking, not the corresponding function. */
 # define rw_lock_s_lock(M)					\
 	rw_lock_s_lock_func((M), 0, __FILE__, __LINE__)
 
+# define rw_lock_s_lock_inline(M, P, F, L)			\
+	rw_lock_s_lock_func((M), (P), (F), (L))
+
 # define rw_lock_s_lock_gen(M, P)				\
 	rw_lock_s_lock_func((M), (P), __FILE__, __LINE__)
 
@@ -175,11 +194,17 @@ unlocking, not the corresponding function. */
 # define rw_lock_x_lock(M)					\
 	rw_lock_x_lock_func((M), 0, __FILE__, __LINE__)
 
+# define rw_lock_x_lock_inline(M, P, F, L)			\
+	rw_lock_x_lock_func((M), (P), (F), (L))
+
 # define rw_lock_x_lock_gen(M, P)				\
 	rw_lock_x_lock_func((M), (P), __FILE__, __LINE__)
 
 # define rw_lock_x_lock_nowait(M)				\
 	rw_lock_x_lock_func_nowait((M), __FILE__, __LINE__)
+
+# define rw_lock_x_lock_func_nowait_inline(M, F, L)		\
+	rw_lock_x_lock_func_nowait((M), (F), (L))
 
 # ifdef UNIV_SYNC_DEBUG
 #  define rw_lock_x_unlock_gen(L, P)	rw_lock_x_unlock_func(P, L)
@@ -212,6 +237,9 @@ unlocking, not the corresponding function. */
 # define rw_lock_s_lock(M)					\
 	pfs_rw_lock_s_lock_func((M), 0, __FILE__, __LINE__)
 
+# define rw_lock_s_lock_inline(M, P, F, L)			\
+	pfs_rw_lock_s_lock_func((M), (P), (F), (L))
+
 # define rw_lock_s_lock_gen(M, P)				\
 	pfs_rw_lock_s_lock_func((M), (P), __FILE__, __LINE__)
 
@@ -227,11 +255,17 @@ unlocking, not the corresponding function. */
 # define rw_lock_x_lock(M)					\
 	pfs_rw_lock_x_lock_func((M), 0, __FILE__, __LINE__)
 
+# define rw_lock_x_lock_inline(M, P, F, L)			\
+	pfs_rw_lock_x_lock_func((M), (P), (F), (L))
+
 # define rw_lock_x_lock_gen(M, P)				\
 	pfs_rw_lock_x_lock_func((M), (P), __FILE__, __LINE__)
 
 # define rw_lock_x_lock_nowait(M)				\
 	pfs_rw_lock_x_lock_func_nowait((M), __FILE__, __LINE__)
+
+# define rw_lock_x_lock_func_nowait_inline(M, F, L)		\
+	pfs_rw_lock_x_lock_func_nowait((M), (F), (L))
 
 # ifdef UNIV_SYNC_DEBUG
 #  define rw_lock_x_unlock_gen(L, P)	pfs_rw_lock_x_unlock_func(P, L)
@@ -367,30 +401,6 @@ rw_lock_x_unlock_func(
 				been passed to another thread to unlock */
 #endif
 	rw_lock_t*	lock);	/*!< in/out: rw-lock */
-
-
-/******************************************************************//**
-Low-level function which locks an rw-lock in s-mode when we know that it
-is possible and none else is currently accessing the rw-lock structure.
-Then we can do the locking without reserving the mutex. */
-UNIV_INLINE
-void
-rw_lock_s_lock_direct(
-/*==================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	const char*	file_name,	/*!< in: file name where requested */
-	ulint		line);		/*!< in: line where lock requested */
-/******************************************************************//**
-Low-level function which locks an rw-lock in x-mode when we know that it
-is not locked and none else is currently accessing the rw-lock structure.
-Then we can do the locking without reserving the mutex. */
-UNIV_INLINE
-void
-rw_lock_x_lock_direct(
-/*==================*/
-	rw_lock_t*	lock,		/*!< in/out: rw-lock */
-	const char*	file_name,	/*!< in: file name where requested */
-	ulint		line);		/*!< in: line where lock requested */
 /******************************************************************//**
 This function is used in the insert buffer to move the ownership of an
 x-latch on a buffer frame to the current thread. The x-latch was set by
@@ -558,7 +568,7 @@ shared locks are allowed. To prevent starving of a writer blocked by
 readers, a writer may queue for x-lock by decrementing lock_word: no
 new readers will be let in while the thread waits for readers to
 exit. */
-struct rw_lock_struct {
+struct rw_lock_t {
 	volatile lint	lock_word;
 				/*!< Holds the state of the lock. */
 	volatile ulint	waiters;/*!< 1: there are waiters */
@@ -583,7 +593,7 @@ struct rw_lock_struct {
 				/*!< Event for next-writer to wait on. A thread
 				must decrement lock_word before waiting. */
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_t	mutex;		/*!< The mutex protecting rw_lock_struct */
+	ib_mutex_t	mutex;		/*!< The mutex protecting rw_lock_t */
 #endif /* INNODB_RW_LOCKS_USE_ATOMICS */
 
 	UT_LIST_NODE_T(rw_lock_t) list;
@@ -615,7 +625,7 @@ struct rw_lock_struct {
 	unsigned	last_x_line:14;	/*!< Line number where last time x-locked */
 #ifdef UNIV_DEBUG
 	ulint	magic_n;	/*!< RW_LOCK_MAGIC_N */
-/** Value of rw_lock_struct::magic_n */
+/** Value of rw_lock_t::magic_n */
 #define	RW_LOCK_MAGIC_N	22643
 #endif /* UNIV_DEBUG */
 };
@@ -623,7 +633,7 @@ struct rw_lock_struct {
 #ifdef UNIV_SYNC_DEBUG
 /** The structure for storing debug info of an rw-lock.  All access to this
 structure must be protected by rw_lock_debug_mutex_enter(). */
-struct	rw_lock_debug_struct {
+struct	rw_lock_debug_t {
 
 	os_thread_id_t thread_id;  /*!< The thread id of the thread which
 				locked the rw-lock */

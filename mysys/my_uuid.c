@@ -40,6 +40,7 @@
 */
 
 #include "mysys_priv.h"
+#include <my_rnd.h>
 #include <m_string.h>
 #include <myisampack.h> /* mi_int2store, mi_int4store */
 
@@ -151,7 +152,7 @@ void my_uuid(uchar *to)
       /*
         -1 so we won't make tv= uuid_time for nanoseq >= (tv - uuid_time)
       */
-      delta= min(nanoseq, (ulong)(tv - uuid_time -1));
+      delta= MY_MIN(nanoseq, (ulong)(tv - uuid_time -1));
       tv-= delta;
       nanoseq-= delta;
     }

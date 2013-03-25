@@ -46,9 +46,9 @@
     three subexpressions (including the top-level one),
     every one has its own max_docid, updated by its plus word.
     but for the search word6 uses
-    max(word1.max_docid, word3.max_docid, word5.max_docid),
+    MY_MAX(word1.max_docid, word3.max_docid, word5.max_docid),
     while word4 uses, accordingly,
-    max(word1.max_docid, word3.max_docid).
+    MY_MAX(word1.max_docid, word3.max_docid).
 */
 
 #define FT_CORE

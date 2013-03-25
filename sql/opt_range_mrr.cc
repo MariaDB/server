@@ -293,7 +293,7 @@ walk_up_n_right:
     }
   }
   seq->param->range_count++;
-  seq->param->max_key_part=max(seq->param->max_key_part,key_tree->part);
+  seq->param->max_key_part=MY_MAX(seq->param->max_key_part,key_tree->part);
   return 0;
 }
 

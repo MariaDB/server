@@ -36,7 +36,7 @@
 */ 
 
 #include <my_global.h>
-
+#include <my_default.h>
 #include "mysql.h"
 
 /* Remove client convenience wrappers */

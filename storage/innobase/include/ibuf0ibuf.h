@@ -376,24 +376,16 @@ will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
 UNIV_INTERN
 ulint
-ibuf_contract(
-/*==========*/
-	ibool	sync);	/*!< in: TRUE if the caller wants to wait for the
-			issued read with the highest tablespace address
-			to complete */
-/*********************************************************************//**
-Contracts insert buffer trees by reading pages to the buffer pool.
-@return a lower limit for the combined size in bytes of entries which
-will be merged from ibuf trees to the pages read, 0 if ibuf is
-empty */
-UNIV_INTERN
-ulint
 ibuf_contract_in_background(
 /*========================*/
-	ibool	full);	/*!< in: TRUE if the caller wants to do a full
-			contract based on PCT_IO(100). If FALSE then
-			the size of contract batch is determined based
-			on the current size of the ibuf tree. */
+	table_id_t	table_id,	/*!< in: if merge should be done only
+					for a specific table, for all tables
+					this should be 0 */
+	ibool		full);		/*!< in: TRUE if the caller wants to
+					do a full contract based on PCT_IO(100).
+					If FALSE then the size of contract
+					batch is determined based on the
+					current size of the ibuf tree. */
 #endif /* !UNIV_HOTBACKUP */
 /*********************************************************************//**
 Parses a redo log record of an ibuf bitmap page init.
@@ -449,6 +441,17 @@ void
 ibuf_close(void);
 /*============*/
 
+/******************************************************************//**
+Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+ibuf_check_bitmap_on_import(
+/*========================*/
+	const trx_t*	trx,		/*!< in: transaction */
+	ulint		space_id)	/*!< in: tablespace identifier */
+	__attribute__((nonnull, warn_unused_result));
+
 #define IBUF_HEADER_PAGE_NO	FSP_IBUF_HEADER_PAGE_NO
 #define IBUF_TREE_ROOT_PAGE_NO	FSP_IBUF_TREE_ROOT_PAGE_NO
 
@@ -461,36 +464,6 @@ for the file segment from which the pages for the ibuf tree are allocated */
 
 /* The insert buffer tree itself is always located in space 0. */
 #define IBUF_SPACE_ID		0
-
-/** Insert buffer struct */
-struct ibuf_struct{
-	ulint		size;		/*!< current size of the ibuf index
-					tree, in pages */
-	ulint		max_size;	/*!< recommended maximum size of the
-					ibuf index tree, in pages */
-	ulint		seg_size;	/*!< allocated pages of the file
-					segment containing ibuf header and
-					tree */
-	ibool		empty;		/*!< Protected by the page
-					latch of the root page of the
-					insert buffer tree
-					(FSP_IBUF_TREE_ROOT_PAGE_NO). TRUE
-					if and only if the insert
-					buffer tree is empty. */
-	ulint		free_list_len;	/*!< length of the free list */
-	ulint		height;		/*!< tree height */
-	dict_index_t*	index;		/*!< insert buffer index */
-
-	ulint		n_merges;	/*!< number of pages merged */
-	ulint		n_merged_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					merged to index pages */
-	ulint		n_discarded_ops[IBUF_OP_COUNT];
-					/*!< number of operations of each type
-					discarded without merging due to the
-					tablespace being deleted or the
-					index being dropped */
-};
 
 #ifndef UNIV_NONINL
 #include "ibuf0ibuf.ic"

@@ -376,12 +376,16 @@ void my_thread_end(void)
     This must be done before trashing st_my_thread_var,
     because the LF_HASH depends on it.
   */
-  if (PSI_server)
-    PSI_server->delete_current_thread();
+  PSI_THREAD_CALL(delete_current_thread)();
 #endif
 
+  /*
+    We need to disable DBUG early for this thread to ensure that the
+    the mutex calls doesn't enable it again
+    To this we have to both do DBUG_POP() and also reset THR_KEY_mysys
+    as the key is used by DBUG.
+  */
   DBUG_POP();
-
   pthread_setspecific(THR_KEY_mysys,0);
 
   if (tmp && tmp->init)
@@ -418,6 +422,10 @@ struct st_my_thread_var *_my_thread_var(void)
   return  my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
 }
 
+int set_mysys_var(struct st_my_thread_var *mysys_var)
+{
+  return my_pthread_setspecific_ptr(THR_KEY_mysys, mysys_var);
+}
 
 /****************************************************************************
   Get name of current thread.

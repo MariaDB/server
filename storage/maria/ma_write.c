@@ -933,7 +933,7 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
                                  &s_temp));
   }
   DBUG_RETURN(_ma_split_page(info, key, anc_page,
-                             min(org_anc_length,
+                             MY_MIN(org_anc_length,
                                  info->s->max_index_block_size),
                              key_pos, s_temp.changed_length, t_length,
                              key_buff, insert_last));
@@ -2075,7 +2075,7 @@ static my_bool _ma_log_split(MARIA_PAGE *ma_page,
       Handle case when split happened directly after the newly inserted key.
     */
     max_key_length= new_length - offset;
-    extra_length= min(key_length, max_key_length);
+    extra_length= MY_MIN(key_length, max_key_length);
     if (offset + move_length > new_length)
     {
       /* This is true when move_length includes changes for next packed key */

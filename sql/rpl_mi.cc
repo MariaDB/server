@@ -151,7 +151,7 @@ void init_master_log_pos(Master_info* mi)
     if CHANGE MASTER did not specify it.  (no data loss in conversion
     as hb period has a max)
   */
-  mi->heartbeat_period= (float) min(SLAVE_MAX_HEARTBEAT_PERIOD,
+  mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
                                     (slave_net_timeout/2.0));
   DBUG_ASSERT(mi->heartbeat_period > (float) 0.001
               || mi->heartbeat_period == 0);
@@ -702,7 +702,7 @@ void create_logfile_name_with_suffix(char *res_file_name, uint length,
     length-= (suffix->length - ext_pos); /* Leave place for extension */
     p= res_file_name + ext_pos;
     *p++= '-';                           /* Add separator */
-    p= strmake(p, res, min((size_t) (length - (p - res_file_name)),
+    p= strmake(p, res, MY_MIN((size_t) (length - (p - res_file_name)),
                            res_length));
     /* Add back extension. We have checked above that there is space for it */
     strmov(p, ext);

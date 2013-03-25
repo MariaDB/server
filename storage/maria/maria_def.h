@@ -465,6 +465,7 @@ typedef struct st_maria_share
   my_bool changed,			/* If changed since lock */
     global_changed,			/* If changed since open */
     not_flushed;
+  my_bool internal_table;               /* Internal tmp table */
   my_bool lock_key_trees;               /* If we have to lock trees on read */
   my_bool non_transactional_concurrent_insert;
   my_bool delay_key_write;

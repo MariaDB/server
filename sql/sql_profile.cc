@@ -288,7 +288,7 @@ void QUERY_PROFILE::set_query_source(char *query_source_arg,
                                      uint query_length_arg)
 {
   /* Truncate to avoid DoS attacks. */
-  uint length= min(MAX_QUERY_LENGTH, query_length_arg);
+  uint length= MY_MIN(MAX_QUERY_LENGTH, query_length_arg);
 
   DBUG_ASSERT(query_source == NULL); /* we don't leak memory */
   if (query_source_arg != NULL)

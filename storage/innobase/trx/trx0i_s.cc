@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -131,25 +131,25 @@ noop because it will be empty. */
 /** Memory for each table in the intermediate buffer is allocated in
 separate chunks. These chunks are considered to be concatenated to
 represent one flat array of rows. */
-typedef struct i_s_mem_chunk_struct {
+struct i_s_mem_chunk_t {
 	ulint	offset;		/*!< offset, in number of rows */
 	ulint	rows_allocd;	/*!< the size of this chunk, in number
 				of rows */
 	void*	base;		/*!< start of the chunk */
-} i_s_mem_chunk_t;
+};
 
 /** This represents one table's cache. */
-typedef struct i_s_table_cache_struct {
+struct i_s_table_cache_t {
 	ulint		rows_used;	/*!< number of used rows */
 	ulint		rows_allocd;	/*!< number of allocated rows */
 	ulint		row_size;	/*!< size of a single row */
 	i_s_mem_chunk_t	chunks[MEM_CHUNKS_IN_TABLE_CACHE]; /*!< array of
 					memory chunks that stores the
 					rows */
-} i_s_table_cache_t;
+};
 
 /** This structure describes the intermediate buffer */
-struct trx_i_s_cache_struct {
+struct trx_i_s_cache_t {
 	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
 	ullint		last_read;	/*!< last time the cache was read;
@@ -501,8 +501,7 @@ fill_trx_row(
 		goto thd_done;
 	}
 
-	row->trx_mysql_thread_id = thd_get_thread_id(
-		static_cast<const THD*>(trx->mysql_thd));
+	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
 	stmt = innobase_get_stmt(trx->mysql_thd, &stmt_len);
 
@@ -1290,7 +1289,10 @@ fetch_data_into_cache_low(
 
 	for (trx = UT_LIST_GET_FIRST(*trx_list);
 	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
+	     trx =
+	     (trx_list == &trx_sys->mysql_trx_list
+	      ? UT_LIST_GET_NEXT(mysql_trx_list, trx)
+	      : UT_LIST_GET_NEXT(trx_list, trx))) {
 
 		i_s_trx_row_t*		trx_row;
 		i_s_locks_row_t*	requested_lock_row;

@@ -1647,7 +1647,7 @@ int DsMrr_impl::dsmrr_explain_info(uint mrr_mode, char *str, size_t size)
       used_str= rowid_ordered;
 
     uint used_str_len= strlen(used_str);
-    uint copy_len= min(used_str_len, size);
+    uint copy_len= MY_MIN(used_str_len, size);
     memcpy(str, used_str, size);
     return copy_len;
   }
@@ -1708,7 +1708,7 @@ bool DsMrr_impl::get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
   else
   {
     cost->reset();
-    *buffer_size= max(*buffer_size, 
+    *buffer_size= MY_MAX(*buffer_size, 
                       (size_t)(1.2*rows_in_last_step) * elem_size + 
                       primary_file->ref_length + table->key_info[keynr].key_length);
   }

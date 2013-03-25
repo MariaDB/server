@@ -34,8 +34,9 @@
 ****************************************************************************/
 
 #include "mysys_priv.h"
-#include "m_string.h"
-#include "m_ctype.h"
+#include <my_default.h>
+#include <m_string.h>
+#include <m_ctype.h>
 #include <my_dir.h>
 #ifdef __WIN__
 #include <winbase.h>
@@ -899,7 +900,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
       for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
       end[0]=0;
 
-      strmake(curr_gr, ptr, min((size_t) (end-ptr)+1, sizeof(curr_gr)-1));
+      strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr)+1, sizeof(curr_gr)-1));
 
       /* signal that a new group is found */
       opt_handler(handler_ctx, curr_gr, NULL);

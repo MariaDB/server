@@ -781,8 +781,8 @@ bool Log_to_csv_event_handler::
   Open_tables_backup open_tables_backup;
   CHARSET_INFO *client_cs= thd->variables.character_set_client;
   bool save_time_zone_used;
-  long query_time= (long) min(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
-  long lock_time=  (long) min(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  long query_time= (long) MY_MIN(query_utime/1000000, TIME_MAX_VALUE_SECONDS);
+  long lock_time=  (long) MY_MIN(lock_utime/1000000, TIME_MAX_VALUE_SECONDS);
   long query_time_micro= (long) (query_utime % 1000000);
   long lock_time_micro=  (long) (lock_utime % 1000000);
 
@@ -2925,7 +2925,7 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
   {
     char *p= fn_ext(log_name);
     uint length= (uint) (p - log_name);
-    strmake(buff, log_name, min(length, FN_REFLEN-1));
+    strmake(buff, log_name, MY_MIN(length, FN_REFLEN-1));
     return (const char*)buff;
   }
   return log_name;
@@ -6992,7 +6992,7 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
   DBUG_ENTER("print_buffer_to_nt_eventlog");
 
   /* Add ending CR/LF's to string, overwrite last chars if necessary */
-  strmov(buffptr+min(length, buffLen-5), "\r\n\r\n");
+  strmov(buffptr+MY_MIN(length, buffLen-5), "\r\n\r\n");
 
   setup_windows_event_source();
   if ((event= RegisterEventSource(NULL,"MySQL")))

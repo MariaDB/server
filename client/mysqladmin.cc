@@ -23,7 +23,8 @@
 #include <sys/stat.h>
 #include <mysql.h>
 #include <sql_common.h>
-#include <welcome_copyright_notice.h>           /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
+#include <welcome_copyright_notice.h>
+#include <my_rnd.h>
 
 #define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512

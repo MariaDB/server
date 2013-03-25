@@ -1254,8 +1254,9 @@ static bool fix_max_connections(sys_var *self, THD *thd, enum_var_type type)
 // children, to avoid "too many connections" error in a common setup
 static Sys_var_ulong Sys_max_connections(
        "max_connections", "The number of simultaneous clients allowed",
-       GLOBAL_VAR(max_connections), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 100000), DEFAULT(151), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       PARSED_EARLY GLOBAL_VAR(max_connections), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 100000),
+       DEFAULT(MAX_CONNECTIONS_DEFAULT), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_max_connections));
 
 static Sys_var_ulong Sys_max_connect_errors(
@@ -2686,7 +2687,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       Don't close thread tables or release metadata locks: if we do so, we
       risk releasing locks/closing tables of expressions used to assign
       other variables, as in:
-      set @var=my_stored_function1(), @@autocommit=1, @var2=(select max(a)
+      set @var=my_stored_function1(), @@autocommit=1, @var2=(select MY_MAX(a)
       from my_table), ...
       The locks will be released at statement end anyway, as SET
       statement that assigns autocommit is marked to commit

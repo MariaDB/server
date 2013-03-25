@@ -233,7 +233,7 @@ net_send_ok(THD *thd,
     pos+=2;
 
     /* We can only return up to 65535 warnings in two bytes */
-    uint tmp= min(statement_warn_count, 65535);
+    uint tmp= MY_MIN(statement_warn_count, 65535);
     int2store(pos, tmp);
     pos+= 2;
   }
@@ -329,7 +329,7 @@ static bool write_eof_packet(THD *thd, NET *net,
       Don't send warn count during SP execution, as the warn_list
       is cleared between substatements, and mysqltest gets confused
     */
-    uint tmp= min(statement_warn_count, 65535);
+    uint tmp= MY_MIN(statement_warn_count, 65535);
     buff[0]= 254;
     int2store(buff+1, tmp);
     /*
@@ -606,17 +606,17 @@ void net_send_progress_packet(THD *thd)
   *pos++= (uchar) 1;                            // Number of strings
   *pos++= (uchar) thd->progress.stage + 1;
   /*
-    We have the max() here to avoid problems if max_stage is not set,
+    We have the MY_MAX() here to avoid problems if max_stage is not set,
     which may happen during automatic repair of table
   */
-  *pos++= (uchar) max(thd->progress.max_stage, thd->progress.stage + 1);
+  *pos++= (uchar) MY_MAX(thd->progress.max_stage, thd->progress.stage + 1);
   progress= 0;
   if (thd->progress.max_counter)
     progress= 100000ULL * thd->progress.counter / thd->progress.max_counter;
   int3store(pos, progress);                          // Between 0 & 100000
   pos+= 3;
   pos= net_store_data(pos, (const uchar*) proc_info,
-                      min(length, sizeof(buff)-7));
+                      MY_MIN(length, sizeof(buff)-7));
   net_write_command(&thd->net, (uchar) 255, progress_header,
                     sizeof(progress_header), (uchar*) buff,
                     (uint) (pos - buff));

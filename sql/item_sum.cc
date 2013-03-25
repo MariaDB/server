@@ -36,7 +36,7 @@
 
 ulonglong Item_sum::ram_limitation(THD *thd)
 {
-  return min(thd->variables.tmp_table_size,
+  return MY_MIN(thd->variables.tmp_table_size,
       thd->variables.max_heap_table_size);
 }
 
@@ -1581,16 +1581,16 @@ void Item_sum_avg::fix_length_and_dec()
   if (hybrid_type == DECIMAL_RESULT)
   {
     int precision= args[0]->decimal_precision() + prec_increment;
-    decimals= min(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
-    f_precision= min(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
+    f_precision= MY_MIN(precision+DECIMAL_LONGLONG_DIGITS, DECIMAL_MAX_PRECISION);
     f_scale=  args[0]->decimals;
     dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
   }
   else {
-    decimals= min(args[0]->decimals + prec_increment, NOT_FIXED_DEC);
+    decimals= MY_MIN(args[0]->decimals + prec_increment, NOT_FIXED_DEC);
     max_length= args[0]->max_length + prec_increment;
   }
 }
@@ -1787,13 +1787,13 @@ void Item_sum_variance::fix_length_and_dec()
   switch (args[0]->result_type()) {
   case REAL_RESULT:
   case STRING_RESULT:
-    decimals= min(args[0]->decimals + 4, NOT_FIXED_DEC);
+    decimals= MY_MIN(args[0]->decimals + 4, NOT_FIXED_DEC);
     break;
   case INT_RESULT:
   case DECIMAL_RESULT:
   {
     int precision= args[0]->decimal_precision()*2 + prec_increment;
-    decimals= min(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+    decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
     max_length= my_decimal_precision_to_length_no_truncation(precision,
                                                              decimals,
                                                              unsigned_flag);
@@ -3488,7 +3488,7 @@ bool Item_func_group_concat::setup(THD *thd)
       syntax of this function). If there is no ORDER BY clause, we don't
       create this tree.
     */
-    init_tree(tree, (uint) min(thd->variables.max_heap_table_size,
+    init_tree(tree, (uint) MY_MIN(thd->variables.max_heap_table_size,
                                thd->variables.sortbuff_size/16), 0,
               tree_key_length, 
               group_concat_key_cmp_with_order, NULL, (void*) this,

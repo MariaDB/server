@@ -34,7 +34,7 @@ static const TABLE_FIELD_TYPE field_types[]=
 {
   {
     { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
+    { C_STRING_WITH_LEN("bigint(20)") },
     { NULL, 0}
   },
   {
@@ -239,7 +239,8 @@ int table_events_waits_common::make_table_object_columns(volatile PFS_events_wai
 
     /* INDEX NAME */
     safe_index= wait->m_index;
-    if (safe_index < MAX_KEY && safe_index < safe_table_share->m_key_count)
+    uint safe_key_count= sanitize_index_count(safe_table_share->m_key_count);
+    if (safe_index < safe_key_count)
     {
       PFS_table_key *key= & safe_table_share->m_keys[safe_index];
       m_row.m_index_name_length= key->m_name_length;
@@ -602,7 +603,7 @@ int table_events_waits_common::read_row_values(TABLE *table,
       switch(f->field_index)
       {
       case 0: /* THREAD_ID */
-        set_field_ulong(f, m_row.m_thread_internal_id);
+        set_field_ulonglong(f, m_row.m_thread_internal_id);
         break;
       case 1: /* EVENT_ID */
         set_field_ulonglong(f, m_row.m_event_id);

@@ -57,11 +57,11 @@ lock_word == 0:		       Write locked
 			       (-lock_word) is the number of readers
 			       that hold the lock.
 lock_word <= -X_LOCK_DECR:     Recursively write locked. lock_word has been
-			       decremented by X_LOCK_DECR once for each lock,
-			       so the number of locks is:
-			       ((-lock_word) / X_LOCK_DECR) + 1
-When lock_word <= -X_LOCK_DECR, we also know that lock_word % X_LOCK_DECR == 0:
-other values of lock_word are invalid.
+			       decremented by X_LOCK_DECR for the first lock
+			       and the first recursive lock, then by 1 for
+			       each recursive lock thereafter.
+			       So the number of locks is:
+			       (lock_copy == 0) ? 1 : 2 - (lock_copy + X_LOCK_DECR)
 
 The lock_word is always read and updated atomically and consistently, so that
 it always represents the state of the lock, and the state of the lock changes
@@ -124,50 +124,21 @@ wait_ex_event:	A thread may only wait on the wait_ex_event after it has
 		performed the following actions in order:
 		   (1) Decrement lock_word by X_LOCK_DECR.
 		   (2) Record counter value of wait_ex_event (os_event_reset,
-                       called from sync_array_reserve_cell).
+		       called from sync_array_reserve_cell).
 		   (3) Verify that lock_word < 0.
 		(1) must come first to ensures no other threads become reader
-                or next writer, and notifies unlocker that signal must be sent.
-                (2) must come before (3) to ensure the signal is not missed.
+		or next writer, and notifies unlocker that signal must be sent.
+		(2) must come before (3) to ensure the signal is not missed.
 		These restrictions force the above ordering.
 		Immediately before sending the wake-up signal, we should:
 		   Verify lock_word == 0 (waiting thread holds x_lock)
 */
 
-
-/** number of spin waits on rw-latches,
-resulted during shared (read) locks */
-UNIV_INTERN ib_int64_t	rw_s_spin_wait_count	= 0;
-/** number of spin loop rounds on rw-latches,
-resulted during shared (read) locks */
-UNIV_INTERN ib_int64_t	rw_s_spin_round_count	= 0;
-
-/** number of OS waits on rw-latches,
-resulted during shared (read) locks */
-UNIV_INTERN ib_int64_t	rw_s_os_wait_count	= 0;
-
-/** number of unlocks (that unlock shared locks),
-set only when UNIV_SYNC_PERF_STAT is defined */
-UNIV_INTERN ib_int64_t	rw_s_exit_count		= 0;
-
-/** number of spin waits on rw-latches,
-resulted during exclusive (write) locks */
-UNIV_INTERN ib_int64_t	rw_x_spin_wait_count	= 0;
-/** number of spin loop rounds on rw-latches,
-resulted during exclusive (write) locks */
-UNIV_INTERN ib_int64_t	rw_x_spin_round_count	= 0;
-
-/** number of OS waits on rw-latches,
-resulted during exclusive (write) locks */
-UNIV_INTERN ib_int64_t	rw_x_os_wait_count	= 0;
-
-/** number of unlocks (that unlock exclusive locks),
-set only when UNIV_SYNC_PERF_STAT is defined */
-UNIV_INTERN ib_int64_t	rw_x_exit_count		= 0;
+UNIV_INTERN rw_lock_stats_t	rw_lock_stats;
 
 /* The global list of rw-locks */
 UNIV_INTERN rw_lock_list_t	rw_lock_list;
-UNIV_INTERN mutex_t		rw_lock_list_mutex;
+UNIV_INTERN ib_mutex_t		rw_lock_list_mutex;
 
 #ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	rw_lock_list_mutex_key;
@@ -179,7 +150,7 @@ UNIV_INTERN mysql_pfs_key_t	rw_lock_mutex_key;
 To modify the debug info list of an rw-lock, this mutex has to be
 acquired in addition to the mutex protecting the lock. */
 
-UNIV_INTERN mutex_t		rw_lock_debug_mutex;
+UNIV_INTERN ib_mutex_t		rw_lock_debug_mutex;
 
 # ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	rw_lock_debug_mutex_key;
@@ -258,7 +229,7 @@ rw_lock_create_func(
 	lock->mutex.cline = cline;
 
 	ut_d(lock->mutex.cmutex_name = cmutex_name);
-	ut_d(lock->mutex.mutex_type = 1);
+	ut_d(lock->mutex.ib_mutex_type = 1);
 #else /* INNODB_RW_LOCKS_USE_ATOMICS */
 # ifdef UNIV_DEBUG
 	UT_NOT_USED(cmutex_name);
@@ -292,8 +263,8 @@ rw_lock_create_func(
 	lock->last_x_file_name = "not yet reserved";
 	lock->last_s_line = 0;
 	lock->last_x_line = 0;
-	lock->event = os_event_create(NULL);
-	lock->wait_ex_event = os_event_create(NULL);
+	lock->event = os_event_create();
+	lock->wait_ex_event = os_event_create();
 
 	mutex_enter(&rw_lock_list_mutex);
 
@@ -316,7 +287,7 @@ rw_lock_free_func(
 	rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 #ifndef INNODB_RW_LOCKS_USE_ATOMICS
-	mutex_t*	mutex;
+	ib_mutex_t*	mutex;
 #endif /* !INNODB_RW_LOCKS_USE_ATOMICS */
 
 	ut_ad(rw_lock_validate(lock));
@@ -364,14 +335,15 @@ rw_lock_validate(
 	ulint	waiters;
 	lint	lock_word;
 
-	ut_a(lock);
+	ut_ad(lock);
 
 	waiters = rw_lock_get_waiters(lock);
 	lock_word = lock->lock_word;
 
 	ut_ad(lock->magic_n == RW_LOCK_MAGIC_N);
-	ut_a(waiters == 0 || waiters == 1);
-	ut_a(lock_word > -X_LOCK_DECR ||(-lock_word) % X_LOCK_DECR == 0);
+	ut_ad(waiters == 0 || waiters == 1);
+	ut_ad(lock_word > -(2 * X_LOCK_DECR));
+	ut_ad(lock_word <= X_LOCK_DECR);
 
 	return(TRUE);
 }
@@ -395,10 +367,16 @@ rw_lock_s_lock_spin(
 	ulint		index;	/* index of the reserved wait cell */
 	ulint		i = 0;	/* spin round count */
 	sync_array_t*	sync_arr;
+	size_t		counter_index;
+
+	/* We reuse the thread id to index into the counter, cache
+	it here for efficiency. */
+
+	counter_index = (size_t) os_thread_get_curr_id();
 
 	ut_ad(rw_lock_validate(lock));
 
-	rw_s_spin_wait_count++;	/*!< Count calls to this function */
+	rw_lock_stats.rw_s_spin_wait_count.add(counter_index, 1);
 lock_loop:
 
 	/* Spin waiting for the writer field to become free */
@@ -414,19 +392,9 @@ lock_loop:
 		os_thread_yield();
 	}
 
-	if (srv_print_latch_waits) {
-		fprintf(stderr,
-			"Thread %lu spin wait rw-s-lock at %p"
-			" cfile %s cline %lu rnds %lu\n",
-			(ulong) os_thread_pf(os_thread_get_curr_id()),
-			(void*) lock,
-			innobase_basename(lock->cfile_name),
-			(ulong) lock->cline, (ulong) i);
-	}
-
 	/* We try once again to obtain the lock */
 	if (TRUE == rw_lock_s_lock_low(lock, pass, file_name, line)) {
-		rw_s_spin_round_count += i;
+		rw_lock_stats.rw_s_spin_round_count.add(counter_index, i);
 
 		return; /* Success */
 	} else {
@@ -435,7 +403,7 @@ lock_loop:
 			goto lock_loop;
 		}
 
-		rw_s_spin_round_count += i;
+		rw_lock_stats.rw_s_spin_round_count.add(counter_index, i);
 
 		sync_arr = sync_array_get();
 
@@ -444,7 +412,7 @@ lock_loop:
 			file_name, line, &index);
 
 		/* Set waiters before checking lock_word to ensure wake-up
-                signal is sent. This may lead to some unnecessary signals. */
+		signal is sent. This may lead to some unnecessary signals. */
 		rw_lock_set_waiter_flag(lock);
 
 		if (TRUE == rw_lock_s_lock_low(lock, pass, file_name, line)) {
@@ -452,19 +420,9 @@ lock_loop:
 			return; /* Success */
 		}
 
-		if (srv_print_latch_waits) {
-			fprintf(stderr,
-				"Thread %lu OS wait rw-s-lock at %p"
-				" cfile %s cline %lu\n",
-				os_thread_pf(os_thread_get_curr_id()),
-				(void*) lock,
-				innobase_basename(lock->cfile_name),
-				(ulong) lock->cline);
-		}
-
 		/* these stats may not be accurate */
 		lock->count_os_wait++;
-		rw_s_os_wait_count++;
+		rw_lock_stats.rw_s_os_wait_count.add(counter_index, 1);
 
 		sync_array_wait_event(sync_arr, index);
 
@@ -511,6 +469,12 @@ rw_lock_x_lock_wait(
 	ulint		index;
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
+	size_t		counter_index;
+
+	/* We reuse the thread id to index into the counter, cache
+	it here for efficiency. */
+
+	counter_index = (size_t) os_thread_get_curr_id();
 
 	ut_ad(lock->lock_word <= 0);
 
@@ -524,7 +488,7 @@ rw_lock_x_lock_wait(
 		}
 
 		/* If there is still a reader, then go to sleep.*/
-		rw_x_spin_round_count += i;
+		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 
 		sync_arr = sync_array_get();
 
@@ -539,11 +503,11 @@ rw_lock_x_lock_wait(
 
 			/* these stats may not be accurate */
 			lock->count_os_wait++;
-			rw_x_os_wait_count++;
+			rw_lock_stats.rw_x_os_wait_count.add(counter_index, 1);
 
-                        /* Add debug info as it is needed to detect possible
-                        deadlock. We must add info for WAIT_EX thread for
-                        deadlock detection to work properly. */
+			/* Add debug info as it is needed to detect possible
+			deadlock. We must add info for WAIT_EX thread for
+			deadlock detection to work properly. */
 #ifdef UNIV_SYNC_DEBUG
 			rw_lock_add_debug_info(lock, pass, RW_LOCK_WAIT_EX,
 					       file_name, line);
@@ -551,16 +515,16 @@ rw_lock_x_lock_wait(
 
 			sync_array_wait_event(sync_arr, index);
 #ifdef UNIV_SYNC_DEBUG
-			rw_lock_remove_debug_info(lock, pass,
-					       RW_LOCK_WAIT_EX);
+			rw_lock_remove_debug_info(
+				lock, pass, RW_LOCK_WAIT_EX);
 #endif
-                        /* It is possible to wake when lock_word < 0.
-                        We must pass the while-loop check to proceed.*/
+			/* It is possible to wake when lock_word < 0.
+			We must pass the while-loop check to proceed.*/
 		} else {
 			sync_array_free_cell(sync_arr, index);
 		}
 	}
-	rw_x_spin_round_count += i;
+	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 }
 
 /******************************************************************//**
@@ -576,8 +540,6 @@ rw_lock_x_lock_low(
 	const char*	file_name,/*!< in: file name where lock requested */
 	ulint		line)	/*!< in: line where requested */
 {
-	os_thread_id_t	curr_thread	= os_thread_get_curr_id();
-
 	if (rw_lock_lock_word_decr(lock, X_LOCK_DECR)) {
 
 		/* lock->recursive also tells us if the writer_thread
@@ -587,8 +549,8 @@ rw_lock_x_lock_low(
 		ut_a(!lock->recursive);
 
 		/* Decrement occurred: we are writer or next-writer. */
-		rw_lock_set_writer_id_and_recursion_flag(lock,
-						pass ? FALSE : TRUE);
+		rw_lock_set_writer_id_and_recursion_flag(
+			lock, pass ? FALSE : TRUE);
 
 		rw_lock_x_lock_wait(lock,
 #ifdef UNIV_SYNC_DEBUG
@@ -597,19 +559,25 @@ rw_lock_x_lock_low(
 				    file_name, line);
 
 	} else {
+		os_thread_id_t	thread_id = os_thread_get_curr_id();
+
 		/* Decrement failed: relock or failed lock */
 		if (!pass && lock->recursive
-		    && os_thread_eq(lock->writer_thread, curr_thread)) {
+		    && os_thread_eq(lock->writer_thread, thread_id)) {
 			/* Relock */
-			lock->lock_word -= X_LOCK_DECR;
+			if (lock->lock_word == 0) {
+				lock->lock_word -= X_LOCK_DECR;
+			} else {
+				--lock->lock_word;
+			}
+
 		} else {
 			/* Another thread locked before us */
 			return(FALSE);
 		}
 	}
 #ifdef UNIV_SYNC_DEBUG
-	rw_lock_add_debug_info(lock, pass, RW_LOCK_EX,
-			       file_name, line);
+	rw_lock_add_debug_info(lock, pass, RW_LOCK_EX, file_name, line);
 #endif
 	lock->last_x_file_name = file_name;
 	lock->last_x_line = (unsigned int) line;
@@ -640,6 +608,12 @@ rw_lock_x_lock_func(
 	ulint		index;	/*!< index of the reserved wait cell */
 	sync_array_t*	sync_arr;
 	ibool		spinning = FALSE;
+	size_t		counter_index;
+
+	/* We reuse the thread id to index into the counter, cache
+	it here for efficiency. */
+
+	counter_index = (size_t) os_thread_get_curr_id();
 
 	ut_ad(rw_lock_validate(lock));
 #ifdef UNIV_SYNC_DEBUG
@@ -651,15 +625,17 @@ rw_lock_x_lock_func(
 lock_loop:
 
 	if (rw_lock_x_lock_low(lock, pass, file_name, line)) {
-		rw_x_spin_round_count += i;
+		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 
 		return;	/* Locking succeeded */
 
 	} else {
 
-                if (!spinning) {
-                        spinning = TRUE;
-                        rw_x_spin_wait_count++;
+		if (!spinning) {
+			spinning = TRUE;
+
+			rw_lock_stats.rw_x_spin_wait_count.add(
+				counter_index, 1);
 		}
 
 		/* Spin waiting for the lock_word to become free */
@@ -679,16 +655,7 @@ lock_loop:
 		}
 	}
 
-	rw_x_spin_round_count += i;
-
-	if (srv_print_latch_waits) {
-		fprintf(stderr,
-			"Thread %lu spin wait rw-x-lock at %p"
-			" cfile %s cline %lu rnds %lu\n",
-			os_thread_pf(os_thread_get_curr_id()), (void*) lock,
-			innobase_basename(lock->cfile_name),
-			(ulong) lock->cline, (ulong) i);
-	}
+	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 
 	sync_arr = sync_array_get();
 
@@ -704,18 +671,9 @@ lock_loop:
 		return; /* Locking succeeded */
 	}
 
-	if (srv_print_latch_waits) {
-		fprintf(stderr,
-			"Thread %lu OS wait for rw-x-lock at %p"
-			" cfile %s cline %lu\n",
-			os_thread_pf(os_thread_get_curr_id()), (void*) lock,
-			innobase_basename(lock->cfile_name),
-			(ulong) lock->cline);
-	}
-
 	/* these stats may not be accurate */
 	lock->count_os_wait++;
-	rw_x_os_wait_count++;
+	rw_lock_stats.rw_x_os_wait_count.add(counter_index, 1);
 
 	sync_array_wait_event(sync_arr, index);
 

@@ -96,7 +96,7 @@ static const char *get_length_arg(const char *fmt, ARGS_INFO *args_arr,
                                   uint *arg_count, size_t *length, uint *flags)
 {
   fmt= get_length(fmt+1, length, flags);
-  *arg_count= max(*arg_count, (uint) *length);
+  *arg_count= MY_MAX(*arg_count, (uint) *length);
   (*length)--;    
   DBUG_ASSERT(*fmt == '$' && *length < MAX_ARGS);
   args_arr[*length].arg_type= 'd';
@@ -243,7 +243,7 @@ static char *process_dbl_arg(char *to, char *end, size_t width,
     width= FLT_DIG; /* width not set, use default */
   else if (width >= NOT_FIXED_DEC)
     width= NOT_FIXED_DEC - 1; /* max.precision for my_fcvt() */
-  width= min(width, (size_t)(end-to) - 1);
+  width= MY_MIN(width, (size_t)(end-to) - 1);
   
   if (arg_type == 'f')
     to+= my_fcvt(par, (int)width , to, NULL);
@@ -292,7 +292,7 @@ static char *process_int_arg(char *to, const char *end, size_t length,
   /* If %#d syntax was used, we have to pre-zero/pre-space the string */
   if (store_start == buff)
   {
-    length= min(length, to_length);
+    length= MY_MIN(length, to_length);
     if (res_length < length)
     {
       size_t diff= (length- res_length);
@@ -512,7 +512,7 @@ start:
         break;
 
       /* Copy data after the % format expression until next % */
-      length= min(end - to , print_arr[i].end - print_arr[i].begin);
+      length= MY_MIN(end - to , print_arr[i].end - print_arr[i].begin);
       if (to + length < end)
         length++;
       to= strnmov(to, print_arr[i].begin, length);
@@ -533,7 +533,7 @@ start:
     fmt= get_length(fmt, &arg_index, &unused_flags);
     DBUG_ASSERT(*fmt == '$');
     fmt++;
-    arg_count= max(arg_count, arg_index);
+    arg_count= MY_MAX(arg_count, arg_index);
     goto start;
   }
 

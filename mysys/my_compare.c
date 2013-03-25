@@ -36,7 +36,7 @@ static int compare_bin(const uchar *a, uint a_length,
                        const uchar *b, uint b_length,
                        my_bool part_key, my_bool skip_end_space)
 {
-  uint length= min(a_length,b_length);
+  uint length= MY_MIN(a_length,b_length);
   const uchar *end= a+ length;
   int flag;
 
@@ -171,7 +171,7 @@ int ha_key_cmp(HA_KEYSEG *keyseg, const uchar *a,
         continue;                               /* To next key part */
       }
     }
-    end= a+ min(keyseg->length,key_length);
+    end= a+ MY_MIN(keyseg->length,key_length);
     next_key_length=key_length-keyseg->length;
 
     switch ((enum ha_base_keytype) keyseg->type) {

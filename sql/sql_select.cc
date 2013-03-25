@@ -1188,7 +1188,7 @@ JOIN::optimize_inner()
 #endif
 
   /* 
-     Try to optimize count(*), min() and max() to const fields if
+     Try to optimize count(*), MY_MIN() and MY_MAX() to const fields if
      there is implicit grouping (aggregate functions but no
      group_list). In this case, the result set shall only contain one
      row. 
@@ -3741,7 +3741,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       This is can't be to high as otherwise we are likely to use
       table scan.
     */
-    s->worst_seeks= min((double) s->found_records / 10,
+    s->worst_seeks= MY_MIN((double) s->found_records / 10,
 			(double) s->read_time*3);
     if (s->worst_seeks < 2.0)			// Fix for small tables
       s->worst_seeks=2.0;
@@ -4910,7 +4910,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   uint	and_level,i;
   KEY_FIELD *key_fields, *end, *field;
   uint sz;
-  uint m= max(select_lex->max_equal_elems,1);
+  uint m= MY_MAX(select_lex->max_equal_elems,1);
   
   /* 
     We use the same piece of memory to store both  KEY_FIELD 
@@ -4933,7 +4933,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
     can be not more than select_lex->max_equal_elems such 
     substitutions.
   */ 
-  sz= max(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
+  sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
       (((thd->lex->current_select->cond_count+1)*2 +
 	thd->lex->current_select->between_count)*m+1);
   if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
@@ -5117,7 +5117,7 @@ static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
         DBUG_ASSERT(tablenr != Table_map_iterator::BITMAP_END);
 	TABLE *tmp_table=join->table[tablenr];
         if (tmp_table) // already created
-          keyuse->ref_table_rows= max(tmp_table->file->stats.records, 100);
+          keyuse->ref_table_rows= MY_MAX(tmp_table->file->stats.records, 100);
       }
     }
     /*
@@ -5591,7 +5591,7 @@ best_access_path(JOIN      *join,
               tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
             else
               tmp= table->file->read_time(key, 1,
-                                          (ha_rows) min(tmp,s->worst_seeks));
+                                          (ha_rows) MY_MIN(tmp,s->worst_seeks));
             tmp*= record_count;
           }
         }
@@ -5755,7 +5755,7 @@ best_access_path(JOIN      *join,
               tmp= table->file->keyread_time(key, 1, (ha_rows) tmp);
             else
               tmp= table->file->read_time(key, 1,
-                                          (ha_rows) min(tmp,s->worst_seeks));
+                                          (ha_rows) MY_MIN(tmp,s->worst_seeks));
             tmp*= record_count;
           }
           else
@@ -10667,7 +10667,7 @@ bool TABLE_REF::is_access_triggered()
     a correlated subquery itself, but has subqueries, we can free it
     fully and also free JOINs of all its subqueries. The exception
     is a subquery in SELECT list, e.g: @n
-    SELECT a, (select max(b) from t1) group by c @n
+    SELECT a, (select MY_MAX(b) from t1) group by c @n
     This subquery will not be evaluated at first sweep and its value will
     not be inserted into the temporary table. Instead, it's evaluated
     when selecting from the temporary table. Therefore, it can't be freed
@@ -14837,7 +14837,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     share->max_rows= ~(ha_rows) 0;
   else
     share->max_rows= (ha_rows) (((share->db_type() == heap_hton) ?
-                                 min(thd->variables.tmp_table_size,
+                                 MY_MIN(thd->variables.tmp_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_table_size) /
 			         share->reclength);
@@ -15416,7 +15416,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
                            start_recinfo,
                            share->uniques, &uniquedef,
                            &create_info,
-                           HA_CREATE_TMP_TABLE)))
+                           HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
   {
     table->file->print_error(error,MYF(0));	/* purecov: inspected */
     table->db_stat=0;
@@ -15562,7 +15562,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 		       start_recinfo,
 		       share->uniques, &uniquedef,
 		       &create_info,
-		       HA_CREATE_TMP_TABLE)))
+		       HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
   {
     table->file->print_error(error,MYF(0));	/* purecov: inspected */
     table->db_stat=0;
@@ -19576,7 +19576,7 @@ SORT_FIELD *make_unireg_sortorder(ORDER *order, uint *length,
     count++;
   if (!sortorder)
     sortorder= (SORT_FIELD*) sql_alloc(sizeof(SORT_FIELD) *
-                                       (max(count, *length) + 1));
+                                       (MY_MAX(count, *length) + 1));
   pos= sort= sortorder;
 
   if (!pos)
@@ -23290,7 +23290,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           index entry.
         */
         index_scan_time= select_limit/rec_per_key *
-                         min(rec_per_key, table->file->scan_time());
+                         MY_MIN(rec_per_key, table->file->scan_time());
         if ((ref_key < 0 && (group || table->force_index || is_covering)) ||
             index_scan_time < read_time)
         {
@@ -23301,7 +23301,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           if (table->quick_keys.is_set(nr))
             quick_records= table->quick_rows[nr];
           if (best_key < 0 ||
-              (select_limit <= min(quick_records,best_records) ?
+              (select_limit <= MY_MIN(quick_records,best_records) ?
                keyinfo->key_parts < best_key_parts :
                quick_records < best_records) ||
               (!is_best_covering && is_covering))

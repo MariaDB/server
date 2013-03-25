@@ -132,8 +132,10 @@ os_thread_create_func(
 	if (thread_id) {
 		*thread_id = win_thread_id;
 	}
-
-	return(thread);
+	if (thread) {
+		CloseHandle(thread);
+	}
+	return((os_thread_t)win_thread_id);
 #else
 	int		ret;
 	os_thread_t	pthread;

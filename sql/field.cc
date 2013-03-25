@@ -68,7 +68,7 @@ const char field_separator=',';
 #define LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
-((ulong) ((LL(1) << min(arg, 4) * 8) - LL(1)))
+((ulong) ((LL(1) << MY_MIN(arg, 4) * 8) - LL(1)))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
 #define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
@@ -1070,7 +1070,7 @@ static void push_numerical_conversion_warning(THD* thd, const char* str,
                                               const char* field_name="UNKNOWN",
                                               ulong row_num=0)
 {
-    char buf[max(max(DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE,
+    char buf[MY_MAX(MY_MAX(DOUBLE_TO_STRING_CONVERSION_BUFFER_SIZE,
       LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE), 
       DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE)];
 
@@ -2147,7 +2147,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
     tmp_uint=tmp_dec+(uint)(int_digits_end-int_digits_from);
   else if (expo_sign_char == '-') 
   {
-    tmp_uint=min(exponent,(uint)(int_digits_end-int_digits_from));
+    tmp_uint=MY_MIN(exponent,(uint)(int_digits_end-int_digits_from));
     frac_digits_added_zeros=exponent-tmp_uint;
     int_digits_end -= tmp_uint;
     frac_digits_head_end=int_digits_end+tmp_uint;
@@ -2155,7 +2155,7 @@ int Field_decimal::store(const char *from_arg, uint len, CHARSET_INFO *cs)
   }
   else // (expo_sign_char=='+') 
   {
-    tmp_uint=min(exponent,(uint)(frac_digits_end-frac_digits_from));
+    tmp_uint=MY_MIN(exponent,(uint)(frac_digits_end-frac_digits_from));
     int_digits_added_zeros=exponent-tmp_uint;
     int_digits_tail_from=frac_digits_from;
     frac_digits_from=frac_digits_from+tmp_uint;
@@ -2574,7 +2574,7 @@ Field *Field_new_decimal::create_from_item (Item *item)
   {
     signed int overflow;
 
-    dec= min(dec, DECIMAL_MAX_SCALE);
+    dec= MY_MIN(dec, DECIMAL_MAX_SCALE);
 
     /*
       If the value still overflows the field with the corrected dec,
@@ -2590,7 +2590,7 @@ Field *Field_new_decimal::create_from_item (Item *item)
     overflow= required_length - len;
 
     if (overflow > 0)
-      dec= max(0, dec - overflow);            // too long, discard fract
+      dec= MY_MAX(0, dec - overflow);            // too long, discard fract
     else
       /* Corrected value fits. */
       len= required_length;
@@ -3139,7 +3139,7 @@ String *Field_tiny::val_str(String *val_buffer,
   ASSERT_COLUMN_MARKED_FOR_READ;
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=max(field_length+1,5*cs->mbmaxlen);
+  uint mlength=MY_MAX(field_length+1,5*cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
 
@@ -3321,7 +3321,7 @@ String *Field_short::val_str(String *val_buffer,
   ASSERT_COLUMN_MARKED_FOR_READ;
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=max(field_length+1,7*cs->mbmaxlen);
+  uint mlength=MY_MAX(field_length+1,7*cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
   short j;
@@ -3511,7 +3511,7 @@ String *Field_medium::val_str(String *val_buffer,
   ASSERT_COLUMN_MARKED_FOR_READ;
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=max(field_length+1,10*cs->mbmaxlen);
+  uint mlength=MY_MAX(field_length+1,10*cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
   long j= unsigned_flag ? (long) uint3korr(ptr) : sint3korr(ptr);
@@ -3700,7 +3700,7 @@ String *Field_long::val_str(String *val_buffer,
   ASSERT_COLUMN_MARKED_FOR_READ;
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=max(field_length+1,12*cs->mbmaxlen);
+  uint mlength=MY_MAX(field_length+1,12*cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
   int32 j;
@@ -3850,7 +3850,7 @@ String *Field_longlong::val_str(String *val_buffer,
 {
   CHARSET_INFO *cs= &my_charset_numeric;
   uint length;
-  uint mlength=max(field_length+1,22*cs->mbmaxlen);
+  uint mlength=MY_MAX(field_length+1,22*cs->mbmaxlen);
   val_buffer->alloc(mlength);
   char *to=(char*) val_buffer->ptr();
   longlong j;
@@ -6379,7 +6379,7 @@ void Field_string::sql_type(String &res) const
 
 uchar *Field_string::pack(uchar *to, const uchar *from, uint max_length)
 {
-  uint length=      min(field_length,max_length);
+  uint length=      MY_MIN(field_length,max_length);
   uint local_char_length= max_length/field_charset->mbmaxlen;
   DBUG_PRINT("debug", ("Packing field '%s' - length: %u ", field_name, length));
 
@@ -7126,7 +7126,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
     from= tmpstr.ptr();
   }
 
-  new_length= min(max_data_length(), field_charset->mbmaxlen * length);
+  new_length= MY_MIN(max_data_length(), field_charset->mbmaxlen * length);
   if (value.alloc(new_length))
     goto oom_error;
 
@@ -7286,7 +7286,7 @@ int Field_blob::cmp_binary(const uchar *a_ptr, const uchar *b_ptr,
   b_length=get_length(b_ptr);
   if (b_length > max_length)
     b_length=max_length;
-  diff=memcmp(a,b,min(a_length,b_length));
+  diff=memcmp(a,b,MY_MIN(a_length,b_length));
   return diff ? diff : (int) (a_length - b_length);
 }
 
@@ -7464,7 +7464,7 @@ uchar *Field_blob::pack(uchar *to, const uchar *from, uint max_length)
     length given is smaller than the actual length of the blob, we
     just store the initial bytes of the blob.
   */
-  store_length(to, packlength, min(length, max_length));
+  store_length(to, packlength, MY_MIN(length, max_length));
 
   /*
     Store the actual blob data, which will occupy 'length' bytes.
@@ -8342,7 +8342,7 @@ String *Field_bit::val_str(String *val_buffer,
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
   char buff[sizeof(longlong)];
-  uint length= min(pack_length(), sizeof(longlong));
+  uint length= MY_MIN(pack_length(), sizeof(longlong));
   ulonglong bits= val_int();
   mi_int8store(buff,bits);
 
@@ -8430,7 +8430,7 @@ uint Field_bit::get_key_image(uchar *buff, uint length, imagetype type_arg)
     *buff++= bits;
     length--;
   }
-  uint data_length = min(length, bytes_in_rec);
+  uint data_length = MY_MIN(length, bytes_in_rec);
   memcpy(buff, ptr, data_length);
   return data_length + 1;
 }
@@ -8554,7 +8554,7 @@ Field_bit::pack(uchar *to, const uchar *from, uint max_length)
     uchar bits= get_rec_bits(bit_ptr + (from - ptr), bit_ofs, bit_len);
     *to++= bits;
   }
-  length= min(bytes_in_rec, max_length - (bit_len > 0));
+  length= MY_MIN(bytes_in_rec, max_length - (bit_len > 0));
   memcpy(to, from, length);
   return to + length;
 }

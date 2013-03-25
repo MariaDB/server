@@ -55,7 +55,7 @@ static void wrong_precision_error(uint errcode, Item *a,
   char buff[1024];
   String buf(buff, sizeof(buff), system_charset_info);
 
-  my_error(errcode, MYF(0), (uint) min(number, UINT_MAX32),
+  my_error(errcode, MYF(0), (uint) MY_MIN(number, UINT_MAX32),
            item_name(a, &buf), maximum);
 }
 

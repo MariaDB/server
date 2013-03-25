@@ -695,7 +695,7 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       for (i=0;
            (old= (struct st_maria_plugin *)(ptr + i * sizeof_st_plugin))->info;
            i++)
-        memcpy(cur + i, old, min(sizeof(cur[i]), sizeof_st_plugin));
+        memcpy(cur + i, old, MY_MIN(sizeof(cur[i]), sizeof_st_plugin));
 
       sym= cur;
       plugin_dl->allocated= true;

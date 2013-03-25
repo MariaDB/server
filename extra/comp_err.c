@@ -33,8 +33,9 @@
 #include <assert.h>
 #include <my_dir.h>
 
-#define MAX_ROWS  1000
+#define MAX_ROWS  2000
 #define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
+#define ERRMSG_VERSION 3                /* Version number of errmsg.sys */
 #define DEFAULT_CHARSET_DIR "../sql/share/charsets"
 #define ER_PREFIX "ER_"
 #define ER_PREFIX2 "MARIA_ER_"
@@ -50,9 +51,9 @@ static char *default_dbug_option= (char*) "d:t:O,/tmp/comp_err.trace";
 #endif
 
 /* Header for errmsg.sys files */
-uchar file_head[]= { 254, 254, 2, 2 };
+uchar file_head[]= { 254, 254, 2, ERRMSG_VERSION };
 /* Store positions to each error message row to store in errmsg.sys header */
-uint file_pos[MAX_ROWS];
+uint file_pos[MAX_ROWS+1];
 
 const char *empty_string= "";			/* For empty states */
 /*
@@ -379,9 +380,11 @@ static int create_sys_files(struct languages *lang_head,
     if (my_fwrite(to, (uchar*) head, HEADER_LENGTH, MYF(MY_WME | MY_FNABP)))
       goto err;
 
+    file_pos[row_count]= (ftell(to) - start_pos);
     for (i= 0; i < row_count; i++)
     {
-      int2store(head, file_pos[i]);
+      /* Store length of each string */
+      int2store(head, file_pos[i+1] - file_pos[i]);
       if (my_fwrite(to, (uchar*) head, 2, MYF(MY_WME | MY_FNABP)))
 	goto err;
     }

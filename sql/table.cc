@@ -854,6 +854,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     share->table_charset= get_charset((((uint) head[41]) << 8) + 
                                         (uint) head[38],MYF(0));
     share->null_field_first= 1;
+    share->stats_sample_pages= uint2korr(head+42);
+    share->stats_auto_recalc= static_cast<enum_stats_auto_recalc>(head[44]);
   }
   if (!share->table_charset)
   {
@@ -883,12 +885,12 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   if (disk_buff[0] & 0x80)
   {
     share->keys=      keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
-    share->key_parts= key_parts= uint2korr(disk_buff+2);
+    share->user_defined_key_parts= key_parts= uint2korr(disk_buff+2);
   }
   else
   {
     share->keys=      keys=      disk_buff[0];
-    share->key_parts= key_parts= disk_buff[1];
+    share->user_defined_key_parts= key_parts= disk_buff[1];
   }
   share->keys_for_keyread.init(0);
   share->keys_in_use.init(keys);
@@ -931,7 +933,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     {
       keyinfo->flags=	   (uint) uint2korr(strpos) ^ HA_NOSAME;
       keyinfo->key_length= (uint) uint2korr(strpos+2);
-      keyinfo->key_parts=  (uint) strpos[4];
+      keyinfo->user_defined_key_parts=  (uint) strpos[4];
       keyinfo->algorithm=  (enum ha_key_alg) strpos[5];
       keyinfo->block_size= uint2korr(strpos+6);
       strpos+=8;
@@ -940,7 +942,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     {
       keyinfo->flags=	 ((uint) strpos[0]) ^ HA_NOSAME;
       keyinfo->key_length= (uint) uint2korr(strpos+1);
-      keyinfo->key_parts=  (uint) strpos[3];
+      keyinfo->user_defined_key_parts=  (uint) strpos[3];
       keyinfo->algorithm= HA_KEY_ALG_UNDEF;
       strpos+=4;
     }
@@ -965,7 +967,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       first_key_parts= first_keyinfo.key_parts;
       keyinfo->flags= first_keyinfo.flags;
       keyinfo->key_length= first_keyinfo.key_length;
-      keyinfo->key_parts= first_keyinfo.key_parts;
+      keyinfo->user_defined_key_parts= first_keyinfo.key_parts;
       keyinfo->algorithm= first_keyinfo.algorithm;
       if (new_frm_ver >= 3)
         keyinfo->block_size= first_keyinfo.block_size;
@@ -973,7 +975,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
     keyinfo->key_part=	 key_part;
     keyinfo->rec_per_key= rec_per_key;
-    for (j=keyinfo->key_parts ; j-- ; key_part++)
+    for (j=keyinfo->user_defined_key_parts ; j-- ; key_part++)
     {
       *rec_per_key++=0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
@@ -999,7 +1001,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       }
       key_part->store_length=key_part->length;
     }
-    keyinfo->ext_key_parts= keyinfo->key_parts;
+    keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->ext_key_flags= keyinfo->flags;
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i)
@@ -1009,7 +1011,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
            j++)
       {
-        uint key_parts= keyinfo->key_parts;
+        uint key_parts= keyinfo->user_defined_key_parts;
         KEY_PART_INFO* curr_key_part= keyinfo->key_part;
         KEY_PART_INFO* curr_key_part_end= curr_key_part+key_parts;
         for ( ; curr_key_part < curr_key_part_end; curr_key_part++)
@@ -1689,7 +1691,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                keyinfo->name_length+1);
       }
 
-      if (ext_key_parts > share->key_parts && key)
+      if (ext_key_parts > share->user_defined_key_parts && key)
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
@@ -1698,7 +1700,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
           Do not extend the key that contains a component
           defined over the beginning of a field.
 	*/ 
-        for (i= 0; i < keyinfo->key_parts; i++)
+        for (i= 0; i < keyinfo->user_defined_key_parts; i++)
 	{
           uint fieldnr= keyinfo->key_part[i].fieldnr;
           if (share->field[fieldnr-1]->key_length() !=
@@ -1709,11 +1711,11 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
           }
         }
 
-        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->key_parts)
+        if (add_first_key_parts < keyinfo->ext_key_parts-keyinfo->user_defined_key_parts)
 	{
           share->ext_key_parts-= keyinfo->ext_key_parts;
           key_part_map ext_key_part_map= keyinfo->ext_key_part_map;
-          keyinfo->ext_key_parts= keyinfo->key_parts;
+          keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
           keyinfo->ext_key_flags= keyinfo->flags;
 	  keyinfo->ext_key_part_map= 0; 
           for (i= 0; i < add_first_key_parts; i++)
@@ -1746,7 +1748,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 	*/
 	primary_key=key;
         key_part= keyinfo->key_part;
-	for (i=0 ; i < keyinfo->key_parts ;i++)
+	for (i=0 ; i < keyinfo->user_defined_key_parts ;i++)
 	{
 	  uint fieldnr= key_part[i].fieldnr;
 	  if (!fieldnr ||
@@ -1762,7 +1764,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
-	                                    keyinfo->key_parts;
+	                                    keyinfo->user_defined_key_parts;
       for (i=0; i < key_parts; key_part++, i++)
       {
         Field *field;
@@ -1804,7 +1806,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 
         if (i == 0 && key != primary_key)
           field->flags |= (((keyinfo->flags & HA_NOSAME) &&
-                           (keyinfo->key_parts == 1)) ?
+                           (keyinfo->user_defined_key_parts == 1)) ?
                            UNIQUE_KEY_FLAG : MULTIPLE_KEY_FLAG);
         if (i == 0)
           field->key_start.set_bit(key);
@@ -1815,7 +1817,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
           {
             share->keys_for_keyread.set_bit(key);
             field->part_of_key.set_bit(key);
-            if (i < keyinfo->key_parts)
+            if (i < keyinfo->user_defined_key_parts)
               field->part_of_key_not_clustered.set_bit(key);
           }
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
@@ -1889,7 +1891,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       keyinfo->usable_key_parts= usable_parts; // Filesort
 
       set_if_bigger(share->max_key_length,keyinfo->key_length+
-                    keyinfo->key_parts);
+                    keyinfo->user_defined_key_parts);
       share->total_key_length+= keyinfo->key_length;
       /*
         MERGE tables do not have unique indexes. But every key could be
@@ -2450,7 +2452,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
       outparam->field[(uint) (share->found_next_number_field - share->field)];
 
   /* Fix key->name and key_part->field */
-  if (share->key_parts)
+  if (share->user_defined_key_parts)
   {
     KEY	*key_info, *key_info_end;
     KEY_PART_INFO *key_part;
@@ -2475,7 +2477,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
       key_info->key_part= key_part;
 
       key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
-			                              key_info->key_parts) ;      
+			                              key_info->user_defined_key_parts) ;      
       for ( ; key_part < key_part_end; key_part++)
       {
         Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
@@ -2493,7 +2495,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
         }
       }
       if (!share->use_ext_keys)
-	key_part+= key_info->ext_key_parts - key_info->key_parts;
+	key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
     }
   }
 
@@ -3303,11 +3305,10 @@ File create_frm(THD *thd, const char *name, const char *db,
     fileinfo[39]= (uchar) ((uint) create_info->transactional |
                            ((uint) create_info->page_checksum << 2));
     fileinfo[40]= (uchar) create_info->row_type;
-    /* Next few bytes where for RAID support */
+    /* Bytes 41-46 were for RAID support; now reused for other purposes */
     fileinfo[41]= (uchar) (csid >> 8);
-    fileinfo[42]= 0;
-    fileinfo[43]= 0;
-    fileinfo[44]= 0;
+    int2store(fileinfo+42, create_info->stats_sample_pages & 0xffff);
+    fileinfo[44]= (uchar) create_info->stats_auto_recalc;
     fileinfo[45]= 0;
     fileinfo[46]= 0;
     int4store(fileinfo+47, key_length);
@@ -6068,8 +6069,8 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
     return TRUE;
   keyinfo= key_info + key;
   keyinfo->key_part= key_part_info;
-  keyinfo->usable_key_parts= keyinfo->key_parts = key_parts;
-  keyinfo->ext_key_parts= keyinfo->key_parts;
+  keyinfo->usable_key_parts= keyinfo->user_defined_key_parts = key_parts;
+  keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
   keyinfo->key_length=0;
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
   keyinfo->flags= HA_GENERATED_KEY;
@@ -6168,7 +6169,7 @@ bool TABLE::is_filled_at_execution()
 uint TABLE::actual_n_key_parts(KEY *keyinfo)
 {
   return optimizer_flag(in_use, OPTIMIZER_SWITCH_EXTENDED_KEYS) ?
-           keyinfo->ext_key_parts : keyinfo->key_parts;
+           keyinfo->ext_key_parts : keyinfo->user_defined_key_parts;
 }
 
  

@@ -79,7 +79,7 @@ static int do_test()
 
   for (i=0 ; i < recant ; i++)
   {
-    n1=rnd(1000); n2=rnd(100); n3=rnd(min(recant*5,MAX_RECORDS));
+    n1=rnd(1000); n2=rnd(100); n3=rnd(MY_MIN(recant*5,MAX_RECORDS));
     record= (char*) my_malloc(reclength,MYF(MY_FAE));
     sprintf(record,"%6d:%4d:%8d:Pos: %4d      ",n1,n2,n3,write_count);
     if (my_hash_insert(&hash,record))
@@ -133,7 +133,7 @@ static int do_test()
   printf("- Update\n");
   for (i=0 ; i < write_count/10 ; i++)
   {
-    n1=rnd(1000); n2=rnd(100); n3=rnd(min(recant*2,MAX_RECORDS));
+    n1=rnd(1000); n2=rnd(100); n3=rnd(MY_MIN(recant*2,MAX_RECORDS));
     for (j=rnd(1000) ; j>0 && key1[j] == 0 ; j--) ;
     if (j)
     {

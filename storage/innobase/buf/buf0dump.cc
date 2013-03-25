@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2012, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,14 +23,14 @@ Implements a buffer pool dump/load.
 Created April 08, 2011 Vasil Dimov
 *******************************************************/
 
+#include "univ.i"
+
 #include <stdarg.h> /* va_* */
 #include <string.h> /* strerror() */
 
-#include "univ.i"
-
 #include "buf0buf.h" /* buf_pool_mutex_enter(), srv_buf_pool_instances */
 #include "buf0dump.h"
-#include "db0err.h" /* enum db_err */
+#include "db0err.h"
 #include "dict0dict.h" /* dict_operation_lock */
 #include "os0file.h" /* OS_FILE_MAX_PATH */
 #include "os0sync.h" /* os_event* */
@@ -40,7 +40,6 @@ Created April 08, 2011 Vasil Dimov
 #include "sync0rw.h" /* rw_lock_s_lock() */
 #include "ut0byte.h" /* ut_ull_create() */
 #include "ut0sort.h" /* UT_SORT_FUNCTION_BODY */
-#include "buf0rea.h" /* buf_read_page_async() */
 
 enum status_severity {
 	STATUS_INFO,
@@ -579,6 +578,8 @@ DECLARE_THREAD(buf_dump_thread)(
 	void*	arg __attribute__((unused)))	/*!< in: a dummy parameter
 						required by os_thread_create */
 {
+	ut_ad(!srv_read_only_mode);
+
 	srv_buf_dump_thread_active = TRUE;
 
 	buf_dump_status(STATUS_INFO, "not started");
