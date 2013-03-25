@@ -89,6 +89,22 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000001
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
+*** MDEV-4322: Broken XID counting during binlog rotation ***
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+FLUSH LOGS;
+INSERT INTO t1 VALUES (30, REPEAT("x", 4100));
+SET DEBUG_SYNC= "now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+master-bin.000006	#
 DROP TABLE t1, t2;
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;
