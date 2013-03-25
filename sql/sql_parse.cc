@@ -931,9 +931,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->set_time();
-  thd->set_query_id(get_query_id());
   if (!(server_command_flags[command] & CF_SKIP_QUERY_ID))
-    next_query_id();
+    thd->set_query_id(next_query_id());
+  else
+  {
+    /*
+      ping, get statistics or similar stateless command.
+      No reason to increase query id here.
+    */
+    thd->set_query_id(get_query_id());
+  }
   inc_thread_running();
 
   if (!(server_command_flags[command] & CF_SKIP_QUESTIONS))
@@ -5022,6 +5029,10 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 
   if ((db != NULL) && (db != any_db))
   {
+    /*
+      Check if this is reserved database, like information schema or
+      performance schema
+    */
     const ACL_internal_schema_access *access;
     access= get_cached_schema_access(grant_internal_info, db);
     if (access)

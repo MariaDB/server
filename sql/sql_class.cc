@@ -4326,17 +4326,8 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
 {
   mysql_mutex_lock(&LOCK_thd_data);
   set_query_inner(query_arg, query_length_arg, cs);
-  query_id= new_query_id;
   mysql_mutex_unlock(&LOCK_thd_data);
-}
-
-/** Assign a new value to thd->query_id.  */
-
-void THD::set_query_id(query_id_t new_query_id)
-{
-  mysql_mutex_lock(&LOCK_thd_data);
   query_id= new_query_id;
-  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 /** Assign a new value to thd->mysys_var.  */
