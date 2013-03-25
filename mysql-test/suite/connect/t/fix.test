@@ -1,4 +1,9 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
+
+let $FILE_TYPE=FIX;
+let $FILE_EXT=FIX;
+--source grant.inc
+
 --copy_file $MYSQL_TEST_DIR/suite/connect/std_data/dept.dat $MYSQLD_DATADIR/test/dept.dat
 --copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
 --copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
