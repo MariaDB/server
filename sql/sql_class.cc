@@ -350,29 +350,6 @@ void thd_set_thread_stack(THD *thd, char *stack_start)
 }
 
 /**
-  Lock connection data for the set of connections this connection
-  belongs to
-
-  @param thd                       THD object
-*/
-void thd_lock_thread_count(THD *)
-{
-  mysql_mutex_lock(&LOCK_thread_count);
-}
-
-/**
-  Lock connection data for the set of connections this connection
-  belongs to
-
-  @param thd                       THD object
-*/
-void thd_unlock_thread_count(THD *)
-{
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-}
-
-/**
   Close the socket used by this connection
 
   @param thd                THD object
@@ -947,7 +924,14 @@ THD::THD()
   protocol_binary.init(this);
 
   tablespace_op=FALSE;
-  tmp= sql_rnd_with_mutex();
+
+  /*
+    Initialize the random generator. We call my_rnd() without a lock as
+    it's not really critical if two threads modifies the structure at the
+    same time.  We ensure that we have an unique number foreach thread
+    by adding the address of the stack.
+  */
+  tmp= (ulong) (my_rnd(&sql_rand) * 0xffffffff);
   my_rnd_init(&rand, tmp + (ulong) &rand, tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
@@ -4342,17 +4326,8 @@ void THD::set_query_and_id(char *query_arg, uint32 query_length_arg,
 {
   mysql_mutex_lock(&LOCK_thd_data);
   set_query_inner(query_arg, query_length_arg, cs);
-  query_id= new_query_id;
   mysql_mutex_unlock(&LOCK_thd_data);
-}
-
-/** Assign a new value to thd->query_id.  */
-
-void THD::set_query_id(query_id_t new_query_id)
-{
-  mysql_mutex_lock(&LOCK_thd_data);
   query_id= new_query_id;
-  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 /** Assign a new value to thd->mysys_var.  */
