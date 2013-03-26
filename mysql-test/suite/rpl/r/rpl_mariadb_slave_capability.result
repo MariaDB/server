@@ -14,12 +14,12 @@ DELETE FROM t1;
 INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1);
 show binlog events in 'master-bin.000001' from <binlog_start> limit 0, 10;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Delete_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1)
 master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
@@ -46,7 +46,7 @@ TRUNCATE t1;
 INSERT INTO t1 VALUES(2);
 show binlog events in 'master-bin.000002' from <binlog_start> limit 0, 5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000002	#	Query	#	#	BEGIN
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
 master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Write_rows	#	#	table_id: # flags: STMT_END_F
@@ -54,7 +54,7 @@ master-bin.000002	#	Query	#	#	COMMIT
 SELECT * FROM t1;
 a
 2
-show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 5,5;
+show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 7,5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000005	#	Query	#	#	BEGIN
 slave-relay-bin.000005	#	Query	#	#	# Dummy ev
@@ -70,7 +70,7 @@ ALTER TABLE t1 ORDER BY a;
 UPDATE t1 SET a = 3;
 show binlog events in 'master-bin.000002' from <binlog_start> limit 0, 5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000002	#	Query	#	#	BEGIN
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000002	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
 master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Update_rows	#	#	table_id: # flags: STMT_END_F

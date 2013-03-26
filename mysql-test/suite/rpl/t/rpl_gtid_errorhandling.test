@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
 --source include/master-slave.inc
 
 --echo *** Test that we check against incorrect table definition for mysql.rpl_slave_state ***

@@ -19,6 +19,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -46,6 +47,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -71,6 +73,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -96,6 +99,7 @@ mysql.plugin                                       Table is already up to date
 mysql.proc                                         Table is already up to date
 mysql.procs_priv                                   Table is already up to date
 mysql.proxies_priv                                 Table is already up to date
+mysql.rpl_slave_state                              Table is already up to date
 mysql.servers                                      Table is already up to date
 mysql.table_stats                                  Table is already up to date
 mysql.tables_priv                                  Table is already up to date

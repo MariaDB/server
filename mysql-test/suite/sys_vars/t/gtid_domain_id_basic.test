@@ -1,0 +1,17 @@
+SET @old_gtid_domain_id= @@global.gtid_domain_id;
+SELECT @@global.gtid_domain_id;
+
+SET GLOBAL gtid_domain_id= 10;
+SET SESSION gtid_domain_id= 20;
+SELECT @@global.gtid_domain_id;
+SELECT @@session.gtid_domain_id;
+
+SET GLOBAL gtid_domain_id= DEFAULT;
+SELECT @@global.gtid_domain_id;
+
+SET GLOBAL gtid_domain_id= -10;
+SELECT @@global.gtid_domain_id;
+SET SESSION gtid_domain_id= -1;
+SELECT @@session.gtid_domain_id;
+
+SET GLOBAL gtid_domain_id= @old_gtid_domain_id;

@@ -23,6 +23,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -63,6 +64,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -103,6 +105,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -146,6 +149,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -192,6 +196,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -241,6 +246,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK
@@ -293,6 +299,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.table_stats                                  OK
 mysql.tables_priv                                  OK

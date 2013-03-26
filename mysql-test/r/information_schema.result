@@ -97,6 +97,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+rpl_slave_state
 servers
 slow_log
 t1

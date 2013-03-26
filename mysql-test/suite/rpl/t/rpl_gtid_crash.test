@@ -1,10 +1,15 @@
 --source include/have_innodb.inc
+--source include/have_debug.inc
+
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
 
 --echo *** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
 
 --connection server_1
+SET sql_log_bin=0;
+ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+SET sql_log_bin=1;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 0);
 --save_master_pos
