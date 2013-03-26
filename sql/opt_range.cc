@@ -3341,10 +3341,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     param.is_ror_scan= FALSE;
 
     if (create_key_parts_for_pseudo_indexes(&param, used_fields))
-    {
-      free_root(&alloc, MYF(0));
       goto free_alloc;
-    }
 
     param.prev_tables= param.read_tables= 0;
     param.current_table= table->map;
