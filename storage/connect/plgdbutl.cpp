@@ -411,12 +411,13 @@ char *PlgGetDataPath(PGLOBAL g)
   {
   PCATLG cat = PlgGetCatalog(g, false);
 
-  if (!cat)
-    return GetIniString(g, NULL, "DataBase", "DataPath", "", plgini);
+//if (!cat)
+//  return GetIniString(g, NULL, "DataBase", "DataPath", "", plgini);
 
-  return cat->GetDataPath();
+  return (cat) ? cat->GetDataPath() : NULL;
   } // end of PlgGetDataPath
 
+#if 0
 /***********************************************************************/
 /*  PlgGetXdbPath: sets the fully qualified file name of a database    */
 /*  description file in lgn and the new datapath in dp.                */
@@ -513,6 +514,7 @@ bool PlgSetXdbPath(PGLOBAL g, PSZ dbname, PSZ dbpath,
 
   return false;
   } // end of PlgSetXdbPath
+#endif // 0
 
 /***********************************************************************/
 /*  Extract from a path name the required component.                   */
@@ -1040,6 +1042,7 @@ void PlugCleanup(PGLOBAL g, bool dofree)
 
   } // end of PlugCleanup
 
+#if 0
 /***********************************************************************/
 /*  That stupid Windows 98 does not provide this function.             */
 /***********************************************************************/
@@ -1116,6 +1119,7 @@ DllExport PSZ GetIniString(PGLOBAL g, void *mp, LPCSTR sec, LPCSTR key,
 
   return p;
   } // end of GetIniString
+#endif // 0
 
 /***********************************************************************/
 /*  GetAmName: return the name correponding to an AM code.             */

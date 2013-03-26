@@ -388,7 +388,9 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBINI::CloseDB(PGLOBAL g)
   {
-  // Nothing to do
+#if !defined(WIN32)
+  PROFILE_Close(Ifile);
+#endif   // !WIN32
   } // end of CloseDB
 
 // ------------------------ INICOL functions ----------------------------

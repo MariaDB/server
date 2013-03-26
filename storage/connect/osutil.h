@@ -32,6 +32,8 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength);
 BOOL  MessageBeep(uint);
 unsigned long _filelength(int fd);
 
+void PROFILE_Close(LPCSTR filename);
+
 int GetPrivateProfileString(
   LPCTSTR lpAppName,        // section name
   LPCTSTR lpKeyName,        // key name
