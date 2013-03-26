@@ -1088,16 +1088,17 @@ slave_connection_state::update(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
-  bool err;
   uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
 #ifndef DBUG_OFF
+  bool err;
   rpl_gtid *slave_gtid= (rpl_gtid *)rec;
   DBUG_ASSERT(rec /* We should never try to remove not present domain_id. */);
   DBUG_ASSERT(slave_gtid->server_id == in_gtid->server_id);
   DBUG_ASSERT(slave_gtid->seq_no == in_gtid->seq_no);
 #endif
 
-  err= my_hash_delete(&hash, rec);
+  IF_DBUG(err=, )
+    my_hash_delete(&hash, rec);
   DBUG_ASSERT(!err);
 }
 

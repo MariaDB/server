@@ -6235,12 +6235,15 @@ Gtid_log_event::do_apply_event(Relay_log_info const *rli)
     /* Finalize server status flags after executing a statement. */
     thd->update_server_status();
     log_slow_statement(thd);
-    general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+    if (unlikely(thd->is_fatal_error))
+      thd->is_slave_error= 1;
+    else if (likely(!thd->is_slave_error))
+      general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
   }
 
   thd->reset_query();
   free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
-  return 0;
+  return thd->is_slave_error;
 }
 
 
