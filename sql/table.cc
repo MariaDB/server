@@ -432,6 +432,8 @@ void TABLE_SHARE::destroy()
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
+  stats_cb.histograms_can_be_read= FALSE;
+  stats_cb.histograms_are_read= FALSE;
   if (tmp_table == NO_TMP_TABLE)
     mysql_mutex_unlock(&LOCK_ha_data);
 

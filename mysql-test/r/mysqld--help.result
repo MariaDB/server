@@ -202,6 +202,8 @@ The following options may be given as the first argument:
  The maximum length of the result of function 
  GROUP_CONCAT()
  -?, --help          Display this help and exit.
+ --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
+ histograms are created by ANALYZE.
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -505,13 +507,16 @@ The following options may be given as the first argument:
  takes into account to calculate cardinality of a partial
  join when it searches for the best execution plan
  Meaning: 1 - use selectivity of index backed range
- conditions to calculate cardinality of the partial join
+ conditions to calculate the cardinality of a partial join
  if the last joined table is accessed by full table scan
- or an index scan 2 - use selectivity of index backed
- range conditions to calculate cardinality of the partial
- join in any case 3 - additionally always use selectivity
- of range conditions that are not backed by any index to
- calculate cardinality of the partial join
+ or an index scan, 2 - use selectivity of index backed
+ range conditions to calculate the cardinality of a
+ partial join in any case, 3 - additionally always use
+ selectivity of range conditions that are not backed by
+ any index to calculate the cardinality of a partial join,
+ 4 - use histograms to calculate selectivity of range
+ conditions that are not backed by any index to calculate
+ the cardinality of a partial join.
  --performance-schema 
  Enable the performance schema.
  --performance-schema-events-waits-history-long-size=# 
@@ -926,6 +931,7 @@ gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
 help TRUE
+histogram-size 0
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 

@@ -165,6 +165,23 @@ SELECT
      WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
   AS 'ARITY 3';
 
+
+DELETE FROM mysql.column_stats;
+
+set histogram_size=4;
+ANALYZE TABLE t1;
+
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+set histogram_size= 0;
+ANALYZE TABLE t1;
+
+
 CREATE TABLE t3 (
   a int NOT NULL PRIMARY KEY,
   b varchar(32),

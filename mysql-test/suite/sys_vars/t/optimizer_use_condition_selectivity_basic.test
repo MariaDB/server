@@ -52,6 +52,8 @@ SET @@global.optimizer_use_condition_selectivity = 2;
 SELECT @@global.optimizer_use_condition_selectivity;
 SET @@global.optimizer_use_condition_selectivity = 3;
 SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 4;
+SELECT @@global.optimizer_use_condition_selectivity;
 
 
 --echo '#--------------------FN_DYNVARS_115_04-------------------------#'
@@ -65,6 +67,8 @@ SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 2;
 SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 3;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 4;
 SELECT @@session.optimizer_use_condition_selectivity;
 
 
