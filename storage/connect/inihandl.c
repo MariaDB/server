@@ -99,10 +99,10 @@ static PROFILE *MRUProfile[N_CACHED_PROFILES] = {NULL};
 #define PROFILE_MAX_LINE_LEN   1024
 
 /* Wine profile name in $HOME directory; must begin with slash */
-static const char PROFILE_WineIniName[] = "/.winerc";
+//static const char PROFILE_WineIniName[] = "/.winerc";
 
 /* Wine profile: the profile file being used */
-static char PROFILE_WineIniUsed[MAX_PATHNAME_LEN] = "";
+//static char PROFILE_WineIniUsed[MAX_PATHNAME_LEN] = "";
 
 /* Check for comments in profile */
 #define IS_ENTRY_COMMENT(str)  ((str)[0] == ';')
@@ -558,6 +558,55 @@ static BOOL PROFILE_Open(LPCSTR filename)
 
   return TRUE;
 }
+
+
+/***********************************************************************
+ *           PROFILE_Close
+ *
+ * Flush the named profile to disk and remove it from the cache.
+ ***********************************************************************/
+static void PROFILE_Close(LPCSTR filename)
+{
+  int         i;
+  BOOL        close = FALSE;
+  struct stat buf;
+  PROFILE    *tempProfile;
+  
+  if (trace > 1)
+    htrc("PROFILE_Close: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
+
+  /* Check for a match */
+  for (i = 0; i < N_CACHED_PROFILES; i++) {
+    if (trace > 1)
+      htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
+      
+    if (MRUProfile[i]->filename && !strcmp(filename, MRUProfile[i]->filename)) {
+      if (i) {
+        /* Make the profile to close current */
+        tempProfile = MRUProfile[i];
+        MRUProfile[i] = MRUProfile[0];
+        MRUProfile[0] = tempProfile;
+        CurProfile=tempProfile;
+        } // endif i
+      
+      if (trace > 1) {
+        if (!stat(CurProfile->filename, &buf) && CurProfile->mtime == buf.st_mtime)
+          htrc("(%s): already opened (mru=%d)\n", filename, i);
+        else
+          htrc("(%s): already opened, needs refreshing (mru=%d)\n",  filename, i);
+
+        } // endif trace
+      
+      close = TRUE;
+      break;
+      } // endif filename
+      
+    } // endfor i
+
+  if (close)
+    PROFILE_ReleaseFile();
+
+}  // end of PROFILE_Close
 
 
 /***********************************************************************
