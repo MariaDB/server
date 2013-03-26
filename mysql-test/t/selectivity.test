@@ -16,6 +16,7 @@ CREATE DATABASE dbt3_s001;
 use dbt3_s001;
 
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
 
 --disable_query_log
 --disable_result_log
@@ -58,8 +59,29 @@ set optimizer_use_condition_selectivity=3;
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20;
 
+set histogram_size=15;
+
+flush table part;
+
+ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
+
+set optimizer_use_condition_selectivity=4;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
+set histogram_size=24;
+
+flush table nation;
+
+ANALYZE TABLE nation PERSISTENT FOR COLUMNS(n_name) INDEXES();
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
 DROP DATABASE dbt3_s001;
 
+set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 set use_stat_tables=@save_use_stat_tables;

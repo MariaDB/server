@@ -16,15 +16,6 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
-/* 
-  These enumeration types comprise the dictionary of three
-  statistical tables table_stat, column_stat and index_stat
-  as they defined in ../scripts/mysql_system_tables.sql.
-
-  It would be nice if the declarations of these types were
-  generated automatically by the table definitions.   
-*/
-
 typedef
 enum enum_use_stat_tables_mode
 {
@@ -39,6 +30,16 @@ enum enum_stat_tables
   COLUMN_STAT,
   INDEX_STAT,
 };
+
+
+/* 
+  These enumeration types comprise the dictionary of three
+  statistical tables table_stat, column_stat and index_stat
+  as they defined in ../scripts/mysql_system_tables.sql.
+
+  It would be nice if the declarations of these types were
+  generated automatically by the table definitions.   
+*/
 
 enum enum_table_stat_col
 {
@@ -56,7 +57,9 @@ enum enum_column_stat_col
   COLUMN_STAT_MAX_VALUE,
   COLUMN_STAT_NULLS_RATIO,
   COLUMN_STAT_AVG_LENGTH,
-  COLUMN_STAT_AVG_FREQUENCY
+  COLUMN_STAT_AVG_FREQUENCY,
+  COLUMN_STAT_HIST_SIZE,
+  COLUMN_STAT_HISTOGRAM
 };
 
 enum enum_index_stat_col
@@ -96,6 +99,98 @@ double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
                                     key_range *max_endp);
 
+#define HIST_FACTOR 255
+#define INV_HIST_FACTOR ((double) 1.0 / HIST_FACTOR)
+
+class Histogram
+{
+private:
+public:
+
+private:
+  uint8 size;
+  uint8 *values;
+
+  uint find_bucket(double pos, bool first)
+  {
+    uint8 val= (uint8) (pos * HIST_FACTOR);
+    int lp= 0;
+    int rp= size - 1;
+    int i= 0;
+    for (int d= size / 2 ; d;  d= (rp - lp) / 2)
+    {
+      i= lp + d;
+      if (val == values[i])
+	break; 
+      if (val < values[i])
+        rp= i;
+      else if (val > values[i + 1])
+        lp= i + 1;
+      else
+        break;
+    }
+    if (val == values[i])
+    {
+      if (first)
+      {
+        while(i && val == values[i - 1])
+          i--;
+      }
+      else
+      {
+        while(i + 1 < size && val == values[i + 1])
+          i++;
+      }
+    }
+    return i;
+  }
+
+public:
+
+  uint get_size() { return (uint) size; }
+
+  uchar *get_values() { return (uchar *) values; }
+
+  void set_size (ulonglong sz) { size= (uint8) sz; }
+
+  void set_values (uchar *vals) { values= (uint8 *) vals; }
+
+  void set_value(uint i, double val)
+  {
+    values[i]= (uint8) (val * HIST_FACTOR);
+  }
+
+  void set_prev_value(uint i) { values[i]= values[i-1]; }
+ 
+
+  double range_selectivity(double min_pos, double max_pos)
+  {
+    double sel;
+    double bucket_sel= 1.0/(size + 1);  
+    uint min= find_bucket(min_pos, TRUE);
+    uint max= find_bucket(max_pos, FALSE);
+    sel= bucket_sel * (max - min + 1);
+    return sel;
+  } 
+
+  double point_selectivity(double pos, double avg_sel)
+  {
+    double sel;
+    double bucket_sel= 1.0/(size + 1);  
+    uint min= find_bucket(pos, TRUE);
+    uint max= min;
+    while (max + 1 < size && values[max + 1] == values[max])
+      max++;
+    double width= ((max + 1 == size ? 1.0 : values[max]) -
+	           (min == 0 ? 0.0 : values[min-1])) *
+	          INV_HIST_FACTOR;  
+    sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
+    return sel;
+  }
+             
+};
+
+
 class Columns_statistics;
 class Index_statistics;
 
@@ -111,8 +206,9 @@ public:
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */                                       
-
+  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
+  ulong total_hist_size; 
+  uchar *histograms;                /* Sequence of histograms      */                    
 };
 
 
@@ -167,10 +263,12 @@ private:
 
 public:
 
+  Histogram histogram;
+ 
   void set_all_nulls()
   {
     column_stat_nulls= 
-      ((1 << (COLUMN_STAT_AVG_FREQUENCY-COLUMN_STAT_COLUMN_NAME))-1) <<
+      ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
       (COLUMN_STAT_COLUMN_NAME+1);
   }
 

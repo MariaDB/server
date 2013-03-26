@@ -8420,6 +8420,19 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
 }
 
 
+double Field_bit::middle_point_pos(Field *min, Field *max)
+{
+  double n, d;
+  n= val_real() - min->val_real();
+  if (n < 0)
+    return 0.0;
+  d= max->val_real() - min->val_real();
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
+}
+
+
 /*
   Compare two bit fields using pointers within the record.
   SYNOPSIS

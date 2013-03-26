@@ -472,6 +472,10 @@ public:
     }
     return update_fl;
   }
+  virtual void store_field_value(uchar *val, uint len)
+  {
+     memcpy(ptr, val, len);
+  }
   virtual uint decimals() const { return 0; }
   /*
     Caller beware: sql_type can change str.Ptr, so check
@@ -2299,6 +2303,11 @@ public:
     }
     return update_fl;
   }
+  void store_field_value(uchar *val, uint len)
+  {
+    store(*((longlong *)val), TRUE);
+  }
+  double middle_point_pos(Field *min, Field *max);
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs)
   { get_key_image(buff, length, itRAW); }   
   void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)

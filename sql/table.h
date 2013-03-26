@@ -573,7 +573,9 @@ struct TABLE_STATISTICS_CB
   Table_statistics *table_stats; /* Structure to access the statistical data */
   bool stats_can_be_read;        /* Memory for statistical data is allocated */
   bool stats_is_read;            /* Statistical data for table has been read
-                                    from statistical tables */   
+                                    from statistical tables */
+  bool histograms_can_be_read;
+  bool histograms_are_read;   
 };
 
 
@@ -1200,6 +1202,7 @@ public:
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
+  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   void init(THD *thd, TABLE_LIST *tl);

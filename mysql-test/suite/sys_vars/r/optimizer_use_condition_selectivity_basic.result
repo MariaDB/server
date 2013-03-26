@@ -40,6 +40,10 @@ SET @@global.optimizer_use_condition_selectivity = 3;
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
 3
+SET @@global.optimizer_use_condition_selectivity = 4;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+4
 '#--------------------FN_DYNVARS_115_04-------------------------#'
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
@@ -56,6 +60,10 @@ SET @@session.optimizer_use_condition_selectivity = 3;
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
 3
+SET @@session.optimizer_use_condition_selectivity = 4;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+4
 '#------------------FN_DYNVARS_115_05-----------------------#'
 SET @@global.optimizer_use_condition_selectivity = ON;
 ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
