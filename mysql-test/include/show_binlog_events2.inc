@@ -1,5 +1,5 @@
---let $binlog_start=246
+--let $binlog_start=248
 --replace_result $binlog_start <binlog_start>
 --replace_column 2 # 5 #
---replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/
 --eval show binlog events from $binlog_start

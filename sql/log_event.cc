@@ -6284,34 +6284,35 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                                Write_on_release_cache::FLUSH_F);
   char buf[21];
 
-  print_header(&cache, print_event_info, FALSE);
-  longlong10_to_str(seq_no, buf, 10);
   if (!print_event_info->short_form)
-    my_b_printf(&cache, "\tGTID %u-%u-%s", domain_id, server_id, buf);
-  my_b_printf(&cache, "\n");
-
-  if (!print_event_info->domain_id_printed ||
-      print_event_info->domain_id != domain_id)
   {
-    my_b_printf(&cache, "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
-                domain_id, print_event_info->delimiter);
-    print_event_info->domain_id= domain_id;
-    print_event_info->domain_id_printed= true;
-  }
+    print_header(&cache, print_event_info, FALSE);
+    longlong10_to_str(seq_no, buf, 10);
+    my_b_printf(&cache, "\tGTID %u-%u-%s\n", domain_id, server_id, buf);
 
-  if (!print_event_info->server_id_printed ||
-      print_event_info->server_id != server_id)
-  {
-    my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
-                server_id, print_event_info->delimiter);
-    print_event_info->server_id= server_id;
-    print_event_info->server_id_printed= true;
-  }
+    if (!print_event_info->domain_id_printed ||
+        print_event_info->domain_id != domain_id)
+    {
+      my_b_printf(&cache, "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                  domain_id, print_event_info->delimiter);
+      print_event_info->domain_id= domain_id;
+      print_event_info->domain_id_printed= true;
+    }
 
-  my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
-              buf, print_event_info->delimiter);
+    if (!print_event_info->server_id_printed ||
+        print_event_info->server_id != server_id)
+    {
+      my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+                  server_id, print_event_info->delimiter);
+      print_event_info->server_id= server_id;
+      print_event_info->server_id_printed= true;
+    }
+
+    my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+                buf, print_event_info->delimiter);
+  }
   if (!(flags2 & FL_STANDALONE))
-    my_b_printf(&cache, "BEGIN%s\n", print_event_info->delimiter);
+    my_b_printf(&cache, "BEGIN\n%s\n", print_event_info->delimiter);
 }
 
 #endif  /* MYSQL_SERVER */

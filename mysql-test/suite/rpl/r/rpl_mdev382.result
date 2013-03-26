@@ -16,12 +16,14 @@ insert into t1 values (3);
 commit;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int primary key) engine=innodb
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table t2 (a int primary key) engine=myisam
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; insert into t2 values (1)
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (1)
 master-bin.000001	#	Query	#	#	SAVEPOINT "a`; create database couldbebadthingshere; savepoint `dummy"
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values (2)
@@ -56,7 +58,7 @@ COMMIT;
 set sql_quote_show_create = 1;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(10)
 master-bin.000001	#	Query	#	#	SAVEPOINT "a"
 master-bin.000001	#	Query	#	#	use `test`; insert into t1 values(11)
@@ -86,35 +88,41 @@ INSERT INTO t1 VALUES (2);
 set sql_mode = 'ANSI_QUOTES';
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE "db1`; select 'oops!'"
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use "db1`; select 'oops!'"; CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use "db1`; select 'oops!'"; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use "db1`; select 'oops!'"; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
 set sql_mode = '';
 set sql_quote_show_create = 0;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE "db1`; select 'oops!'"
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
 set sql_quote_show_create = 1;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	CREATE DATABASE "db1`; select 'oops!'"
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; CREATE TABLE t1 (a INT PRIMARY KEY) engine=MyISAM
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (1)
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (2)
 master-bin.000001	#	Query	#	#	COMMIT
 DROP TABLE t1;
@@ -143,14 +151,16 @@ a`1	b`2	c`3
 fo\o	bar	|b"a'z!
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; CREATE TABLE `t``1` (`a``1` VARCHAR(4) PRIMARY KEY, `b``2` VARCHAR(3),
 `c``3` VARCHAR(7))
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Begin_load_query	#	#	;file_id=#;block_len=#
 master-bin.000001	#	Execute_load_query	#	#	use `db1``; select 'oops!'`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f\'le.txt' INTO TABLE `t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, @`b```) SET `b``2`= @`b```, `c``3`= concat('|', "b""a'z", "!") ;file_id=#
 master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; truncate `t``1`
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Begin_load_query	#	#	;file_id=#;block_len=#
 master-bin.000001	#	Execute_load_query	#	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/f\'le.txt' INTO TABLE `db1``; select 'oops!'`.`t``1` FIELDS TERMINATED BY ',' ENCLOSED BY '\'' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a``1`, `b``2`) SET `c``3`= concat('|', "b""a'z", "!") ;file_id=#
 master-bin.000001	#	Query	#	#	COMMIT
@@ -171,7 +181,6 @@ SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE `t``1` (`a``1` VARCHAR(4) PRIMARY KEY, `b``2` VARCHAR(3),
 `c``3` VARCHAR(7))
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -183,7 +192,6 @@ COMMIT
 SET TIMESTAMP=1000000000/*!*/;
 truncate `t``1`
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 use `test`/*!*/;
@@ -213,7 +221,7 @@ a	b
 2	A| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|A
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Begin_load_query	#	#	;file_id=#;block_len=#
 master-bin.000001	#	Execute_load_query	#	#	use `test`; LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/file.txt' INTO TABLE `t1` FIELDS TERMINATED BY ',' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`, @`b`) SET `b`= CONCAT(@b, '| 123456789A123456789B123456789C123456789D123456789E123456789F123456789G123456789H123456789I123456789J123456789K123456789L123456789M123456789N123456789O123456789P123456789Q123456789R123456789123456789T123456789U123456789V123456789W123456789X123456789Y123456789Z123456789|', @b) ;file_id=#
 master-bin.000001	#	Query	#	#	COMMIT
@@ -232,11 +240,12 @@ SELECT @`a``1`:=a1, @`a``2`:=a2, @`a``3`:=a3, @`a``4`:=a4, @`b```:=b, @```c`:=c,
 INSERT INTO t1 VALUES (@`a``1`+1, @`a``2`*100, @`a``3`-1, @`a``4`-1, @`b```/2, @```c`, substr(@```d```, 2, 98));
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; CREATE TABLE t1 (a1 BIGINT PRIMARY KEY, a2 BIGINT, a3 BIGINT, a4 BIGINT UNSIGNED, b DOUBLE, c DECIMAL(65,10), d VARCHAR(100))
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `db1``; select 'oops!'`; INSERT INTO t1 VALUES (-9223372036854775808,42,9223372036854775807,18446744073709551615,-1234560123456789e110, -1234501234567890123456789012345678901234567890123456789.0123456789, REPEAT("x", 100))
 master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Query	#	#	BEGIN
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	User var	#	#	@`a``1`=-9223372036854775808
 master-bin.000001	#	User var	#	#	@`a``2`=42
 master-bin.000001	#	User var	#	#	@`a``3`=9223372036854775807
@@ -262,7 +271,6 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (a1 BIGINT PRIMARY KEY, a2 BIGINT, a3 BIGINT, a4 BIGINT UNSIGNED, b DOUBLE, c DECIMAL(65,10), d VARCHAR(100))
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -271,7 +279,6 @@ INSERT INTO t1 VALUES (-9223372036854775808,42,9223372036854775807,1844674407370
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET @`a``1`:=-9223372036854775808/*!*/;
@@ -321,6 +328,7 @@ a`
 # The DELETE statement should be correctly quoted
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	DELETE FROM `db1``; select 'oops!'`.`t``1`
 include/start_slave.inc
 # The table should be empty on the slave also.
@@ -334,13 +342,16 @@ CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES(1);
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000002	#	Query	#	#	BEGIN
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000002	#	Query	#	#	use `test`; INSERT INTO t1 VALUES(1)
 master-bin.000002	#	Query	#	#	COMMIT
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
+BEGIN
+/*!*/;
+use `ts``et`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -350,10 +361,6 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-use `ts``et`/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 INSERT INTO t1 VALUES(1)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;

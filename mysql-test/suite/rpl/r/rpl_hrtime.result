@@ -42,17 +42,15 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a timestamp(4), b varchar(100), c datetime(2))
 /*!*/;
-SET TIMESTAMP=1293832861.123456/*!*/;
-SET @@session.time_zone='+03:00'/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1293832861.123456/*!*/;
+SET @@session.time_zone='+03:00'/*!*/;
 insert t1 (b,c) values (now(6), now(6))
 /*!*/;
 SET TIMESTAMP=1293832861.123456/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1293832861/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1293832861/*!*/;
@@ -61,7 +59,6 @@ insert t1 values ('2010-10-10 10:10:10.101010','2010-10-10 10:10:10.101010','201
 SET TIMESTAMP=1293832861/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;
@@ -70,7 +67,6 @@ insert t1 (b,c) values (now(), now())
 SET TIMESTAMP=1643756522.654321/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;
@@ -79,7 +75,6 @@ insert t1 (b,c) values (0,0)
 SET TIMESTAMP=1643756522.654321/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1643756522.654321/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1643756522.654321/*!*/;

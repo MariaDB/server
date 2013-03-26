@@ -137,7 +137,10 @@ if  (`SELECT @@global.binlog_format = 'STATEMENT'`)
 {
   #must show two INSERT DELAYED
   --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
-  --let $binlog_limit= 2,6
+  # The show_binlog_events.inc already skips format_description, gtid list, and
+  # one binlog checkpoint events. Skip three more, second binlog checkpoint,
+  # Gtid, and CREATE TABLE, so we start at the first DML event
+  --let $binlog_limit= 3,6
   --source include/show_binlog_events.inc
 }
 select * from t1;
