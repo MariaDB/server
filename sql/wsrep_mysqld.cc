@@ -976,8 +976,12 @@ int wsrep_to_buf_helper(
     return 1;
   Query_log_event ev(thd, query, query_len, FALSE, FALSE, FALSE, 0);
   int ret(0);
-  wsrep_format_desc->checksum_alg = binlog_checksum_options;
-  wsrep_format_desc->write(&tmp_io_cache);
+
+  Format_description_log_event *tmp_fd = new Format_description_log_event(4);
+  tmp_fd->checksum_alg = binlog_checksum_options;
+  tmp_fd->write(&tmp_io_cache);
+  delete tmp_fd;
+
   if (ev.write(&tmp_io_cache)) ret= 1;
   if (!ret && wsrep_write_cache(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
