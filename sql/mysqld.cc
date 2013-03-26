@@ -6681,19 +6681,24 @@ static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
 static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  bool tmp;
+
   var->type= SHOW_MY_BOOL;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    *((my_bool *)buff)= (my_bool) (mi->slave_running ==
-                                   MYSQL_SLAVE_RUN_CONNECT &&
-                                   mi->rli.slave_running);
+    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
+                    mi->rli.slave_running);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -6701,17 +6706,23 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  longlong tmp;
+
   var->type= SHOW_LONGLONG;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    *((longlong *)buff)= mi->received_heartbeats;
+    tmp= mi->received_heartbeats;
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    *((longlong *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -6719,17 +6730,23 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  float heartbeat_period;
+
   var->type= SHOW_CHAR;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    sprintf(buff, "%.3f", mi->heartbeat_period);
+    heartbeat_period= mi->heartbeat_period;
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    sprintf(buff, "%.3f", heartbeat_period);
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
