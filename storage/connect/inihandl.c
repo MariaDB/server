@@ -565,7 +565,7 @@ static BOOL PROFILE_Open(LPCSTR filename)
  *
  * Flush the named profile to disk and remove it from the cache.
  ***********************************************************************/
-static void PROFILE_Close(LPCSTR filename)
+void PROFILE_Close(LPCSTR filename)
 {
   int         i;
   BOOL        close = FALSE;
