@@ -380,6 +380,13 @@ bool table_def_init(void)
 #endif
   mysql_mutex_init(key_LOCK_open, &LOCK_open, MY_MUTEX_INIT_FAST);
   mysql_mutex_record_order(&LOCK_active_mi, &LOCK_open);
+  /*
+    When we delete from the table_def_cache(), the free function
+    table_def_free_entry() is invoked from my_hash_delete(), which calls
+    free_table_share(), which may unload plugins, which can remove status
+    variables and hence takes LOCK_status. Record this locking order here.
+  */
+  mysql_mutex_record_order(&LOCK_open, &LOCK_status);
   oldest_unused_share= &end_of_unused_share;
   end_of_unused_share.prev= &oldest_unused_share;
 
