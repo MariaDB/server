@@ -881,14 +881,6 @@ rpl_binlog_state::find(uint32 domain_id, uint32 server_id)
 }
 
 
-slave_connection_state::slave_connection_state()
-{
-  my_hash_init(&hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
-}
-
-
 uint32
 rpl_binlog_state::count()
 {
@@ -958,6 +950,14 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
   }
 
   return 0;
+}
+
+
+slave_connection_state::slave_connection_state()
+{
+  my_hash_init(&hash, &my_charset_bin, 32,
+               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
 }
 
 
