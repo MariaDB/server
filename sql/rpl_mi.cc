@@ -143,6 +143,7 @@ void init_master_log_pos(Master_info* mi)
 
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
+  mi->using_gtid= false;
 
   /* Intentionally init ssl_verify_server_cert to 0, no option available  */
   mi->ssl_verify_server_cert= 0;
