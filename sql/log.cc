@@ -2928,7 +2928,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
-   sync_period_ptr(sync_period), sync_counter(0),
+   sync_period_ptr(sync_period), sync_counter(0), state_read(false),
    is_relay_log(0), signal_cnt(0),
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
@@ -3121,6 +3121,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
 
   DBUG_ENTER("MYSQL_BIN_LOG::open");
   DBUG_PRINT("enter",("log_type: %d",(int) log_type_arg));
+
+  if (!is_relay_log && read_state_from_file())
+    DBUG_RETURN(1);
 
   if (!is_relay_log && !binlog_background_thread_started &&
       start_binlog_background_thread())
@@ -5435,6 +5438,10 @@ MYSQL_BIN_LOG::read_state_from_file()
   bool opened= false;
   bool inited= false;
 
+  if (state_read)
+    return 0;
+  state_read= true;
+
   fn_format(buf, opt_bin_logname, mysql_data_home, ".state",
             MY_UNPACK_FILENAME);
   if ((file_no= mysql_file_open(key_file_binlog_state, buf,
@@ -5447,16 +5454,11 @@ MYSQL_BIN_LOG::read_state_from_file()
     }
     else
     {
-      rpl_gtid gtid;
-
       /*
         If the state file does not exist, this is the first server startup
         with GTID enabled. So initialize to empty state.
       */
-      gtid.domain_id= global_system_variables.gtid_domain_id;
-      gtid.server_id= global_system_variables.server_id;
-      gtid.seq_no= 0;
-      rpl_global_gtid_binlog_state.update(&gtid);
+      rpl_global_gtid_binlog_state.reset();
       err= 0;
       goto end;
     }
@@ -5477,6 +5479,9 @@ end:
     end_io_cache(&cache);
   if (opened)
     mysql_file_close(file_no, MYF(0));
+  /* Pick the next unused seq_no from the loaded binlog state. */
+  bump_seq_no_counter_if_needed(
+                          rpl_global_gtid_binlog_state.seq_no_from_state());
 
   return err;
 }
@@ -8220,12 +8225,12 @@ int TC_LOG_BINLOG::open(const char *opt_name)
       sql_print_information("Recovering after a crash using %s", opt_name);
       error= recover(&log_info, log_name, &log,
                      (Format_description_log_event *)ev);
+      /* Pick the next unused seq_no from the recovered binlog state. */
+      bump_seq_no_counter_if_needed(
+                         rpl_global_gtid_binlog_state.seq_no_from_state());
     }
     else
       error= read_state_from_file();
-    /* Pick the next unused seq_no from the loaded/recovered binlog state. */
-    bump_seq_no_counter_if_needed(
-        rpl_global_gtid_binlog_state.seq_no_from_state());
 
     delete ev;
     end_io_cache(&log);

@@ -507,6 +507,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   */
   uint *sync_period_ptr;
   uint sync_counter;
+  /* Protect against reading the binlog state file twice. */
+  bool state_read;
 
   inline uint get_sync_period()
   {

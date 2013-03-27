@@ -936,11 +936,8 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
   binlog_file_entry *list;
   Gtid_list_log_event *glev= NULL;
   const char *errormsg= NULL;
-  IO_CACHE cache;
-  File file = (File)-1;
   char buf[FN_REFLEN];
 
-  bzero((char*) &cache, sizeof(cache));
   init_alloc_root(&memroot, 10*(FN_REFLEN+sizeof(binlog_file_entry)), 0,
                   MYF(MY_THREAD_SPECIFIC));
   if (!(list= get_binlog_list(&memroot)))
@@ -951,6 +948,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
 
   while (list)
   {
+    File file;
+    IO_CACHE cache;
+
     if (!list->next)
     {
       /*
@@ -971,8 +971,13 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
         "GTID position in binlog";
       goto end;
     }
-    if ((file= open_binlog(&cache, buf, &errormsg)) == (File)-1 ||
-        (errormsg= get_gtid_list_event(&cache, &glev)))
+    bzero((char*) &cache, sizeof(cache));
+    if ((file= open_binlog(&cache, buf, &errormsg)) == (File)-1)
+      goto end;
+    errormsg= get_gtid_list_event(&cache, &glev);
+    end_io_cache(&cache);
+    mysql_file_close(file, MYF(MY_WME));
+    if (errormsg)
       goto end;
 
     if (!glev || contains_all_slave_gtid(state, glev))
@@ -1023,11 +1028,6 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
 end:
   if (glev)
     delete glev;
-  if (file != (File)-1)
-  {
-    end_io_cache(&cache);
-    mysql_file_close(file, MYF(MY_WME));
-  }
 
   free_root(&memroot, MYF(0));
   return errormsg;

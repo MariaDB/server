@@ -1,0 +1,54 @@
+include/rpl_init.inc [topology=1->2]
+*** Test normal shutdown/restart of slave server configured as a GTID slave. ***
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+include/stop_slave.inc
+Master_Log_File = 'master-bin.000001'
+Using_Gtid = '0'
+CHANGE MASTER TO master_gtid_pos=AUTO;
+FLUSH LOGS;
+PURGE BINARY LOGS TO 'master-bin.000002';
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+INSERT INTO t1 VALUES (3);
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+master-bin.000003	#
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+*** Test normal shutdown/restart of master server, check binlog state is preserved. ***
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	#	#	[0-1-3]
+FLUSH LOGS;
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid_list	#	#	[1-1-5,0-1-4]
+SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000005	#	Gtid_list	#	#	[1-1-5,0-1-4]
+show binary logs;
+Log_name	File_size
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+master-bin.000005	#
+INSERT INTO t1 VALUES(5);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+DROP TABLE t1;
+include/rpl_end.inc
