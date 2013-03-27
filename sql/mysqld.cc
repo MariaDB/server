@@ -6682,6 +6682,7 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
   bool tmp;
+  LINT_INIT(tmp);
 
   var->type= SHOW_MY_BOOL;
   var->value= buff;
@@ -6707,6 +6708,7 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
   longlong tmp;
+  LINT_INIT(tmp);
 
   var->type= SHOW_LONGLONG;
   var->value= buff;
@@ -6730,7 +6732,8 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
-  float heartbeat_period;
+  float tmp;
+  LINT_INIT(tmp);
 
   var->type= SHOW_CHAR;
   var->value= buff;
@@ -6740,11 +6743,11 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    heartbeat_period= mi->heartbeat_period;
+    tmp= mi->heartbeat_period;
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_status);
   if (mi)
-    sprintf(buff, "%.3f", heartbeat_period);
+    sprintf(buff, "%.3f", tmp);
   else
     var->type= SHOW_UNDEF;
   return 0;
