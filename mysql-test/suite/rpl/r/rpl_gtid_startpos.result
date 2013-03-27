@@ -129,5 +129,25 @@ a
 SET SQL_LOG_BIN=0;
 call mtr.add_suppression("Slave: Table 't1' already exists Error_code: 1050");
 SET SQL_LOG_BIN=1;
+*** Test reconnecting slave with GTID after purge logs on master. ***
+FLUSH LOGS;
+INSERT INTO t1 VALUES (4);
+include/stop_slave.inc
+FLUSH LOGS;
+FLUSH LOGS;
+PURGE BINARY LOGS TO 'master-bin.000004';
+show binary logs;
+Log_name	File_size
+master-bin.000004	#
+INSERT INTO t1 VALUES (5);
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
 DROP TABLE t1;
 include/rpl_end.inc
