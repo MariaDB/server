@@ -769,13 +769,14 @@ void Item_num_op::find_num_type(void)
   {
     hybrid_type= DECIMAL_RESULT;
     result_precision();
+    fix_decimals();
   }
   else
   {
     DBUG_ASSERT(r0 == INT_RESULT && r1 == INT_RESULT);
-    decimals= 0;
     hybrid_type=INT_RESULT;
     result_precision();
+    decimals= 0;
   }
   DBUG_PRINT("info", ("Type: %s",
              (hybrid_type == REAL_RESULT ? "REAL_RESULT" :
@@ -1708,6 +1709,7 @@ void Item_func_div::fix_length_and_dec()
     break;
   case DECIMAL_RESULT:
     result_precision();
+    fix_decimals();
     break;
   case STRING_RESULT:
   case ROW_RESULT:
@@ -1907,6 +1909,16 @@ longlong Item_func_neg::int_op()
   if (args[0]->unsigned_flag &&
       (ulonglong) value > (ulonglong) LONGLONG_MAX + 1)
     return raise_integer_overflow();
+
+  if (value == LONGLONG_MIN)
+  {
+    if (args[0]->unsigned_flag != unsigned_flag)
+      /* negation of LONGLONG_MIN is LONGLONG_MIN. */
+      return LONGLONG_MIN; 
+    else
+      return raise_integer_overflow();
+  }
+
   return check_integer_overflow(-value, !args[0]->unsigned_flag && value < 0);
 }
 
@@ -4819,7 +4831,7 @@ void Item_func_set_user_var::save_item_result(Item *item)
 {
   DBUG_ENTER("Item_func_set_user_var::save_item_result");
 
-  switch (cached_result_type) {
+  switch (args[0]->result_type()) {
   case REAL_RESULT:
     save_result.vreal= item->val_result();
     break;

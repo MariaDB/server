@@ -789,10 +789,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %pure_parser                                    /* We have threads */
 /*
-  Currently there are 173 shift/reduce conflicts.
+  Currently there are 174 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 173
+%expect 174
 
 /*
    Comments for TOKENS.
@@ -13132,6 +13132,7 @@ keyword:
         | LANGUAGE_SYM          {}
         | NO_SYM                {}
         | OPEN_SYM              {}
+        | OPTION                {}
         | OPTIONS_SYM           {}
         | OWNER_SYM             {}
         | PARSER_SYM            {}

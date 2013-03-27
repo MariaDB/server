@@ -1377,11 +1377,12 @@ void THD::cleanup(void)
 #error xid_state in the cache should be replaced by the allocated value
   }
 #endif
-  {
-    transaction.xid_state.xa_state= XA_NOTR;
-    trans_rollback(this);
-    xid_cache_delete(&transaction.xid_state);
-  }
+
+  close_temporary_tables(this);
+
+  transaction.xid_state.xa_state= XA_NOTR;
+  trans_rollback(this);
+  xid_cache_delete(&transaction.xid_state);
 
   locked_tables_list.unlock_locked_tables(this);
   mysql_ha_cleanup(this);
@@ -1415,7 +1416,6 @@ void THD::cleanup(void)
 
   delete_dynamic(&user_var_events);
   my_hash_free(&user_vars);
-  close_temporary_tables(this);
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
 
@@ -1860,6 +1860,19 @@ void THD::cleanup_after_query()
     stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
     auto_inc_intervals_in_cur_stmt_for_binlog.empty();
     rand_used= 0;
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Clean possible unused INSERT_ID events by current statement.
+      is_update_query() is needed to ignore SET statements:
+        Statements that don't update anything directly and don't
+        used stored functions. This is mostly necessary to ignore
+        statements in binlog between SET INSERT_ID and DML statement
+        which is intended to consume its event (there can be other
+        SET statements between them).
+    */
+    if ((rli_slave || rli_fake) && is_update_query(lex->sql_command))
+      auto_inc_intervals_forced.empty();
+#endif
   }
   if (first_successful_insert_id_in_cur_stmt > 0)
   {
@@ -3121,42 +3134,13 @@ int select_exists_subselect::send_data(List<Item> &items)
 int select_dumpvar::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 {
   unit= u;
-  List_iterator_fast<my_var> var_li(var_list);
-  List_iterator_fast<Item> it(list);
-  Item *item;
-  my_var *mv;
-  Item_func_set_user_var **suv;
   
   if (var_list.elements != list.elements)
   {
     my_message(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT,
                ER(ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT), MYF(0));
     return 1;
-  }
-
-  /*
-    Iterate over the destination variables and mark them as being
-    updated in this query.
-    We need to do this at JOIN::prepare time to ensure proper
-    const detection of Item_func_get_user_var that is determined
-    by the presence of Item_func_set_user_vars
-  */
-
-  suv= set_var_items= (Item_func_set_user_var **) 
-    sql_alloc(sizeof(Item_func_set_user_var *) * list.elements);
-
-  while ((mv= var_li++) && (item= it++))
-  {
-    if (!mv->local)
-    {
-      *suv= new Item_func_set_user_var(mv->s, item);
-      (*suv)->fix_fields(thd, 0);
-    }
-    else
-      *suv= NULL;
-    suv++;
-  }
-
+  }               
   return 0;
 }
 
@@ -3486,7 +3470,6 @@ int select_dumpvar::send_data(List<Item> &items)
   List_iterator<Item> it(items);
   Item *item;
   my_var *mv;
-  Item_func_set_user_var **suv;
   DBUG_ENTER("select_dumpvar::send_data");
 
   if (unit->offset_limit_cnt)
@@ -3499,19 +3482,20 @@ int select_dumpvar::send_data(List<Item> &items)
     my_message(ER_TOO_MANY_ROWS, ER(ER_TOO_MANY_ROWS), MYF(0));
     DBUG_RETURN(1);
   }
-  for (suv= set_var_items; ((mv= var_li++) && (item= it++)); suv++)
+  while ((mv= var_li++) && (item= it++))
   {
     if (mv->local)
     {
-      DBUG_ASSERT(!*suv);
       if (thd->spcont->set_variable(thd, mv->offset, &item))
 	    DBUG_RETURN(1);
     }
     else
     {
-      DBUG_ASSERT(*suv);
-      (*suv)->save_item_result(item);
-      if ((*suv)->update())
+      Item_func_set_user_var *suv= new Item_func_set_user_var(mv->s, item);
+      suv->save_item_result(item);
+      if (suv->fix_fields(thd, 0))
+        DBUG_RETURN (1);
+      if (suv->update())
         DBUG_RETURN (1);
     }
   }
@@ -4497,9 +4481,14 @@ bool xid_cache_insert(XID *xid, enum xa_states xa_state)
 bool xid_cache_insert(XID_STATE *xid_state)
 {
   mysql_mutex_lock(&LOCK_xid_cache);
-  DBUG_ASSERT(my_hash_search(&xid_cache, xid_state->xid.key(),
-                             xid_state->xid.key_length())==0);
-  my_bool res=my_hash_insert(&xid_cache, (uchar*)xid_state);
+  if (my_hash_search(&xid_cache, xid_state->xid.key(),
+      xid_state->xid.key_length()))
+  {
+    mysql_mutex_unlock(&LOCK_xid_cache);
+    my_error(ER_XAER_DUPID, MYF(0));
+    return true;
+  }
+  bool res= my_hash_insert(&xid_cache, (uchar*)xid_state);
   mysql_mutex_unlock(&LOCK_xid_cache);
   return res;
 }

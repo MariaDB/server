@@ -327,12 +327,9 @@ uint create_table_def_key(THD *thd, char *key,
                           const TABLE_LIST *table_list,
                           bool tmp_table)
 {
-  char *db_end= strnmov(key, table_list->db, MAX_DBKEY_LENGTH - 2);
-  *db_end++= '\0';
-  char *table_end= strnmov(db_end, table_list->table_name,
-                           key + MAX_DBKEY_LENGTH - 1 - db_end);
-  *table_end++= '\0';
-  uint key_length= (uint) (table_end-key);
+  uint key_length= create_table_def_key(key, table_list->db,
+                                        table_list->table_name);
+
   if (tmp_table)
   {
     int4store(key + key_length, thd->server_id);
@@ -835,13 +832,10 @@ void release_table_share(TABLE_SHARE *share)
 TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
 {
   char key[SAFE_NAME_LEN*2+2];
-  TABLE_LIST table_list;
   uint key_length;
   mysql_mutex_assert_owner(&LOCK_open);
 
-  table_list.db= (char*) db;
-  table_list.table_name= (char*) table_name;
-  key_length= create_table_def_key((THD*) 0, key, &table_list, 0);
+  key_length= create_table_def_key(key, db, table_name);
   return (TABLE_SHARE*) my_hash_search(&table_def_cache,
                                        (uchar*) key, key_length);
 }  
@@ -1077,7 +1071,7 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
       if (share)
       {
         kill_delayed_threads_for_table(share);
-        /* tdc_remove_table() also sets TABLE_SHARE::version to 0. */
+        /* tdc_remove_table() calls share->remove_from_cache_at_close() */
         tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED, table->db,
                          table->table_name, TRUE);
 	found=1;
@@ -2339,7 +2333,8 @@ bool rename_temporary_table(THD* thd, TABLE *table, const char *db,
 */
 
 bool wait_while_table_is_used(THD *thd, TABLE *table,
-                              enum ha_extra_function function)
+                              enum ha_extra_function function,
+                              enum_tdc_remove_table_type remove_type)
 {
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_PRINT("enter", ("table: '%s'  share: 0x%lx  db_stat: %u  version: %lu",
@@ -2350,7 +2345,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
              table->mdl_ticket, thd->variables.lock_wait_timeout))
     DBUG_RETURN(TRUE);
 
-  tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN,
+  tdc_remove_table(thd, remove_type,
                    table->s->db.str, table->s->table_name.str,
                    FALSE);
   /* extra() call must come only after all instances above are closed */
@@ -3096,7 +3091,9 @@ retry_share:
     goto err_unlock;
   }
 
-  if (!(flags & MYSQL_OPEN_IGNORE_FLUSH))
+  if (!(flags & MYSQL_OPEN_IGNORE_FLUSH) ||
+      (share->protected_against_usage() &&
+       !(flags & MYSQL_OPEN_FOR_REPAIR)))
   {
     if (share->has_old_version())
     {
@@ -3243,7 +3240,7 @@ err_unlock:
 TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name)
 {
   char	key[MAX_DBKEY_LENGTH];
-  uint key_length=(uint) (strmov(strmov(key,db)+1,table_name)-key)+1;
+  uint key_length= create_table_def_key(key, db, table_name);
 
   for (TABLE *table= list; table ; table=table->next)
   {
@@ -6156,17 +6153,27 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
 }
 
 
-bool rm_temporary_table(handlerton *base, char *path)
+/**
+  Delete a temporary table.
+
+  @param base  Handlerton for table to be deleted.
+  @param path  Path to the table to be deleted (i.e. path
+               to its .frm without an extension).
+
+  @retval false - success.
+  @retval true  - failure.
+*/
+
+bool rm_temporary_table(handlerton *base, const char *path)
 {
   bool error=0;
   handler *file;
-  char *ext;
+  char frm_path[FN_REFLEN + 1];
   DBUG_ENTER("rm_temporary_table");
 
-  strmov(ext= strend(path), reg_ext);
-  if (mysql_file_delete(key_file_frm, path, MYF(0)))
+  strxnmov(frm_path, sizeof(frm_path) - 1, path, reg_ext, NullS);
+  if (mysql_file_delete(key_file_frm, frm_path, MYF(0)))
     error=1; /* purecov: inspected */
-  *ext= 0;				// remove extension
   file= get_new_handler((TABLE_SHARE*) 0, current_thd->mem_root, base);
   if (file && file->ha_delete_table(path))
   {
@@ -8112,7 +8119,8 @@ bool setup_fields(THD *thd, Item **ref_pointer_array,
   thd->mark_used_columns= mark_used_columns;
   DBUG_PRINT("info", ("thd->mark_used_columns: %d", thd->mark_used_columns));
   if (allow_sum_func)
-    thd->lex->allow_sum_func|= 1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func|=
+      (nesting_map)1 << thd->lex->current_select->nest_level;
   thd->where= THD::DEFAULT_WHERE;
   save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
   thd->lex->current_select->is_item_list_lookup= 0;
@@ -9401,6 +9409,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
   TABLE *table;
   TABLE_SHARE *share;
   DBUG_ENTER("tdc_remove_table");
+  DBUG_PRINT("enter",("name: %s  remove_type: %d", table_name, remove_type));
 
   if (! has_lock)
     mysql_mutex_lock(&LOCK_open);
@@ -9413,7 +9422,7 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_EXCLUSIVE));
 
-  key_length=(uint) (strmov(strmov(key,db)+1,table_name)-key)+1;
+  key_length= create_table_def_key(key, db, table_name);
 
   if ((share= (TABLE_SHARE*) my_hash_search(&table_def_cache,(uchar*) key,
                                             key_length)))
@@ -9426,7 +9435,8 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       {
         DBUG_ASSERT(share->used_tables.is_empty());
       }
-      else if (remove_type == TDC_RT_REMOVE_NOT_OWN)
+      else if (remove_type == TDC_RT_REMOVE_NOT_OWN ||
+               remove_type == TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE)
       {
         I_P_List_iterator<TABLE, TABLE_share> it2(share->used_tables);
         while ((table= it2++))
@@ -9437,8 +9447,8 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
       }
 #endif
       /*
-        Set share's version to zero in order to ensure that it gets
-        automatically deleted once it is no longer referenced.
+        Mark share to ensure that it gets automatically deleted once
+        it is no longer referenced.
 
         Note that code in TABLE_SHARE::wait_for_old_version() assumes
         that marking share as old and removal of its unused tables
@@ -9447,7 +9457,13 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
         TDC does not contain old shares which don't have any tables
         used.
       */
-      share->version= 0;
+      if (remove_type == TDC_RT_REMOVE_NOT_OWN)
+        share->remove_from_cache_at_close();
+      else
+      {
+        /* Ensure that no can open the table while it's used */
+        share->protect_against_usage();
+      }
 
       while ((table= it++))
         free_cache_entry(table);
@@ -9527,12 +9543,14 @@ open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
 {
   LEX_STRING pathstr;
   File_parser *parser;
-  char path[FN_REFLEN];
+  char path[FN_REFLEN+1];
   DBUG_ENTER("open_new_frm");
 
   /* Create path with extension */
-  pathstr.length= (uint) (strxmov(path, share->normalized_path.str, reg_ext,
-                                  NullS)- path);
+  pathstr.length= (uint) (strxnmov(path, sizeof(path) - 1,
+                                   share->normalized_path.str,
+                                   reg_ext,
+                                   NullS) - path);
   pathstr.str=    path;
 
   if ((parser= sql_parse_prepare(&pathstr, mem_root, 1)))

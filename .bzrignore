@@ -1144,3 +1144,4 @@ sql/db.opt
 ./_CPack_Packages
 ./install_manifest_*.txt
 typescript
+mysql-test/collections/default.release.done
