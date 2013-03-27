@@ -111,5 +111,23 @@ SELECT * FROM t1 ORDER BY a;
 a
 1
 2
+*** Test that RESET SLAVE clears the Using_Gtid flag. ***
+include/stop_slave.inc
+RESET SLAVE;
+Using_Gtid = '0'
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1050]
+STOP SLAVE IO_THREAD;
+CHANGE MASTER TO MASTER_GTID_POS=AUTO;
+include/start_slave.inc
+INSERT INTO t1 VALUES(3);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+SET SQL_LOG_BIN=0;
+call mtr.add_suppression("Slave: Table 't1' already exists Error_code: 1050");
+SET SQL_LOG_BIN=1;
 DROP TABLE t1;
 include/rpl_end.inc

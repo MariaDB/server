@@ -181,6 +181,35 @@ eval CHANGE MASTER TO master_gtid_pos='';
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;
 
+--echo *** Test that RESET SLAVE clears the Using_Gtid flag. ***
+--source include/stop_slave.inc
+RESET SLAVE;
+--let $status_items= Using_Gtid
+--source include/show_slave_status.inc
+
+# Starting the slave now reverts to old-style position which defaults to
+# the first non-purged binlog file on the master.
+# This should give error due to table already existing.
+START SLAVE;
+--let $slave_sql_errno= 1050
+--source include/wait_for_slave_sql_error.inc
+
+# Going back to using GTID should fix things.
+STOP SLAVE IO_THREAD;
+CHANGE MASTER TO MASTER_GTID_POS=AUTO;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES(3);
+
+--connection server_2
+--let $wait_condition= SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+SET SQL_LOG_BIN=0;
+call mtr.add_suppression("Slave: Table 't1' already exists Error_code: 1050");
+SET SQL_LOG_BIN=1;
+
 
 # Clean up.
 --connection server_1
