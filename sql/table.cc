@@ -324,7 +324,7 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
 
-    share->version=       refresh_version;
+    share->set_refresh_version();
 
     /*
       Since alloc_table_share() can be called without any locking (for
@@ -1026,7 +1026,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
         }
       }
       if (j == first_key_parts)
-        keyinfo->ext_key_flags= keyinfo->flags | HA_NOSAME | HA_EXT_NOSAME;
+        keyinfo->ext_key_flags= keyinfo->flags | HA_EXT_NOSAME;
     }
     share->ext_key_parts+= keyinfo->ext_key_parts;  
   }

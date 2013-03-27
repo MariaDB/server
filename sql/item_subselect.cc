@@ -1102,6 +1102,11 @@ enum Item_result Item_singlerow_subselect::result_type() const
   return engine->type();
 }
 
+enum Item_result Item_singlerow_subselect::cmp_type() const
+{
+  return engine->cmptype();
+}
+
 /* 
  Don't rely on the result type to calculate field type. 
  Ask the engine instead.
@@ -1866,7 +1871,8 @@ bool Item_allany_subselect::transform_into_max_min(JOIN *join)
                  print_where(item, "rewrite with MIN/MAX", QT_ORDINARY););
 
     save_allow_sum_func= thd->lex->allow_sum_func;
-    thd->lex->allow_sum_func|= 1 << thd->lex->current_select->nest_level;
+    thd->lex->allow_sum_func|=
+        (nesting_map)1 << thd->lex->current_select->nest_level;
     /*
       Item_sum_(max|min) can't substitute other item => we can use 0 as
       reference, also Item_sum_(max|min) can't be fixed after creation, so
@@ -3503,12 +3509,13 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
 {
   Item *sel_item;
   List_iterator_fast<Item> li(item_list);
-  res_type= STRING_RESULT;
+  cmp_type= res_type= STRING_RESULT;
   res_field_type= MYSQL_TYPE_VAR_STRING;
   for (uint i= 0; (sel_item= li++); i++)
   {
     item->max_length= sel_item->max_length;
     res_type= sel_item->result_type();
+    cmp_type= sel_item->cmp_type();
     res_field_type= sel_item->field_type();
     item->decimals= sel_item->decimals;
     item->unsigned_flag= sel_item->unsigned_flag;
@@ -3519,7 +3526,7 @@ void subselect_engine::set_row(List<Item> &item_list, Item_cache **row)
  //psergey-backport-timours:   row[i]->store(sel_item);
   }
   if (item_list.elements > 1)
-    res_type= ROW_RESULT;
+    cmp_type= res_type= ROW_RESULT;
 }
 
 void subselect_single_select_engine::fix_length_and_dec(Item_cache **row)
