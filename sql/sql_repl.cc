@@ -703,7 +703,7 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   to build an in-memory hash or stuff like that.
 
   We need to check that slave did not request GTID D-S-N1, when the
-  Gtid_list_log_event for this binlog file has D-S-N2 with N2 >= N1.
+  Gtid_list_log_event for this binlog file has D-S-N2 with N2 > N1.
 
   In addition, we need to check that we do not have a GTID D-S-N3 in the
   Gtid_list_log_event where D is not present in the requested slave state at
@@ -727,7 +727,7 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
       return false;
     }
     if (gtid->server_id == glev->list[i].server_id &&
-        gtid->seq_no <= glev->list[i].seq_no)
+        gtid->seq_no < glev->list[i].seq_no)
     {
       /*
         The slave needs to receive gtid, but it is contained in an earlier
@@ -909,6 +909,25 @@ end:
   Returns the file name in out_name, which must be of size at least FN_REFLEN.
 
   Returns NULL on ok, error message on error.
+
+  In case of non-error return, the returned binlog file is guaranteed to
+  contain the first event to be transmitted to the slave for every domain
+  present in our binlogs. It is still necessary to skip all GTIDs up to
+  and including the GTID requested by slave within each domain.
+
+  However, as a special case, if the event to be sent to the slave is the very
+  first event (within that domain) in the returned binlog, then nothing should
+  be skipped, so that domain is deleted from the passed in slave connection
+  state.
+
+  This is necessary in case the slave requests a GTID within a replication
+  domain that has long been inactive. The binlog file containing that GTID may
+  have been long since purged. However, as long as no GTIDs after that have
+  been purged, we have the GTID requested by slave in the Gtid_list_log_event
+  of the latest binlog. So we can start from there, as long as we delete the
+  corresponding entry in the slave state so we do not wrongly skip any events
+  that might turn up if that domain becomes active again, vainly looking for
+  the requested GTID that was already purged.
 */
 static const char *
 gtid_find_binlog_file(slave_connection_state *state, char *out_name)
@@ -958,7 +977,37 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
 
     if (!glev || contains_all_slave_gtid(state, glev))
     {
+      uint32 i;
+
       strmake(out_name, buf, FN_REFLEN);
+
+      /*
+        As a special case, we allow to start from binlog file N if the
+        requested GTID is the last event (in the corresponding domain) in
+        binlog file (N-1), but then we need to remove that GTID from the slave
+        state, rather than skipping events waiting for it to turn up.
+      */
+      for (i= 0; i < glev->count; ++i)
+      {
+        const rpl_gtid *gtid= state->find(glev->list[i].domain_id);
+        if (!gtid)
+        {
+          /* contains_all_slave_gtid() would have returned false if so. */
+          DBUG_ASSERT(0);
+          continue;
+        }
+        if (gtid->server_id == glev->list[i].server_id &&
+            gtid->seq_no == glev->list[i].seq_no)
+        {
+          /*
+            The slave requested to start from the very beginning of this
+            domain in this binlog file. So delete the entry from the state,
+            we do not need to skip anything.
+          */
+          state->remove(gtid);
+        }
+      }
+
       goto end;
     }
     delete glev;
