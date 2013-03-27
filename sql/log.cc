@@ -8225,6 +8225,7 @@ int TC_LOG_BINLOG::open(const char *opt_name)
       sql_print_information("Recovering after a crash using %s", opt_name);
       error= recover(&log_info, log_name, &log,
                      (Format_description_log_event *)ev);
+      state_read= true;
       /* Pick the next unused seq_no from the recovered binlog state. */
       bump_seq_no_counter_if_needed(
                          rpl_global_gtid_binlog_state.seq_no_from_state());
