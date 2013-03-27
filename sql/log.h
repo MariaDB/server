@@ -396,7 +396,7 @@ private:
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
 
 class binlog_cache_mngr;
-class rpl_gtid;
+struct rpl_gtid;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
