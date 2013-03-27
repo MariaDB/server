@@ -40,6 +40,8 @@ SET sql_log_bin = 1;
 INSERT INTO t1 VALUES (3);
 CHANGE MASTER TO master_gtid_pos = "0-1-1";
 ERROR HY000: Requested MASTER_GTID_POS 0-1-1 conflicts with the binary log which contains a more recent GTID 0-2-11. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+CHANGE MASTER TO master_gtid_pos = "";
+ERROR HY000: Requested MASTER_GTID_POS contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-11. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
 RESET MASTER;
 CHANGE MASTER TO master_gtid_pos = "0-1-1";
 START SLAVE;

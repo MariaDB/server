@@ -6617,3 +6617,5 @@ ER_CANNOT_LOAD_SLAVE_GTID_STATE
 	eng "Failed to load replication slave GTID state from table %s.%s"
 ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
 	eng "Requested MASTER_GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
+ER_MASTER_GTID_POS_MISSING_DOMAIN
+	eng "Requested MASTER_GTID_POS contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"

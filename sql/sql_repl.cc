@@ -2533,7 +2533,12 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
         if (binlog_gtid->server_id != global_system_variables.server_id)
           continue;
         if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
-          continue;
+        {
+          my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
+                   binlog_gtid->domain_id, binlog_gtid->domain_id,
+                   binlog_gtid->server_id, binlog_gtid->seq_no);
+          break;
+        }
         if (slave_gtid->seq_no < binlog_gtid->seq_no)
         {
           my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
