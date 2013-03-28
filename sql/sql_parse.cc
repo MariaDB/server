@@ -915,7 +915,7 @@ bool do_command(THD *thd)
   packet_length= my_net_read(net);
   thd->m_server_idle= FALSE;
 
-  if ((packet_length == packet_error))
+  if (packet_length == packet_error)
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,
