@@ -2389,7 +2389,6 @@ void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
 /***********************************************************************/
 bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  DWORD drc, rc;
   IOFF  noff[MAX_INDX];
 
   if (Hfile != INVALID_HANDLE_VALUE) {
@@ -2403,7 +2402,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
 #if defined(WIN32)
   LONG  high = 0;
-  DWORD access, share, creation;
+  DWORD rc, drc, access, share, creation;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -2534,7 +2533,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     /*******************************************************************/
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
-    if (!(Offset.Val = (longlong)lseek64(Hfile, 0LL, SEEK_END))) {
+    if (!(NewOff.Val = (longlong)lseek64(Hfile, 0LL, SEEK_END))) {
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Seek");
       return true;
       } // endif
@@ -2543,8 +2542,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     if (id >= 0) {
       // New not sep index file. Write the header.
       memset(noff, 0, sizeof(noff));
-      Write(g, noff, sizeof(IOFF), MAX_INDX, rc);
-      Offset.Val = (longlong)(sizeof(IOFF) * MAX_INDX);      
+      NewOff.Low = write(Hfile, &noff, sizeof(noff));
       } // endif id
 
   } else if (mode == MODE_READ && id >= 0) {
@@ -2733,21 +2731,22 @@ void XHUGE::Close(char *fn, int id)
     CloseFileHandle(Hfile);
     Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+                       
     if (Hfile != INVALID_HANDLE_VALUE)
       if (SetFilePointer(Hfile, id * sizeof(IOFF), NULL, FILE_BEGIN)
               != INVALID_SET_FILE_POINTER) {
         DWORD nbw;
 
-        WriteFile(Hfile, &NewOff,  sizeof(longlong), &nbw, NULL);
-//      WriteFile(Hfile, &Newhigh, sizeof(int), &nbw, NULL);
+        WriteFile(Hfile, &NewOff, sizeof(IOFF), &nbw, NULL);
         } // endif SetFilePointer
 
     } // endif id
 #else   // !WIN32
   if (id >= 0 && fn) {
-    fnctl(Hfile, F_SETFD, O_WRONLY);
+    fcntl(Hfile, F_SETFD, O_WRONLY);
+    
     if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
-      write(Hfile, &noff[id], sizeof(IOFF));
+      write(Hfile, &NewOff, sizeof(IOFF));
 
     } // endif id
 #endif  // !WIN32
