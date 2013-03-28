@@ -329,6 +329,7 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   table->field[1]->store(sub_id, true);
   table->field[2]->store((ulonglong)gtid->server_id, true);
   table->field[3]->store(gtid->seq_no, true);
+  DBUG_EXECUTE_IF("inject_crash_before_write_rpl_slave_state", DBUG_SUICIDE(););
   if ((err= table->file->ha_write_row(table->record[0])))
       goto end;
 

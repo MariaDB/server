@@ -56,5 +56,36 @@ a
 1
 2
 3
+*** Test crashing slave at various points and check that it recovers crash-safe. ***
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
+START SLAVE;
+INSERT INTO t1 VALUES (4);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,crash_commit_before";
+START SLAVE;
+INSERT INTO t1 VALUES (5);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,crash_commit_after";
+START SLAVE;
+INSERT INTO t1 VALUES (6);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+START SLAVE;
+INSERT INTO t1 VALUES (7);
+include/stop_slave.inc
+SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+START SLAVE;
+INSERT INTO t1 VALUES (8);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
 DROP TABLE t1;
 include/rpl_end.inc

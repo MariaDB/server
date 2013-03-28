@@ -1246,7 +1246,9 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
         DBA aware of the problem in the error log.
       */
     }
+    DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     flush_relay_log_info(this);
+    DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
     /*
       Note that Rotate_log_event::do_apply_event() does not call this
       function, so there is no chance that a fake rotate event resets
@@ -1453,6 +1455,10 @@ rpl_load_gtid_slave_state(THD *thd)
       entry= (struct local_element *)rec;
       if (entry->sub_id >= sub_id)
         continue;
+      entry->sub_id= sub_id;
+      DBUG_ASSERT(entry->gtid.domain_id == domain_id);
+      entry->gtid.server_id= server_id;
+      entry->gtid.seq_no= seq_no;
     }
     else
     {
@@ -1462,17 +1468,16 @@ rpl_load_gtid_slave_state(THD *thd)
         err= 1;
         goto end;
       }
+      entry->sub_id= sub_id;
+      entry->gtid.domain_id= domain_id;
+      entry->gtid.server_id= server_id;
+      entry->gtid.seq_no= seq_no;
       if ((err= my_hash_insert(&hash, (uchar *)entry)))
       {
         my_free(entry);
         goto end;
       }
     }
-
-    entry->sub_id= sub_id;
-    entry->gtid.domain_id= domain_id;
-    entry->gtid.server_id= server_id;
-    entry->gtid.seq_no= seq_no;
   }
 
   rpl_global_gtid_slave_state.lock();
