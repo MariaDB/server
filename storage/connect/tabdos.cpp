@@ -249,10 +249,8 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Ending = Cat->GetIntCatInfo("Ending", CRLF);
 
   if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
-    int defhuge = (Cat->GetDefHuge()) ? 1 : 0;
-
-    Huge = (Cat->GetIntCatInfo("Huge", defhuge) != 0);
-    Padded = (Cat->GetIntCatInfo("Padded", 0) != 0);
+    Huge = Cat->GetBoolCatInfo("Huge", Cat->GetDefHuge());
+    Padded = Cat->GetBoolCatInfo("Padded", false);
     Blksize = Cat->GetIntCatInfo("Blksize", 0);
     Eof = (Cat->GetIntCatInfo("EOF", 0) != 0);
   } else if (Recfm == RECFM_DBF) {
@@ -554,8 +552,8 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       if (!x->Make(g, sxp)) {
         // Retreive define values from the index
         xdp->SetMaxSame(x->GetMaxSame());
-        xdp->SetOffset(x->GetDefoff());
-        xdp->SetOffhigh(x->GetDefhigh());
+//      xdp->SetOffset(x->GetDefoff());
+//      xdp->SetOffhigh(x->GetDefhigh());
         xdp->SetSize(x->GetSize());
 
         // store KXYCOL Mxs in KPARTDEF Mxsame
