@@ -99,12 +99,16 @@ connection server_2;
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT;
 --source include/start_slave.inc
+--let $wait_condition= SELECT COUNT(*) = 7 FROM t2
+--source include/wait_condition.inc
 
 connection server_3;
 --source include/stop_slave.inc
 --replace_result $SLAVE_MYPORT SLAVE_MYPORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT;
 --source include/start_slave.inc
+--let $wait_condition= SELECT COUNT(*) = 7 FROM t2
+--source include/wait_condition.inc
 
 connection server_4;
 --source include/stop_slave.inc
