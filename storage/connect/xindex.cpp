@@ -17,7 +17,6 @@
 //#include <windows.h>
 #else   // !WIN32
 #if defined(UNIX)
-#define _LARGEFILE64_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -2390,7 +2389,6 @@ void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
 /***********************************************************************/
 bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  LONG  high = 0;
   DWORD drc, rc;
   IOFF  noff[MAX_INDX];
 
@@ -2404,6 +2402,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 #endif   // TRACE
 
 #if defined(WIN32)
+  LONG  high = 0;
   DWORD access, share, creation;
 
   /*********************************************************************/
