@@ -362,6 +362,8 @@ extern struct charset_info_st my_charset_ujis_japanese_ci;
 extern struct charset_info_st my_charset_utf16_bin;
 extern struct charset_info_st my_charset_utf16_general_ci;
 extern struct charset_info_st my_charset_utf16_unicode_ci;
+extern struct charset_info_st my_charset_utf16le_bin;
+extern struct charset_info_st my_charset_utf16le_general_ci;
 extern struct charset_info_st my_charset_utf32_bin;
 extern struct charset_info_st my_charset_utf32_general_ci;
 extern struct charset_info_st my_charset_utf32_unicode_ci;
