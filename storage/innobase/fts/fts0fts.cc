@@ -5348,7 +5348,7 @@ fts_savepoint_release(
 			/* Swap the entries. */
 			memcpy(&temp, last, sizeof(temp));
 			memcpy(last, prev, sizeof(*last));
-			memcpy(prev, &temp, sizeof(prev));
+			memcpy(prev, &temp, sizeof(*prev));
 			break;
 
 		/* Track the previous savepoint instance that will
