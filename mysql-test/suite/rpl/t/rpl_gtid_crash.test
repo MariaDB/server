@@ -124,6 +124,140 @@ SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;
 
+
+--echo *** Test crashing slave at various points and check that it recovers crash-safe. ***
+
+# Crash the slave just before updating mysql.rpl_slave_state table.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+# We do not have to save @@GLOBAL.debug_dbug, it is reset when slave crashes.
+SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (4);
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 4 FROM t1
+--source include/wait_condition.inc
+
+# Crash the slave just before committing.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,crash_commit_before";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (5);
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+
+# Crash the slave just after committing.
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,crash_commit_after";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (6);
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 6 FROM t1
+--source include/wait_condition.inc
+
+# Crash the slave just before updating relay-log.info
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (7);
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+
+# Crash the slave just after updating relay-log.info
+--source include/stop_slave.inc
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+START SLAVE;
+
+--connection server_1
+INSERT INTO t1 VALUES (8);
+
+--connection server_2
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 8 FROM t1
+--source include/wait_condition.inc
+
+
+# Check that everything was replicated correctly.
+SELECT * FROM t1 ORDER BY a;
+
+
 --connection server_1
 DROP TABLE t1;
 
