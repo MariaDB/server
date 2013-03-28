@@ -58,6 +58,13 @@ typedef struct index_def : public BLOCK {
   bool   Alloc;                   // Must allocate values
   } INDX;
 
+typedef struct index_off {
+  union {
+    struct {int Low; int High;};
+    longlong Val;                 // File position
+    }; // end of union
+  } IOFF;
+
 /***********************************************************************/
 /*  Index definition block.                                            */
 /***********************************************************************/
@@ -85,10 +92,10 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   void    SetNParts(uint np) {Nparts = (signed)np;}
   void    SetMaxSame(int mxs) {MaxSame = mxs;}
   void    SetMxsame(PXINDEX x);
-  int     GetOffset(void) {return Offset;}
-  void    SetOffset(int off) {Offset = off;}
-  int     GetOffhigh(void) {return Offhigh;}
-  void    SetOffhigh(int hof) {Offhigh = hof;}
+//int     GetOffset(void) {return Offset;}
+//void    SetOffset(int off) {Offset = off;}
+//int     GetOffhigh(void) {return Offhigh;}
+//void    SetOffhigh(int hof) {Offhigh = hof;}
   int     GetSize(void) {return Size;}
   void    SetSize(int size) {Size = size;}
   int     GetMaxSame(void) {return MaxSame;}
@@ -110,8 +117,8 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   bool    AutoInc;            /* true if unique key in auto increment  */
   int     Nparts;             /* Number of key parts                   */
   int     ID;                 /* Index ID number                       */
-  int     Offset;             /* Offset in index file                  */
-  int     Offhigh;            /* Offset high in big index file         */
+//int     Offset;             /* Offset in index file                  */
+//int     Offhigh;            /* Offset high in big index file         */
   int     Size;               /* Size of index file                    */
   int     MaxSame;            /* Max number of same values             */
   }; // end of INDEXDEF
@@ -308,6 +315,7 @@ class DllExport XINDXS : public XINDEX {
 /*  This is the saving/loading index utility base class.               */
 /***********************************************************************/
 class DllExport XLOAD : public BLOCK {
+  friend class XINDEX;
   friend class XBIGEX;
   friend class XBIGXS;
  public:
@@ -315,12 +323,13 @@ class DllExport XLOAD : public BLOCK {
   XLOAD(void);
 
   // Methods
-  virtual bool  Open(PGLOBAL g, char *filename, MODE mode) = 0;
-  virtual bool  GetOff(int& low, int& high, PIXDEF sxp) = 0;
+  virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode) = 0;
+//virtual bool  GetOff(int& low, int& high, PIXDEF sxp) = 0;
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin) = 0;
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size) = 0;
   virtual int   Write(PGLOBAL g, void *buf, int n,
                                             int size, bool& rc) = 0;
+  virtual void  Close(char *fn, int id) = 0;
   virtual void  Close(void);
 #if defined(XMAP)
   virtual void *FileView(PGLOBAL g, char *fn, int loff,
@@ -337,6 +346,7 @@ class DllExport XLOAD : public BLOCK {
 #else    // UNIX
   int     Hfile;                // Descriptor to file or map
 #endif   // UNIX
+  IOFF    NewOff;               // New offset
   }; // end of class XLOAD
 
 /***********************************************************************/
@@ -348,11 +358,12 @@ class DllExport XFILE : public XLOAD {
   XFILE(void);
 
   // Methods
-  virtual bool  Open(PGLOBAL g, char *filename, MODE mode);
-  virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
+  virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
+//virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
   virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
+  virtual void  Close(char *fn, int id);
   virtual void  Close(void);
 #if defined(XMAP)
   virtual void *FileView(PGLOBAL g, char *fn, int loff,
@@ -376,11 +387,12 @@ class DllExport XHUGE : public XLOAD {
   XHUGE(void) : XLOAD() {}
 
   // Methods
-  virtual bool  Open(PGLOBAL g, char *filename, MODE mode);
-  virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
+  virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
+//virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
   virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
+  virtual void  Close(char *fn, int id);
 #if defined(XMAP)
   virtual void *FileView(PGLOBAL g, char *fn, int loff,
                                               int hoff, int size);

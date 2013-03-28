@@ -17,6 +17,7 @@
 //#include <windows.h>
 #else   // !WIN32
 #if defined(UNIX)
+#define _LARGEFILE64_SOURCE
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
@@ -51,6 +52,7 @@
 /***********************************************************************/
 #define NZ 7
 #define NW 5
+#define MAX_INDX 10
 #ifndef INVALID_SET_FILE_POINTER
 #define INVALID_SET_FILE_POINTER  0xFFFFFFFF
 #endif
@@ -109,8 +111,8 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   AutoInc = false;
   Nparts = 0;
   ID = n;
-  Offset = 0;
-  Offhigh = 0;
+//Offset = 0;
+//Offhigh = 0;
   Size = 0;
   MaxSame = 1;
   } // end of INDEXDEF constructor
@@ -209,8 +211,8 @@ XINDEX::XINDEX(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp, int k)
   Nk = xdp->GetNparts();
   Nval = (k) ? k : Nk;
   Incr = 0;
-  Defoff = xdp->GetOffset();
-  Defhigh = xdp->GetOffhigh();
+//Defoff = xdp->GetOffset();
+//Defhigh = xdp->GetOffhigh();
   Size = xdp->GetSize();
   MaxSame = xdp->GetMaxSame();
   } // end of XINDEX constructor
@@ -702,8 +704,9 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   {
   char   *ftype;
   char    fn[_MAX_PATH];
-  int    n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
-  bool    rc = false;
+  int     n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
+  int     id = -1;
+  bool    sep, rc = false;
   PXCOL   kcp = To_KeyCol;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
   PDBUSER dup = PlgGetUser(g);
@@ -723,7 +726,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
       return true;
     } // endswitch Ftype
 
-  if (dup->Catalog->GetBoolCatInfo("SepIndex", false)) {
+  if ((sep = dup->Catalog->GetBoolCatInfo("SepIndex", false))) {
     // Index is saved in a separate file
 #if !defined(UNIX)
     char drive[_MAX_DRIVE];
@@ -737,12 +740,14 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     strcat(strcat(fname, "_"), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
     sxp = NULL;
-  } else
+  } else {
+    id = ID;
     strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+  } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-  if (X->Open(g, fn, (sxp) ? MODE_INSERT : MODE_WRITE)) {
+  if (X->Open(g, fn, id, (sxp) ? MODE_INSERT : MODE_WRITE)) {
     printf("%s\n", g->Message);
     return true;
     } // endif Open
@@ -751,7 +756,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     goto end;                // Void index
 
   // Defoff is the start of the definition in the index file
-  X->GetOff(Defoff, Defhigh, sxp);
+//X->GetOff(Defoff, Defhigh, sxp);
 
 #if defined(TRACE)
   printf("Defoff=%d Defhigh=%d\n", Defoff, Defhigh);
@@ -815,7 +820,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
 #endif   // TRACE
 
  end:
-  X->Close();
+  X->Close(fn, id);
   return rc;
   } // end of SaveIndex
 
@@ -831,7 +836,7 @@ bool XINDEX::Init(PGLOBAL g)
   /*********************************************************************/
   char   *ftype;
   char    fn[_MAX_PATH];
-  int    k, n, nv[NZ];
+  int     k, n, nv[NZ], id = -1;
   bool    estim = false;
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
@@ -890,8 +895,10 @@ bool XINDEX::Init(PGLOBAL g)
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
     strcat(strcat(fname, "_"), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
-  } else
+  } else {
+    id = ID;
     strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+  } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
@@ -902,12 +909,8 @@ bool XINDEX::Init(PGLOBAL g)
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
   /*********************************************************************/
-  if (X->Open(g, fn, MODE_READ))
+  if (X->Open(g, fn, id, MODE_READ))
     goto err;               // No saved values
-
-  // Get offset from XDB file
-  if (X->Seek(g, Defoff, Defhigh, SEEK_SET))
-    goto err;
 
   //  Now start the reading process.
   if (X->Read(g, nv, NZ, sizeof(int)))
@@ -1269,7 +1272,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
   {
   char   *ftype;
   char    fn[_MAX_PATH];
-  int    n, nv[NZ];
+  int     n, nv[NZ], id = -1;
   bool    estim = false;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
 
@@ -1327,8 +1330,10 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
     strcat(strcat(fname, "_"), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
-  } else
+  } else {
+    id = ID;
     strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+  } // endif sep
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
@@ -1339,12 +1344,12 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
   /*********************************************************************/
-  if (X->Open(g, fn, MODE_READ))
+  if (X->Open(g, fn, id, MODE_READ))
     goto err;               // No saved values
 
   // Get offset from XDB file
-  if (X->Seek(g, Defoff, Defhigh, SEEK_SET))
-    goto err;
+//if (X->Seek(g, Defoff, Defhigh, SEEK_SET))
+//  goto err;
 
   //  Now start the reading process.
   if (X->Read(g, nv, NZ, sizeof(int)))
@@ -2043,9 +2048,10 @@ int XINDXS::FastFind(int nk)
 XLOAD::XLOAD(void)
   {
   Hfile = INVALID_HANDLE_VALUE;
-#if defined(WIN32) && defined(XMAP)
+#if defined(WIN32) && defined(XMAP)    
   ViewBase = NULL;
 #endif   // WIN32  &&         XMAP
+  NewOff.Val = 0LL;
 } // end of XLOAD constructor
 
 /***********************************************************************/
@@ -2085,9 +2091,11 @@ XFILE::XFILE(void) : XLOAD()
 /***********************************************************************/
 /*  Xopen function: opens a file using native API's.                   */
 /***********************************************************************/
-bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
+bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
   char *pmod;
+  bool  rc;
+  IOFF  noff[MAX_INDX];
 
   /*********************************************************************/
   /*  Open the index file according to mode.                           */
@@ -2108,7 +2116,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
     return true;
     } // endif Xfile
 
-  if (mode == MODE_INSERT)
+  if (mode == MODE_INSERT) {
     /*******************************************************************/
     /* Position the cursor at end of file so ftell returns file size.  */
     /*******************************************************************/
@@ -2116,10 +2124,36 @@ bool XFILE::Open(PGLOBAL g, char *filename, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
+    
+    NewOff.Low = (int)ftell(Xfile);
+  } else if (mode == MODE_WRITE) {
+    if (id >= 0) {
+      // New not sep index file. Write the header.
+      memset(noff, 0, sizeof(noff));
+      Write(g, noff, sizeof(IOFF), MAX_INDX, rc);
+      fseek(Xfile, 0, SEEK_END);
+      NewOff.Low = (int)ftell(Xfile);
+      } // endif id
+
+  } else if (mode == MODE_READ && id >= 0) {
+    // Get offset from the header
+    if (fread(noff, sizeof(IOFF), MAX_INDX, Xfile) != MAX_INDX) {
+      sprintf(g->Message, MSG(XFILE_READERR), errno);
+      return true;
+      } // endif MAX_INDX
+
+    // Position the cursor at the offset of this index
+    if (fseek(Xfile, noff[id].Low, SEEK_SET)) {
+      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
+      return true;
+      } // endif
+    
+  } // endif mode
 
   return false;
   } // end of Open
 
+#if 0
 /***********************************************************************/
 /*  Tell were we are in the index file.                                */
 /***********************************************************************/
@@ -2133,6 +2167,7 @@ bool XFILE::GetOff(int& low, int& high, PIXDEF sxp)
 
   return false;
   } // end of GetOff
+#endif // 0
 
 /***********************************************************************/
 /*  Tell were we are in a huge file.                                   */
@@ -2181,7 +2216,24 @@ int XFILE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   } // end of Write
 
 /***********************************************************************/
-/*  Close the index huge file.                                         */
+/*  Update the file header and close the index file.                   */
+/***********************************************************************/
+void XFILE::Close(char *fn, int id)
+  {
+  if (id >= 0 && fn && Xfile) {
+    fclose(Xfile);
+
+    if ((Xfile = fopen(fn, "r+b")))
+      if (!fseek(Xfile, id * sizeof(IOFF), SEEK_SET))
+        fwrite(&NewOff,  sizeof(int), 2, Xfile);
+
+    } // endif id
+
+  Close();
+  } // end of Close
+
+/***********************************************************************/
+/*  Close the index file.                                              */
 /***********************************************************************/
 void XFILE::Close(void)
   {
@@ -2336,8 +2388,12 @@ void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
 /***********************************************************************/
 /*  Xopen function: opens a file using native API's.                   */
 /***********************************************************************/
-bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
+bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
+  LONG  high = 0;
+  DWORD drc, rc;
+  IOFF  noff[MAX_INDX];
+
   if (Hfile != INVALID_HANDLE_VALUE) {
     sprintf(g->Message, MSG(FILE_OPEN_YET), filename);
     return true;
@@ -2348,7 +2404,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
 #endif   // TRACE
 
 #if defined(WIN32)
-  DWORD rc, access, share, creation;
+  DWORD access, share, creation;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -2397,8 +2453,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
     /*******************************************************************/
     /* In Insert mode we must position the cursor at end of file.      */
     /*******************************************************************/
-    LONG  high = 0;
-    DWORD drc, rc = SetFilePointer(Hfile, 0, &high, FILE_END);
+    rc = SetFilePointer(Hfile, 0, &high, FILE_END);
 
     if (rc == INVALID_SET_FILE_POINTER && (drc = GetLastError()) != NO_ERROR) {
       sprintf(g->Message, MSG(ERROR_IN_SFP), drc);
@@ -2407,10 +2462,38 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
       return true;
       } // endif
 
-    } // endif Mode
+    NewOff.Low = (int)rc;
+    NewOff.High = (int)high;
+  } else if (mode == MODE_WRITE) {
+    if (id >= 0) {
+      // New not sep index file. Write the header.
+      memset(noff, 0, sizeof(noff));
+      rc = WriteFile(Hfile, noff, sizeof(noff), &drc, NULL);
+      NewOff.Low = (int)drc;
+      } // endif id
+
+  } else if (mode == MODE_READ && id >= 0) {
+    // Get offset from the header
+    rc = ReadFile(Hfile, noff, sizeof(noff), &drc, NULL);
+
+    if (!rc) {
+      sprintf(g->Message, MSG(XFILE_READERR), GetLastError());
+      return true;
+      } // endif rc
+
+    // Position the cursor at the offset of this index
+    rc = SetFilePointer(Hfile, noff[id].Low, 
+                       (PLONG)&noff[id].High, FILE_BEGIN);
+
+    if (rc == INVALID_SET_FILE_POINTER) {
+      sprintf(g->Message, MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
+      return true;
+      } // endif
+    
+  } // endif Mode
 
 #else   // UNIX
-  int   rc = 0;
+  int    rc = 0;
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
   mode_t pmod = 0;
 
@@ -2422,7 +2505,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
       oflag |= O_RDONLY;
       break;
     case MODE_WRITE:
-      oflag |= O_WRONLY | O_CREAT;
+      oflag |= O_WRONLY | O_CREAT | O_TRUNC;
       pmod = S_IREAD | S_IWRITE;
       break;
     case MODE_INSERT:
@@ -2448,11 +2531,43 @@ bool XHUGE::Open(PGLOBAL g, char *filename, MODE mode)
            rc, oflag, mode, Hfile, filename);
 #endif   // TRACE
 
+  if (mode == MODE_INSERT) {
+    /*******************************************************************/
+    /* Position the cursor at end of file so ftell returns file size.  */
+    /*******************************************************************/
+    if (!(Offset.Val = (longlong)lseek64(Hfile, 0LL, SEEK_END))) {
+      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Seek");
+      return true;
+      } // endif
+    
+  } else if (mode == MODE_WRITE) {
+    if (id >= 0) {
+      // New not sep index file. Write the header.
+      memset(noff, 0, sizeof(noff));
+      Write(g, noff, sizeof(IOFF), MAX_INDX, rc);
+      Offset.Val = (longlong)(sizeof(IOFF) * MAX_INDX);      
+      } // endif id
+
+  } else if (mode == MODE_READ && id >= 0) {
+    // Get offset from the header
+    if (read(Hfile, noff, sizeof(noff)) != sizeof(noff)) {
+      sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
+      return true;
+      } // endif MAX_INDX
+
+    // Position the cursor at the offset of this index
+    if (!lseek64(Hfile, noff[id].Val, SEEK_SET)) {
+      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
+      return true;
+      } // endif
+    
+  } // endif mode
 #endif  // UNIX
 
   return false;
   } // end of Open
 
+#if 0
 /***********************************************************************/
 /*  Get the offset of this index in the index file.                    */
 /***********************************************************************/
@@ -2486,6 +2601,7 @@ bool XHUGE::GetOff(int& low, int& high, PIXDEF sxp)
 #endif // UNIX
   return false;
   } // end of GetOff
+#endif // 0
 
 /***********************************************************************/
 /*  Go to position in a huge file.                                     */
@@ -2607,6 +2723,38 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
   return (int)nbw;
 #endif   // UNIX
   } // end of Write
+
+/***********************************************************************/
+/*  Update the file header and close the index file.                   */
+/***********************************************************************/
+void XHUGE::Close(char *fn, int id)
+  {
+#if defined(WIN32)
+  if (id >= 0 && fn) {
+    CloseFileHandle(Hfile);
+    Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
+                       OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (Hfile != INVALID_HANDLE_VALUE)
+      if (SetFilePointer(Hfile, id * sizeof(IOFF), NULL, FILE_BEGIN)
+              != INVALID_SET_FILE_POINTER) {
+        DWORD nbw;
+
+        WriteFile(Hfile, &NewOff,  sizeof(longlong), &nbw, NULL);
+//      WriteFile(Hfile, &Newhigh, sizeof(int), &nbw, NULL);
+        } // endif SetFilePointer
+
+    } // endif id
+#else   // !WIN32
+  if (id >= 0 && fn) {
+    fnctl(Hfile, F_SETFD, O_WRONLY);
+    if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
+      write(Hfile, &noff[id], sizeof(IOFF));
+
+    } // endif id
+#endif  // !WIN32
+
+  XLOAD::Close();
+  } // end of Close
 
 #if defined(XMAP)
 #if defined(WIN32)
