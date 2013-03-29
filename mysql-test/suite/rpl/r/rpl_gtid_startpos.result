@@ -19,7 +19,7 @@ include/stop_slave.inc
 *** Test that master gives error when slave asks for empty gtid pos and binlog files have been purged. ***
 FLUSH LOGS;
 INSERT INTO t1 VALUES (2);
-PURGE BINARY LOGS TO 'master-bin.000003';
+include/wait_for_purge.inc "master-bin.000003"
 show binary logs;
 Log_name	File_size
 master-bin.000003	#
@@ -135,7 +135,7 @@ INSERT INTO t1 VALUES (4);
 include/stop_slave.inc
 FLUSH LOGS;
 FLUSH LOGS;
-PURGE BINARY LOGS TO 'master-bin.000004';
+include/wait_for_purge.inc "master-bin.000004"
 show binary logs;
 Log_name	File_size
 master-bin.000004	#
