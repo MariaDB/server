@@ -25,7 +25,7 @@ int my_rename(const char *from, const char *to, myf MyFlags)
 {
   int error = 0;
   DBUG_ENTER("my_rename");
-  DBUG_PRINT("my",("from %s to %s MyFlags %d", from, to, MyFlags));
+  DBUG_PRINT("my",("from %s to %s MyFlags %lu", from, to, MyFlags));
 
 #if defined(HAVE_RENAME)
 #if defined(__WIN__)

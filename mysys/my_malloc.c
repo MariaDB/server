@@ -18,6 +18,60 @@
 #include "mysys_err.h"
 #include <m_string.h>
 
+/* If we have our own safemalloc (for debugging) */
+#if defined(SAFEMALLOC)
+#define MALLOC_SIZE_AND_FLAG(p,b) sf_malloc_usable_size(p,b)
+#define MALLOC_PREFIX_SIZE 0
+#define MALLOC_STORE_SIZE(a,b,c,d)
+#define MALLOC_FIX_POINTER_FOR_FREE(a) a
+#else
+/*
+ *   We use double as prefix size as this guarantees the correct
+ *   alignment on all platforms and will optimize things for
+ *   memcpy(), memcmp() etc.
+ */
+#define MALLOC_PREFIX_SIZE (sizeof(double))
+#define MALLOC_SIZE(p) (*(size_t*) ((char*)(p) - MALLOC_PREFIX_SIZE))
+#define MALLOC_STORE_SIZE(p, type_of_p, size, flag)      \
+{\
+  *(size_t*) p= (size) | (flag);    \
+  (p)= (type_of_p) (((char*) (p)) + MALLOC_PREFIX_SIZE); \
+} 
+static inline size_t malloc_size_and_flag(void *p, my_bool *is_thread_specific)
+{
+  size_t size= MALLOC_SIZE(p);
+  *is_thread_specific= (size & 1);
+  return size & ~ (ulonglong) 1;
+}
+#define MALLOC_SIZE_AND_FLAG(p,b) malloc_size_and_flag(p, b);
+#define MALLOC_FIX_POINTER_FOR_FREE(p) (((char*) (p)) - MALLOC_PREFIX_SIZE)
+#endif /* SAFEMALLOC */
+
+static MALLOC_SIZE_CB malloc_size_cb_func= NULL;
+
+/**
+  Inform application that memory usage has changed
+
+  @param size	Size of memory segment allocated or freed
+  @param flag   1 if thread specific (allocated by MY_THREAD_SPECIFIC),
+                0 if system specific.
+
+  The type os size is long long, to be able to handle negative numbers to
+  decrement the memory usage
+*/
+
+static void update_malloc_size(long long size, my_bool is_thread_specific)
+{
+  if (malloc_size_cb_func)
+    malloc_size_cb_func(size, is_thread_specific);
+}
+
+void set_malloc_size_cb(MALLOC_SIZE_CB func)
+{
+  malloc_size_cb_func= func;
+}
+    
+    
 /**
   Allocate a sized block of memory.
 
@@ -30,7 +84,9 @@ void *my_malloc(size_t size, myf my_flags)
 {
   void* point;
   DBUG_ENTER("my_malloc");
-  DBUG_PRINT("my",("size: %lu  my_flags: %d", (ulong) size, my_flags));
+  DBUG_PRINT("my",("size: %lu  my_flags: %lu", (ulong) size, my_flags));
+  compile_time_assert(sizeof(size_t) <= sizeof(double));
+
   if (!(my_flags & (MY_WME | MY_FAE)))
     my_flags|= my_global_flags;
 
@@ -38,12 +94,9 @@ void *my_malloc(size_t size, myf my_flags)
   if (!size)
     size=1;
 
-  point= sf_malloc(size);
-  DBUG_EXECUTE_IF("simulate_out_of_memory",
-                  {
-                    my_free(point);
-                    point= NULL;
-                  });
+  /* We have to align size to be able to store markers in it */
+  size= ALIGN_SIZE(size);
+  point= sf_malloc(size + MALLOC_PREFIX_SIZE, my_flags);
 
   if (point == NULL)
   {
@@ -59,8 +112,20 @@ void *my_malloc(size_t size, myf my_flags)
     if (my_flags & MY_FAE)
       exit(1);
   }
-  else if (my_flags & MY_ZEROFILL)
-    bzero(point, size);
+  else
+  {
+    MALLOC_STORE_SIZE(point, void*, size, test(my_flags & MY_THREAD_SPECIFIC));
+    update_malloc_size(size + MALLOC_PREFIX_SIZE,
+                       test(my_flags & MY_THREAD_SPECIFIC));
+    DBUG_EXECUTE_IF("simulate_out_of_memory",
+                    {
+                      /* my_free() handles memory accounting */
+                      my_free(point);
+                      point= NULL;
+                    });
+    if (my_flags & MY_ZEROFILL)
+      bzero(point, size);
+  }
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN(point);
 }
@@ -79,23 +144,53 @@ void *my_malloc(size_t size, myf my_flags)
 void *my_realloc(void *oldpoint, size_t size, myf my_flags)
 {
   void *point;
+  size_t old_size;
+  my_bool old_flags;
   DBUG_ENTER("my_realloc");
-  DBUG_PRINT("my",("ptr: %p  size: %lu  my_flags: %d", oldpoint,
+  DBUG_PRINT("my",("ptr: %p  size: %lu  my_flags: %lu", oldpoint,
                    (ulong) size, my_flags));
 
   DBUG_ASSERT(size > 0);
   if (!oldpoint && (my_flags & MY_ALLOW_ZERO_PTR))
     DBUG_RETURN(my_malloc(size, my_flags));
-  if ((point= sf_realloc(oldpoint, size)) == NULL)
+
+  size= ALIGN_SIZE(size);
+  old_size= MALLOC_SIZE_AND_FLAG(oldpoint, &old_flags);
+  /*
+    Test that the new and old area are the same, if not MY_THREAD_MOVE is
+    given
+  */
+  DBUG_ASSERT((test(my_flags & MY_THREAD_SPECIFIC) == old_flags) ||
+              (my_flags & MY_THREAD_MOVE));
+  if ((point= sf_realloc(MALLOC_FIX_POINTER_FOR_FREE(oldpoint),
+                         size + MALLOC_PREFIX_SIZE, my_flags)) == NULL)
   {
     if (my_flags & MY_FREE_ON_ERROR)
+    {
+      /* my_free will take care of size accounting */
       my_free(oldpoint);
+      oldpoint= 0;
+    }
     if (my_flags & MY_HOLD_ON_ERROR)
       DBUG_RETURN(oldpoint);
     my_errno=errno;
     if (my_flags & (MY_FAE+MY_WME))
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_WAITTANG), size);
   }
+  else
+  {
+    MALLOC_STORE_SIZE(point, void*, size, test(my_flags & MY_THREAD_SPECIFIC));
+    if (test(my_flags & MY_THREAD_SPECIFIC) != old_flags)
+    {
+      /* memory moved between system and thread specific */
+      update_malloc_size(-(longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
+      update_malloc_size((longlong) size + MALLOC_PREFIX_SIZE,
+                         test(my_flags & MY_THREAD_SPECIFIC));
+    }
+    else
+      update_malloc_size((longlong)size - (longlong)old_size, old_flags);
+  }
+
   DBUG_PRINT("exit",("ptr: %p", point));
   DBUG_RETURN(point);
 }
@@ -112,7 +207,14 @@ void my_free(void *ptr)
 {
   DBUG_ENTER("my_free");
   DBUG_PRINT("my",("ptr: %p", ptr));
-  sf_free(ptr);
+  if (ptr)
+  {
+    size_t old_size;
+    my_bool old_flags;
+    old_size= MALLOC_SIZE_AND_FLAG(ptr, &old_flags);
+    update_malloc_size(- (longlong) old_size - MALLOC_PREFIX_SIZE, old_flags);
+    sf_free(MALLOC_FIX_POINTER_FOR_FREE(ptr));
+  }
   DBUG_VOID_RETURN;
 }
 

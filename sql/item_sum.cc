@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2013 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1097,7 +1097,7 @@ void Aggregator_distinct::endup()
   {
     /* go over the tree of distinct keys and calculate the aggregate value */
     use_distinct_values= TRUE;
-    tree->walk(item_sum_distinct_walk, (void*) this);
+    tree->walk(table, item_sum_distinct_walk, (void*) this);
     use_distinct_values= FALSE;
   }
   /* prevent consecutive recalculations */
@@ -2916,13 +2916,12 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
                                        const void* key2)
 {
   Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
-  TABLE *table= item_func->table;
 
   for (uint i= 0; i < item_func->arg_count_field; i++)
   {
     Item *item= item_func->args[i];
     /* 
-      If field_item is a const item then either get_tp_table_field returns 0
+      If field_item is a const item then either get_tmp_table_field returns 0
       or it is an item over a const table. 
     */
     if (item->const_item())
@@ -2934,7 +2933,8 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
     */
     Field *field= item->get_tmp_table_field();
     int res;
-    uint offset= field->offset(field->table->record[0])-table->s->null_bytes;
+    uint offset= (field->offset(field->table->record[0]) -
+                  field->table->s->null_bytes);
     if((res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset)))
       return res;
   }
@@ -2952,28 +2952,37 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
 {
   Item_func_group_concat* grp_item= (Item_func_group_concat*) arg;
   ORDER **order_item, **end;
-  TABLE *table= grp_item->table;
 
   for (order_item= grp_item->order, end=order_item+ grp_item->arg_count_order;
        order_item < end;
        order_item++)
   {
     Item *item= *(*order_item)->item;
+    /* 
+      If field_item is a const item then either get_tmp_table_field returns 0
+      or it is an item over a const table. 
+    */
+    if (item->const_item())
+      continue;
     /*
       We have to use get_tmp_table_field() instead of
       real_item()->get_tmp_table_field() because we want the field in
       the temporary table, not the original field
+
+      Note that for the case of ROLLUP, field may point to another table
+      tham grp_item->table. This is howver ok as the table definitions are
+      the same.
     */
     Field *field= item->get_tmp_table_field();
     /* 
-      If item is a const item then either get_tp_table_field returns 0
+      If item is a const item then either get_tmp_table_field returns 0
       or it is an item over a const table. 
     */
-    if (field && !item->const_item())
+    if (field)
     {
       int res;
       uint offset= (field->offset(field->table->record[0]) -
-                    table->s->null_bytes);
+                    field->table->s->null_bytes);
       if ((res= field->cmp((uchar*)key1 + offset, (uchar*)key2 + offset)))
         return (*order_item)->asc ? res : -res;
     }
@@ -2997,6 +3006,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
 {
   Item_func_group_concat *item= (Item_func_group_concat *) item_arg;
   TABLE *table= item->table;
+  uint max_length= table->in_use->variables.group_concat_max_len;
   String tmp((char *)table->record[1], table->s->reclength,
              default_charset_info);
   String tmp2;
@@ -3039,7 +3049,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
   item->row_count++;
 
   /* stop if length of result more than max_length */
-  if (result->length() > item->max_length)
+  if (result->length() > max_length)
   {
     int well_formed_error;
     CHARSET_INFO *cs= item->collation.collation;
@@ -3052,7 +3062,7 @@ int dump_leaf_key(void* key_arg, element_count count __attribute__((unused)),
     */
     add_length= cs->cset->well_formed_len(cs,
                                           ptr + old_length,
-                                          ptr + item->max_length,
+                                          ptr + max_length,
                                           result->length(),
                                           &well_formed_error);
     result->length(old_length + add_length);
@@ -3166,12 +3176,13 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
   */
   ORDER *tmp;
   if (!(tmp= (ORDER *) thd->alloc(sizeof(ORDER *) * arg_count_order +
-                                     sizeof(ORDER) * arg_count_order)))
+                                  sizeof(ORDER) * arg_count_order)))
     return;
   order= (ORDER **)(tmp + arg_count_order);
   for (uint i= 0; i < arg_count_order; i++, tmp++)
   {
     memcpy(tmp, item->order[i], sizeof(ORDER));
+    tmp->next= i == arg_count_order-1 ? 0 : tmp+1;
     order[i]= tmp;
   }
 }
@@ -3216,19 +3227,11 @@ Field *Item_func_group_concat::make_string_field(TABLE *table)
 {
   Field *field;
   DBUG_ASSERT(collation.collation);
-  /*
-    max_characters is maximum number of characters
-    what can fit into max_length size. It's necessary
-    to use field size what allows to store group_concat
-    result without truncation. For this purpose we use
-    max_characters * CS->mbmaxlen.
-  */
-  const uint32 max_characters= max_length / collation.collation->mbminlen;
-  if (max_characters > CONVERT_IF_BIGGER_TO_BLOB)
-    field= new Field_blob(max_characters * collation.collation->mbmaxlen,
+  if (too_big_for_varchar())
+    field= new Field_blob(max_length,
                           maybe_null, name, collation.collation, TRUE);
   else
-    field= new Field_varstring(max_characters * collation.collation->mbmaxlen,
+    field= new Field_varstring(max_length,
                                maybe_null, name, table->s, collation.collation);
 
   if (field)
@@ -3343,7 +3346,9 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
   result.set_charset(collation.collation);
   result_field= 0;
   null_value= 1;
-  max_length= thd->variables.group_concat_max_len;
+  max_length= thd->variables.group_concat_max_len
+              / collation.collation->mbminlen
+              * collation.collation->mbmaxlen;
 
   uint32 offset;
   if (separator->needs_conversion(separator->length(), separator->charset(),
@@ -3461,7 +3466,8 @@ bool Item_func_group_concat::setup(THD *thd)
   */
   if (!(table= create_tmp_table(thd, tmp_table_param, all_fields,
                                 (ORDER*) 0, 0, TRUE,
-                                (select_lex->options | thd->variables.option_bits),
+                                (select_lex->options |
+                                 thd->variables.option_bits),
                                 HA_POS_ERROR, (char*) "")))
     DBUG_RETURN(TRUE);
   table->file->extra(HA_EXTRA_NO_ROWS);
@@ -3485,7 +3491,8 @@ bool Item_func_group_concat::setup(THD *thd)
     init_tree(tree, (uint) min(thd->variables.max_heap_table_size,
                                thd->variables.sortbuff_size/16), 0,
               tree_key_length, 
-              group_concat_key_cmp_with_order , 0, NULL, (void*) this);
+              group_concat_key_cmp_with_order, NULL, (void*) this,
+              MYF(MY_THREAD_SPECIFIC));
   }
 
   if (distinct)

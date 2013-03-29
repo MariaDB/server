@@ -146,7 +146,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     if (!(share= (HP_SHARE*) my_malloc((uint) sizeof(HP_SHARE)+
 				       keys*sizeof(HP_KEYDEF)+
 				       key_segs*sizeof(HA_KEYSEG),
-				       MYF(MY_ZEROFILL))))
+				       MYF(MY_ZEROFILL |
+                                           (create_info->internal_table ?
+                                            MY_THREAD_SPECIFIC : 0)))))
       goto err;
     share->keydef= (HP_KEYDEF*) (share + 1);
     share->key_stat_version= 1;
@@ -171,7 +173,9 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	keyseg++;
 
 	init_tree(&keyinfo->rb_tree, 0, 0, sizeof(uchar*),
-		  (qsort_cmp2)keys_compare, 1, NULL, NULL);
+		  (qsort_cmp2)keys_compare, NULL, NULL,
+                  MYF((create_info->internal_table ? MY_THREAD_SPECIFIC : 0) |
+                      MY_TREE_WITH_DELETE));
 	keyinfo->delete_key= hp_rb_delete_key;
 	keyinfo->write_key= hp_rb_write_key;
       }
@@ -199,6 +203,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
     share->auto_key_type= create_info->auto_key_type;
     share->auto_increment= create_info->auto_increment;
     share->create_time= (long) time((time_t*) 0);
+    share->internal= create_info->internal_table;
     /* Must be allocated separately for rename to work */
     if (!(share->name= my_strdup(name,MYF(0))))
     {

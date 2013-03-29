@@ -61,7 +61,6 @@ static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static void register_used_fields(Sort_param *param);
 static bool save_index(Sort_param *param, uint count,
                        Filesort_info *table_sort);
-static void make_sortkey(Sort_param *param, uchar *to, uchar *ref_pos);
 static uint suffix_length(ulong string_length);
 static uint sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
 		       bool *multi_byte_charset);
@@ -181,6 +180,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
     when index_merge select has finished with it.
   */
   table->sort.io_cache= NULL;
+  DBUG_ASSERT(table_sort.record_pointers == NULL);
   
   outfile= table_sort.io_cache;
   my_b_clear(&tempfile);
@@ -200,7 +200,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   table_sort.unpack= unpack_addon_fields;
   if (param.addon_field &&
       !(table_sort.addon_buf=
-        (uchar *) my_malloc(param.addon_length, MYF(MY_WME))))
+        (uchar *) my_malloc(param.addon_length, MYF(MY_WME |
+                                                    MY_THREAD_SPECIFIC))))
     goto err;
 
   if (select && select->quick)
@@ -213,7 +214,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   num_rows= table->file->estimate_rows_upper_bound();
 
   if (multi_byte_charset &&
-      !(param.tmp_buffer= (char*) my_malloc(param.sort_length,MYF(MY_WME))))
+      !(param.tmp_buffer= (char*) my_malloc(param.sort_length,
+                                            MYF(MY_WME | MY_THREAD_SPECIFIC))))
     goto err;
 
   if (check_if_pq_applicable(&param, &table_sort,
@@ -452,7 +454,7 @@ static uchar *read_buffpek_from_file(IO_CACHE *buffpek_pointers, uint count,
   if (count > UINT_MAX/sizeof(BUFFPEK))
     return 0; /* sizeof(BUFFPEK)*count will overflow */
   if (!tmp)
-    tmp= (uchar *)my_malloc(length, MYF(MY_WME));
+    tmp= (uchar *)my_malloc(length, MYF(MY_WME | MY_THREAD_SPECIFIC));
   if (tmp)
   {
     if (reinit_io_cache(buffpek_pointers,READ_CACHE,0L,0,0) ||
@@ -605,6 +607,8 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   if (!quick_select)
   {
     next_pos=(uchar*) 0;			/* Find records in sequence */
+    DBUG_EXECUTE_IF("bug14365043_1",
+                    DBUG_SET("+d,ha_rnd_init_fail"););
     if (file->ha_rnd_init_with_error(1))
       DBUG_RETURN(HA_POS_ERROR);
     file->extra_opt(HA_EXTRA_CACHE,
@@ -862,21 +866,9 @@ static void make_sortkey(register Sort_param *param,
     bool maybe_null=0;
     if ((field=sort_field->field))
     {						// Field
-      if (field->maybe_null())
-      {
-	if (field->is_null())
-	{
-	  if (sort_field->reverse)
-	    memset(to, 255, sort_field->length+1);
-	  else
-	    memset(to, 0, sort_field->length+1);
-	  to+= sort_field->length+1;
-	  continue;
-	}
-	else
-	  *to++=1;
-      }
-      field->sort_string(to, sort_field->length);
+      field->make_sort_key(to, sort_field->length);
+      if ((maybe_null = field->maybe_null()))
+        to++;
     }
     else
     {						// Item
@@ -1036,8 +1028,11 @@ static void make_sortkey(register Sort_param *param,
     }
     if (sort_field->reverse)
     {							/* Revers key */
-      if (maybe_null)
-        to[-1]= ~to[-1];
+      if (maybe_null && (to[-1]= !to[-1]))
+      {
+        to+= sort_field->length; // don't waste the time reversing all 0's
+        continue;
+      }
       length=sort_field->length;
       while (length--)
       {
@@ -1154,7 +1149,8 @@ static bool save_index(Sort_param *param, uint count, Filesort_info *table_sort)
   res_length= param->res_length;
   offset= param->rec_length-res_length;
   if (!(to= table_sort->record_pointers= 
-        (uchar*) my_malloc(res_length*count, MYF(MY_WME))))
+        (uchar*) my_malloc(res_length*count,
+                           MYF(MY_WME | MY_THREAD_SPECIFIC))))
     DBUG_RETURN(1);                 /* purecov: inspected */
   uchar **sort_keys= table_sort->get_sort_keys();
   for (uchar **end= sort_keys+count ; sort_keys != end ; sort_keys++)
@@ -1896,7 +1892,9 @@ get_addon_fields(ulong max_length_for_sort_data,
 
   if (length+sortlength > max_length_for_sort_data ||
       !(addonf= (SORT_ADDON_FIELD *) my_malloc(sizeof(SORT_ADDON_FIELD)*
-                                               (fields+1), MYF(MY_WME))))
+                                               (fields+1),
+                                               MYF(MY_WME |
+                                                   MY_THREAD_SPECIFIC))))
     return 0;
 
   *plength= length;

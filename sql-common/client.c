@@ -918,7 +918,8 @@ void free_old_query(MYSQL *mysql)
   DBUG_ENTER("free_old_query");
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
-  init_alloc_root(&mysql->field_alloc,8192,0); /* Assume rowlength < 8192 */
+ /* Assume rowlength < 8192 */
+  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
   mysql->fields= 0;
   mysql->field_count= 0;			/* For API */
   mysql->warning_count= 0;
@@ -1199,7 +1200,7 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
   {
     options->init_commands= (DYNAMIC_ARRAY*)my_malloc(sizeof(DYNAMIC_ARRAY),
 						      MYF(MY_WME));
-    init_dynamic_array(options->init_commands,sizeof(char*),5,5);
+    my_init_dynamic_array(options->init_commands,sizeof(char*),5, 5, MYF(0));
   }
 
   if (!(tmp= my_strdup(cmd,MYF(MY_WME))) ||
@@ -1609,7 +1610,8 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);
     DBUG_RETURN(0);
   }
-  init_alloc_root(&result->alloc,8192,0);	/* Assume rowlength < 8192 */
+  /* Assume rowlength < 8192 */
+  init_alloc_root(&result->alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
   prev_ptr= &result->data;
   result->rows=0;
@@ -3337,7 +3339,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   if (mysql->options.extension && mysql->options.extension->async_context)
     net->vio->async_context= mysql->options.extension->async_context;
 
-  if (my_net_init(net, net->vio))
+  if (my_net_init(net, net->vio, MYF(0)))
   {
     vio_delete(net->vio);
     net->vio = 0;
@@ -4511,8 +4513,8 @@ static int old_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
         DBUG_RETURN(CR_SERVER_HANDSHAKE_ERR);
 
     /* save it in MYSQL */
-    memmove(mysql->scramble, pkt, pkt_len);
-    mysql->scramble[pkt_len] = 0;
+    memmove(mysql->scramble, pkt, pkt_len - 1);
+    mysql->scramble[pkt_len - 1] = 0;
   }
 
   if (mysql->passwd[0])

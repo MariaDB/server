@@ -1515,7 +1515,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(&mem_root, 256, 0);
+  init_alloc_root(&mem_root, 256, 0, MYF(0));
 
   mysql_mutex_lock(&federated_mutex);
 
@@ -1656,7 +1656,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4);
+  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
   reset();
 
   DBUG_RETURN(0);
@@ -1978,7 +1978,7 @@ int ha_federated::write_row(uchar *buf)
   @details Initializes memory structures required for bulk insert.
 */
 
-void ha_federated::start_bulk_insert(ha_rows rows)
+void ha_federated::start_bulk_insert(ha_rows rows, uint flags)
 {
   uint page_size;
   DBUG_ENTER("ha_federated::start_bulk_insert");
@@ -3160,7 +3160,6 @@ int ha_federated::real_connect()
                 this->table->s->table_charset->csname);
 
   sql_query.length(0);
-
   if (!mysql_real_connect(mysql,
                           share->hostname,
                           share->username,

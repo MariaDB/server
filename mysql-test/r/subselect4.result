@@ -303,7 +303,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2a	eq_ref	PRIMARY	PRIMARY	8	const,test.t1.pk	1	Using where; Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2a	unique_subquery	PRIMARY	PRIMARY	8	const,test.t1.pk	1	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2a.i, t2a.pk FROM t2a WHERE t2a.pk = t1.pk);
 pk	i
 0	10
@@ -335,7 +335,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2c	ref	it2c	it2c	8	const,test.t1.pk	2	Using where; Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2c	index_subquery	it2c	it2c	8	const,test.t1.pk	2	Using index; Using where; Full scan on NULL key
 SELECT * FROM t1 WHERE (NULL, 1) NOT IN (SELECT t2c.i, t2c.pk FROM t2c WHERE t2c.pk = t1.pk);
 pk	i
 0	10
@@ -2247,6 +2247,53 @@ MAX(a)	bb
 NULL	NULL
 drop table t1, t2;
 set optimizer_switch=@subselect4_tmp;
+#
+# MDEV-3928  Assertion `example' failed in Item_cache::is_expensive_processor with a 2-level IN subquery 
+#
+CREATE TABLE t1 (a1 INT, b1 TIME) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (4,'21:22:34'),(6,'10:50:38');
+CREATE TABLE t2 (a2 INT, b2 TIME) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8, '06:17:39');
+CREATE TABLE t3 (a3 INT, b3 TIME) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'00:00:01'),(7,'00:00:02');
+EXPLAIN
+SELECT * FROM t1 WHERE a1 IN ( 
+SELECT a2 FROM t2 WHERE a2 IN ( 
+SELECT a3 FROM t3 WHERE b2 = b1 AND b2 <= b1 ORDER BY b3 
+)
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+SELECT * FROM t1 WHERE a1 IN ( 
+SELECT a2 FROM t2 WHERE a2 IN ( 
+SELECT a3 FROM t3 WHERE b2 = b1 AND b2 <= b1 ORDER BY b3 
+)
+);
+a1	b1
+drop table t1, t2, t3;
+#
+# MDEV-4056:Server crashes in Item_func_trig_cond::val_int
+# with FROM and NOT IN subqueries, LEFT JOIN, derived_merge+in_to_exists
+#
+set @optimizer_switch_MDEV4056 = @@optimizer_switch;
+SET optimizer_switch = 'derived_merge=on,in_to_exists=on';
+CREATE TABLE t1 (a VARCHAR(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('x'),('d');
+CREATE TABLE t2 (pk INT PRIMARY KEY, b INT, c VARCHAR(1))  ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,2,'v'),(2,150,'v');
+SELECT * FROM t1 LEFT JOIN (  
+SELECT * FROM t2 WHERE ( pk, pk ) NOT IN ( 
+SELECT MIN(b), SUM(pk) FROM t1
+) 
+) AS alias1 ON (a = c) 
+WHERE b IS NULL OR a < 'u';
+a	pk	b	c
+x	NULL	NULL	NULL
+d	NULL	NULL	NULL
+drop table t1,t2;
+set @@optimizer_switch = @optimizer_switch_MDEV4056;
 #
 # MDEV-3899  Valgrind warnings (blocks are definitely lost) in filesort on IN subquery with SUM and DISTINCT
 #

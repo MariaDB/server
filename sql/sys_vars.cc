@@ -75,85 +75,6 @@ static Sys_var_mybool Sys_pfs_enabled(
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_charptr Sys_pfs_instrument(
-       "performance_schema_instrument",
-       "Default startup value for a performance schema instrument.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_pfs_instrument),
-       CMD_LINE(OPT_ARG, OPT_PFS_INSTRUMENT),
-       IN_FS_CHARSET, DEFAULT(""));
-
-static Sys_var_mybool Sys_pfs_consumer_events_stages_current(
-       "performance_schema_consumer_events_stages_current",
-       "Default startup value for the events_stages_current consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_current_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_stages_history(
-       "performance_schema_consumer_events_stages_history",
-       "Default startup value for the events_stages_history consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_history_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_stages_history_long(
-       "performance_schema_consumer_events_stages_history_long",
-       "Default startup value for the events_stages_history_long consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_stages_history_long_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_statements_current(
-       "performance_schema_consumer_events_statements_current",
-       "Default startup value for the events_statements_current consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_current_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_statements_history(
-       "performance_schema_consumer_events_statements_history",
-       "Default startup value for the events_statements_history consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_history_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_statements_history_long(
-       "performance_schema_consumer_events_statements_history_long",
-       "Default startup value for the events_statements_history_long consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_statements_history_long_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_waits_current(
-       "performance_schema_consumer_events_waits_current",
-       "Default startup value for the events_waits_current consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_current_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_waits_history(
-       "performance_schema_consumer_events_waits_history",
-       "Default startup value for the events_waits_history consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_history_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_events_waits_history_long(
-       "performance_schema_consumer_events_waits_history_long",
-       "Default startup value for the events_waits_history_long consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_events_waits_history_long_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
-
-static Sys_var_mybool Sys_pfs_consumer_global_instrumentation(
-       "performance_schema_consumer_global_instrumentation",
-       "Default startup value for the global_instrumentation consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_global_instrumentation_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
-
-static Sys_var_mybool Sys_pfs_consumer_thread_instrumentation(
-       "performance_schema_consumer_thread_instrumentation",
-       "Default startup value for the thread_instrumentation consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_thread_instrumentation_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
-
-static Sys_var_mybool Sys_pfs_consumer_statement_digest(
-       "performance_schema_consumer_statements_digest",
-       "Default startup value for the statements_digest consumer.",
-       PARSED_EARLY READ_ONLY NOT_VISIBLE GLOBAL_VAR(pfs_param.m_consumer_statement_digest_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
-
 static Sys_var_ulong Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
        "Number of rows in EVENTS_WAITS_HISTORY_LONG.",
@@ -588,16 +509,19 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
   if (var->value->result_type() == STRING_RESULT)
   {
     String str(buff, sizeof(buff), system_charset_info), *res;
-    if (!(res=var->value->val_str(&str)))
+    if (!(res= var->value->val_str(&str)))
       var->save_result.ptr= NULL;
-    else if (!(var->save_result.ptr= get_charset_by_csname(res->c_ptr(),
-                                                           MY_CS_PRIMARY,
-                                                           MYF(0))) &&
-             !(var->save_result.ptr=get_old_charset_by_name(res->c_ptr())))
+    else
     {
-      ErrConvString err(res);
-      my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
-      return true;
+      ErrConvString err(res); /* Get utf8 '\0' terminated string */
+      if (!(var->save_result.ptr= get_charset_by_csname(err.ptr(),
+                                                         MY_CS_PRIMARY,
+                                                         MYF(0))) &&
+          !(var->save_result.ptr= get_old_charset_by_name(err.ptr())))
+      {
+        my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
+        return true;
+      }
     }
   }
   else // INT_RESULT
@@ -708,11 +632,14 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
     String str(buff, sizeof(buff), system_charset_info), *res;
     if (!(res= var->value->val_str(&str)))
       var->save_result.ptr= NULL;
-    else if (!(var->save_result.ptr= get_charset_by_name(res->c_ptr(), MYF(0))))
+    else
     {
-      ErrConvString err(res);
-      my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
-      return true;
+      ErrConvString err(res); /* Get utf8 '\0'-terminated string */
+      if (!(var->save_result.ptr= get_charset_by_name(err.ptr(), MYF(0))))
+      {
+        my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
+        return true;
+      }
     }
   }
   else // INT_RESULT
@@ -3674,7 +3601,7 @@ Sys_slave_skip_counter("sql_slave_skip_counter",
                        "Skip the next N events from the master log",
                        SESSION_VAR(slave_skip_counter),
                        NO_CMD_LINE,
-                       offsetof(Master_info, rli.slave_skip_counter),
+                       my_offsetof(Master_info, rli.slave_skip_counter),
                        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
                        ON_UPDATE(update_slave_skip_counter));
 
@@ -3693,7 +3620,7 @@ Sys_max_relay_log_size( "max_relay_log_size",
                         "set to max_binlog_size",
                         SESSION_VAR(max_relay_log_size),
                         CMD_LINE(REQUIRED_ARG),
-                        offsetof(Master_info, rli.max_relay_log_size),
+                        my_offsetof(Master_info, rli.max_relay_log_size),
                         VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
                         BLOCK_SIZE(IO_SIZE),
                         ON_UPDATE(update_max_relay_log_size));

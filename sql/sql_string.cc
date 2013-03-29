@@ -42,7 +42,9 @@ bool String::real_alloc(uint32 length)
   if (Alloced_length < arg_length)
   {
     free();
-    if (!(Ptr=(char*) my_malloc(arg_length,MYF(MY_WME))))
+    if (!(Ptr=(char*) my_malloc(arg_length,MYF(MY_WME |
+                                               (thread_specific ?
+                                                MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
     Alloced_length=arg_length;
     alloced=1;
@@ -90,10 +92,16 @@ bool String::realloc_raw(uint32 alloc_length)
       return TRUE;                                 /* Overflow */
     if (alloced)
     {
-      if (!(new_ptr= (char*) my_realloc(Ptr,len,MYF(MY_WME))))
+      if (!(new_ptr= (char*) my_realloc(Ptr,len,
+                                        MYF(MY_WME |
+                                            (thread_specific ?
+                                             MY_THREAD_SPECIFIC : 0)))))
         return TRUE;				// Signal error
     }
-    else if ((new_ptr= (char*) my_malloc(len,MYF(MY_WME))))
+    else if ((new_ptr= (char*) my_malloc(len,
+                                         MYF(MY_WME |
+                                             (thread_specific ?
+                                              MY_THREAD_SPECIFIC : 0)))))
     {
       if (str_length > len - 1)
         str_length= 0;
@@ -768,79 +776,6 @@ String *copy_if_not_alloced(String *to,String *from,uint32 from_length)
   Help functions
 ****************************************************************************/
 
-/*
-  copy a string from one character set to another
-  
-  SYNOPSIS
-    copy_and_convert()
-    to			Store result here
-    to_cs		Character set of result string
-    from		Copy from here
-    from_length		Length of from string
-    from_cs		From character set
-
-  NOTES
-    'to' must be big enough as form_length * to_cs->mbmaxlen
-
-  RETURN
-    length of bytes copied to 'to'
-*/
-
-
-static uint32
-copy_and_convert_extended(char *to, uint32 to_length, CHARSET_INFO *to_cs, 
-                          const char *from, uint32 from_length,
-                          CHARSET_INFO *from_cs,
-                          uint *errors)
-{
-  int         cnvres;
-  my_wc_t     wc;
-  const uchar *from_end= (const uchar*) from+from_length;
-  char *to_start= to;
-  uchar *to_end= (uchar*) to+to_length;
-  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
-  my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
-  uint error_count= 0;
-
-  while (1)
-  {
-    if ((cnvres= (*mb_wc)(from_cs, &wc, (uchar*) from,
-				      from_end)) > 0)
-      from+= cnvres;
-    else if (cnvres == MY_CS_ILSEQ)
-    {
-      error_count++;
-      from++;
-      wc= '?';
-    }
-    else if (cnvres > MY_CS_TOOSMALL)
-    {
-      /*
-        A correct multibyte sequence detected
-        But it doesn't have Unicode mapping.
-      */
-      error_count++;
-      from+= (-cnvres);
-      wc= '?';
-    }
-    else
-      break;  // Not enough characters
-
-outp:
-    if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
-      to+= cnvres;
-    else if (cnvres == MY_CS_ILUNI && wc != '?')
-    {
-      error_count++;
-      wc= '?';
-      goto outp;
-    }
-    else
-      break;
-  }
-  *errors= error_count;
-  return (uint32) (to - to_start);
-}
 
 
 /*

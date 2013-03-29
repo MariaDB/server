@@ -40,6 +40,9 @@ while ($1)
 }
 --enable_query_log
 commit;
+# Make sure binlog checkpoint is logged before DROP TABLE to avoid random
+# result difference.
+--source include/wait_for_binlog_checkpoint.inc
 drop table t1;
 --source include/show_binlog_events.inc
 --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)

@@ -2306,7 +2306,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                          ref_pointer_array+i,
                                          (char *)"<no matter>",
                                          (char *)"<list ref>"));
-      if (!abort_on_null)
+      if (!abort_on_null && select_lex->ref_pointer_array[i]->maybe_null)
       {
         Item *having_col_item=
           new Item_is_not_null_test(this,
@@ -2325,10 +2325,6 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                            (char *)"<no matter>",
                                            (char *)"<list ref>"));
         item= new Item_cond_or(item, item_isnull);
-        /* 
-          TODO: why we create the above for cases where the right part
-                cant be NULL?
-        */
         if (left_expr->element_index(i)->maybe_null)
         {
           if (!(item= new Item_func_trig_cond(item, get_cond_guard(i))))
@@ -2338,6 +2334,11 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
             DBUG_RETURN(true);
         }
         *having_item= and_items(*having_item, having_col_item);
+      }
+      if (!abort_on_null && left_expr->element_index(i)->maybe_null)
+      {
+        if (!(item= new Item_func_trig_cond(item, get_cond_guard(i))))
+          DBUG_RETURN(true);
       }
       *where_item= and_items(*where_item, item);
     }
@@ -3258,11 +3259,14 @@ int subselect_uniquesubquery_engine::scan_table()
   TABLE *table= tab->table;
   DBUG_ENTER("subselect_uniquesubquery_engine::scan_table");
 
-  if (table->file->inited)
-    table->file->ha_index_end();
- 
-  if (table->file->ha_rnd_init_with_error(1))
-    DBUG_RETURN(1);
+  if ((table->file->inited &&
+       (error= table->file->ha_index_end())) ||
+      (error= table->file->ha_rnd_init(1)))
+  {
+    (void) report_error(table, error);
+    DBUG_RETURN(true);
+  }
+
   table->file->extra_opt(HA_EXTRA_CACHE,
                          current_thd->variables.read_buff_size);
   table->null_row= 0;
@@ -3398,8 +3402,13 @@ int subselect_uniquesubquery_engine::exec()
     DBUG_RETURN(0);
   }
 
-  if (!table->file->inited)
-    table->file->ha_index_init(tab->ref.key, 0);
+  if (!table->file->inited &&
+      (error= table->file->ha_index_init(tab->ref.key, 0)))
+  {
+    (void) report_error(table, error);
+    DBUG_RETURN(true);
+  }
+
   error= table->file->ha_index_read_map(table->record[0],
                                         tab->ref.key_buff,
                                         make_prev_keypart_map(tab->
@@ -3563,8 +3572,13 @@ int subselect_indexsubquery_engine::exec()
     DBUG_RETURN(0);
   }
 
-  if (!table->file->inited)
-    table->file->ha_index_init(tab->ref.key, 1);
+  if (!table->file->inited &&
+      (error= table->file->ha_index_init(tab->ref.key, 1)))
+  {
+    (void) report_error(table, error);
+    DBUG_RETURN(true);
+  }
+
   error= table->file->ha_index_read_map(table->record[0],
                                         tab->ref.key_buff,
                                         make_prev_keypart_map(tab->
@@ -5053,7 +5067,7 @@ bool Ordered_key::alloc_keys_buffers()
   DBUG_ASSERT(key_buff_elements > 0);
 
   if (!(key_buff= (rownum_t*) my_malloc((size_t)(key_buff_elements * 
-    sizeof(rownum_t)), MYF(MY_WME))))
+    sizeof(rownum_t)), MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /*
@@ -5480,7 +5494,7 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
       !(null_bitmaps= (MY_BITMAP**) thd->alloc(merge_keys_count *
                                                sizeof(MY_BITMAP*))) ||
       !(row_num_to_rowid= (uchar*) my_malloc((size_t)(row_count * rowid_length),
-        MYF(MY_WME))))
+        MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return TRUE;
 
   /* Create the only non-NULL key if there is any. */

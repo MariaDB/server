@@ -99,7 +99,7 @@ uchar **Filesort_buffer::alloc_sort_buffer(uint num_records, uint record_length)
     sort_buff_sz= num_records * (record_length + sizeof(uchar*));
     set_if_bigger(sort_buff_sz, record_length * MERGEBUFF2); 
     uchar **sort_keys=
-      (uchar**) my_malloc(sort_buff_sz, MYF(0));
+      (uchar**) my_malloc(sort_buff_sz, MYF(MY_THREAD_SPECIFIC));
     m_idx_array= Idx_array(sort_keys, num_records);
     m_record_length= record_length;
     uchar **start_of_data= m_idx_array.array() + m_idx_array.size();
@@ -130,7 +130,8 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
   uchar **keys= get_sort_keys();
   uchar **buffer= NULL;
   if (radixsort_is_appliccable(count, param->sort_length) &&
-      (buffer= (uchar**) my_malloc(count*sizeof(char*), MYF(0))))
+      (buffer= (uchar**) my_malloc(count*sizeof(char*),
+                                   MYF(MY_THREAD_SPECIFIC))))
   {
     radixsort_for_str_ptr(keys, count, param->sort_length, buffer);
     my_free(buffer);
@@ -140,4 +141,3 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
   size_t size= param->sort_length;
   my_qsort2(keys, count, sizeof(uchar*), get_ptr_compare(size), &size);
 }
-

@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011 Monty Program Ab
+   Copyright (c) 2009, 2013 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -523,7 +523,7 @@ public:
 
 struct st_dyncall_create_def
 {
-  Item  *num, *value;
+  Item  *key, *value;
   CHARSET_INFO *cs;
   uint len, frac;
   DYNAMIC_COLUMN_TYPE type;
@@ -611,7 +611,11 @@ public:
      @see Query_arena::free_list
    */
   Item *next;
-  uint32 max_length;                    /* Maximum length, in bytes */
+  /*
+    The maximum value length in characters multiplied by collation->mbmaxlen.
+    Almost always it's the maximum value length in bytes.
+  */
+  uint32 max_length;
   /*
     TODO: convert name and name_length fields into LEX_STRING to keep them in
     sync (see bug #11829681/60295 etc). Then also remove some strlen(name)
@@ -1424,6 +1428,8 @@ public:
   bool eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs); 
   uint32 max_char_length() const
   { return max_length / collation.collation->mbmaxlen; }
+  bool too_big_for_varchar() const
+  { return max_char_length() > CONVERT_IF_BIGGER_TO_BLOB; }
   void fix_length_and_charset(uint32 max_char_length_arg, CHARSET_INFO *cs)
   {
     max_length= char_to_byte_length_safe(max_char_length_arg, cs->mbmaxlen);
@@ -1434,24 +1440,11 @@ public:
     max_length= char_to_byte_length_safe(max_char_length_arg,
                                          collation.collation->mbmaxlen);
   }
-  void fix_char_length_ulonglong(ulonglong max_char_length_arg)
-  {
-    ulonglong max_result_length= max_char_length_arg *
-                                 collation.collation->mbmaxlen;
-    if (max_result_length >= MAX_BLOB_WIDTH)
-    {
-      max_length= MAX_BLOB_WIDTH;
-      maybe_null= 1;
-    }
-    else
-      max_length= (uint32) max_result_length;
-  }
   /*
     Return TRUE if the item points to a column of an outer-joined table.
   */
   virtual bool is_outer_field() const { DBUG_ASSERT(fixed); return FALSE; }
   Item* set_expr_cache(THD *thd);
-  virtual Item *get_cached_item() { return NULL; }
 
   virtual Item_equal *get_item_equal() { return NULL; }
   virtual void set_item_equal(Item_equal *item_eq) {};
@@ -2057,9 +2050,14 @@ public:
         bitmap_fast_test_and_set(tab->read_set, field->field_index);
       if (field->vcol_info)
         tab->mark_virtual_col(field);
-    }  
+    }
   }
-  void update_used_tables() { update_table_bitmaps(); }
+  void update_used_tables()
+  {
+    update_table_bitmaps();
+    if (field && field->table)
+      maybe_null|= field->maybe_null();
+  }
   Item *get_tmp_table_item(THD *thd);
   bool collect_item_field_processor(uchar * arg);
   bool add_field_to_set_processor(uchar * arg);
@@ -3109,7 +3107,11 @@ public:
   enum Item_result result_type () const { return orig_item->result_type(); }
   enum_field_types field_type() const   { return orig_item->field_type(); }
   table_map used_tables() const { return orig_item->used_tables(); }
-  void update_used_tables() { orig_item->update_used_tables(); }
+  void update_used_tables()
+  {
+    orig_item->update_used_tables();
+    maybe_null|= orig_item->maybe_null;
+  }
   bool const_item() const { return orig_item->const_item(); }
   table_map not_null_tables() const { return orig_item->not_null_tables(); }
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
@@ -3201,6 +3203,7 @@ public:
   Item *replace_equal_field(uchar *arg);
   table_map used_tables() const;	
   table_map not_null_tables() const;
+  void update_used_tables();
   bool walk(Item_processor processor, bool walk_subquery, uchar *arg)
   { 
     return (*ref)->walk(processor, walk_subquery, arg) ||
@@ -4026,7 +4029,7 @@ public:
   bool cache_value();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   int save_in_field(Field *field, bool no_conversions);
-  void store_packed(longlong val_arg);
+  void store_packed(longlong val_arg, Item *example);
   /*
     Having a clone_item method tells optimizer that this object
     is a constant and need not be optimized further.
@@ -4035,7 +4038,7 @@ public:
   Item *clone_item()
   {
     Item_cache_temporal *item= new Item_cache_temporal(cached_field_type);
-    item->store_packed(value);
+    item->store_packed(value, example);
     return item;
   }
 };

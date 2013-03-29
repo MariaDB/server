@@ -28,7 +28,7 @@ typedef struct st_net {
   unsigned char reading_or_writing;
   char save_char;
   char net_skip_rest_factor;
-  my_bool unused1;
+  my_bool thread_specific_malloc;
   my_bool compress;
   my_bool unused3;
   unsigned char *unused;
@@ -80,7 +80,7 @@ enum enum_mysql_set_option
   MYSQL_OPTION_MULTI_STATEMENTS_ON,
   MYSQL_OPTION_MULTI_STATEMENTS_OFF
 };
-my_bool my_net_init(NET *net, Vio* vio);
+my_bool my_net_init(NET *net, Vio* vio, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
   void net_clear(NET *net, my_bool clear_buffer);

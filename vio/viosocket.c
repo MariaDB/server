@@ -37,6 +37,38 @@
 # include <sys/filio.h>
 #endif
 
+/* Network io wait callbacks  for threadpool */
+static void (*before_io_wait)(void)= 0;
+static void (*after_io_wait)(void)= 0;
+
+/* Wait callback macros (both performance schema and threadpool */
+#define START_SOCKET_WAIT(locker, state_ptr, sock, which) \
+do                                                        \
+{                                                         \
+  MYSQL_START_SOCKET_WAIT(locker, state_ptr, sock,        \
+                            which, 0);                    \
+  if (before_io_wait)                                     \
+    before_io_wait();                                     \
+} while(0)
+
+
+#define END_SOCKET_WAIT(locker)                          \
+do                                                       \
+{                                                        \
+  MYSQL_END_SOCKET_WAIT(locker, 0);                      \
+  if (after_io_wait)                                     \
+    after_io_wait();                                     \
+} while(0)
+
+
+
+void vio_set_wait_callback(void (*before_wait)(void),
+                                void (*after_wait)(void))
+{
+  before_io_wait= before_wait;
+  after_io_wait= after_wait;
+}
+
 int vio_errno(Vio *vio __attribute__((unused)))
 {
   /* These transport types are not Winsock based. */
@@ -903,12 +935,12 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   */
   if (timeout != 0 && vio->async_context && vio->async_context->active)
   {
-    MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
-                            PSI_SOCKET_SELECT, 0);
+    START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
+                            PSI_SOCKET_SELECT);
     ret= my_io_wait_async(vio->async_context, event, timeout);
     if (ret == 0)
       errno= SOCKET_ETIMEDOUT;
-    MYSQL_END_SOCKET_WAIT(locker, 0);
+    END_SOCKET_WAIT(locker);
     DBUG_RETURN(ret);
   }
 
@@ -933,8 +965,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     break;
   }
 
-  MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket, PSI_SOCKET_SELECT, 0);
-
+  START_SOCKET_WAIT(locker, &state, vio->mysql_socket, PSI_SOCKET_SELECT);
   /*
     Wait for the I/O event and return early in case of
     error or timeout.
@@ -957,7 +988,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     break;
   }
 
-  MYSQL_END_SOCKET_WAIT(locker, 0);
+  END_SOCKET_WAIT(locker);
   DBUG_RETURN(ret);
 }
 
@@ -978,12 +1009,12 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   */
   if (timeout != 0 && vio->async_context && vio->async_context->active)
   {
-    MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
-                            PSI_SOCKET_SELECT, 0);
+    START_SOCKET_WAIT(locker, &state, vio->mysql_socket,
+                            PSI_SOCKET_SELECT);
     ret= my_io_wait_async(vio->async_context, event, timeout);
     if (ret == 0)
       WSASetLastError(SOCKET_ETIMEDOUT);
-    MYSQL_END_SOCKET_WAIT(locker, 0);
+    END_SOCKET_WAIT(locker);
     DBUG_RETURN(ret);
   }
 
@@ -1014,12 +1045,12 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     break;
   }
 
-  MYSQL_START_SOCKET_WAIT(locker, &state, vio->mysql_socket, PSI_SOCKET_SELECT, 0);
+  START_SOCKET_WAIT(locker, &state, vio->mysql_socket, PSI_SOCKET_SELECT);
 
   /* The first argument is ignored on Windows. */
   ret= select(0, &readfds, &writefds, &exceptfds, (timeout >= 0) ? &tm : NULL);
 
-  MYSQL_END_SOCKET_WAIT(locker, 0);
+  END_SOCKET_WAIT(locker);
 
   /* Set error code to indicate a timeout error. */
   if (ret == 0)

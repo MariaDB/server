@@ -60,8 +60,7 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, INVISIBLE= 4096,
-                   PARSE_EARLY=8192 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -113,7 +112,6 @@ public:
   int scope() const { return flags & SCOPE_MASK; }
   CHARSET_INFO *charset(THD *thd);
   bool is_readonly() const { return flags & READONLY; }
-  bool not_visible() const { return flags & INVISIBLE; }
   /**
     the following is only true for keycache variables,
     that support the syntax @@keycache_name.variable_name

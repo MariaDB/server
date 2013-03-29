@@ -25,9 +25,9 @@ typedef struct st_slave_info
 {
   uint32 server_id;
   uint32 rpl_recovery_rank, master_id;
-  char host[HOSTNAME_LENGTH+1];
+  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
   char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH+1];
+  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
   uint16 port;
   THD* thd;
 } SLAVE_INFO;
@@ -41,7 +41,7 @@ extern my_bool opt_sporadic_binlog_dump_fail;
 
 int start_slave(THD* thd, Master_info* mi, bool net_report);
 int stop_slave(THD* thd, Master_info* mi, bool net_report);
-bool change_master(THD* thd, Master_info* mi);
+bool change_master(THD* thd, Master_info* mi, bool *master_info_added);
 bool mysql_show_binlog_events(THD* thd);
 int reset_slave(THD *thd, Master_info* mi);
 int reset_master(THD* thd);

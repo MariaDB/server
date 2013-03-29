@@ -685,7 +685,7 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
 
     /* We come here on '%%', unknown code or too long parameter */
-    if (to == end)
+    if (to >= end)
       break;
     *to++='%';				/* % used as % or unknown code */
   }

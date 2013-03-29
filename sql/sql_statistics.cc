@@ -1296,7 +1296,7 @@ public:
     if (tree->elements == 0)
       return (ulonglong) tree->elements_in_tree();
     count= 0;  
-    tree->walk(count_distinct_walk, (void*) &count);
+    tree->walk(table_field->table, count_distinct_walk, (void*) &count);
     return count;
   }
 };
@@ -1387,7 +1387,8 @@ public:
 
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
-    if (table->key_info - key_info == pk && table->key_info[pk].key_parts == 1)
+    if ((uint) (table->key_info - key_info) == pk &&
+        table->key_info[pk].key_parts == 1)
     {
       prefixes= 1;
       is_single_comp_pk= TRUE;
@@ -2499,6 +2500,8 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
   }
       
+  table->stats_is_read= TRUE;
+
   DBUG_RETURN(0);
 }
 
@@ -2557,6 +2560,8 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
           table_share->stats_cb.stats_can_be_read &&
           !table_share->stats_cb.stats_is_read)
         return TRUE;
+      if (table_share->stats_cb.stats_is_read)
+        tl->table->stats_is_read= TRUE;
     } 
   }
 
@@ -2616,6 +2621,8 @@ int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables)
         (void) read_statistics_for_table(thd, tl->table, stat_tables);
         table_share->stats_cb.stats_is_read= TRUE;
       }
+      if (table_share->stats_cb.stats_is_read)
+        tl->table->stats_is_read= TRUE;
     }
   }  
 
@@ -3034,7 +3041,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   Use_stat_tables_mode use_stat_table_mode= get_use_stat_tables_mode(thd);
   table->used_stat_records= 
     (use_stat_table_mode <= COMPLEMENTARY ||
-     !stats_cb->stats_is_read || read_stats->cardinality_is_null) ?
+     !table->stats_is_read || read_stats->cardinality_is_null) ?
     table->file->stats.records : read_stats->cardinality;
   KEY *key_info, *key_info_end;
   for (key_info= table->key_info, key_info_end= key_info+table->s->keys;
@@ -3042,7 +3049,7 @@ void set_statistics_for_table(THD *thd, TABLE *table)
   {
     key_info->is_statistics_from_stat_tables=
       (use_stat_table_mode > COMPLEMENTARY &&
-       stats_cb->stats_is_read &&
+       table->stats_is_read &&
        key_info->read_stats->avg_frequency_is_inited() &&
        key_info->read_stats->get_avg_frequency(0) > 0.5);
   }
