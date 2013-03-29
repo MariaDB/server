@@ -9,9 +9,11 @@
 # On Linux add these lines into /etc/odbcinst.ini
 #
 #[SQLite3 ODBC Driver]
-#Description=SQLite ODBC Driver
+#Description=SQLite3 ODBC Driver
 #Driver=/opt/sqliteodbc/libsqlite3odbc.so
 #Setup=/opt/sqliteodbc/libsqlite3odbc.so
+#
+# (adjust the directory "/opt/sqliteodbc/" according to your OS settings)
 #
 # Note, the test does not need a DSN to be created.
 #
