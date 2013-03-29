@@ -52,7 +52,6 @@ Sergei's notes:
   anders.song@greatopensource.com-20110105052107-zoab0bsf5a6xxk2y (don't binlog rolled back changes)
   mysql-test/suite/perfschema/disabled.def
   why --source include/have_innodb.inc in lots of tests? (with no other changes)
-  WTF "invisible sysvars" ?
   Sys_var_tx_read_only not needed (must be the same as Sys_var_tx_isolation)
   SIGNAL/RESIGNAL ?
   fix mysql-test to know the difference between compiled-in innodb and compiled-in xtradb

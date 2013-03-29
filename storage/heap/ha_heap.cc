@@ -634,7 +634,7 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
 
   if (!(keydef= (HP_KEYDEF*) my_malloc(keys * sizeof(HP_KEYDEF) +
 				       parts * sizeof(HA_KEYSEG),
-				       MYF(MY_WME))))
+				       MYF(MY_WME | MY_THREAD_SPECIFIC))))
     return my_errno;
   seg= reinterpret_cast<HA_KEYSEG*>(keydef + keys);
   for (key= 0; key < keys; key++)

@@ -4700,6 +4700,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
           Field **table_field_ptr= tables->table->field;
           for ( ; *field_ptr; field_ptr++, table_field_ptr++)
             (*table_field_ptr)->read_stats= (*field_ptr)->read_stats;
+          tables->table->stats_is_read= table_share->stats_cb.stats_is_read;
         }
       }	
     }
@@ -5022,7 +5023,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
     anything yet, to avoid penalty for statements which don't use views
     and thus new .FRM format.
   */
-  init_sql_alloc(&new_frm_mem, 8024, 0);
+  init_sql_alloc(&new_frm_mem, 8024, 0, MYF(0));
 
   thd->current_tablenr= 0;
 restart:
@@ -9033,7 +9034,8 @@ fill_record(THD * thd, TABLE *table_arg, List<Item> &fields, List<Item> &values,
                           ER(ER_WARNING_NON_DEFAULT_VALUE_FOR_VIRTUAL_COLUMN),
                           rfield->field_name, table->s->table_name.str);
     }
-    if ((value->save_in_field(rfield, 0) < 0) && !ignore_errors)
+    if ((!rfield->vcol_info || rfield->stored_in_db) && 
+        (value->save_in_field(rfield, 0)) < 0 && !ignore_errors)
     {
       my_message(ER_UNKNOWN_ERROR, ER(ER_UNKNOWN_ERROR), MYF(0));
       goto err;
@@ -9325,7 +9327,7 @@ my_bool mysql_rm_tmp_tables(void)
     my_dirend(dirp);
   }
   delete thd;
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(0);
   DBUG_RETURN(0);
 }
 
@@ -9389,7 +9391,11 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
     in_use->killed= KILL_SYSTEM_THREAD;
     mysql_mutex_lock(&in_use->mysys_var->mutex);
     if (in_use->mysys_var->current_cond)
+    {
+      mysql_mutex_lock(in_use->mysys_var->current_mutex);
       mysql_cond_broadcast(in_use->mysys_var->current_cond);
+      mysql_mutex_unlock(in_use->mysys_var->current_mutex);
+    }
     mysql_mutex_unlock(&in_use->mysys_var->mutex);
     signalled= TRUE;
   }
@@ -9949,6 +9955,7 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
   switch (rc) {
   case ER_DYNCOL_YES:
   case ER_DYNCOL_OK:
+  case ER_DYNCOL_TRUNCATED:
     break; // it is not an error
   case ER_DYNCOL_FORMAT:
     my_error(ER_DYN_COL_WRONG_FORMAT, MYF(0));

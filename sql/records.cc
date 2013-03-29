@@ -68,6 +68,7 @@ static int rr_index_desc(READ_RECORD *info);
 void init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
                           bool print_error, uint idx, bool reverse)
 {
+  int error;
   empty_record(table);
   bzero((char*) info,sizeof(*info));
   info->thd= thd;
@@ -77,8 +78,13 @@ void init_read_record_idx(READ_RECORD *info, THD *thd, TABLE *table,
   info->unlock_row= rr_unlock_row;
 
   table->status=0;			/* And it's always found */
-  if (!table->file->inited)
-    table->file->ha_index_init(idx, 1);
+  if (!table->file->inited &&
+      (error= table->file->ha_index_init(idx, 1)))
+  {
+    if (print_error)
+      table->file->print_error(error, MYF(0));
+  }
+
   /* read_record will be changed to rr_index in rr_index_first */
   info->read_record= reverse ? rr_index_last : rr_index_first;
 }
@@ -588,7 +594,7 @@ static int init_rr_cache(THD *thd, READ_RECORD *info)
   if (info->cache_records <= 2 ||
       !(info->cache=(uchar*) my_malloc_lock(rec_cache_size+info->cache_records*
 					   info->struct_length+1,
-					   MYF(0))))
+					   MYF(MY_THREAD_SPECIFIC))))
     DBUG_RETURN(1);
 #ifdef HAVE_valgrind
   // Avoid warnings in qsort

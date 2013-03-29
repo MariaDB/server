@@ -488,9 +488,13 @@ lock_report_trx_id_insanity(
 
 /*********************************************************************//**
 Checks that a transaction id is sensible, i.e., not in the future.
-@return	TRUE if ok */
-static
-ibool
+@return	true if ok */
+#ifdef UNIV_DEBUG
+UNIV_INTERN
+#else
+static __attribute__((nonnull, warn_unused_result))
+#endif
+bool
 lock_check_trx_id_sanity(
 /*=====================*/
 	trx_id_t	trx_id,		/*!< in: trx id */

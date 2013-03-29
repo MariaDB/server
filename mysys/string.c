@@ -175,6 +175,36 @@ my_bool dynstr_append_os_quoted(DYNAMIC_STRING *str, const char *append, ...)
   return ret;
 }
 
+my_bool dynstr_append_quoted(DYNAMIC_STRING *str,
+                             const char *append, size_t len,
+                             char quote)
+{
+  uint additional= (str->alloc_increment ? str->alloc_increment : 10);
+  uint lim= additional;
+  uint i;
+  if (dynstr_realloc(str, len + additional + 2))
+    return TRUE;
+  str->str[str->length++]= quote;
+  for (i= 0; i < len; i++)
+  {
+    register char c= append[i];
+    if (c == quote || c == '\\')
+    {
+      if (!lim)
+      {
+        if (dynstr_realloc(str, additional))
+          return TRUE;
+        lim= additional;
+      }
+      lim--;
+      str->str[str->length++]= '\\';
+    }
+    str->str[str->length++]= c;
+  }
+  str->str[str->length++]= quote;
+  return FALSE;
+}
+
 
 void dynstr_free(DYNAMIC_STRING *str)
 {
@@ -192,4 +222,78 @@ void dynstr_reassociate(DYNAMIC_STRING *str, char **ptr, size_t *length,
   *length=       str->length;
   *alloc_length= str->max_length;
   str->str=0;
+}
+
+
+/*
+  copy a string from one character set to another
+
+  SYNOPSIS
+    copy_and_convert()
+    to			Store result here
+    to_cs		Character set of result string
+    from		Copy from here
+    from_length		Length of from string
+    from_cs		From character set
+
+  NOTES
+    'to' must be big enough as form_length * to_cs->mbmaxlen
+
+  RETURN
+    length of bytes copied to 'to'
+*/
+
+uint32
+copy_and_convert_extended(char *to, uint32 to_length, CHARSET_INFO *to_cs, 
+                          const char *from, uint32 from_length,
+                          CHARSET_INFO *from_cs,
+                          uint *errors)
+{
+  int         cnvres;
+  my_wc_t     wc;
+  const uchar *from_end= (const uchar*) from+from_length;
+  char *to_start= to;
+  uchar *to_end= (uchar*) to+to_length;
+  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
+  my_charset_conv_wc_mb wc_mb= to_cs->cset->wc_mb;
+  uint error_count= 0;
+
+  while (1)
+  {
+    if ((cnvres= (*mb_wc)(from_cs, &wc, (uchar*) from,
+				      from_end)) > 0)
+      from+= cnvres;
+    else if (cnvres == MY_CS_ILSEQ)
+    {
+      error_count++;
+      from++;
+      wc= '?';
+    }
+    else if (cnvres > MY_CS_TOOSMALL)
+    {
+      /*
+        A correct multibyte sequence detected
+        But it doesn't have Unicode mapping.
+      */
+      error_count++;
+      from+= (-cnvres);
+      wc= '?';
+    }
+    else
+      break;  // Not enough characters
+
+outp:
+    if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
+      to+= cnvres;
+    else if (cnvres == MY_CS_ILUNI && wc != '?')
+    {
+      error_count++;
+      wc= '?';
+      goto outp;
+    }
+    else
+      break;
+  }
+  *errors= error_count;
+  return (uint32) (to - to_start);
 }

@@ -105,7 +105,9 @@ my_bool vio_is_connected(Vio *vio);
 ssize_t vio_pending(Vio *vio);
 #endif
 /* Set timeout for a network operation. */
-int vio_timeout(Vio *vio, uint which, int timeout_sec);
+extern int vio_timeout(Vio *vio, uint which, int timeout_sec);
+extern void vio_set_wait_callback(void (*before_wait)(void),
+                                void (*after_wait)(void));
 /* Connect to a peer. */
 my_bool vio_socket_connect(Vio *vio, struct sockaddr *addr, socklen_t len,
                            int timeout);

@@ -1660,12 +1660,12 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
 {
   int fd;
   size_t len;
-  char buff[512];
+  char buff[16384];
 
   if ((fd= my_open(filename, O_RDONLY, MYF(0))) < 0)
     return 1;
   while((len= my_read(fd, (uchar*)&buff,
-                      sizeof(buff), MYF(0))) > 0)
+                      sizeof(buff)-1, MYF(0))) > 0)
   {
     char *p= buff, *start= buff;
     while (p < buff+len)
@@ -1676,7 +1676,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
         /* Add fake newline instead of cr and output the line */
         *p= '\n';
         p++; /* Step past the "fake" newline */
-        dynstr_append_mem(ds, start, p-start);
+        *p= 0;
+        replace_dynstr_append_mem(ds, start, p-start);
         p++; /* Step past the "fake" newline */
         start= p;
       }
@@ -1684,7 +1685,8 @@ int cat_file(DYNAMIC_STRING* ds, const char* filename)
         p++;
     }
     /* Output any chars that migh be left */
-    dynstr_append_mem(ds, start, p-start);
+    *p= 0;
+    replace_dynstr_append_mem(ds, start, p-start);
   }
   my_close(fd, MYF(0));
   return 0;
@@ -4397,7 +4399,10 @@ void do_change_user(struct st_command *command)
                       cur_con->name, ds_user.str, ds_passwd.str, ds_db.str));
 
   if (mysql_change_user(mysql, ds_user.str, ds_passwd.str, ds_db.str))
-    die("change user failed: %s", mysql_error(mysql));
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+		 mysql_sqlstate(mysql), &ds_res);
+  else
+    handle_no_error(command);
 
   dynstr_free(&ds_user);
   dynstr_free(&ds_passwd);
@@ -5174,7 +5179,7 @@ typedef struct
 
 static st_error global_error_names[] =
 {
-  { "<No error>", -1U, "" },
+  { "<No error>", ~0U, "" },
 #include <mysqld_ername.h>
   { 0, 0, 0 }
 };
@@ -7288,7 +7293,7 @@ void init_win_path_patterns()
 
   DBUG_ENTER("init_win_path_patterns");
 
-  my_init_dynamic_array(&patterns, sizeof(const char*), 16, 16);
+  my_init_dynamic_array(&patterns, sizeof(const char*), 16, 16, MYF(0));
 
   /* Loop through all paths in the array */
   for (i= 0; i < num_paths; i++)
@@ -8901,7 +8906,7 @@ int main(int argc, char **argv)
   cur_block->ok= TRUE; /* Outer block should always be executed */
   cur_block->cmd= cmd_none;
 
-  my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024);
+  my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024, MYF(0));
 
   if (my_hash_init2(&var_hash, 64, charset_info,
                  128, 0, 0, get_var_key, var_free, MYF(0)))
@@ -8931,7 +8936,7 @@ int main(int argc, char **argv)
 #endif
 
   init_dynamic_string(&ds_res, "", 2048, 2048);
-  init_alloc_root(&require_file_root, 1024, 1024);
+  init_alloc_root(&require_file_root, 1024, 1024, MYF(0));
 
   parse_args(argc, argv);
 
@@ -9877,7 +9882,7 @@ struct st_replace_regex* init_replace_regex(char* expr)
   /* my_malloc() will die on fail with MY_FAE */
   res=(struct st_replace_regex*)my_malloc(
                                           sizeof(*res)+expr_len ,MYF(MY_FAE+MY_WME));
-  my_init_dynamic_array(&res->regex_arr,sizeof(struct st_regex),128,128);
+  my_init_dynamic_array(&res->regex_arr,sizeof(struct st_regex), 128, 128, MYF(0));
 
   buf= (char*)res + sizeof(*res);
   expr_end= expr + expr_len;
@@ -10932,7 +10937,7 @@ void dynstr_append_sorted(DYNAMIC_STRING* ds, DYNAMIC_STRING *ds_input,
   if (!*start)
     DBUG_VOID_RETURN;  /* No input */
 
-  my_init_dynamic_array(&lines, sizeof(const char*), 32, 32);
+  my_init_dynamic_array(&lines, sizeof(const char*), 32, 32, MYF(0));
 
   if (keep_header)
   {

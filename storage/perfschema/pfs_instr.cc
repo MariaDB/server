@@ -998,8 +998,6 @@ PFS_socket *sanitize_socket(PFS_socket *unsafe)
 */
 void destroy_thread(PFS_thread *pfs)
 {
-  DBUG_ENTER("destroy_thread");
-
   DBUG_ASSERT(pfs != NULL);
   if (pfs->m_account != NULL)
   {
@@ -1062,7 +1060,6 @@ void destroy_thread(PFS_thread *pfs)
     pfs->m_digest_hash_pins= NULL;
   }
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**

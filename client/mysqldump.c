@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1182,13 +1182,13 @@ check_consistent_binlog_pos(char *binlog_pos_file, char *binlog_pos_offset)
   found= 0;
   while ((row= mysql_fetch_row(res)))
   {
-    if (0 == strcmp(row[0], "binlog_snapshot_file"))
+    if (0 == strcmp(row[0], "Binlog_snapshot_file"))
     {
       if (binlog_pos_file)
         strmake(binlog_pos_file, row[1], FN_REFLEN-1);
       found++;
     }
-    else if (0 == strcmp(row[0], "binlog_snapshot_position"))
+    else if (0 == strcmp(row[0], "Binlog_snapshot_position"))
     {
       if (binlog_pos_offset)
         strmake(binlog_pos_offset, row[1], LONGLONG_LEN);
@@ -4587,7 +4587,7 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (init_dumping(db, init_dumping_tables))
     DBUG_RETURN(1);
 
-  init_alloc_root(&root, 8192, 0);
+  init_alloc_root(&root, 8192, 0, MYF(0));
   if (!(dump_tables= pos= (char**) alloc_root(&root, tables * sizeof(char *))))
      die(EX_EOM, "alloc_root failure.");
 

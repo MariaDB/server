@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012 Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -223,7 +223,7 @@ static int create_sort_index(THD *thd, JOIN *join, ORDER *order,
 static int remove_duplicates(JOIN *join,TABLE *entry,List<Item> &fields,
 			     Item *having);
 static int remove_dup_with_compare(THD *thd, TABLE *entry, Field **field,
-				   ulong offset,Item *having);
+				   Item *having);
 static int remove_dup_with_hash_index(THD *thd,TABLE *table,
 				      uint field_count, Field **first_field,
 				      ulong key_length,Item *having);
@@ -378,7 +378,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
                         ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                         thd->accessed_rows_and_keys,
                         thd->lex->limit_rows_examined->val_uint());
-    thd->killed= NOT_KILLED;
+    thd->reset_killed();
   }
   /* Disable LIMIT ROWS EXAMINED after query execution. */
   thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
@@ -2072,6 +2072,8 @@ bool JOIN::setup_subquery_caches()
 */
 void JOIN::restore_tmp()
 {
+  DBUG_PRINT("info", ("restore_tmp this %p tmp_join %p", this, tmp_join));
+  DBUG_ASSERT(tmp_join != this);
   memcpy(tmp_join, this, (size_t) sizeof(JOIN));
 }
 
@@ -4943,7 +4945,8 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   /* set a barrier for the array of SARGABLE_PARAM */
   (*sargables)[0].field= 0; 
 
-  if (my_init_dynamic_array(keyuse,sizeof(KEYUSE),20,64))
+  if (my_init_dynamic_array(keyuse,sizeof(KEYUSE),20,64,
+                            MYF(MY_THREAD_SPECIFIC)))
     return TRUE;
 
   if (cond)
@@ -7746,8 +7749,9 @@ get_best_combination(JOIN *join)
     if ( !(keyuse= join->best_positions[tablenr].key))
     {
       j->type=JT_ALL;
-      if (tablenr != join->const_tables)
-	join->full_join=1;
+      if (join->best_positions[tablenr].use_join_buffer &&
+          tablenr != join->const_tables)
+	join->full_join= 1;
     }
 
     /*if (join->best_positions[tablenr].sj_strategy == SJ_OPT_LOOSE_SCAN)
@@ -8740,7 +8744,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           We will use join cache here : prevent sorting of the first
           table only and sort at the end.
         */
-        if (i != join->const_tables && join->table_count > join->const_tables + 1)
+        if (i != join->const_tables &&
+            join->table_count > join->const_tables + 1 &&
+            join->best_positions[i].use_join_buffer)
           join->full_join= 1;
       }
 
@@ -10763,7 +10769,6 @@ void JOIN::cleanup(bool full)
         filesort_free_buffers(first_tab->table, full);
       }
     }
-
     if (full)
     {
       JOIN_TAB *sort_tab= first_linear_tab(this, WITHOUT_CONST_TABLES);
@@ -10798,21 +10803,19 @@ void JOIN::cleanup(bool full)
       }
     }
   }
-  /*
-    We are not using tables anymore
-    Unlock all tables. We may be in an INSERT .... SELECT statement.
-  */
   if (full)
   {
-    if (tmp_join)
-      tmp_table_param.copy_field= 0;
-    group_fields.delete_elements();
     /* 
-      Ensure that the above delete_elements() would not be called
+      Ensure that the following delete_elements() would not be called
       twice for the same list.
     */
-    if (tmp_join && tmp_join != this)
-      tmp_join->group_fields= group_fields;
+    if (tmp_join && tmp_join != this &&
+        tmp_join->group_fields == this->group_fields)
+      tmp_join->group_fields.empty();
+
+    // Run Cached_item DTORs!
+    group_fields.delete_elements();
+
     /*
       We can't call delete_elements() on copy_funcs as this will cause
       problems in free_elements() as some of the elements are then deleted.
@@ -14325,10 +14328,20 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 
   if (group)
   {
+    ORDER **prev= &group;
     if (!param->quick_group)
       group=0;					// Can't use group key
     else for (ORDER *tmp=group ; tmp ; tmp=tmp->next)
     {
+      /* Exclude found constant from the list */
+      if ((*tmp->item)->const_item())
+      {
+        *prev= tmp->next;
+        param->group_parts--;
+        continue;
+      }
+      else
+        prev= &(tmp->next);
       /*
         marker == 4 means two things:
         - store NULLs in the key, and
@@ -14336,7 +14349,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
           can't index BIT fields.
       */
       (*tmp->item)->marker=4;			// Store null in key
-      if ((*tmp->item)->max_length >= CONVERT_IF_BIGGER_TO_BLOB)
+      if ((*tmp->item)->too_big_for_varchar())
 	using_unique_constraint=1;
     }
     if (param->group_length >= MAX_BLOB_WIDTH)
@@ -14358,7 +14371,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   if (param->precomputed_group_by)
     copy_func_count+= param->sum_func_count;
   
-  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0);
+  init_sql_alloc(&own_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
 
   if (!multi_alloc_root(&own_root,
                         &table, sizeof(*table),
@@ -15841,11 +15854,11 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
     if (table->group && join->tmp_table_param.sum_func_count &&
         table->s->keys && !table->file->inited)
     {
-      int tmp_error;
-      if ((tmp_error= table->file->ha_index_init(0, 0)))
+      rc= table->file->ha_index_init(0, 0);
+      if (rc)
       {
-        table->file->print_error(tmp_error, MYF(0)); /* purecov: inspected */
-        DBUG_RETURN(-1);                             /* purecov: inspected */
+        table->file->print_error(rc, MYF(0));
+        DBUG_RETURN(-1);
       }
     }
   }
@@ -16879,7 +16892,12 @@ int join_read_key2(THD *thd, JOIN_TAB *tab, TABLE *table, TABLE_REF *table_ref)
   int error;
   if (!table->file->inited)
   {
-    table->file->ha_index_init(table_ref->key, (tab ? tab->sorted : TRUE));
+    error= table->file->ha_index_init(table_ref->key, tab ? tab->sorted : TRUE);
+    if (error)
+    {
+      (void) report_error(table, error);
+      return 1;
+    }
   }
 
   /* TODO: Why don't we do "Late NULLs Filtering" here? */
@@ -16970,8 +16988,8 @@ join_read_always_key(JOIN_TAB *tab)
   {
     if ((error= table->file->ha_index_init(tab->ref.key, tab->sorted)))
     {
-      table->file->print_error(error, MYF(0));/* purecov: inspected */
-      return(1);                              /* purecov: inspected */
+      (void) report_error(table, error);
+      return 1;
     }
   }
 
@@ -17001,14 +17019,13 @@ join_read_last_key(JOIN_TAB *tab)
   int error;
   TABLE *table= tab->table;
 
-  if (!table->file->inited)
+  if (!table->file->inited &&
+      (error= table->file->ha_index_init(tab->ref.key, tab->sorted)))
   {
-    if ((error= table->file->ha_index_init(tab->ref.key, tab->sorted)))
-    {
-      table->file->print_error(error, MYF(0));/* purecov: inspected */
-      return(1);                              /* purecov: inspected */
-    }
+    (void) report_error(table, error);
+    return 1;
   }
+
   if (cp_buffer_from_ref(tab->join->thd, table, &tab->ref))
     return -1;
   if ((error= table->file->ha_index_read_map(table->record[0],
@@ -17227,9 +17244,10 @@ join_ft_read_first(JOIN_TAB *tab)
   if (!table->file->inited &&
       (error= table->file->ha_index_init(tab->ref.key, 1)))
   {
-    table->file->print_error(error, MYF(0));  /* purecov: inspected */
-    return(1);                                /* purecov: inspected */
+    (void) report_error(table, error);
+    return 1;
   }
+
   table->file->ft_init();
 
   if ((error= table->file->ha_ft_read(table->record[0])))
@@ -17652,9 +17670,10 @@ end_update(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
     /* Change method to update rows */
     if ((error= table->file->ha_index_init(0, 0)))
     {
-      table->file->print_error(error, MYF(0));/* purecov: inspected */
-      DBUG_RETURN(NESTED_LOOP_ERROR);         /* purecov: inspected */
+      table->file->print_error(error, MYF(0));
+      DBUG_RETURN(NESTED_LOOP_ERROR);
     }
+
     join->join_tab[join->top_join_tab_count-1].next_select=end_unique_update;
   }
   join->send_records++;
@@ -18296,18 +18315,36 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
           table->s->primary_key != MAX_KEY &&
           table->s->primary_key != idx)
       {
+        KEY_PART_INFO *start,*end;
+        uint pk_part_idx= 0;
         on_pk_suffix= TRUE;
-        key_part= table->key_info[table->s->primary_key].key_part;
-        key_part_end=key_part+table->key_info[table->s->primary_key].key_parts;
+        start= key_part= table->key_info[table->s->primary_key].key_part;
         const_key_parts=table->const_key_parts[table->s->primary_key];
 
-        for (; const_key_parts & 1 ; const_key_parts>>= 1)
-          key_part++; 
         /*
-         The primary and secondary key parts were all const (i.e. there's
-         one row).  The sorting doesn't matter.
+          Calculate true key_part_end and const_key_parts
+          (we have to stop as first not continous primary key part)
         */
-        if (key_part == key_part_end && reverse == 0)
+        for (key_part_end= key_part,
+             end= key_part+table->key_info[table->s->primary_key].key_parts;
+             key_part_end < end; key_part_end++, pk_part_idx++)
+        {
+          /* Found hole in the pk_parts; Abort */
+          if (!(table->key_info[idx].ext_key_part_map &
+                (((key_part_map) 1) << pk_part_idx)))
+            break;
+        }
+        /* Adjust const_key_parts */
+        const_key_parts&= (((key_part_map) 1) << pk_part_idx) -1;
+
+         for (; const_key_parts & 1 ; const_key_parts>>= 1)
+           key_part++; 
+        /*
+          Test if the primary key parts were all const (i.e. there's one row).
+          The sorting doesn't matter.
+        */
+        if (key_part == start+table->key_info[table->s->primary_key].key_parts &&
+            reverse == 0)
         {
           key_parts= 0;
           reverse= 1;
@@ -18327,7 +18364,8 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     if (reverse && flag != reverse)
       DBUG_RETURN(0);
     reverse=flag;				// Remember if reverse
-    key_part++;
+    if (key_part < key_part_end)
+      key_part++;
   }
   if (on_pk_suffix)
   {
@@ -19133,7 +19171,8 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
     goto err;				/* purecov: inspected */
 
   table->sort.io_cache=(IO_CACHE*) my_malloc(sizeof(IO_CACHE),
-                                             MYF(MY_WME | MY_ZEROFILL));
+                                             MYF(MY_WME | MY_ZEROFILL|
+                                                 MY_THREAD_SPECIFIC));
   table->status=0;				// May be wrong if quick_select
 
   // If table has a range, move it to select
@@ -19229,19 +19268,24 @@ void JOIN::clean_pre_sort_join_tab()
 }
 
 
-/*****************************************************************************
-  Remove duplicates from tmp table
-  This should be recoded to add a unique index to the table and remove
-  duplicates
-  Table is a locked single thread table
-  fields is the number of fields to check (from the end)
-*****************************************************************************/
+/**
+  Compare fields from table->record[0] and table->record[1],
+  possibly skipping few first fields.
 
+  @param table
+  @param ptr                    field to start the comparison from,
+                                somewhere in the table->field[] array
+
+  @retval 1     different
+  @retval 0     identical
+*/
 static bool compare_record(TABLE *table, Field **ptr)
 {
   for (; *ptr ; ptr++)
   {
-    if ((*ptr)->cmp_offset(table->s->rec_buff_length))
+    Field *f= *ptr;
+    if (f->is_null() != f->is_null(table->s->rec_buff_length) ||
+        (!f->is_null() && f->cmp_offset(table->s->rec_buff_length)))
       return 1;
   }
   return 0;
@@ -19269,16 +19313,16 @@ static void free_blobs(Field **ptr)
 
 
 static int
-remove_duplicates(JOIN *join, TABLE *entry,List<Item> &fields, Item *having)
+remove_duplicates(JOIN *join, TABLE *table, List<Item> &fields, Item *having)
 {
   int error;
-  ulong reclength,offset;
+  ulong keylength= 0;
   uint field_count;
   THD *thd= join->thd;
 
   DBUG_ENTER("remove_duplicates");
 
-  entry->reginfo.lock_type=TL_WRITE;
+  table->reginfo.lock_type=TL_WRITE;
 
   /* Calculate how many saved fields there is in list */
   field_count=0;
@@ -19295,11 +19339,10 @@ remove_duplicates(JOIN *join, TABLE *entry,List<Item> &fields, Item *having)
     join->unit->select_limit_cnt= 1;		// Only send first row
     DBUG_RETURN(0);
   }
-  Field **first_field=entry->field+entry->s->fields - field_count;
-  offset= (field_count ? 
-           entry->field[entry->s->fields - field_count]->
-           offset(entry->record[0]) : 0);
-  reclength=entry->s->reclength-offset;
+
+  Field **first_field=table->field+table->s->fields - field_count;
+  for (Field **ptr=first_field; *ptr; ptr++)
+    keylength+= (*ptr)->sort_length() + (*ptr)->maybe_null();
 
   /*
     Disable LIMIT ROWS EXAMINED in order to avoid interrupting prematurely
@@ -19307,19 +19350,18 @@ remove_duplicates(JOIN *join, TABLE *entry,List<Item> &fields, Item *having)
   */
   thd->lex->limit_rows_examined_cnt= ULONGLONG_MAX;
   if (thd->killed == ABORT_QUERY)
-    thd->killed= NOT_KILLED;
-  free_io_cache(entry);				// Safety
-  entry->file->info(HA_STATUS_VARIABLE);
-  if (entry->s->db_type() == heap_hton ||
-      (!entry->s->blob_fields &&
-       ((ALIGN_SIZE(reclength) + HASH_OVERHEAD) * entry->file->stats.records <
+    thd->reset_killed();
+
+  free_io_cache(table);				// Safety
+  table->file->info(HA_STATUS_VARIABLE);
+  if (table->s->db_type() == heap_hton ||
+      (!table->s->blob_fields &&
+       ((ALIGN_SIZE(keylength) + HASH_OVERHEAD) * table->file->stats.records <
 	thd->variables.sortbuff_size)))
-    error=remove_dup_with_hash_index(join->thd, entry,
-				     field_count, first_field,
-				     reclength, having);
+    error=remove_dup_with_hash_index(join->thd, table, field_count, first_field,
+				     keylength, having);
   else
-    error=remove_dup_with_compare(join->thd, entry, first_field, offset,
-				  having);
+    error=remove_dup_with_compare(join->thd, table, first_field, having);
 
   if (join->select_lex != join->select_lex->master_unit()->fake_select_lex)
     thd->lex->set_limit_rows_examined();
@@ -19329,17 +19371,12 @@ remove_duplicates(JOIN *join, TABLE *entry,List<Item> &fields, Item *having)
 
 
 static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
-				   ulong offset, Item *having)
+				   Item *having)
 {
   handler *file=table->file;
-  char *org_record,*new_record;
-  uchar *record;
+  uchar *record=table->record[0];
   int error;
-  ulong reclength= table->s->reclength-offset;
   DBUG_ENTER("remove_dup_with_compare");
-
-  org_record=(char*) (record=table->record[0])+offset;
-  new_record=(char*) table->record[1]+offset;
 
   if (file->ha_rnd_init_with_error(1))
     DBUG_RETURN(1);
@@ -19377,7 +19414,7 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
       error=0;
       goto err;
     }
-    memcpy(new_record,org_record,reclength);
+    store_record(table,record[1]);
 
     /* Read through rest of file and mark duplicated rows deleted */
     bool found=0;
@@ -19436,8 +19473,9 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
   int error;
   handler *file= table->file;
   ulong extra_length= ALIGN_SIZE(key_length)-key_length;
-  uint *field_lengths,*field_length;
+  uint *field_lengths, *field_length;
   HASH hash;
+  Field **ptr;
   DBUG_ENTER("remove_dup_with_hash_index");
 
   if (!my_multi_malloc(MYF(MY_WME),
@@ -19449,21 +19487,8 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
 		       NullS))
     DBUG_RETURN(1);
 
-  {
-    Field **ptr;
-    ulong total_length= 0;
-    for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
-    {
-      uint length= (*ptr)->sort_length();
-      (*field_length++)= length;
-      total_length+= length;
-    }
-    DBUG_PRINT("info",("field_count: %u  key_length: %lu  total_length: %lu",
-                       field_count, key_length, total_length));
-    DBUG_ASSERT(total_length <= key_length);
-    key_length= total_length;
-    extra_length= ALIGN_SIZE(key_length)-key_length;
-  }
+  for (ptr= first_field, field_length=field_lengths ; *ptr ; ptr++)
+    (*field_length++)= (*ptr)->sort_length();
 
   if (my_hash_init(&hash, &my_charset_bin, (uint) file->stats.records, 0, 
                    key_length, (my_hash_get_key) 0, 0, 0))
@@ -19503,10 +19528,10 @@ static int remove_dup_with_hash_index(THD *thd, TABLE *table,
     /* copy fields to key buffer */
     org_key_pos= key_pos;
     field_length=field_lengths;
-    for (Field **ptr= first_field ; *ptr ; ptr++)
+    for (ptr= first_field ; *ptr ; ptr++)
     {
-      (*ptr)->sort_string(key_pos,*field_length);
-      key_pos+= *field_length++;
+      (*ptr)->make_sort_key(key_pos, *field_length);
+      key_pos+= (*ptr)->maybe_null() + *field_length++;
     }
     /* Check if it exists before */
     if (my_hash_search(&hash, org_key_pos, key_length))
@@ -22380,6 +22405,7 @@ static void print_join(THD *thd,
   List_iterator_fast<TABLE_LIST> ti(*tables);
   TABLE_LIST **table;
   uint non_const_tables= 0;
+  DBUG_ENTER("print_join");
 
   for (TABLE_LIST *t= ti++; t ; t= ti++)
   {
@@ -22393,13 +22419,13 @@ static void print_join(THD *thd,
   if (!non_const_tables)
   {
     str->append(STRING_WITH_LEN("dual"));
-    return; // all tables were optimized away
+    DBUG_VOID_RETURN;                   // all tables were optimized away
   }
   ti.rewind();
 
   if (!(table= (TABLE_LIST **)thd->alloc(sizeof(TABLE_LIST*) *
                                                 non_const_tables)))
-    return;  // out of memory
+    DBUG_VOID_RETURN;                   // out of memory
 
   TABLE_LIST *tmp, **t= table + (non_const_tables - 1);
   while ((tmp= ti++))
@@ -22438,6 +22464,7 @@ static void print_join(THD *thd,
   }
   print_table_array(thd, eliminated_tables, str, table, 
                     table +  non_const_tables, query_type);
+  DBUG_VOID_RETURN;
 }
 
 /**
@@ -22946,7 +22973,8 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
     reset_query_plan();
 
   if (!keyuse.buffer &&
-      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64))
+      my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
+                            MYF(MY_THREAD_SPECIFIC)))
   {
     delete_dynamic(&added_keyuse);
     return REOPT_ERROR;
@@ -23125,7 +23153,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   {
     int direction;
     ha_rows select_limit= select_limit_arg;
-    uint used_key_parts;
+    uint used_key_parts= 0;
 
     if (keys.is_set(nr) &&
         (direction= test_if_order_by_key(order, table, nr, &used_key_parts)))
@@ -23193,7 +23221,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                 to be adjusted accordingly if some components of
                 the secondary key are included in the primary key.
 	      */
-               for(uint i= 0; i < used_pk_parts; i++)
+               for(uint i= 1; i < used_pk_parts; i++)
 	      {
 	        if (pkinfo->key_part[i].field->key_start.is_set(nr))
 	        {

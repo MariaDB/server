@@ -457,23 +457,38 @@ Diagnostics_area::disable_status()
   m_status= DA_DISABLED;
 }
 
-Warning_info::Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings)
+Warning_info::Warning_info(ulonglong warn_id_arg,
+                           bool allow_unlimited_warnings, bool initialize)
   :m_statement_warn_count(0),
   m_current_row_for_warning(1),
   m_warn_id(warn_id_arg),
   m_allow_unlimited_warnings(allow_unlimited_warnings),
+  initialized(0),
   m_read_only(FALSE)
 {
-  /* Initialize sub structures */
-  init_sql_alloc(&m_warn_root, WARN_ALLOC_BLOCK_SIZE, WARN_ALLOC_PREALLOC_SIZE);
   m_warn_list.empty();
   bzero((char*) m_warn_count, sizeof(m_warn_count));
+  if (initialize)
+    init();
 }
 
+void Warning_info::init()
+{
+  /* Initialize sub structures */
+  init_sql_alloc(&m_warn_root, WARN_ALLOC_BLOCK_SIZE,
+                 WARN_ALLOC_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
+  initialized= 1;
+}
+
+void Warning_info::free_memory()
+{
+  if (initialized)
+    free_root(&m_warn_root,MYF(0));
+}
 
 Warning_info::~Warning_info()
 {
-  free_root(&m_warn_root,MYF(0));
+  free_memory();
 }
 
 
@@ -484,7 +499,7 @@ Warning_info::~Warning_info()
 void Warning_info::clear_warning_info(ulonglong warn_id_arg)
 {
   m_warn_id= warn_id_arg;
-  free_root(&m_warn_root, MYF(0));
+  free_memory();
   bzero((char*) m_warn_count, sizeof(m_warn_count));
   m_warn_list.empty();
   m_statement_warn_count= 0;

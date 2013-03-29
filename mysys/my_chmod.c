@@ -34,7 +34,7 @@
 int my_chmod(const char *name, mode_t mode, myf my_flags)
 {
   DBUG_ENTER("my_chmod");
-  DBUG_PRINT("my",("name: %s  mode: %lu  flags: %d", name, (ulong) mode,
+  DBUG_PRINT("my",("name: %s  mode: %lu  flags: %lu", name, (ulong) mode,
                    my_flags));
 
   if (chmod(name, mode))

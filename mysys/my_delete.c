@@ -21,7 +21,7 @@ int my_delete(const char *name, myf MyFlags)
 {
   int err;
   DBUG_ENTER("my_delete");
-  DBUG_PRINT("my",("name %s MyFlags %d", name, MyFlags));
+  DBUG_PRINT("my",("name %s MyFlags %lu", name, MyFlags));
 
   if ((err = unlink(name)) == -1)
   {

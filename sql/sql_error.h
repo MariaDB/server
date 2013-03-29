@@ -367,14 +367,20 @@ class Warning_info
 
   /** Indicates if push_warning() allows unlimited number of warnings. */
   bool               m_allow_unlimited_warnings;
+  bool		     initialized;    /* Set to 1 if init() has been called */
 
 private:
   Warning_info(const Warning_info &rhs); /* Not implemented */
   Warning_info& operator=(const Warning_info &rhs); /* Not implemented */
 public:
 
-  Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings);
+  Warning_info(ulonglong warn_id_arg, bool allow_unlimited_warnings,
+               bool initialize=true);
   ~Warning_info();
+
+  /* Allocate memory for structures */
+  void init();
+  void free_memory();
 
   /**
     Reset the warning information. Clear all warnings,

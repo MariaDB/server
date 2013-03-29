@@ -150,8 +150,21 @@ IF(UNIX)
   ${CMAKE_STATIC_LIBRARY_PREFIX}mysqld-debug)
 ENDIF()
 
+# List of exported functions in embedded (client api except client plugin or 
+# async (*_start/*_cont functions)
+
+SET(EMBEDDED_API)
+
+FOREACH(f ${CLIENT_API_FUNCTIONS})
+  IF(f MATCHES "plugin|_start$|_cont$")
+    # Ignore functions, embedded does not export them
+  ELSE()
+    SET(EMBEDDED_API ${EMBEDDED_API} ${f})
+  ENDIF()	
+ENDFOREACH()
+
 IF(NOT DISABLE_SHARED)
-  MERGE_LIBRARIES(libmysqld SHARED mysqlserver EXPORTS ${CLIENT_API_FUNCTIONS}
+  MERGE_LIBRARIES(libmysqld SHARED mysqlserver EXPORTS ${EMBEDDED_API}
     COMPONENT Server) 
   IF(UNIX)
     # Name the shared library, handle versioning (provides same api as client

@@ -52,7 +52,7 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
 
   DBUG_ENTER("my_pread");
 
-  DBUG_PRINT("my",("fd: %d  Seek: %llu  Buffer: %p  Count: %lu  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d  Seek: %llu  Buffer: %p  Count: %lu  MyFlags: %lu",
              Filedes, (ulonglong)offset, Buffer, (ulong)Count, MyFlags));
 
   if (!(MyFlags & (MY_WME | MY_FAE | MY_FNABP)))
@@ -130,7 +130,7 @@ size_t my_pwrite(int Filedes, const uchar *Buffer, size_t Count,
   size_t writtenbytes, written;
   uint errors;
   DBUG_ENTER("my_pwrite");
-  DBUG_PRINT("my",("fd: %d  Seek: %llu  Buffer: %p  Count: %lu  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d  Seek: %llu  Buffer: %p  Count: %lu  MyFlags: %lu",
              Filedes, (ulonglong)offset, Buffer, (ulong)Count, MyFlags));
   errors= 0;
   written= 0;

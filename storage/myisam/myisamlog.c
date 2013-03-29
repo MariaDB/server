@@ -329,8 +329,9 @@ static int examine_log(char * file_name, char **table_names)
 
   init_io_cache(&cache,file,0,READ_CACHE,start_offset,0,MYF(0));
   bzero((uchar*) com_count,sizeof(com_count));
-  init_tree(&tree,0,0,sizeof(file_info),(qsort_cmp2) file_info_compare,1,
-	    (tree_element_free) file_info_free, NULL);
+  init_tree(&tree,0,0,sizeof(file_info),(qsort_cmp2) file_info_compare,
+	    (tree_element_free) file_info_free, NULL,
+            MYF(MY_TREE_WITH_DELETE));
   (void) init_key_cache(dflt_key_cache,KEY_CACHE_BLOCK_SIZE,KEY_CACHE_SIZE,
                       0, 0, 0);
 

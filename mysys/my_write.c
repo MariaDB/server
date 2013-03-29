@@ -25,7 +25,7 @@ size_t my_write(File Filedes, const uchar *Buffer, size_t Count, myf MyFlags)
   size_t writtenbytes, written;
   uint errors;
   DBUG_ENTER("my_write");
-  DBUG_PRINT("my",("fd: %d  Buffer: %p  Count: %lu  MyFlags: %d",
+  DBUG_PRINT("my",("fd: %d  Buffer: %p  Count: %lu  MyFlags: %lu",
 		   Filedes, Buffer, (ulong) Count, MyFlags));
   errors= 0; written= 0;
   if (!(MyFlags & (MY_WME | MY_FAE | MY_FNABP)))

@@ -1,4 +1,5 @@
 /* Copyright (c) 2006, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2013, Monty Proram Ab.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -3665,7 +3666,7 @@ pthread_handler_t ndb_binlog_thread_func(void *arg)
   thd->system_thread= SYSTEM_THREAD_NDBCLUSTER_BINLOG;
   thd->main_security_ctx.host_or_ip= "";
   thd->client_capabilities= 0;
-  my_net_init(&thd->net, 0);
+  my_net_init(&thd->net, 0, MYF(MY_THREAD_SPECIFIC));
   thd->main_security_ctx.master_access= ~0;
   thd->main_security_ctx.priv_user[0]= 0;
   /* Do not use user-supplied timeout value for system threads. */
@@ -3964,7 +3965,7 @@ restart:
       my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
     MEM_ROOT *old_root= *root_ptr;
     MEM_ROOT mem_root;
-    init_sql_alloc(&mem_root, 4096, 0);
+    init_sql_alloc(&mem_root, 4096, 0, MYF(0));
     List<Cluster_schema> post_epoch_log_list;
     List<Cluster_schema> post_epoch_unlock_list;
     *root_ptr= &mem_root;
@@ -4364,8 +4365,6 @@ err:
 
   my_hash_free(&ndb_schema_objects);
 
-  net_end(&thd->net);
-  thd->cleanup();
   delete thd;
 
   ndb_binlog_thread_running= -1;

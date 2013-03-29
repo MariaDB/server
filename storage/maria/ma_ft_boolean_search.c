@@ -527,7 +527,7 @@ static void _ftb_init_index_search(FT_INFO *ftb)
       /* 4 */
       if (!is_tree_inited(& ftb->no_dupes))
         init_tree(& ftb->no_dupes,0,0,sizeof(my_off_t),
-            _ftb_no_dupes_cmp,0,0,0);
+                  _ftb_no_dupes_cmp,0,0,0);
       else
         reset_tree(& ftb->no_dupes);
     }
@@ -561,7 +561,7 @@ FT_INFO * maria_ft_init_boolean_search(MARIA_HA *info, uint keynr,
   bzero(& ftb->no_dupes, sizeof(TREE));
   ftb->last_word= 0;
 
-  init_alloc_root(&ftb->mem_root, 1024, 1024);
+  init_alloc_root(&ftb->mem_root, 1024, 1024, 0);
   ftb->queue.max_elements= 0;
   if (!(ftbe=(FTB_EXPR *)alloc_root(&ftb->mem_root, sizeof(FTB_EXPR))))
     goto err;

@@ -67,7 +67,7 @@ if ($value == No such row)
 {
     set sql_log_bin=0;
     eval INSTALL PLUGIN rpl_semi_sync_master SONAME '$SEMISYNC_MASTER_SO';
-    set global rpl_semi_sync_master_timeout= 5000; /* 5s */
+    set global rpl_semi_sync_master_timeout= 60000; /* 60s */
     set sql_log_bin=1;
 }
 enable_query_log;
@@ -177,7 +177,7 @@ let $_connections_semisync_slave= query_get_value(SHOW STATUS LIKE 'Threads_conn
 replace_result $_connections_normal_slave CONNECTIONS_NORMAL_SLAVE $_connections_semisync_slave CONNECTIONS_SEMISYNC_SLAVE;
 eval select $_connections_semisync_slave - $_connections_normal_slave as 'Should be 0';
 
-let $i=300;
+let $i=10;
 echo [ insert records to table ];
 disable_query_log;
 while ($i)
@@ -242,6 +242,7 @@ source include/stop_slave.inc;
 
 connection master;
 echo [ on master ];
+set global rpl_semi_sync_master_timeout= 5000;
 
 # The first semi-sync check should be on because after slave stop,
 # there are no transactions on the master.
@@ -270,7 +271,7 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 
 # Semi-sync status on master is now OFF, so all these transactions
 # will be replicated asynchronously.
-let $i=300;
+let $i=10;
 disable_query_log;
 while ($i)
 {
@@ -475,14 +476,14 @@ if ($_tid)
 # Do not binlog the following statement because it will generate
 # different events for ROW and STATEMENT format
 set sql_log_bin=0;
-grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl';
+grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
 set sql_log_bin=1;
 connection slave;
 echo [ on slave ];
-grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl';
+grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
-change master to master_user='rpl',master_password='rpl';
+change master to master_user='rpl',master_password='rpl_password';
 source include/start_slave.inc;
 show status like 'Rpl_semi_sync_slave_status';
 connection master;

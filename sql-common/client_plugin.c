@@ -251,7 +251,7 @@ int mysql_client_plugin_init()
   bzero(&mysql, sizeof(mysql)); /* dummy mysql for set_mysql_extended_error */
 
   mysql_mutex_init(0, &LOCK_load_client_plugin, MY_MUTEX_INIT_SLOW);
-  init_alloc_root(&mem_root, 128, 128);
+  init_alloc_root(&mem_root, 128, 128, MYF(0));
 
   bzero(&plugin_list, sizeof(plugin_list));
 

@@ -136,7 +136,7 @@ public:
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
   int repair(THD* thd, HA_CHECK_OPT* check_opt);
   int check_for_upgrade(HA_CHECK_OPT *check_opt);
-  void start_bulk_insert(ha_rows rows);
+  void start_bulk_insert(ha_rows rows, uint flags);
   int end_bulk_insert();
   enum row_type get_row_type() const 
   { 

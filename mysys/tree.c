@@ -84,8 +84,9 @@ static int test_rb_tree(TREE_ELEMENT *element);
 #endif
 
 void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
-               int size, qsort_cmp2 compare, my_bool with_delete,
-	       tree_element_free free_element, void *custom_arg)
+               int size, qsort_cmp2 compare,
+	       tree_element_free free_element, void *custom_arg,
+               myf my_flags)
 {
   DBUG_ENTER("init_tree");
   DBUG_PRINT("enter",("tree: 0x%lx  size: %d", (long) tree, size));
@@ -104,6 +105,7 @@ void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
   tree->custom_arg = custom_arg;
   tree->null_element.colour=BLACK;
   tree->null_element.left=tree->null_element.right=0;
+  tree->my_flags= my_flags;
   tree->flag= 0;
   if (!free_element && size >= 0 &&
       ((uint) size <= sizeof(void*) || ((uint) size & (sizeof(void*)-1))))
@@ -125,10 +127,10 @@ void init_tree(TREE *tree, size_t default_alloc_size, size_t memory_limit,
     tree->offset_to_key=0;		/* use key through pointer */
     tree->size_of_element+=sizeof(void*);
   }
-  if (!(tree->with_delete=with_delete))
+  if (!(tree->with_delete= test(my_flags & MY_TREE_WITH_DELETE)))
   {
-    init_alloc_root(&tree->mem_root, default_alloc_size, 0);
-    tree->mem_root.min_malloc=(sizeof(TREE_ELEMENT)+tree->size_of_element);
+    init_alloc_root(&tree->mem_root, default_alloc_size, 0, MYF(my_flags));
+    tree->mem_root.min_malloc= sizeof(TREE_ELEMENT)+tree->size_of_element;
   }
   DBUG_VOID_RETURN;
 }
@@ -236,7 +238,8 @@ TREE_ELEMENT *tree_insert(TREE *tree, void *key, uint key_size,
 
     key_size+=tree->size_of_element;
     if (tree->with_delete)
-      element=(TREE_ELEMENT *) my_malloc(alloc_size, MYF(MY_WME));
+      element=(TREE_ELEMENT *) my_malloc(alloc_size,
+                                         MYF(tree->my_flags | MY_WME));
     else
       element=(TREE_ELEMENT *) alloc_root(&tree->mem_root,alloc_size);
     if (!element)
