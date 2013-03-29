@@ -3288,28 +3288,29 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
   if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
     // This is a table whose files must be erased or renamed */
-    char ftype[8], *new_exts[2];
-#if 0  // This does not work with sepindex and causes a DBUG_ASSERT failure
+//  char ftype[8], *new_exts[2];
     char ftype[8], *xtype, *new_exts[3];
 
-    switch (GetTypeID(pos->type)) {
-      case TAB_CSV:
-      case TAB_FMT:
-      case TAB_DOS: xtype= ".dnx"; break;
-      case TAB_FIX: xtype= ".fnx"; break;
-      case TAB_BIN: xtype= ".bnx"; break;
-      case TAB_VEC: xtype= ".vnx"; break;
-      case TAB_DBF: xtype= ".dbx"; break;
-      default:
-        xtype= NULL;
-        return true;
-      } // endswitch Ftype
+    if (share->keynames.count) {
+      switch (GetTypeID(pos->type)) {
+        case TAB_CSV:
+        case TAB_FMT:
+        case TAB_DOS: xtype= ".dnx"; break;
+        case TAB_FIX: xtype= ".fnx"; break;
+        case TAB_BIN: xtype= ".bnx"; break;
+        case TAB_VEC: xtype= ".vnx"; break;
+        case TAB_DBF: xtype= ".dbx"; break;
+        default:
+          xtype= NULL;
+//        return true;
+        } // endswitch Ftype
 
-    if (xtype)
-      new_exts[i++]= xtype;
-#endif // 0
+      if (xtype)
+        new_exts[i++]= xtype;
+
+      } // endif keynames
+
     strcat(strcpy(ftype, "."), pos->type);
-
     new_exts[i++]= ftype;
     new_exts[i]= NULL;
 
@@ -4039,7 +4040,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   if (IsFileType(type)) {
     table= table_arg;       // Used by called functions
 
-    if (!options->filename && type != TAB_XML) {
+    if (!options->filename) {
       // The file name is not specified, create a default file in
       // the database directory named table_name.table_type.
       // (temporarily not done for XML because a void file causes
@@ -4050,6 +4051,20 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       strcpy(buf, GetTableName());
 
       if (*buf != '#') {
+        // Check for incompatible options
+        if (GetTypeID(options->type) == TAB_VEC &&
+                (!table->s->max_rows || options->split)) {
+          my_printf_error(ER_UNKNOWN_ERROR, 
+                "%s tables whose file name is unspecified cannot be split",
+                MYF(0), options->type);
+          DBUG_RETURN(HA_ERR_UNSUPPORTED);
+        } else if (options->sepindex) {
+          my_printf_error(ER_UNKNOWN_ERROR, 
+                "SEPINDEX is incompatible with unspecified file name",
+                MYF(0), options->type);
+          DBUG_RETURN(HA_ERR_UNSUPPORTED);
+        } // endif's
+
         strcat(strcat(buf, "."), options->type);
         sprintf(g->Message, "No file name. Table will use %s", buf);
         push_warning(table->in_use, 

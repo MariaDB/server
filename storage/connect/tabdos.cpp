@@ -452,7 +452,7 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dox)
 int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   {
   int     k, n;
-  bool    fixed, doit, b = (pxdf != NULL);
+  bool    fixed, doit, sep, b = (pxdf != NULL);
   PCOL   *keycols, colp;
   PIXDEF  xdp, sxp = NULL;
   PKPDEF  kdp;
@@ -506,6 +506,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       } // endfor kdp
 
   keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
+  sep = cat->GetBoolCatInfo("SepIndex", false);
 
   /*********************************************************************/
   /*  Construct and save the defined indexes.                          */
@@ -533,7 +534,8 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
         } // endfor kdp
 
       // If no indexed columns were updated, don't remake the index
-      if (!doit)
+      // if indexes are in separate files.
+      if (!doit && sep)
         continue;
 
       k = xdp->GetNparts();

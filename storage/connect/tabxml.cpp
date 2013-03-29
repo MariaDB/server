@@ -383,7 +383,7 @@ int TDBXML::LoadTableFile(PGLOBAL g)
       return RC_FX;
       } // endif init
 
-     if (trace)
+    if (trace)
       htrc("TDBXML: parsing %s rc=%d\n", filename, rc);
 
     // Parse the XML file
@@ -391,8 +391,12 @@ int TDBXML::LoadTableFile(PGLOBAL g)
       // Does the file exist?
       int h= global_open(g, MSGID_NONE, filename, _O_RDONLY);
 
-      rc = (h == -1 && errno == ENOENT) ? RC_NF : RC_INFO;
-      if (h != -1) close(h);
+      if (h != -1) {
+        rc = (!_filelength(h)) ? RC_EF : RC_INFO;
+        close(h);
+      } else
+        rc = (errno == ENOENT) ? RC_NF : RC_INFO;
+
       return rc;
       } // endif Docp
 
@@ -487,8 +491,8 @@ bool TDBXML::Initialize(PGLOBAL g)
       } else
         TabNode = Root;              // Try this ?
 
-    } else if (rc == RC_NF) {
-      // The XML file does not exist
+    } else if (rc == RC_NF || rc == RC_EF) {
+      // The XML file does not exist or is void
       if (Mode == MODE_INSERT) {
         // New Document
         char buf[64];
