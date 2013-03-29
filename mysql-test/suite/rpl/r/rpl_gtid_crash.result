@@ -6,6 +6,9 @@ INSERT INTO t1 VALUES (1, 0);
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_GTID_POS=AUTO;
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 INSERT INTO t1 VALUES (2,1);
 INSERT INTO t1 VALUES (3,1);
 include/start_slave.inc
@@ -23,6 +26,9 @@ SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid_list	#	#	[]
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 include/start_slave.inc
 SET gtid_domain_id= 1;
 INSERT INTO t1 VALUES (1);
@@ -61,22 +67,37 @@ include/stop_slave.inc
 SET GLOBAL debug_dbug="+d,inject_crash_before_write_rpl_slave_state";
 START SLAVE;
 INSERT INTO t1 VALUES (4);
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 include/stop_slave.inc
 SET GLOBAL debug_dbug="+d,crash_commit_before";
 START SLAVE;
 INSERT INTO t1 VALUES (5);
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 include/stop_slave.inc
 SET GLOBAL debug_dbug="+d,crash_commit_after";
 START SLAVE;
 INSERT INTO t1 VALUES (6);
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 include/stop_slave.inc
 SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
 START SLAVE;
 INSERT INTO t1 VALUES (7);
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 include/stop_slave.inc
 SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
 START SLAVE;
 INSERT INTO t1 VALUES (8);
+SET sql_log_bin=0;
+FLUSH TABLES;
+SET sql_log_bin=1;
 SELECT * FROM t1 ORDER BY a;
 a
 1

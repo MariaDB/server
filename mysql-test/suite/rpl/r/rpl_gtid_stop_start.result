@@ -7,7 +7,7 @@ Master_Log_File = 'master-bin.000001'
 Using_Gtid = '0'
 CHANGE MASTER TO master_gtid_pos=AUTO;
 FLUSH LOGS;
-PURGE BINARY LOGS TO 'master-bin.000002';
+include/wait_for_purge.inc "master-bin.000002"
 show binary logs;
 Log_name	File_size
 master-bin.000002	#
