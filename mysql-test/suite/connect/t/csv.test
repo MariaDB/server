@@ -1,6 +1,6 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $FILE_TYPE=CSV;
+let $TABLE_OPTIONS=TABLE_TYPE=CSV;
 let $FILE_EXT=CSV;
 --source grant.inc
 
