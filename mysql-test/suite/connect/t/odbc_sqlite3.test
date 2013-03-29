@@ -1,0 +1,53 @@
+#
+# To run this test, install SQLite3 ODBC Driver from
+# http://www.ch-werner.de/sqliteodbc/
+# The installer file is sqliteodbc.exe
+# Version sqliteodbc-0.991 is known to Work.
+#
+# On Windows the test should start working automatically
+#
+# On Linux add these lines into /etc/odbcinst.ini
+#
+#[SQLite3 ODBC Driver]
+#Description=SQLite ODBC Driver
+#Driver=/opt/sqliteodbc/libsqlite3odbc.so
+#Setup=/opt/sqliteodbc/libsqlite3odbc.so
+#
+# Note, the test does not need a DSN to be created.
+#
+
+--disable_query_log
+--error 0,ER_UNKNOWN_ERROR
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
+if ($mysql_errno)
+{
+  Skip No ODBC support;
+}
+if (!`SELECT count(*) FROM t1 WHERE Description='SQLite3 ODBC Driver'`)
+{
+  DROP TABLE t1;
+  Skip Need SQLite3 ODBC Driver;
+}
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--enable_query_log
+
+SET NAMES utf8;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+let $Database=$MYSQL_TEST_DIR/suite/connect/std_data/test.sqlite3;
+
+#
+# For some reasons Windows does not allow to remove the data base
+# file after "DROP TABLE t1". So unlike in odbc_xls.test we won't copy
+# the data file, we'll use directly the file in std_data.
+# As we do not do any modifications in the database, this should be OK.
+#
+
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
