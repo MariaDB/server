@@ -1,6 +1,6 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $FILE_TYPE=BIN;
+let $TABLE_OPTIONS=TABLE_TYPE=BIN;
 let $FILE_EXT=BIN;
 --source grant.inc
 

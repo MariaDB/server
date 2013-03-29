@@ -16,6 +16,11 @@ DROP TABLE t1;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
+let $TABLE_OPTIONS=TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
+let $FILE_EXT=XML;
+--source grant.inc
+
+
 SET NAMES utf8;
 
 --vertical_results
