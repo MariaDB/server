@@ -6878,7 +6878,8 @@ double JOIN::get_examined_rows()
 
 static 
 double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
-                                             table_map rem_tables, TABLE_REF *ref)
+                                       table_map rem_tables, uint keyparts,
+                                       uint16 *ref_keyuse_steps)
 {
   double sel= 1.0;
   COND_EQUAL *cond_equal= join->cond_equal;
@@ -6886,15 +6887,15 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   if (!cond_equal || !cond_equal->current_level.elements)
     return sel;
 
-  Item_equal *item_equal;
-  List_iterator_fast<Item_equal> it(cond_equal->current_level);
-  table_map table_bit= s->table->map;
-  
-  if (!s->keyuse)
+   if (!s->keyuse)
     return sel;
 
-  KEY *key_info= s->get_keyinfo_by_key_no(s->ref.key); 
-
+ Item_equal *item_equal;
+  List_iterator_fast<Item_equal> it(cond_equal->current_level);
+  TABLE *table= s->table;
+  table_map table_bit= table->map;
+  POSITION *pos= &join->positions[idx];
+  
   while ((item_equal= it++))
   { 
     /* 
@@ -6916,17 +6917,25 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       Field *fld= fi.get_curr_field();
       if (fld->table->map != table_bit)
         continue;
-      if (ref == 0)
+      if (pos->key == 0)
         adjust_sel= TRUE;
       else
       {
         uint i;
-        for (i= 0; i < ref->key_parts; i++)
+        KEYUSE *keyuse= pos->key;
+        uint key= keyuse->key;
+
+        for (i= 0; i < keyparts; i++)
 	{
-          if (fld->field_index == key_info->key_part[i].fieldnr - 1)
+          uint fldno;
+          if (is_hash_join_key_no(key))
+	    fldno= keyuse->keypart;
+          else
+            fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;        
+          if (fld->field_index == fldno)
             break;
         }
-        if (i == ref->key_parts)
+        if (i == keyparts)
 	{
           /* 
             Field fld is included in multiple equality item_equal
@@ -6936,11 +6945,14 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             equal to fld.  
 	  */
           adjust_sel= TRUE;
-          for (uint j= 0; j < ref->key_parts && adjust_sel; j++)
+          for (uint j= 0; j < keyparts && adjust_sel; j++)
 	  {
-	    if (ref->items[j]->real_item()->type() == Item::FIELD_ITEM)
+            if (j > 0)
+              keyuse+= ref_keyuse_steps[j-1];  
+            Item *ref_item= keyuse->val;
+	    if (ref_item->real_item()->type() == Item::FIELD_ITEM)
 	    {
-              Item_field *field_item= (Item_field *) (ref->items[j]);
+              Item_field *field_item= (Item_field *) ref_item;
               if (item_equal->contains(field_item->field))
                 adjust_sel= FALSE;              
 	    }
@@ -6978,33 +6990,70 @@ static
 double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
 {
+  uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
   Field *field;
   TABLE *table= s->table;
   MY_BITMAP *read_set= table->read_set;
   double sel= s->table->cond_selectivity;
   double table_records= table->stat_records();
-  TABLE_REF *ref= s->type == JT_REF || s->type == JT_EQ_REF ? &s->ref : NULL;
+  POSITION *pos= &join->positions[idx];
+  uint keyparts= 0;
+  uint found_part_ref_or_null= 0;
 
   /* Discount the selectivity of the access method used to join table s */
   if (s->quick && s->quick->index != MAX_KEY)
   {
-    if (join->positions[idx].key == 0)
+    if (pos->key == 0)
     {
       sel*= table->quick_rows[s->quick->index]/table_records;
     }
   }
-  else if (ref)
+  else if (pos->key != 0)
   {
-    /* A ref/ access or hash join is used to join table s */ 
-    KEY *key_info= s->get_keyinfo_by_key_no(ref->key);
-    for (uint i= 0; i < ref->key_parts; i++)
+    /* A ref/ access or hash join is used to join table */
+    KEYUSE *keyuse= pos->key;
+    KEYUSE *prev_ref_keyuse= keyuse;
+    uint key= keyuse->key;
+    do
     {
-      if (ref->items[i]->const_item())
+      if (!(keyuse->used_tables & (rem_tables | table->map)))
       {
-        uint fldno= key_info->key_part[i].fieldnr - 1;
-        sel*= table->field[fldno]->cond_selectivity;
+        if (are_tables_local(s, keyuse->val->used_tables()))
+	{
+          if (is_hash_join_key_no(key))
+	  {
+            if (keyparts == keyuse->keypart)
+              keyparts++;
+          }
+          else
+	  {
+            if (keyparts == keyuse->keypart &&
+                !(~(keyuse->val->used_tables()) & pos->ref_depend_map) &&
+                !(found_part_ref_or_null & keyuse->optimize))
+	    {
+              keyparts++;
+              found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
+            }
+          }
+          if (keyparts > keyuse->keypart)
+	  {
+            uint fldno;
+            if (is_hash_join_key_no(key))
+	      fldno= keyuse->keypart;
+            else
+              fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
+            if (keyuse->val->const_item())
+              sel*= table->field[fldno]->cond_selectivity; 
+            if (keyparts > 1)
+	    {
+              ref_keyuse_steps[keyparts-2]= keyuse - prev_ref_keyuse;
+              prev_ref_keyuse= keyuse;
+            }
+          }
+	}
       }
-    }
+      keyuse++;
+    } while (keyuse->table == table && keyuse->key == key);
   }
     
   for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
@@ -7024,7 +7073,8 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     }
   }
 
-  sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables, ref);
+  sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
+                                        keyparts, ref_keyuse_steps);
 
   return sel;
 }

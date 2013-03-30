@@ -3303,6 +3303,18 @@ double get_column_avg_frequency(Field * field)
 {
   double res;
   TABLE *table= field->table;
+
+  /* 
+    Statistics is shared by table instances and  is accessed through
+    the table share. If table->s->field is not set for 'table', then
+    no column statistics is available for the table .
+  */
+  if (!table->s->field)
+  {
+    res= table->stat_records();
+    return res;
+  }
+ 
   Column_statistics *col_stats= table->s->field[field->field_index]->read_stats;
 
   if (!col_stats)
@@ -3323,8 +3335,8 @@ double get_column_range_cardinality(Field *field,
 
   if (!col_stats)
     res= table->stat_records();
-  else if (min_endp->length == max_endp->length &&
-      !memcmp(min_endp->key, max_endp->key, min_endp->length))
+  else if (min_endp && max_endp && min_endp->length == max_endp->length &&
+           !memcmp(min_endp->key, max_endp->key, min_endp->length))
   { 
     double avg_frequency= col_stats->get_avg_frequency();
     res= avg_frequency;   
@@ -3346,13 +3358,27 @@ double get_column_range_cardinality(Field *field,
   {
     if (col_stats->min_value && col_stats->max_value)
     {
-      double sel;
-      store_key_image_to_rec(field, (uchar *) min_endp->key, min_endp->length);
-      double min_mp_pos= field->middle_point_pos(col_stats->min_value,
-                                                 col_stats->max_value);
-      store_key_image_to_rec(field, (uchar *) max_endp->key, max_endp->length);
-      double max_mp_pos= field->middle_point_pos(col_stats->min_value,
-                                                 col_stats->max_value);
+      double sel, min_mp_pos, max_mp_pos;
+
+      if (min_endp)
+      {
+        store_key_image_to_rec(field, (uchar *) min_endp->key,
+                               min_endp->length);
+        min_mp_pos= field->middle_point_pos(col_stats->min_value,
+                                            col_stats->max_value);
+      }
+      else
+        min_mp_pos= 0.0;
+      if (max_endp)
+      {
+        store_key_image_to_rec(field, (uchar *) max_endp->key,
+                               max_endp->length);
+        max_mp_pos= field->middle_point_pos(col_stats->min_value,
+                                            col_stats->max_value);
+      }
+      else
+        max_mp_pos= 1.0;
+
       Histogram *hist= &col_stats->histogram;
       if (hist->get_size() == 0)
         sel= (max_mp_pos - min_mp_pos);
