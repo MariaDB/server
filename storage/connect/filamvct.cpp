@@ -153,9 +153,8 @@ void VCTFAM::Reset(void)
 int VCTFAM::GetBlockInfo(PGLOBAL g)
   {
   char      filename[_MAX_PATH];
-  int       k, n;
+  int       h, k, n;
   VECHEADER vh;
-  FILE     *s;
 
   if (Header < 1 || Header > 3 || !MaxBlk) {
     sprintf(g->Message, "Invalid header value %d", Header);
@@ -168,15 +167,20 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
-  if (!(s= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb"))) {
+  if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
+      || !_filelength(h)) {
     // Consider this is a void table
     Last = Nrec; 
     Block = 0;
+
+    if (h != -1)
+      close(h);
+
     return n;
   } else if (Header == 3)
-    k = fseek(s, -(int)sizeof(VECHEADER), SEEK_END);
+    k = lseek(h, -(int)sizeof(VECHEADER), SEEK_END);
     
-  if (fread(&vh, sizeof(vh), 1, s) != 1) {
+  if ((k = read(h, &vh, sizeof(vh))) != sizeof(vh)) {
     sprintf(g->Message, "Error reading header file %s", filename);
     n = -1;
   } else if (MaxBlk * Nrec != vh.MaxRec) {
@@ -188,7 +192,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
   } // endif s
 
-  fclose(s);
+  close(h);
   return n;
   } // end of GetBlockInfo
 

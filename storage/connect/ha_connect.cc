@@ -650,10 +650,10 @@ char *ha_connect::GetListOption(const char *opname,
                                 const char *oplist,
                                 const char *def)
 {
-  char key[16], val[256];
+  char  key[16], val[256];
   char *pk, *pv, *pn;
-  char *opval= (char *) def;
-  int n;
+  char *opval= (char*) def;
+  int   n;
 
   for (pk= (char*)oplist; pk; pk= ++pn) {
     pn= strchr(pk, ',');
@@ -3960,6 +3960,48 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   } else
     dbf= (GetTypeID(options->type) == TAB_DBF);
 
+  if (type == TAB_XML) {
+    bool  dom;                  // True: MS-DOM, False libxml2
+    char *xsup= GetListOption("Xmlsup", options->oplist, "*");
+
+    // Note that if no support is specified, the default is MS-DOM
+    // on Windows and libxml2 otherwise
+    switch (*xsup) {
+      case '*':
+#if defined(WIN32)
+        dom= true;
+#else   // !WIN32
+        dom= false;
+#endif  // !WIN32
+        break;
+      case 'M':
+      case 'D':
+        dom= true;
+        break;
+      default:
+        dom= false;
+      } // endswitch xsup
+
+#if !defined(DOMDOC_SUPPORT)
+    if (dom) {
+      strcpy(g->Message, "MS-DOM not supported by this version");
+      xsup= NULL;
+      } // endif DomDoc
+#endif   // !DOMDOC_SUPPORT
+
+#if !defined(LIBXML2_SUPPORT)
+    if (!dom) {
+      strcpy(g->Message, "libxml2 not supported by this version");
+      xsup= NULL;
+      } // endif Libxml2
+#endif   // !LIBXML2_SUPPORT
+
+    if (!xsup)
+      push_warning(table->in_use, 
+                   MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+
+    } // endif type
+
   // Check column types
   for (field= table_arg->field; *field; field++) {
     fp= *field;
@@ -4052,18 +4094,23 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       if (*buf != '#') {
         // Check for incompatible options
-        if (GetTypeID(options->type) == TAB_VEC &&
-                (!table->s->max_rows || options->split)) {
-          my_printf_error(ER_UNKNOWN_ERROR, 
-                "%s tables whose file name is unspecified cannot be split",
-                MYF(0), options->type);
-          DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        } else if (options->sepindex) {
+        if (options->sepindex) {
           my_printf_error(ER_UNKNOWN_ERROR, 
                 "SEPINDEX is incompatible with unspecified file name",
                 MYF(0), options->type);
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        } // endif's
+        } else if (GetTypeID(options->type) == TAB_VEC)
+          if (!table->s->max_rows || options->split) {
+            my_printf_error(ER_UNKNOWN_ERROR, 
+                "%s tables whose file name is unspecified cannot be split",
+                MYF(0), options->type);
+            DBUG_RETURN(HA_ERR_UNSUPPORTED);
+          } else if (options->header == 2) {
+            my_printf_error(ER_UNKNOWN_ERROR, 
+            "header=2 is not allowed for %s tables whose file name is unspecified",
+                MYF(0), options->type);
+            DBUG_RETURN(HA_ERR_UNSUPPORTED);
+          } // endif's
 
         strcat(strcat(buf, "."), options->type);
         sprintf(g->Message, "No file name. Table will use %s", buf);
@@ -4072,13 +4119,21 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
         PlugSetPath(fn, buf, dbpath);
     
-        if ((h= ::open(fn, O_CREAT, 0666)) == -1) {  
-          sprintf(g->Message, "Cannot create file %s", fn);
+        if ((h= ::open(fn, O_CREAT | O_EXCL, 0666)) == -1) {
+          if (errno == EEXIST)
+            sprintf(g->Message, "Default file %s already exists", fn);
+          else
+            sprintf(g->Message, "Error %d creating file %s", errno, fn);
+
           push_warning(table->in_use, 
                        MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
         } else
           ::close(h);
     
+        if (type == TAB_FMT || options->readonly)
+          push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
+            "Congratulation, you just created a read-only void table!");
+
         } // endif buf
 
     } else {
@@ -4110,6 +4165,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
         if ((rc= optimize(NULL, NULL))) {
           printf("Create rc=%d %s\n", rc, g->Message);
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
           rc= HA_ERR_INTERNAL_ERROR;
         } else
           CloseTable(g);
