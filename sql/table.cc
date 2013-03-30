@@ -3974,6 +3974,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   file->ha_start_of_new_statement();
   reginfo.impossible_range= 0;
   created= TRUE;
+  cond_selectivity= 1.0;
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -3982,6 +3983,11 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   pos_in_table_list= tl;
 
   clear_column_bitmaps();
+  for (Field **f_ptr= field ; *f_ptr ; f_ptr++)
+  {
+    (*f_ptr)->next_equal_field= NULL;
+    (*f_ptr)->cond_selectivity= 1.0;
+  }
 
   DBUG_ASSERT(key_read == 0);
 
