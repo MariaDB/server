@@ -71,6 +71,7 @@ Usage: $0 [OPTIONS]
   --defaults-extra-file=FILE Also use defaults from the specified file
   --ledir=DIRECTORY          Look for mysqld in the specified directory
   --open-files-limit=LIMIT   Limit the number of open files
+  --crash-script=FILE        Script to call when mysqld crashes
   --timezone=TZ              Set the system timezone
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
@@ -202,6 +203,7 @@ parse_arguments() {
     optname_subst=`echo "$optname" | sed 's/_/-/g'`
     arg=`echo $arg | sed "s/^$optname/$optname_subst/"`
     case "$arg" in
+      --crash-script=*) CRASH_SCRIPT="$val" ;;
       # these get passed explicitly to mysqld
       --basedir=*) MY_BASEDIR_VERSION="$val" ;;
       --datadir=*|--data=*) DATADIR="$val" ;;
@@ -501,7 +503,7 @@ append_arg_to_args () {
 args=
 
 SET_USER=2
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld mariadb server client-server`
+parse_arguments `$print_defaults $defaults --loose-verbose --mysqld`
 if test $SET_USER -eq 2
 then
   SET_USER=0
@@ -585,7 +587,7 @@ then
   log_notice "Logging to '$err_log'."
   logging=file
 
-  if [ ! -e "$err_log" ]; then                  # if error log already exists,
+  if [ ! -f "$err_log" ]; then                  # if error log already exists,
     touch "$err_log"                            # we just append. otherwise,
     chmod "$fmode" "$err_log"                   # fix the permissions here!
   fi
@@ -799,13 +801,13 @@ have_sleep=1
 
 while true
 do
-  rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
+  rm -f "$pid_file"	# Some extra safety
 
   start_time=`date +%M%S`
 
   eval_log_error "$cmd"
 
-  if [ $want_syslog -eq 0 -a ! -e "$err_log" ]; then
+  if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then
     touch "$err_log"                    # hypothetical: log was renamed but not
     chown $user "$err_log"              # flushed yet. we'd recreate it with
     chmod "$fmode" "$err_log"           # wrong owner next time we log, so set
@@ -874,6 +876,11 @@ do
     done
   fi
   log_notice "mysqld restarted"
+  if test -n "$CRASH_SCRIPT"
+  then
+    crash_script_output=`$CRASH_SCRIPT 2>&1`
+    log_error "$crash_script_output"
+  fi
 done
 
 log_notice "mysqld from pid file $pid_file ended"

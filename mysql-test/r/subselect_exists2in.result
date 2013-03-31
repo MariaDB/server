@@ -387,7 +387,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` semi join (`test`.`t3`) where ((`test`.`t1`.`a1` = `test`.`t3`.`b1`) and (`test`.`t1`.`a` = `test`.`t3`.`b`))
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`a1` AS `a1` from `test`.`t1` semi join (`test`.`t3`) where ((`test`.`t1`.`a` = `test`.`t3`.`b`) and (`test`.`t1`.`a1` = `test`.`t3`.`b1`))
 -- EXIST to IN then IN to EXISTS
 set optimizer_switch='exists_to_in=on,in_to_exists=on,semijoin=off,materialization=off,subquery_cache=off';
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);

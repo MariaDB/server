@@ -526,6 +526,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int write_transaction_or_stmt(group_commit_entry *entry);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
+  bool is_xidlist_idle_nolock();
 
 public:
   /*
@@ -771,6 +772,7 @@ public:
   inline IO_CACHE *get_index_file() { return &index_file;}
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
+  bool is_xidlist_idle();
 };
 
 class Log_event_handler

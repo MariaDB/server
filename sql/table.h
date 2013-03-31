@@ -827,12 +827,42 @@ struct TABLE_SHARE
     return table_map_id;
   }
 
-
   /** Is this table share being expelled from the table definition cache?  */
   inline bool has_old_version() const
   {
     return version != refresh_version;
   }
+  inline bool protected_against_usage() const
+  {
+    return version == 0;
+  }
+  inline void protect_against_usage()
+  {
+    version= 0;
+  }
+  /*
+    This is used only for the case of locked tables, as we want to
+    allow one to do SHOW commands on them even after ALTER or REPAIR
+  */
+  inline void allow_access_to_protected_table()
+  {
+    DBUG_ASSERT(version == 0);
+    version= 1;
+  }
+  /*
+    Remove from table definition cache at close.
+    Table can still be opened by SHOW
+  */
+  inline void remove_from_cache_at_close()
+  {
+    if (version != 0)                           /* Don't remove protection */
+      version= 1;
+  }
+  inline void set_refresh_version()
+  {
+    version= refresh_version;
+  }
+
   /**
     Convert unrelated members of TABLE_SHARE to one enum
     representing its type.

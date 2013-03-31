@@ -3152,8 +3152,8 @@ int fill_schema_user_stats(THD* thd, TABLE_LIST* tables, COND* cond)
   int result;
   DBUG_ENTER("fill_schema_user_stats");
 
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL))
-    DBUG_RETURN(1);
+  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
+    DBUG_RETURN(0);
 
   /*
     Iterates through all the global stats and sends them to the client.
@@ -3187,8 +3187,8 @@ int fill_schema_client_stats(THD* thd, TABLE_LIST* tables, COND* cond)
   int result;
   DBUG_ENTER("fill_schema_client_stats");
 
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL))
-    DBUG_RETURN(1);
+  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
+    DBUG_RETURN(0);
 
   /*
     Iterates through all the global stats and sends them to the client.

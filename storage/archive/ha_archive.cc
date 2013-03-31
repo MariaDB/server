@@ -907,10 +907,11 @@ int ha_archive::write_row(uchar *buf)
   ha_statistic_increment(&SSV::ha_write_count);
   mysql_mutex_lock(&share->mutex);
 
-  if (!share->archive_write_open)
-    if (init_archive_writer())
-      DBUG_RETURN(errno);
-
+  if (!share->archive_write_open && init_archive_writer())
+  {
+    rc= errno;
+    goto error;
+  }
 
   if (table->next_number_field && record == table->record[0])
   {
@@ -990,7 +991,6 @@ int ha_archive::write_row(uchar *buf)
 error:
   mysql_mutex_unlock(&share->mutex);
   my_free(read_buf);
-
   DBUG_RETURN(rc);
 }
 

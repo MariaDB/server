@@ -64,6 +64,7 @@ wait/synch/mutex/sql/LOCK_server_started
 wait/synch/mutex/sql/LOCK_slave_list
 wait/synch/mutex/sql/LOCK_stats
 wait/synch/mutex/sql/LOCK_status
+wait/synch/mutex/sql/LOCK_thread_cache
 wait/synch/mutex/sql/LOCK_thread_count
 wait/synch/mutex/sql/LOCK_user_conn
 wait/synch/mutex/sql/LOCK_user_locks
