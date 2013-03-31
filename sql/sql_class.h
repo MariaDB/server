@@ -584,6 +584,9 @@ typedef struct system_variables
   ulong wt_timeout_long, wt_deadlock_search_depth_long;
 
   double long_query_time_double;
+
+  my_bool pseudo_slave_mode;
+
 } SV;
 
 /**
@@ -3079,7 +3082,10 @@ public:
   { set_query(CSET_STRING()); }
   void set_query_and_id(char *query_arg, uint32 query_length_arg,
                         CHARSET_INFO *cs, query_id_t new_query_id);
-  void set_query_id(query_id_t new_query_id);
+  void set_query_id(query_id_t new_query_id)
+  {
+    query_id= new_query_id;
+  }
   void set_open_tables(TABLE *open_tables_arg)
   {
     mysql_mutex_lock(&LOCK_thd_data);
@@ -3366,6 +3372,7 @@ public:
 #else
   void begin_dataset() {}
 #endif
+  virtual void update_used_tables() {}
 };
 
 
@@ -4133,6 +4140,7 @@ public:
     return updated;
   }
   virtual void abort_result_set();
+  void update_used_tables();
 };
 
 class my_var : public Sql_alloc  {
@@ -4156,7 +4164,6 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
-  Item_func_set_user_var **set_var_items;
 public:
   List<my_var> var_list;
   select_dumpvar()  { var_list.empty(); row_count= 0;}

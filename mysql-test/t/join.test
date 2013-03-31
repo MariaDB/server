@@ -1136,3 +1136,29 @@ SET optimizer_switch=@tmp_optimizer_switch;
 DROP TABLE t1,t2,t3,t4,t5;
 
 SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # Bug #35268: Parser can't handle STRAIGHT_JOIN with USING
+--echo #                   
+
+CREATE TABLE t1 (a int);
+
+INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+
+CREATE TABLE t2 (a int);
+
+INSERT INTO t2 (a) VALUES (1),(2),(3),(4);
+
+EXPLAIN
+SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
+SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
+
+EXPLAIN
+SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
+SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
+
+EXPLAIN
+SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
+SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
+
+DROP TABLE t1,t2;

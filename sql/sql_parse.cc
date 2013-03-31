@@ -645,9 +645,10 @@ end:
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  mysql_mutex_lock(&LOCK_thread_count);
-  thread_count--;
+  thread_safe_decrement32(&thread_count, &thread_count_lock);
   in_bootstrap= FALSE;
+
+  mysql_mutex_lock(&LOCK_thread_count);
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
   my_thread_end();
@@ -930,9 +931,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->set_time();
-  thd->set_query_id(get_query_id());
   if (!(server_command_flags[command] & CF_SKIP_QUERY_ID))
-    next_query_id();
+    thd->set_query_id(next_query_id());
+  else
+  {
+    /*
+      ping, get statistics or similar stateless command.
+      No reason to increase query id here.
+    */
+    thd->set_query_id(get_query_id());
+  }
   inc_thread_running();
 
   if (!(server_command_flags[command] & CF_SKIP_QUESTIONS))
@@ -1650,7 +1658,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     break;
   case SCH_USER_STATS:
   case SCH_CLIENT_STATS:
-    if (check_global_access(thd, SUPER_ACL | PROCESS_ACL))
+    if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
       DBUG_RETURN(1);
   case SCH_TABLE_STATS:
   case SCH_INDEX_STATS:
@@ -1825,7 +1833,7 @@ bool sp_process_definer(THD *thd)
     if ((strcmp(lex->definer->user.str, thd->security_ctx->priv_user) ||
          my_strcasecmp(system_charset_info, lex->definer->host.str,
                        thd->security_ctx->priv_host)) &&
-        check_global_access(thd, SUPER_ACL))
+        check_global_access(thd, SUPER_ACL, true))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
       DBUG_RETURN(TRUE);
@@ -3087,6 +3095,7 @@ end_with_restore_list:
       thd->first_successful_insert_id_in_cur_stmt=
         thd->first_successful_insert_id_in_prev_stmt;
 
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("after_mysql_insert",
                     {
                       const char act1[]=
@@ -3102,6 +3111,7 @@ end_with_restore_list:
                                                          STRING_WITH_LEN(act2)));
                     };);
     DEBUG_SYNC(thd, "after_mysql_insert");
+#endif
     break;
   }
   case SQLCOM_REPLACE_SELECT:
@@ -5021,6 +5031,10 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 
   if ((db != NULL) && (db != any_db))
   {
+    /*
+      Check if this is reserved database, like information schema or
+      performance schema
+    */
     const ACL_internal_schema_access *access;
     access= get_cached_schema_access(grant_internal_info, db);
     if (access)
@@ -5463,14 +5477,17 @@ bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
     1	Access denied.  In this case an error is sent to the client
 */
 
-bool check_global_access(THD *thd, ulong want_access)
+bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
   if ((thd->security_ctx->master_access & want_access))
     return 0;
-  get_privilege_desc(command, sizeof(command), want_access);
-  my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+  if (!no_errors)
+  {
+    get_privilege_desc(command, sizeof(command), want_access);
+    my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+  }
   status_var_increment(thd->status_var.access_denied_errors);
   return 1;
 #else

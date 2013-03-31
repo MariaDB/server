@@ -2404,46 +2404,33 @@ static int my_utf8_uni_no_range(CHARSET_INFO *cs __attribute__((unused)),
 static int my_uni_utf8 (CHARSET_INFO *cs __attribute__((unused)),
                         my_wc_t wc, uchar *r, uchar *e)
 {
-  int count;
-
-  if (r >= e)
-    return MY_CS_TOOSMALL;
-
   if (wc < 0x80)
-    count = 1;
-  else if (wc < 0x800)
-    count = 2;
-  else if (wc < 0x10000)
-    count = 3;
-#ifdef UNICODE_32BIT
-  else if (wc < 0x200000)
-    count = 4;
-  else if (wc < 0x4000000)
-    count = 5;
-  else if (wc <= 0x7fffffff)
-    count = 6;
-#endif
-    else return MY_CS_ILUNI;
-
-  /*
-    e is a character after the string r, not the last character of it.
-    Because of it (r+count > e), not (r+count-1 >e )
-   */
-  if ( r+count > e )
-    return MY_CS_TOOSMALLN(count);
-
-  switch (count) {
-    /* Fall through all cases!!! */
-#ifdef UNICODE_32BIT
-    case 6: r[5] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x4000000;
-    case 5: r[4] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x200000;
-    case 4: r[3] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x10000;
-#endif
-    case 3: r[2] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0x800;
-    case 2: r[1] = (uchar) (0x80 | (wc & 0x3f)); wc = wc >> 6; wc |= 0xc0;
-    case 1: r[0] = (uchar) wc;
+  {
+    if (r >= e)
+      return MY_CS_TOOSMALL;
+    *r= (uchar) wc;
+    return 1;
   }
-  return count;
+  if (wc < 0x800)
+  {
+    if (r + 2 > e)
+      return MY_CS_TOOSMALLN(2);
+    /* U+0080..U+07FF:  00000xxx.xxyyyyyy -> 110xxxxx 10yyyyyy */
+    *r++= (uchar) (0xC0 | (wc >> 6));
+    *r=   (uchar) (0x80 | (wc & 0x3F));
+    return 2;
+  }
+  if (wc < 0x10000)
+  {
+    if (r + 3 > e)
+      return MY_CS_TOOSMALLN(3);
+    /* U+0800..U+FFFF: xxxxyyyy.yyzzzzzz  -> 1110xxxx 10yyyyyy 10zzzzzz */
+    *r++= (uchar) (0xE0 | (wc >> 12));
+    *r++= (uchar) (0x80 | ((wc >> 6) & 0x3f));
+    *r=   (uchar) (0x80 | (wc & 0x3f));
+    return 3;
+  }
+  return MY_CS_ILUNI;
 }
 
 
