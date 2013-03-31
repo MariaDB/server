@@ -3777,6 +3777,17 @@ static Sys_var_ulong Sys_histogram_size(
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
+const char *histogram_types[] =
+           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+static Sys_var_enum Sys_histogram_type(
+       "histogram_type",
+       "Specifies type of the histograms created by ANALYZE. "
+       "Possible values are: "
+       "SINGLE_PREC_HB - single precision height-balanced, "
+       "DOUBLE_PREC_HB - double precision height-balanced.",
+       SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
+       histogram_types, DEFAULT(0));
+
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",
        "Disable system thread alarm calls. Disabling it may be useful "

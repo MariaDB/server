@@ -502,6 +502,7 @@ typedef struct system_variables
   ulong optimizer_use_condition_selectivity;
   ulong use_stat_tables;
   ulong histogram_size;
+  ulong histogram_type;
   ulong preload_buff_size;
   ulong profiling_history_size;
   ulong read_buff_size;

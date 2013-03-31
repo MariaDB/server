@@ -178,7 +178,21 @@ SELECT db_name, table_name, column_name,
   FROM mysql.column_stats;
 
 DELETE FROM mysql.column_stats;
+
+set histogram_size=8;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE t1;
+
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, HEX(histogram)
+  FROM mysql.column_stats;
+
+DELETE FROM mysql.column_stats;
+
 set histogram_size= 0;
+set histogram_type=default;
 ANALYZE TABLE t1;
 
 
