@@ -17,6 +17,7 @@ use dbt3_s001;
 
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
 
 --disable_query_log
 --disable_result_log
@@ -168,25 +169,39 @@ set optimizer_use_condition_selectivity=1;
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20;
 
+SELECT ((SELECT COUNT(*) FROM part WHERE p_name LIKE 'g%') /
+        (SELECT COUNT(*) FROM part)) AS sel;
+
 set optimizer_use_condition_selectivity=3;
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20;
 
 set histogram_size=15;
 
-flush table part;
-
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
+
+flush table part;
 
 set optimizer_use_condition_selectivity=4;
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20; 
 
+set histogram_type='DOUBLE_PREC_HB';
+set histogram_size=30;
+
+ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
+
+flush table part;
+
+eval EXPLAIN EXTENDED $Q20;
+eval $Q20; 
+
+set histogram_type='SINGLE_PREC_HB';
 set histogram_size=24;
 
-flush table nation;
-
 ANALYZE TABLE nation PERSISTENT FOR COLUMNS(n_name) INDEXES();
+
+flush table nation;
 
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20; 
@@ -194,6 +209,7 @@ eval $Q20;
 
 DROP DATABASE dbt3_s001;
 
+set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 

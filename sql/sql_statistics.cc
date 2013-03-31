@@ -928,6 +928,9 @@ public:
         case COLUMN_STAT_HIST_SIZE:
           stat_field->store(table_field->collected_stats->histogram.get_size());
           break;
+        case COLUMN_STAT_HIST_TYPE:
+          stat_field->store(table_field->collected_stats->histogram.get_type());
+          break;
         case COLUMN_STAT_HISTOGRAM:
           const char * col_histogram=
           (const char *) (table_field->collected_stats->histogram.get_values());
@@ -971,7 +974,7 @@ public:
       char buff[MAX_FIELD_WIDTH];
       String val(buff, sizeof(buff), &my_charset_utf8_bin);
 
-      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HIST_SIZE; i++)
+      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HIST_TYPE; i++)
       {  
         Field *stat_field= stat_table->field[i];
 
@@ -1006,6 +1009,10 @@ public:
             break;
           case COLUMN_STAT_HIST_SIZE:
             table_field->read_stats->histogram.set_size(stat_field->val_int());
+            break;            
+          case COLUMN_STAT_HIST_TYPE:
+            Histogram_type hist_type= (Histogram_type) (stat_field->val_int());
+            table_field->read_stats->histogram.set_type(hist_type);
             break;            
           }
         }
@@ -1238,7 +1245,7 @@ class Histogram_builder
   Field *min_value;
   Field *max_value;
   Histogram *histogram;
-  uint hist_size;
+  uint hist_width;
   double bucket_capacity;  
   uint curr_bucket;
   ulonglong count;
@@ -1252,8 +1259,8 @@ public:
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
     histogram= &col_stats->histogram;
-    hist_size= histogram->get_size();
-    bucket_capacity= (double) records / (hist_size + 1);
+    hist_width= histogram->get_width();
+    bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
     count= 0;
     count_distinct= 0;    
@@ -1265,7 +1272,7 @@ public:
   {
     count_distinct++;
     count+= elem_cnt;
-    if (curr_bucket == hist_size)
+    if (curr_bucket == hist_width)
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
@@ -1273,7 +1280,7 @@ public:
       histogram->set_value(curr_bucket,
                            column->middle_point_pos(min_value, max_value)); 
       curr_bucket++;
-      while (curr_bucket != hist_size &&
+      while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
       {
         histogram->set_prev_value(curr_bucket);
@@ -1794,6 +1801,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
       columns++;
   }
   uint hist_size= thd->variables.histogram_size;
+  Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
   uchar *histogram= NULL;
   if (hist_size > 0)
     histogram= (uchar *) alloc_root(&table->mem_root, hist_size * columns);
@@ -1818,6 +1826,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
       column_stats->histogram.set_size(hist_size);
+      column_stats->histogram.set_type(hist_type);
       column_stats->histogram.set_values(histogram);
       histogram+= hist_size;
     }
@@ -2200,6 +2209,7 @@ void Column_statistics_collected::finish(ha_rows rows)
     set_not_null(COLUMN_STAT_HIST_SIZE);
     if (hist_size && distincts)
     {
+      set_not_null(COLUMN_STAT_HIST_TYPE);
       histogram.set_values(count_distinct->get_histogram());
       set_not_null(COLUMN_STAT_HISTOGRAM);
     } 
