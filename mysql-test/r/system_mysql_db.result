@@ -287,6 +287,7 @@ column_stats	CREATE TABLE `column_stats` (
   `avg_length` decimal(12,4) DEFAULT NULL,
   `avg_frequency` decimal(12,4) DEFAULT NULL,
   `hist_size` tinyint(3) unsigned DEFAULT NULL,
+  `hist_type` enum('SINGLE_PREC_HB','DOUBLE_PREC_HB') COLLATE utf8_bin DEFAULT NULL,
   `histogram` varbinary(255) DEFAULT NULL,
   PRIMARY KEY (`db_name`,`table_name`,`column_name`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Statistics on Columns'

@@ -204,6 +204,11 @@ The following options may be given as the first argument:
  -?, --help          Display this help and exit.
  --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
  histograms are created by ANALYZE.
+ --histogram-type=name 
+ Specifies type of the histograms created by ANALYZE.
+ Possible values are: SINGLE_PREC_HB - single precision
+ height-balanced, DOUBLE_PREC_HB - double precision
+ height-balanced.
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -932,6 +937,7 @@ general-log FALSE
 group-concat-max-len 1024
 help TRUE
 histogram-size 0
+histogram-type SINGLE_PREC_HB
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 
