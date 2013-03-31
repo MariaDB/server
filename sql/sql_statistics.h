@@ -24,6 +24,13 @@ enum enum_use_stat_tables_mode
   PEFERABLY,
 } Use_stat_tables_mode;
 
+typedef
+enum enum_histogram_type
+{
+  SINGLE_PREC_HB,
+  DOUBLE_PREC_HB
+} Histogram_type;
+
 enum enum_stat_tables
 {
   TABLE_STAT,
@@ -59,6 +66,7 @@ enum enum_column_stat_col
   COLUMN_STAT_AVG_LENGTH,
   COLUMN_STAT_AVG_FREQUENCY,
   COLUMN_STAT_HIST_SIZE,
+  COLUMN_STAT_HIST_TYPE,
   COLUMN_STAT_HISTOGRAM
 };
 
@@ -99,46 +107,74 @@ double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
                                     key_range *max_endp);
 
-#define HIST_FACTOR 255
-#define INV_HIST_FACTOR ((double) 1.0 / HIST_FACTOR)
-
 class Histogram
 {
-private:
-public:
 
 private:
+  Histogram_type type;
   uint8 size;
-  uint8 *values;
+  uchar *values;
+
+  uint prec_factor()
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return ((uint) (1 << 8) - 1);
+    case DOUBLE_PREC_HB:
+      return ((uint) (1 << 16) - 1);
+    }
+  }
+
+public:
+  uint get_width()
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return size;
+    case DOUBLE_PREC_HB:
+      return size / 2;
+    }
+  }
+
+private:
+  uint get_value(uint i)
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return (uint) (((uint8 *) values)[i]);
+    case DOUBLE_PREC_HB:
+      return (uint) (((uint16 *) values)[i]);
+    }
+  }
 
   uint find_bucket(double pos, bool first)
   {
-    uint8 val= (uint8) (pos * HIST_FACTOR);
+    uint val= (uint) (pos * prec_factor());
     int lp= 0;
-    int rp= size - 1;
-    int i= 0;
-    for (int d= size / 2 ; d;  d= (rp - lp) / 2)
+    int rp= get_width() - 1;
+    uint i= 0;
+    for (int d= get_width() / 2 ; d;  d= (rp - lp) / 2)
     {
       i= lp + d;
-      if (val == values[i])
+      if (val == get_value(i))
 	break; 
-      if (val < values[i])
+      if (val < get_value(i))
         rp= i;
-      else if (val > values[i + 1])
+      else if (val > get_value(i + 1))
         lp= i + 1;
       else
         break;
     }
-    if (val == values[i])
+    if (val == get_value(i))
     {
       if (first)
       {
-        while(i && val == values[i - 1])
+        while(i && val == get_value(i - 1))
           i--;
       }
       else
       {
-        while(i + 1 < size && val == values[i + 1])
+        while(i + 1 < get_width() && val == get_value(i + 1))
           i++;
       }
     }
@@ -149,24 +185,44 @@ public:
 
   uint get_size() { return (uint) size; }
 
+  Histogram_type get_type() { return type; }
+
   uchar *get_values() { return (uchar *) values; }
 
   void set_size (ulonglong sz) { size= (uint8) sz; }
 
-  void set_values (uchar *vals) { values= (uint8 *) vals; }
+  void set_type (Histogram_type t) { type= t; }
+
+  void set_values (uchar *vals) { values= (uchar *) vals; }
 
   void set_value(uint i, double val)
   {
-    values[i]= (uint8) (val * HIST_FACTOR);
+    switch (type) {
+    case SINGLE_PREC_HB:   
+      ((uint8 *) values)[i]= (uint8) (val * prec_factor());
+      return;
+    case DOUBLE_PREC_HB:
+      ((uint16 *) values)[i]= (uint16) (val * prec_factor());
+      return;
+    }
   }
 
-  void set_prev_value(uint i) { values[i]= values[i-1]; }
- 
+  void set_prev_value(uint i)
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:   
+      ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
+      return;
+    case DOUBLE_PREC_HB:
+      ((uint16 *) values)[i]= ((uint16 *) values)[i-1];
+      return;
+    }
+  }
 
   double range_selectivity(double min_pos, double max_pos)
   {
     double sel;
-    double bucket_sel= 1.0/(size + 1);  
+    double bucket_sel= 1.0/(get_width() + 1);  
     uint min= find_bucket(min_pos, TRUE);
     uint max= find_bucket(max_pos, FALSE);
     sel= bucket_sel * (max - min + 1);
@@ -176,14 +232,14 @@ public:
   double point_selectivity(double pos, double avg_sel)
   {
     double sel;
-    double bucket_sel= 1.0/(size + 1);  
+    double bucket_sel= 1.0/(get_width() + 1);  
     uint min= find_bucket(pos, TRUE);
     uint max= min;
-    while (max + 1 < size && values[max + 1] == values[max])
+    while (max + 1 < get_width() && get_value(max + 1) == get_value(max))
       max++;
-    double width= ((max + 1 == size ? 1.0 : values[max]) -
-	           (min == 0 ? 0.0 : values[min-1])) *
-	          INV_HIST_FACTOR;  
+    double width= ((max + 1 == get_width() ? 1.0 : get_value(max)) -
+	           (min == 0 ? 0.0 : get_value(min-1))) *
+      ((double) 1.0 / prec_factor());  
     sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
     return sel;
   }
