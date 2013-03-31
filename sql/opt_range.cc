@@ -3256,6 +3256,7 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
       key_part->store_length= store_length; 
       key_part->field= field; 
       key_part->image_type= Field::itRAW;
+      key_part->flag= 0;
       param->key[keys]= key_part;
       keys++;
       key_part++;
