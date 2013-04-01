@@ -3462,7 +3462,7 @@ bool st_select_lex::add_index_hint (THD *thd, char *str, uint length)
   @retval TRUE      error occurred.
 */
 
-bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
+bool st_select_lex::optimize_subqueries(subselect_filter filter)
 {
   for (SELECT_LEX_UNIT *un= first_inner_unit(); un; un= un->next_unit())
   {
@@ -3477,11 +3477,8 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
           continue;
       }
 
-      if (const_only && !subquery_predicate->const_item())
-      {
-        /* Skip non-constant subqueries if the caller asked so. */
+      if (filter && !((subquery_predicate->*filter)()))
         continue;
-      }
 
       bool empty_union_result= true;
       bool is_correlated_unit= false;
@@ -4211,6 +4208,12 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
 {
   int res;
   if (explain && explain->have_query_plan())
+/*
+  @todo timour's version from md83
+  if (join &&
+      (join->have_query_plan == JOIN::QEP_EXPLAINABLE ||
+       join->have_query_plan == JOIN::QEP_EXECUTABLE))
+*/
   {
     res= explain->print_explain(output, explain_flags);
     *printed_anything= true;

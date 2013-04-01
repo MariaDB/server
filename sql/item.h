@@ -578,10 +578,12 @@ class Item {
     make_cond_for_table procedure. During query execution, this item is
     evaluated when the join loop reaches the corresponding JOIN_TAB.
 
-    If the value of join_tab_idx >= MAX_TABLES, this means that there is no
-    corresponding JOIN_TAB.
+    If join_tab_idx < 0, this means that there is no corresponding JOIN_TAB.
+
+    cur_join_tab_idx is used during join optimization to determine the best
+    position where to push an expression.
   */
-  uint join_tab_idx;
+  int join_tab_idx, cur_join_tab_idx;
 
 public:
   static void *operator new(size_t size) throw ()
@@ -1176,12 +1178,14 @@ public:
   virtual bool remove_fixed(uchar * arg) { fixed= 0; return 0; }
   virtual bool cleanup_processor(uchar *arg);
   virtual bool collect_item_field_processor(uchar * arg) { return 0; }
+  virtual bool collect_item_subselect_processor(uchar * arg) { return 0; }
   virtual bool add_field_to_set_processor(uchar * arg) { return 0; }
   virtual bool find_item_in_field_list_processor(uchar *arg) { return 0; }
   virtual bool find_item_processor(uchar *arg);
   virtual bool change_context_processor(uchar *context) { return 0; }
   virtual bool reset_query_id_processor(uchar *query_id_arg) { return 0; }
   virtual bool is_expensive_processor(uchar *arg) { return 0; }
+  virtual bool sum_cost_processor(uchar *arg);
   virtual bool register_field_in_read_map(uchar *arg) { return 0; }
   virtual bool register_field_in_write_map(uchar *arg) { return 0; }
   virtual bool enumerate_field_refs_processor(uchar *arg) { return 0; }
@@ -1455,6 +1459,14 @@ public:
       is_expensive_cache= walk(&Item::is_expensive_processor, 0, (uchar*)0);
     return test(is_expensive_cache);
   }
+  /**
+    The default cost to evaluate a 'cheap' predicate.
+    TODO:
+    Notice that this also adds the cost of accessing Fields (via Item_field).
+    Perhaps this cost should be smaller or 0.
+  */
+  virtual double get_cost() { return (1 / (double)TIME_FOR_COMPARE); }
+
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
   String *check_well_formed_result(String *str, bool send_error= 0);
@@ -1490,15 +1502,20 @@ public:
   virtual Item_equal *find_item_equal(COND_EQUAL *cond_equal) { return NULL; }
   /**
     Set the join tab index to the minimal (left-most) JOIN_TAB to which this
-    Item is attached. The number is an index is depth_first_tab() traversal
+    Item is attached. The number is an index in depth_first_tab() traversal
     order.
   */
-  virtual void set_join_tab_idx(uint join_tab_idx_arg)
+  virtual void set_join_tab_idx(int join_tab_idx_arg)
   {
-    if (join_tab_idx_arg < join_tab_idx)
+    if (join_tab_idx < 0 || join_tab_idx_arg < join_tab_idx)
       join_tab_idx= join_tab_idx_arg;
   }
-  virtual uint get_join_tab_idx() { return join_tab_idx; }
+  virtual int get_join_tab_idx() { return join_tab_idx; }
+  virtual void set_cur_join_tab_idx(int join_tab_idx_arg)
+  {
+    cur_join_tab_idx= join_tab_idx_arg;
+  }
+  virtual int get_cur_join_tab_idx() { return cur_join_tab_idx; }
 
   table_map view_used_tables(TABLE_LIST *view)
   {

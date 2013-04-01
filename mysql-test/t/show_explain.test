@@ -470,7 +470,7 @@ explain SELECT * FROM t2 WHERE a =
        );
 
 set @show_explain_probe_select_id=1;
-set debug_dbug='+d,show_explain_probe_do_select';
+set debug_dbug='+d,show_explain_probe_do_select_const';
 send SELECT * FROM t2 WHERE a = 
        (SELECT MAX(a) FROM t2 
         WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)

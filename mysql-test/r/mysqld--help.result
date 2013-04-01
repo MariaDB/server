@@ -519,7 +519,8 @@ The following options may be given as the first argument:
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
  subquery_cache, table_elimination, extended_keys,
- exists_to_in } and val is one of {on, off, default}
+ exists_to_in, expensive_pred_static_pushdown} and val is
+ one of {on, off, default}
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial

@@ -1036,7 +1036,7 @@ public:
   { 
     return (select_number == 1) && !is_part_of_union();
   }
-  bool optimize_unflattened_subqueries(bool const_only);
+  bool optimize_subqueries(subselect_filter filter);
   /* Set the EXPLAIN type for this subquery. */
   void set_explain_type(bool on_the_fly);
   bool handle_derived(LEX *lex, uint phases);

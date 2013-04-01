@@ -80,6 +80,8 @@ insert into t2 values (NULL,  'x', NULL);
 insert into t2 values (NULL,  'y', NULL);
 insert into t2 values ('o',   'z', 'p');
 
+set @@expensive_subquery_limit=0;
+
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
@@ -140,6 +142,7 @@ SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 
 set @@optimizer_switch = @test_default_opt_switch;
+set @@expensive_subquery_limit=default;
 
 drop table t1, t2;
 
@@ -154,6 +157,8 @@ create table t2 (b1 char(1), b2 char(1), b3 char(1));
 insert into t1 values (NULL,  'g', NULL);
 insert into t2 values ('z',  NULL, 'y');
 insert into t2 values (NULL, 'z', 'y');
+
+set @@expensive_subquery_limit=0;
 
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
@@ -180,6 +185,7 @@ SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 
 set @@optimizer_switch = @test_default_opt_switch;
+set @@expensive_subquery_limit=default;
 
 drop table t1, t2;
 
@@ -194,6 +200,8 @@ create table t2 (b1 char(1), b2 char(1), b3 char(1));
 insert into t1 values ('b',  'g', NULL);
 insert into t2 values ('z',  NULL, 'y');
 insert into t2 values (NULL, 'z', 'y');
+
+set @@expensive_subquery_limit=0;
 
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
@@ -218,6 +226,8 @@ SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+
+set @@expensive_subquery_limit=default;
 
 drop table t1, t2;
 
@@ -234,6 +244,8 @@ insert into t2 values ('z',  NULL, 'y', 'x');
 insert into t2 values (NULL, NULL, 'x', 'y');
 insert into t2 values ('x',  'w', 'z', NULL);
 
+set @@expensive_subquery_limit=0;
+
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
@@ -257,6 +269,8 @@ SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+
+set @@expensive_subquery_limit=default;
 
 drop table t1, t2;
 

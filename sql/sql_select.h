@@ -296,8 +296,8 @@ typedef struct st_join_table {
   */
   double        read_time;
   
-  /* psergey-todo: make the below have type double, like POSITION::records_read? */
-  ha_rows       records_read;
+  /* Copy of POSITION::records_read, set by get_best_combination() */
+  double       records_read;
   
   /* The selectivity of the conditions that can be pushed to the table */ 
   double        cond_selectivity;  
@@ -530,7 +530,7 @@ typedef struct st_join_table {
     return (is_hash_join_key_no(key) ? hj_key : table->key_info+key);
   }
   double scan_time();
-  ha_rows get_examined_rows();
+  double get_examined_rows_estimate();
   bool preread_init();
 
   bool is_sjm_nest() { return test(bush_children); }
@@ -776,6 +776,8 @@ typedef struct st_position :public Sql_alloc
 {
   /* The table that's put into join order */
   JOIN_TAB *table;
+  /*  The JOIN_TAB after this one with the least partial join cardinality */
+  st_position *least_card_pos;
 
   /*
     The "fanout": number of output rows that will be produced (after
@@ -786,6 +788,7 @@ typedef struct st_position :public Sql_alloc
 
   /* The selectivity of the pushed down conditions */
   double cond_selectivity; 
+  double partial_join_cardinality;
 
   /* 
     Cost accessing the table in course of the entire complete join execution,
@@ -926,6 +929,7 @@ protected:
   void restore_query_plan(Join_plan_state *restore_from);
   /* Choose a subquery plan for a table-less subquery. */
   bool choose_tableless_subquery_plan();
+  double examined_rows_estimate;
 
 public:
   JOIN_TAB *join_tab, **best_ref;
@@ -1228,13 +1232,20 @@ public:
   
   bool union_part; ///< this subselect is part of union 
 
-  enum join_optimization_state { NOT_OPTIMIZED=0,
-                                 OPTIMIZATION_IN_PROGRESS=1,
-                                 OPTIMIZATION_DONE=2};
   bool optimized; ///< flag to avoid double optimization in EXPLAIN
   bool initialized; ///< flag to avoid double init_execution calls
   
-  enum { QEP_NOT_PRESENT_YET, QEP_AVAILABLE, QEP_DELETED} have_query_plan;
+  enum {QEP_NOT_PRESENT_YET,
+        /* A query plan exists. It is being optimized, but is still incomplete. */
+        QEP_INCOMPLETE,
+        /*
+          A query plan exists, but it is usable only for EXPLAIN because
+          some of its structures are incomplete.
+        */
+        QEP_EXPLAINABLE,
+        /* A query plan exists, and is ready for execution. */
+        QEP_EXECUTABLE,
+        QEP_DELETED} have_query_plan;
 
   /*
     Additional WHERE and HAVING predicates to be considered for IN=>EXISTS
@@ -1288,6 +1299,7 @@ public:
     found_records= 0;
     fetch_limit= HA_POS_ERROR;
     examined_rows= 0;
+    examined_rows_estimate= -1;
     exec_tmp_table1= 0;
     exec_tmp_table2= 0;
     sortorder= 0;
@@ -1375,6 +1387,7 @@ public:
   bool alloc_func_list();
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
+  bool optimize_in_subqueries();
   bool optimize_constant_subqueries();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
 			  bool before_group_by, bool recompute= FALSE);
@@ -1475,7 +1488,9 @@ public:
   void get_prefix_cost_and_fanout(uint n_tables, 
                                   double *read_time_arg,
                                   double *record_count_arg);
-  double get_examined_rows();
+  double get_examined_rows_estimate();
+  double total_subquery_cost();
+
   /* defined in opt_subselect.cc */
   bool transform_max_min_subquery();
   /* True if this JOIN is a subquery under an IN predicate. */

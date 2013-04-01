@@ -466,7 +466,7 @@ Item::Item():
   with_subselect= 0;
   cmp_context= IMPOSSIBLE_RESULT;
    /* Initially this item is not attached to any JOIN_TAB. */
-  join_tab_idx= MAX_TABLES;
+  join_tab_idx= cur_join_tab_idx= -1;
 
   /* Put item in free list so that we can free all items at end */
   THD *thd= current_thd;
@@ -496,6 +496,7 @@ Item::Item():
 */
 Item::Item(THD *thd, Item *item):
   join_tab_idx(item->join_tab_idx),
+  cur_join_tab_idx(item->cur_join_tab_idx),
   is_expensive_cache(-1),
   rsize(0),
   str_value(item->str_value),
@@ -621,7 +622,7 @@ void Item::cleanup()
   DBUG_PRINT("enter", ("this: %p", this));
   fixed=0;
   marker= 0;
-  join_tab_idx= MAX_TABLES;
+  join_tab_idx= cur_join_tab_idx= -1;
   if (orig_name)
     name= orig_name;
   DBUG_VOID_RETURN;
@@ -641,6 +642,19 @@ bool Item::cleanup_processor(uchar *arg)
   return FALSE;
 }
 
+
+/**
+  Add the cost of an item to the cost of previous items in the
+  containing expression tree.
+
+  @param arg  the cost of the previously visited items in the exression tree
+*/
+
+bool Item::sum_cost_processor(uchar *arg)
+{
+  *((double*)arg)= *((double*)arg) + get_cost();
+  return false;
+}
 
 /**
   rename item (used for views, cleanup() return original name).
@@ -9679,7 +9693,7 @@ table_map Item_ref_null_helper::used_tables() const
 #ifndef DBUG_OFF
 
 /* Debugger help function */
-static char dbug_item_print_buf[256];
+static char dbug_item_print_buf[2048];
 
 const char *dbug_print_item(Item *item)
 {

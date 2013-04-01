@@ -3454,10 +3454,9 @@ insert into t2 select A.a, B.a, C.a, C.a from t1 A, t1 B, t1 C;
 analyze table t2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	OK
-select 'In next EXPLAIN, B.rows must be exactly 10:' Z;
-Z
 In next EXPLAIN, B.rows must be exactly 10:
-explain select * from t2 A, t2 B where A.a=5 and A.b=5 and A.C<5
+Straight join is used because this is not the most efficient plan
+explain select * from t2 A straight_join t2 B where A.a=5 and A.b=5 and A.C<5
 and B.a=5 and B.b=A.e and (B.b =1 or B.b = 3 or B.b=5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	A	range	PRIMARY	PRIMARY	12	NULL	4	Using index condition; Using where

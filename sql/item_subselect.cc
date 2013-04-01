@@ -49,8 +49,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join);
 
 Item_subselect::Item_subselect():
   Item_result_field(), value_assigned(0), own_engine(0), thd(0), old_engine(0), 
-  used_tables_cache(0), have_to_be_excluded(0), const_item_cache(1),
-  inside_first_fix_fields(0), done_first_fix_fields(FALSE), 
+  used_tables_cache(0), pushdown_tables(0), have_to_be_excluded(0),
+  const_item_cache(1), inside_first_fix_fields(0), done_first_fix_fields(FALSE),
   expr_cache(0), forced_const(FALSE), substitution(0), engine(0), eliminated(FALSE),
   changed(0), is_correlated(FALSE)
 {
@@ -400,6 +400,21 @@ bool Item_subselect::set_fake_select_as_master_processor(uchar *arg)
 }
 
 
+bool Item_subselect::collect_item_subselect_processor(uchar * arg)
+{
+  List<Item_subselect> *subs_list= (List<Item_subselect>*) arg;
+  List_iterator<Item_subselect> subs_list_it(*subs_list);
+  Item_subselect *cur_subs;
+  while ((cur_subs= subs_list_it++))
+  {
+    if (cur_subs->eq(this, 1))
+      return false; /* Already in the set. */
+  }
+  subs_list->push_back(this);
+  return false;
+}
+
+
 bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select, 
                                        Item *item)
 {
@@ -551,7 +566,7 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
 */
 bool Item_subselect::is_expensive()
 {
-  double examined_rows= 0;
+  double examined_rows= 0, cur_examined_rows= 0;
 
   for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
   {
@@ -560,19 +575,20 @@ bool Item_subselect::is_expensive()
       continue;
 
     /*
-      Subqueries whose result is known after optimization are not expensive.
-      Such subqueries have all tables optimized away, thus have no join plan.
+      The cost of a subquery is known if it was optimized, and it is either
+      executable, or was already executed and cleaned up.
     */
-    if (cur_join->optimized &&
-        (cur_join->zero_result_cause || !cur_join->tables_list))
-      return false;
+    if (cur_join->have_query_plan != JOIN::QEP_EXECUTABLE &&
+        cur_join->have_query_plan != JOIN::QEP_DELETED)
+      return true;
 
     /*
-      If a subquery is not optimized we cannot estimate its cost. A subquery is
-      considered optimized if it has a join plan.
+      If JOIN::optimize determined that the subquery has an empty result, or
+      this is a table-less subquery, then then subquery is cheap.
     */
-    if (!(cur_join->optimized && cur_join->join_tab))
-      return true;
+    if (!cur_join->table_count || !cur_join->tables_list ||
+        cur_join->zero_result_cause)
+      return false;
 
     if (sl->first_inner_unit())
     {
@@ -583,10 +599,61 @@ bool Item_subselect::is_expensive()
       return true;
     }
 
-    examined_rows+= cur_join->get_examined_rows();
+    if ((cur_examined_rows= cur_join->get_examined_rows_estimate()) < 0)
+      return true;
+    examined_rows+= cur_examined_rows;
   }
 
   return (examined_rows > thd->variables.expensive_subquery_limit);
+}
+
+
+/**
+  Compute the cost of a subquery and all its subqueries.
+
+  @return  total subquery cost in terms of JOIN::best_read
+*/
+
+double Item_subselect::get_cost()
+{
+  double total_cost= 0;
+  for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+  {
+    JOIN *inner_join= sl->join;
+    total_cost+=
+      inner_join->best_read + /* The cost of this subquery. */
+      /* The cost of the subqueries of the subquery. */
+      inner_join->total_subquery_cost();
+  }
+  return total_cost;
+}
+
+
+/**
+  Check if the subquery predicate has only one possible execution strategy.
+
+  @details
+  If there is only one possible execution strategy for a subquery predicate,
+  the optimizer doesn't need to know the number of times the subquery will be
+  executed in order to choose the better strategy. In this case the underlying
+  subquery can be optimized before optimizing the outer query.
+
+  @retval FALSE     more than one strategies are possible
+  @retval TRUE      only one strategy is possible
+*/
+
+bool Item_subselect::has_single_strategy() const
+{
+  if (!is_in_predicate())
+    return true;
+  else
+  {
+    Item_in_subselect *in_subs= (Item_in_subselect*) this;
+    if (!in_subs->test_strategy(SUBS_MATERIALIZATION) ||
+        !in_subs->test_strategy(SUBS_IN_TO_EXISTS))
+      return true;
+  }
+  return false;
 }
 
 
@@ -888,6 +955,12 @@ void Item_subselect::update_used_tables()
       if (!(used_tables_cache & ~engine->upper_select_const_tables()))
         const_item_cache= 1;
     }
+    /*
+      TODO: when merged with dynamic pushdown, pushdown_tables should not be
+      added to the used tables. Instead, dynamic pushdown could use this table
+      as the initial dynamic position, or it may ignore this estimate altogether.
+    */
+    used_tables_cache|= pushdown_tables;
   }
 }
 
@@ -5054,7 +5127,7 @@ double get_fanout_with_deps(JOIN *join, table_map tset)
         !tab->emb_sj_nest && 
         tab->records_read != 0)
     {
-      fanout *= rows2double(tab->records_read);
+      fanout *= tab->records_read;
     }
   } 
   return fanout;

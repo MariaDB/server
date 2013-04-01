@@ -461,7 +461,17 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       field_item->field_type() != MYSQL_TYPE_YEAR)
     return 1;
 
-  if ((*item)->const_item() && !(*item)->is_expensive())
+  /*
+    An item can be converted to an int if:
+    - is constant, and
+    - it is not a subquery (or contains a subquery), and
+    - it is cheap to compute.
+    The reason for the second requirement is to prevent subquery
+    optimization/execution during the JOIN::prepare phase, because this
+    function is called during the prepare phase as well.
+  */
+  if ((*item)->const_item() &&
+      !(*item)->with_subselect && !(*item)->is_expensive())
   {
     TABLE *table= field->table;
     ulonglong orig_sql_mode= thd->variables.sql_mode;
@@ -1479,7 +1489,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
   eval_not_null_tables(NULL);
   with_sum_func= args[0]->with_sum_func;
   with_field= args[0]->with_field;
-  if ((const_item_cache= args[0]->const_item()))
+  if (!(args[0]->with_subselect || args[0]->is_expensive()) &&
+      (const_item_cache= args[0]->const_item()))
   {
     cache->store(args[0]);
     cache->cache_value();

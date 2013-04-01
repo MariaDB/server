@@ -209,13 +209,15 @@ EXPLAIN
 SELECT Country.Name
 FROM Country, CountryLanguage 
 WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English')
-  AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish')
+  AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish'
+       OR CountryLanguage.Language = 'Russian')
   AND Code = Country;
 
 SELECT Country.Name
 FROM Country, CountryLanguage 
 WHERE Code NOT IN (SELECT Country FROM CountryLanguage WHERE Language = 'English')
-  AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish')
+  AND (CountryLanguage.Language = 'French' OR CountryLanguage.Language = 'Spanish'
+       OR CountryLanguage.Language = 'Russian')
   AND Code = Country;
 
 -- echo

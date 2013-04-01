@@ -4907,7 +4907,7 @@ static void remove_subq_pushed_predicates(JOIN *join, Item **where)
 
 
 /**
-  Optimize all subqueries of a query that were not flattened into a semijoin.
+  Optimize all non-IN subqueries that were not flattened into a semijoin.
 
   @details
   Optimize all immediate children subqueries of a query.
@@ -4924,7 +4924,12 @@ static void remove_subq_pushed_predicates(JOIN *join, Item **where)
 
 bool JOIN::optimize_unflattened_subqueries()
 {
-  return select_lex->optimize_unflattened_subqueries(false);
+  return select_lex->optimize_subqueries(&Item_subselect::has_single_strategy);
+}
+
+bool JOIN::optimize_in_subqueries()
+{
+  return select_lex->optimize_subqueries(NULL);
 }
 
 /**
@@ -4958,7 +4963,7 @@ bool JOIN::optimize_constant_subqueries()
     not for EXPLAIN.
   */
   select_lex->options&= ~SELECT_DESCRIBE;
-  res= select_lex->optimize_unflattened_subqueries(true);
+  res= select_lex->optimize_subqueries(&Item_subselect::const_item);
   select_lex->options= save_options;
   return res;
 }

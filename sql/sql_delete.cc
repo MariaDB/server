@@ -287,7 +287,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  if (select_lex->optimize_subqueries(NULL))
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());

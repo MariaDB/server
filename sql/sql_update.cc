@@ -366,7 +366,7 @@ int mysql_update(THD *thd,
   }
 
   /* Apply the IN=>EXISTS transformation to all subqueries and optimize them. */
-  if (select_lex->optimize_unflattened_subqueries(false))
+  if (select_lex->optimize_subqueries(NULL))
     DBUG_RETURN(TRUE);
 
   if (select_lex->inner_refs_list.elements &&

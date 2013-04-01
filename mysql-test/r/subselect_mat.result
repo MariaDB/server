@@ -1374,8 +1374,7 @@ INSERT INTO t2 VALUES (10,0),(11,0);
 explain SELECT * FROM t1 JOIN t2 USING (f1)
 WHERE t1.f1 IN (SELECT t1.pk FROM t1 ORDER BY t1.f1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	MATERIALIZED	t1	system	NULL	NULL	NULL	NULL	1	
 SELECT * FROM t1 JOIN t2 USING (f1)
 WHERE t1.f1 IN (SELECT t1.pk FROM t1 ORDER BY t1.f1);
@@ -1795,7 +1794,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 Warnings:
-Note	1003	select 8 AS `a` from dual where <expr_cache><8>(<in_optimizer>(8,<exists>(select min(`test`.`t1`.`a`) from `test`.`t1` having (<cache>(8) = <ref_null_helper>(min(`test`.`t1`.`a`))))))
+Note	1003	select 8 AS `a` from dual where <expr_cache><8>(<in_optimizer>(8,<exists>(select min(`test`.`t1`.`a`) from `test`.`t1` having (8 = <ref_null_helper>(min(`test`.`t1`.`a`))))))
 DROP TABLE t1;
 #
 # BUG#904432: Wrong result with LEFT JOIN, constant table, semijoin=ON,materialization=ON
@@ -2079,7 +2078,7 @@ set @@optimizer_switch='semijoin=off';
 EXPLAIN
 SELECT SUM(c1) c1_sum FROM t1 WHERE c1 IN (SELECT c2 FROM t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	MATERIALIZED	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT SUM(c1) c1_sum FROM t1 WHERE c1 IN (SELECT c2 FROM t2);
 c1_sum
@@ -2087,7 +2086,7 @@ NULL
 EXPLAIN
 SELECT SUM(c1) c1_sum FROM t1 WHERE c1 IN (SELECT c2 FROM t2) HAVING c1_sum;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 2	MATERIALIZED	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT SUM(c1) c1_sum FROM t1 WHERE c1 IN (SELECT c2 FROM t2) HAVING c1_sum;
 c1_sum

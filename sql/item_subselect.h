@@ -55,6 +55,8 @@ protected:
   subselect_engine *old_engine;
   /* cache of used external tables */
   table_map used_tables_cache;
+  /* tables in the QEP where this predicate should be pushed to */
+  table_map pushdown_tables;
   /* allowed number of columns (1 for single value subqueries) */
   uint max_columns;
   /* where subquery is placed */
@@ -133,13 +135,14 @@ public:
 
   Item_subselect();
 
-  virtual subs_type substype() { return UNKNOWN_SUBS; }
-  bool is_in_predicate()
+  virtual subs_type substype() const { return UNKNOWN_SUBS; }
+  bool is_in_predicate() const
   {
     return (substype() == Item_subselect::IN_SUBS ||
             substype() == Item_subselect::ALL_SUBS ||
             substype() == Item_subselect::ANY_SUBS);
   }
+  bool has_single_strategy() const;
 
   /*
     We need this method, because some compilers do not allow 'this'
@@ -182,6 +185,7 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
+    pushdown_tables= 0;
     const_item_cache= 0;
     forced_const= TRUE; 
   }
@@ -190,6 +194,7 @@ public:
   table_map not_null_tables() const { return 0; }
   bool const_item() const;
   inline table_map get_used_tables_cache() { return used_tables_cache; }
+  void add_pushdown_table(table_map map) { pushdown_tables |= map; }
   Item *get_tmp_table_item(THD *thd);
   void update_used_tables();
   virtual void print(String *str, enum_query_type query_type);
@@ -234,6 +239,8 @@ public:
     @retval FALSE otherwise
   */
   bool is_expensive_processor(uchar *arg) { return is_expensive(); }
+  virtual double get_cost();
+  bool collect_item_subselect_processor(uchar * arg);
 
   /**
     Get the SELECT_LEX structure associated with this Item.
@@ -261,6 +268,8 @@ public:
   friend bool convert_join_subqueries_to_semijoins(JOIN *join);
 };
 
+typedef bool (Item_subselect::*subselect_filter)() const;
+
 /* single value subselect */
 
 class Item_cache;
@@ -274,7 +283,7 @@ public:
   {}
 
   void cleanup();
-  subs_type substype() { return SINGLEROW_SUBS; }
+  subs_type substype() const { return SINGLEROW_SUBS; }
 
   void reset();
   void no_rows_in_result();
@@ -370,7 +379,7 @@ public:
     emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
   {}
 
-  subs_type substype() { return EXISTS_SUBS; }
+  subs_type substype() const { return EXISTS_SUBS; }
   void reset() 
   {
     eliminated= FALSE;
@@ -577,7 +586,7 @@ public:
     pushed_cond_guards(NULL), func(NULL), is_jtbm_merged(FALSE),
     is_jtbm_const_tab(FALSE), upper_item(0) {}
   void cleanup();
-  subs_type substype() { return IN_SUBS; }
+  subs_type substype() const { return IN_SUBS; }
   void reset() 
   {
     eliminated= FALSE;
@@ -717,7 +726,7 @@ public:
 
   void cleanup();
   // only ALL subquery has upper not
-  subs_type substype() { return all?ALL_SUBS:ANY_SUBS; }
+  subs_type substype() const { return all?ALL_SUBS:ANY_SUBS; }
   bool select_transformer(JOIN *join);
   void create_comp_func(bool invert) { func= func_creator(invert); }
   virtual void print(String *str, enum_query_type query_type);

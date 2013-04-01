@@ -1836,6 +1836,7 @@ export const char *optimizer_switch_names[]=
   "table_elimination",
   "extended_keys",
   "exists_to_in",
+  "expensive_pred_static_pushdown",
   "default", NullS
 };
 /** propagates changes to @@engine_condition_pushdown */
@@ -1878,7 +1879,8 @@ static Sys_var_flagset Sys_optimizer_switch(
         "subquery_cache, "
         "table_elimination, "
         "extended_keys, "
-        "exists_to_in "
+       "exists_to_in, "
+       "expensive_pred_static_pushdown"
        "} and val is one of {on, off, default}",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),

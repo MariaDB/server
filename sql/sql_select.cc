@@ -1021,7 +1021,10 @@ int JOIN::optimize()
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
   {
     create_explain_query_if_not_exists(thd->lex, thd->mem_root);
-    have_query_plan= QEP_AVAILABLE;
+    if (have_query_plan == QEP_INCOMPLETE)
+      have_query_plan= QEP_EXPLAINABLE;
+    else
+      have_query_plan= QEP_EXECUTABLE;
     save_explain_data(thd->lex->explain, false /* can overwrite */,
                       need_tmp,
                       !skip_sort_order && !no_order && (order || group_list),
@@ -1061,6 +1064,7 @@ JOIN::optimize_inner()
 
   set_allowed_join_cache_types();
   need_distinct= TRUE;
+  examined_rows_estimate= -1;
 
   /* Run optimize phase for all derived tables/views used in this SELECT. */
   if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
@@ -1762,12 +1766,18 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
   if (!(select_options & SELECT_DESCRIBE))
     init_ftfuncs(thd, select_lex, test(order));
 
-  if (optimize_unflattened_subqueries())
+  if (optimize_in_subqueries())
     DBUG_RETURN(1);
   
   int res;
   if ((res= rewrite_to_index_subquery_engine(this)) != -1)
+  {
+    /*
+      This subquery has been rewritten to direct index access via handler calls
+      instead of going through JOIN::exec.
+    */
     DBUG_RETURN(res);
+  }
   if (setup_subquery_caches())
     DBUG_RETURN(-1);
 
@@ -1895,7 +1905,7 @@ setup_subq_exit:
     Even with zero matching rows, subqueries in the HAVING clause may
     need to be evaluated if there are aggregate functions in the query.
   */
-  if (optimize_unflattened_subqueries())
+  if (optimize_unflattened_subqueries() || optimize_in_subqueries())
     DBUG_RETURN(1);
   error= 0;
 
@@ -3956,6 +3966,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->const_tables != join->table_count)
     optimize_keyuse(join, keyuse_array);
+
+  if (join->optimize_unflattened_subqueries())
+    DBUG_RETURN(1);
    
   if (optimize_semijoin_nests(join, all_table_map))
     DBUG_RETURN(TRUE); /* purecov: inspected */
@@ -7026,28 +7039,57 @@ void JOIN::get_prefix_cost_and_fanout(uint n_tables,
 
 
 /**
+  Compute the total cost of all subqueries of a (sub)query.
+
+  @return  the cost of all subqueries
+*/
+
+double JOIN::total_subquery_cost()
+{
+  double total_cost= 0;
+  for (SELECT_LEX_UNIT *un= select_lex->first_inner_unit();
+       un; un= un->next_unit())
+  {
+    Item_subselect *subquery_predicate= un->item;
+    if (!subquery_predicate)
+      continue;
+
+    total_cost+= subquery_predicate->get_cost();
+  }
+  return total_cost;
+}
+
+
+/**
   Estimate the number of rows that query execution will read.
 
   @todo This is a very pessimistic upper bound. Use join selectivity
   when available to produce a more realistic number.
 */
 
-double JOIN::get_examined_rows()
+double JOIN::get_examined_rows_estimate()
 {
-  ha_rows examined_rows;
-  double prev_fanout= 1;
-  JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
-  JOIN_TAB *prev_tab= tab;
-
-  examined_rows= tab->get_examined_rows();
-
-  while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
+  if (examined_rows_estimate >= 0)
+    return examined_rows_estimate;
+  else if (!(have_query_plan == QEP_EXPLAINABLE ||
+             have_query_plan == QEP_EXECUTABLE))
+    return -1;
+  else
   {
-    prev_fanout *= prev_tab->records_read;
-    examined_rows+= (ha_rows) (tab->get_examined_rows() * prev_fanout);
-    prev_tab= tab;
+    double prev_fanout= 1;
+    JOIN_TAB *tab= first_breadth_first_tab(this, WALK_OPTIMIZATION_TABS);
+    JOIN_TAB *prev_tab= tab;
+
+    examined_rows_estimate= tab->get_examined_rows_estimate();
+
+    while ((tab= next_breadth_first_tab(this, WALK_OPTIMIZATION_TABS, tab)))
+    {
+      prev_fanout *= prev_tab->records_read;
+      examined_rows_estimate+= tab->get_examined_rows_estimate() * prev_fanout;
+      prev_tab= tab;
+    }
+    return examined_rows_estimate;
   }
-  return examined_rows;
 }
 
 
@@ -7521,15 +7563,15 @@ best_extension_by_limited_search(JOIN      *join,
 				                          remaining_tables &
                                                           ~real_table_bit);
       join->positions[idx].cond_selectivity= pushdown_cond_selectivity;
-      double partial_join_cardinality= current_record_count *
-                                        pushdown_cond_selectivity;
+      join->positions[idx].partial_join_cardinality= current_record_count *
+                                                     pushdown_cond_selectivity;
       if ( (search_depth > 1) && (remaining_tables & ~real_table_bit) & allowed_tables )
       { /* Recursively expand the current partial plan */
         swap_variables(JOIN_TAB*, join->best_ref[idx], *pos);
         if (best_extension_by_limited_search(join,
                                              remaining_tables & ~real_table_bit,
                                              idx + 1,
-                                             partial_join_cardinality,
+                                             join->positions[idx].partial_join_cardinality,
                                              current_read_time,
                                              search_depth - 1,
                                              prune_level,
@@ -7547,12 +7589,100 @@ best_extension_by_limited_search(JOIN      *join,
             join->positions[join->const_tables].table->table)
           /* We have to make a temp table */
           current_read_time+= current_record_count;
+
+        /*
+          For each subquery find the partial join with the least cardinality
+          in order to minimize the number of subquery evaluations.
+        */
+        if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN) &&
+            join->conds && join->conds->with_subselect
+            /* && join->conds->is_expensive()*/)
+        {
+          /*
+            Find and store the POSITION with the least partial result cardinality
+            between the current and last POSITION in the query plan.
+          */
+          POSITION *min_pos= NULL;
+          for (POSITION *p_pos= join->positions + idx,
+                 *p_end= join->positions + join->const_tables;
+               p_pos >= p_end ;
+               p_pos--)
+          {
+            if (!min_pos ||
+                p_pos->partial_join_cardinality <=
+                min_pos->partial_join_cardinality)
+              min_pos= p_pos;
+            p_pos->least_card_pos= min_pos;
+          }
+
+          /*
+            Make subquery predicates be dependent on the table that is in the
+            partial join with the least cardinality.
+
+            TODO: this is a non-generic solution that works only for subquery
+            predicates, but not for other potentially expensive predicates.
+            However it is fast, because it traversers a list of all subqueries
+            instead of traversing the WHERE clause expression tree.
+          */
+          for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
+               un= un->next_unit())
+          {
+            Item_subselect *subs_predicate= un->item;
+            table_map subs_tables;
+            POSITION *last_pos;
+
+            if (!subs_predicate)
+              continue;
+
+            subs_tables= subs_predicate->used_tables();
+            last_pos= NULL;
+            /* Find the last query plan node on which the subquery depends. */
+            for (POSITION *p_pos= join->positions + idx,
+                   *p_end= join->positions + join->const_tables;
+                 p_pos >= p_end ;
+                 p_pos--)
+            {
+              if (p_pos->table->table->map & subs_tables)
+                last_pos= p_pos;
+            }
+            /*
+              Remember the position where the subquery is pushed,
+              update the cost of the POSITION where the subquery is pushed to,
+              recompute the total cost of the query plan.
+            */
+            if (last_pos && last_pos->least_card_pos)
+            {
+              double subs_cost;
+              uint least_card_idx= last_pos->least_card_pos - join->positions;
+              subs_predicate->set_cur_join_tab_idx(least_card_idx);
+              subs_cost= last_pos->least_card_pos->partial_join_cardinality *
+                         subs_predicate->get_cost();
+              last_pos->least_card_pos->read_time+= subs_cost;
+              current_read_time+= subs_cost;
+            }
+          }
+        }
+
         if (current_read_time < join->best_read)
         {
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
                  sizeof(POSITION) * (idx + 1));
-          join->record_count= partial_join_cardinality;
+          join->record_count= join->positions[idx].partial_join_cardinality;
           join->best_read= current_read_time - 0.001;
+          /*
+            Store the current best choice of pushdown POSITIONs for all subqueries
+          */
+          for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
+               un= un->next_unit())
+          {
+            Item_subselect *subs_predicate= un->item;
+            if (subs_predicate)
+            {
+              /* reset the value first so it can be set */
+              subs_predicate->set_join_tab_idx(-1);
+              subs_predicate->set_join_tab_idx(subs_predicate->get_cur_join_tab_idx());
+            }
+          }
         }
         DBUG_EXECUTE("opt", print_plan(join, idx+1,
                                        current_record_count,
@@ -7562,6 +7692,14 @@ best_extension_by_limited_search(JOIN      *join,
       }
       restore_prev_nj_state(s);
       restore_prev_sj_state(remaining_tables, s, idx);
+      /* Restore the table dependencies of all subquery predicates. */
+      for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
+           un= un->next_unit())
+      {
+        Item_subselect *subs_predicate= un->item;
+        if (subs_predicate)
+          subs_predicate->set_cur_join_tab_idx(-1);
+      }
     }
   }
   DBUG_RETURN(FALSE);
@@ -8165,6 +8303,26 @@ get_best_combination(JOIN *join)
 
   used_tables= OUTER_REF_TABLE_BIT;		// Outer row is already read
 
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_EXPENSIVE_PRED_STATIC_PUSHDOWN))
+  {
+    for (SELECT_LEX_UNIT *un= join->select_lex->first_inner_unit(); un;
+         un= un->next_unit())
+    {
+      Item_subselect *subs_predicate= un->item;
+      int idx;
+      table_map map;
+      if (!subs_predicate)
+        continue;
+      idx= subs_predicate->get_join_tab_idx();
+      if (idx >= 0)
+      {
+        DBUG_ASSERT((uint)idx < join->table_count);
+        map= join->best_positions[idx].table->table->map;
+        subs_predicate->add_pushdown_table(map);
+      }
+    }
+  }
+
   fix_semijoin_strategies_for_picked_join_order(join);
   
   JOIN_TAB_RANGE *root_range;
@@ -8205,7 +8363,8 @@ get_best_combination(JOIN *join)
            sub-order
       */
       SJ_MATERIALIZATION_INFO *sjm= cur_pos->table->emb_sj_nest->sj_mat_info;
-      j->records= j->records_read= (ha_rows)(sjm->is_sj_scan? sjm->rows : 1);
+      j->records_read= sjm->is_sj_scan? sjm->rows : 1;
+      j->records= (ha_rows) j->records_read;
       j->cond_selectivity= 1.0;
       JOIN_TAB *jt;
       JOIN_TAB_RANGE *jt_range;
@@ -8269,7 +8428,7 @@ get_best_combination(JOIN *join)
       Save records_read in JOIN_TAB so that select_describe()/etc don't have
       to access join->best_positions[]. 
     */
-    j->records_read= (ha_rows)join->best_positions[tablenr].records_read;
+    j->records_read= join->best_positions[tablenr].records_read;
     j->cond_selectivity= join->best_positions[tablenr].cond_selectivity;
     join->map2table[j->table->tablenr]= j;
 
@@ -10354,6 +10513,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     if ((tab->cache= new JOIN_CACHE_BNL(join, tab, prev_cache)) &&
         ((options & SELECT_DESCRIBE) || !tab->cache->init()))
     {
+      if (options & SELECT_DESCRIBE)
+        join->have_query_plan= JOIN::QEP_INCOMPLETE;
       tab->icp_other_tables_ok= FALSE;
       return (2-test(!prev_cache));
     }
@@ -10389,6 +10550,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       if ((tab->cache= new JOIN_CACHE_BNLH(join, tab, prev_cache)) &&
           ((options & SELECT_DESCRIBE) || !tab->cache->init()))
       {
+        if (options & SELECT_DESCRIBE)
+          join->have_query_plan= JOIN::QEP_INCOMPLETE;
         tab->icp_other_tables_ok= FALSE;        
         return (4-test(!prev_cache));
       }
@@ -10409,7 +10572,11 @@ uint check_join_cache_usage(JOIN_TAB *tab,
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
             ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+        {
+          if (options & SELECT_DESCRIBE)
+            join->have_query_plan= JOIN::QEP_INCOMPLETE;
           return (6-test(!prev_cache));
+        }
         goto no_join_cache;
       }
       else
@@ -10419,7 +10586,9 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         if ((tab->cache= new JOIN_CACHE_BKAH(join, tab, flags, prev_cache)) &&
             ((options & SELECT_DESCRIBE) || !tab->cache->init()))
 	{
-         tab->idx_cond_fact_out= FALSE;
+          if (options & SELECT_DESCRIBE)
+            join->have_query_plan= JOIN::QEP_INCOMPLETE;
+          tab->idx_cond_fact_out= FALSE;
           return (8-test(!prev_cache));
         }
         goto no_join_cache;
@@ -11057,9 +11226,9 @@ double JOIN_TAB::scan_time()
   @todo: why not use JOIN_TAB::found_records
 */
 
-ha_rows JOIN_TAB::get_examined_rows()
+double JOIN_TAB::get_examined_rows_estimate()
 {
-  ha_rows examined_rows;
+  double examined_rows;
 
   if (select && select->quick && use_quick != 2)
     examined_rows= select->quick->records;
@@ -11089,7 +11258,7 @@ ha_rows JOIN_TAB::get_examined_rows()
     }
   }
   else
-    examined_rows= (ha_rows) records_read; 
+    examined_rows= records_read;
 
   return examined_rows;
 }
@@ -16954,6 +17123,13 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
       sufficient to check only the condition pseudo_bits_cond.
     */
     DBUG_ASSERT(join->outer_ref_cond == NULL);
+    DBUG_EXECUTE_IF("show_explain_probe_do_select_const", 
+                    if (dbug_user_var_equals_int(join->thd, 
+                                                 "show_explain_probe_select_id", 
+                                                 join->select_lex->select_number))
+                          dbug_serve_apcs(join->thd, 1);
+                   );
+
     if (!join->pseudo_bits_cond || join->pseudo_bits_cond->val_int())
     {
       error= (*end_select)(join, 0, 0);
@@ -19062,6 +19238,22 @@ make_cond_for_table(THD *thd, Item *cond, table_map tables,
 }
 
 
+static int compare_items_by_cost(Item* it1, Item* it2, void *arg)
+{
+  double cost1= 0, cost2= 0;
+
+  it1->walk(&Item::sum_cost_processor, false, (uchar*) &cost1);
+  it2->walk(&Item::sum_cost_processor, false, (uchar*) &cost2);
+
+  if (cost1 == cost2)
+    return 0;
+  if (cost1 > cost2)
+    return -1;
+  else
+    return 1;
+}
+
+
 static Item *
 make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
                               table_map tables, table_map used_table,
@@ -19109,6 +19301,11 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 	new_cond->used_tables_cache=
 	  ((Item_cond_and*) cond)->used_tables_cache &
 	  tables;
+        /*
+          Move expensive conditions to the end of the AND list to reduce the
+          number of times they are evaluated.
+        */
+        bubble_sort<Item>(new_cond->argument_list(), compare_items_by_cost, NULL);
 	return new_cond;
       }
     }
@@ -19138,6 +19335,11 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
       new_cond->fix_fields(thd, 0);
       new_cond->used_tables_cache= ((Item_cond_or*) cond)->used_tables_cache;
       new_cond->top_level_item();
+      /*
+        Move expensive conditions to the end of the AND list to reduce the
+        number of times they are evaluated.
+      */
+      bubble_sort<Item>(new_cond->argument_list(), compare_items_by_cost, NULL);
       return new_cond;
     }
   }
@@ -22969,7 +23171,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
 		      (ulong)join->select_lex, join->select_lex->type,
 		      message ? message : "NULL"));
-  DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
+  DBUG_ASSERT(on_the_fly? (have_query_plan == QEP_EXPLAINABLE ||
+                           have_query_plan == QEP_EXECUTABLE) : TRUE);
   /* Don't log this into the slow query log */
 
   if (message)
@@ -23220,7 +23423,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       }
       else
       {
-        ha_rows examined_rows= tab->get_examined_rows();
+        double examined_rows= tab->get_examined_rows_estimate();
 
         eta->rows_set= true;
         eta->rows= examined_rows;
