@@ -7,6 +7,34 @@ set @save_use_stat_tables=@@use_stat_tables;
 
 set use_stat_tables='preferably';
 
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
+
+# check that statistics on nulls is used
+
+set optimizer_use_condition_selectivity=3;
+
+create table t1 (a int);
+insert into t1 values
+  (9), (3), (2), (NULL), (NULL), (2), (NULL), (1), (5), (NULL);
+
+analyze table t1;
+
+select * from mysql.column_stats;
+
+flush table t1;
+
+explain extended 
+select * from t1 where a is null;
+
+explain extended 
+select * from t1 where a is not null;
+
+drop table t1;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
 --disable_warnings
 DROP DATABASE IF EXISTS dbt3_s001;
 --enable_warnings
@@ -14,10 +42,6 @@ DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 
 use dbt3_s001;
-
-set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
-set @save_histogram_size=@@histogram_size;
-set @save_histogram_type=@@histogram_type;
 
 --disable_query_log
 --disable_result_log

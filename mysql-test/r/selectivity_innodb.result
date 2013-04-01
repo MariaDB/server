@@ -9,12 +9,37 @@ select @@session.use_stat_tables;
 COMPLEMENTARY
 set @save_use_stat_tables=@@use_stat_tables;
 set use_stat_tables='preferably';
-DROP DATABASE IF EXISTS dbt3_s001;
-CREATE DATABASE dbt3_s001;
-use dbt3_s001;
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
 set @save_histogram_size=@@histogram_size;
 set @save_histogram_type=@@histogram_type;
+set optimizer_use_condition_selectivity=3;
+create table t1 (a int);
+insert into t1 values
+(9), (3), (2), (NULL), (NULL), (2), (NULL), (1), (5), (NULL);
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select * from mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	1	9	0.4000	4.0000	1.2000	0	NULL	NULL
+flush table t1;
+explain extended 
+select * from t1 where a is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	40.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where isnull(`test`.`t1`.`a`)
+explain extended 
+select * from t1 where a is not null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` is not null)
+drop table t1;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP DATABASE IF EXISTS dbt3_s001;
+CREATE DATABASE dbt3_s001;
+use dbt3_s001;
 === Q15 ===
 create view revenue0 (supplier_no, total_revenue) as
 select l_suppkey, sum(l_extendedprice * (1 - l_discount))
