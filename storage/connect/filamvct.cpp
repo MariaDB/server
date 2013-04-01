@@ -29,7 +29,7 @@
 #endif   // __BORLAND__
 //#include <windows.h>
 #include <sys/stat.h>
-#else   // !WIN32
+#else   // !WIN32              F
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -1383,7 +1383,8 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);
-      return ResetTableSize(g, 0, Nrec);
+      bool rc = ResetTableSize(g, 0, Nrec);
+      return (mapmode == MODE_UPDATE) ? true : rc;
       } // endif len
 
     if (!Memory) {
@@ -3162,18 +3163,29 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
 #if defined(WIN32)
+  LARGE_INTEGER len;
+
   h = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h != INVALID_HANDLE_VALUE) {
+    // Get the size of the file (can be greater than 4 GB)
+    len.LowPart = GetFileSize(h, (LPDWORD)&len.HighPart);
+    } // endif h
+
+  if (h == INVALID_HANDLE_VALUE || !len.QuadPart) {
 #else   // !WIN32
   h = open64(filename, O_RDONLY, 0);
 
-  if (h == INVALID_HANDLE_VALUE) {
+  if (h == INVALID_HANDLE_VALUE || !_filelength(h)) {
 #endif  // !WIN32
     // Consider this is a void table
     Last = Nrec; 
     Block = 0;
+
+    if (h != INVALID_HANDLE_VALUE)
+      CloseFileHandle(h);
+
     return n;
   } else if (Header == 3) 
     b =  BigSeek(g, h, -(BIGINT)sizeof(vh), true);
@@ -3250,7 +3262,7 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     rc = true;
     } // endif fread
 
-  if (Header > 1 || Hfile == INVALID_HANDLE_VALUE)
+  if (Header == 2 || Hfile == INVALID_HANDLE_VALUE)
     CloseFileHandle(h);
 
   return rc;
@@ -3261,16 +3273,20 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
 /***********************************************************************/
 bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
   {
-#if defined(WIN32)
   // Vector formatted file this will create an empty file of the
   // required length if it does not exists yet.
-  char         *p, filename[_MAX_PATH], c = 0;
+  char          filename[_MAX_PATH], c = 0;
+  int           n = (Header == 1 || Header == 3) ? sizeof(VECHEADER) : 0;
+
+  PlugSetPath(filename, fn, Tdbp->GetPath());
+
+#if defined(WIN32)
+  char         *p;
   DWORD         rc;
   bool          brc;
   LARGE_INTEGER of;
   HANDLE        h;
 
-  PlugSetPath(filename, fn, Tdbp->GetPath());
   h = CreateFile(filename, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
                            FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -3279,7 +3295,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
     goto err;
     } // endif h
 
-  of.QuadPart = (BIGINT)Headlen + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
+  of.QuadPart = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
   of.LowPart = SetFilePointer(h, of.LowPart,
                                 &of.HighPart, FILE_BEGIN);
@@ -3313,8 +3329,26 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   return true;
 #else   // !WIN32
-  strcpy(g->Message, MSG(MKEMPTY_NIY));
-  return true;
+  int    h;
+  BIGINT pos;
+
+  h= global_open64(g, MSGID_OPEN_EMPTY_FILE, filename,  
+                   O_CREAT | O_WRONLY, S_IREAD | S_IWRITE);
+
+  if (h == -1)
+    return true;
+
+  pos = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
+
+  if (lseek64(h, pos, SEEK_SET) < 0) {
+    sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
+    close(h);
+    return true;
+    } // endif h
+
+  write(h, &c, 1);     // This actually fills the empty file
+  close(h);
+  return false;
 #endif  // !WIN32
   } // end of MakeEmptyFile
 

@@ -99,8 +99,12 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Header = Cat->GetIntCatInfo("Header", 0);
 
   // CONNECT must have Block/Last info for VEC tables
-  if (Estimate && !Split && !Header)
-    Header = 2;
+  if (Estimate && !Split && !Header) {
+    char *fn = Cat->GetStringCatInfo(g, "Filename", "?");
+
+    // No separate header file fo urbi tables
+    Header = (*fn == '?') ? 3 : 2;
+    } // endif Estimate
 
   Recfm = RECFM_VCT;
 
