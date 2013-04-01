@@ -3386,7 +3386,7 @@ double get_column_range_cardinality(Field *field,
     {
       double sel, min_mp_pos, max_mp_pos;
 
-      if (min_endp)
+      if (min_endp && !min_endp->key[0])
       {
         store_key_image_to_rec(field, (uchar *) min_endp->key,
                                min_endp->length);
