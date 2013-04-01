@@ -3342,25 +3342,41 @@ double get_column_range_cardinality(Field *field,
   double res;
   TABLE *table= field->table;
   Column_statistics *col_stats= table->field[field->field_index]->read_stats;
+  double tab_records= table->stat_records();
 
   if (!col_stats)
-    res= table->stat_records();
+    return tab_records;
+
+  double col_nulls= tab_records * col_stats->get_nulls_ratio();
+
+  double col_non_nulls= tab_records - col_nulls;
+
+  if (col_non_nulls < 1)
+    res= 0;
   else if (min_endp && max_endp && min_endp->length == max_endp->length &&
            !memcmp(min_endp->key, max_endp->key, min_endp->length))
   { 
-    double avg_frequency= col_stats->get_avg_frequency();
-    res= avg_frequency;   
-    if (avg_frequency > 1.0 + 0.000001 && 
-        col_stats->min_value && col_stats->max_value)
+    if (field->null_ptr && min_endp->key[0])
     {
-      Histogram *hist= &col_stats->histogram;
-      if (hist->get_size() > 0)
+      /* This is null single point range */
+      res= col_nulls;
+    }
+    else
+    {
+      double avg_frequency= col_stats->get_avg_frequency();
+      res= avg_frequency;   
+      if (avg_frequency > 1.0 + 0.000001 && 
+          col_stats->min_value && col_stats->max_value)
       {
-        double pos= field->middle_point_pos(col_stats->min_value,
-                                            col_stats->max_value);
-        res= table->stat_records() * 
-	     hist->point_selectivity(pos,
-                                     avg_frequency / table->stat_records());
+        Histogram *hist= &col_stats->histogram;
+        if (hist->get_size() > 0)
+        {
+          double pos= field->middle_point_pos(col_stats->min_value,
+                                              col_stats->max_value);
+          res= col_non_nulls * 
+	       hist->point_selectivity(pos,
+                                       avg_frequency / col_non_nulls);
+        }
       }
     }
   }  
@@ -3394,10 +3410,10 @@ double get_column_range_cardinality(Field *field,
         sel= (max_mp_pos - min_mp_pos);
       else
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
-      res= table->stat_records() * sel;
+      res= col_non_nulls * sel;
     }
     else
-      res= table->stat_records();
+      res= col_non_nulls;
   }
   return res;
 }
