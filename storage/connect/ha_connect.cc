@@ -3997,7 +3997,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 #endif   // !LIBXML2_SUPPORT
 
     if (!xsup)
-      push_warning(table->in_use, 
+      push_warning(table_arg->in_use, 
                    MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
 
     } // endif type
