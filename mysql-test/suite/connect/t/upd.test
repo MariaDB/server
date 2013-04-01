@@ -41,9 +41,27 @@ CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
+--echo # Testing DOS table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
 --echo # Testing FIX table changes
 --echo #
 CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing FIX table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing FIX table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
@@ -53,9 +71,21 @@ CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
+--echo # Testing CSV table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
 --echo # Testing DBF table changes
 --echo #
 CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing DBF table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
@@ -65,9 +95,33 @@ CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
+--echo # Testing BIN table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing BIN table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
 --echo # Testing VEC table changes
 --echo #
 CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing VEC table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CALL test.tst_up();
+
+--echo #
+--echo # Testing VEC table changes
+--echo #
+CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
