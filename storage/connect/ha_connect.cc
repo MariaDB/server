@@ -2912,8 +2912,17 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
-      return options->filename ?
-             check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0) : false;
+      if (!options->filename)
+        return false;
+      char path[FN_REFLEN];
+      (void) fn_format(path, options->filename, mysql_real_data_home, "",
+                       MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
+      if (!is_secure_file_path(path))
+      {
+        my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--secure-file-priv");
+        return true;
+      }
+      /* Fall through to check FILE_ACL */
 
     case TAB_ODBC:
     case TAB_MYSQL:
