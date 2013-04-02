@@ -319,8 +319,8 @@ SELECT sec2 AS s, val2 AS v FROM t1;
 s	v
 sec1	val11
 sec2	val22
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.INI'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.INI'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
 [sec1]
 val2=val11
 [sec2]
@@ -341,8 +341,8 @@ SELECT sec AS s, val AS v FROM t1;
 s	v
 1sec1	1val1
 1sec2	1val2
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.INI'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.INI'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t1.ini'),'\r\n','\n'),'\n\n','\n')
 [1sec1]
 val=1val1
 [1sec2]
@@ -352,8 +352,8 @@ SELECT sec AS s, val AS v FROM t2;
 s	v
 2sec1	2val1
 2sec2	2val2
-SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.INI'),'\r\n','\n'),'\n\n','\n');;
-REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.INI'),'\r\n','\n'),'\n\n','\n')
+SELECT REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n');;
+REPLACE(REPLACE(LOAD_FILE('DATADIR/test/t2.ini'),'\r\n','\n'),'\n\n','\n')
 [2sec1]
 val=2val1
 [2sec2]
