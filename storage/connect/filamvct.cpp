@@ -10,7 +10,7 @@
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
 /*  This program are the VCT file access method classes.               */
-/*  Added in version 2:                                                */
+/*  Added in version 2:      F                                          */
 /*  - Split Vec format.                                                */
 /*  - Partial delete.                                                  */
 /*  - Use of tempfile for update.                                       */
@@ -65,6 +65,7 @@
 
 extern int num_read, num_there;                          // Statistics
 static int num_write;
+extern "C" int trace;
 
 #if defined(UNIX)
 // Add dummy strerror  (NGC)
@@ -302,10 +303,9 @@ int VCTFAM::Cardinality(PGLOBAL g)
         else
           sprintf(g->Message, MSG(NOT_FIXED_LEN), To_File, len, clen);
 
-#ifdef DEBTRACE
- htrc(" Computed max_K=%d Filen=%d Clen=%d\n",
-  card, len, clen);
-#endif
+      if (trace)
+        htrc(" Computed max_K=%d Filen=%d Clen=%d\n", card, len, clen);
+
       } else
         card = 0;
   
@@ -430,16 +430,15 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
+
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
-#ifdef DEBTRACE
- htrc("File %s is open in mode %s\n", filename, opmode);
-#endif
+  if (trace)
+    htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fb = dbuserp->Openlist;     // Keep track of File block
 
@@ -601,10 +600,9 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
     OldBlk = CurBlk;             // Last block actually read
     } // endif oldblk
 
-#ifdef DEBTRACE
- htrc(" Read: CurNum=%d CurBlk=%d rc=%d\n",
-  CurNum, CurBlk, RC_OK);
-#endif
+  if (trace)
+    htrc(" Read: CurNum=%d CurBlk=%d rc=%d\n", CurNum, CurBlk, RC_OK);
+
   return rc;
   } // end of ReadBuffer
 
@@ -613,10 +611,9 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int VCTFAM::WriteBuffer(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
-  Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
-#endif
+  if (trace)
+    htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
+          Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
   if (Tdbp->GetMode() == MODE_UPDATE) {
     // Mode Update is done in ReadDB, we just initialize it here
@@ -706,20 +703,20 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
 int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   bool eof = false;
-#ifdef DEBTRACE
- fprintf(debug,
-  "VCT DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
-  irc, UseTemp, Fpos, Tpos, Spos);
-#endif
+  
+  if (trace)
+    htrc("VCT DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
+          irc, UseTemp, Fpos, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-#ifdef DEBTRACE
- htrc("Fpos placed at file end=%d\n", Fpos);
-#endif
+    
+    if (trace)
+      htrc("Fpos placed at file end=%d\n", Fpos);
+
     eof = UseTemp && !MaxBlk;
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
@@ -753,14 +750,13 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     /*  Reposition the file pointer and set Spos.                      */
     /*******************************************************************/
-#ifdef DEBTRACE
+#ifdef _DEBUG
     assert(Spos == Fpos);
 #endif
     Spos++;          // New start position is on next line
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
     /*******************************************************************/
@@ -808,9 +804,9 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 
         close(h);
 
-#ifdef DEBTRACE
- htrc("done, h=%d irc=%d\n", h, irc);
-#endif
+        if (trace)
+          htrc("done, h=%d irc=%d\n", h, irc);
+
       } else
         // Clean the unused space in the file, this is required when
         // inserting again with a partial column list.
@@ -850,9 +846,9 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
     opmode = "wb";
 
   if (!(T_Stream = PlugOpenFile(g, tempname, opmode))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
+
     rc = true;
   } else
     To_Fbt = PlgGetUser(g)->Openlist;
@@ -898,9 +894,8 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       len = fread(To_Buf, Clens[i], req, Stream);
 
-#ifdef DEBTRACE
- htrc("after read req=%d len=%d\n", req, len);
-#endif
+      if (trace)
+        htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
         sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
@@ -928,9 +923,9 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
         } // endif UseTemp
 
-#ifdef DEBTRACE
- htrc("after write pos=%d\n", ftell(Stream));
-#endif
+      if (trace)
+        htrc("after write pos=%d\n", ftell(Stream));
+
       } // endfor i
 
     Tpos += (int)req;
@@ -959,9 +954,9 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       } // endif UseTemp
 
-#ifdef DEBTRACE
- htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
+
     } // endfor n
 
   return false;
@@ -1094,10 +1089,10 @@ void VCTFAM::CloseTableFile(PGLOBAL g)
   if (!(UseTemp && T_Stream))
     rc = PlugCloseFile(g, To_Fb);
 
-#ifdef DEBTRACE
- htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n",
-  To_File, wrc, rc);
-#endif
+  if (trace)
+    htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n",
+          To_File, wrc, rc);
+
   Stream = NULL;
   } // end of CloseTableFile
 
@@ -1168,10 +1163,9 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   else                                        // Blocked vector format
     len = Nrec * (colp->Deplac + Lrecl * CurBlk);
 
-#ifdef DEBTRACE
- htrc("len=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d maxblk=%d\n",
-  len, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
-#endif
+  if (trace)
+    htrc("len=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d maxblk=%d\n",
+          len, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
 
   if (fseek(Stream, len, SEEK_SET)) {
     sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
@@ -1188,15 +1182,15 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
       sprintf(g->Message, MSG(READ_ERROR),
               To_File, strerror(errno));
 
-#ifdef DEBTRACE
- htrc(" Read error: %s\n", g->Message);
-#endif
+    if (trace)
+      htrc(" Read error: %s\n", g->Message);
+
     return true;
     } // endif
 
-#ifdef DEBTRACE
-  num_read++;
-#endif
+  if (trace)
+    num_read++;
+
   return false;
   } // end of ReadBlock
 
@@ -1220,10 +1214,9 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   else                                      // Old VCT format
     len = Nrec * (colp->Deplac + Lrecl * colp->ColBlk);
 
-#ifdef DEBTRACE
- htrc("modif=%d len=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
-  Modif, len, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
-#endif
+  if (trace)
+    htrc("modif=%d len=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
+          Modif, len, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
   if (fseek(T_Stream, len, SEEK_SET)) {
     sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
@@ -1239,9 +1232,10 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
                             (size_t)colp->Clen, n, T_Stream)) {
     sprintf(g->Message, MSG(WRITE_STRERROR),
             (UseTemp) ? To_Fbt->Fname : To_File, strerror(errno));
-#ifdef DEBTRACE
- htrc("Write error: %s\n", strerror(errno));
-#endif
+            
+    if (trace)
+      htrc("Write error: %s\n", strerror(errno));
+
     return true;
     } // endif
 
@@ -1310,9 +1304,9 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-#ifdef DEBTRACE
- htrc("Mapping VCM file, fp=%p cnt=%d\n", fp, fp->Count);
-#endif
+    if (trace)
+      htrc("Mapping VCM file, fp=%p cnt=%d\n", fp, fp->Count);
+
   } else
     fp = NULL;
 
@@ -1368,9 +1362,9 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+      if (trace)
+        htrc("%s\n", g->Message);
+
       return (mode == MODE_READ && rc == ENOENT)
               ? PushWarning(g, Tdbp) : true;
       } // endif hFile
@@ -1420,10 +1414,9 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
 
   To_Fb = fp;                               // Useful when closing
 
-#ifdef DEBTRACE
- htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
-  fp, fp->Count, Memory, len);
-#endif
+  if (trace)
+    htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
+          fp, fp->Count, Memory, len);
 
   return AllocateBuffer(g);
   } // end of OpenTableFile
@@ -1523,10 +1516,9 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 /***********************************************************************/
 int VCMFAM::WriteBuffer(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("VCM WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
-  Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
-#endif
+  if (trace)
+    htrc("VCM WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
+          Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
   // Mode Update being done in ReadDB we process here Insert mode only.
   if (Tdbp->GetMode() == MODE_INSERT) {
@@ -1568,20 +1560,19 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
   int  i;
   int m, n;
 
-#ifdef DEBTRACE
- fprintf(debug,
-  "VCM DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
-  irc, To_Buf, Tpos, Spos);
-#endif
+  if (trace)
+    htrc("VCM DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
+                        irc, To_Buf, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-#ifdef DEBTRACE
- htrc("Fpos placed at file top=%p\n", Fpos);
-#endif
+    
+    if (trace)
+      htrc("Fpos placed at file top=%p\n", Fpos);
+
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
@@ -1627,17 +1618,16 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       Tpos += n;
     } // endif MaxBlk
 
-#ifdef DEBTRACE
- htrc("move %d bytes\n", n);
-#endif
+    if (trace)
+      htrc("move %d bytes\n", n);
+
     } // endif n
 
   if (irc == RC_OK) {
     Spos = Fpos + 1;                               // New start position
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else {
     /*******************************************************************/
@@ -1676,9 +1666,8 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
         } // endif
 
-#ifdef DEBTRACE
- htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
-#endif
+      if (trace)
+        htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
         sprintf(g->Message, MSG(FUNCTION_ERROR),
@@ -1760,17 +1749,16 @@ bool VCMFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   /*********************************************************************/
   mempos = Memcol[i] + n * CurBlk;
 
-#ifdef DEBTRACE
- htrc("mempos=%p i=%d Nrec=%d Clen=%d CurBlk=%d\n",
-  mempos, i, Nrec, colp->Clen, CurBlk);
-#endif
+  if (trace)
+    htrc("mempos=%p i=%d Nrec=%d Clen=%d CurBlk=%d\n",
+          mempos, i, Nrec, colp->Clen, CurBlk);
 
   if (colp->GetStatus(BUF_MAPPED))
     colp->Blk->SetValPointer(mempos);
 
-#ifdef DEBTRACE
-  num_read++;
-#endif
+  if (trace)
+    num_read++;
+
   return false;
   } // end of ReadBlock
 
@@ -1785,17 +1773,16 @@ bool VCMFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 #if defined(_DEBUG)
   char *mempos;
   int   i = colp->Index - 1;
-  int  n = Nrec * colp->Clen;
+  int   n = Nrec * colp->Clen;
 
   /*********************************************************************/
   /*  Calculate the offset and size of the block to write.             */
   /*********************************************************************/
   mempos = Memcol[i] + n * CurBlk;
 
-#ifdef DEBTRACE
- htrc("modif=%d mempos=%p i=%d Nrec=%d Clen=%d colblk=%d\n",
-  Modif, mempos, i, Nrec, colp->Clen, colp->ColBlk);
-#endif
+  if (trace)
+    htrc("modif=%d mempos=%p i=%d Nrec=%d Clen=%d colblk=%d\n",
+          Modif, mempos, i, Nrec, colp->Clen, colp->ColBlk);
 
 #endif // _DEBUG
 
@@ -1954,16 +1941,15 @@ bool VECFAM::OpenColumnFile(PGLOBAL g, char *opmode, int i)
   sprintf(filename, Colfn, i+1);
 
   if (!(Streams[i] = PlugOpenFile(g, filename, opmode))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
+
     return (Tdbp->GetMode() == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Streams
 
-#ifdef DEBTRACE
- htrc("File %s is open in mode %s\n", filename, opmode);
-#endif
+  if (trace)
+    htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fbs[i] = dup->Openlist;       // Keep track of File blocks
   return false;
@@ -2110,10 +2096,9 @@ void VECFAM::ResetBuffer(PGLOBAL g)
 /***********************************************************************/
 int VECFAM::WriteBuffer(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
-  Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
-#endif
+  if (trace)
+    htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
+          Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
   if (Tdbp->GetMode() == MODE_INSERT) {
     if (Closing || ++CurNum == Nrec) {
@@ -2161,20 +2146,19 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
   /*      file, and at the end erase all trailing records.             */
   /*  This depends on the Check setting, false by default.             */
   /*********************************************************************/
-#ifdef DEBTRACE
- fprintf(debug,
-  "VEC DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
-  irc, UseTemp, Fpos, Tpos, Spos);
-#endif
+  if (trace)
+    htrc("VEC DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
+          irc, UseTemp, Fpos, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = Cardinality(g);
-#ifdef DEBTRACE
- htrc("Fpos placed at file end=%d\n", Fpos);
-#endif
+    
+    if (trace)
+      htrc("Fpos placed at file end=%d\n", Fpos);
+
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
@@ -2201,14 +2185,13 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
     return RC_FX;
 
   if (irc == RC_OK) {
-#ifdef DEBTRACE
+#ifdef _DEBUG
     assert(Spos == Fpos);
 #endif
     Spos++;          // New start position is on next line
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
     /*******************************************************************/
@@ -2250,9 +2233,9 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 
         close(h);
 
-#ifdef DEBTRACE
- htrc("done, h=%d irc=%d\n", h, irc);
-#endif
+        if (trace)
+          htrc("done, h=%d irc=%d\n", h, irc);
+
         } // endfor i
 
     } else        // UseTemp
@@ -2288,9 +2271,9 @@ bool VECFAM::OpenTempFile(PGLOBAL g)
       sprintf(tempname, Tempat, i+1);
 
       if (!(T_Streams[i] = PlugOpenFile(g, tempname, "wb"))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+        if (trace)
+          htrc("%s\n", g->Message);
+
         return true;
       } else
         T_Fbs[i] = PlgGetUser(g)->Openlist;
@@ -2348,9 +2331,8 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
 
       len = fread(To_Buf, Clens[i], req, Streams[i]);
 
-#ifdef DEBTRACE
- htrc("after read req=%d len=%d\n", req, len);
-#endif
+      if (trace)
+        htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
         sprintf(g->Message, MSG(DEL_READ_ERROR), (int) req, (int) len);
@@ -2368,17 +2350,16 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
         return true;
         } // endif
 
-#ifdef DEBTRACE
- htrc("after write pos=%d\n", ftell(Streams[i]));
-#endif
+      if (trace)
+        htrc("after write pos=%d\n", ftell(Streams[i]));
+
       } // endfor i
 
     Tpos += (int)req;
     Spos += (int)req;
 
-#ifdef DEBTRACE
- htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     b = true;
     } // endfor n
@@ -2496,10 +2477,9 @@ void VECFAM::CloseTableFile(PGLOBAL g)
         To_Fbs[i] = NULL;
         } // endif Streams
 
-#ifdef DEBTRACE
- htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n",
-  To_File, wrc, rc);
-#endif
+  if (trace)
+    htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n", To_File, wrc, rc);
+
   } // end of CloseTableFile
 
 /***********************************************************************/
@@ -2516,10 +2496,9 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   len = Nrec * colp->Clen * CurBlk;
   i = colp->Index - 1;
 
-#ifdef DEBTRACE
- htrc("len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d\n",
-  len, i, Nrec, colp->Deplac, Lrecl, CurBlk);
-#endif
+  if (trace)
+    htrc("len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d\n",
+          len, i, Nrec, colp->Deplac, Lrecl, CurBlk);
 
   if (fseek(Streams[i], len, SEEK_SET)) {
     sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
@@ -2543,15 +2522,15 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
       sprintf(g->Message, MSG(READ_ERROR),
               fn, strerror(errno));
 
-#ifdef DEBTRACE
- htrc(" Read error: %s\n", g->Message);
-#endif
+    if (trace)
+      htrc(" Read error: %s\n", g->Message);
+
     return true;
     } // endif
 
-#ifdef DEBTRACE
-  num_read++;
-#endif
+  if (trace)
+    num_read++;
+
   return false;
   } // end of ReadBlock
 
@@ -2572,10 +2551,9 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   len = Nrec * colp->Clen * colp->ColBlk;
   i = colp->Index - 1;
 
-#ifdef DEBTRACE
- htrc("modif=%d len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
-  Modif, len, i, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
-#endif
+  if (trace)
+    htrc("modif=%d len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
+          Modif, len, i, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
   if (Tdbp->GetMode() == MODE_UPDATE && !UseTemp)
     if (fseek(T_Streams[i], len, SEEK_SET)) {
@@ -2595,9 +2573,10 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 
     sprintf(fn, (UseTemp) ? Tempat : Colfn, colp->Index);
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-#ifdef DEBTRACE
- htrc("Write error: %s\n", strerror(errno));
-#endif
+    
+    if (trace)
+      htrc("Write error: %s\n", strerror(errno));
+
     return true;
   } else
     Spos = Fpos + n;
@@ -2605,11 +2584,6 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 #if defined(UNIX)
   fflush(Streams[i]); //NGC
 #endif
-
-#ifdef DEBTRACE
-//num_write++;
-#endif
-
   return false;
   } // end of WriteBlock
 
@@ -2740,9 +2714,9 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
                      && fp->Count && fp->Mode == mode)
         break;
 
-#ifdef DEBTRACE
- htrc("Mapping file, fp=%p\n", fp);
-#endif
+    if (trace)
+      htrc("Mapping file, fp=%p\n", fp);
+
   } else
     fp = NULL;
 
@@ -2765,9 +2739,9 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
       if (!(*g->Message))
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+      if (trace)
+        htrc("%s\n", g->Message);
+
       return (mode == MODE_READ && rc == ENOENT)
               ? PushWarning(g, Tdbp) : true;
       } // endif hFile
@@ -2817,10 +2791,9 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
 
   To_Fbs[i] = fp;                              // Useful when closing
 
-#ifdef DEBTRACE
- htrc("fp=%p count=%d MapView=%p len=%d\n",
-  fp, fp->Count, Memcol[i], len);
-#endif
+  if (trace)
+    htrc("fp=%p count=%d MapView=%p len=%d\n",
+          fp, fp->Count, Memcol[i], len);
 
   return false;
   } // end of MapColumnFile
@@ -2863,20 +2836,19 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
   int  i;
   int m, n;
 
-#ifdef DEBTRACE
- fprintf(debug,
-  "VMP DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
-  irc, To_Buf, Tpos, Spos);
-#endif
+  if (trace)
+    htrc("VMP DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
+                        irc, To_Buf, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-#ifdef DEBTRACE
- htrc("Fpos placed at file top=%p\n", Fpos);
-#endif
+    
+    if (trace)
+      htrc("Fpos placed at file top=%p\n", Fpos);
+
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
@@ -2897,17 +2869,16 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 
     Tpos += n;
 
-#ifdef DEBTRACE
- htrc("move %d bytes\n", n);
-#endif
+    if (trace)
+      htrc("move %d bytes\n", n);
+
     } // endif n
 
   if (irc == RC_OK) {
     Spos = Fpos + 1;                               // New start position
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else {
     /*******************************************************************/
@@ -2937,9 +2908,8 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
         } // endif
 
-#ifdef DEBTRACE
- htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
-#endif
+      if (trace)
+        htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
         sprintf(g->Message, MSG(FUNCTION_ERROR),
@@ -3045,9 +3015,8 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
-#ifdef DEBTRACE
- htrc("after read req=%d brc=%d nbr=%d\n", req, brc, nbr);
-#endif
+  if (trace)
+    htrc("after read req=%d brc=%d nbr=%d\n", req, brc, nbr);
 
   if (!brc || nbr != len) {
     char buf[256];  // , *fn = (h == Hfile) ? To_File : "Tempfile";
@@ -3062,9 +3031,10 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
       } // endelse brc
 
     sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
-#ifdef DEBTRACE
- htrc("BIGREAD: %s\n", g->Message);
-#endif
+    
+    if (trace)
+      htrc("BIGREAD: %s\n", g->Message);
+
     rc = true;
     } // endif brc || nbr
 #else   // !WIN32
@@ -3075,10 +3045,11 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(READ_ERROR), fn, strerror(errno));
-#ifdef DEBTRACE
- htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
-  nbr, len, errno, g->Message);
-#endif
+    
+    if (trace)
+      htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
+                     nbr, len, errno, g->Message);
+
     rc = true;
     } // endif nbr
 #endif  // !WIN32
@@ -3097,9 +3068,8 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
-#ifdef DEBTRACE
- htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
-#endif
+  if (trace)
+    htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
     char buf[256], *fn = (h == Hfile) ? To_File : "Tempfile";
@@ -3115,10 +3085,10 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, buf);
 
-#ifdef DEBTRACE
- htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
-  nbw, len, drc, g->Message);
-#endif
+    if (trace)
+      htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
+                      nbw, len, drc, g->Message);
+
     rc = true;
     } // endif brc || nbw
 #else   // !WIN32
@@ -3129,10 +3099,11 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-#ifdef DEBTRACE
- htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
-  nbw, len, errno, g->Message);
-#endif
+    
+    if (trace)
+      htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
+                      nbw, len, errno, g->Message);
+
     rc = true;
     } // endif nbr
 #endif  // !WIN32
@@ -3180,6 +3151,9 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   if (h == INVALID_HANDLE_VALUE || !_filelength(h)) {
 #endif  // !WIN32
     // Consider this is a void table
+    if (trace)
+      htrc("Void table h=%d\n", h);
+      
     Last = Nrec; 
     Block = 0;
 
@@ -3200,6 +3174,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   } else {
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
+    
+    if (trace)
+      htrc("Block=%d Last=%d\n", Block, Last);
+      
   } // endif's
 
   CloseFileHandle(h);
@@ -3297,6 +3275,10 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   of.QuadPart = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
+  if (trace)
+    htrc("MEF: of=%lld n=%d maxblk=%d blksize=%d\n",
+               of.QuadPart, n, Maxblk, Blksize);
+
   of.LowPart = SetFilePointer(h, of.LowPart,
                                 &of.HighPart, FILE_BEGIN);
 
@@ -3332,13 +3314,16 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
   int    h;
   BIGINT pos;
 
-  h= global_open64(g, MSGID_OPEN_EMPTY_FILE, filename,  
-                   O_CREAT | O_WRONLY, S_IREAD | S_IWRITE);
+  h= open64(filename, O_CREAT | O_WRONLY, S_IREAD | S_IWRITE);
 
   if (h == -1)
     return true;
-
+    
   pos = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
+
+  if (trace)
+    htrc("MEF: pos=%lld n=%d maxblk=%d blksize=%d\n",
+               pos, n, MaxBlk, Blksize);
 
   if (lseek64(h, pos, SEEK_SET) < 0) {
     sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
@@ -3376,10 +3361,9 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-#ifdef DEBTRACE
- htrc("OpenTableFile: filename=%s mode=%d Last=%d\n",
-  filename, mode, Last);
-#endif
+  if (trace)
+    htrc("OpenTableFile: filename=%s mode=%d Last=%d\n",
+                         filename, mode, Last);
 
 #if defined(WIN32)
   DWORD access, creation, share = 0, rc = 0;
@@ -3454,11 +3438,9 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     strcat(g->Message, filename);
     } // endif Hfile
 
-#ifdef DEBTRACE
- fprintf(debug,
- " rc=%d access=%p share=%p creation=%d handle=%p fn=%s\n",
-  drc, access, share, creation, Hfile, filename);
-#endif
+  if (trace)
+    htrc(" rc=%d access=%p share=%p creation=%d handle=%p fn=%s\n",
+          drc, access, share, creation, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -3497,7 +3479,19 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
       oflag = O_RDONLY;
       break;
     case MODE_INSERT:
-      oflag = O_WRONLY | O_CREAT | O_APPEND;
+      if (MaxBlk) {
+        if (!Block)
+          if (MakeEmptyFile(g, To_File))
+            return true;
+
+        // Required to update empty blocks
+        oflag = O_RDWR;
+      } else if (Last == Nrec)
+        oflag = O_WRONLY | O_CREAT | O_APPEND;
+      else
+        // Required to update the last block
+        oflag = O_RDWR | O_CREAT | O_APPEND;
+
       pmd = S_IREAD | S_IWRITE;
       break;
     case MODE_DELETE:
@@ -3532,11 +3526,9 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     strcat(g->Message, strerror(errno));
     } // endif Hfile
 
-#ifdef DEBTRACE
- htrc(" lrc=%d oflag=%p mode=%p handle=%d fn=%s\n",
-  lrc, oflag, mode, Hfile, filename);
-#endif
-
+  if (trace)
+    htrc(" rc=%d oflag=%p mode=%p handle=%d fn=%s\n",
+           rc, oflag, mode, Hfile, filename);
 #endif  // UNIX
 
   if (!rc) {
@@ -3555,9 +3547,8 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     To_Fb->Mode = mode;
     To_Fb->Handle = Hfile;
 
-#ifdef DEBTRACE
- htrc("File %s is open in mode %d\n", filename, mode);
-#endif
+    if (trace)
+      htrc("File %s is open in mode %d\n", filename, mode);
 
     if (del)
       // This will stop the process by
@@ -3659,10 +3650,9 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 int BGVFAM::WriteBuffer(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("BGV WriteDB: R%d Mode=%d CurNum=%d CurBlk=%d\n",
-  Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
-#endif
+  if (trace)
+    htrc("BGV WriteDB: R%d Mode=%d CurNum=%d CurBlk=%d\n",
+          Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
   if (Tdbp->GetMode() == MODE_UPDATE) {
     // Mode Update is done in ReadDB, we just initialize it here
@@ -3760,20 +3750,19 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
   /*  2 - directly move the not deleted lines inside the original      */
   /*      file, and at the end erase all trailing records.             */
   /*********************************************************************/
-#ifdef DEBTRACE
- fprintf(debug,
-  "BGV DeleteDB: irc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
-  irc, UseTemp, Fpos, Tpos, Spos);
-#endif
+  if (trace)
+    htrc("BGV DeleteDB: irc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
+                        irc, UseTemp, Fpos, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-#ifdef DEBTRACE
- htrc("Fpos placed at file end=%d\n", Fpos);
-#endif
+    
+    if (trace)
+      htrc("Fpos placed at file end=%d\n", Fpos);
+
     eof = UseTemp && !MaxBlk;
   } else     // Fpos is the deleted line position
     Fpos = CurBlk * Nrec + CurNum;
@@ -3805,14 +3794,13 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
     return RC_FX;
 
   if (irc == RC_OK) {
-#ifdef DEBTRACE
+#ifdef _DEBUG
     assert(Spos == Fpos);
 #endif
     Spos++;          // New start position is on next line
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
     /*******************************************************************/
@@ -3998,9 +3986,9 @@ bool BGVFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       } // endif Usetemp...
 
-#ifdef DEBTRACE
- htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
+
     } // endfor n
 
   return false;
@@ -4132,10 +4120,10 @@ void BGVFAM::CloseTableFile(PGLOBAL g)
   if (Hfile != INVALID_HANDLE_VALUE)
     rc = PlugCloseFile(g, To_Fb);
 
-#ifdef DEBTRACE
- htrc("BGV CloseTableFile: closing %s wrc=%d rc=%d\n",
-  To_File, wrc, rc);
-#endif
+  if (trace)
+    htrc("BGV CloseTableFile: closing %s wrc=%d rc=%d\n",
+          To_File, wrc, rc);
+
   Hfile = INVALID_HANDLE_VALUE;
   } // end of CloseDB
 
@@ -4178,11 +4166,9 @@ bool BGVFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
     pos = (BIGINT)Nrec * ((BIGINT)colp->Deplac
         + (BIGINT)Lrecl * (BIGINT)CurBlk);
 
-#ifdef DEBTRACE
- fprintf(debug,
-   "RB: offset=%lf Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d MaxBlk=%d\n",
-  (double)pos, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
-#endif
+  if (trace)
+    htrc("RB: offset=%lld Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d MaxBlk=%d\n",
+          pos, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
 
   if (BigSeek(g, Hfile, pos))
     return true;
@@ -4190,9 +4176,9 @@ bool BGVFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   if (BigRead(g, Hfile, colp->Blk->GetValPointer(), colp->Clen * Nrec))
     return true;
 
-#ifdef DEBTRACE
-  num_read++;
-#endif
+  if (trace)
+    num_read++;
+
   return false;
   } // end of ReadBlock
 
@@ -4217,10 +4203,9 @@ bool BGVFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
     pos = (BIGINT)Nrec * ((BIGINT)colp->Deplac
         + (BIGINT)Lrecl * (BIGINT)colp->ColBlk);
 
-#ifdef DEBTRACE
- htrc("WB: offset=%lf Nrec=%d Deplac=%d Lrecl=%d ColBlk=%d\n",
-  (double)pos, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
-#endif
+  if (trace)
+    htrc("WB: offset=%lld Nrec=%d Deplac=%d Lrecl=%d ColBlk=%d\n",
+          pos, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
   if (BigSeek(g, Tfile, pos))
     return true;
