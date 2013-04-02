@@ -6962,7 +6962,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             Item *ref_item= keyuse->val;
 	    if (ref_item->real_item()->type() == Item::FIELD_ITEM)
 	    {
-              Item_field *field_item= (Item_field *) ref_item;
+              Item_field *field_item= (Item_field *) (ref_item->real_item());
               if (item_equal->contains(field_item->field))
                 adjust_sel= FALSE;              
 	    }
