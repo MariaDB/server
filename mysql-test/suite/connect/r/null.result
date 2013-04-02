@@ -47,7 +47,7 @@ CREATE TABLE t1
 `key` char(12)
 ) ENGINE=CONNECT TABLE_TYPE=INI;
 Warnings:
-Warning	1105	No file name. Table will use t1.INI
+Warning	1105	No file name. Table will use t1.ini
 INSERT INTO t1(sec) values('S1');
 SELECT * FROM t1;
 sec	key
