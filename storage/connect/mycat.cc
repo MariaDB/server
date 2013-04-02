@@ -344,9 +344,21 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 		strcpy(sval, s);
   } else if (!stricmp(what, "filename")) {
     // Return default file name
-    sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 8);
+    char *ftype= Hc->GetStringOption("Type", "dos");
+    int   i, n;
+
+    sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
     strcat(strcpy(sval, Hc->GetTableName()), ".");
-    strcat(sval, Hc->GetStringOption("Type", "DOS"));
+    n= strlen(sval);
+
+    // Fold ftype to lower case
+    for (i= 0; i < 12; i++)
+      if (!ftype[i]) {
+        sval[n+i]= 0;
+        break;
+      } else
+        sval[n+i]= tolower(ftype[i]);
+
   } else
 		sval = NULL;
 
