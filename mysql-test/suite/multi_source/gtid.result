@@ -1,12 +1,10 @@
 CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root';
 CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root';
-start all slaves;
-Warnings:
-Note	1937	SLAVE 'slave2' started
-Note	1937	SLAVE 'slave1' started
 set default_master_connection = 'slave1';
+START SLAVE;
 include/wait_for_slave_to_start.inc
 set default_master_connection = 'slave2';
+START SLAVE;
 include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 CHANGE MASTER TO master_port=MYPORT_3, master_host='127.0.0.1', master_user='root';

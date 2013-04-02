@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
+# Valgrind does not work well with test that crashes the server
+--source include/not_valgrind.inc
 
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
@@ -7,6 +9,10 @@
 --echo *** Test crashing master, causing slave IO thread to reconnect while SQL thread is running ***
 
 --connection server_1
+call mtr.add_suppression("Checking table:");
+call mtr.add_suppression("client is using or hasn't closed the table properly");
+call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+
 ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 0);
@@ -20,9 +26,6 @@ eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
      MASTER_GTID_POS=AUTO;
 
 --connection server_1
-# Attempt to get tables closed and avoid "table ... is marked as crashed"
-# messages in error log.
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 INSERT INTO t1 VALUES (2,1);
 INSERT INTO t1 VALUES (3,1);
 
@@ -84,7 +87,6 @@ RESET MASTER;
 --replace_column 2 # 4 # 5 #
 SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 
 --connection server_2
 --source include/start_slave.inc
@@ -153,7 +155,6 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 --let $wait_condition= SELECT COUNT(*) = 4 FROM t1
 --source include/wait_condition.inc
 
@@ -179,7 +180,6 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 --let $wait_condition= SELECT COUNT(*) = 5 FROM t1
 --source include/wait_condition.inc
 
@@ -205,7 +205,6 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 --let $wait_condition= SELECT COUNT(*) = 6 FROM t1
 --source include/wait_condition.inc
 
@@ -231,7 +230,6 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 --let $wait_condition= SELECT COUNT(*) = 7 FROM t1
 --source include/wait_condition.inc
 
@@ -257,7 +255,6 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
-SET sql_log_bin=0; FLUSH TABLES; SET sql_log_bin=1;
 --let $wait_condition= SELECT COUNT(*) = 8 FROM t1
 --source include/wait_condition.inc
 

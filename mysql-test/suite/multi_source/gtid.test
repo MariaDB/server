@@ -15,10 +15,11 @@
 eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
 --replace_result $SERVER_MYPORT_2 MYPORT_2
 eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
-start all slaves;
 set default_master_connection = 'slave1';
+START SLAVE;
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = 'slave2';
+START SLAVE;
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
 
