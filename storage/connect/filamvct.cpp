@@ -3277,7 +3277,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   if (trace)
     htrc("MEF: of=%lld n=%d maxblk=%d blksize=%d\n",
-               of.QuadPart, n, Maxblk, Blksize);
+               of.QuadPart, n, MaxBlk, Blksize);
 
   of.LowPart = SetFilePointer(h, of.LowPart,
                                 &of.HighPart, FILE_BEGIN);
@@ -3440,7 +3440,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   if (trace)
     htrc(" rc=%d access=%p share=%p creation=%d handle=%p fn=%s\n",
-          drc, access, share, creation, Hfile, filename);
+           rc, access, share, creation, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
