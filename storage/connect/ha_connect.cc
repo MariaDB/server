@@ -4197,13 +4197,21 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 {
 //ha_table_option_struct *param_old, *param_new;
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
-  // TO DO: implement it.
+  // TO DO: implement and check it.
   THD *thd= current_thd;
+#if 0
+  if (table) {
+    PTOS options= info->option_struct;
 
+    if (options->filename)
+      return COMPATIBLE_DATA_NO; 
+
+    } // endif table
+#endif // 0
   push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
-      "The current version of CONNECT did not check what you changed in ALTER. Use at your own risk");
+    "The current version of CONNECT did not check what you changed in ALTER. Use at your own risk");
   DBUG_RETURN(COMPATIBLE_DATA_YES);
-}
+} // end of check_if_incompatible_data
 
 
 struct st_mysql_storage_engine connect_storage_engine=
