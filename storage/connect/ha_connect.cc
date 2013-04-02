@@ -3261,7 +3261,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   const char  *fmt= "./%[^/]/%s";
 #endif  // !WIN32
   char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
-  int          rc, i = 0;
+  int          rc;
   uint         key_length, db_flags= 0;
   TABLE_LIST   table_list;
   TABLE_SHARE *share;
@@ -3298,7 +3298,8 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
     // This is a table whose files must be erased or renamed */
 //  char ftype[8], *new_exts[2];
-    char ftype[8], *xtype, *new_exts[3];
+    char ftype[12], *xtype, *new_exts[3];
+    int  n= 0;
 
     if (share->keynames.count) {
       switch (GetTypeID(pos->type)) {
@@ -3315,13 +3316,22 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endswitch Ftype
 
       if (xtype)
-        new_exts[i++]= xtype;
+        new_exts[n++]= xtype;
 
       } // endif keynames
 
-    strcat(strcpy(ftype, "."), pos->type);
-    new_exts[i++]= ftype;
-    new_exts[i]= NULL;
+    // Fold type to lower case
+    ftype[0]= '.';
+
+    for (int i= 0; i < 12; i++)
+      if (!pos->type[i]) {
+        ftype[i+1]= 0;
+        break;
+      } else
+        ftype[i+1]= tolower(pos->type[i]);
+        
+    new_exts[n++]= ftype;
+    new_exts[n]= NULL;
 
     // This will be answered by bas_ext()
     ha_connect_exts= (const char**)new_exts;
@@ -3336,7 +3346,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     ha_connect_exts= ha_connect_null_exts;
     } // endif filename
 
-    // Done no more need for this
+  // Done no more need for this
  err:
   free_table_share(share);
  fin:
@@ -4096,7 +4106,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       // the database directory named table_name.table_type.
       // (temporarily not done for XML because a void file causes
       // the XML parsers to report an error on the first Insert)
-      char buf[256], fn[_MAX_PATH], dbpath[128];
+      char buf[256], fn[_MAX_PATH], dbpath[128], lwt[12];
       int  h;
 
       strcpy(buf, GetTableName());
@@ -4121,7 +4131,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             DBUG_RETURN(HA_ERR_UNSUPPORTED);
           } // endif's
 
-        strcat(strcat(buf, "."), options->type);
+        // Fold type to lower case
+        for (int i= 0; i < 12; i++)
+          if (!options->type[i]) {
+            lwt[i]= 0;
+            break;
+          } else
+            lwt[i]= tolower(options->type[i]);
+        
+        strcat(strcat(buf, "."), lwt);
         sprintf(g->Message, "No file name. Table will use %s", buf);
         push_warning(table->in_use, 
                      MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
