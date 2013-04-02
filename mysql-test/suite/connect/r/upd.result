@@ -61,7 +61,7 @@ END//
 CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Was set to DOS
-Warning	1105	No file name. Table will use t1.DOS
+Warning	1105	No file name. Table will use t1.dos
 CALL test.tst_up();
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -159,7 +159,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Was set to DOS
-Warning	1105	No file name. Table will use t1.DOS
+Warning	1105	No file name. Table will use t1.dos
 CALL test.tst_up();
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00

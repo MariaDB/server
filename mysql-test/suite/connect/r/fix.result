@@ -8,7 +8,7 @@ user()
 user@localhost
 CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=FIX;
 Warnings:
-Warning	1105	No file name. Table will use t1.FIX
+Warning	1105	No file name. Table will use t1.fix
 INSERT INTO t1 VALUES (10);
 SELECT * FROM t1;
 a
