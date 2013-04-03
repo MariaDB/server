@@ -134,7 +134,8 @@ public:
   ulonglong table_flags() const
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
-            /*HA_NO_AUTO_INCREMENT |*/ HA_NO_PREFIX_CHAR_KEYS |
+            HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
+            HA_NO_COPY_ON_ALTER |
 #if defined(MARIADB)
             HA_CAN_VIRTUAL_COLUMNS |
 #endif   // MARIADB

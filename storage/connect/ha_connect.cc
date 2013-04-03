@@ -1202,9 +1202,16 @@ PIXDEF ha_connect::GetIndexInfo(int n)
     kpp= new(g) KPARTDEF(name, k + 1);
     kpp->SetKlen(kp.key_part[k].length);
 
-    // Index on auto increment column is an XXROW index
-    if (kp.key_part[k].field->flags & AUTO_INCREMENT_FLAG && kp.key_parts == 1)
-      xdp->SetAuto(true);
+#if 0             // NIY
+    // Index on auto increment column can be an XXROW index
+    if (kp.key_part[k].field->flags & AUTO_INCREMENT_FLAG && 
+        kp.key_parts == 1) {
+      char   *type= GetStringOption("Type", "DOS");
+      TABTYPE typ= GetTypeID(type);
+
+      xdp->SetAuto(IsTypeFixed(typ));
+      } // endif AUTO_INCREMENT
+#endif // 0
 
     if (pkp)
       pkp->SetNext(kpp);
@@ -2196,6 +2203,16 @@ int ha_connect::write_row(uchar *buf)
 
   if (tdbp->GetMode() == MODE_ANY)
     DBUG_RETURN(0);
+
+#if 0                // AUTO_INCREMENT NIY
+  if (table->next_number_field && buf == table->record[0]) {
+    int error;
+
+    if ((error= update_auto_increment()))
+      return error;
+
+    } // endif nex_number_field
+#endif // 0
 
   // Set column values from the passed pseudo record
   if ((rc= ScanRecord(g, buf)))
@@ -4029,6 +4046,13 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
 #endif   // MARIADB
+
+    if (fp->flags & AUTO_INCREMENT_FLAG) {
+      strcpy(g->Message, "Auto_increment is not supported yet");
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      rc= HA_ERR_INTERNAL_ERROR;
+      DBUG_RETURN(rc);
+      } // endif flags
 
     switch (fp->type()) {
       case MYSQL_TYPE_SHORT:
