@@ -159,7 +159,7 @@ SELECT * FROM t1;
 name	city	birth	hired
 John	Boston     2	1986-01-05	2010-06-02
 Henry	Boston     0	1987-06-07	2008-04-01
-George	San Jose   1	1981-07-31	2010-06-02
+George	San Jose   1	1981-08-01	2010-06-02
 Sam	Chicago    2	1979-11-02	2007-10-10
 James	Dallas     1	1992-05-03	2009-12-14
 Bill	Boston     1	1986-09-01	2008-02-10
@@ -175,7 +175,7 @@ SELECT * FROM t1;
 name	city	birth	hired
 John	Boston     2	1986-01-05	2010-06-02
 Henry	Boston     0	1987-06-07	2008-04-01
-George	San Jose   1	1981-07-31	2010-06-02
+George	San Jose   1	1981-08-01	2010-06-02
 Sam	Chicago    2	1979-11-02	2007-10-10
 James	Dallas     1	1992-05-03	2009-12-14
 Bill	Boston     1	1986-09-01	2008-02-10
@@ -191,7 +191,7 @@ SELECT * FROM t1;
 name	city	birth	hired
 John	Boston     2	1986-01-05	2010-06-02
 Henry	Boston     0	1987-06-07	2008-04-01
-George	San Jose   1	1981-07-31	2010-06-02
+George	San Jose   1	1981-08-01	2010-06-02
 Sam	Chicago    2	1979-11-02	2007-10-10
 James	Dallas     1	1992-05-03	2009-12-14
 Bill	Boston     1	1986-09-01	2008-02-10
@@ -207,7 +207,7 @@ SELECT * FROM t1;
 name	city	birth	hired
 John	Boston     2	1986-01-05	2010-06-02
 Henry	Boston     0	1987-06-07	2008-04-01
-George	San Jose   1	1981-07-31	2010-06-02
+George	San Jose   1	1981-08-01	2010-06-02
 Sam	Chicago    2	1979-11-02	2007-10-10
 James	Dallas     1	1992-05-03	2009-12-14
 Bill	Boston     1	1986-09-01	2008-02-10
