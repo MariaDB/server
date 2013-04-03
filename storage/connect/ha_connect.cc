@@ -1232,7 +1232,7 @@ const char *ha_connect::GetDBName(const char* name)
 
 const char *ha_connect::GetTableName(void)
 {
-  return table->s->table_name.str;
+  return (tshp) ? tshp->table_name.str : table->s->table_name.str;
 } // end of GetTableName
 
 /****************************************************************************/

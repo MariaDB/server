@@ -1,0 +1,46 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Checking TBL tables
+--echo #
+CREATE TABLE t1 (
+a INT NOT NULL,
+message CHAR(10) NOT NULL) ENGINE=connect;
+INSERT INTO t1 VALUES (1,'Testing'),(2,'dos table'),(3,'t1');
+SELECT * FROM t1;
+
+CREATE TABLE t2 (
+a INT NOT NULL,
+message CHAR(10) NOT NULL) ENGINE=connect TABLE_TYPE=BIN;
+INSERT INTO t2 VALUES (1,'Testing'),(2,'bin table'),(3,'t2');
+SELECT * FROM t2;
+
+CREATE TABLE t3 (
+a INT NOT NULL,
+message CHAR(10) NOT NULL) ENGINE=connect TABLE_TYPE=CSV;
+INSERT INTO t3 VALUES (1,'Testing'),(2,'csv table'),(3,'t3');
+SELECT * FROM t3;
+
+CREATE TABLE total (
+tabname CHAR(8) NOT NULL SPECIAL='TABID',
+ta TINYINT NOT NULL FLAG=1,
+message CHAR(20) NOT NULL)
+engine=CONNECT table_type=TBL table_list='t1,t2,t3';
+
+select * from total;
+select * from total where tabname = 't2';
+select * from total where tabname = 't2' and ta = 3;
+select * from total where tabname in ('t1','t3');
+select * from total where ta = 3 and tabname in ('t1','t2');
+select * from total where tabname <> 't2';
+select * from total where tabname != 't2' and ta = 3;
+select * from total where tabname not in ('t2','t3');
+select * from total where ta = 3 and tabname in ('t2','t3');
+select * from total where ta = 3 or tabname in ('t2','t3');
+select * from total where not tabname = 't2';
+select * from total where tabname = 't2' or tabname = 't1';
+
+DROP TABLE total;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
