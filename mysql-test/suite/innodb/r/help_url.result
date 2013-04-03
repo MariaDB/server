@@ -1,0 +1,9 @@
+call mtr.add_suppression('InnoDB: Error');
+set global innodb_file_per_table=1, innodb_file_format=Barracuda;
+create table t1 (i int) engine=InnoDB;
+alter table t1 discard tablespace;
+select * from t1;
+ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine
+InnoDB: http://dev.mysql.com/doc/refman/10.0/en/innodb-troubleshooting.html
+drop table t1;
+set global innodb_file_per_table=default, innodb_file_format=default;
