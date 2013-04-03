@@ -1261,8 +1261,36 @@ void DTVAL::SetTimeShift(void)
 /*  though the gmtime C function. The purpose of this function is to   */
 /*  extend the range of valid dates by accepting negative time values. */
 /***********************************************************************/
+#define MYSQL_SERVER 1
+#include "tztime.h"
+#include "sql_priv.h"
+#include "sql_class.h"
+#include "sql_time.h"
+
+static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
+{
+  bzero(tm, sizeof(*tm));
+  tm->tm_year= ltime->year - 1900;
+  tm->tm_mon=  ltime->month - 1;
+  tm->tm_mday= ltime->day;
+  tm->tm_hour= ltime->hour;
+  tm->tm_min=  ltime->minute;
+  tm->tm_sec=  ltime->second;
+}
+
+
+static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
+{
+  MYSQL_TIME ltime;
+  current_thd->variables.time_zone->gmt_sec_to_TIME(&ltime, (my_time_t) *timep);
+  TIME_to_localtime(tm, &ltime);
+  return tm;
+}
+
+
 struct tm *DTVAL::GetGmTime(void)
   {
+  static struct tm tm_static; /* TODO: Move as a parameter to GetGmTime() */
   struct tm *datm;
   time_t t = (time_t)Tval;
 
@@ -1272,13 +1300,13 @@ struct tm *DTVAL::GetGmTime(void)
     for (n = 0; t < 0; n += 4)
       t += FOURYEARS;
 
-    datm = gmtime(&t);
+    datm = gmtime_mysql(&t, &tm_static);
 
     if (datm)
       datm->tm_year -= n;
 
   } else
-    datm = gmtime((const time_t *)&t);
+    datm = gmtime_mysql(&t, &tm_static);
 
   return datm;
   } // end of GetGmTime
@@ -1288,10 +1316,21 @@ struct tm *DTVAL::GetGmTime(void)
 /*  mktime C function. The purpose of this function is to extend the   */
 /*  range of valid dates by accepting to set negative time values.     */
 /***********************************************************************/
+
+static time_t mktime_mysql(struct tm *ptm)
+{
+  MYSQL_TIME ltime;
+  localtime_to_TIME(&ltime, ptm);
+  ltime.time_type= MYSQL_TIMESTAMP_DATETIME;
+  uint error_code;
+  time_t t= TIME_to_timestamp(current_thd, &ltime, &error_code);
+  return error_code ? (time_t) -1 : t;
+}
+
 bool DTVAL::MakeTime(struct tm *ptm)
   {
   int    n, y = ptm->tm_year;
-  time_t t = mktime(ptm);
+  time_t t = mktime_mysql(ptm);
 
   if (trace)
     htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
@@ -1304,18 +1343,17 @@ bool DTVAL::MakeTime(struct tm *ptm)
 
     for (n = 0; t == -1 && n < 20; n++) {
       ptm->tm_year += 4;
-      t = mktime(ptm);
+      t = mktime_mysql(ptm);
       } // endfor t
 
     if (t == -1)
       return true;
 
-    if ((t -= (n * FOURYEARS + Shift)) > 2000000000)
+    if ((t -= (n * FOURYEARS)) > 2000000000)
       return true;
 
-    Tval = (int)t;
-  } else
-    Tval = (int)t - Shift;
+  }
+  Tval= (int) t;
 
   if (trace)
     htrc("MakeTime Ival=%d\n", Tval); 

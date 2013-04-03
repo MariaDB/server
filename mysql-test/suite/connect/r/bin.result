@@ -89,6 +89,7 @@ ID
 Warnings:
 Warning	1105	Open(rb) error 2 on DATADIR/test/nonexistent.txt: No such file or directory
 DROP TABLE t1;
+SET time_zone='+00:00';
 CREATE TABLE t1
 (
 fig INT(4) NOT NULL FIELD_FORMAT='C',
