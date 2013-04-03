@@ -3325,7 +3325,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
   
-  if (!bitmap_is_clear_all(used_fields))
+  if (thd->variables.optimizer_use_condition_selectivity > 2 &&
+      !bitmap_is_clear_all(used_fields))
   {
     PARAM param;
     MEM_ROOT alloc;
@@ -3362,9 +3363,25 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       double rows;
       if (*key)
       {
+#if 0
         rows= records_in_column_ranges(&param, idx, *key);
         if (rows != HA_POS_ERROR)
           (*key)->field->cond_selectivity= rows/table_records; 
+#else
+        table->reginfo.impossible_range= 0;
+        if ((*key)->type == SEL_ARG::IMPOSSIBLE)
+	{
+          rows= 0;
+          table->reginfo.impossible_range= 1;
+          goto free_alloc;
+        }          
+        else
+        {
+          rows= records_in_column_ranges(&param, idx, *key);
+          if (rows != HA_POS_ERROR)
+            (*key)->field->cond_selectivity= rows/table_records;
+        } 
+#endif
       }
     }
 
