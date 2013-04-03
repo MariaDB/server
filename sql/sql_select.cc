@@ -3794,6 +3794,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       all select distinct fields participate in one index.
     */
     add_group_and_distinct_keys(join, s);
+
+    table->cond_selectivity= 1.0;
     
     /*
       Perform range analysis if there are keys it could use (1). 
@@ -3802,7 +3804,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       Don't do range analysis for materialized subqueries (4).
       Don't do range analysis for materialized derived tables (5)
     */
-    if (!s->const_keys.is_clear_all() &&                            // (1)
+    if ((!s->const_keys.is_clear_all() ||
+	 !bitmap_is_clear_all(&s->table->cond_set)) &&              // (1)
         (!s->table->pos_in_table_list->embedding ||                 // (2)
          (s->table->pos_in_table_list->embedding &&                 // (3)
           s->table->pos_in_table_list->embedding->sj_on_expr)) &&   // (3)
@@ -3810,20 +3813,37 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         !(s->table->pos_in_table_list->derived &&                   // (5)
           s->table->pos_in_table_list->is_materialized_derived()))  // (5)
     {
-      ha_rows records;
-      SQL_SELECT *select;
-      select= make_select(s->table, found_const_table_map,
-			  found_const_table_map,
-			  *s->on_expr_ref ? *s->on_expr_ref : conds,
-			  1, &error);
-      if (!select)
-        goto error;
-      records= get_quick_record_count(join->thd, select, s->table,
-				      &s->const_keys, join->row_limit);
-      s->quick=select->quick;
-      s->needed_reg=select->needed_reg;
-      select->quick=0;
-      if (records == 0 && s->table->reginfo.impossible_range)
+      bool impossible_range= FALSE;
+      ha_rows records= HA_POS_ERROR;
+      SQL_SELECT *select= 0;
+      if (!s->const_keys.is_clear_all())
+      {
+        select= make_select(s->table, found_const_table_map,
+			    found_const_table_map,
+			    *s->on_expr_ref ? *s->on_expr_ref : conds,
+			    1, &error);
+        if (!select)
+          goto error;
+        records= get_quick_record_count(join->thd, select, s->table,
+				        &s->const_keys, join->row_limit);
+        s->quick=select->quick;
+        s->needed_reg=select->needed_reg;
+        select->quick=0;
+        impossible_range= records == 0 && s->table->reginfo.impossible_range;
+      }
+      if (!impossible_range)
+      {
+        if (join->thd->variables.optimizer_use_condition_selectivity > 1)
+          calculate_cond_selectivity_for_table(join->thd, s->table, 
+                                               *s->on_expr_ref ?
+                                               *s->on_expr_ref : conds);
+        if (s->table->reginfo.impossible_range)
+	{
+          impossible_range= TRUE;
+          records= 0;
+        }
+      }
+      if (impossible_range)
       {
 	/*
 	  Impossible WHERE or ON expression
@@ -3848,13 +3868,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	s->found_records=records;
 	s->read_time= s->quick ? s->quick->read_time : 0.0;
       }
-      delete select;
+      if (select)
+        delete select;
     }
 
-    if (join->thd->variables.optimizer_use_condition_selectivity > 1)
-      calculate_cond_selectivity_for_table(join->thd, s->table, 
-                                           *s->on_expr_ref ?
-                                           *s->on_expr_ref : conds);
   }
 
   if (pull_out_semijoin_tables(join))

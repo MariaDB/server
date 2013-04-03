@@ -267,5 +267,40 @@ DROP TABLE t1,t2;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@tmp_use_stat_tables; 
 
+--echo #
+--echo # Bug mdev-4349: impossible range for non-indexed column 
+--echo #
+
+set optimizer_use_condition_selectivity=3;
+
+create table t1 (a int);
+insert into t1 values
+  (3), (7), (2), (5), (7), (1), (2), (2);
+
+set optimizer_use_condition_selectivity=1;
+explain extended
+select * from t1 where a < 1 and a > 7;
+select * from t1 where a < 1 and a > 7;
+
+set optimizer_use_condition_selectivity=3;
+explain extended
+select * from t1 where a < 1 and a > 7;
+select * from t1 where a < 1 and a > 7;
+
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (1);
+
+create table t2 (b int);
+insert into t2 values (2),(3);
+
+explain extended 
+select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
+select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
+
+drop table t1,t2;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 set use_stat_tables=@save_use_stat_tables;
