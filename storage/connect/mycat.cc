@@ -164,6 +164,7 @@ bool IsTypeNullable(TABTYPE type)
   switch (type) {                      
     case TAB_ODBC:
     case TAB_MYSQL:
+    case TAB_TBL:
     case TAB_INI:
     case TAB_XML:
       nullable= true;
@@ -175,6 +176,28 @@ bool IsTypeNullable(TABTYPE type)
 
   return nullable;
   } // end of IsTypeNullable
+
+/***********************************************************************/
+/*  Return true for table types with fix length records.               */
+/***********************************************************************/
+bool IsTypeFixed(TABTYPE type)
+  {
+  bool fix;
+
+  switch (type) {                      
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_VEC:
+//  case TAB_DBF:         ???
+      fix= true;
+      break;
+    default:
+      fix= false;
+      break;
+    } // endswitch type
+
+  return fix;
+  } // end of IsTypeFixed
 
 /***********************************************************************/
 /*  Get a unique enum catalog function ID.                             */
