@@ -639,8 +639,6 @@ Dec	0
 Flags	00
 --------	--------
 ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
-Warnings:
-Warning	1366	Incorrect integer value: '' for column 'a' at row 1
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
