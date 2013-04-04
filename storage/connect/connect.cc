@@ -779,14 +779,14 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
     sprintf(g->Message, "Table %s is not indexable", ptdb->GetName());
-    DBUG_PRINT("Range", (g->Message));
+    DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else
     tdbp= (PTDBDOX)ptdb;
 
   if (!tdbp->To_Link || !tdbp->To_Kindex) {
     sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
-    DBUG_PRINT("Range", (g->Message));
+    DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else
     xbp= (XXBASE*)tdbp->To_Kindex;
