@@ -3325,11 +3325,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
 
-#if 0
-#else
   if (table_records == 0)
     DBUG_RETURN(FALSE);
-#endif
   
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
@@ -3338,6 +3335,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     MEM_ROOT alloc;
     SEL_TREE *tree;
     SEL_ARG **key, **end;
+    double rows;
     uint idx= 0;
   
     init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
@@ -3364,12 +3362,18 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     if (!tree)
       goto free_alloc;
     
+    table->reginfo.impossible_range= 0;
+    if (tree->type == SEL_TREE::IMPOSSIBLE)
+    {
+      rows= 0;
+      table->reginfo.impossible_range= 1;
+      goto free_alloc;
+    }          
+
     for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
     {
-      double rows;
       if (*key)
       {
-        table->reginfo.impossible_range= 0;
         if ((*key)->type == SEL_ARG::IMPOSSIBLE)
 	{
           rows= 0;
