@@ -1527,13 +1527,13 @@ int ha_connect::MakeRecord(char *buf)
             if (value->GetIntValue())
               rc= HA_ERR_WRONG_IN_RECORD;
     
-            DBUG_PRINT("MakeRecord", (p));
+            DBUG_PRINT("MakeRecord", ("%s", p));
             } // endif store
     
         } else
           if (fp->store(value->GetFloatValue())) {
             rc= HA_ERR_WRONG_IN_RECORD;
-            DBUG_PRINT("MakeRecord", (value->GetCharString(val)));
+            DBUG_PRINT("MakeRecord", ("%s", value->GetCharString(val)));
             } // endif store
 
         fp->set_notnull();
@@ -2220,7 +2220,7 @@ int ha_connect::write_row(uchar *buf)
 
   // Return result code from write operation
   if (CntWriteRow(g, tdbp)) {
-    DBUG_PRINT("write_row", (g->Message));
+    DBUG_PRINT("write_row", ("%s", g->Message));
     printf("write_row: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
     } // endif RC
@@ -2265,7 +2265,7 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
     return rc;
 
   if (CntUpdateRow(g, tdbp)) {
-    DBUG_PRINT("update_row", (g->Message));
+    DBUG_PRINT("update_row", ("%s", g->Message));
     printf("update_row CONNECT: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
     } // endif RC
@@ -2322,7 +2322,7 @@ int ha_connect::index_init(uint idx, bool sorted)
   indexing= CntIndexInit(g, tdbp, (signed)idx);
 
   if (indexing <= 0) {
-    DBUG_PRINT("index_init", (g->Message));
+    DBUG_PRINT("index_init", ("%s", g->Message));
     printf("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
@@ -2374,7 +2374,7 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
       rc= (op == OP_SAME) ? HA_ERR_END_OF_FILE : HA_ERR_KEY_NOT_FOUND;
       break;
     default:          // Read error
-      DBUG_PRINT("ReadIndexed", (xp->g->Message));
+      DBUG_PRINT("ReadIndexed", ("%s", xp->g->Message));
       printf("ReadIndexed: %s\n", xp->g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
     } // endswitch RC
@@ -4140,9 +4140,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       if (*buf != '#') {
         // Check for incompatible options
         if (options->sepindex) {
-          my_printf_error(ER_UNKNOWN_ERROR, 
+          my_message(ER_UNKNOWN_ERROR,
                 "SEPINDEX is incompatible with unspecified file name",
-                MYF(0), options->type);
+                MYF(0));
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
         } else if (GetTypeID(options->type) == TAB_VEC)
           if (!table->s->max_rows || options->split) {
