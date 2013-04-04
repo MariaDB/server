@@ -923,7 +923,7 @@ static my_bool socket_peek_read(Vio *vio, uint *bytes)
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 {
   int ret;
-  short revents= 0;
+  short revents __attribute__((unused)) = 0;
   struct pollfd pfd;
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */

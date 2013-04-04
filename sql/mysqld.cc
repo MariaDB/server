@@ -738,7 +738,7 @@ static char **remaining_argv;
 int orig_argc;
 char **orig_argv;
 
-static struct my_option pfs_early_options[]=
+static struct my_option pfs_early_options[] __attribute__((unused)) =
 {
   {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
     "Default startup value for a performance schema instrument.",
