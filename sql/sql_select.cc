@@ -3795,7 +3795,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     */
     add_group_and_distinct_keys(join, s);
 
-    table->cond_selectivity= 1.0;
+    s->table->cond_selectivity= 1.0;
     
     /*
       Perform range analysis if there are keys it could use (1). 
