@@ -152,10 +152,10 @@ private:
     uint val= (uint) (pos * prec_factor());
     int lp= 0;
     int rp= get_width() - 1;
-    uint i= 0;
-    for (int d= get_width() / 2 ; d;  d= (rp - lp) / 2)
+    int d= get_width() / 2;
+    uint i= lp + d;
+    for ( ; d;  d= (rp - lp) / 2, i= lp + d)
     {
-      i= lp + d;
       if (val == get_value(i))
 	break; 
       if (val < get_value(i))
@@ -237,9 +237,11 @@ public:
     uint max= min;
     while (max + 1 < get_width() && get_value(max + 1) == get_value(max))
       max++;
-    double width= ((max + 1 == get_width() ? 1.0 : get_value(max)) -
-	           (min == 0 ? 0.0 : get_value(min-1))) *
-      ((double) 1.0 / prec_factor());  
+    double inv_prec_factor= (double) 1.0 / prec_factor(); 
+    double width= (max + 1 == get_width() ?
+                   1.0 : get_value(max) * inv_prec_factor) -
+	          (min == 0 ?
+                   0.0 : get_value(min-1) * inv_prec_factor); 
     sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
     return sel;
   }
