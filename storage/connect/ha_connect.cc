@@ -4032,9 +4032,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } // endif Libxml2
 #endif   // !LIBXML2_SUPPORT
 
-    if (!xsup)
-      push_warning(table_arg->in_use, 
-                   MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+    if (!xsup) {
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      rc= HA_ERR_INTERNAL_ERROR;
+      DBUG_RETURN(rc);
+      } // endif xsup
 
     } // endif type
 
