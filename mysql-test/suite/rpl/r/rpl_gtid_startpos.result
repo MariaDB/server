@@ -149,5 +149,39 @@ a
 3
 4
 5
+*** Test modifying binlog on slave and the effect on GTID state. ***
+include/stop_slave.inc
+RESET MASTER;
+CHANGE MASTER TO master_gtid_pos='';
+RESET MASTER;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10);
+include/start_slave.inc
+SELECT * FROM t1;
+a
+10
+SELECT '1' AS Using_Gtid;
+Using_Gtid
+1
+SELECT '0-1-2' AS Gtid_Pos;
+Gtid_Pos
+0-1-2
+UPDATE t1 SET a=9 WHERE a=10;
+UPDATE t1 SET a=10 WHERE a=9;
+SELECT '0-2-4' AS Gtid_Pos;
+Gtid_Pos
+0-2-4
+include/stop_slave.inc
+CHANGE MASTER TO master_gtid_pos= '0-1-2';
+ERROR HY000: Requested MASTER_GTID_POS 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+RESET MASTER;
+SELECT '0-1-2' AS Gtid_Pos;
+Gtid_Pos
+0-1-2
+CHANGE MASTER TO master_gtid_pos= '0-1-2';
+include/start_slave.inc
+SELECT '0-1-2' AS Gtid_Pos;
+Gtid_Pos
+0-1-2
 DROP TABLE t1;
 include/rpl_end.inc

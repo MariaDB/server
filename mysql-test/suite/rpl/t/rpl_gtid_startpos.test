@@ -240,6 +240,46 @@ eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT;
 SELECT * FROM t1 ORDER BY a;
 
 
+--echo *** Test modifying binlog on slave and the effect on GTID state. ***
+
+--connection server_2
+--source include/stop_slave.inc
+RESET MASTER;
+CHANGE MASTER TO master_gtid_pos='';
+
+--connection server_1
+RESET MASTER;
+TRUNCATE TABLE t1;
+INSERT INTO t1 VALUES (10);   # Will be GTID 0-1-2
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1;
+--let $value= query_get_value(SHOW SLAVE STATUS, "Using_Gtid", 1)
+eval SELECT '$value' AS Using_Gtid;
+--let $value= query_get_value(SHOW ALL SLAVES STATUS, "Gtid_Pos", 1)
+eval SELECT '$value' AS Gtid_Pos;
+
+UPDATE t1 SET a=9 WHERE a=10;
+UPDATE t1 SET a=10 WHERE a=9;
+
+--let $value= query_get_value(SHOW ALL SLAVES STATUS, "Gtid_Pos", 1)
+eval SELECT '$value' AS Gtid_Pos;
+
+--source include/stop_slave.inc
+--error ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+CHANGE MASTER TO master_gtid_pos= '0-1-2';
+RESET MASTER;
+--let $value= query_get_value(SHOW ALL SLAVES STATUS, "Gtid_Pos", 1)
+eval SELECT '$value' AS Gtid_Pos;
+CHANGE MASTER TO master_gtid_pos= '0-1-2';
+--source include/start_slave.inc
+--let $value= query_get_value(SHOW ALL SLAVES STATUS, "Gtid_Pos", 1)
+eval SELECT '$value' AS Gtid_Pos;
+
 # Clean up.
 --connection server_1
 DROP TABLE t1;

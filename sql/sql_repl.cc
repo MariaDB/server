@@ -3360,4 +3360,30 @@ rpl_deinit_gtid_slave_state()
   rpl_global_gtid_slave_state.deinit();
 }
 
+
+/*
+  Format the current GTID state as a string, for use when connecting to a
+  master server with GTID, or for returning the value of @@global.gtid_state.
+
+  If the flag use_binlog is true, then the contents of the binary log (if
+  enabled) is merged into the current GTID state.
+*/
+int
+rpl_append_gtid_state(String *dest, bool use_binlog)
+{
+  int err;
+  rpl_gtid *gtid_list= NULL;
+  uint32 num_gtids= 0;
+
+  if (opt_bin_log &&
+      (err= mysql_bin_log.get_most_recent_gtid_list(&gtid_list, &num_gtids)))
+    return err;
+
+  rpl_global_gtid_slave_state.tostring(dest, gtid_list, num_gtids);
+  my_free(gtid_list);
+
+  return 0;
+}
+
+
 #endif /* HAVE_REPLICATION */
