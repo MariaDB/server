@@ -3324,6 +3324,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
+
+#if 0
+#else
+  if (table_records == 0)
+    DBUG_RETURN(FALSE);
+#endif
   
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
@@ -3363,11 +3369,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       double rows;
       if (*key)
       {
-#if 0
-        rows= records_in_column_ranges(&param, idx, *key);
-        if (rows != HA_POS_ERROR)
-          (*key)->field->cond_selectivity= rows/table_records; 
-#else
         table->reginfo.impossible_range= 0;
         if ((*key)->type == SEL_ARG::IMPOSSIBLE)
 	{
@@ -3381,7 +3382,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
           if (rows != HA_POS_ERROR)
             (*key)->field->cond_selectivity= rows/table_records;
         } 
-#endif
       }
     }
 

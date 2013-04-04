@@ -336,4 +336,26 @@ set histogram_size=@save_histogram_size;
 set histogram_type=@save_histogram_type;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
+--echo #
+--echo # Bug mdev-4367: join of a merged empty derived table 
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+SET optimizer_use_condition_selectivity=3;
+
+CREATE TABLE t1 (a varchar(1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('j'),('k');
+
+CREATE TABLE t2 (b varchar(1)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES ('x'),('y');
+
+CREATE TABLE t3 (c varchar(1), KEY(c)) ENGINE=MyISAM;
+
+SELECT * FROM t1 STRAIGHT_JOIN (t2 JOIN t3 ON c = b AND b > 'z');
+
+DROP TABLE t1,t2,t3;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+
 set use_stat_tables=@save_use_stat_tables;
