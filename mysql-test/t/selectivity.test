@@ -200,7 +200,7 @@ set optimizer_use_condition_selectivity=3;
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20;
 
-set histogram_size=15;
+set histogram_size=127;
 
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 
@@ -211,7 +211,7 @@ eval EXPLAIN EXTENDED $Q20;
 eval $Q20; 
 
 set histogram_type='DOUBLE_PREC_HB';
-set histogram_size=30;
+set histogram_size=254;
 
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 
@@ -301,6 +301,39 @@ select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 
 drop table t1,t2;
 
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+--echo #
+--echo # Bug mdev-4350: erroneous negative selectivity 
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (1);
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 select * from t1; 
+insert into t1 values (0);
+select count(*) from t1;
+
+set use_stat_tables='preferably';
+set histogram_size=127;
+set histogram_type='SINGLE_PREC_HB';
+analyze table t1;
+flush table t1;
+
+set optimizer_use_condition_selectivity=4;
+explain extended select * from t1 where a=0;
+
+drop table t1;
+
+set histogram_size=@save_histogram_size;
+set histogram_type=@save_histogram_type;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 set use_stat_tables=@save_use_stat_tables;
