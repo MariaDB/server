@@ -751,10 +751,10 @@ set histogram_size=@save_histogram_size;
 set histogram_type=@save_histogram_type;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 #
-# Bug mdev-4367: join of a merged empty derived table 
+# Bug mdev-4367: 2-way join with an empty table 
 #                when optimizer_use_condition_selectivity=3
 #
-SET optimizer_use_condition_selectivity=3;
+set optimizer_use_condition_selectivity=3;
 CREATE TABLE t1 (a varchar(1)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('j'),('k');
 CREATE TABLE t2 (b varchar(1)) ENGINE=MyISAM;
@@ -763,5 +763,35 @@ CREATE TABLE t3 (c varchar(1), KEY(c)) ENGINE=MyISAM;
 SELECT * FROM t1 STRAIGHT_JOIN (t2 JOIN t3 ON c = b AND b > 'z');
 a	b	c
 DROP TABLE t1,t2,t3;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# Bug mdev-4366: impossible condition on an indexed column discovered after
+#                substitution of constant tables
+#                with optimizer_use_condition_selectivity=3
+#
+CREATE TABLE t1 (pk int PRIMARY KEY, a int);
+INSERT INTO t1 VALUES 
+(1,4), (2,6), (3,3), (4,5);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (1), (7);
+set optimizer_use_condition_selectivity=1;
+EXPLAIN EXTENDED
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` where 0
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+1
+set optimizer_use_condition_selectivity=3;
+EXPLAIN EXTENDED
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select 1 AS `1` from `test`.`t1` join `test`.`t2` where 0
+SELECT 1 FROM t1, t2 WHERE pk = 6 AND a = 2 AND b = 10;
+1
+DROP TABLE t1,t2;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
