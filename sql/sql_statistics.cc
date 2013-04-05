@@ -3369,7 +3369,7 @@ double get_column_range_cardinality(Field *field,
           col_stats->min_value && col_stats->max_value)
       {
         Histogram *hist= &col_stats->histogram;
-        if (hist->get_size() > 0)
+        if (hist->is_available())
         {
           double pos= field->middle_point_pos(col_stats->min_value,
                                               col_stats->max_value);
@@ -3406,7 +3406,7 @@ double get_column_range_cardinality(Field *field,
         max_mp_pos= 1.0;
 
       Histogram *hist= &col_stats->histogram;
-      if (hist->get_size() == 0)
+      if (!hist->is_available())
         sel= (max_mp_pos - min_mp_pos);
       else
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
