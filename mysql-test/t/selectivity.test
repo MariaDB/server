@@ -412,4 +412,37 @@ set histogram_size=@save_histogram_size;
 set histogram_type=@save_histogram_type;
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-4371: Join with condition supported by index on an empty table  
+--echo #                with optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables=PREFERABLY; 
+
+CREATE TABLE t1 (a int, b int, INDEX(a));
+
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+
+ANALYZE TABLE t1, t2;
+FLUSH TABLES;
+
+set optimizer_use_condition_selectivity=3;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE a > 9;
+SELECT * FROM t1, t2 WHERE a > 9;
+
+set optimizer_switch=@save_optimizer_switch;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+
 set use_stat_tables=@save_use_stat_tables;
