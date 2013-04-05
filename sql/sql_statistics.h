@@ -195,6 +195,8 @@ public:
 
   void set_values (uchar *vals) { values= (uchar *) vals; }
 
+  bool is_available() { return get_size() > 0 && get_values(); }
+
   void set_value(uint i, double val)
   {
     switch (type) {
