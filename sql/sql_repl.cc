@@ -2503,7 +2503,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
-  slave_connection_state tmp_slave_state;
   DBUG_ENTER("change_master");
 
   *master_info_added= false;
@@ -2532,78 +2531,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
              mi->connection_name.str);
     ret= TRUE;
     goto err;
-  }
-
-  if (lex_mi->gtid_pos_str.str)
-  {
-    if (master_info_index->give_error_if_slave_running())
-    {
-      ret= TRUE;
-      goto err;
-    }
-    /*
-      First load it into a dummy object, to check for parse errors.
-      We do not want to wipe the previous state if there is an error
-      in the syntax of the new state!
-    */
-    if (tmp_slave_state.load(lex_mi->gtid_pos_str.str,
-                             lex_mi->gtid_pos_str.length))
-    {
-      ret= TRUE;
-      goto err;
-    }
-
-    /*
-      Check our own binlog for any of our own transactions that are newer
-      than the GTID state the user is requesting. Any such transactions would
-      result in an out-of-order binlog, which could break anyone replicating
-      with us as master.
-
-      So give an error if this is found, requesting the user to do a
-      RESET MASTER (to clean up the binlog) if they really want this.
-    */
-    if (mysql_bin_log.is_open())
-    {
-      rpl_gtid *binlog_gtid_list= NULL;
-      uint32 num_binlog_gtids= 0;
-      uint32 i;
-
-      if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
-                                                  &num_binlog_gtids))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
-        ret= TRUE;
-        goto err;
-      }
-      for (i= 0; i < num_binlog_gtids; ++i)
-      {
-        rpl_gtid *binlog_gtid= &binlog_gtid_list[i];
-        rpl_gtid *slave_gtid;
-        if (binlog_gtid->server_id != global_system_variables.server_id)
-          continue;
-        if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
-        {
-          my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
-                   binlog_gtid->domain_id, binlog_gtid->domain_id,
-                   binlog_gtid->server_id, binlog_gtid->seq_no);
-          break;
-        }
-        if (slave_gtid->seq_no < binlog_gtid->seq_no)
-        {
-          my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
-                   slave_gtid->domain_id, slave_gtid->server_id,
-                   slave_gtid->seq_no, binlog_gtid->domain_id,
-                   binlog_gtid->server_id, binlog_gtid->seq_no);
-          break;
-        }
-      }
-      my_free(binlog_gtid_list);
-      if (i != num_binlog_gtids)
-      {
-        ret= TRUE;
-        goto err;
-      }
-    }
   }
 
   thd_proc_info(thd, "Changing master");
@@ -2771,9 +2698,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->gtid_pos_auto || lex_mi->gtid_pos_str.str)
+  if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_MI_ENABLE)
     mi->using_gtid= true;
-  else if (lex_mi->gtid_pos_str.str ||
+  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_MI_DISABLE ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
     mi->using_gtid= false;
@@ -2807,17 +2734,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 			      mi->rli.group_master_log_pos);
      strmake(mi->master_log_name, mi->rli.group_master_log_name,
              sizeof(mi->master_log_name)-1);
-  }
-
-  if (lex_mi->gtid_pos_str.str)
-  {
-    if (rpl_global_gtid_slave_state.load(thd, lex_mi->gtid_pos_str.str,
-                                         lex_mi->gtid_pos_str.length, true))
-    {
-      my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
-      ret= TRUE;
-      goto err;
-    }
   }
 
   /*
@@ -3383,6 +3299,80 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
   my_free(gtid_list);
 
   return 0;
+}
+
+
+bool
+rpl_gtid_pos_check(char *str, size_t len)
+{
+  slave_connection_state tmp_slave_state;
+
+  /* Check that we can parse the supplied string. */
+  if (tmp_slave_state.load(str, len))
+    return true;
+
+  /*
+    Check our own binlog for any of our own transactions that are newer
+    than the GTID state the user is requesting. Any such transactions would
+    result in an out-of-order binlog, which could break anyone replicating
+    with us as master.
+
+    So give an error if this is found, requesting the user to do a
+    RESET MASTER (to clean up the binlog) if they really want this.
+  */
+  if (mysql_bin_log.is_open())
+  {
+    rpl_gtid *binlog_gtid_list= NULL;
+    uint32 num_binlog_gtids= 0;
+    uint32 i;
+
+    if (mysql_bin_log.get_most_recent_gtid_list(&binlog_gtid_list,
+                                                &num_binlog_gtids))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
+      return true;
+    }
+    for (i= 0; i < num_binlog_gtids; ++i)
+    {
+      rpl_gtid *binlog_gtid= &binlog_gtid_list[i];
+      rpl_gtid *slave_gtid;
+      if (binlog_gtid->server_id != global_system_variables.server_id)
+        continue;
+      if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
+      {
+        my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
+                 binlog_gtid->domain_id, binlog_gtid->domain_id,
+                 binlog_gtid->server_id, binlog_gtid->seq_no);
+        break;
+      }
+      if (slave_gtid->seq_no < binlog_gtid->seq_no)
+      {
+        my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
+                 slave_gtid->domain_id, slave_gtid->server_id,
+                 slave_gtid->seq_no, binlog_gtid->domain_id,
+                 binlog_gtid->server_id, binlog_gtid->seq_no);
+        break;
+      }
+    }
+    my_free(binlog_gtid_list);
+    if (i != num_binlog_gtids)
+      return true;
+  }
+
+  return false;
+}
+
+
+bool
+rpl_gtid_pos_update(THD *thd, char *str, size_t len)
+{
+  if (rpl_global_gtid_slave_state.load(thd, str, len, true))
+  {
+    my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
+    return true;
+  }
+  else
+    return false;
 }
 
 

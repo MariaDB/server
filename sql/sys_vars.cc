@@ -55,6 +55,7 @@
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 #include "threadpool.h"
+#include "sql_repl.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1223,6 +1224,91 @@ static Sys_var_ulonglong Sys_gtid_seq_no(
        NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
+
+
+#ifdef HAVE_REPLICATION
+bool
+Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
+{
+  String str, *res;
+  bool running;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+  if (!(res= var->value->val_str(&str)))
+    return true;
+  if (rpl_gtid_pos_check(&((*res)[0]), res->length()))
+    return true;
+
+  if (!(var->save_result.string_value.str=
+        thd->strmake(res->ptr(), res->length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  var->save_result.string_value.length= res->length();
+  return false;
+}
+
+
+bool
+Sys_var_gtid_pos::global_update(THD *thd, set_var *var)
+{
+  bool err;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (master_info_index->give_error_if_slave_running())
+    err= true;
+  else
+    err= rpl_gtid_pos_update(thd, var->save_result.string_value.str,
+                             var->save_result.string_value.length);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return err;
+}
+
+
+uchar *
+Sys_var_gtid_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  String str;
+  char *p;
+
+  str.length(0);
+  if (rpl_append_gtid_state(&str, true) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_pos_dummy;
+static Sys_var_gtid_pos Sys_gtid_pos(
+       "gtid_pos",
+       "The list of global transaction IDs that were last replicated on the "
+       "server, one for each replication domain. This defines where a slave "
+       "starts replicating from on a master when connecting with global "
+       "transaction ID.",
+       GLOBAL_VAR(opt_gtid_pos_dummy), NO_CMD_LINE);
+#endif
+
 
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
 {
