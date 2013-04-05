@@ -3994,7 +3994,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     rc= HA_ERR_INTERNAL_ERROR;
     DBUG_RETURN(rc);
   } else
-    dbf= (GetTypeID(options->type) == TAB_DBF);
+    dbf= (GetTypeID(options->type) == TAB_DBF && !options->catfunc);
 
   if (type == TAB_XML) {
     bool  dom;                  // True: MS-DOM, False libxml2
