@@ -5,7 +5,7 @@ INSERT INTO t1 VALUES (1);
 include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
 Using_Gtid = '0'
-CHANGE MASTER TO master_gtid_pos=AUTO;
+CHANGE MASTER TO master_use_gtid=1;
 FLUSH LOGS;
 include/wait_for_purge.inc "master-bin.000002"
 show binary logs;

@@ -6,8 +6,9 @@ RESET SLAVE;
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL gtid_pos="";
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_GTID_POS="";
+MASTER_USE_GTID=1;
 include/start_slave.inc
 SELECT * FROM t1;
 a
@@ -23,8 +24,9 @@ include/wait_for_purge.inc "master-bin.000003"
 show binary logs;
 Log_name	File_size
 master-bin.000003	#
+SET GLOBAL gtid_pos="";
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_GTID_POS="";
+MASTER_USE_GTID=1;
 START SLAVE;
 include/wait_for_slave_io_error.inc [errno=1236]
 include/stop_slave.inc
@@ -38,11 +40,12 @@ a
 SET sql_log_bin=0;
 call mtr.add_suppression('Could not find GTID state requested by slave in any binlog files');
 SET sql_log_bin=1;
-*** Test that we give error when explict MASTER_GTID_POS=xxx that conflicts with what is in our binary log ***
+*** Test that we give error when explict @@gtid_pos=xxx that conflicts with what is in our binary log ***
 include/stop_slave.inc
 INSERT INTO t1 VALUES(3);
+SET GLOBAL gtid_pos='0-1-3';
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_GTID_POS='0-1-3';
+MASTER_USE_GTID=1;
 include/start_slave.inc
 SELECT * FROM t1 ORDER by a;
 a
@@ -53,12 +56,10 @@ include/stop_slave.inc
 INSERT INTO t1 VALUES (4);
 INSERT INTO t1 VALUES (10);
 DELETE FROM t1 WHERE a=10;
-CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_GTID_POS='0-1-4';
-ERROR HY000: Requested MASTER_GTID_POS 0-1-4 conflicts with the binary log which contains a more recent GTID 0-2-6. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+SET GLOBAL gtid_pos='0-1-4';
+ERROR HY000: Requested GTID_POS 0-1-4 conflicts with the binary log which contains a more recent GTID 0-2-6. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
 RESET MASTER;
-CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_GTID_POS='0-1-4';
+SET GLOBAL gtid_pos='0-1-4';
 START SLAVE;
 SELECT * FROM t1 ORDER by a;
 a
@@ -72,7 +73,8 @@ include/stop_slave.inc
 RESET SLAVE ALL;
 RESET MASTER;
 RESET MASTER;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_gtid_pos='';
+SET GLOBAL gtid_pos='';
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=1;
 include/start_slave.inc
 CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
@@ -87,14 +89,14 @@ SELECT * FROM t1 ORDER BY a;
 a
 1
 2
-*** MDEV-4329: MASTER_GTID_POS='' is not checked for conflicts with binlog ***
+*** MDEV-4329: GTID_POS='' is not checked for conflicts with binlog ***
 include/stop_slave.inc
 DROP TABLE t1;
 RESET SLAVE;
-CHANGE MASTER TO master_gtid_pos='';
-ERROR HY000: Requested MASTER_GTID_POS contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+SET GLOBAL gtid_pos="";
+ERROR HY000: Requested GTID_POS contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-4. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
 RESET MASTER;
-CHANGE MASTER TO master_gtid_pos='';
+SET GLOBAL gtid_pos="";
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -105,7 +107,7 @@ SET SQL_LOG_BIN=0;
 DROP TABLE t1;
 SET SQL_LOG_BIN=1;
 RESET SLAVE;
-CHANGE MASTER TO master_gtid_pos='';
+SET GLOBAL gtid_pos="";
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -118,7 +120,7 @@ Using_Gtid = '0'
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1050]
 STOP SLAVE IO_THREAD;
-CHANGE MASTER TO MASTER_GTID_POS=AUTO;
+CHANGE MASTER TO MASTER_USE_GTID=1;
 include/start_slave.inc
 INSERT INTO t1 VALUES(3);
 SELECT * FROM t1 ORDER BY a;
@@ -152,7 +154,7 @@ a
 *** Test modifying binlog on slave and the effect on GTID state. ***
 include/stop_slave.inc
 RESET MASTER;
-CHANGE MASTER TO master_gtid_pos='';
+SET GLOBAL gtid_pos="";
 RESET MASTER;
 TRUNCATE TABLE t1;
 INSERT INTO t1 VALUES (10);
@@ -172,13 +174,13 @@ SELECT '0-2-4' AS Gtid_Pos;
 Gtid_Pos
 0-2-4
 include/stop_slave.inc
-CHANGE MASTER TO master_gtid_pos= '0-1-2';
-ERROR HY000: Requested MASTER_GTID_POS 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
+SET GLOBAL gtid_pos='0-1-2';
+ERROR HY000: Requested GTID_POS 0-1-2 conflicts with the binary log which contains a more recent GTID 0-2-4. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog
 RESET MASTER;
 SELECT '0-1-2' AS Gtid_Pos;
 Gtid_Pos
 0-1-2
-CHANGE MASTER TO master_gtid_pos= '0-1-2';
+SET GLOBAL gtid_pos='0-1-2';
 include/start_slave.inc
 SELECT '0-1-2' AS Gtid_Pos;
 Gtid_Pos

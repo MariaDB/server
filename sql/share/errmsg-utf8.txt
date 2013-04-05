@@ -6603,7 +6603,7 @@ ER_SLAVE_STOPPED
 ER_FAILED_GTID_STATE_INIT
         eng "Failed initializing replication GTID state"
 ER_INCORRECT_GTID_STATE
-        eng "Could not parse GTID list for MASTER_GTID_POS"
+        eng "Could not parse GTID list for GTID_POS"
 ER_CANNOT_UPDATE_GTID_STATE
         eng "Could not update replication slave gtid state"
 ER_DUPLICATE_GTID_DOMAIN
@@ -6616,6 +6616,6 @@ ER_GTID_POSITION_NOT_FOUND_IN_BINLOG
 ER_CANNOT_LOAD_SLAVE_GTID_STATE
 	eng "Failed to load replication slave GTID state from table %s.%s"
 ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
-	eng "Requested MASTER_GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
+	eng "Requested GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
 ER_MASTER_GTID_POS_MISSING_DOMAIN
-	eng "Requested MASTER_GTID_POS contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. To use the requested MASTER_GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
+	eng "Requested GTID_POS contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"

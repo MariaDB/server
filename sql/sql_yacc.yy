@@ -1095,7 +1095,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LOW_PRIORITY
 %token  LT                            /* OPERATOR */
 %token  MASTER_CONNECT_RETRY_SYM
-%token  MASTER_GTID_POS_SYM
+%token  MASTER_USE_GTID_SYM
 %token  MASTER_HOST_SYM
 %token  MASTER_LOG_FILE_SYM
 %token  MASTER_LOG_POS_SYM
@@ -2060,23 +2060,15 @@ master_file_def:
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
-        | MASTER_GTID_POS_SYM EQ TEXT_STRING_sys
+        | MASTER_USE_GTID_SYM EQ ulong_num
           {
-            if (Lex->mi.gtid_pos_str.str || Lex->mi.gtid_pos_auto)
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
             {
-              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_GTID_POS");
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
               MYSQL_YYABORT;
             }
-            Lex->mi.gtid_pos_str = $3;
-          }
-        | MASTER_GTID_POS_SYM EQ AUTO_SYM
-          {
-            if (Lex->mi.gtid_pos_str.str || Lex->mi.gtid_pos_auto)
-            {
-              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_GTID_POS");
-              MYSQL_YYABORT;
-            }
-            Lex->mi.gtid_pos_auto = true;
+            Lex->mi.use_gtid_opt= $3 ?
+              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
           }
         ;
 
@@ -13313,7 +13305,7 @@ keyword_sp:
         | MAX_ROWS                 {}
         | MASTER_SYM               {}
         | MASTER_HEARTBEAT_PERIOD_SYM {}
-        | MASTER_GTID_POS_SYM      {}
+        | MASTER_USE_GTID_SYM      {}
         | MASTER_HOST_SYM          {}
         | MASTER_PORT_SYM          {}
         | MASTER_LOG_FILE_SYM      {}

@@ -24,7 +24,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (4, 2)
 slave-bin.000001	#	Query	#	#	COMMIT
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SLAVE_PORT,
-master_user = 'root', master_gtid_pos = AUTO;
+master_user = 'root', master_use_gtid = 1;
 START SLAVE;
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -37,7 +37,7 @@ RESET SLAVE;
 INSERT INTO t1 VALUES (5, 1);
 INSERT INTO t1 VALUES (6, 1);
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-master_gtid_pos = AUTO;
+master_use_gtid = 1;
 START SLAVE;
 SELECT * FROM t1 ORDER BY a;
 a	b
