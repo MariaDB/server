@@ -822,4 +822,32 @@ DROP TABLE t1;
 set histogram_size=@save_histogram_size;
 set histogram_type=@save_histogram_type;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-4371: Join with condition supported by index on an empty table  
+#                with optimizer_use_condition_selectivity=3
+#
+set use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (a int, b int, INDEX(a));
+CREATE TABLE t2 (c int);
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+test.t2	analyze	status	OK
+FLUSH TABLES;
+set optimizer_use_condition_selectivity=3;
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=off';
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE a > 9;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1003	select NULL AS `a`,NULL AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where 0
+SELECT * FROM t1, t2 WHERE a > 9;
+a	b	c
+set optimizer_switch=@save_optimizer_switch;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2;
+set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
