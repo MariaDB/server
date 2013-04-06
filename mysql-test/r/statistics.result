@@ -1511,4 +1511,43 @@ test	t1	a	1	5	0.0000	1.0000	10	DOUBLE_PREC_HB	0000FF3FFF7FFFBFFFFF
 set histogram_size=default;
 set histogram_type=default;
 drop table t1;
+#
+# Bug mdev-4369: histogram for a column with many distinct values 
+#
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int);
+INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+8192
+SELECT COUNT(DISTINCT id) FROM t2;
+COUNT(DISTINCT id)
+1024
+set @@tmp_table_size=1024*16;
+set @@max_heap_table_size=1024*16;
+set histogram_size=63;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t2	id	1	1024	0.0000	8.0000	63	SINGLE_PREC_HB	03070B0F13171B1F23272B2F33373B3F43474B4F53575B5F63676B6F73777B7F83878B8F93979B9FA3A7ABAFB3B7BBBFC3C7CBCFD3D7DBDFE3E7EBEFF3F7FB
+set histogram_size=default;
+drop table t1, t2;
 set use_stat_tables=@save_use_stat_tables;

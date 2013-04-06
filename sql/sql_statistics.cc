@@ -1348,7 +1348,7 @@ public:
     tree_key_length= field->pack_length();
 
     tree= new Unique((qsort_cmp2) simple_str_key_cmp, (void*) field,
-                     tree_key_length, max_heap_table_size);
+                     tree_key_length, max_heap_table_size, 1);
   }
 
   virtual ~Count_distinct_field()
@@ -1435,7 +1435,7 @@ public:
 
     tree= new Unique((qsort_cmp2) simple_ulonglong_key_cmp,
                      (void*) &tree_key_length,
-                     tree_key_length, max_heap_table_size);
+                     tree_key_length, max_heap_table_size, 1);
   }
 
   bool add()
