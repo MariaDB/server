@@ -850,4 +850,21 @@ set optimizer_switch=@save_optimizer_switch;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-4373: condition on a short varchar column   
+#                with optimizer_use_condition_selectivity=3
+#
+set use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (a varchar(1));
+INSERT INTO t1 VALUES ('x'), ('y');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+FLUSH TABLES;
+set optimizer_use_condition_selectivity=3;
+SELECT * FROM t1 WHERE a <= 'w';
+a
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1;
+set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;

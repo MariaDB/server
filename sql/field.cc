@@ -6202,14 +6202,16 @@ double Field_str::middle_point_pos(Field *min, Field *max)
   uchar minp_prefix[sizeof(ulonglong)];
   uchar maxp_prefix[sizeof(ulonglong)];
   ulonglong mp, minp, maxp;
+  uint dsz= min(field_length, sizeof(ulonglong) * charset()->mbmaxlen);
+  memset(mp_prefix, 0, sizeof(ulonglong));
+  memset(minp_prefix, 0, sizeof(ulonglong));
+  memset(maxp_prefix, 0, sizeof(ulonglong));
   my_strnxfrm(charset(), mp_prefix, sizeof(mp),
-              ptr + length_size(), sizeof(mp) * charset()->mbmaxlen);
+              ptr + length_size(), dsz);
   my_strnxfrm(charset(), minp_prefix, sizeof(minp),
-              min->ptr + length_size(),
-              sizeof(minp) * charset()->mbmaxlen);
+              min->ptr + length_size(), dsz);
   my_strnxfrm(charset(), maxp_prefix, sizeof(maxp),
-              max->ptr + length_size(),
-              sizeof(maxp) * charset()->mbmaxlen);
+              max->ptr + length_size(), dsz);
   mp= char_prefix_to_ulonglong(mp_prefix);
   minp= char_prefix_to_ulonglong(minp_prefix);
   maxp= char_prefix_to_ulonglong(maxp_prefix);
