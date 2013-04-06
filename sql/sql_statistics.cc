@@ -929,7 +929,8 @@ public:
           stat_field->store(table_field->collected_stats->histogram.get_size());
           break;
         case COLUMN_STAT_HIST_TYPE:
-          stat_field->store(table_field->collected_stats->histogram.get_type());
+          stat_field->store(table_field->collected_stats->histogram.get_type() +
+                            1);
           break;
         case COLUMN_STAT_HISTOGRAM:
           const char * col_histogram=
@@ -1011,7 +1012,8 @@ public:
             table_field->read_stats->histogram.set_size(stat_field->val_int());
             break;            
           case COLUMN_STAT_HIST_TYPE:
-            Histogram_type hist_type= (Histogram_type) (stat_field->val_int());
+            Histogram_type hist_type= (Histogram_type) (stat_field->val_int() -
+                                                        1);
             table_field->read_stats->histogram.set_type(hist_type);
             break;            
           }

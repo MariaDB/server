@@ -174,7 +174,7 @@ ANALYZE TABLE t1;
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, HEX(histogram)
+       hist_size, hist_type, HEX(histogram)
   FROM mysql.column_stats;
 
 DELETE FROM mysql.column_stats;
@@ -186,7 +186,7 @@ ANALYZE TABLE t1;
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, HEX(histogram)
+       hist_size, hist_type, HEX(histogram)
   FROM mysql.column_stats;
 
 DELETE FROM mysql.column_stats;
@@ -590,6 +590,53 @@ DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
   
+--echo #
+--echo # Bug mdev-4357: empty string as a value of the HIST_SIZE column 
+--echo #                from mysql.column_stats
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+set histogram_size=10;
+
+analyze table t1  persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+
+drop table t1;
+
+--echo #
+--echo # Bug mdev-4359: wrong setting of the HIST_SIZE column 
+--echo # (see also mdev-4357)         from mysql.column_stats
+--echo #
+
+create table t1 ( a int);
+insert into t1 values (1),(2),(3),(4),(5);
+
+set histogram_size=10;
+set histogram_type='double_prec_hb';
+
+show variables like 'histogram%';
+
+analyze table t1 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+set histogram_type=default;
+
+drop table t1;
+
 set use_stat_tables=@save_use_stat_tables;
 
-    

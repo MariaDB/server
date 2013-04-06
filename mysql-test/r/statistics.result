@@ -214,15 +214,15 @@ test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, HEX(histogram)
+hist_size, hist_type, HEX(histogram)
 FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	HEX(histogram)
-test	t1	a	0	49	0.0000	1.0000	4	2E62A1D0
-test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	003FBFFF
-test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	0055AAFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	009393FF
-test	t1	e	0.01	0.112	0.2250	6.2000	4	000564E1
-test	t1	f	1	5	0.2000	6.4000	4	3F7FBFBF
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	0	49	0.0000	1.0000	4	SINGLE_PREC_HB	2E62A1D0
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	SINGLE_PREC_HB	003FBFFF
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	SINGLE_PREC_HB	0055AAFF
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	SINGLE_PREC_HB	009393FF
+test	t1	e	0.01	0.112	0.2250	6.2000	4	SINGLE_PREC_HB	000564E1
+test	t1	f	1	5	0.2000	6.4000	4	SINGLE_PREC_HB	3F7FBFBF
 DELETE FROM mysql.column_stats;
 set histogram_size=8;
 set histogram_type='DOUBLE_PREC_HB';
@@ -232,15 +232,15 @@ test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
 nulls_ratio, avg_frequency,
-hist_size, HEX(histogram)
+hist_size, hist_type, HEX(histogram)
 FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	HEX(histogram)
-test	t1	a	0	49	0.0000	1.0000	8	052F4363F4A1F9D0
-test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	0000FF3FFFBFFFFF
-test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	00005555AAAAFFFF
-test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	000026942694FFFF
-test	t1	e	0.01	0.112	0.2250	6.2000	8	000005056464E1E1
-test	t1	f	1	5	0.2000	6.4000	8	FF3FFF7FFFBFFFBF
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	0	49	0.0000	1.0000	8	DOUBLE_PREC_HB	052F4363F4A1F9D0
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	DOUBLE_PREC_HB	0000FF3FFFBFFFFF
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	DOUBLE_PREC_HB	00005555AAAAFFFF
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	DOUBLE_PREC_HB	000026942694FFFF
+test	t1	e	0.01	0.112	0.2250	6.2000	8	DOUBLE_PREC_HB	000005056464E1E1
+test	t1	f	1	5	0.2000	6.4000	8	DOUBLE_PREC_HB	FF3FFF7FFFBFFFBF
 DELETE FROM mysql.column_stats;
 set histogram_size= 0;
 set histogram_type=default;
@@ -1467,4 +1467,48 @@ UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
 DELETE FROM mysql.table_stats;
 DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
+#
+# Bug mdev-4357: empty string as a value of the HIST_SIZE column 
+#                from mysql.column_stats
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+set histogram_size=10;
+analyze table t1  persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	1	3	0.0000	1.0000	10	SINGLE_PREC_HB	0000007F7F7F7FFFFFFF
+set histogram_size=default;
+drop table t1;
+#
+# Bug mdev-4359: wrong setting of the HIST_SIZE column 
+# (see also mdev-4357)         from mysql.column_stats
+#
+create table t1 ( a int);
+insert into t1 values (1),(2),(3),(4),(5);
+set histogram_size=10;
+set histogram_type='double_prec_hb';
+show variables like 'histogram%';
+Variable_name	Value
+histogram_size	10
+histogram_type	DOUBLE_PREC_HB
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	1	5	0.0000	1.0000	10	DOUBLE_PREC_HB	0000FF3FFF7FFFBFFFFF
+set histogram_size=default;
+set histogram_type=default;
+drop table t1;
 set use_stat_tables=@save_use_stat_tables;
