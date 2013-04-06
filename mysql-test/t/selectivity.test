@@ -211,7 +211,7 @@ eval EXPLAIN EXTENDED $Q20;
 eval $Q20; 
 
 set histogram_type='DOUBLE_PREC_HB';
-set histogram_size=254;
+set histogram_size=126;
 
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 

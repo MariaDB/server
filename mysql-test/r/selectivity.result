@@ -536,7 +536,7 @@ limit 10;
 s_name	s_address
 Supplier#000000010	Saygah3gYWMp72i PY
 set histogram_type='DOUBLE_PREC_HB';
-set histogram_size=254;
+set histogram_size=126;
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 Table	Op	Msg_type	Msg_text
 dbt3_s001.part	analyze	status	Table is already up to date
@@ -562,7 +562,7 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.03	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
@@ -616,7 +616,7 @@ limit 10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	nation	ALL	PRIMARY	NULL	NULL	NULL	25	4.00	Using where; Using temporary; Using filesort
 1	PRIMARY	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	100.00	
-1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.03	Using where
+1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	7.81	Using where
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_partkey	4	dbt3_s001.part.p_partkey	3	100.00	Using where; FirstMatch(supplier)
 4	DEPENDENT SUBQUERY	lineitem	ref	i_l_shipdate,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.partsupp.ps_suppkey	8	15.14	Using where
 Warnings:
