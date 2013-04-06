@@ -1031,7 +1031,7 @@ bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
 /***********************************************************************/
 void VCTFAM::CloseTableFile(PGLOBAL g)
   {
-  int  rc, wrc = RC_OK;
+  int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
   if (mode == MODE_INSERT) {
@@ -1705,7 +1705,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 void VCMFAM::CloseTableFile(PGLOBAL g)
   {
-  int  rc, wrc = RC_OK;
+  int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
   if (mode == MODE_INSERT) {
@@ -2416,7 +2416,7 @@ int VECFAM::RenameTempFile(PGLOBAL g)
 /***********************************************************************/
 void VECFAM::CloseTableFile(PGLOBAL g)
   {
-  int  rc, wrc = RC_OK;
+  int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
   if (mode == MODE_INSERT) {
@@ -4063,7 +4063,7 @@ bool BGVFAM::CleanUnusedSpace(PGLOBAL g)
 /***********************************************************************/
 void BGVFAM::CloseTableFile(PGLOBAL g)
   {
-  int  rc, wrc = RC_OK;
+  int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
   if (mode == MODE_INSERT) {
