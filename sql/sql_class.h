@@ -3997,6 +3997,7 @@ class Unique :public Sql_alloc
   uint size;
   uint full_size;
   uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
+  bool with_counters;
 
   bool merge(TABLE *table, uchar *buff, bool without_last_merge);
 

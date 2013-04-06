@@ -638,5 +638,48 @@ set histogram_type=default;
 
 drop table t1;
 
+--echo #
+--echo # Bug mdev-4369: histogram for a column with many distinct values 
+--echo #
+
+
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int);
+
+INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+
+INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(DISTINCT id) FROM t2;
+
+set @@tmp_table_size=1024*16;
+set @@max_heap_table_size=1024*16;
+
+set histogram_size=63;
+
+analyze table t2 persistent for all;
+
+select db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, HEX(histogram)
+  FROM mysql.column_stats;
+
+set histogram_size=default;
+
+drop table t1, t2;
+
 set use_stat_tables=@save_use_stat_tables;
 
