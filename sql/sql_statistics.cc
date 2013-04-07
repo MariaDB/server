@@ -3339,7 +3339,8 @@ double get_column_avg_frequency(Field * field)
 
 double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
-                                    key_range *max_endp)
+                                    key_range *max_endp,
+                                    uint range_flag)
 {
   double res;
   TABLE *table= field->table;
@@ -3353,12 +3354,15 @@ double get_column_range_cardinality(Field *field,
 
   double col_non_nulls= tab_records - col_nulls;
 
+  bool nulls_incl= field->null_ptr && min_endp && min_endp->key[0] &&
+                   !(range_flag & NEAR_MIN);
+
   if (col_non_nulls < 1)
     res= 0;
   else if (min_endp && max_endp && min_endp->length == max_endp->length &&
            !memcmp(min_endp->key, max_endp->key, min_endp->length))
   { 
-    if (field->null_ptr && min_endp->key[0])
+    if (nulls_incl)
     {
       /* This is null single point range */
       res= col_nulls;
@@ -3416,6 +3420,8 @@ double get_column_range_cardinality(Field *field,
     }
     else
       res= col_non_nulls;
+    if (nulls_incl)
+      res+= col_nulls;
   }
   return res;
 }

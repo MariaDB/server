@@ -3303,7 +3303,8 @@ double records_in_column_ranges(PARAM *param, uint idx,
     key_range *min_endp, *max_endp;
     min_endp= range.start_key.length? &range.start_key : NULL;
     max_endp= range.end_key.length? &range.end_key : NULL;
-    rows= get_column_range_cardinality(field, min_endp, max_endp);
+    rows= get_column_range_cardinality(field, min_endp, max_endp,
+                                       range.range_flag);
     if (HA_POS_ERROR == rows)
     {
       total_rows= HA_POS_ERROR;
