@@ -1707,9 +1707,6 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   int error;
   THD *new_thd= new THD;
   bool result;
-#ifdef EMBEDDED_LIBRARY
-  No_such_table_error_handler error_handler;
-#endif /* EMBEDDED_LIBRARY */
   DBUG_ENTER("plugin_load");
 
   new_thd->thread_stack= (char*) &tables;
@@ -1718,22 +1715,13 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
   new_thd->db_length= 5;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
   tables.init_one_table("mysql", 5, "plugin", 6, "plugin", TL_READ);
-
-#ifdef EMBEDDED_LIBRARY
-  /*
-    When building an embedded library, if the mysql.plugin table
-    does not exist, we silently ignore the missing table
-  */
-  new_thd->push_internal_handler(&error_handler);
-#endif /* EMBEDDED_LIBRARY */
+  tables.open_strategy= TABLE_LIST:: IF_EMBEDDED(OPEN_IF_EXISTS, OPEN_NORMAL);
 
   result= open_and_lock_tables(new_thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT);
 
-#ifdef EMBEDDED_LIBRARY
-  new_thd->pop_internal_handler();
-  if (error_handler.safely_trapped_errors())
+  table= tables.table;
+  if (IF_EMBEDDED(!table, false))
     goto end;
-#endif /* EMBEDDED_LIBRARY */
 
   if (result)
   {
@@ -1745,7 +1733,7 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
       sql_print_warning("Could not open mysql.plugin table. Some options may be missing from the help text");
     goto end;
   }
-  table= tables.table;
+
   if (init_read_record(&read_record_info, new_thd, table, NULL, 1, 0, FALSE))
   {
     sql_print_error("Could not initialize init_read_record; Plugins not "

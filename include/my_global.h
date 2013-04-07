@@ -90,13 +90,15 @@
 #define IF_WIN(A,B) B
 #endif
 
-#ifndef EMBEDDED_LIBRARY
+#ifdef EMBEDDED_LIBRARY
+#define IF_EMBEDDED(A,B) A
+#else
+#define IF_EMBEDDED(A,B) B
+
 #ifdef WITH_NDB_BINLOG
 #define HAVE_NDB_BINLOG 1
 #endif
-#endif /* !EMBEDDED_LIBRARY */
 
-#ifndef EMBEDDED_LIBRARY
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
 #endif
