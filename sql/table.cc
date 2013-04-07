@@ -4817,7 +4817,7 @@ void TABLE_LIST::register_want_access(ulong want_access)
   Load security context information for this view
 
   SYNOPSIS
-    TABLE_LIST::prepare_view_securety_context()
+    TABLE_LIST::prepare_view_security_context()
     thd                  [in] thread handler
 
   RETURN
@@ -4826,9 +4826,9 @@ void TABLE_LIST::register_want_access(ulong want_access)
 */
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool TABLE_LIST::prepare_view_securety_context(THD *thd)
+bool TABLE_LIST::prepare_view_security_context(THD *thd)
 {
-  DBUG_ENTER("TABLE_LIST::prepare_view_securety_context");
+  DBUG_ENTER("TABLE_LIST::prepare_view_security_context");
   DBUG_PRINT("enter", ("table: %s", alias));
 
   DBUG_ASSERT(!prelocking_placeholder && view);
@@ -4935,7 +4935,7 @@ bool TABLE_LIST::prepare_security(THD *thd)
   Security_context *save_security_ctx= thd->security_ctx;
 
   DBUG_ASSERT(!prelocking_placeholder);
-  if (prepare_view_securety_context(thd))
+  if (prepare_view_security_context(thd))
     DBUG_RETURN(TRUE);
   thd->security_ctx= find_view_security_context(thd);
   while ((tbl= tb++))
