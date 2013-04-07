@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates
+   Copyright (c) 2010, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1812,23 +1813,6 @@ void ha_archive::destroy_record_buffer(archive_record_buffer *r)
 struct st_mysql_storage_engine archive_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(archive)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &archive_storage_engine,
-  "ARCHIVE",
-  "Brian Aker, MySQL AB",
-  "Archive storage engine",
-  PLUGIN_LICENSE_GPL,
-  archive_db_init, /* Plugin Init */
-  archive_db_done, /* Plugin Deinit */
-  0x0300 /* 3.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(archive)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
