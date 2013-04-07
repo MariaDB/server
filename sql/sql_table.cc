@@ -4421,24 +4421,14 @@ bool mysql_create_table_no_lock(THD *thd,
   {
     bool create_if_not_exists =
       create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS;
-    int retcode = ha_table_exists_in_engine(thd, db, table_name);
-    DBUG_PRINT("info", ("exists_in_engine: %u",retcode));
-    switch (retcode)
+    bool exists_in_engine;
+    ha_check_if_table_exists(thd, db, table_name, &exists_in_engine);
+    if (exists_in_engine)
     {
-      case HA_ERR_NO_SUCH_TABLE:
-        /* Normal case, no table exists. we can go and create it */
-        break;
-      case HA_ERR_TABLE_EXIST:
-        DBUG_PRINT("info", ("Table existed in handler"));
-
-        if (create_if_not_exists)
-          goto warn;
-        my_error(ER_TABLE_EXISTS_ERROR,MYF(0),table_name);
-        goto err;
-      default:
-        DBUG_PRINT("info", ("error: %u from storage engine", retcode));
-        my_error(retcode, MYF(0),table_name);
-        goto err;
+      if (create_if_not_exists)
+        goto warn;
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name);
+      goto err;
     }
   }
 

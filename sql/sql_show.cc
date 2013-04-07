@@ -833,8 +833,6 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
   DBUG_PRINT("info",("found: %d files", files->elements));
   my_dirend(dirp);
 
-  (void) ha_find_files(thd, db, path, wild, dir, files);
-
   DBUG_RETURN(FIND_FILES_OK);
 }
 
@@ -3889,13 +3887,6 @@ make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
     {
       if (table_names->push_back(&lookup_field_vals->table_value))
         return 1;
-      /*
-        Check that table is relevant in current transaction.
-        (used for ndb engine, see ndbcluster_find_files(), ha_ndbcluster.cc)
-      */
-      (void) ha_find_files(thd, db_name->str, path,
-                         lookup_field_vals->table_value.str, 0,
-                         table_names);
     }
     return 0;
   }

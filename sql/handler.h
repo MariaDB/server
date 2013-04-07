@@ -1079,14 +1079,6 @@ struct handlerton
                    const char *name,
                    uchar **frmblob, 
                    size_t *frmlen);
-   int (*find_files)(handlerton *hton, THD *thd,
-                     const char *db,
-                     const char *path,
-                     const char *wild, bool dir, List<LEX_STRING> *files);
-   int (*table_exists_in_engine)(handlerton *hton, THD* thd, const char *db,
-                                 const char *name);
-
-   uint32 license; /* Flag for Engine License */
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -3041,9 +3033,6 @@ bool ha_check_if_table_exists(THD* thd, const char *db, const char *name,
                              bool *exists);
 int ha_discover(THD* thd, const char* dbname, const char* name,
                 uchar** frmblob, size_t* frmlen);
-int ha_find_files(THD *thd,const char *db,const char *path,
-                  const char *wild, bool dir, List<LEX_STRING>* files);
-int ha_table_exists_in_engine(THD* thd, const char* db, const char* name);
 
 /* key cache */
 extern "C" int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *);
