@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -829,8 +829,7 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
         continue;
     }
 #endif
-    if (!(file_name=
-          thd->make_lex_string(file_name, uname, file_name_len, TRUE)) ||
+    if (!(file_name= thd->make_lex_string(uname, file_name_len)) ||
         files->push_back(file_name))
     {
       my_dirend(dirp);
@@ -3443,8 +3442,8 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
                                (uchar *) item_field->field_name,
                                strlen(item_field->field_name), 0))
     {
-      thd->make_lex_string(&lookup_field_vals->db_value, tmp_str->ptr(),
-                           tmp_str->length(), FALSE);
+      thd->make_lex_string(&lookup_field_vals->db_value,
+                           tmp_str->ptr(), tmp_str->length());
     }
     /* Lookup value is table name */
     else if (!cs->coll->strnncollsp(cs, (uchar *) field_name2,
@@ -3452,8 +3451,8 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
                                     (uchar *) item_field->field_name,
                                     strlen(item_field->field_name), 0))
     {
-      thd->make_lex_string(&lookup_field_vals->table_value, tmp_str->ptr(),
-                           tmp_str->length(), FALSE);
+      thd->make_lex_string(&lookup_field_vals->table_value,
+                           tmp_str->ptr(), tmp_str->length());
     }
   }
   return 0;
@@ -3638,8 +3637,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           wild, strlen(wild), 0);
+      thd->make_lex_string(&lookup_field_values->db_value, wild, strlen(wild));
       lookup_field_values->wild_db_value= 1;
     }
     break;
@@ -3648,11 +3646,11 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_TRIGGERS:
   case SQLCOM_SHOW_EVENTS:
     thd->make_lex_string(&lookup_field_values->db_value, 
-                         lex->select_lex.db, strlen(lex->select_lex.db), 0);
+                         lex->select_lex.db, strlen(lex->select_lex.db));
     if (wild)
     {
       thd->make_lex_string(&lookup_field_values->table_value, 
-                           wild, strlen(wild), 0);
+                           wild, strlen(wild));
       lookup_field_values->wild_table_value= 1;
     }
     break;
@@ -3711,9 +3709,8 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
                  bool *with_i_schema)
 {
   LEX_STRING *i_s_name_copy= 0;
-  i_s_name_copy= thd->make_lex_string(i_s_name_copy,
-                                      INFORMATION_SCHEMA_NAME.str,
-                                      INFORMATION_SCHEMA_NAME.length, TRUE);
+  i_s_name_copy= thd->make_lex_string(INFORMATION_SCHEMA_NAME.str,
+                                      INFORMATION_SCHEMA_NAME.length);
   *with_i_schema= 0;
   if (lookup_field_vals->wild_db_value)
   {
@@ -3802,9 +3799,8 @@ static my_bool add_schema_table(THD *thd, plugin_ref plugin,
       DBUG_RETURN(0);
   }
 
-  if ((file_name= thd->make_lex_string(file_name, schema_table->table_name,
-                                       strlen(schema_table->table_name),
-                                       TRUE)) &&
+  if ((file_name= thd->make_lex_string(schema_table->table_name,
+                                       strlen(schema_table->table_name))) &&
       !file_list->push_back(file_name))
     DBUG_RETURN(0);
   DBUG_RETURN(1);
@@ -3835,8 +3831,8 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
         continue;
     }
     if ((file_name=
-         thd->make_lex_string(file_name, tmp_schema_table->table_name,
-                              strlen(tmp_schema_table->table_name), TRUE)) &&
+         thd->make_lex_string(tmp_schema_table->table_name,
+                              strlen(tmp_schema_table->table_name))) &&
         !files->push_back(file_name))
       continue;
     DBUG_RETURN(1);
@@ -3888,9 +3884,8 @@ make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
         find_schema_table(thd, lookup_field_vals->table_value.str);
       if (schema_table && !schema_table->hidden)
       {
-        if (!(name= 
-              thd->make_lex_string(NULL, schema_table->table_name,
-                                   strlen(schema_table->table_name), TRUE)) ||
+        if (!(name= thd->make_lex_string(schema_table->table_name,
+                                         strlen(schema_table->table_name))) ||
             table_names->push_back(name))
           return 1;
       }
@@ -4015,10 +4010,10 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     These copies are used for make_table_list() while unaltered values
     are passed to process_table() functions.
   */
-  if (!thd->make_lex_string(&db_name, orig_db_name->str,
-                            orig_db_name->length, FALSE) ||
-      !thd->make_lex_string(&table_name, orig_table_name->str,
-                            orig_table_name->length, FALSE))
+  if (!thd->make_lex_string(&db_name,
+                            orig_db_name->str, orig_db_name->length) ||
+      !thd->make_lex_string(&table_name,
+                            orig_table_name->str, orig_table_name->length))
     goto end;
 
   /*
@@ -7860,9 +7855,9 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
      because of lower_case_table_names
   */
   thd->make_lex_string(&db, INFORMATION_SCHEMA_NAME.str,
-                       INFORMATION_SCHEMA_NAME.length, 0);
+                       INFORMATION_SCHEMA_NAME.length);
   thd->make_lex_string(&table, schema_table->table_name,
-                       strlen(schema_table->table_name), 0);
+                       strlen(schema_table->table_name));
   if (schema_table->old_format(thd, schema_table) ||   /* Handle old syntax */
       !sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
                               0, 0, TL_READ, MDL_SHARED_READ))
