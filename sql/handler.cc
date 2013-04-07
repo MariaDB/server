@@ -232,13 +232,6 @@ handlerton *ha_checktype(THD *thd, enum legacy_db_type database_type,
 
   RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 
-  switch (database_type) {
-  case DB_TYPE_MRG_ISAM:
-    return ha_resolve_by_legacy_type(thd, DB_TYPE_MRG_MYISAM);
-  default:
-    break;
-  }
-
   return ha_default_handlerton(thd);
 } /* ha_checktype */
 
