@@ -509,7 +509,6 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Determine interface version */
   if (!sym)
   {
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_FIND_DL_ENTRY, plugin_interface_version_sym);
     DBUG_RETURN(TRUE);
   }
@@ -519,7 +518,6 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   if (plugin_dl->mysqlversion < min_plugin_interface_version ||
       (plugin_dl->mysqlversion >> 8) > (MYSQL_PLUGIN_INTERFACE_VERSION >> 8))
   {
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, 0,
                  "plugin interface version mismatch");
     DBUG_RETURN(TRUE);
@@ -527,7 +525,6 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Find plugin declarations */
   if (!(sym= dlsym(plugin_dl->handle, plugin_declarations_sym)))
   {
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_FIND_DL_ENTRY, plugin_declarations_sym);
     DBUG_RETURN(TRUE);
   }
@@ -558,7 +555,6 @@ static my_bool read_mysql_plugin_info(struct st_plugin_dl *plugin_dl,
                     MYF(MY_ZEROFILL|MY_WME));
     if (!cur)
     {
-      free_plugin_mem(plugin_dl);
       report_error(report, ER_OUTOFMEMORY,
                    static_cast<int>(plugin_dl->dl.length));
       DBUG_RETURN(TRUE);
@@ -633,7 +629,6 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       Actually this branch impossible because in case of absence of maria
       version we try mysql version.
     */
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_FIND_DL_ENTRY,
                  maria_plugin_interface_version_sym);
     DBUG_RETURN(TRUE);
@@ -644,7 +639,6 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
   if (plugin_dl->mariaversion < min_maria_plugin_interface_version ||
       (plugin_dl->mariaversion >> 8) > (MARIA_PLUGIN_INTERFACE_VERSION >> 8))
   {
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, 0,
                  "plugin interface version mismatch");
     DBUG_RETURN(TRUE);
@@ -652,7 +646,6 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
   /* Find plugin declarations */
   if (!(sym= dlsym(plugin_dl->handle, maria_plugin_declarations_sym)))
   {
-    free_plugin_mem(plugin_dl);
     report_error(report, ER_CANT_FIND_DL_ENTRY, maria_plugin_declarations_sym);
     DBUG_RETURN(TRUE);
   }
@@ -666,7 +659,6 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
       sizeof_st_plugin= *(int *)sym;
     else
     {
-      free_plugin_mem(plugin_dl);
       report_error(report, ER_CANT_FIND_DL_ENTRY, maria_sizeof_st_plugin_sym);
       DBUG_RETURN(TRUE);
     }
@@ -684,7 +676,6 @@ static my_bool read_maria_plugin_info(struct st_plugin_dl *plugin_dl,
                   MYF(MY_ZEROFILL|MY_WME));
       if (!cur)
       {
-        free_plugin_mem(plugin_dl);
         report_error(report, ER_OUTOFMEMORY,
                      static_cast<int>(plugin_dl->dl.length));
         DBUG_RETURN(TRUE);
@@ -714,11 +705,12 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
 #ifdef HAVE_DLOPEN
   char dlpath[FN_REFLEN];
   uint plugin_dir_len, dummy_errors, dlpathlen, i;
-  struct st_plugin_dl *tmp, plugin_dl;
+  struct st_plugin_dl *tmp= 0, plugin_dl;
   void *sym;
   DBUG_ENTER("plugin_dl_add");
   DBUG_PRINT("enter", ("dl->str: '%s', dl->length: %d",
                        dl->str, (int) dl->length));
+  mysql_mutex_assert_owner(&LOCK_plugin);
   plugin_dir_len= strlen(opt_plugin_dir);
   /*
     Ensure that the dll doesn't have a path.
@@ -756,7 +748,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
       if (*errmsg == ' ') errmsg++;
     }
     report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, errmsg);
-    DBUG_RETURN(0);
+    goto ret;
   }
 
   /* Checks which plugin interface present and reads info */
@@ -767,12 +759,12 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
                                      plugin_interface_version_sym),
                                dlpath,
                                report))
-      DBUG_RETURN(0);
+      goto ret;
   }
   else
   {
     if (read_maria_plugin_info(&plugin_dl, sym, dlpath, report))
-      DBUG_RETURN(0);
+      goto ret;
   }
 
   /* link the services in */
@@ -789,7 +781,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
                     "service '%s' interface version mismatch",
                     list_of_services[i].name);
         report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, 0, buf);
-        DBUG_RETURN(0);
+        goto ret;
       }
       *(void**)sym= list_of_services[i].service;
     }
@@ -799,10 +791,9 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   plugin_dl.dl.length= dl->length * files_charset_info->mbmaxlen + 1;
   if (! (plugin_dl.dl.str= (char*) my_malloc(plugin_dl.dl.length, MYF(0))))
   {
-    free_plugin_mem(&plugin_dl);
     report_error(report, ER_OUTOFMEMORY,
                  static_cast<int>(plugin_dl.dl.length));
-    DBUG_RETURN(0);
+    goto ret;
   }
   plugin_dl.dl.length= copy_and_convert(plugin_dl.dl.str, plugin_dl.dl.length,
     files_charset_info, dl->str, dl->length, system_charset_info,
@@ -811,12 +802,17 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
   /* Add this dll to array */
   if (! (tmp= plugin_dl_insert_or_reuse(&plugin_dl)))
   {
-    free_plugin_mem(&plugin_dl);
     report_error(report, ER_OUTOFMEMORY,
                  static_cast<int>(sizeof(struct st_plugin_dl)));
-    DBUG_RETURN(0);
+    goto ret;
   }
+
+ret:
+  if (!tmp)
+    free_plugin_mem(&plugin_dl);
+
   DBUG_RETURN(tmp);
+
 #else
   DBUG_ENTER("plugin_dl_add");
   report_error(report, ER_FEATURE_DISABLED, "plugin", "HAVE_DLOPEN");
@@ -825,34 +821,23 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
 }
 
 
-static void plugin_dl_del(const LEX_STRING *dl)
+static void plugin_dl_del(struct st_plugin_dl *plugin_dl)
 {
-#ifdef HAVE_DLOPEN
-  uint i;
   DBUG_ENTER("plugin_dl_del");
+
+  if (!plugin_dl)
+    DBUG_VOID_RETURN;
 
   mysql_mutex_assert_owner(&LOCK_plugin);
 
-  for (i= 0; i < plugin_dl_array.elements; i++)
+  /* Do not remove this element, unless no other plugin uses this dll. */
+  if (! --plugin_dl->ref_count)
   {
-    struct st_plugin_dl *tmp= *dynamic_element(&plugin_dl_array, i,
-                                               struct st_plugin_dl **);
-    if (tmp->ref_count &&
-        ! my_strnncoll(files_charset_info,
-                       (const uchar *)dl->str, dl->length,
-                       (const uchar *)tmp->dl.str, tmp->dl.length))
-    {
-      /* Do not remove this element, unless no other plugin uses this dll. */
-      if (! --tmp->ref_count)
-      {
-        free_plugin_mem(tmp);
-        bzero(tmp, sizeof(struct st_plugin_dl));
-      }
-      break;
-    }
+    free_plugin_mem(plugin_dl);
+    bzero(plugin_dl, sizeof(struct st_plugin_dl));
   }
+
   DBUG_VOID_RETURN;
-#endif
 }
 
 
@@ -1133,7 +1118,7 @@ err:
   if (errs == 0 && oks == 0) // no plugin was found
     report_error(report, ER_CANT_FIND_DL_ENTRY, name->str);
 
-  plugin_dl_del(dl);
+  plugin_dl_del(tmp.plugin_dl);
   DBUG_RETURN(errs > 0 || oks == 0);
 }
 
@@ -1210,8 +1195,7 @@ static void plugin_del(struct st_plugin_int *plugin)
   restore_pluginvar_names(plugin->system_vars);
   plugin_vars_free_values(plugin->system_vars);
   my_hash_delete(&plugin_hash[plugin->plugin->type], (uchar*)plugin);
-  if (plugin->plugin_dl)
-    plugin_dl_del(&plugin->plugin_dl->dl);
+  plugin_dl_del(plugin->plugin_dl);
   plugin->state= PLUGIN_IS_FREED;
   plugin_array_version++;
   free_root(&plugin->mem_root, MYF(0));
