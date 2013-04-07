@@ -3479,7 +3479,7 @@ my_bool translog_walk_filenames(const char *directory,
   if (!(dirp = my_dir(directory, MYF(MY_DONT_SORT))))
     return FALSE;
 
-  for (i= 0; i < dirp->number_off_files; i++)
+  for (i= 0; i < dirp->number_of_files; i++)
   {
     char *file= dirp->dir_entry[i].name;
     if (strncmp(file, "aria_log.", 10) == 0 &&

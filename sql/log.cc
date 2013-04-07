@@ -2277,7 +2277,7 @@ static int find_uniq_filename(char *name)
     DBUG_RETURN(1);
   }
   file_info= dir_info->dir_entry;
-  for (i= dir_info->number_off_files ; i-- ; file_info++)
+  for (i= dir_info->number_of_files ; i-- ; file_info++)
   {
     if (memcmp(file_info->name, start, length) == 0 &&
 	test_if_number(file_info->name+length, &number,0))
