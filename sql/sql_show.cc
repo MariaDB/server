@@ -687,6 +687,15 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
   return my_hash_search(&ignore_db_dirs_hash, (uchar *) buff, buff_len)!=NULL;
 }
 
+extern "C" {
+static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
+{
+  return my_strnncoll(&my_charset_bin,
+                      (const uchar*)((*a)->str), (*a)->length,
+                      (const uchar*)((*b)->str), (*b)->length);
+}
+}
+
 enum find_files_result {
   FIND_FILES_OK,
   FIND_FILES_OOM,
@@ -740,7 +749,7 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, const char *db,
 
   bzero((char*) &table_list,sizeof(table_list));
 
-  if (!(dirp = my_dir(path, MYF((dir ? MY_WANT_STAT : 0) | MY_WANT_SORT |
+  if (!(dirp = my_dir(path, MYF((dir ? MY_WANT_STAT : 0) |
                                MY_THREAD_SPECIFIC))))
   {
     if (my_errno == ENOENT)
@@ -837,6 +846,8 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, const char *db,
   }
   DBUG_PRINT("info",("found: %d files", files->elements()));
   my_dirend(dirp);
+
+  files->sort(cmp_table_names);
 
   DBUG_RETURN(FIND_FILES_OK);
 }
@@ -3694,8 +3705,6 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
     wild                  wild string
     idx_field_vals        idx_field_vals->db_name contains db name or
                           wild string
-    with_i_schema         returns 1 if we added 'IS' name to list
-                          otherwise returns 0
 
   RETURN
     zero                  success
@@ -3703,13 +3712,8 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
 */
 
 int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
-                 LOOKUP_FIELD_VALUES *lookup_field_vals,
-                 bool *with_i_schema)
+                 LOOKUP_FIELD_VALUES *lookup_field_vals)
 {
-  LEX_STRING *i_s_name_copy= 0;
-  i_s_name_copy= thd->make_lex_string(INFORMATION_SCHEMA_NAME.str,
-                                      INFORMATION_SCHEMA_NAME.length);
-  *with_i_schema= 0;
   if (lookup_field_vals->wild_db_value)
   {
     /*
@@ -3722,8 +3726,7 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
                            INFORMATION_SCHEMA_NAME.str,
                            lookup_field_vals->db_value.str))
     {
-      *with_i_schema= 1;
-      if (files->append(i_s_name_copy))
+      if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
     }
     return (find_files(thd, files, NullS, mysql_data_home,
@@ -3743,8 +3746,7 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
     if (is_infoschema_db(lookup_field_vals->db_value.str,
                          lookup_field_vals->db_value.length))
     {
-      *with_i_schema= 1;
-      if (files->append(i_s_name_copy))
+      if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
       return 0;
     }
@@ -3757,9 +3759,8 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
     Create list of existing databases. It is used in case
     of select from information schema table
   */
-  if (files->append(i_s_name_copy))
+  if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
-  *with_i_schema= 1;
   return (find_files(thd, files, NullS,
                      mysql_data_home, NullS, 1) != FIND_FILES_OK);
 }
@@ -3857,7 +3858,6 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
   @param[in]      table_names           List of table names in database
   @param[in]      lex                   pointer to LEX struct
   @param[in]      lookup_field_vals     pointer to LOOKUP_FIELD_VALUE struct
-  @param[in]      with_i_schema         TRUE means that we add I_S tables to list
   @param[in]      db_name               database name
 
   @return         Operation status
@@ -3869,14 +3869,14 @@ int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
 static int
 make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
                      LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
-                     bool with_i_schema, LEX_STRING *db_name)
+                     LEX_STRING *db_name)
 {
   char path[FN_REFLEN + 1];
   build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (with_i_schema)
+    if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       LEX_STRING *name;
       ST_SCHEMA_TABLE *schema_table=
@@ -3901,7 +3901,7 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
     This call will add all matching the wildcards (if specified) IS tables
     to the list
   */
-  if (with_i_schema)
+  if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
 
@@ -4129,7 +4129,6 @@ end:
   @param[in]      table                    TABLE struct for I_S table
   @param[in]      db_name                  database name
   @param[in]      table_name               table name
-  @param[in]      with_i_schema            I_S table if TRUE
 
   @return         Operation status
     @retval       0           success
@@ -4137,11 +4136,10 @@ end:
 */
 
 static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
-                                   LEX_STRING *db_name, LEX_STRING *table_name,
-                                   bool with_i_schema)
+                                   LEX_STRING *db_name, LEX_STRING *table_name)
 {
   TABLE *table= tables->table;
-  if (with_i_schema)
+  if (db_name == &INFORMATION_SCHEMA_NAME)
   {
     table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"),
                            system_charset_info);
@@ -4550,8 +4548,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  LEX_STRING *db_name;
-  bool with_i_schema;
   enum enum_schema_tables schema_table_idx;
   Dynamic_array<LEX_STRING*> db_names;
   COND *partial_cond= 0;
@@ -4655,11 +4651,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  if (make_db_list(thd, &db_names, &lookup_field_vals, &with_i_schema))
+  if (make_db_list(thd, &db_names, &lookup_field_vals))
     goto err;
   for (int i=0; i < db_names.elements(); i++)
   {
-    db_name= db_names.at(i);
+    LEX_STRING *db_name= db_names.at(i);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
@@ -4670,8 +4666,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       Dynamic_array<LEX_STRING*> table_names;
       int res= make_table_name_list(thd, &table_names, lex,
-                                    &lookup_field_vals,
-                                    with_i_schema, db_name);
+                                    &lookup_field_vals, db_name);
       if (res == 2)   /* Not fatal error, continue */
         continue;
       if (res)
@@ -4707,14 +4702,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           /* SHOW TABLE NAMES command */
           if (schema_table_idx == SCH_TABLE_NAMES)
           {
-            if (fill_schema_table_names(thd, tables, db_name,
-                                        table_name, with_i_schema))
+            if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
           else
           {
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
-                !with_i_schema)
+                db_name != &INFORMATION_SCHEMA_NAME)
             {
               /*
                 Here we need to filter out warnings, which can happen
@@ -4748,11 +4742,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           }
         }
       }
-      /*
-        If we have information schema its always the first table and only
-        the first table. Reset for other tables.
-      */
-      with_i_schema= 0;
     }
   }
 
@@ -4785,7 +4774,6 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Dynamic_array<LEX_STRING*> db_names;
-  bool with_i_schema;
   HA_CREATE_INFO create;
   TABLE *table= tables->table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4798,15 +4786,14 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_PRINT("INDEX VALUES",("db_name: %s  table_name: %s",
                              lookup_field_vals.db_value.str,
                              lookup_field_vals.table_value.str));
-  if (make_db_list(thd, &db_names, &lookup_field_vals,
-                   &with_i_schema))
+  if (make_db_list(thd, &db_names, &lookup_field_vals))
     DBUG_RETURN(1);
 
   /*
     If we have lookup db value we should check that the database exists
   */
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
-     !with_i_schema)
+     db_names.at(0) != &INFORMATION_SCHEMA_NAME)
   {
     char path[FN_REFLEN+16];
     uint path_len;
@@ -4823,12 +4810,11 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   for (int i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
-    if (with_i_schema)       // information schema name is always first in list
+    if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       if (store_schema_shemata(thd, table, db_name,
                                system_charset_info))
         DBUG_RETURN(1);
-      with_i_schema= 0;
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS

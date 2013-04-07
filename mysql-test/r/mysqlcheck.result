@@ -176,15 +176,15 @@ t1
 v1
 show tables;
 Tables_in_test
-t1
 #mysql50#v-1
+t1
 v1
 test.t1                                            OK
 show tables;
 Tables_in_test
 t1
-v1
 v-1
+v1
 drop view v1, `v-1`;
 drop table t1;
 SET NAMES utf8;

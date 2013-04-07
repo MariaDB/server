@@ -33,12 +33,12 @@ show create database `#mysql50#mysqltest-1`;
 ERROR 42000: Unknown database '#mysql50#mysqltest-1'
 show tables in `mysqltest1`;
 Tables_in_mysqltest1
-t1
 t-1
+t1
 show tables in `mysqltest-1`;
 Tables_in_mysqltest-1
-t1
 t-1
+t1
 drop database `mysqltest1`;
 drop database `mysqltest-1`;
 drop table if exists `txu@0023p@0023p1`;
