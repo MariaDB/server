@@ -1,7 +1,7 @@
 /*************** Xindex H Declares Source Code File (.H) ***************/
-/*  Name: XINDEX.H    Version 3.4                                      */
+/*  Name: XINDEX.H    Version 3.5                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004 - 2012  */
+/*  (C) Copyright to the author Olivier BERTRAND          2004 - 2013  */
 /*                                                                     */
 /*  This file contains the XINDEX class declares.                      */
 /***********************************************************************/
@@ -11,12 +11,17 @@
 #include "csort.h"            /* Base class declares                   */
 #include "xtable.h"
 #include "valblk.h"
+#if defined(XMAP)
+#include "maputil.h"
+#endif   // XMAP
 
 enum IDT {TYPE_IDX_ERROR = 0,         /* Type not defined              */
           TYPE_IDX_INDX  = 4,         /* Permanent standard index      */
           TYPE_IDX_XROW  = 5};        /* Permanent row index           */
 
-typedef struct mem_map  *MMP;
+#if defined(XMAP)
+typedef        MEMMAP   *MMP;
+#endif   // XMAP
 typedef class  INDEXDEF *PIXDEF;
 typedef class  KPARTDEF *PKPDEF;
 typedef class  XINDEX   *PXINDEX;
@@ -96,8 +101,8 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
 //void    SetOffset(int off) {Offset = off;}
 //int     GetOffhigh(void) {return Offhigh;}
 //void    SetOffhigh(int hof) {Offhigh = hof;}
-  int     GetSize(void) {return Size;}
-  void    SetSize(int size) {Size = size;}
+//int     GetSize(void) {return Size;}
+//void    SetSize(int size) {Size = size;}
   int     GetMaxSame(void) {return MaxSame;}
   bool    Define(PGLOBAL g, void *memp, PTABDEF dfp, LPCSTR p);
   PIXDEF  GetIndexOf(PCOL colp, bool hd = false);
@@ -119,7 +124,7 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   int     ID;                 /* Index ID number                       */
 //int     Offset;             /* Offset in index file                  */
 //int     Offhigh;            /* Offset high in big index file         */
-  int     Size;               /* Size of index file                    */
+//int     Size;               /* Size of index file                    */
   int     MaxSame;            /* Max number of same values             */
   }; // end of INDEXDEF
 
@@ -246,9 +251,9 @@ class DllExport XINDEX : public XXBASE {
   virtual int  GetCurPos(void) {return (Pex) ? Pex[Cur_K] : Cur_K;}
   virtual void SetNval(int n) {Nval = n;}
           int  GetMaxSame(void) {return MaxSame;}
-          int  GetDefoff(void) {return Defoff;}
-          int  GetDefhigh(void) {return Defhigh;}
-          int  GetSize(void) {return Size;}
+//        int  GetDefoff(void) {return Defoff;}
+//        int  GetDefhigh(void) {return Defhigh;}
+//        int  GetSize(void) {return Size;}
 
   // Methods
   virtual void Reset(void);
@@ -281,9 +286,9 @@ class DllExport XINDEX : public XXBASE {
   int     Nk;               // The number of indexed columns
   int     Nval;             // The number of used columns
   int     Incr;             // Increment of record position
-  int     Defoff;           // Offset of definition in index file
-  int     Defhigh;          // High order of offset big value
-  int     Size;             // Size of definition in index file
+//int     Defoff;           // Offset of definition in index file
+//int     Defhigh;          // High order of offset big value
+//int     Size;             // Size of definition in index file
   int     MaxSame;          // Max number of same values
   }; // end of class XINDEX
 
@@ -324,7 +329,6 @@ class DllExport XLOAD : public BLOCK {
 
   // Methods
   virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode) = 0;
-//virtual bool  GetOff(int& low, int& high, PIXDEF sxp) = 0;
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin) = 0;
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size) = 0;
   virtual int   Write(PGLOBAL g, void *buf, int n,
@@ -332,8 +336,7 @@ class DllExport XLOAD : public BLOCK {
   virtual void  Close(char *fn, int id) = 0;
   virtual void  Close(void);
 #if defined(XMAP)
-  virtual void *FileView(PGLOBAL g, char *fn, int loff,
-                                              int hoff, int size) = 0;
+  virtual void *FileView(PGLOBAL g, char *fn) = 0;
 #endif   // XMAP
 
  protected:
@@ -359,22 +362,20 @@ class DllExport XFILE : public XLOAD {
 
   // Methods
   virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
-//virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
   virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
   virtual void  Close(char *fn, int id);
   virtual void  Close(void);
 #if defined(XMAP)
-  virtual void *FileView(PGLOBAL g, char *fn, int loff,
-                                              int hoff, int size);
+  virtual void *FileView(PGLOBAL g, char *fn);
 #endif   // XMAP
 
  protected:
   // Members
   FILE   *Xfile;            // Index stream file
-#if defined(XMAP) && !defined(WIN32)
-  MMP     Mmp;              // To UNIX mapped index file
+#if defined(XMAP)
+  MMP     Mmp;              // To mapped index file
 #endif   // XMAP
   }; // end of class XFILE
 
@@ -388,14 +389,12 @@ class DllExport XHUGE : public XLOAD {
 
   // Methods
   virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
-//virtual bool  GetOff(int& low, int& high, PIXDEF sxp);
   virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
   virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
   virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
   virtual void  Close(char *fn, int id);
 #if defined(XMAP)
-  virtual void *FileView(PGLOBAL g, char *fn, int loff,
-                                              int hoff, int size);
+  virtual void *FileView(PGLOBAL g, char *fn);
 #endif   // XMAP
 
  protected:

@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
-/*  Name: XINDEX.CPP  Version 2.7                                      */
+/*  Name: XINDEX.CPP  Version 2.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2013    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -112,7 +112,7 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   ID = n;
 //Offset = 0;
 //Offhigh = 0;
-  Size = 0;
+//Size = 0;
   MaxSame = 1;
   } // end of INDEXDEF constructor
 
@@ -212,7 +212,7 @@ XINDEX::XINDEX(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp, int k)
   Incr = 0;
 //Defoff = xdp->GetOffset();
 //Defhigh = xdp->GetOffhigh();
-  Size = xdp->GetSize();
+//Size = xdp->GetSize();
   MaxSame = xdp->GetMaxSame();
   } // end of XINDEX constructor
 
@@ -283,15 +283,12 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Table can be accessed through an index.                          */
   /*********************************************************************/
   int     k, rc = RC_OK;
-  int   *bof, i, j, n, ndf, nkey;
+  int    *bof, i, j, n, ndf, nkey;
   PKPDEF  kdfp = Xdp->GetToKeyParts();
   bool    brc = true;
   PCOL    colp;
   PXCOL   kp, prev = NULL, kcp = NULL;
   PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
-
-  Defoff = 0;
-  Size = 0;                     // Void index
 
   /*********************************************************************/
   /*  Allocate the storage that will contain the keys and the file     */
@@ -704,7 +701,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   char   *ftype;
   char    fn[_MAX_PATH];
   int     n[NZ], nof = (Mul) ? (Ndif + 1) : 0;
-  int     id = -1;
+  int     id = -1, size = 0;
   bool    sep, rc = false;
   PXCOL   kcp = To_KeyCol;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
@@ -754,13 +751,6 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   if (!Ndif)
     goto end;                // Void index
 
-  // Defoff is the start of the definition in the index file
-//X->GetOff(Defoff, Defhigh, sxp);
-
-#if defined(TRACE)
-  printf("Defoff=%d Defhigh=%d\n", Defoff, Defhigh);
-#endif   // TRACE
-
   /*********************************************************************/
   /*  Write the index values on the index file.                        */
   /*********************************************************************/
@@ -777,16 +767,16 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
 #endif   // TRACE
 
-  Size = X->Write(g, n, NZ, sizeof(int), rc);
+  size = X->Write(g, n, NZ, sizeof(int), rc);
   dup->ProgCur = 1;
 
   if (Mul)             // Write the offset array
-    Size += X->Write(g, Pof, nof, sizeof(int), rc);
+    size += X->Write(g, Pof, nof, sizeof(int), rc);
 
   dup->ProgCur = 5;
 
   if (!Incr)           // Write the record position array(s)
-    Size += X->Write(g, To_Rec, Num_K, sizeof(int), rc);
+    size += X->Write(g, To_Rec, Num_K, sizeof(int), rc);
 
   dup->ProgCur = 15;
 
@@ -797,19 +787,19 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     n[3] = kcp->Klen;                // To be checked later
     n[4] = kcp->Type;                // To be checked later
 
-    Size += X->Write(g, n, NW, sizeof(int), rc);
+    size += X->Write(g, n, NW, sizeof(int), rc);
     dup->ProgCur += 1;
 
     if (n[2])
-      Size += X->Write(g, kcp->To_Bkeys, Nblk, kcp->Klen, rc);
+      size += X->Write(g, kcp->To_Bkeys, Nblk, kcp->Klen, rc);
 
     dup->ProgCur += 5;
 
-    Size += X->Write(g, kcp->To_Keys, n[0], kcp->Klen, rc);
+    size += X->Write(g, kcp->To_Keys, n[0], kcp->Klen, rc);
     dup->ProgCur += 5;
 
     if (n[1])
-      Size += X->Write(g, kcp->Kof, n[1], sizeof(int), rc);
+      size += X->Write(g, kcp->Kof, n[1], sizeof(int), rc);
 
     dup->ProgCur += 5;
     } // endfor kcp
@@ -1078,7 +1068,7 @@ bool XINDEX::Init(PGLOBAL g)
   const char *ftype;
   BYTE   *mbase;
   char    fn[_MAX_PATH];
-  int   *nv, k, n;
+  int    *nv, k, n, id = -1;
   bool    estim;
   PCOL    colp;
   PXCOL   prev = NULL, kcp = NULL;
@@ -1138,8 +1128,10 @@ bool XINDEX::Init(PGLOBAL g)
     _splitpath(defp->GetOfn(), drive, direc, fname, NULL);
     strcat(strcat(fname, "_"), Xdp->GetName());
     _makepath(fn, drive, direc, fname, ftype);
-  } else
+  } else {
+    id = ID;
     strcat(PlugRemoveType(fn, strcpy(fn, defp->GetOfn())), ftype);
+  } // endif SepIndex
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
@@ -1150,9 +1142,17 @@ bool XINDEX::Init(PGLOBAL g)
   /*********************************************************************/
   /*  Get a view on the part of the index file containing this index.  */
   /*********************************************************************/
-  if (!(mbase = (BYTE*)X->FileView(g, fn, Defoff, Defhigh, Size)))
+  if (!(mbase = (BYTE*)X->FileView(g, fn)))
     goto err;
 
+  if (id >= 0) {
+    // Get offset from the header
+    IOFF *noff = (IOFF*)mbase;
+
+    // Position the memory base at the offset of this index
+    mbase += noff[id].Low;
+    } // endif id
+    
   //  Now start the mapping process.
   nv = (int*)mbase;
   mbase += NZ * sizeof(int);
@@ -2152,24 +2152,8 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   return false;
   } // end of Open
 
-#if 0
 /***********************************************************************/
-/*  Tell were we are in the index file.                                */
-/***********************************************************************/
-bool XFILE::GetOff(int& low, int& high, PIXDEF sxp)
-  {
-  if (sxp) {
-    low  = sxp->GetOffset() + sxp->GetSize();
-    high = 0;
-  } else
-    low = high = 0;
-
-  return false;
-  } // end of GetOff
-#endif // 0
-
-/***********************************************************************/
-/*  Tell were we are in a huge file.                                   */
+/*  Move into an index file.                                           */
 /***********************************************************************/
 bool XFILE::Seek(PGLOBAL g, int low, int high, int origin)
   {
@@ -2252,121 +2236,15 @@ void XFILE::Close(void)
   } // end of Close
 
 #if defined(XMAP)
-#if defined(WIN32)
-/***********************************************************************/
-/*  Return a pointer to the segment at the given offset and size.      */
-/***********************************************************************/
-void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
-  {
-  SYSTEM_INFO SysInfo;  // system information; used to get the granularity
-  char   *pData;        // pointer to the data
-  int     iViewDelta;   // the offset into the view where the data shows up
-  HANDLE  hMapFile;     // handle for the file's memory-mapped region
-  DWORD   offset;       // Where to start in the index file
-  DWORD   FileMapSize;  // size of the file mapping
-  DWORD   FileMapStart; // where in the file to start the file map view
-  DWORD   Granularity;  // system allocation granularity
-  DWORD   MapViewSize;  // the size of the view
-
-  if (hoff) {
-    strcpy(g->Message, MSG(HI_OFFSET_ERR));
-    return NULL;
-    } // endf hoff
-
-  // Open the file in mode read only
-  Hfile = CreateFile(fn, GENERIC_READ, FILE_SHARE_READ, NULL,
-                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-  if (Hfile == INVALID_HANDLE_VALUE) {
-    char  buf[512];
-    DWORD rc = GetLastError();
-
-    sprintf(g->Message, MSG(OPEN_ERROR), rc, MODE_READ, fn);
-    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
-                  (LPTSTR)buf, sizeof(buf), NULL);
-    strcat(g->Message, buf);
-    return NULL;
-    } // endif Hfile
-
-  // Get the system allocation granularity.
-  GetSystemInfo(&SysInfo);
-  Granularity = SysInfo.dwAllocationGranularity;
-
-  // The offset is a 64 byte integer low part
-  offset = loff;
-
-  // To calculate where to start the file mapping, round down the
-  // offset of the data into the file to the nearest multiple of the
-  // system allocation granularity.
-  FileMapStart = (offset / Granularity) * Granularity;
-
-  // Calculate the size of the file mapping view.
-  MapViewSize = offset % Granularity + (DWORD)size;
-
-  // How large will the file-mapping object be?
-  FileMapSize = offset + (DWORD)size;
-
-  // The data of interest isn't at the beginning of the
-  // view, so determine how far into the view to set the pointer.
-  iViewDelta = (int)(offset - FileMapStart);
-
-  // Check that the index file is more than large enough
-  if (GetFileSize(Hfile, NULL) < FileMapSize) {
-    strcpy(g->Message, MSG(XFILE_TOO_SMALL));
-    return NULL;
-    } // endif FileSize
-
-  // Create a file-mapping object for the file.
-  hMapFile = CreateFileMapping( Hfile,         // current file handle
-                                NULL,          // default security
-                                PAGE_READONLY, // permission
-                                0,             // size, high
-                                FileMapSize,   // size, low
-                                NULL);         // name
-
-  if (hMapFile == NULL) {
-    sprintf(g->Message, MSG(HANDLE_IS_NULL), "hMapFile", GetLastError() );
-    return NULL;
-    } // endif hMapFile
-
-  // Map the view.
-  ViewBase = MapViewOfFile(hMapFile,      // handle to mapping object
-                           FILE_MAP_READ, // access mode
-                           0,             // high-order 32 bits of file offset
-                           FileMapStart,  // low-order 32 bits of file offset
-                           MapViewSize);  // number of bytes to map
-
-  if (!ViewBase) {
-    sprintf(g->Message, MSG(HANDLE_IS_NULL), "ViewBase", GetLastError());
-    return NULL;
-    } // endif ViewBase
-
-  // Calculate the pointer to the data.
-  pData = (char *)ViewBase + iViewDelta;
-
-  // close the file-mapping object
-  if (!CloseHandle(hMapFile))
-    sprintf(g->Message, MSG(MAP_OBJ_ERR), GetLastError());
-
-  // close the file itself
-  if (!CloseHandle(Hfile))
-    sprintf(g->Message, MSG(FILE_CLOSE_ERR), GetLastError());
-  else
-    Hfile = INVALID_HANDLE_VALUE;
-
-  return pData;
-  } // end of FileView
-#else  // not WIN32
   /*********************************************************************/
-  /*  Map the entire index.                                            */
+  /*  Map the entire index file.                                       */
   /*********************************************************************/
-void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
+void *XFILE::FileView(PGLOBAL g, char *fn)
   {
   HANDLE  h;
 
   Mmp = (MMP)PlugSubAlloc(g, NULL, sizeof(MEMMAP));
-  h = CreateFileMap(g, filename, Mmp, MODE_READ, false);
+  h = CreateFileMap(g, fn, Mmp, MODE_READ, false);
 
   if (h == INVALID_HANDLE_VALUE || (!Mmp->lenH && !Mmp->lenL)) {
     if (!(*g->Message))
@@ -2379,7 +2257,6 @@ void *XFILE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
   CloseFileHandle(h);                    // Not used anymore
   return Mmp->memory;
   } // end of FileView
-#endif // not WIN32
 #endif // XMAP
 
 /* -------------------------- XHUGE Class --------------------------- */
@@ -2564,42 +2441,6 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   return false;
   } // end of Open
 
-#if 0
-/***********************************************************************/
-/*  Get the offset of this index in the index file.                    */
-/***********************************************************************/
-bool XHUGE::GetOff(int& low, int& high, PIXDEF sxp)
-  {
-  if (!sxp) {
-    low = 0;
-    high = 0;
-    return false;
-    } // endif sxp
-
-#if defined(WIN32)
-  LARGE_INTEGER ln;
-
-  ln.LowPart = sxp->GetOffset();
-  ln.HighPart = sxp->GetOffhigh();
-  ln.QuadPart += (LONGLONG)sxp->GetSize();
-  low = ln.LowPart;
-  high = (int)ln.HighPart;
-#else  // UNIX
-#define G4   ((off64_t)0x100 * (off64_t)0x1000000)
-#if defined(TRACE)
-  printf("in GetOff...\n");
-#endif   // TRACE
-  off64_t pos;
-
-  pos  = (off64_t)sxp->GetOffset() + (off64_t)sxp->GetOffhigh() * G4;
-  pos += (off64_t)sxp->GetSize();
-  low  = (int)(pos % G4);
-  high = (int)(pos / G4);
-#endif // UNIX
-  return false;
-  } // end of GetOff
-#endif // 0
-
 /***********************************************************************/
 /*  Go to position in a huge file.                                     */
 /***********************************************************************/
@@ -2755,111 +2596,14 @@ void XHUGE::Close(char *fn, int id)
   } // end of Close
 
 #if defined(XMAP)
-#if defined(WIN32)
 /***********************************************************************/
-/*  Return a pointer to the segment at the given offset and size.      */
+/*  Don't know whether this is possible for huge files.                */
 /***********************************************************************/
-void *XHUGE::FileView(PGLOBAL g, char *fn, int loff, int hoff, int size)
-  {
-  SYSTEM_INFO SysInfo;  // system information; used to get the granularity
-  char   *pData;        // pointer to the data
-  int     iViewDelta;   // the offset into the view where the data shows up
-  HANDLE hMapFile;      // handle for the file's memory-mapped region
-  LARGE_INTEGER lint;   // a utility holder
-  __int64 offset;       // Where to start in the index file
-  __int64 FileMapSize;  // size of the file mapping
-  __int64 FileMapStart; // where in the file to start the file map view
-  __int64 Granularity;  // system allocation granularity
-  DWORD   MapViewSize;  // the size of the view
-
-  // Open the file in mode read only
-  if (Open(g, fn, MODE_READ))
-    return NULL;
-
-  // Get the system allocation granularity.
-  GetSystemInfo(&SysInfo);
-  Granularity = (__int64)SysInfo.dwAllocationGranularity;
-
-  // Calculate the offset as a 64 byte integer
-  lint.LowPart = loff;
-  lint.HighPart = hoff;
-  offset = lint.QuadPart;
-
-  // To calculate where to start the file mapping, round down the
-  // offset of the data into the file to the nearest multiple of the
-  // system allocation granularity.
-  FileMapStart = (offset / Granularity) * Granularity;
-
-  // Calculate the size of the file mapping view.
-  MapViewSize = (DWORD)(offset % Granularity) + (DWORD)size;
-
-  // How large will the file-mapping object be?
-  FileMapSize = offset + (__int64)size;
-
-  // The data of interest isn't at the beginning of the
-  // view, so determine how far into the view to set the pointer.
-  iViewDelta = (int)(offset - FileMapStart);
-
-  // Let the user know that the index file is more than large enough
-  lint.LowPart = GetFileSize(Hfile,  (LPDWORD)&lint.HighPart);
-
-  // Prepare the low and high parts of the size.
-  lint.QuadPart = FileMapSize;
-
-  // Create a file-mapping object for the file.
-  hMapFile = CreateFileMapping( Hfile,            // current file handle
-                                NULL,             // default security
-                                PAGE_READONLY,    // permission
-                                lint.HighPart,    // size, high
-                                lint.LowPart,     // size, low
-                                NULL);            // name
-
-  if (hMapFile == NULL) {
-    sprintf(g->Message, MSG(HANDLE_IS_NULL), "hMapFile",  GetLastError());
-    return NULL;
-    } // endif hMapFile
-
-  // Prepare the low and high parts of the starting file offset.
-  lint.QuadPart = FileMapStart;
-
-  // Map the view.
-  ViewBase = MapViewOfFile(hMapFile,      // handle to mapping object
-                           FILE_MAP_READ, // access mode
-                           lint.HighPart, // high-order 32 bits of file offset
-                           lint.LowPart,  // low-order 32 bits of file offset
-                           MapViewSize);  // number of bytes to map
-
-  if (!ViewBase) {
-    sprintf(g->Message, MSG(HANDLE_IS_NULL), "ViewBase", GetLastError());
-    return NULL;
-    } // endif ViewBase
-
-  // Calculate the pointer to the data.
-  pData = (char *)ViewBase + iViewDelta;
-
-  // close the file-mapping object
-  if (!CloseHandle(hMapFile))
-    sprintf(g->Message, MSG(MAP_OBJ_ERR), GetLastError());
-
-  // close the file itself
-  if (!CloseHandle(Hfile))
-    sprintf(g->Message, MSG(FILE_CLOSE_ERR), GetLastError());
-  else
-    Hfile = INVALID_HANDLE_VALUE;
-
-  return pData;
-  } // end of FileView
-#else  // not WIN32
-/***********************************************************************/
-/*  Don't know whether this is possible for non Windows OS.            */
-/***********************************************************************/
-void *XHUGE::FileView(PGLOBAL g, char *fn,
-                         int loff, int hoff, int size)
+void *XHUGE::FileView(PGLOBAL g, char *fn)
   {
   strcpy(g->Message, MSG(NO_PART_MAP));
   return NULL;
   } // end of FileView
-#endif   // not WIN32
 #endif   // XMAP
 
 /* -------------------------- XXROW Class --------------------------- */
