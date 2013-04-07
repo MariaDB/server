@@ -83,7 +83,6 @@ public:
   {
   }
   const char *index_type(uint inx) { return "NONE"; }
-  const char **bas_ext() const;
   ulonglong table_flags() const
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_CAN_BIT_FIELD |

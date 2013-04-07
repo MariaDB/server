@@ -199,6 +199,14 @@ static void init_archive_psi_keys(void)
     TRUE        Error
 */
 
+/*
+  We just implement one additional file extension.
+*/
+static const char *ha_archive_exts[] = {
+  ARZ,
+  NullS
+};
+
 int archive_db_init(void *p)
 {
   DBUG_ENTER("archive_db_init");
@@ -214,6 +222,7 @@ int archive_db_init(void *p)
   archive_hton->create= archive_create_handler;
   archive_hton->flags= HTON_NO_FLAGS;
   archive_hton->discover= archive_discover;
+  archive_hton->tablefile_extensions= ha_archive_exts;
 
   if (mysql_mutex_init(az_key_mutex_archive_mutex,
                        &archive_mutex, MY_MUTEX_INIT_FAST))
@@ -527,20 +536,6 @@ int ha_archive::init_archive_reader()
   }
 
   DBUG_RETURN(0);
-}
-
-
-/*
-  We just implement one additional file extension.
-*/
-static const char *ha_archive_exts[] = {
-  ARZ,
-  NullS
-};
-
-const char **ha_archive::bas_ext() const
-{
-  return ha_archive_exts;
 }
 
 

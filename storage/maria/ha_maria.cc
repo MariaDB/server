@@ -996,12 +996,6 @@ static const char *ha_maria_exts[]=
 };
 
 
-const char **ha_maria::bas_ext() const
-{
-  return ha_maria_exts;
-}
-
-
 const char *ha_maria::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ?
@@ -3487,6 +3481,7 @@ static int ha_maria_init(void *p)
   maria_hton->db_type= DB_TYPE_UNKNOWN;
   maria_hton->create= maria_create_handler;
   maria_hton->panic= maria_hton_panic;
+  maria_hton->tablefile_extensions= ha_maria_exts;
   maria_hton->commit= maria_commit;
   maria_hton->rollback= maria_rollback;
   maria_hton->checkpoint_state= maria_checkpoint_state;

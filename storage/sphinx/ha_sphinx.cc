@@ -2005,9 +2005,6 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 // SPHINX HANDLER
 //////////////////////////////////////////////////////////////////////////////
 
-static const char * ha_sphinx_exts[] = { NullS };
-
-
 #if MYSQL_VERSION_ID<50100
 ha_sphinx::ha_sphinx ( TABLE_ARG * table )
 	: handler ( &sphinx_hton, table )
@@ -2046,16 +2043,6 @@ ha_sphinx::~ha_sphinx()
     delete [] m_dFields;
   }
 }
-
-
-// If frm_error() is called then we will use this to to find out what file extentions
-// exist for the storage engine. This is also used by the default rename_table and
-// delete_table method in handler.cc.
-const char ** ha_sphinx::bas_ext() const
-{
-	return ha_sphinx_exts;
-}
-
 
 // Used for opening tables. The name will be the name of the file.
 // A table is opened when it needs to be opened. For instance

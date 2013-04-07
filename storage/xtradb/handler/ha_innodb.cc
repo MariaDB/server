@@ -2560,6 +2560,13 @@ skip_overwrite:
 }
 
 
+/****************************************************************//**
+Gives the file extension of an InnoDB single-table tablespace. */
+static const char* ha_innobase_exts[] = {
+  ".ibd",
+  NullS
+};
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return	0 on success, error code on failure */
@@ -2608,6 +2615,7 @@ innobase_init(
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
         innobase_hton->kill_query = innobase_kill_query;
+        innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -4033,13 +4041,6 @@ ha_innobase::table_flags() const
 }
 
 /****************************************************************//**
-Gives the file extension of an InnoDB single-table tablespace. */
-static const char* ha_innobase_exts[] = {
-  ".ibd",
-  NullS
-};
-
-/****************************************************************//**
 Returns the index type. */
 UNIV_INTERN
 const char*
@@ -4049,17 +4050,6 @@ ha_innobase::index_type(
 				/*!< out: index type */
 {
 	return("BTREE");
-}
-
-/****************************************************************//**
-Returns the table file name extension.
-@return	file extension string */
-UNIV_INTERN
-const char**
-ha_innobase::bas_ext() const
-/*========================*/
-{
-	return(ha_innobase_exts);
 }
 
 /****************************************************************//**

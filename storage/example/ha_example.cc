@@ -229,6 +229,27 @@ static void init_example_psi_keys()
 #endif
 
 
+/**
+  @brief
+  If frm_error() is called then we will use this to determine
+  the file extensions that exist for the storage engine. This is also
+  used by the default rename_table and delete_table method in
+  handler.cc and by the default discover_many method.
+
+  For engines that have two file name extentions (separate meta/index file
+  and data file), the order of elements is relevant. First element of engine
+  file name extentions array should be meta/index file extention. Second
+  element - data file extention. This order is assumed by
+  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
+
+  @see
+  rename_table method in handler.cc and
+  delete_table method in handler.cc
+*/
+
+static const char *ha_example_exts[] = {
+  NullS
+};
 static int example_init_func(void *p)
 {
   DBUG_ENTER("example_init_func");
@@ -247,6 +268,7 @@ static int example_init_func(void *p)
   example_hton->flags=   HTON_CAN_RECREATE;
   example_hton->table_options= example_table_option_list;
   example_hton->field_options= example_field_option_list;
+  example_hton->tablefile_extensions= ha_example_exts;
 
   DBUG_RETURN(0);
 }
@@ -352,33 +374,6 @@ ha_example::ha_example(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg)
 {}
 
-
-/**
-  @brief
-  If frm_error() is called then we will use this to determine
-  the file extensions that exist for the storage engine. This is also
-  used by the default rename_table and delete_table method in
-  handler.cc.
-
-  For engines that have two file name extentions (separate meta/index file
-  and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
-  element - data file extention. This order is assumed by
-  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-
-  @see
-  rename_table method in handler.cc and
-  delete_table method in handler.cc
-*/
-
-static const char *ha_example_exts[] = {
-  NullS
-};
-
-const char **ha_example::bas_ext() const
-{
-  return ha_example_exts;
-}
 
 /**
   @brief

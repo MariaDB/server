@@ -369,16 +369,6 @@ ha_cassandra::ha_cassandra(handlerton *hton, TABLE_SHARE *table_arg)
 {}
 
 
-static const char *ha_cassandra_exts[] = {
-  NullS
-};
-
-const char **ha_cassandra::bas_ext() const
-{
-  return ha_cassandra_exts;
-}
-
-
 int ha_cassandra::connect_and_check_options(TABLE *table_arg)
 {
   ha_table_option_struct *options= table_arg->s->option_struct;
