@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1931,7 +1932,7 @@ static int make_huff_decode_table(HUFF_TREE *huff_tree, uint trees)
 	return 1;
       huff_tree->code_len=(uchar*) (huff_tree->code+elements);
       make_traverse_code_tree(huff_tree, huff_tree->root,
-                              8 * sizeof(ulonglong), LL(0));
+                              8 * sizeof(ulonglong), 0);
     }
   }
   return 0;

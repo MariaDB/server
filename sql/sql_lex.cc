@@ -2877,7 +2877,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
     val= fix_fields_successful ? item->val_uint() : 0;
   }
   else
-    val= ULL(0);
+    val= 0;
 
   offset_limit_cnt= (ha_rows)val;
 #ifndef BIG_TABLES

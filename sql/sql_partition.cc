@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4717,8 +4717,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       }
       alt_part_info->part_type= tab_part_info->part_type;
       alt_part_info->subpart_type= tab_part_info->subpart_type;
-      if (alt_part_info->set_up_defaults_for_partitioning(new_table->file,
-                                                    ULL(0), 
+      if (alt_part_info->set_up_defaults_for_partitioning(new_table->file, 0, 
                                                     tab_part_info->num_parts))
       {
         goto err;
@@ -5134,8 +5133,7 @@ state of p1.
       alt_part_info->num_subparts= tab_part_info->num_subparts;
       DBUG_ASSERT(!alt_part_info->use_default_partitions);
       if (alt_part_info->set_up_defaults_for_partitioning(new_table->file,
-                                                          ULL(0), 
-                                                          0))
+                                                          0, 0))
       {
         goto err;
       }
@@ -5268,7 +5266,7 @@ the generated partition syntax in a correct manner.
         tab_part_info->use_default_num_subpartitions= FALSE;
       }
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,
-                                              new_table->file, ULL(0), TRUE))
+                                              new_table->file, 0, TRUE))
       {
         goto err;
       }

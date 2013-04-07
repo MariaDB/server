@@ -1017,13 +1017,13 @@ calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign, longlong *s
 			       (uint) l_time2->day);
   }
 
-  microseconds= ((longlong)days*LL(86400) +
+  microseconds= ((longlong)days*86400LL +
                  (longlong)(l_time1->hour*3600L +
                             l_time1->minute*60L +
                             l_time1->second) -
                  l_sign*(longlong)(l_time2->hour*3600L +
                                    l_time2->minute*60L +
-                                   l_time2->second)) * LL(1000000) +
+                                   l_time2->second)) * 1000000LL +
                 (longlong)l_time1->second_part -
                 l_sign*(longlong)l_time2->second_part;
 

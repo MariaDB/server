@@ -5454,7 +5454,7 @@ restart_bitmap_scan:
       {
         bits= uint6korr(data);
         /* Skip not allocated pages and blob / full tail pages */
-        if (bits && bits != LL(07777777777777777))
+        if (bits && bits != 07777777777777777LL)
           break;
       }
       bit_pos= 0;
