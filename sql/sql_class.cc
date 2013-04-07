@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1186,8 +1186,8 @@ LEX_STRING *thd_make_lex_string(THD *thd, LEX_STRING *lex_str,
                                 const char *str, unsigned int size,
                                 int allocate_lex_string)
 {
-  return thd->make_lex_string(lex_str, str, size,
-                              (bool) allocate_lex_string);
+  return allocate_lex_string ? thd->make_lex_string(str, size)
+                             : thd->make_lex_string(lex_str, str, size);
 }
 
 extern "C"
@@ -1897,30 +1897,6 @@ void THD::cleanup_after_query()
 #endif
 
   DBUG_VOID_RETURN;
-}
-
-
-/**
-  Create a LEX_STRING in this connection.
-
-  @param lex_str  pointer to LEX_STRING object to be initialized
-  @param str      initializer to be copied into lex_str
-  @param length   length of str, in bytes
-  @param allocate_lex_string  if TRUE, allocate new LEX_STRING object,
-                              instead of using lex_str value
-  @return  NULL on failure, or pointer to the LEX_STRING object
-*/
-LEX_STRING *THD::make_lex_string(LEX_STRING *lex_str,
-                                 const char* str, uint length,
-                                 bool allocate_lex_string)
-{
-  if (allocate_lex_string)
-    if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
-      return 0;
-  if (!(lex_str->str= strmake_root(mem_root, str, length)))
-    return 0;
-  lex_str->length= length;
-  return lex_str;
 }
 
 

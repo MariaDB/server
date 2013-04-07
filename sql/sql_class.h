@@ -2622,9 +2622,21 @@ public:
     return alloc_root(&transaction.mem_root,size);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str,
-                              const char* str, uint length,
-                              bool allocate_lex_string);
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
+  {
+    if (!(lex_str->str= strmake_root(mem_root, str, length)))
+      return 0;
+    lex_str->length= length;
+    return lex_str;
+  }
+
+  LEX_STRING *make_lex_string(const char* str, uint length)
+  {
+    LEX_STRING *lex_str;
+    if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
+      return 0;
+    return make_lex_string(lex_str, str, length);
+  }
 
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, uint from_length,

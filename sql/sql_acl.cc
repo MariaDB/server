@@ -7034,10 +7034,8 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   tables->db= (char*)sp_db;
   tables->table_name= tables->alias= (char*)sp_name;
 
-  thd->make_lex_string(&combo->user,
-                       combo->user.str, strlen(combo->user.str), 0);
-  thd->make_lex_string(&combo->host,
-                       combo->host.str, strlen(combo->host.str), 0);
+  thd->make_lex_string(&combo->user, combo->user.str, strlen(combo->user.str));
+  thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
 
   combo->password= empty_lex_str;
   combo->plugin= empty_lex_str;
@@ -8263,7 +8261,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   thd->user_connect= 0;
   strmake(sctx->priv_user, sctx->user, USERNAME_LENGTH);
 
-  if (thd->make_lex_string(&mpvio->db, db_buff, db_len, 0) == 0)
+  if (thd->make_lex_string(&mpvio->db, db_buff, db_len) == 0)
     DBUG_RETURN(1); /* The error is set by make_lex_string(). */
 
   /*
@@ -8489,7 +8487,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
-  if (thd->make_lex_string(&mpvio->db, db, db_len, 0) == 0)
+  if (thd->make_lex_string(&mpvio->db, db, db_len) == 0)
     return packet_error; /* The error is set by make_lex_string(). */
   my_free(sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))

@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011 Monty Program Ab
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -871,7 +871,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->source= thd->lex->create_view_select;
 
   if (!thd->make_lex_string(&view->select_stmt, view_query.ptr(),
-                            view_query.length(), false))
+                            view_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
@@ -1004,7 +1004,7 @@ loop_out:
                  view->view_creation_ctx->get_connection_cl()->name);
 
   if (!thd->make_lex_string(&view->view_body_utf8, is_query.ptr(),
-                            is_query.length(), false))
+                            is_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
