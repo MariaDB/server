@@ -554,9 +554,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       if (!x->Make(g, sxp)) {
         // Retreive define values from the index
         xdp->SetMaxSame(x->GetMaxSame());
-//      xdp->SetOffset(x->GetDefoff());
-//      xdp->SetOffhigh(x->GetDefhigh());
-        xdp->SetSize(x->GetSize());
+//      xdp->SetSize(x->GetSize());
 
         // store KXYCOL Mxs in KPARTDEF Mxsame
         xdp->SetMxsame(x);
@@ -565,7 +563,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
         printf("Make done...\n");
 #endif   // TRACE
 
-        if (x->GetSize() > 0)
+//      if (x->GetSize() > 0)
           sxp = xdp;
 
         xdp->SetInvalid(false);
