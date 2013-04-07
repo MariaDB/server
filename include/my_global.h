@@ -476,7 +476,7 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 #endif
 
-#define swap_variables(t, a, b) { t dummy; dummy= a; a= b; b= dummy; }
+#define swap_variables(t, a, b) do { t dummy; dummy= a; a= b; b= dummy; } while(0)
 #define test(a)		((a) ? 1 : 0)
 #define set_if_bigger(a,b)  do { if ((a) < (b)) (a)=(b); } while(0)
 #define set_if_smaller(a,b) do { if ((a) > (b)) (a)=(b); } while(0)
