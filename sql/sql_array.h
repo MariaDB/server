@@ -124,6 +124,11 @@ public:
     return (insert_dynamic(&array, (uchar*)&el));
   }
 
+  bool append_val(Elem el)
+  {
+    return (insert_dynamic(&array, (uchar*)&el));
+  }
+
   int elements()
   {
     return array.elements;

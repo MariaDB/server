@@ -687,6 +687,11 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
   return my_hash_search(&ignore_db_dirs_hash, (uchar *) buff, buff_len)!=NULL;
 }
 
+enum find_files_result {
+  FIND_FILES_OK,
+  FIND_FILES_OOM,
+  FIND_FILES_DIR
+};
 
 /*
   find_files() - find files in a given directory.
@@ -708,8 +713,8 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
 */
 
 
-find_files_result
-find_files(THD *thd, List<LEX_STRING> *files, const char *db,
+static find_files_result
+find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, const char *db,
            const char *path, const char *wild, bool dir)
 {
   uint i;
@@ -739,9 +744,9 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
                                MY_THREAD_SPECIFIC))))
   {
     if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL+ME_WAITTANG), db);
+      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db);
     else
-      my_error(ER_CANT_READ_DIR, MYF(ME_BELL+ME_WAITTANG), path, my_errno);
+      my_error(ER_CANT_READ_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
     DBUG_RETURN(FIND_FILES_DIR);
   }
 
@@ -824,13 +829,13 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
     }
 #endif
     if (!(file_name= thd->make_lex_string(uname, file_name_len)) ||
-        files->push_back(file_name))
+        files->append(file_name))
     {
       my_dirend(dirp);
       DBUG_RETURN(FIND_FILES_OOM);
     }
   }
-  DBUG_PRINT("info",("found: %d files", files->elements));
+  DBUG_PRINT("info",("found: %d files", files->elements()));
   my_dirend(dirp);
 
   DBUG_RETURN(FIND_FILES_OK);
@@ -3697,7 +3702,7 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
     non-zero              error
 */
 
-int make_db_list(THD *thd, List<LEX_STRING> *files,
+int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
                  LOOKUP_FIELD_VALUES *lookup_field_vals,
                  bool *with_i_schema)
 {
@@ -3718,7 +3723,7 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
                            lookup_field_vals->db_value.str))
     {
       *with_i_schema= 1;
-      if (files->push_back(i_s_name_copy))
+      if (files->append(i_s_name_copy))
         return 1;
     }
     return (find_files(thd, files, NullS, mysql_data_home,
@@ -3739,11 +3744,11 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
                          lookup_field_vals->db_value.length))
     {
       *with_i_schema= 1;
-      if (files->push_back(i_s_name_copy))
+      if (files->append(i_s_name_copy))
         return 1;
       return 0;
     }
-    if (files->push_back(&lookup_field_vals->db_value))
+    if (files->append_val(&lookup_field_vals->db_value))
       return 1;
     return 0;
   }
@@ -3752,7 +3757,7 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
     Create list of existing databases. It is used in case
     of select from information schema table
   */
-  if (files->push_back(i_s_name_copy))
+  if (files->append(i_s_name_copy))
     return 1;
   *with_i_schema= 1;
   return (find_files(thd, files, NullS,
@@ -3762,7 +3767,7 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
 
 struct st_add_schema_table
 {
-  List<LEX_STRING> *files;
+  Dynamic_array<LEX_STRING*> *files;
   const char *wild;
 };
 
@@ -3772,7 +3777,7 @@ static my_bool add_schema_table(THD *thd, plugin_ref plugin,
 {
   LEX_STRING *file_name= 0;
   st_add_schema_table *data= (st_add_schema_table *)p_data;
-  List<LEX_STRING> *file_list= data->files;
+  Dynamic_array<LEX_STRING*> *file_list= data->files;
   const char *wild= data->wild;
   ST_SCHEMA_TABLE *schema_table= plugin_data(plugin, ST_SCHEMA_TABLE *);
   DBUG_ENTER("add_schema_table");
@@ -3794,13 +3799,14 @@ static my_bool add_schema_table(THD *thd, plugin_ref plugin,
 
   if ((file_name= thd->make_lex_string(schema_table->table_name,
                                        strlen(schema_table->table_name))) &&
-      !file_list->push_back(file_name))
+      !file_list->append(file_name))
     DBUG_RETURN(0);
   DBUG_RETURN(1);
 }
 
 
-int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
+int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
+                      const char *wild)
 {
   LEX_STRING *file_name= 0;
   ST_SCHEMA_TABLE *tmp_schema_table= schema_tables;
@@ -3826,7 +3832,7 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
     if ((file_name=
          thd->make_lex_string(tmp_schema_table->table_name,
                               strlen(tmp_schema_table->table_name))) &&
-        !files->push_back(file_name))
+        !files->append(file_name))
       continue;
     DBUG_RETURN(1);
   }
@@ -3861,8 +3867,8 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
 */
 
 static int
-make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
-                     LOOKUP_FIELD_VALUES *lookup_field_vals,
+make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
+                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
                      bool with_i_schema, LEX_STRING *db_name)
 {
   char path[FN_REFLEN + 1];
@@ -3879,13 +3885,13 @@ make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
       {
         if (!(name= thd->make_lex_string(schema_table->table_name,
                                          strlen(schema_table->table_name))) ||
-            table_names->push_back(name))
+            table_names->append(name))
           return 1;
       }
     }
     else
     {
-      if (table_names->push_back(&lookup_field_vals->table_value))
+      if (table_names->append_val(&lookup_field_vals->table_value))
         return 1;
     }
     return 0;
@@ -4544,11 +4550,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  LEX_STRING *db_name, *table_name;
+  LEX_STRING *db_name;
   bool with_i_schema;
   enum enum_schema_tables schema_table_idx;
-  List<LEX_STRING> db_names;
-  List_iterator_fast<LEX_STRING> it(db_names);
+  Dynamic_array<LEX_STRING*> db_names;
   COND *partial_cond= 0;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
@@ -4652,9 +4657,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &lookup_field_vals, &with_i_schema))
     goto err;
-  it.rewind(); /* To get access to new elements in basis list */
-  while ((db_name= it++))
+  for (int i=0; i < db_names.elements(); i++)
   {
+    db_name= db_names.at(i);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
@@ -4663,7 +4668,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
     {
-      List<LEX_STRING> table_names;
+      Dynamic_array<LEX_STRING*> table_names;
       int res= make_table_name_list(thd, &table_names, lex,
                                     &lookup_field_vals,
                                     with_i_schema, db_name);
@@ -4672,9 +4677,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       if (res)
         goto err;
 
-      List_iterator_fast<LEX_STRING> it_files(table_names);
-      while ((table_name= it_files++))
+      for (int i=0; i < table_names.elements(); i++)
       {
+        LEX_STRING *table_name= table_names.at(i);
 	restore_record(table, s->default_values);
         table->field[schema_table->idx_field1]->
           store(db_name->str, db_name->length, system_charset_info);
@@ -4779,8 +4784,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   */
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  List<LEX_STRING> db_names;
-  LEX_STRING *db_name;
+  Dynamic_array<LEX_STRING*> db_names;
   bool with_i_schema;
   HA_CREATE_INFO create;
   TABLE *table= tables->table;
@@ -4816,9 +4820,9 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       DBUG_RETURN(0);
   }
 
-  List_iterator_fast<LEX_STRING> it(db_names);
-  while ((db_name=it++))
+  for (int i=0; i < db_names.elements(); i++)
   {
+    LEX_STRING *db_name= db_names.at(i);
     if (with_i_schema)       // information schema name is always first in list
     {
       if (store_schema_shemata(thd, table, db_name,
