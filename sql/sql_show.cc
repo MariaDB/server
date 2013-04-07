@@ -60,8 +60,6 @@
 #include "datadict.h"   // dd_frm_type()
 #include "keycaches.h"
 
-#define STR_OR_NIL(S) ((S) ? (S) : "<nil>")
-
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
@@ -737,7 +735,7 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
 
   bzero((char*) &table_list,sizeof(table_list));
 
-  if (!(dirp = my_dir(path,MYF((dir ? MY_WANT_STAT : 0) |
+  if (!(dirp = my_dir(path, MYF((dir ? MY_WANT_STAT : 0) | MY_WANT_SORT |
                                MY_THREAD_SPECIFIC))))
   {
     if (my_errno == ENOENT)
@@ -747,16 +745,12 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
     DBUG_RETURN(FIND_FILES_DIR);
   }
 
-  for (i=0 ; i < (uint) dirp->number_off_files  ; i++)
+  for (i=0 ; i < (uint) dirp->number_of_files  ; i++)
   {
     char uname[SAFE_NAME_LEN + 1];              /* Unencoded name */
     file=dirp->dir_entry+i;
     if (dir)
     {                                           /* Return databases */
-      if ((file->name[0] == '.' &&
-          ((file->name[1] == '.' && file->name[2] == '\0') ||
-            file->name[1] == '\0')))
-        continue;                               /* . or .. */
 #ifdef USE_SYMDIR
       char *ext;
       char buff[FN_REFLEN];
@@ -4626,9 +4620,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  DBUG_PRINT("INDEX VALUES",("db_name='%s', table_name='%s'",
-                             STR_OR_NIL(lookup_field_vals.db_value.str),
-                             STR_OR_NIL(lookup_field_vals.table_value.str)));
+  DBUG_PRINT("info",("db_name='%s', table_name='%s'",
+                     lookup_field_vals.db_value.str,
+                     lookup_field_vals.table_value.str));
 
   if (!lookup_field_vals.wild_db_value && !lookup_field_vals.wild_table_value)
   {

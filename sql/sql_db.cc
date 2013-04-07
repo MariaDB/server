@@ -52,11 +52,9 @@ const char *del_exts[]= {".frm", ".BAK", ".TMD",".opt", NullS};
 static TYPELIB deletable_extentions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
-static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
-                                              const char *db,
-                                              const char *path,
-                                              TABLE_LIST **tables,
-                                              bool *found_other_files);
+static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
+                                              const char *, TABLE_LIST **,
+                                              bool *);
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
@@ -1010,17 +1008,12 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
   tot_list_next_local= tot_list_next_global= &tot_list;
 
   for (uint idx=0 ;
-       idx < (uint) dirp->number_off_files && !thd->killed ;
+       idx < (uint) dirp->number_of_files && !thd->killed ;
        idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension;
     DBUG_PRINT("info",("Examining: %s", file->name));
-
-    /* skiping . and .. */
-    if (file->name[0] == '.' && (!file->name[1] ||
-       (file->name[1] == '.' &&  !file->name[2])))
-      continue;
 
     if (file->name[0] == 'a' && file->name[1] == 'r' &&
              file->name[2] == 'c' && file->name[3] == '\0')
@@ -1189,17 +1182,12 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path)
   DBUG_PRINT("enter", ("path: %s", org_path));
 
   for (uint idx=0 ;
-       idx < (uint) dirp->number_off_files && !thd->killed ;
+       idx < (uint) dirp->number_of_files && !thd->killed ;
        idx++)
   {
     FILEINFO *file=dirp->dir_entry+idx;
     char *extension, *revision;
     DBUG_PRINT("info",("Examining: %s", file->name));
-
-    /* skiping . and .. */
-    if (file->name[0] == '.' && (!file->name[1] ||
-       (file->name[1] == '.' &&  !file->name[2])))
-      continue;
 
     extension= fn_ext(file->name);
     if (extension[0] != '.' ||
@@ -1687,7 +1675,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
   /* Step2: Move tables to the new database */
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_off_files;
+    uint nfiles= (uint) dirp->number_of_files;
     for (uint idx=0 ; idx < nfiles && !thd->killed ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
@@ -1778,17 +1766,15 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
 
   if ((dirp = my_dir(path,MYF(MY_DONT_SORT))))
   {
-    uint nfiles= (uint) dirp->number_off_files;
+    uint nfiles= (uint) dirp->number_of_files;
     for (uint idx=0 ; idx < nfiles ; idx++)
     {
       FILEINFO *file= dirp->dir_entry + idx;
       char oldname[FN_REFLEN + 1], newname[FN_REFLEN + 1];
       DBUG_PRINT("info",("Examining: %s", file->name));
 
-      /* skiping . and .. and MY_DB_OPT_FILE */
-      if ((file->name[0] == '.' &&
-           (!file->name[1] || (file->name[1] == '.' && !file->name[2]))) ||
-          !my_strcasecmp(files_charset_info, file->name, MY_DB_OPT_FILE))
+      /* skiping MY_DB_OPT_FILE */
+      if (!my_strcasecmp(files_charset_info, file->name, MY_DB_OPT_FILE))
         continue;
 
       /* pass empty file name, and file->name as extension to avoid encoding */

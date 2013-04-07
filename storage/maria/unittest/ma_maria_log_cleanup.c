@@ -38,7 +38,7 @@ my_bool maria_log_remove(const char *testdir)
   if (!(dirp = my_dir(maria_data_root, MYF(MY_DONT_SORT))))
     return 1;
 
-  for (i= 0; i < dirp->number_off_files; i++)
+  for (i= 0; i < dirp->number_of_files; i++)
   {
     char *file= dirp->dir_entry[i].name;
     if (strncmp(file, "aria_log.", 9) == 0 &&

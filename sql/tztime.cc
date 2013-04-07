@@ -2505,7 +2505,7 @@ scan_tz_dir(char * name_end)
 
   name_end= strmake(name_end, "/", FN_REFLEN - (name_end - fullname));
 
-  for (i= 0; i < cur_dir->number_off_files; i++)
+  for (i= 0; i < cur_dir->number_of_files; i++)
   {
     if (cur_dir->dir_entry[i].name[0] != '.')
     {

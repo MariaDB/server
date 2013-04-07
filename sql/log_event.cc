@@ -577,7 +577,7 @@ static void cleanup_load_tmpdir()
   *(p++)= '-';
   *p= 0;
 
-  for (i=0 ; i < (uint)dirp->number_off_files; i++)
+  for (i=0 ; i < (uint)dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))
