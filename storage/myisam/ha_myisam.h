@@ -26,9 +26,6 @@
 #include "handler.h"                            /* handler */
 #include "table.h"                              /* TABLE_SHARE */
 
-struct TABLE_SHARE;
-typedef struct st_ha_create_information HA_CREATE_INFO;
-
 #define HA_RECOVER_DEFAULT	1	/* Automatic recover active */
 #define HA_RECOVER_BACKUP	2	/* Make a backupfile on recover */
 #define HA_RECOVER_FORCE	4	/* Recover even if we loose rows */

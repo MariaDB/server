@@ -26,7 +26,7 @@ class THD;
 struct TABLE;
 struct handlerton;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
-typedef struct st_ha_create_information HA_CREATE_INFO;
+struct HA_CREATE_INFO;
 typedef struct st_key KEY;
 typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;

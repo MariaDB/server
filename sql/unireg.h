@@ -23,8 +23,6 @@
 
 /*  Extra functions used by unireg library */
 
-typedef struct st_ha_create_information HA_CREATE_INFO;
-
 #ifndef NO_ALARM_LOOP
 #define NO_ALARM_LOOP		/* lib5 and popen can't use alarm */
 #endif
