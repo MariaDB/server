@@ -2278,8 +2278,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
-    DBUG_EXECUTE_IF("sleep_before_no_locks_delete_table",
-                    my_sleep(100000););
     error= 0;
     if (drop_temporary ||
         ((access(path, F_OK) &&
