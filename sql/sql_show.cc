@@ -3629,7 +3629,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
                              LOOKUP_FIELD_VALUES *lookup_field_values)
 {
   LEX *lex= thd->lex;
-  const char *wild= lex->wild ? lex->wild->ptr() : NullS;
+  String *wild= lex->wild;
   bool rc= 0;
 
   bzero((char*) lookup_field_values, sizeof(LOOKUP_FIELD_VALUES));
@@ -3637,7 +3637,8 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
-      thd->make_lex_string(&lookup_field_values->db_value, wild, strlen(wild));
+      thd->make_lex_string(&lookup_field_values->db_value,
+                           wild->ptr(), wild->length());
       lookup_field_values->wild_db_value= 1;
     }
     break;
@@ -3650,7 +3651,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
     if (wild)
     {
       thd->make_lex_string(&lookup_field_values->table_value, 
-                           wild, strlen(wild));
+                           wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
     }
     break;
