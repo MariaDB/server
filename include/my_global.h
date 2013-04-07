@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1006,24 +1007,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 typedef char		my_bool; /* Small bool */
 
-/* Macros for converting *constants* to the right type */
 #define MYF(v)		(myf) (v)
-
-#ifndef LL
-#ifdef HAVE_LONG_LONG
-#define LL(A) A ## LL
-#else
-#define LL(A) A ## L
-#endif
-#endif
-
-#ifndef ULL
-#ifdef HAVE_LONG_LONG
-#define ULL(A) A ## ULL
-#else
-#define ULL(A) A ## UL
-#endif
-#endif
 
 /*
   Defines to make it possible to prioritize register assignments. No

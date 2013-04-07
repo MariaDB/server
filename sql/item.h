@@ -3592,7 +3592,7 @@ public:
   }
   virtual longlong val_int()
   {
-    return null_value ? LL(0) : cached_value;
+    return null_value ? 0 : cached_value;
   }
   virtual void copy();
 };

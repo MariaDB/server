@@ -2215,7 +2215,7 @@ longlong Item_func_shift_left::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 longlong Item_func_shift_right::val_int()
@@ -2230,7 +2230,7 @@ longlong Item_func_shift_right::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 
@@ -3163,7 +3163,7 @@ void Item_func_find_in_set::fix_length_and_dec()
 			      find->length(), 0);
 	enum_bit=0;
 	if (enum_value)
-	  enum_bit=LL(1) << (enum_value-1);
+	  enum_bit=1LL << (enum_value-1);
       }
     }
   }
@@ -3244,7 +3244,7 @@ longlong Item_func_find_in_set::val_int()
                wc == (my_wc_t) separator)
         return (longlong) ++position;
       else
-        return LL(0);
+        return 0;
     }
   }
   return 0;
@@ -3965,7 +3965,7 @@ class Interruptible_wait
 
 
 /** Time to wait before polling the connection status. */
-const ulonglong Interruptible_wait::m_interrupt_interval= 5 * ULL(1000000000);
+const ulonglong Interruptible_wait::m_interrupt_interval= 5 * 1000000000ULL;
 
 
 /**
@@ -4089,7 +4089,7 @@ longlong Item_func_get_lock::val_int()
   thd->mysys_var->current_mutex= &LOCK_user_locks;
   thd->mysys_var->current_cond=  &ull->cond;
 
-  timed_cond.set_timeout(timeout * ULL(1000000000));
+  timed_cond.set_timeout(timeout * 1000000000ULL);
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_USER_LOCK);
@@ -4669,7 +4669,7 @@ double user_var_entry::val_real(bool *null_value)
 longlong user_var_entry::val_int(bool *null_value) const
 {
   if ((*null_value= (value == 0)))
-    return LL(0);
+    return 0;
 
   switch (type) {
   case REAL_RESULT:
@@ -4693,7 +4693,7 @@ longlong user_var_entry::val_int(bool *null_value) const
     DBUG_ASSERT(0);				// Impossible
     break;
   }
-  return LL(0);					// Impossible
+  return 0;					// Impossible
 }
 
 
@@ -5186,7 +5186,7 @@ longlong Item_func_get_user_var::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   if (!var_entry)
-    return LL(0);				// No such variable
+    return 0;				// No such variable
   return (var_entry->val_int(&null_value));
 }
 

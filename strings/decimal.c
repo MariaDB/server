@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1032,7 +1032,7 @@ int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 
   if (from->sign)
   {
-      *to=ULL(0);
+      *to= 0;
       return E_DEC_OVERFLOW;
   }
 

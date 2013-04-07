@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -75,38 +75,38 @@ enum enum_mark_columns
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
-#define MODE_REAL_AS_FLOAT              1
-#define MODE_PIPES_AS_CONCAT            2
-#define MODE_ANSI_QUOTES                4
-#define MODE_IGNORE_SPACE               8
-#define MODE_IGNORE_BAD_TABLE_OPTIONS   16
-#define MODE_ONLY_FULL_GROUP_BY         32
-#define MODE_NO_UNSIGNED_SUBTRACTION    64
-#define MODE_NO_DIR_IN_CREATE           128
-#define MODE_POSTGRESQL                 256
-#define MODE_ORACLE                     512
-#define MODE_MSSQL                      1024
-#define MODE_DB2                        2048
-#define MODE_MAXDB                      4096
-#define MODE_NO_KEY_OPTIONS             8192
-#define MODE_NO_TABLE_OPTIONS           16384
-#define MODE_NO_FIELD_OPTIONS           32768
-#define MODE_MYSQL323                   65536L
-#define MODE_MYSQL40                    (MODE_MYSQL323*2)
-#define MODE_ANSI                       (MODE_MYSQL40*2)
-#define MODE_NO_AUTO_VALUE_ON_ZERO      (MODE_ANSI*2)
-#define MODE_NO_BACKSLASH_ESCAPES       (MODE_NO_AUTO_VALUE_ON_ZERO*2)
-#define MODE_STRICT_TRANS_TABLES        (MODE_NO_BACKSLASH_ESCAPES*2)
-#define MODE_STRICT_ALL_TABLES          (MODE_STRICT_TRANS_TABLES*2)
-#define MODE_NO_ZERO_IN_DATE            (MODE_STRICT_ALL_TABLES*2)
-#define MODE_NO_ZERO_DATE               (MODE_NO_ZERO_IN_DATE*2)
-#define MODE_INVALID_DATES              (MODE_NO_ZERO_DATE*2)
-#define MODE_ERROR_FOR_DIVISION_BY_ZERO (MODE_INVALID_DATES*2)
-#define MODE_TRADITIONAL                (MODE_ERROR_FOR_DIVISION_BY_ZERO*2)
-#define MODE_NO_AUTO_CREATE_USER        (MODE_TRADITIONAL*2)
-#define MODE_HIGH_NOT_PRECEDENCE        (MODE_NO_AUTO_CREATE_USER*2)
-#define MODE_NO_ENGINE_SUBSTITUTION     (MODE_HIGH_NOT_PRECEDENCE*2)
-#define MODE_PAD_CHAR_TO_FULL_LENGTH    (ULL(1) << 31)
+#define MODE_REAL_AS_FLOAT              (1ULL << 0)
+#define MODE_PIPES_AS_CONCAT            (1ULL << 1)
+#define MODE_ANSI_QUOTES                (1ULL << 2)
+#define MODE_IGNORE_SPACE               (1ULL << 3)
+#define MODE_IGNORE_BAD_TABLE_OPTIONS   (1ULL << 4)
+#define MODE_ONLY_FULL_GROUP_BY         (1ULL << 5)
+#define MODE_NO_UNSIGNED_SUBTRACTION    (1ULL << 6)
+#define MODE_NO_DIR_IN_CREATE           (1ULL << 7)
+#define MODE_POSTGRESQL                 (1ULL << 8)
+#define MODE_ORACLE                     (1ULL << 9)
+#define MODE_MSSQL                      (1ULL << 10)
+#define MODE_DB2                        (1ULL << 11)
+#define MODE_MAXDB                      (1ULL << 12)
+#define MODE_NO_KEY_OPTIONS             (1ULL << 13)
+#define MODE_NO_TABLE_OPTIONS           (1ULL << 14)
+#define MODE_NO_FIELD_OPTIONS           (1ULL << 15)
+#define MODE_MYSQL323                   (1ULL << 16)
+#define MODE_MYSQL40                    (1ULL << 17)
+#define MODE_ANSI                       (1ULL << 18)
+#define MODE_NO_AUTO_VALUE_ON_ZERO      (1ULL << 19)
+#define MODE_NO_BACKSLASH_ESCAPES       (1ULL << 20)
+#define MODE_STRICT_TRANS_TABLES        (1ULL << 21)
+#define MODE_STRICT_ALL_TABLES          (1ULL << 22)
+#define MODE_NO_ZERO_IN_DATE            (1ULL << 23)
+#define MODE_NO_ZERO_DATE               (1ULL << 24)
+#define MODE_INVALID_DATES              (1ULL << 25)
+#define MODE_ERROR_FOR_DIVISION_BY_ZERO (1ULL << 26)
+#define MODE_TRADITIONAL                (1ULL << 27)
+#define MODE_NO_AUTO_CREATE_USER        (1ULL << 28)
+#define MODE_HIGH_NOT_PRECEDENCE        (1ULL << 29)
+#define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
+#define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2006, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -521,9 +522,9 @@ bool is_conversion_ok(int order, Relay_log_info *rli)
   bool allow_non_lossy, allow_lossy;
 
   allow_non_lossy = slave_type_conversions_options &
-                    (ULL(1) << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
+                    (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY);
   allow_lossy= slave_type_conversions_options &
-               (ULL(1) << SLAVE_TYPE_CONVERSIONS_ALL_LOSSY);
+               (1ULL << SLAVE_TYPE_CONVERSIONS_ALL_LOSSY);
 
   DBUG_PRINT("enter", ("order: %d, flags:%s%s", order,
                        allow_non_lossy ? " ALL_NON_LOSSY" : "",

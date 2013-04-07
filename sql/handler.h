@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011 Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -59,9 +59,9 @@
 
 /* Bits in table_flags() to show what database can do */
 
-#define HA_NO_TRANSACTIONS     (1 << 0) /* Doesn't support transactions */
-#define HA_PARTIAL_COLUMN_READ (1 << 1) /* read may not return all columns */
-#define HA_TABLE_SCAN_ON_INDEX (1 << 2) /* No separate data/index file */
+#define HA_NO_TRANSACTIONS     (1ULL << 0) /* Doesn't support transactions */
+#define HA_PARTIAL_COLUMN_READ (1ULL << 1) /* read may not return all columns */
+#define HA_TABLE_SCAN_ON_INDEX (1ULL << 2) /* No separate data/index file */
 /*
   The following should be set if the following is not true when scanning
   a table with rnd_next()
@@ -70,37 +70,37 @@
   If this flag is not set, filesort will do a position() call for each matched
   row to be able to find the row later.
 */
-#define HA_REC_NOT_IN_SEQ      (1 << 3)
-#define HA_CAN_GEOMETRY        (1 << 4)
+#define HA_REC_NOT_IN_SEQ      (1ULL << 3)
+#define HA_CAN_GEOMETRY        (1ULL << 4)
 /*
   Reading keys in random order is as fast as reading keys in sort order
   (Used in records.cc to decide if we should use a record cache and by
   filesort to decide if we should sort key + data or key + pointer-to-row
 */
-#define HA_FAST_KEY_READ       (1 << 5)
+#define HA_FAST_KEY_READ       (1ULL << 5)
 /*
   Set the following flag if we on delete should force all key to be read
   and on update read all keys that changes
 */
-#define HA_REQUIRES_KEY_COLUMNS_FOR_DELETE (1 << 6)
-#define HA_NULL_IN_KEY         (1 << 7) /* One can have keys with NULL */
-#define HA_DUPLICATE_POS       (1 << 8)    /* ha_position() gives dup row */
-#define HA_NO_BLOBS            (1 << 9) /* Doesn't support blobs */
-#define HA_CAN_INDEX_BLOBS     (1 << 10)
-#define HA_AUTO_PART_KEY       (1 << 11) /* auto-increment in multi-part key */
-#define HA_REQUIRE_PRIMARY_KEY (1 << 12) /* .. and can't create a hidden one */
-#define HA_STATS_RECORDS_IS_EXACT (1 << 13) /* stats.records is exact */
+#define HA_REQUIRES_KEY_COLUMNS_FOR_DELETE (1ULL << 6)
+#define HA_NULL_IN_KEY         (1ULL << 7) /* One can have keys with NULL */
+#define HA_DUPLICATE_POS       (1ULL << 8)    /* ha_position() gives dup row */
+#define HA_NO_BLOBS            (1ULL << 9) /* Doesn't support blobs */
+#define HA_CAN_INDEX_BLOBS     (1ULL << 10)
+#define HA_AUTO_PART_KEY       (1ULL << 11) /* auto-increment in multi-part key */
+#define HA_REQUIRE_PRIMARY_KEY (1ULL << 12) /* .. and can't create a hidden one */
+#define HA_STATS_RECORDS_IS_EXACT (1ULL << 13) /* stats.records is exact */
 /*
   INSERT_DELAYED only works with handlers that uses MySQL internal table
   level locks
 */
-#define HA_CAN_INSERT_DELAYED  (1 << 14)
+#define HA_CAN_INSERT_DELAYED  (1ULL << 14)
 /*
   If we get the primary key columns for free when we do an index read
   It also implies that we have to retrive the primary key when using
   position() and rnd_pos().
 */
-#define HA_PRIMARY_KEY_IN_READ_INDEX (1 << 15)
+#define HA_PRIMARY_KEY_IN_READ_INDEX (1ULL << 15)
 /*
   If HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is set, it means that to position()
   uses a primary key given by the record argument.
@@ -108,36 +108,36 @@
   If not set, the position is returned as the current rows position
   regardless of what argument is given.
 */ 
-#define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1 << 16) 
-#define HA_CAN_RTREEKEYS       (1 << 17)
-#define HA_NOT_DELETE_WITH_CACHE (1 << 18)
+#define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1ULL << 16) 
+#define HA_CAN_RTREEKEYS       (1ULL << 17)
+#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18)
 /*
   The following is we need to a primary key to delete (and update) a row.
   If there is no primary key, all columns needs to be read on update and delete
 */
-#define HA_PRIMARY_KEY_REQUIRED_FOR_DELETE (1 << 19)
-#define HA_NO_PREFIX_CHAR_KEYS (1 << 20)
-#define HA_CAN_FULLTEXT        (1 << 21)
-#define HA_CAN_SQL_HANDLER     (1 << 22)
-#define HA_NO_AUTO_INCREMENT   (1 << 23)
+#define HA_PRIMARY_KEY_REQUIRED_FOR_DELETE (1ULL << 19)
+#define HA_NO_PREFIX_CHAR_KEYS (1ULL << 20)
+#define HA_CAN_FULLTEXT        (1ULL << 21)
+#define HA_CAN_SQL_HANDLER     (1ULL << 22)
+#define HA_NO_AUTO_INCREMENT   (1ULL << 23)
 /* Has automatic checksums and uses the old checksum format */
-#define HA_HAS_OLD_CHECKSUM    (1 << 24)
+#define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
-#define HA_FILE_BASED	       (1 << 26)
-#define HA_NO_VARCHAR	       (1 << 27)
-#define HA_CAN_BIT_FIELD       (1 << 28) /* supports bit fields */
-#define HA_NEED_READ_RANGE_BUFFER (1 << 29) /* for read_multi_range */
-#define HA_ANY_INDEX_MAY_BE_UNIQUE (1 << 30)
-#define HA_NO_COPY_ON_ALTER    (LL(1) << 31)
-#define HA_HAS_RECORDS	       (LL(1) << 32) /* records() gives exact count*/
+#define HA_FILE_BASED	       (1ULL << 26)
+#define HA_NO_VARCHAR	       (1ULL << 27)
+#define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
+#define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
+#define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
+#define HA_NO_COPY_ON_ALTER    (1ULL << 31)
+#define HA_HAS_RECORDS	       (1ULL << 32) /* records() gives exact count*/
 /* Has it's own method of binlog logging */
-#define HA_HAS_OWN_BINLOGGING  (LL(1) << 33)
+#define HA_HAS_OWN_BINLOGGING  (1ULL << 33)
 /*
   Engine is capable of row-format and statement-format logging,
   respectively
 */
-#define HA_BINLOG_ROW_CAPABLE  (LL(1) << 34)
-#define HA_BINLOG_STMT_CAPABLE (LL(1) << 35)
+#define HA_BINLOG_ROW_CAPABLE  (1ULL << 34)
+#define HA_BINLOG_STMT_CAPABLE (1ULL << 35)
 /*
     When a multiple key conflict happens in a REPLACE command mysql
     expects the conflicts to be reported in the ascending order of
@@ -160,20 +160,20 @@
     This flag helps the underlying SE to inform the server that the keys are not
     ordered.
 */
-#define HA_DUPLICATE_KEY_NOT_IN_ORDER    (LL(1) << 36)
+#define HA_DUPLICATE_KEY_NOT_IN_ORDER    (1ULL << 36)
 
 /*
   Engine supports REPAIR TABLE. Used by CHECK TABLE FOR UPGRADE if an
   incompatible table is detected. If this flag is set, CHECK TABLE FOR UPGRADE
   will report ER_TABLE_NEEDS_UPGRADE, otherwise ER_TABLE_NEED_REBUILD.
 */
-#define HA_CAN_REPAIR                    (LL(1) << 37)
+#define HA_CAN_REPAIR                    (1ULL << 37)
 
 /* Has automatic checksums and uses the new checksum format */
-#define HA_HAS_NEW_CHECKSUM    (LL(1) << 38)
-#define HA_CAN_VIRTUAL_COLUMNS (LL(1) << 39)
-#define HA_MRR_CANT_SORT       (LL(1) << 40)
-#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (LL(1) << 41)
+#define HA_HAS_NEW_CHECKSUM    (1ULL << 38)
+#define HA_CAN_VIRTUAL_COLUMNS (1ULL << 39)
+#define HA_MRR_CANT_SORT       (1ULL << 40)
+#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41)
 
 /*
   Table condition pushdown must be performed regardless of
@@ -186,7 +186,7 @@
   then the "query=..." condition must be always pushed down into storage
   engine.
 */
-#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN (LL(1) << 42)
+#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN (1ULL << 42)
 
 /*
   Set of all binlog flags. Currently only contain the capabilities

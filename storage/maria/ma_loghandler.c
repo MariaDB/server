@@ -3274,7 +3274,7 @@ static my_bool translog_get_last_page_addr(TRANSLOG_ADDRESS *addr,
   DBUG_PRINT("info", ("File size: %s", llstr(file_size, buff)));
   if (file_size == MY_FILEPOS_ERROR)
     DBUG_RETURN(1);
-  DBUG_ASSERT(file_size < ULL(0xffffffff));
+  DBUG_ASSERT(file_size < 0xffffffffULL);
   if (((uint32)file_size) > TRANSLOG_PAGE_SIZE)
   {
     rec_offset= (((((uint32)file_size) / TRANSLOG_PAGE_SIZE) - 1) *
@@ -3785,12 +3785,12 @@ my_bool translog_init_with_table(const char *directory,
         TRANSLOG_FILE *file= (TRANSLOG_FILE *)my_malloc(sizeof(TRANSLOG_FILE),
                                                         MYF(0));
 
-        compile_time_assert(MY_FILEPOS_ERROR > ULL(0xffffffff));
+        compile_time_assert(MY_FILEPOS_ERROR > 0xffffffffULL);
         if (file == NULL ||
             (file->handler.file=
              open_logfile_by_number_no_cache(i)) < 0 ||
             mysql_file_seek(file->handler.file, 0, SEEK_END, MYF(0)) >=
-            ULL(0xffffffff))
+            0xffffffffULL)
         {
           int j;
           for (j= i - log_descriptor.min_file - 1; j > 0; j--)
@@ -5247,7 +5247,7 @@ static uchar *translog_put_LSN_diff(LSN base_lsn, LSN lsn, uchar *dst)
     dst[0]= (uchar)(0x80 | (diff >> 24));
     int3store(dst + 1, diff & 0xFFFFFFL);
   }
-  else if (diff <= LL(0x3FFFFFFFFF))
+  else if (diff <= 0x3FFFFFFFFFLL)
 
   {
     dst-= 5;
@@ -5344,7 +5344,7 @@ static uchar *translog_get_LSN_from_diff(LSN base_lsn, uchar *src, uchar *dst)
     {
       /* take 1 from file offset */
       first_byte++;
-      base_offset+= LL(0x100000000);
+      base_offset+= 0x100000000LL;
     }
     file_no= LSN_FILE_NO(base_lsn) - first_byte;
     DBUG_ASSERT(base_offset - diff <= UINT_MAX);
