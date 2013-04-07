@@ -61,54 +61,11 @@ static const char oqgraph_description[]=
   "Open Query Graph Computation Engine, stored in memory "
   "(http://openquery.com/graph)";
 
-#if MYSQL_VERSION_ID < 50100
-static bool oqgraph_init();
-
-handlerton oqgraph_hton= {
-  "OQGRAPH",
-  SHOW_OPTION_YES,
-  oqgraph_description,
-  DB_TYPE_OQGRAPH,
-  oqgraph_init,
-  0,       /* slot */
-  0,       /* savepoint size. */
-  NULL,    /* close_connection */
-  NULL,    /* savepoint */
-  NULL,    /* rollback to savepoint */
-  NULL,    /* release savepoint */
-  NULL,    /* commit */
-  NULL,    /* rollback */
-  NULL,    /* prepare */
-  NULL,    /* recover */
-  NULL,    /* commit_by_xid */
-  NULL,    /* rollback_by_xid */
-  NULL,    /* create_cursor_read_view */
-  NULL,    /* set_cursor_read_view */
-  NULL,    /* close_cursor_read_view */
-  HTON_NO_FLAGS
-};
-
-#define STATISTIC_INCREMENT(X) \
-statistic_increment(table->in_use->status_var.X, &LOCK_status)
-#define MOVE(X) move_field(X)
-#define RECORDS records
-#else
-#define STATISTIC_INCREMENT(X) /* nothing */
-#define MOVE(X) move_field_offset(X)
-#define RECORDS stats.records
-#endif
-
 static HASH oqgraph_open_tables;
 static pthread_mutex_t LOCK_oqgraph;
 static bool oqgraph_init_done= 0;
 
-#if MYSQL_VERSION_ID >= 50130
-#define HASH_KEY_LENGTH size_t
-#else
-#define HASH_KEY_LENGTH uint
-#endif
-
-static uchar* get_key(const uchar *ptr, HASH_KEY_LENGTH *length,
+static uchar* get_key(const uchar *ptr, size_t *length,
                       my_bool)
 {
   const OQGRAPH_INFO *share= (const OQGRAPH_INFO*) ptr;
@@ -116,7 +73,6 @@ static uchar* get_key(const uchar *ptr, HASH_KEY_LENGTH *length,
   return (uchar*) share->name;
 }
 
-#if MYSQL_VERSION_ID >= 50100
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
@@ -125,12 +81,6 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
 
 static int oqgraph_init(handlerton *hton)
 {
-#else
-static bool oqgraph_init()
-{
-  if (have_oqgraph == SHOW_OPTION_DISABLED)
-    return 1;
-#endif
   if (pthread_mutex_init(&LOCK_oqgraph, MY_MUTEX_INIT_FAST))
     goto error;
   if (my_hash_init(&oqgraph_open_tables, &my_charset_bin, 32, 0, 0,
@@ -139,22 +89,16 @@ static bool oqgraph_init()
     pthread_mutex_destroy(&LOCK_oqgraph);
     goto error;
   }
-#if MYSQL_VERSION_ID >= 50100
   hton->state= SHOW_OPTION_YES;
   hton->db_type= DB_TYPE_AUTOASSIGN;
   hton->create= oqgraph_create_handler;
   hton->flags= HTON_NO_FLAGS;
-#endif
   oqgraph_init_done= TRUE;
   return 0;
 error:
-#if MYSQL_VERSION_ID < 50100
-  have_oqgraph= SHOW_OPTION_DISABLED;
-#endif
   return 1;
 }
 
-#if MYSQL_VERSION_ID >= 50100
 static int oqgraph_fini(void *)
 {
   my_hash_free(&oqgraph_open_tables);
@@ -162,7 +106,6 @@ static int oqgraph_fini(void *)
   oqgraph_init_done= FALSE;
   return 0;
 }
-#endif
 
 static OQGRAPH_INFO *get_share(const char *name, TABLE *table=0)
 {
@@ -331,32 +274,13 @@ static int oqgraph_check_table_structure (TABLE *table_arg)
 ** OQGRAPH tables
 *****************************************************************************/
 
-#if MYSQL_VERSION_ID >= 50100
 ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg),
-#else
-ha_oqgraph::ha_oqgraph(TABLE *table_arg)
-  : handler(&oqgraph_hton, table_arg),
-#endif
     share(0), graph(0), records_changed(0), key_stat_version(0)
 { }
 
 
-static const char *ha_oqgraph_exts[] =
-{
-  NullS
-};
-
-const char **ha_oqgraph::bas_ext() const
-{
-  return ha_oqgraph_exts;
-}
-
-#if MYSQL_VERSION_ID >= 50100
 ulonglong ha_oqgraph::table_flags() const
-#else
-ulong ha_oqgraph::table_flags() const
-#endif
 {
   return (HA_NO_BLOBS | HA_NULL_IN_KEY |
           HA_REC_NOT_IN_SEQ | HA_CAN_INSERT_DELAYED |
@@ -439,18 +363,15 @@ int ha_oqgraph::write_row(byte * buf)
 {
   int res= oqgraph::MISC_FAIL;
   Field ** const field= table->field;
-  STATISTIC_INCREMENT(ha_write_count);
 
-#if MYSQL_VERSION_ID >= 50100
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-#endif
   my_ptrdiff_t ptrdiff= buf - table->record[0];
 
   if (ptrdiff)
   {
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
-    field[3]->MOVE(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
+    field[3]->move_field_offset(ptrdiff);
   }
 
   if (!field[1]->is_null() && !field[2]->is_null())
@@ -473,13 +394,11 @@ int ha_oqgraph::write_row(byte * buf)
 
   if (ptrdiff)
   {
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
-    field[3]->MOVE(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
+    field[3]->move_field_offset(-ptrdiff);
   }
-#if MYSQL_VERSION_ID >= 50100
   dbug_tmp_restore_column_map(table->read_set, old_map);
-#endif
 
   if (!res && records_changed*OQGRAPH_STATS_UPDATE_THRESHOLD > share->records)
   {
@@ -499,19 +418,16 @@ int ha_oqgraph::update_row(const byte * old, byte * buf)
   VertexID orig_id, dest_id;
   EdgeWeight weight= 1;
   Field **field= table->field;
-  STATISTIC_INCREMENT(ha_update_count);
 
-#if MYSQL_VERSION_ID >= 50100
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-#endif
   my_ptrdiff_t ptrdiff= buf - table->record[0];
 
   if (ptrdiff)
   {
-    field[0]->MOVE(ptrdiff);
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
-    field[3]->MOVE(ptrdiff);
+    field[0]->move_field_offset(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
+    field[3]->move_field_offset(ptrdiff);
   }
 
   if (inited == INDEX || inited == RND)
@@ -527,10 +443,10 @@ int ha_oqgraph::update_row(const byte * old, byte * buf)
 
     my_ptrdiff_t ptrdiff2= old - buf;
 
-    field[0]->MOVE(ptrdiff2);
-    field[1]->MOVE(ptrdiff2);
-    field[2]->MOVE(ptrdiff2);
-    field[3]->MOVE(ptrdiff2);
+    field[0]->move_field_offset(ptrdiff2);
+    field[1]->move_field_offset(ptrdiff2);
+    field[2]->move_field_offset(ptrdiff2);
+    field[3]->move_field_offset(ptrdiff2);
 
     if (field[0]->is_null())
     {
@@ -551,22 +467,20 @@ int ha_oqgraph::update_row(const byte * old, byte * buf)
         res= oqgraph::OK;
     }
 
-    field[0]->MOVE(-ptrdiff2);
-    field[1]->MOVE(-ptrdiff2);
-    field[2]->MOVE(-ptrdiff2);
-    field[3]->MOVE(-ptrdiff2);
+    field[0]->move_field_offset(-ptrdiff2);
+    field[1]->move_field_offset(-ptrdiff2);
+    field[2]->move_field_offset(-ptrdiff2);
+    field[3]->move_field_offset(-ptrdiff2);
   }
 
   if (ptrdiff)
   {
-    field[0]->MOVE(-ptrdiff);
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
-    field[3]->MOVE(-ptrdiff);
+    field[0]->move_field_offset(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
+    field[3]->move_field_offset(-ptrdiff);
   }
-#if MYSQL_VERSION_ID >= 50100
   dbug_tmp_restore_column_map(table->read_set, old_map);
-#endif
 
   if (!res && records_changed*OQGRAPH_STATS_UPDATE_THRESHOLD > share->records)
   {
@@ -583,7 +497,6 @@ int ha_oqgraph::delete_row(const byte * buf)
 {
   int res= oqgraph::EDGE_NOT_FOUND;
   Field **field= table->field;
-  STATISTIC_INCREMENT(ha_delete_count);
 
   if (inited == INDEX || inited == RND)
   {
@@ -595,16 +508,14 @@ int ha_oqgraph::delete_row(const byte * buf)
   }
   if (res != oqgraph::OK)
   {
-#if MYSQL_VERSION_ID >= 50100
     my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-#endif
     my_ptrdiff_t ptrdiff= buf - table->record[0];
 
     if (ptrdiff)
     {
-      field[0]->MOVE(ptrdiff);
-      field[1]->MOVE(ptrdiff);
-      field[2]->MOVE(ptrdiff);
+      field[0]->move_field_offset(ptrdiff);
+      field[1]->move_field_offset(ptrdiff);
+      field[2]->move_field_offset(ptrdiff);
     }
 
     if (field[0]->is_null() && !field[1]->is_null() && !field[2]->is_null())
@@ -621,13 +532,11 @@ int ha_oqgraph::delete_row(const byte * buf)
 
     if (ptrdiff)
     {
-      field[0]->MOVE(-ptrdiff);
-      field[1]->MOVE(-ptrdiff);
-      field[2]->MOVE(-ptrdiff);
+      field[0]->move_field_offset(-ptrdiff);
+      field[1]->move_field_offset(-ptrdiff);
+      field[2]->move_field_offset(-ptrdiff);
     }
-#if MYSQL_VERSION_ID >= 50100
     dbug_tmp_restore_column_map(table->read_set, old_map);
-#endif
   }
 
   if (!res && table->s->tmp_table == NO_TMP_TABLE &&
@@ -654,7 +563,6 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   int res;
   open_query::row row;
   DBUG_ASSERT(inited==INDEX);
-  STATISTIC_INCREMENT(ha_read_key_count);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND : 0;
@@ -672,21 +580,18 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   VertexID *orig_idp=0, *dest_idp=0;
   int *latchp=0;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_key_count);
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
   key_restore(buf, (byte*) key, key_info, key_len);
 
-#if MYSQL_VERSION_ID >= 50100
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
-#endif
   my_ptrdiff_t ptrdiff= buf - table->record[0];
 
   if (ptrdiff)
   {
-    field[0]->MOVE(ptrdiff);
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
+    field[0]->move_field_offset(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
   }
 
   if (!field[0]->is_null())
@@ -709,13 +614,11 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
 
   if (ptrdiff)
   {
-    field[0]->MOVE(-ptrdiff);
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
+    field[0]->move_field_offset(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
   }
-#if MYSQL_VERSION_ID >= 50100
   dbug_tmp_restore_column_map(table->read_set, old_map);
-#endif
 
   res= graph->search(latchp, orig_idp, dest_idp);
 
@@ -731,19 +634,17 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   bmove_align(record, table->s->default_values, table->s->reclength);
 
-#if MYSQL_VERSION_ID >= 50100
   my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
-#endif
   my_ptrdiff_t ptrdiff= record - table->record[0];
 
   if (ptrdiff)
   {
-    field[0]->MOVE(ptrdiff);
-    field[1]->MOVE(ptrdiff);
-    field[2]->MOVE(ptrdiff);
-    field[3]->MOVE(ptrdiff);
-    field[4]->MOVE(ptrdiff);
-    field[5]->MOVE(ptrdiff);
+    field[0]->move_field_offset(ptrdiff);
+    field[1]->move_field_offset(ptrdiff);
+    field[2]->move_field_offset(ptrdiff);
+    field[3]->move_field_offset(ptrdiff);
+    field[4]->move_field_offset(ptrdiff);
+    field[5]->move_field_offset(ptrdiff);
   }
 
   // just each field specifically, no sense iterating
@@ -785,16 +686,14 @@ int ha_oqgraph::fill_record(byte *record, const open_query::row &row)
 
   if (ptrdiff)
   {
-    field[0]->MOVE(-ptrdiff);
-    field[1]->MOVE(-ptrdiff);
-    field[2]->MOVE(-ptrdiff);
-    field[3]->MOVE(-ptrdiff);
-    field[4]->MOVE(-ptrdiff);
-    field[5]->MOVE(-ptrdiff);
+    field[0]->move_field_offset(-ptrdiff);
+    field[1]->move_field_offset(-ptrdiff);
+    field[2]->move_field_offset(-ptrdiff);
+    field[3]->move_field_offset(-ptrdiff);
+    field[4]->move_field_offset(-ptrdiff);
+    field[5]->move_field_offset(-ptrdiff);
   }
-#if MYSQL_VERSION_ID >= 50100
   dbug_tmp_restore_column_map(table->write_set, old_map);
-#endif
 
   return 0;
 }
@@ -808,7 +707,6 @@ int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_rnd_next_count);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
   table->status= res ? STATUS_NOT_FOUND: 0;
@@ -819,7 +717,6 @@ int ha_oqgraph::rnd_pos(byte * buf, byte *pos)
 {
   int res;
   open_query::row row;
-  STATISTIC_INCREMENT(ha_read_rnd_count);
   if (!(res= graph->fetch_row(row, pos)))
     res= fill_record(buf, row);
   table->status=res ? STATUS_NOT_FOUND: 0;
@@ -838,7 +735,7 @@ int ha_oqgraph::cmp_ref(const byte *ref1, const byte *ref2)
 
 int ha_oqgraph::info(uint flag)
 {
-  RECORDS= graph->vertices_count() + graph->edges_count();
+  stats.records= graph->vertices_count() + graph->edges_count();
 #if 0
   records= hp_info.records;
   deleted= hp_info.deleted;
@@ -976,8 +873,8 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
     return HA_POS_ERROR;			// Can only use exact keys
   }
 
-  if (RECORDS <= 1)
-    return RECORDS;
+  if (stats.records <= 1)
+    return stats.records;
 
   /* Assert that info() did run. We need current statistics here. */
   DBUG_ASSERT(key_stat_version == share->key_stat_version);
@@ -1018,7 +915,6 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
   //  create_info->auto_increment_value= auto_increment_value;
 }
 
-#if MYSQL_VERSION_ID >= 50100
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -1039,7 +935,5 @@ maria_declare_plugin(oqgraph)
   MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;
-
-#endif
 
 #endif
