@@ -1284,7 +1284,7 @@ struct st_partition_iter;
 
 enum ha_choice { HA_CHOICE_UNDEF, HA_CHOICE_NO, HA_CHOICE_YES };
 
-typedef struct st_ha_create_information
+struct HA_CREATE_INFO
 {
   CHARSET_INFO *table_charset, *default_table_charset;
   LEX_STRING connect_string;
@@ -1324,7 +1324,7 @@ typedef struct st_ha_create_information
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
   ha_index_option_struct **indexes_option_struct;  ///< array of index option structures
-} HA_CREATE_INFO;
+};
 
 
 typedef struct st_key_create_information
