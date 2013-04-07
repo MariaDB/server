@@ -78,6 +78,17 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static uint alter_table_flags(uint flags);
 
+/*
+  If frm_error() is called then we will use this to to find out what file
+  extensions exist for the storage engine. This is also used by the default
+  rename_table and delete_table method in handler.cc.
+*/
+
+static const char *ha_partition_ext[]=
+{
+  ha_par_ext, NullS
+};
+
 
 static int partition_initialize(void *p)
 {
@@ -93,6 +104,7 @@ static int partition_initialize(void *p)
   partition_hton->flags= HTON_NOT_USER_SELECTABLE |
                          HTON_HIDDEN |
                          HTON_TEMPORARY_NOT_SUPPORTED;
+  partition_hton->tablefile_extensions= ha_partition_ext;
 
   return 0;
 }
@@ -7309,21 +7321,6 @@ int ha_partition::final_drop_index(TABLE *table_arg)
       break;
   return ret;
 }
-
-
-/*
-  If frm_error() is called then we will use this to to find out what file
-  extensions exist for the storage engine. This is also used by the default
-  rename_table and delete_table method in handler.cc.
-*/
-
-static const char *ha_partition_ext[]=
-{
-  ha_par_ext, NullS
-};
-
-const char **ha_partition::bas_ext() const
-{ return ha_partition_ext; }
 
 
 uint ha_partition::min_of_the_max_uint(

@@ -1086,6 +1086,7 @@ struct handlerton
    ha_create_table_option *field_options; // these are specified per field
    ha_create_table_option *index_options; // these are specified per index
 
+   const char **tablefile_extensions;
 };
 
 
@@ -2416,7 +2417,10 @@ public:
     element - data file extention. This order is assumed by
     prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
   */
-  virtual const char **bas_ext() const =0;
+  const char **bas_ext() const
+  {
+    return ht->tablefile_extensions;
+  }
 
   virtual int get_default_no_partitions(HA_CREATE_INFO *create_info)
   { return 1;}

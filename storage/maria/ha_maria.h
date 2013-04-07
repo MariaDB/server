@@ -59,7 +59,6 @@ public:
   ~ha_maria() {}
   handler *clone(const char *name, MEM_ROOT *mem_root);
   const char *index_type(uint key_number);
-  const char **bas_ext() const;
   ulonglong table_flags() const
   { return int_table_flags; }
   ulong index_flags(uint inx, uint part, bool all_parts) const;

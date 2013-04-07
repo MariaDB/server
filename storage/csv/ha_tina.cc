@@ -144,6 +144,16 @@ static void init_tina_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+/*
+  If frm_error() is called in table.cc this is called to find out what file
+  extensions exist for this handler.
+*/
+static const char *ha_tina_exts[] = {
+  CSV_EXT,
+  CSM_EXT,
+  NullS
+};
+
 static int tina_init_func(void *p)
 {
   handlerton *tina_hton;
@@ -161,6 +171,7 @@ static int tina_init_func(void *p)
   tina_hton->create= tina_create_handler;
   tina_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | 
                      HTON_NO_PARTITION);
+  tina_hton->tablefile_extensions= ha_tina_exts;
   return 0;
 }
 
@@ -830,21 +841,6 @@ err:
   dbug_tmp_restore_column_map(table->write_set, org_bitmap);
 
   DBUG_RETURN(error);
-}
-
-/*
-  If frm_error() is called in table.cc this is called to find out what file
-  extensions exist for this handler.
-*/
-static const char *ha_tina_exts[] = {
-  CSV_EXT,
-  CSM_EXT,
-  NullS
-};
-
-const char **ha_tina::bas_ext() const
-{
-  return ha_tina_exts;
 }
 
 /*
@@ -1771,23 +1767,6 @@ bool ha_tina::check_if_incompatible_data(HA_CREATE_INFO *info,
 struct st_mysql_storage_engine csv_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(csv)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &csv_storage_engine,
-  "CSV",
-  "Brian Aker, MySQL AB",
-  "CSV storage engine",
-  PLUGIN_LICENSE_GPL,
-  tina_init_func, /* Plugin Init */
-  tina_done_func, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(csv)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

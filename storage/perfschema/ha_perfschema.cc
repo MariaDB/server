@@ -196,15 +196,6 @@ ha_perfschema::ha_perfschema(handlerton *hton, TABLE_SHARE *share)
 ha_perfschema::~ha_perfschema()
 {}
 
-static const char *ha_pfs_exts[]= {
-  NullS
-};
-
-const char **ha_perfschema::bas_ext() const
-{
-  return ha_pfs_exts;
-}
-
 int ha_perfschema::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_perfschema::open");

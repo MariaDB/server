@@ -883,10 +883,6 @@ public:
   */
   virtual uint alter_table_flags(uint flags);
   /*
-     extensions of table handler files
-  */
-  virtual const char **bas_ext() const;
-  /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.
 

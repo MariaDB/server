@@ -2987,23 +2987,15 @@ void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg)
     break;
   case 2:
   {
-    handler *file= 0;
     const char *datext= "";
     
-    if (share->db_type() != NULL)
-    {
-      if ((file= get_new_handler(share, current_thd->mem_root,
-                                 share->db_type())))
-      {
-        if (!(datext= *file->bas_ext()))
-          datext= "";
-      }
-    }
+    if (share->db_type() && share->db_type()->tablefile_extensions[0])
+       datext= share->db_type()->tablefile_extensions[0];
+
     err_no= (db_errno == ENOENT) ? ER_FILE_NOT_FOUND : (db_errno == EAGAIN) ?
       ER_FILE_USED : ER_CANT_OPEN_FILE;
     strxmov(buff, share->normalized_path.str, datext, NullS);
     my_error(err_no,errortype, buff, db_errno);
-    delete file;
     break;
   }
   case 5:

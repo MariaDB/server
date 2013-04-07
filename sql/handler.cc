@@ -443,11 +443,13 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
+  static const char *no_exts[]= { 0 };
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
   hton= (handlerton *)my_malloc(sizeof(handlerton),
                                 MYF(MY_WME | MY_ZEROFILL));
+  hton->tablefile_extensions= no_exts;
 
   if (hton == NULL)
   {
@@ -4719,26 +4721,20 @@ static my_bool exts_handlerton(THD *unused, plugin_ref plugin,
 {
   List<char> *found_exts= (List<char> *) arg;
   handlerton *hton= plugin_data(plugin, handlerton *);
-  handler *file;
-  if (hton->state == SHOW_OPTION_YES && hton->create &&
-      (file= hton->create(hton, (TABLE_SHARE*) 0, current_thd->mem_root)))
+  List_iterator_fast<char> it(*found_exts);
+  const char **ext, *old_ext;
+
+  for (ext= hton->tablefile_extensions; *ext; ext++)
   {
-    List_iterator_fast<char> it(*found_exts);
-    const char **ext, *old_ext;
-
-    for (ext= file->bas_ext(); *ext; ext++)
+    while ((old_ext= it++))
     {
-      while ((old_ext= it++))
-      {
-        if (!strcmp(old_ext, *ext))
-	  break;
-      }
-      if (!old_ext)
-        found_exts->push_back((char *) *ext);
-
-      it.rewind();
+      if (!strcmp(old_ext, *ext))
+        break;
     }
-    delete file;
+    if (!old_ext)
+      found_exts->push_back((char *) *ext);
+
+    it.rewind();
   }
   return FALSE;
 }
