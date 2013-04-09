@@ -1,6 +1,4 @@
 include/master-slave.inc
 [connection master]
-INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master.so';
 CREATE TEMPORARY TABLE tmp (i INT);
 include/rpl_end.inc
-uninstall plugin rpl_semi_sync_master;
