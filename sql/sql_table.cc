@@ -4083,6 +4083,7 @@ handler *mysql_create_frm_image(THD *thd,
                MYF(0));
     DBUG_RETURN(NULL);
   }
+
   if (check_engine(thd, db, table_name, create_info))
     DBUG_RETURN(NULL);
 
@@ -4328,8 +4329,6 @@ bool mysql_create_table_no_lock(THD *thd,
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
                        db, table_name, internal_tmp_table));
 
-  alias= table_case_name(create_info, table_name);
-
   file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
                                create_table_mode, &frm);
 
@@ -4353,6 +4352,8 @@ bool mysql_create_table_no_lock(THD *thd,
       error_if_data_home_dir(create_info->index_file_name, "INDEX DIRECTORY")||
       check_partition_dirs(thd->lex->part_info))
     goto err;
+
+  alias= table_case_name(create_info, table_name);
 
   /* Check if table exists */
   if (create_info->tmp_table())
@@ -4460,41 +4461,32 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         HA_CREATE_INFO *create_info,
                         Alter_info *alter_info)
 {
-  bool result;
+  const char *db= create_table->db;
+  const char *table_name= create_table->table_name;
   bool is_trans= FALSE;
   DBUG_ENTER("mysql_create_table");
 
-  /*
-    Open or obtain an exclusive metadata lock on table being created.
-  */
+  /* Open or obtain an exclusive metadata lock on table being created  */
   if (open_and_lock_tables(thd, thd->lex->query_tables, FALSE, 0))
   {
     /* is_error() may be 0 if table existed and we generated a warning */
-    result= thd->is_error();
-    goto end;
+    DBUG_RETURN(thd->is_error());
   }
 
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
 
   promote_first_timestamp_column(&alter_info->create_list);
-  result= mysql_create_table_no_lock(thd, create_table->db,
-                                     create_table->table_name, create_info,
-                                     alter_info, &is_trans, C_ORDINARY_CREATE);
+  if (mysql_create_table_no_lock(thd, db, table_name, create_info,
+                                 alter_info, &is_trans, C_ORDINARY_CREATE))
+    DBUG_RETURN(1);
 
-  /*
-    Don't write statement if:
-    - Table creation has failed
-    - Row-based logging is used and we are creating a temporary table
-    Otherwise, the statement shall be binlogged.
-  */
-  if (!result &&
-      (!thd->is_current_stmt_binlog_format_row() ||
-       (thd->is_current_stmt_binlog_format_row() &&
-        !(create_info->tmp_table()))))
-    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
+  /* In RBR we don't need to log CREATE TEMPORARY TABLE */
+  if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
+    DBUG_RETURN(0);
 
-end:
+  bool result;
+  result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
   DBUG_RETURN(result);
 }
 
