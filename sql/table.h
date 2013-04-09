@@ -2450,8 +2450,8 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
 enum get_table_share_flags {
   GTS_TABLE                = 1,
   GTS_VIEW                 = 2,
-  GTS_NOLOCK               = 4,    // don't increase share->ref_count
-  GTS_FORCE_DISCOVERY      = 8     // don't use the .frm file
+  GTS_NOLOCK               = 4,
+  GTS_FORCE_DISCOVERY      = 8
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);
