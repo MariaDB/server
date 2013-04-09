@@ -100,8 +100,6 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (!(table= table_list->table))
   {
-    char key[MAX_DBKEY_LENGTH];
-    uint key_length;
     /*
       If the table didn't exist, we have a shared metadata lock
       on it that is left from mysql_admin_table()'s attempt to 
@@ -114,9 +112,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       Attempt to do full-blown table open in mysql_admin_table() has failed.
       Let us try to open at least a .FRM for this table.
     */
-    my_hash_value_type hash_value;
 
-    key_length= create_table_def_key(thd, key, table_list, 0);
     table_list->mdl_request.init(MDL_key::TABLE,
                                  table_list->db, table_list->table_name,
                                  MDL_EXCLUSIVE, MDL_TRANSACTION);
@@ -127,9 +123,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
-    share= get_table_share(thd, table_list, key, key_length,
-                           FRM_READ_TABLE_ONLY, &not_used, hash_value);
+    share= get_table_share(thd, table_list->db, table_list->table_name,
+                           FRM_READ_TABLE_ONLY, &not_used);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 

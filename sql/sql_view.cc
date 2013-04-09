@@ -211,16 +211,12 @@ static void make_valid_column_names(List<Item> &item_list)
 static bool
 fill_defined_view_parts (THD *thd, TABLE_LIST *view)
 {
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  key_length= create_table_def_key(thd, key, view, 0);
-
-  if (tdc_open_view(thd, &decoy, decoy.alias, key, key_length,
-                    thd->mem_root, OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, decoy.alias, thd->mem_root,
+                    OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
