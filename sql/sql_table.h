@@ -25,6 +25,7 @@ struct TABLE_LIST;
 class THD;
 struct TABLE;
 struct handlerton;
+class handler;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
 typedef struct st_key KEY;
@@ -140,6 +141,12 @@ bool mysql_create_table_no_lock(THD *thd, const char *db,
                                 Alter_info *alter_info,
                                 bool tmp_table, uint select_field_count,
                                 bool *is_trans);
+handler *mysql_create_frm_image(THD *thd,
+                                const char *db, const char *table_name,
+                                HA_CREATE_INFO *create_info,
+                                Alter_info *alter_info,
+                                bool internal_tmp_table,
+                                uint select_field_count, LEX_CUSTRING *frm);
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                HA_CREATE_INFO *create_info,
                                Alter_info *alter_info);

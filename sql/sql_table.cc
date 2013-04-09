@@ -1703,13 +1703,23 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    if ((mysql_create_frm(lpt->thd, shadow_path, lpt->db,
-                          lpt->table_name, lpt->create_info,
-                          lpt->alter_info->create_list, lpt->key_count,
-                          lpt->key_info_buffer, lpt->table->file)) ||
-        lpt->table->file->ha_create_partitioning_metadata(shadow_path, NULL,
-                                                  CHF_CREATE_FLAG,
-                                                  lpt->create_info))
+    LEX_CUSTRING frm= build_frm_image(lpt->thd, lpt->table_name,
+                                      lpt->create_info,
+                                      lpt->alter_info->create_list,
+                                      lpt->key_count, lpt->key_info_buffer,
+                                      lpt->table->file);
+    if (!frm.str)
+    {
+      error= 1;
+      goto end;
+    }
+
+    int error= writefrm(shadow_path, lpt->db, lpt->table_name,
+                        !lpt->create_info->tmp_table(), frm.str, frm.length);
+    my_free(const_cast<uchar*>(frm.str));
+
+    if (error || lpt->table->file->ha_create_partitioning_metadata(shadow_path,
+                                       NULL, CHF_CREATE_FLAG, lpt->create_info))
     {
       mysql_file_delete(key_file_frm, shadow_frm_name, MYF(0));
       error= 1;
@@ -3857,6 +3867,21 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     }
   }
 
+  if (create_info->tmp_table())
+    create_info->table_options|=HA_CREATE_DELAY_KEY_WRITE;
+
+  /* Give warnings for not supported table options */
+#if defined(WITH_ARIA_STORAGE_ENGINE)
+  extern handlerton *maria_hton;
+  if (file->ht != maria_hton)
+#endif
+    if (create_info->transactional)
+      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                          ER_ILLEGAL_HA_CREATE_OPTION,
+                          ER(ER_ILLEGAL_HA_CREATE_OPTION),
+                          file->engine_name()->str,
+                          "TRANSACTIONAL=1");
+
   if (parse_option_list(thd, &create_info->option_struct,
                           create_info->option_list,
                           file->partition_ht()->table_options, FALSE,
@@ -4047,70 +4072,27 @@ static bool check_if_created_table_can_be_opened(THD *thd,
 #endif
 
 
-/*
-  Create a table
-
-  SYNOPSIS
-    mysql_create_table_no_lock()
-    thd			Thread object
-    db			Database
-    table_name		Table name
-    create_info	        Create information (like MAX_ROWS)
-    fields		List of fields to create
-    keys		List of keys to create
-    internal_tmp_table  Set to 1 if this is an internal temporary table
-			(From ALTER TABLE)
-    select_field_count
-    is_trans            identifies the type of engine where the table
-                        was created: either trans or non-trans.
-
-  DESCRIPTION
-    If one creates a temporary table, this is automatically opened
-
-    Note that this function assumes that caller already have taken
-    exclusive metadata lock on table being created or used some other
-    way to ensure that concurrent operations won't intervene.
-    mysql_create_table() is a wrapper that can be used for this.
-
-    no_log is needed for the case of CREATE ... SELECT,
-    as the logging will be done later in sql_insert.cc
-    select_field_count is also used for CREATE ... SELECT,
-    and must be zero for standard create of table.
-
-  RETURN VALUES
-    FALSE OK
-    TRUE  error
-*/
-
-bool mysql_create_table_no_lock(THD *thd,
+handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
                                 bool internal_tmp_table,
-                                uint select_field_count,
-                                bool *is_trans)
+                                uint select_field_count, LEX_CUSTRING *frm)
 {
-  char		path[FN_REFLEN + 1];
-  uint          path_length;
-  const char	*alias;
   uint		db_options, key_count;
   KEY		*key_info_buffer;
-  handler	*file;
-  bool		error= TRUE;
-  DBUG_ENTER("mysql_create_table_no_lock");
-  DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
-                       db, table_name, internal_tmp_table));
-
+  handler       *file;
+  DBUG_ENTER("mysql_create_frm_image");
 
   /* Check for duplicate fields and check type of table to create */
   if (!alter_info->create_list.elements)
   {
     my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
                MYF(0));
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(NULL);
   }
   if (check_engine(thd, db, table_name, create_info))
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(NULL);
 
   set_table_default_charset(thd, create_info, (char*) db);
 
@@ -4119,12 +4101,11 @@ bool mysql_create_table_no_lock(THD *thd,
       create_info->row_type != ROW_TYPE_FIXED &&
       create_info->row_type != ROW_TYPE_DEFAULT)
     db_options|= HA_OPTION_PACK_RECORD;
-  alias= table_case_name(create_info, table_name);
   if (!(file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root,
                               create_info->db_type)))
   {
     mem_alloc_error(sizeof(handler));
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(NULL);
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info= thd->work_part_info;
@@ -4141,7 +4122,7 @@ bool mysql_create_table_no_lock(THD *thd,
     if (!part_info)
     {
       mem_alloc_error(sizeof(partition_info));
-      DBUG_RETURN(TRUE);
+      goto err;
     }
     file->set_auto_partitions(part_info);
     part_info->default_engine_type= create_info->db_type;
@@ -4166,7 +4147,7 @@ bool mysql_create_table_no_lock(THD *thd,
     char *part_syntax_buf;
     uint syntax_len;
     handlerton *engine_type;
-    if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+    if (create_info->tmp_table())
     {
       my_error(ER_PARTITION_NO_TEMPORARY, MYF(0));
       goto err;
@@ -4238,9 +4219,8 @@ bool mysql_create_table_no_lock(THD *thd,
       delete file;
       create_info->db_type= partition_hton;
       if (!(file= get_ha_partition(part_info)))
-      {
-        DBUG_RETURN(TRUE);
-      }
+        DBUG_RETURN(NULL);
+
       /*
         If we have default number of partitions or subpartitions we
         might require to set-up the part_info object such that it
@@ -4282,65 +4262,90 @@ bool mysql_create_table_no_lock(THD *thd,
                                   engine_type)))
       {
         mem_alloc_error(sizeof(handler));
-        DBUG_RETURN(TRUE);
+        DBUG_RETURN(NULL);
       }
     }
   }
 #endif
 
   if (mysql_prepare_create_table(thd, create_info, alter_info,
-                                 internal_tmp_table,
-                                 &db_options, file,
+                                 internal_tmp_table, &db_options, file,
                                  &key_info_buffer, &key_count,
                                  select_field_count))
     goto err;
+  create_info->table_options=db_options;
 
-      /* Check if table exists */
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
-  {
-    path_length= build_tmptable_filename(thd, path, sizeof(path));
-    create_info->table_options|=HA_CREATE_DELAY_KEY_WRITE;
-  }
-  else  
-  {
-    path_length= build_table_filename(path, sizeof(path) - 1, db, alias, reg_ext,
-                                      internal_tmp_table ? FN_IS_TMP : 0);
-  }
+  *frm= build_frm_image(thd, table_name, create_info,
+                        alter_info->create_list, key_count,
+                        key_info_buffer, file);
 
-  /* Check if table already exists */
-  if ((create_info->options & HA_LEX_CREATE_TMP_TABLE) &&
-      find_temporary_table(thd, db, table_name))
-  {
-    if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
-      goto warn;
-    my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alias);
+  if (frm->str)
+    DBUG_RETURN(file);
+
+err:
+  delete file;
+  DBUG_RETURN(NULL);
+}
+
+
+/*
+  Create a table
+
+  SYNOPSIS
+    mysql_create_table_no_lock()
+    thd			Thread object
+    db			Database
+    table_name		Table name
+    create_info	        Create information (like MAX_ROWS)
+    fields		List of fields to create
+    keys		List of keys to create
+    internal_tmp_table  Set to 1 if this is an internal temporary table
+			(From ALTER TABLE)
+    select_field_count
+    is_trans            identifies the type of engine where the table
+                        was created: either trans or non-trans.
+
+  DESCRIPTION
+    If one creates a temporary table, this is automatically opened
+
+    Note that this function assumes that caller already have taken
+    exclusive metadata lock on table being created or used some other
+    way to ensure that concurrent operations won't intervene.
+    mysql_create_table() is a wrapper that can be used for this.
+
+    select_field_count is also used for CREATE ... SELECT,
+    and must be zero for standard create of table.
+
+  RETURN VALUES
+    FALSE OK
+    TRUE  error
+*/
+
+bool mysql_create_table_no_lock(THD *thd,
+                                const char *db, const char *table_name,
+                                HA_CREATE_INFO *create_info,
+                                Alter_info *alter_info,
+                                bool internal_tmp_table,
+                                uint select_field_count,
+                                bool *is_trans)
+{
+  char		path[FN_REFLEN + 1];
+  uint          path_length;
+  const char	*alias;
+  handler	*file;
+  LEX_CUSTRING  frm= {0,0};
+  bool		error= TRUE;
+  DBUG_ENTER("mysql_create_table_no_lock");
+  DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
+                       db, table_name, internal_tmp_table));
+
+  alias= table_case_name(create_info, table_name);
+
+  file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
+                               internal_tmp_table, select_field_count, &frm);
+
+  if (!file)
     goto err;
-  }
-
-  /* Give warnings for not supported table options */
-#if defined(WITH_ARIA_STORAGE_ENGINE)
-  extern handlerton *maria_hton;
-  if (file->ht != maria_hton)
-#endif
-    if (create_info->transactional)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                          ER_ILLEGAL_HA_CREATE_OPTION,
-                          ER(ER_ILLEGAL_HA_CREATE_OPTION),
-                          file->engine_name()->str,
-                          "TRANSACTIONAL=1");
-
-  if (!internal_tmp_table && !(create_info->options & HA_LEX_CREATE_TMP_TABLE))
-  {
-    if (ha_table_exists(thd, db, table_name))
-    {
-      if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
-        goto warn;
-      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name);
-      goto err;
-    }
-  }
-
-  thd_proc_info(thd, "creating table");
 
 #ifdef HAVE_READLINK
   {
@@ -4402,15 +4407,41 @@ bool mysql_create_table_no_lock(THD *thd,
                           "INDEX DIRECTORY");
     create_info->data_file_name= create_info->index_file_name= 0;
   }
-  create_info->table_options=db_options;
 
-  path[path_length - reg_ext_length]= '\0'; // Remove .frm extension
-  if (rea_create_table(thd, path, db, table_name,
-                       create_info, alter_info->create_list,
-                       key_count, key_info_buffer, file))
+  /* Check if table exists */
+  if (create_info->tmp_table())
+  {
+    path_length= build_tmptable_filename(thd, path, sizeof(path));
+    path[path_length - reg_ext_length]= '\0'; // Remove .frm extension
+
+    if (find_temporary_table(thd, db, table_name))
+    {
+      if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+        goto warn;
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alias);
+      goto err;
+    }
+  }
+  else  
+  {
+    path_length= build_table_filename(path, sizeof(path) - 1, db, alias, "",
+                                      internal_tmp_table ? FN_IS_TMP : 0);
+
+    if (!internal_tmp_table && ha_table_exists(thd, db, table_name))
+    {
+      if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+        goto warn;
+      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name);
+      goto err;
+    }
+  }
+
+  thd_proc_info(thd, "creating table");
+
+  if (rea_create_table(thd, &frm, path, db, table_name, create_info, file))
     goto err;
 
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (create_info->tmp_table())
   {
     /*
       Open a table (skipping table cache) and add it into
@@ -4431,7 +4462,7 @@ bool mysql_create_table_no_lock(THD *thd,
     thd->thread_specific_used= TRUE;
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  else if (part_info && create_info->frm_only)
+  else if (thd->work_part_info && create_info->frm_only)
   {
     /*
       For partitioned tables we can't find some problems with table
@@ -4457,6 +4488,7 @@ bool mysql_create_table_no_lock(THD *thd,
   error= FALSE;
 err:
   thd_proc_info(thd, "After create");
+  my_free(const_cast<uchar*>(frm.str));
   delete file;
   DBUG_RETURN(error);
 
@@ -4467,7 +4499,6 @@ warn:
                       alias);
   goto err;
 }
-
 
 /**
   Implementation of SQLCOM_CREATE_TABLE.
@@ -4514,7 +4545,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (!result &&
       (!thd->is_current_stmt_binlog_format_row() ||
        (thd->is_current_stmt_binlog_format_row() &&
-        !(create_info->options & HA_LEX_CREATE_TMP_TABLE))))
+        !(create_info->tmp_table()))))
     result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
 
 end:
@@ -4727,7 +4758,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
   local_create_info.options|= create_info->options&HA_LEX_CREATE_IF_NOT_EXISTS;
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
-  local_create_info.options|= create_info->options & HA_LEX_CREATE_TMP_TABLE;
+  local_create_info.options|= create_info->tmp_table();
   /* Reset auto-increment counter for the new table. */
   local_create_info.auto_increment_value= 0;
   /*
@@ -4745,7 +4776,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
     Ensure that we have an exclusive lock on target table if we are creating
     non-temporary table.
   */
-  DBUG_ASSERT((create_info->options & HA_LEX_CREATE_TMP_TABLE) ||
+  DBUG_ASSERT((create_info->tmp_table()) ||
               thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db,
                                              table->table_name,
                                              MDL_EXCLUSIVE));
@@ -4772,7 +4803,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
            4    temporary temporary Nothing
            ==== ========= ========= ==============================
     */
-    if (!(create_info->options & HA_LEX_CREATE_TMP_TABLE))
+    if (!(create_info->tmp_table()))
     {
       if (src_table->table->s->tmp_table)               // Case 2
       {
@@ -7227,7 +7258,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   DBUG_ASSERT(!(mysql_bin_log.is_open() &&
                 thd->is_current_stmt_binlog_format_row() &&
-                (create_info->options & HA_LEX_CREATE_TMP_TABLE)));
+                (create_info->tmp_table())));
   if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
     DBUG_RETURN(TRUE);
 
@@ -7852,7 +7883,7 @@ static bool check_engine(THD *thd, const char *db_name,
                        ha_resolve_storage_engine_name(*new_engine),
                        table_name);
   }
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE &&
+  if (create_info->tmp_table() &&
       ha_check_storage_engine_flag(*new_engine, HTON_TEMPORARY_NOT_SUPPORTED))
   {
     if (create_info->used_fields & HA_CREATE_USED_ENGINE)

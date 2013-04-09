@@ -167,17 +167,13 @@
 #include "sql_list.h"                           /* List<> */
 #include "field.h"                              /* Create_field */
 
-bool mysql_create_frm(THD *thd, const char *file_name,
-                      const char *db, const char *table,
-		      HA_CREATE_INFO *create_info,
-		      List<Create_field> &create_field,
-		      uint key_count,KEY *key_info,handler *db_type);
-int rea_create_table(THD *thd, const char *path,
-                     const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info,
-  		     List<Create_field> &create_field,
-                     uint key_count,KEY *key_info,
-                     handler *file);
+int rea_create_table(THD *thd, LEX_CUSTRING *frm,
+                     const char *path, const char *db, const char *table_name,
+                     HA_CREATE_INFO *create_info, handler *file);
+LEX_CUSTRING build_frm_image(THD *thd, const char *table,
+                             HA_CREATE_INFO *create_info,
+                             List<Create_field> &create_fields,
+                             uint keys, KEY *key_info, handler *db_file);
 
 #define FRM_HEADER_SIZE 64
 #define FRM_FORMINFO_SIZE 288

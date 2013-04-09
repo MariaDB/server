@@ -302,9 +302,8 @@ int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 
   azclose(&frm_stream);
 
-  if (!share->init_from_binary_frm_image(thd, 1, frm_ptr, frm_stream.frm_length))
-    my_errno= 0;
-
+  my_errno= share->init_from_binary_frm_image(thd, 1,
+                                              frm_ptr, frm_stream.frm_length);
 ret:
   my_free(frm_ptr);
   DBUG_RETURN(my_errno);

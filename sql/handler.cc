@@ -4317,6 +4317,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
   handlerton *hton= plugin_data(plugin, handlerton *);
   if (hton->state == SHOW_OPTION_YES && hton->discover_table)
   {
+    share->db_plugin= plugin;
     int error= hton->discover_table(hton, thd, share);
     if (error != HA_ERR_NO_SUCH_TABLE)
     {
@@ -4324,6 +4325,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
       {
         DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
         my_error(ER_GET_ERRNO, MYF(0), error);
+        share->db_plugin= 0;
       }
       else
         share->error= OPEN_FRM_OK;
@@ -4331,6 +4333,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
       status_var_increment(thd->status_var.ha_discover_count);
       return TRUE; // abort the search
     }
+    share->db_plugin= 0;
   }
 
   DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);
@@ -4342,6 +4345,7 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
   DBUG_ENTER("ha_discover_table");
 
   DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);   // share is not OK yet
+  DBUG_ASSERT(!share->db_plugin);
 
   if (!plugin_foreach(thd, discover_handlerton,
                       MYSQL_STORAGE_ENGINE_PLUGIN, share))
