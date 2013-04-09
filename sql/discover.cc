@@ -100,7 +100,7 @@ int readfrm(const char *name, uchar **frmdata, size_t *len)
   Write the content of a frm data pointer 
   to a frm file.
 
-  @param name           path to table-file "db/name"
+  @param path           path to table-file "db/name"
   @param frmdata        frm data
   @param len            length of the frmdata
 
@@ -110,24 +110,35 @@ int readfrm(const char *name, uchar **frmdata, size_t *len)
     2    Could not write file
 */
 
-int writefrm(const char *name, const uchar *frmdata, size_t len)
+int writefrm(const char *path, const char *db, const char *table,
+             bool need_sync, const uchar *frmdata, size_t len)
 {
-  File file;
-  char	 index_file[FN_REFLEN];
+  char	 file_name[FN_REFLEN+1];
   int error;
   DBUG_ENTER("writefrm");
-  DBUG_PRINT("enter",("name: '%s' len: %lu ",name, (ulong) len));
+  DBUG_PRINT("enter",("name: '%s' len: %lu ",path, (ulong) len));
 
-  error= 0;
-  if ((file= mysql_file_create(key_file_frm,
-                               fn_format(index_file, name, "", reg_ext,
-                                         MY_UNPACK_FILENAME | MY_APPEND_EXT),
-                               CREATE_MODE, O_RDWR | O_TRUNC,
-                               MYF(MY_WME))) >= 0)
+  strxnmov(file_name, sizeof(file_name)-1, path, reg_ext, NullS);
+
+  File file= mysql_file_create(key_file_frm, file_name,
+                               CREATE_MODE, O_RDWR | O_TRUNC, MYF(0));
+
+  if ((error= file < 0))
   {
-    if (mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP)))
-      error= 2;
-    (void) mysql_file_close(file, MYF(0));
+    if (my_errno == ENOENT)
+      my_error(ER_BAD_DB_ERROR, MYF(0), db);
+    else
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), table, my_errno);
+  }
+  else
+  {
+    error= mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
+
+    if (!error && need_sync)
+        error= mysql_file_sync(file, MYF(MY_WME)) ||
+             my_sync_dir_by_file(file_name, MYF(MY_WME));
+
+    error|= mysql_file_close(file, MYF(MY_WME));
   }
   DBUG_RETURN(error);
 } /* writefrm */

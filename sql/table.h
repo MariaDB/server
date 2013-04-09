@@ -988,7 +988,7 @@ struct TABLE_SHARE
   
   uint actual_n_key_parts(THD *thd);
 
-  bool init_from_binary_frm_image(THD *thd, const char *path,
+  bool init_from_binary_frm_image(THD *thd, bool write,
                                   const uchar *frm_image, size_t frm_length);
 };
 

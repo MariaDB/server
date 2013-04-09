@@ -1703,7 +1703,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #endif
     /* Write shadow frm file */
     lpt->create_info->table_options= lpt->db_options;
-    if ((mysql_create_frm(lpt->thd, shadow_frm_name, lpt->db,
+    if ((mysql_create_frm(lpt->thd, shadow_path, lpt->db,
                           lpt->table_name, lpt->create_info,
                           lpt->alter_info->create_list, lpt->key_count,
                           lpt->key_info_buffer, lpt->table->file)) ||
