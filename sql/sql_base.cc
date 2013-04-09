@@ -3993,9 +3993,12 @@ recover_from_failed_open(THD *thd)
 
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
-        get_table_share(thd, m_failed_table->db,
-                        m_failed_table->table_name,
-                        GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
+        if ((result=
+             !get_table_share(thd, m_failed_table->db,
+                              m_failed_table->table_name,
+                              GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
+          break;
+
 
         thd->warning_info->clear_warning_info(thd->query_id);
         thd->clear_error();                 // Clear error message
