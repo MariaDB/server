@@ -2091,7 +2091,11 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   delete file;
 
   if (frm.str)
+  {
+    option_list= 0;             // cleanup existing options ...
+    option_struct= 0;           // ... if it's an assisted discovery
     error= init_from_binary_frm_image(thd, write, frm.str, frm.length);
+  }
 
 ret:
   my_free(const_cast<uchar*>(frm.str));
