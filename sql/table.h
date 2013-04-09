@@ -991,12 +991,38 @@ struct TABLE_SHARE
   uint actual_n_key_parts(THD *thd);
 
   LEX_CUSTRING *frm_image; ///< only during CREATE TABLE (@sa ha_create_table)
+
+  /*
+    populates TABLE_SHARE from the table description in the binary frm image.
+    if 'write' is true, this frm image is also written into a corresponding
+    frm file, that serves as a persistent metadata cache to avoid
+    discovering the table over and over again
+  */
   int init_from_binary_frm_image(THD *thd, bool write,
                                  const uchar *frm_image, size_t frm_length);
+
+  /*
+    populates TABLE_SHARE from the table description, specified as the
+    complete CREATE TABLE sql statement.
+    if 'write' is true, this frm image is also written into a corresponding
+    frm file, that serves as a persistent metadata cache to avoid
+    discovering the table over and over again
+  */
   int init_from_sql_statement_string(THD *thd, bool write,
                                      const char *sql, size_t sql_length);
+  /*
+    writes the frm image to an frm file, corresponding to this table
+  */
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
+
+  /*
+    returns an frm image for this table.
+    the memory is allocated and must be freed later
+  */
   bool read_frm_image(const uchar **frm_image, size_t *frm_length);
+
+  /* frees the memory allocated in read_frm_image */
+  void free_frm_image(const uchar *frm);
 };
 
 
