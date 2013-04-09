@@ -607,8 +607,7 @@ static bool has_disabled_path_chars(const char *str)
     alloc_table_share().. The code assumes that share is initialized.
 */
 
-enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
-                                   enum read_frm_op op)
+enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 {
   bool error_given= false;
   File file;
@@ -683,8 +682,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
   if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
     share->is_view= 1;
-    share->error= op == FRM_READ_TABLE_ONLY
-                      ? OPEN_FRM_NOT_A_TABLE : OPEN_FRM_OK;
+    share->error= flags & GTS_VIEW ? OPEN_FRM_OK : OPEN_FRM_NOT_A_TABLE;
     goto err;
   }
   if (!is_binary_frm_header(head))
@@ -693,7 +691,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
     share->error = OPEN_FRM_CORRUPTED;
     goto err;
   }
-  if (op == FRM_READ_VIEW_ONLY)
+  if (!(flags & GTS_TABLE))
   {
     share->error = OPEN_FRM_NOT_A_VIEW;
     goto err;

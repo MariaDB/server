@@ -4157,72 +4157,6 @@ err:
   DBUG_RETURN(error != 0);
 }
 
-/**
-  Try to discover table from engine.
-
-  @note
-    If found, write the frm file to disk.
-
-  @retval
-  -1    Table did not exists
-  @retval
-   0    Table created ok
-  @retval
-   > 0  Error, table existed but could not be created
-*/
-int ha_create_table_from_engine(THD* thd, const char *db, const char *name)
-{
-  int error;
-  uchar *frmblob;
-  size_t frmlen;
-  char path[FN_REFLEN + 1];
-  HA_CREATE_INFO create_info;
-  TABLE table;
-  TABLE_SHARE share;
-  DBUG_ENTER("ha_create_table_from_engine");
-  DBUG_PRINT("enter", ("name '%s'.'%s'", db, name));
-
-  bzero((uchar*) &create_info,sizeof(create_info));
-  if ((error= ha_discover(thd, db, name, &frmblob, &frmlen)))
-  {
-    /* Table could not be discovered and thus not created */
-    DBUG_RETURN(error);
-  }
-
-  /*
-    Table exists in handler and could be discovered
-    frmblob and frmlen are set, write the frm to disk
-  */
-
-  build_table_filename(path, sizeof(path) - 1, db, name, "", 0);
-  // Save the frm file
-  error= writefrm(path, frmblob, frmlen);
-  my_free(frmblob);
-  if (error)
-    DBUG_RETURN(2);
-
-  init_tmp_table_share(thd, &share, db, 0, name, path);
-  if (open_table_def(thd, &share))
-  {
-    DBUG_RETURN(3);
-  }
-  if (open_table_from_share(thd, &share, "" ,0, 0, 0, &table, FALSE))
-  {
-    free_table_share(&share);
-    DBUG_RETURN(3);
-  }
-
-  update_create_info_from_table(&create_info, &table);
-  create_info.table_options|= HA_OPTION_CREATE_FROM_ENGINE;
-
-  get_canonical_filename(table.file, path, path);
-  error=table.file->ha_create(path, &table, &create_info);
-  (void) closefrm(&table, 1);
-
-  DBUG_RETURN(error != 0);
-}
-
-
 void st_ha_check_opt::init()
 {
   flags= sql_flags= 0;
@@ -4435,21 +4369,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name)
 
   if (need_full_discover_for_existence)
   {
-    enum open_frm_error err;
     TABLE_LIST table;
 
     DBUG_ASSERT(0);
     TABLE_SHARE *share= get_table_share(thd, db, table_name,
-                                        FRM_READ_TABLE_ONLY, &err);
-
-    if (share)
-    {
-      mysql_mutex_lock(&LOCK_open);
-      release_table_share(share);
-      mysql_mutex_unlock(&LOCK_open);
-      DBUG_RETURN(TRUE);
-    }
-    DBUG_RETURN(FALSE);
+                                        GTS_TABLE | GTS_NOLOCK);
+    DBUG_RETURN(share != 0);
   }
 
   mysql_mutex_lock(&LOCK_open);

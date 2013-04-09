@@ -2447,10 +2447,11 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
 #endif
 }
 
-enum read_frm_op {
-  FRM_READ_TABLE_ONLY,
-  FRM_READ_VIEW_ONLY,
-  FRM_READ_TABLE_OR_VIEW
+enum get_table_share_flags {
+  GTS_TABLE                = 1,
+  GTS_VIEW                 = 2,
+  GTS_NOLOCK               = 4,    // don't increase share->ref_count
+  GTS_FORCE_DISCOVERY      = 8     // don't use the .frm file
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);
@@ -2471,7 +2472,7 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           const char *table_name, const char *path);
 void free_table_share(TABLE_SHARE *share);
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
-                   enum read_frm_op op = FRM_READ_TABLE_ONLY);
+                                   uint flags = GTS_TABLE);
 
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno);
