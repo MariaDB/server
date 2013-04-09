@@ -31,6 +31,7 @@
 #include "thr_lock.h"          /* thr_lock_type, THR_LOCK_DATA */
 #include "sql_cache.h"
 #include "structs.h"                            /* SHOW_COMP_OPTION */
+#include "sql_array.h"          /* Dynamic_array<> */
 
 #include <my_compare.h>
 #include <ft_global.h>
@@ -3101,14 +3102,30 @@ int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
 
 /* discovery */
+#ifdef MYSQL_SERVER
+class Discovered_table_list: public handlerton::discovered_list
+{
+  THD *thd;
+  const char *wild, *wend;
+public:
+  Dynamic_array<LEX_STRING*> *tables;
+
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
+                        const LEX_STRING *wild_arg);
+  ~Discovered_table_list() {}
+
+  bool add_table(const char *tname, size_t tlen);
+  bool add_file(const char *fname);
+
+  void sort();
+  void remove_duplicates(); // assumes that the list is sorted
+};
+
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            handlerton::discovered_list *result);
+                            Discovered_table_list *result);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
                      handlerton **hton= 0);
-
-#ifdef MYSQL_SERVER
-extern volatile int32 engines_with_discover_table_names;
 #endif
 
 /* key cache */

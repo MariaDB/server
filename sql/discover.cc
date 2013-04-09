@@ -232,11 +232,10 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
   will ignore them. Anyone still having these files, should disable
   discovering engines, and rename these invalid table files.
 */
-int ext_table_discovery_simple(MY_DIR *dirp, const char *ext_meta,
+int ext_table_discovery_simple(MY_DIR *dirp,
                                handlerton::discovered_list *result)
 {
   CHARSET_INFO *cs= character_set_filesystem;
-  size_t ext_meta_len= strlen(ext_meta);
   FILEINFO *cur, *end;
   
   cur= dirp->dir_entry;
@@ -248,7 +247,7 @@ int ext_table_discovery_simple(MY_DIR *dirp, const char *ext_meta,
     if (ext && !is_prefix(cur->name, tmp_file_prefix))
     {
       if (my_strnncoll(cs, (uchar*)ext, strlen(ext),
-                           (uchar*)ext_meta, ext_meta_len) == 0)
+                           (uchar*)reg_ext, reg_ext_length) == 0)
       {
         *ext = 0;
         if (result->add_file(cur->name))

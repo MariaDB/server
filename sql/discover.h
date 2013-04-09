@@ -25,7 +25,7 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext,
                                     handlerton::discovered_list *tl);
 
 #ifdef MYSQL_SERVER
-int ext_table_discovery_simple(MY_DIR *dirp, const char *ext_meta,
+int ext_table_discovery_simple(MY_DIR *dirp,
                                handlerton::discovered_list *result);
 #endif
 

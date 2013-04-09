@@ -383,11 +383,35 @@ static int ha_finish_errors(void)
   return 0;
 }
 
-volatile int32 need_full_discover_for_existence= 0;
+static volatile int32 need_full_discover_for_existence= 0;
+static volatile int32 engines_with_discover_table_names= 0;
+
+
 static int full_discover_for_existence(handlerton *, const char *, const char *)
 { return 1; }
+
 static int ext_based_existence(handlerton *, const char *, const char *)
 { return 1; }
+
+static int hton_ext_based_table_discovery(handlerton *hton, LEX_STRING *db,
+                             MY_DIR *dir, handlerton::discovered_list *result)
+{
+  /*
+    tablefile_extensions[0] is the metadata file, see
+    the comment above tablefile_extensions declaration
+  */
+  return extension_based_table_discovery(dir, hton->tablefile_extensions[0],
+                                         result);
+}
+
+static void update_discovery_counters(handlerton *hton, int val)
+{
+  if (hton->discover_table_existence == full_discover_for_existence)
+    my_atomic_add32(&need_full_discover_for_existence,  val);
+
+  if (hton->discover_table_names)
+    my_atomic_add32(&engines_with_discover_table_names, val);
+}
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
@@ -438,11 +462,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     hton2plugin[hton->slot]= NULL;
   }
 
-  if (hton->discover_table_existence == full_discover_for_existence)
-    my_atomic_add32(&need_full_discover_for_existence, -1);
-
-  if (hton->discover_table_names)
-    my_atomic_add32(&engines_with_discover_table_names, -1);
+  update_discovery_counters(hton, -1);
 
   my_free(hton);
 
@@ -450,13 +470,6 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-
-static int hton_ext_based_table_discovery(handlerton *hton, LEX_STRING *db,
-                             MY_DIR *dir, handlerton::discovered_list *result)
-{
-  return extension_based_table_discovery(dir, hton->tablefile_extensions[0],
-                                         result);
-}
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -474,6 +487,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     goto err_no_hton_memory;
   }
 
+  hton->tablefile_extensions= no_exts;
+  hton->discover_table_names= hton_ext_based_table_discovery;
+
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
   plugin->data= hton; // shortcut for the future
@@ -484,15 +500,11 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     goto err;
   }
 
-  // default list file extensions: empty
-  if (!hton->tablefile_extensions)
-    hton->tablefile_extensions= no_exts;
-
-  // if the enfine can discover a single table and it is file-based
-  // then it can use a default file-based table names discovery
-  if (!hton->discover_table_names &&
-      hton->discover_table && hton->tablefile_extensions[0])
-    hton->discover_table_names= hton_ext_based_table_discovery;
+  // hton_ext_based_table_discovery() works only when discovery
+  // is supported and the engine if file-based.
+  if (hton->discover_table_names == hton_ext_based_table_discovery &&
+      (!hton->discover_table || !hton->tablefile_extensions[0]))
+    hton->discover_table_names= NULL;
 
   // default discover_table_existence implementation
   if (!hton->discover_table_existence && hton->discover_table)
@@ -500,10 +512,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     if (hton->tablefile_extensions[0])
       hton->discover_table_existence= ext_based_existence;
     else
-    {
       hton->discover_table_existence= full_discover_for_existence;
-      my_atomic_add32(&need_full_discover_for_existence, 1);
-    }
   }
 
   /*
@@ -595,8 +604,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     break;
   };
 
-  if (hton->discover_table_names)
-    my_atomic_add32(&engines_with_discover_table_names, 1);
+  update_discovery_counters(hton, 1);
 
   DBUG_RETURN(0);
 
@@ -4474,13 +4482,88 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
 /**
   Discover all table names in a given database
 */
-volatile int32 engines_with_discover_table_names= 0;
+extern "C" {
+
+static int cmp_file_names(const void *a, const void *b)
+{
+  CHARSET_INFO *cs= character_set_filesystem;
+  char *aa= ((FILEINFO *)a)->name;
+  char *bb= ((FILEINFO *)b)->name;
+  return my_strnncoll(cs, (uchar*)aa, strlen(aa), (uchar*)bb, strlen(bb));
+}
+
+static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
+{
+  return my_strnncoll(&my_charset_bin, (uchar*)((*a)->str), (*a)->length,
+                                       (uchar*)((*b)->str), (*b)->length);
+}
+
+}
+
+Discovered_table_list::Discovered_table_list(THD *thd_arg,
+                 Dynamic_array<LEX_STRING*> *tables_arg,
+                 const LEX_STRING *wild_arg)
+{
+  thd= thd_arg;
+  tables= tables_arg;
+  if (wild_arg->str && wild_arg->str[0])
+  {
+    wild= wild_arg->str;
+    wend= wild + wild_arg->length;
+  }
+  else
+    wild= 0;
+}
+
+bool Discovered_table_list::add_table(const char *tname, size_t tlen)
+{
+  if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
+                         wild_prefix, wild_one, wild_many))
+      return 0;
+
+  LEX_STRING *name= thd->make_lex_string(tname, tlen);
+  if (!name || tables->append(name))
+    return 1;
+  return 0;
+}
+
+bool Discovered_table_list::add_file(const char *fname)
+{
+  char tname[SAFE_NAME_LEN + 1];
+  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
+  return add_table(tname, tlen);
+}
+
+
+void Discovered_table_list::sort()
+{
+  tables->sort(cmp_table_names);
+}
+
+void Discovered_table_list::remove_duplicates()
+{
+  LEX_STRING **src= tables->front();
+  LEX_STRING **dst= src;
+  while (++dst < tables->back())
+  {
+    LEX_STRING *s= *src, *d= *dst;
+    DBUG_ASSERT(strncmp(s->str, d->str, min(s->length, d->length)) <= 0);
+    if ((s->length != d->length || strncmp(s->str, d->str, d->length)))
+    {
+      src++;
+      if (src != dst)
+        *src= *dst;
+    }
+  }
+  tables->set_elements(src - tables->front() + 1);
+}
 
 struct st_discover_names_args
 {
   LEX_STRING *db;
   MY_DIR *dirp;
-  handlerton::discovered_list *result;
+  Discovered_table_list *result;
+  uint possible_duplicates;
 };
 
 static my_bool discover_names(THD *thd, plugin_ref plugin,
@@ -4488,28 +4571,51 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 {
   st_discover_names_args *args= (st_discover_names_args *)arg;
   handlerton *ht= plugin_data(plugin, handlerton *);
-  if (ht->state == SHOW_OPTION_YES && ht->discover_table_names &&
-      ht->discover_table_names(ht, args->db, args->dirp, args->result))
-    return 1;
+
+  if (ht->state == SHOW_OPTION_YES && ht->discover_table_names)
+  {
+    uint old_elements= args->result->tables->elements();
+    if (ht->discover_table_names(ht, args->db, args->dirp, args->result))
+      return 1;
+
+    /*
+      hton_ext_based_table_discovery never discovers a table that has
+      a corresponding .frm file; but custom engine discover methods might
+    */
+    if (ht->discover_table_names != hton_ext_based_table_discovery)
+      args->possible_duplicates+= args->result->tables->elements() - old_elements;
+  }
 
   return 0;
 }
 
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            handlerton::discovered_list *result)
+                            Discovered_table_list *result)
 {
   int error;
   DBUG_ENTER("ha_discover_table_names");
-  st_discover_names_args args= {db, dirp, result};
 
   if (engines_with_discover_table_names == 0)
-    DBUG_RETURN(ext_table_discovery_simple(dirp, reg_ext, result));
+  {
+    error= ext_table_discovery_simple(dirp, result);
+    result->sort();
+  }
+  else
+  {
+    st_discover_names_args args= {db, dirp, result, 0};
 
-  error= extension_based_table_discovery(dirp, reg_ext, result);
+    /* extension_based_table_discovery relies on dirp being sorted */
+    my_qsort(dirp->dir_entry, dirp->number_of_files,
+             sizeof(FILEINFO), cmp_file_names);
 
-  if (!error)
-    error= plugin_foreach(thd, discover_names, MYSQL_STORAGE_ENGINE_PLUGIN,
-                          &args);
+    error= extension_based_table_discovery(dirp, reg_ext, result) ||
+           plugin_foreach(thd, discover_names,
+                            MYSQL_STORAGE_ENGINE_PLUGIN, &args);
+    result->sort();
+
+    if (args.possible_duplicates > 0)
+      result->remove_duplicates();
+  }
 
   DBUG_RETURN(error);
 }
