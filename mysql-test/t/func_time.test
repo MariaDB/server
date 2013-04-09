@@ -883,7 +883,9 @@ SELECT STR_TO_DATE(SPACE(2),'1');
 --echo #
 
 SET GLOBAL SQL_MODE='';
+--disable_warnings
 DO  STR_TO_DATE((''), FROM_DAYS(@@GLOBAL.SQL_MODE));
+--enable_warnings
 SET GLOBAL SQL_MODE=DEFAULT;
 
 --echo #
