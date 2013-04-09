@@ -69,16 +69,13 @@ class engine_option_value: public Sql_alloc
 typedef struct st_key KEY;
 class Create_field;
 
-my_bool parse_engine_table_options(THD *thd, handlerton *ht,
+bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
+bool parse_option_list(THD* thd, void *option_struct,
+                       engine_option_value *option_list,
+                       ha_create_table_option *rules,
+                       bool suppress_warning, MEM_ROOT *root);
+bool engine_table_options_frm_read(const uchar *buff, uint length,
                                    TABLE_SHARE *share);
-my_bool parse_option_list(THD* thd, void *option_struct,
-                          engine_option_value *option_list,
-                          ha_create_table_option *rules,
-                          my_bool suppress_warning,
-                          MEM_ROOT *root);
-my_bool engine_table_options_frm_read(const uchar *buff,
-                                      uint length,
-                                      TABLE_SHARE *share);
 engine_option_value *merge_engine_table_options(engine_option_value *source,
                                                 engine_option_value *changes,
                                                 MEM_ROOT *root);

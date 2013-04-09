@@ -74,7 +74,7 @@ void engine_option_value::link(engine_option_value **start,
 }
 
 static bool report_wrong_value(THD *thd, const char *name, const char *val,
-                               my_bool suppress_warning)
+                               bool suppress_warning)
 {
   if (suppress_warning)
     return 0;
@@ -92,7 +92,7 @@ static bool report_wrong_value(THD *thd, const char *name, const char *val,
 }
 
 static bool report_unknown_option(THD *thd, engine_option_value *val,
-                                  my_bool suppress_warning)
+                                  bool suppress_warning)
 {
   DBUG_ENTER("report_unknown_option");
 
@@ -116,7 +116,7 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
 
 static bool set_one_value(ha_create_table_option *opt,
                           THD *thd, LEX_STRING *value, void *base,
-                          my_bool suppress_warning,
+                          bool suppress_warning,
                           MEM_ROOT *root)
 {
   DBUG_ENTER("set_one_value");
@@ -257,11 +257,10 @@ static const size_t ha_option_type_sizeof[]=
   @retval FALSE OK
 */
 
-my_bool parse_option_list(THD* thd, void *option_struct_arg,
-                          engine_option_value *option_list,
-                          ha_create_table_option *rules,
-                          my_bool suppress_warning,
-                          MEM_ROOT *root)
+bool parse_option_list(THD* thd, void *option_struct_arg,
+                       engine_option_value *option_list,
+                       ha_create_table_option *rules,
+                       bool suppress_warning, MEM_ROOT *root)
 {
   ha_create_table_option *opt;
   size_t option_struct_size= 0;
@@ -269,13 +268,13 @@ my_bool parse_option_list(THD* thd, void *option_struct_arg,
   void **option_struct= (void**)option_struct_arg;
   DBUG_ENTER("parse_option_list");
   DBUG_PRINT("enter",
-             ("struct: 0x%lx list: 0x%lx rules: 0x%lx suppres %u root 0x%lx",
-              (ulong) *option_struct, (ulong)option_list, (ulong)rules,
-              (uint) suppress_warning, (ulong) root));
+             ("struct: %p list: %p rules: %p suppress_warning: %u root: %p",
+              *option_struct, option_list, rules,
+              (uint) suppress_warning, root));
 
   if (rules)
   {
-    LEX_STRING default_val= {NULL, 0};
+    LEX_STRING default_val= null_lex_str;
     for (opt= rules; opt->name; opt++)
       set_if_bigger(option_struct_size, opt->offset +
                     ha_option_type_sizeof[opt->type]);
@@ -323,8 +322,7 @@ my_bool parse_option_list(THD* thd, void *option_struct_arg,
   @retval FALSE OK
 */
 
-my_bool parse_engine_table_options(THD *thd, handlerton *ht,
-                                   TABLE_SHARE *share)
+bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
 {
   MEM_ROOT *root= &share->mem_root;
   DBUG_ENTER("parse_engine_table_options");
@@ -543,8 +541,8 @@ uchar *engine_option_value::frm_read(const uchar *buff, engine_option_value **st
   @retval FALSE OK
 */
 
-my_bool engine_table_options_frm_read(const uchar *buff, uint length,
-                                      TABLE_SHARE *share)
+bool engine_table_options_frm_read(const uchar *buff, uint length,
+                                   TABLE_SHARE *share)
 {
   const uchar *buff_end= buff + length;
   engine_option_value *UNINIT_VAR(end);
