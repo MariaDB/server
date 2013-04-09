@@ -657,7 +657,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   }
   mysql_file_close(file, MYF(MY_WME));
 
-  share->init_from_binary_frm_image(thd, NULL, buf, stats.st_size);
+  share->init_from_binary_frm_image(thd, false, buf, stats.st_size);
   error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
 
@@ -696,8 +696,9 @@ err_not_open:
 
 */
 
-bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
-                                   const uchar *frm_image, size_t frm_length)
+bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
+                                             const uchar *frm_image,
+                                             size_t frm_length)
 {
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
@@ -740,7 +741,9 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   old_root= *root_ptr;
   *root_ptr= &share->mem_root;
 
-  if (path && writefrm(path, frm_image, frm_length))
+  if (write && writefrm(share->normalized_path.str,
+                        share->db.str, share->table_name.str, MY_SYNC,
+                        frm_image, frm_length))
     goto err;
 
   if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)

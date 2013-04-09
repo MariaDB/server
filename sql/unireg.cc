@@ -29,6 +29,7 @@
 #include "sql_partition.h"                      // struct partition_info
 #include "sql_class.h"                  // THD, Internal_error_handler
 #include "create_options.h"
+#include "discover.h"
 #include <m_ctype.h>
 #include <assert.h>
 
@@ -43,6 +44,8 @@ static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
+static LEX_CUSTRING create_frm_image(THD *, const char *, HA_CREATE_INFO *,
+                              List<Create_field> &, uint, KEY *, handler *);
 
 /*
   Create a frm (table definition) file
@@ -71,10 +74,28 @@ bool mysql_create_frm(THD *thd, const char *file_name,
 		      uint keys, KEY *key_info,
 		      handler *db_file)
 {
+  DBUG_ENTER("mysql_create_frm");
+  LEX_CUSTRING frm= create_frm_image(thd, table, create_info,
+                                     create_fields, keys, key_info, db_file);
+  if (!frm.str)
+    DBUG_RETURN(1);
+
+  bool need_sync= opt_sync_frm &&
+                  !(create_info->options & HA_LEX_CREATE_TMP_TABLE);
+  int error= writefrm(file_name, db, table, need_sync, frm.str, frm.length);
+
+  my_free(const_cast<uchar*>(frm.str));
+  DBUG_RETURN(error);
+}
+
+LEX_CUSTRING create_frm_image(THD *thd, const char *table,
+                              HA_CREATE_INFO *create_info,
+                              List<Create_field> &create_fields,
+                              uint keys, KEY *key_info, handler *db_file)
+{
   LEX_STRING str_db_type;
   uint reclength, key_info_length, maxlength, tmp_len, i;
   ulong key_buff_length;
-  File file;
   ulong filepos, data_offset;
   uint options_len;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
@@ -82,12 +103,9 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   partition_info *part_info= thd->work_part_info;
 #endif
   int error;
-  size_t frm_length;
   uchar *frm_ptr, *pos;
-  DBUG_ENTER("mysql_create_frm");
-
-  DBUG_ASSERT(*fn_rext((char*)file_name)); // Check .frm extension
-  DBUG_ASSERT(db_file != NULL);
+  LEX_CUSTRING frm= {0,0};
+  DBUG_ENTER("create_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
@@ -98,7 +116,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
                      data_offset, db_file);
 
   if (error)
-    DBUG_RETURN(1);
+    DBUG_RETURN(frm);
 
   reclength=uint2korr(forminfo+266);
 
@@ -177,7 +195,7 @@ bool mysql_create_frm(THD *thd, const char *file_name,
     {
       my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
                real_table_name, static_cast<ulong>(TABLE_COMMENT_MAXLEN));
-      DBUG_RETURN(1);
+      DBUG_RETURN(frm);
     }
     char warn_buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_TABLE_COMMENT),
@@ -207,25 +225,25 @@ bool mysql_create_frm(THD *thd, const char *file_name,
 
   key_buff_length= uint4korr(fileinfo+47);
 
-  frm_length= FRM_HEADER_SIZE; // fileinfo;
-  frm_length+= 7; // "form entry"
+  frm.length= FRM_HEADER_SIZE; // fileinfo;
+  frm.length+= 7; // "form entry"
 
-  int2store(fileinfo+6, frm_length);
-  frm_length+= key_buff_length;
-  frm_length+= reclength; // row with default values
-  frm_length+= create_info->extra_size;
+  int2store(fileinfo+6, frm.length);
+  frm.length+= key_buff_length;
+  frm.length+= reclength; // row with default values
+  frm.length+= create_info->extra_size;
 
-  filepos= frm_length;
-  frm_length+= FRM_FORMINFO_SIZE; // forminfo
-  frm_length+= packed_fields_length(create_fields);
+  filepos= frm.length;
+  frm.length+= FRM_FORMINFO_SIZE; // forminfo
+  frm.length+= packed_fields_length(create_fields);
   
-  frm_ptr= (uchar*) my_malloc(frm_length, MYF(MY_ZEROFILL | MY_THREAD_SPECIFIC));
+  frm_ptr= (uchar*) my_malloc(frm.length, MYF(MY_WME | MY_ZEROFILL |
+                                              MY_THREAD_SPECIFIC));
   if (!frm_ptr)
-    DBUG_RETURN(1);
+    DBUG_RETURN(frm);
 
   pos = frm_ptr + uint2korr(fileinfo+6);
   key_info_length= pack_keys(pos, keys, key_info, data_offset);
-  //frm_length-= key_buff_length-key_info_length;
 
   memcpy(frm_ptr + FRM_HEADER_SIZE, "//", 3);
   int4store(frm_ptr + 67, filepos);
@@ -310,36 +328,6 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   if (pack_fields(frm_ptr + filepos + FRM_FORMINFO_SIZE, create_fields, data_offset))
     goto err;
 
-  //==========================================
-  {
-  int create_flags= O_RDWR | O_TRUNC;
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
-    create_flags|= O_EXCL | O_NOFOLLOW;
-
-  file= mysql_file_create(key_file_frm, file_name,
-                          CREATE_MODE, create_flags, MYF(0));
-  }
-  if (file < 0)
-  {
-    if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR,MYF(0),db);
-    else
-      my_error(ER_CANT_CREATE_TABLE,MYF(0),table,my_errno);
-    goto err;
-  }
-
-  if (mysql_file_write(file, frm_ptr, frm_length, MYF_RW))
-    goto err2;
-  if (opt_sync_frm && !(create_info->options & HA_LEX_CREATE_TMP_TABLE) &&
-      (mysql_file_sync(file, MYF(MY_WME)) ||
-       my_sync_dir_by_file(file_name, MYF(MY_WME))))
-      goto err2;
-
-  if (mysql_file_close(file, MYF(MY_WME)))
-    goto err1;
-
-  my_free(frm_ptr);
-
   {
     /* 
       Restore all UCS2 intervals.
@@ -357,16 +345,13 @@ bool mysql_create_frm(THD *thd, const char *file_name,
     }
   }
 
-  DBUG_RETURN(0);
+  frm.str= frm_ptr;
+  DBUG_RETURN(frm);
 
-err2:
-  mysql_file_close(file, MYF(MY_WME));
-err1:
-  mysql_file_delete(key_file_frm, file_name, MYF(0));
 err:
   my_free(frm_ptr);
-  DBUG_RETURN(1);
-} /* mysql_create_frm */
+  DBUG_RETURN(frm);
+}
 
 
 /*
@@ -397,15 +382,11 @@ int rea_create_table(THD *thd, const char *path,
 {
   DBUG_ENTER("rea_create_table");
 
-  char frm_name[FN_REFLEN];
-  strxmov(frm_name, path, reg_ext, NullS);
-  if (mysql_create_frm(thd, frm_name, db, table_name, create_info,
+  if (mysql_create_frm(thd, path, db, table_name, create_info,
                        create_fields, keys, key_info, file))
 
     DBUG_RETURN(1);
 
-  // Make sure mysql_create_frm din't remove extension
-  DBUG_ASSERT(*fn_rext(frm_name));
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
   if (!create_info->frm_only &&
@@ -417,6 +398,8 @@ int rea_create_table(THD *thd, const char *path,
 
 err_handler:
   (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG, create_info);
+  char frm_name[FN_REFLEN];
+  strxmov(frm_name, path, reg_ext, NullS);
   mysql_file_delete(key_file_frm, frm_name, MYF(0));
   DBUG_RETURN(1);
 } /* rea_create_table */
