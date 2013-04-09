@@ -157,13 +157,13 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   char    filename[_MAX_PATH];
   bool    sep, rc = false;
 
-  if (!pxdf)
+  if (!To_Indx)
     return false;           // No index
 
   // If true indexes are in separate files
   sep = Cat->GetBoolCatInfo("SepIndex", false); 
 
-  if (!sep && To_Indx) {
+  if (!sep && pxdf) {
     strcpy(g->Message, MSG(NO_RECOV_SPACE));
     return true;
     } // endif sep
@@ -204,7 +204,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
 #endif   // UNIX
       } // endfor pxdf
 
-  } else {  // !sep, no more indexes or name is NULL
+  } else {  // !sep
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
     strcat(PlugRemoveType(filename, filename), ftype);

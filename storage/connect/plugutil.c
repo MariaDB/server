@@ -152,6 +152,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Trace = 0;
     g->Createas = 0;
     g->Activityp = g->ActivityStart = NULL;
+    g->Xchk = NULL;
     strcpy(g->Message, "");
 
     /*******************************************************************/

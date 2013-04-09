@@ -31,23 +31,33 @@
 /****************************************************************************/
 typedef struct _create_xinfo {
   char *Type;                               /* Retrieved from table comment */
-  char *Filename;                            /* Set if not standard          */
+  char *Filename;                           /* Set if not standard          */
   char *IndexFN;                            /* Set if not standard          */
   ulonglong Maxrows;                        /* Estimated max nb of rows     */
   ulong Lrecl;                              /* Set if not default           */
-  ulong Elements;                            /* Number of lines in blocks    */
+  ulong Elements;                           /* Number of lines in blocks    */
   bool  Fixed;                              /* False for DOS type           */
   void *Pcf;                                /* To list of columns           */
   void *Pxdf;                               /* To list of indexes           */
 } CRXINFO, *PCXF;
 
 typedef struct _xinfo {
-  ulonglong data_file_length;                /* Length of data file          */
+  ulonglong data_file_length;               /* Length of data file          */
   ha_rows   records;                        /* Records in table             */
   ulong     mean_rec_length;                /* Physical record length       */
-  char     *data_file_name;                  /* Physical file name           */
+  char     *data_file_name;                 /* Physical file name           */
 } XINFO, *PXF;
 
+class XCHK : public BLOCK {
+public:
+  XCHK(void) {oldsep= newsep= false; oldpix= newpix= NULL;}
+  bool         oldsep;              // Sepindex before create/alter
+  bool         newsep;              // Sepindex after create/alter
+  PIXDEF       oldpix;              // The indexes before create/alter
+  PIXDEF       newpix;              // The indexes after create/alter
+}; // end of class XCHK
+
+typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
 typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS; 
@@ -87,11 +97,12 @@ public:
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE *table_arg);
   bool     GetBooleanOption(char *opname, bool bdef);
+  bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
   bool     SetIntegerOption(char *opname, int n);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(void *field, PCOLINFO pcf);
-  PIXDEF   GetIndexInfo(int n);
+  PIXDEF   GetIndexInfo(void);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
   int      GetColNameLen(Field *fp);
