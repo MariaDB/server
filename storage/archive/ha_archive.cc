@@ -764,7 +764,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   if (!table_arg->s->read_frm_image(&frm_ptr, &frm_len))
   {
     azwrite_frm(&create_stream, frm_ptr, frm_len);
-    my_free(const_cast<uchar*>(frm_ptr));
+    table_arg->s->free_frm_image(frm_ptr);
   }
 
   if (create_info->comment.str)

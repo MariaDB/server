@@ -2137,6 +2137,13 @@ bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 }
 
 
+void TABLE_SHARE::free_frm_image(const uchar *frm)
+{
+  if (frm)
+    my_free(const_cast<uchar*>(frm));
+}
+
+
 /*
   @brief
     Clear GET_FIXED_FIELDS_FLAG in all fields of a table
