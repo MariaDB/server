@@ -132,7 +132,7 @@ int writefrm(const char *path, const char *db, const char *table,
     if (my_errno == ENOENT)
       my_error(ER_BAD_DB_ERROR, MYF(0), db);
     else
-      my_error(ER_CANT_CREATE_TABLE, MYF(0), table, my_errno);
+      my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table, my_errno);
   }
   else
   {

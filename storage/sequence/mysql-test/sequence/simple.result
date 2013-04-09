@@ -39,7 +39,7 @@ ERROR 42S02: Table 'test.seq_' doesn't exist
 show create table se;
 ERROR 42S02: Table 'test.se' doesn't exist
 show create table seq_1_to_15_step_0;
-ERROR HY000: Got error 140 "Wrong create options" from storage engine
+ERROR HY000: Got error 140 "Wrong create options" from storage engine SEQUENCE
 select * from seq_1_to_15_step_2;
 seq
 1

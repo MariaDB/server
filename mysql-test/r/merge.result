@@ -2257,7 +2257,7 @@ CREATE TABLE m1(a int)engine=merge union=(t1,t2,t3,t4,t5,t6,t7);
 SELECT 1 FROM m1;
 1
 HANDLER m1 OPEN;
-ERROR HY000: Table storage engine for 'm1' doesn't have this option
+ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`m1` doesn't have this option
 DROP TABLE m1,t1,t2,t3,t4,t5,t6,t7;
 SELECT 1 FROM m1;
 ERROR 42S02: Table 'test.m1' doesn't exist
@@ -3552,7 +3552,7 @@ CREATE TABLE t2 (c1 int);
 CREATE TABLE t3 (c1 int) ENGINE = MERGE UNION (t1,t2);
 START TRANSACTION;
 HANDLER t3 OPEN;
-ERROR HY000: Table storage engine for 't3' doesn't have this option
+ERROR HY000: Storage engine MRG_MyISAM of the table `test`.`t3` doesn't have this option
 DROP TABLE t1, t2, t3;
 # Connection default.
 # Disconnecting con1, all mdl_tickets must have been released.

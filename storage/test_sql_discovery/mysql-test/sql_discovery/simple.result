@@ -4,7 +4,7 @@ test_sql_discovery_statement
 test_sql_discovery_write_frm	ON
 set sql_quote_show_create=0;
 create table t1 (a int) engine=test_sql_discovery;
-ERROR HY000: Can't create table 'test.t1' (errno: 131 "Command not supported by database")
+ERROR HY000: Can't create table `test`.`t1` (errno: 131 "Command not supported by database")
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 set @@test_sql_discovery_statement='t1:foobar bwa-ha-ha';
@@ -16,7 +16,7 @@ show warnings;
 Level	Code	Message
 Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'foobar bwa-ha-ha' at line 1
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:select 1';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -24,7 +24,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'select 1'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int primary key) partition by hash(id) partitions 2';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -32,7 +32,7 @@ show warnings;
 Level	Code	Message
 Error	1290	The MariaDB server is running with the --skip-partition option so it cannot execute this statement
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int) union=(t3,t4)';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -40,7 +40,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) union=(t3,t4)'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 like t2';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -48,7 +48,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 like t2'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 select * from t2';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -56,7 +56,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 select * from t2'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int) index directory="/tmp"';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -64,7 +64,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) index directory="/tmp"'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int) data directory="/tmp"';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -72,7 +72,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) data directory="/tmp"'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int) engine=myisam';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -80,7 +80,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a int) engine=myisam'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create temporary table t1 (a int)';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -88,7 +88,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create temporary table t1 (a int)'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table if not exists t1 (a int)';
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -96,7 +96,7 @@ show warnings;
 Level	Code	Message
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table if not exists t1 (a int)'
 Error	1146	Table 'test.t1' doesn't exist
-Error	1030	Got error 130 "Incorrect file format" from storage engine
+Error	1030	Got error 130 "Incorrect file format" from storage engine TEST_SQL_DISCOVERY
 set @@test_sql_discovery_statement='t1:create table t1 (a int)';
 select * from t1;
 a

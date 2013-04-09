@@ -1138,7 +1138,8 @@ int ha_prepare(THD *thd)
       else
       {
         push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                            ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
+                            ER_GET_ERRNO, ER(ER_GET_ERRNO),
+                            HA_ERR_WRONG_COMMAND,
                             ha_resolve_storage_engine_name(ht));
       }
     }
@@ -2004,7 +2005,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
     }
     if ((err= ht->savepoint_set(ht, thd, (uchar *)(sv+1)+ht->savepoint_offset)))
     { // cannot happen
-      my_error(ER_GET_ERRNO, MYF(0), err);
+      my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
     }
     status_var_increment(thd->status_var.ha_savepoint_count);
@@ -2035,7 +2036,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
     if ((err= ht->savepoint_release(ht, thd,
                                     (uchar *)(sv+1) + ht->savepoint_offset)))
     { // cannot happen
-      my_error(ER_GET_ERRNO, MYF(0), err);
+      my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
     }
   }
@@ -2971,7 +2972,7 @@ void handler::print_error(int error, myf errflag)
   DBUG_ENTER("handler::print_error");
   DBUG_PRINT("enter",("error: %d",error));
 
-  int textno=ER_GET_ERRNO;
+  int textno= -1; // impossible value
   switch (error) {
   case EACCES:
     textno=ER_OPEN_AS_READONLY;
@@ -3100,7 +3101,9 @@ void handler::print_error(int error, myf errflag)
     textno=ER_OUT_OF_RESOURCES;
     break;
   case HA_ERR_WRONG_COMMAND:
-    textno=ER_ILLEGAL_HA;
+    my_error(ER_ILLEGAL_HA, MYF(0), table_type(), table_share->db.str,
+             table_share->table_name.str);
+    DBUG_VOID_RETURN;
     break;
   case HA_ERR_OLD_FILE:
     textno=ER_OLD_KEYFILE;
@@ -3219,10 +3222,11 @@ void handler::print_error(int error, myf errflag)
         }
       }
       else
-	my_error(ER_GET_ERRNO,errflag,error);
+	my_error(ER_GET_ERRNO, errflag, error, table_type());
       DBUG_VOID_RETURN;
     }
   }
+  DBUG_ASSERT(textno > 0);
   if (fatal_error)
   {
     /* Ensure this becomes a true error */
@@ -4181,10 +4185,8 @@ int ha_create_table(THD *thd, const char *path,
   (void) closefrm(&table, 0);
 
   if (error)
-  {
-    strxmov(name_buff, db, ".", table_name, NullS);
-    my_error(ER_CANT_CREATE_TABLE, MYF(ME_BELL+ME_WAITTANG), name_buff, error);
-  }
+    my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
+ 
 err:
   free_table_share(&share);
   DBUG_RETURN(error != 0);
@@ -4326,7 +4328,7 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
       if (error)
       {
         DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
-        my_error(ER_GET_ERRNO, MYF(0), error);
+        my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
         share->db_plugin= 0;
       }
       else
@@ -5116,7 +5118,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   if (!result && !thd->is_error())
     my_eof(thd);
   else if (!thd->is_error())
-    my_error(ER_GET_ERRNO, MYF(0), errno);
+    my_error(ER_GET_ERRNO, MYF(0), errno, hton_name(db_type)->str);
   return result;
 }
 

@@ -415,7 +415,7 @@ alter table t1 drop key a;
 drop table t1;
 CREATE TABLE T12207(a int) ENGINE=MYISAM;
 ALTER TABLE T12207 DISCARD TABLESPACE;
-ERROR HY000: Table storage engine for 'T12207' doesn't have this option
+ERROR HY000: Storage engine MyISAM of the table `test`.`T12207` doesn't have this option
 DROP TABLE T12207;
 create table t1 (a text) character set koi8r;
 insert into t1 values (_koi8r'тест');
