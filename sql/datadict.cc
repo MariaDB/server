@@ -55,9 +55,7 @@ frm_type_enum dd_frm_type(THD *thd, char *path, enum legacy_db_type *dbt)
     if the following test is true (arg #3). This should not have effect
     on return value from this function (default FRMTYPE_TABLE)
   */
-  if (header[0] != (uchar) 254 || header[1] != 1 ||
-      (header[2] != FRM_VER && header[2] != FRM_VER+1 &&
-       (header[2] < FRM_VER+3 || header[2] > FRM_VER+4)))
+  if (!is_binary_frm_header(header))
     DBUG_RETURN(FRMTYPE_TABLE);
 
   /*

@@ -64,7 +64,6 @@ LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 	/* Functions defined in this file */
 
-static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image);
 static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
 			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
@@ -317,7 +316,7 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
     strmov(share->path.str, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-
+    share->table_category= get_table_category(& share->db, & share->table_name);
     share->set_refresh_version();
 
     /*
@@ -613,10 +612,10 @@ static bool has_disabled_path_chars(const char *str)
 enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
                                    enum read_frm_op op)
 {
-  enum open_frm_error error;
-  bool is_binary_frm= false;
-  bool error_given;
+  bool error_given= false;
   File file;
+  MY_STAT stats;
+  uchar *buf;
   uchar head[64];
   char	path[FN_REFLEN];
   MEM_ROOT **root_ptr, *old_root;
@@ -624,8 +623,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
 
-  error= OPEN_FRM_OPEN_ERROR;
-  error_given= 0;
+  share->error= OPEN_FRM_OPEN_ERROR;
 
   strxmov(path, share->normalized_path.str, reg_ext, NullS);
   if ((file= mysql_file_open(key_file_frm,
@@ -679,76 +677,52 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
 
   if (mysql_file_read(file, head, sizeof(head), MYF(MY_NABP)))
   {
-    error = my_errno == HA_ERR_FILE_TOO_SHORT
-              ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
+    share->error = my_errno == HA_ERR_FILE_TOO_SHORT
+                      ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
     goto err;
   }
 
-  if (head[0] == (uchar) 254 && head[1] == 1)
+  if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
-    if (head[2] == FRM_VER || head[2] == FRM_VER+1 ||
-        (head[2] >= FRM_VER+3 && head[2] <= FRM_VER+4))
-    {
-      is_binary_frm= true;
-    }
-    else
-    {
-      my_printf_error(ER_NOT_FORM_FILE,
-                      "Table '%-.64s' was created with a different version "
-                      "of MySQL and cannot be read", 
-                      MYF(0), path);
-      error= OPEN_FRM_ERROR_ALREADY_ISSUED;
-      goto err;
-    }
-  }
-  else if (memcmp(head, STRING_WITH_LEN("TYPE=")) == 0)
-  {
-    error= OPEN_FRM_NO_VIEWS;
-    if (memcmp(head+5,"VIEW",4) == 0)
-    {
-      share->is_view= 1;
-      if (op == FRM_READ_NO_ERROR_FOR_VIEW)
-        error= OPEN_FRM_OK;
-    }
+    share->is_view= 1;
+    share->error= op == FRM_READ_NO_ERROR_FOR_VIEW
+                      ? OPEN_FRM_OK : OPEN_FRM_NO_VIEWS;
     goto err;
   }
-  else
+  if (!is_binary_frm_header(head))
+  {
+    /* No handling of text based files yet */
+    share->error = OPEN_FRM_CORRUPTED;
+    goto err;
+  }
+
+  if (my_fstat(file, &stats, MYF(0)))
     goto err;
 
-  /* No handling of text based files yet */
-  if (is_binary_frm)
+  if (!(buf= (uchar*)my_malloc(stats.st_size, MYF(MY_THREAD_SPECIFIC|MY_WME))))
+    goto err;
+
+  memcpy(buf, head, sizeof(head));
+
+  if (mysql_file_read(file, buf + sizeof(head),
+                      stats.st_size - sizeof(head), MYF(MY_NABP)))
   {
-    MY_STAT stats;
-    uchar *buf;
-
-    if (my_fstat(file, &stats, MYF(0)))
-      goto err;
-
-    if (!(buf= (uchar*)my_malloc(stats.st_size, MYF(MY_THREAD_SPECIFIC|MY_WME))))
-      goto err;
-
-    memcpy(buf, head, sizeof(head));
-
-    if (mysql_file_read(file, buf + sizeof(head),
-                        stats.st_size - sizeof(head), MYF(MY_NABP)))
-    {
-      my_free(buf);
-      goto err;
-    }
-    mysql_file_close(file, MYF(MY_WME));
-
-    root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
-    old_root= *root_ptr;
-    *root_ptr= &share->mem_root;
-    error= open_binary_frm(thd, share, buf) ? OPEN_FRM_CORRUPTED : OPEN_FRM_OK;
-    *root_ptr= old_root;
-    error_given= 1;
+    share->error = my_errno == HA_ERR_FILE_TOO_SHORT
+                      ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
     my_free(buf);
+    goto err;
   }
+  mysql_file_close(file, MYF(MY_WME));
 
-  share->table_category= get_table_category(& share->db, & share->table_name);
+  root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
+  old_root= *root_ptr;
+  *root_ptr= &share->mem_root;
+  share->init_from_binary_frm_image(thd, buf);
+  error_given= true;
+  *root_ptr= old_root;
+  my_free(buf);
 
-  if (!error)
+  if (!share->error)
     thd->status_var.opened_shares++;
 
   goto err_not_open;
@@ -757,15 +731,13 @@ err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
-  share->error= error;
-
-  if (error && !error_given)
+  if (share->error && !error_given)
   {
     share->open_errno= my_errno;
-    open_table_error(share, error, share->open_errno);
+    open_table_error(share, share->error, share->open_errno);
   }
 
-  DBUG_RETURN(error);
+  DBUG_RETURN(share->error);
 }
 
 
@@ -781,8 +753,9 @@ err_not_open:
   They're still set, for compatibility reasons, but never read.
 */
 
-static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
+bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const uchar *frm_image)
 {
+  TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
@@ -791,9 +764,9 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   uint i,j;
   bool use_hash;
   char *keynames, *names, *comment_pos;
-  uchar *forminfo;
-  uchar *record;
-  uchar *disk_buff, *strpos, *null_flags, *null_pos;
+  const uchar *forminfo;
+  uchar *record, *null_flags, *null_pos;
+  const uchar *disk_buff, *strpos;
   ulong pos, record_offset; 
   ulong *rec_per_key= NULL;
   ulong rec_buff_length;
@@ -807,7 +780,7 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   bool null_bits_are_used;
   uint vcol_screen_length, UNINIT_VAR(options_len);
   char *vcol_screen_pos;
-  uchar *UNINIT_VAR(options);
+  const uchar *UNINIT_VAR(options);
   KEY first_keyinfo;
   uint len;
   KEY_PART_INFO *first_key_part= NULL;
@@ -863,7 +836,7 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
     share->avg_row_length= uint4korr(frm_image+34);
     share->transactional= (ha_choice) (frm_image[39] & 3);
     share->page_checksum= (ha_choice) ((frm_image[39] >> 2) & 3);
-    share->row_type= (row_type) frm_image[40];
+    share->row_type= (enum row_type) frm_image[40];
     share->table_charset= get_charset((((uint) frm_image[41]) << 8) + 
                                         (uint) frm_image[38],MYF(0));
     share->null_field_first= 1;
@@ -1068,7 +1041,7 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   if ((n_length= uint4korr(frm_image+55)))
   {
     /* Read extra data segment */
-    uchar *next_chunk, *buff_end;
+    const uchar *next_chunk, *buff_end;
     DBUG_PRINT("info", ("extra segment size is %u bytes", n_length));
     next_chunk= frm_image + record_offset + share->reclength;
     buff_end= next_chunk + n_length;
@@ -1335,7 +1308,7 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   null_bits_are_used= share->null_fields != 0;
   if (share->null_field_first)
   {
-    null_flags= null_pos= (uchar*) record+1;
+    null_flags= null_pos= record+1;
     null_bit_pos= (db_create_options & HA_OPTION_PACK_RECORD) ? 0 : 1;
     /*
       null_bytes below is only correct under the condition that
@@ -1348,8 +1321,7 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   else
   {
     share->null_bytes= (share->null_fields+7)/8;
-    null_flags= null_pos= (uchar*) (record + 1 +share->reclength -
-                                    share->null_bytes);
+    null_flags= null_pos= record + 1 + share->reclength - share->null_bytes;
     null_bit_pos= 0;
   }
 #endif
@@ -1954,6 +1926,8 @@ static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   if (use_hash)
     (void) my_hash_check(&share->name_hash);
 #endif
+
+  share->error= OPEN_FRM_OK;
   DBUG_RETURN(0);
 
  err:
