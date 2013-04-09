@@ -49,10 +49,8 @@ static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulo
   Create a frm (table definition) file
 
   SYNOPSIS
-    mysql_create_frm()
+    build_frm_image()
     thd			Thread handler
-    file_name		Path for file (including database and .frm)
-    db                  Name of database
     table               Name of table
     create_info		create info parameters
     create_fields	Fields to create
