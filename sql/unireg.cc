@@ -45,22 +45,19 @@ static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
 
-/*
+/**
   Create a frm (table definition) file
 
-  SYNOPSIS
-    build_frm_image()
-    thd			Thread handler
-    table               Name of table
-    create_info		create info parameters
-    create_fields	Fields to create
-    keys		number of keys to create
-    key_info		Keys to create
-    db_file		Handler to use.
+  @param thd                    Thread handler
+  @param table                  Name of table
+  @param create_info            create info parameters
+  @param create_fields          Fields to create
+  @param keys                   number of keys to create
+  @param key_info               Keys to create
+  @param db_file                Handler to use.
 
-  RETURN
-    false  ok
-    true   error
+  @return the generated frm image as a LEX_CUSTRING,
+  or null LEX_CUSTRING (str==0) in case of an error.
 */
 
 LEX_CUSTRING build_frm_image(THD *thd, const char *table,
@@ -200,16 +197,16 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   key_buff_length= uint4korr(fileinfo+47);
 
-  frm.length= FRM_HEADER_SIZE; // fileinfo;
-  frm.length+= 7; // "form entry"
+  frm.length= FRM_HEADER_SIZE;                  // fileinfo;
+  frm.length+= uint2korr(fileinfo+4) + 4;       // "form entry"
 
   int2store(fileinfo+6, frm.length);
   frm.length+= key_buff_length;
-  frm.length+= reclength; // row with default values
+  frm.length+= reclength;                       // row with default values
   frm.length+= create_info->extra_size;
 
   filepos= frm.length;
-  frm.length+= FRM_FORMINFO_SIZE; // forminfo
+  frm.length+= FRM_FORMINFO_SIZE;               // forminfo
   frm.length+= packed_fields_length(create_fields);
   
   frm_ptr= (uchar*) my_malloc(frm.length, MYF(MY_WME | MY_ZEROFILL |
