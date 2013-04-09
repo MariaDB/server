@@ -34,6 +34,7 @@ enum enum_mysql_completiontype {
 };
 
 extern "C" int test_if_data_home_dir(const char *dir);
+int error_if_data_home_dir(const char *path, const char *what);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
