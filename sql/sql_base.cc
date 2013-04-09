@@ -597,6 +597,7 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
                              enum open_frm_error *error,
                              my_hash_value_type hash_value)
 {
+  bool open_failed;
   TABLE_SHARE *share;
   DBUG_ENTER("get_table_share");
 
@@ -641,18 +642,32 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
       free_table_share(share);
       goto err;
     }
-    if (open_table_def(thd, share, op))
+    share->ref_count++;                         // Mark in use
+    share->error= OPEN_FRM_OPEN_ERROR;
+    mysql_mutex_lock(&share->LOCK_ha_data);
+    mysql_mutex_unlock(&LOCK_open);
+
+    open_failed= open_table_def(thd, share, op);
+
+    mysql_mutex_unlock(&share->LOCK_ha_data);
+    mysql_mutex_lock(&LOCK_open);
+
+    if (open_failed)
     {
       *error= share->error;
+      share->ref_count--;
       (void) my_hash_delete(&table_def_cache, (uchar*) share);
       goto err;
     }
-    share->ref_count++;                         // Mark in use
     DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
                         (ulong) share, share->ref_count));
 
     goto end;
   }
+
+  /* make sure that open_table_def() for this share is not running */
+  mysql_mutex_lock(&share->LOCK_ha_data);
+  mysql_mutex_unlock(&share->LOCK_ha_data);
 
   /*
      We found an existing table definition. Return it if we didn't get
@@ -863,8 +878,9 @@ TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
   mysql_mutex_assert_owner(&LOCK_open);
 
   key_length= create_table_def_key(key, db, table_name);
-  return (TABLE_SHARE*) my_hash_search(&table_def_cache,
-                                       (uchar*) key, key_length);
+  TABLE_SHARE* share= (TABLE_SHARE*)my_hash_search(&table_def_cache,
+                                                   (uchar*) key, key_length);
+  return !share || share->error ? 0 : share;
 }  
 
 
@@ -2954,12 +2970,12 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
       global read lock until end of this statement in order to have
       this statement blocked by active FLUSH TABLES WITH READ LOCK.
 
-      We don't block acquire this protection under LOCK TABLES as
+      We don't need to acquire this protection under LOCK TABLES as
       such protection already acquired at LOCK TABLES time and
       not released until UNLOCK TABLES.
 
       We don't block statements which modify only temporary tables
-      as these tables are not preserved by backup by any form of
+      as these tables are not preserved by any form of
       backup which uses FLUSH TABLES WITH READ LOCK.
 
       TODO: The fact that we sometimes acquire protection against
