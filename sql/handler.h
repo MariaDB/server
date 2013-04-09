@@ -3073,6 +3073,8 @@ static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
          (db_type->state == SHOW_OPTION_YES) : FALSE;
 }
 
+#define view_pseudo_hton ((handlerton *)1)
+
 /* basic stuff */
 int ha_init_errors(void);
 int ha_init(void);
@@ -3102,7 +3104,8 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             handlerton::discovered_list *result);
-bool ha_table_exists(THD *thd, const char *db, const char *table_name);
+bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+                     handlerton **hton= 0);
 
 #ifdef MYSQL_SERVER
 extern volatile int32 engines_with_discover_table_names;

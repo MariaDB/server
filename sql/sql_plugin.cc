@@ -906,7 +906,8 @@ static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc)
 
   mysql_mutex_assert_owner(&LOCK_plugin);
 
-  if (pi->state & (PLUGIN_IS_READY | PLUGIN_IS_UNINITIALIZED))
+  if (pi->state & (PLUGIN_IS_READY | PLUGIN_IS_UNINITIALIZED |
+                   PLUGIN_IS_DELETED))
   {
     plugin_ref plugin;
 #ifdef DBUG_OFF

@@ -665,8 +665,9 @@ struct TABLE_SHARE
   plugin_ref db_plugin;			/* storage engine plugin */
   inline handlerton *db_type() const	/* table_type for handler */
   { 
-    // DBUG_ASSERT(db_plugin);
-    return db_plugin ? plugin_data(db_plugin, handlerton*) : NULL;
+    return is_view   ? view_pseudo_hton :
+           db_plugin ? plugin_data(db_plugin, handlerton*)
+                     : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
   enum tmp_table_type tmp_table;

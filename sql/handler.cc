@@ -2202,14 +2202,14 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   TABLE_SHARE dummy_share;
   DBUG_ENTER("ha_delete_table");
 
+  /* table_type is NULL in ALTER TABLE when renaming only .frm files */
+  if (table_type == NULL || table_type == view_pseudo_hton ||
+      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+
   bzero((char*) &dummy_table, sizeof(dummy_table));
   bzero((char*) &dummy_share, sizeof(dummy_share));
   dummy_table.s= &dummy_share;
-
-  /* DB_TYPE_UNKNOWN is used in ALTER TABLE when renaming only .frm files */
-  if (table_type == NULL ||
-      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
   path= get_canonical_filename(file, path, tmp_path);
   if ((error= file->ha_delete_table(path)) && generate_warning)
@@ -4319,10 +4319,6 @@ int ha_discover_table(THD *thd, TABLE_SHARE *share)
   DBUG_RETURN(share->error != OPEN_FRM_OK);
 }
 
-/**
-  Check if a given table exists, without doing a full discover, if possible
-*/
-
 static my_bool file_ext_exists(char *path, size_t path_len, const char *ext)
 {
   strmake(path + path_len, ext, FN_REFLEN - path_len);
@@ -4334,6 +4330,7 @@ struct st_discover_existence_args
   char *path;
   size_t  path_len;
   const char *db, *table_name;
+  handlerton *hton;
 };
 
 static my_bool discover_existence(THD *thd, plugin_ref plugin,
@@ -4343,6 +4340,8 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
   handlerton *ht= plugin_data(plugin, handlerton *);
   if (ht->state != SHOW_OPTION_YES || !ht->discover_table_existence)
     return FALSE;
+
+  args->hton= ht;
 
   if (ht->discover_table_existence == ext_based_existence)
     return file_ext_exists(args->path, args->path_len,
@@ -4390,18 +4389,44 @@ private:
   int m_unhandled_errors;
 };
 
-bool ha_table_exists(THD *thd, const char *db, const char *table_name)
+/**
+  Check if a given table exists, without doing a full discover, if possible
+
+  If the 'hton' is not NULL, it's set to the handlerton of the storage engine
+  of this table, or to view_pseudo_hton if the frm belongs to a view.
+
+
+  @retval true    Table exists (even if the error occurred, like bad frm)
+  @retval false   Table does not exist (one can do CREATE TABLE table_name)
+*/
+bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+                     handlerton **hton)
 {
-  DBUG_ENTER("ha_discover_table_existence");
+  DBUG_ENTER("ha_table_exists");
+
+  if (hton)
+    *hton= 0;
 
   if (need_full_discover_for_existence)
   {
     TABLE_LIST table;
+    uint flags = GTS_TABLE | GTS_VIEW;
+
+    if (!hton)
+      flags|= GTS_NOLOCK;
 
     Table_exists_error_handler no_such_table_handler;
     thd->push_internal_handler(&no_such_table_handler);
-    get_table_share(thd, db, table_name, GTS_TABLE | GTS_VIEW | GTS_NOLOCK);
+    TABLE_SHARE *share= get_table_share(thd, db, table_name, flags);
     thd->pop_internal_handler();
+
+    if (hton && share)
+    {
+      *hton= share->db_type();
+      mysql_mutex_lock(&LOCK_open);
+      release_table_share(share);
+      mysql_mutex_unlock(&LOCK_open);
+    }
 
     // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
     DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
@@ -4409,6 +4434,8 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name)
 
   mysql_mutex_lock(&LOCK_open);
   TABLE_SHARE *share= get_cached_table_share(db, table_name);
+  if (hton && share)
+    *hton= share->db_type();
   mysql_mutex_unlock(&LOCK_open);
 
   if (share)
@@ -4419,13 +4446,27 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name)
                                          db, table_name, "", 0);
 
   if (file_ext_exists(path, path_len, reg_ext))
+  {
+    if (hton)
+    {
+      enum legacy_db_type db_type;
+      if (dd_frm_type(thd, path, &db_type) != FRMTYPE_VIEW)
+        *hton= ha_resolve_by_legacy_type(thd, db_type);
+      else
+        *hton= view_pseudo_hton;
+    }
     DBUG_RETURN(TRUE);
+  }
 
-  st_discover_existence_args args= {path, path_len, db, table_name};
+  st_discover_existence_args args= {path, path_len, db, table_name, 0};
 
   if (plugin_foreach(thd, discover_existence, MYSQL_STORAGE_ENGINE_PLUGIN,
                      &args))
+  {
+    if (hton)
+      *hton= args.hton;
     DBUG_RETURN(TRUE);
+  }
 
   DBUG_RETURN(FALSE);
 }

@@ -16,11 +16,12 @@ INSTALL SONAME 'ha_example';
 --replace_regex /\.dll/.so/
 --query_vertical select * from information_schema.plugins where plugin_library like 'ha_example%'
 
-CREATE TABLE t1(a int) ENGINE=EXAMPLE;
+CREATE TABLE t1 (a int) ENGINE=EXAMPLE;
+CREATE TABLE t2 (a int) ENGINE=EXAMPLE;
+FLUSH TABLES;
 
 # Let's do some advanced ops with the example engine :)
 SELECT * FROM t1;
-
 
 # a couple of tests for variables
 set global example_ulong_var=500;
@@ -29,11 +30,25 @@ show status like 'example%';
 show variables like 'example%';
 
 UNINSTALL SONAME 'ha_example';
+
+# the engine is NOT uninstalled yet,
+# because the table `t1` is open, sitting in the table defintion cache
+
 --replace_column 5 #
 --replace_regex /\.dll/.so/
 --query_vertical select * from information_schema.plugins where plugin_library like 'ha_example%'
-
 DROP TABLE t1;
+
+# now the engine IS unloaded
+# and the table `t2` belongs to an unknown engine
+
+--replace_column 5 #
+--replace_regex /\.dll/.so/
+--query_vertical select * from information_schema.plugins where plugin_library like 'ha_example%'
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t2;
+DROP TABLE t2;
+
 
 --error 1305
 UNINSTALL PLUGIN EXAMPLE;

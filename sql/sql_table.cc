@@ -54,7 +54,6 @@
 #include "sql_parse.h"
 #include "sql_show.h"
 #include "transaction.h"
-#include "datadict.h"  // dd_frm_type()
 
 #ifdef __WIN__
 #include <io.h>
@@ -2137,8 +2136,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     bool is_trans;
     char *db=table->db;
     size_t db_length= table->db_length;
-    handlerton *table_type;
-    enum legacy_db_type frm_db_type= DB_TYPE_UNKNOWN;
+    handlerton *table_type= 0;
 
     DBUG_PRINT("table", ("table_l: '%s'.'%s'  table: 0x%lx  s: 0x%lx",
                          table->db, table->table_name, (long) table->table,
@@ -2262,8 +2260,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
     if (!table->internal_tmp_table &&
-        (drop_temporary || !ha_table_exists(thd, db, alias) ||
-         (!drop_view && dd_frm_type(thd, path, &frm_db_type) != FRMTYPE_TABLE)))
+        (drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
+         (!drop_view && table_type == view_pseudo_hton)))
     {
       /*
         One of the following cases happened:
@@ -2290,6 +2288,19 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       char *end;
 
+      /*
+        It could happen that table's share in the table_def_cache
+        is the only thing that keeps the engine plugin loaded
+        (if it is uninstalled and waits for the ref counter to drop to 0).
+
+        In this case, the tdc_remove_table() below will release and unload
+        the plugin. And ha_delete_table() will get a dangling pointer.
+
+        Let's lock the plugin till the end of the statement.
+      */
+      if (table_type && table_type != view_pseudo_hton)
+        plugin_lock(thd, plugin_int_to_ref(hton2plugin[table_type->slot]));
+
       if (thd->locked_tables_mode)
       {
         if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED,
@@ -2298,6 +2309,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           error= -1;
           goto err;
         }
+        /* the following internally does TDC_RT_REMOVE_ALL */
         close_all_tables_for_name(thd, table->table->s,
                                   HA_EXTRA_PREPARE_FOR_DROP);
         table->table= 0;
@@ -2311,30 +2323,12 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                                                  table->table_name,
                                                  MDL_EXCLUSIVE));
 
-      /*
-        Cannot use the db_type from the table, since that might have changed
-        while waiting for the exclusive name lock.
-      */
-      if (frm_db_type == DB_TYPE_UNKNOWN)
-      {
-        dd_frm_type(thd, path, &frm_db_type);
-        DBUG_PRINT("info", ("frm_db_type %d from %s", frm_db_type, path));
-      }
-      table_type= ha_resolve_by_legacy_type(thd, frm_db_type);
       // Remove extension for delete
       *(end= path + path_length - reg_ext_length)= '\0';
-      DBUG_PRINT("info", ("deleting table of type %d",
-                          (table_type ? table_type->db_type : 0)));
+
       error= ha_delete_table(thd, table_type, path, db, table->table_name,
                              !dont_log_query);
 
-      /* No error if non existent table and 'IF EXIST' clause or view */
-      if (error == ENOENT || (error == HA_ERR_NO_SUCH_TABLE && 
-	  (if_exists || table_type == NULL)))
-      {
-	error= 0;
-        thd->clear_error();
-      }
       if (error == HA_ERR_ROW_IS_REFERENCED)
       {
 	/* the table is referenced by a foreign key constraint */
@@ -2342,18 +2336,29 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       }
       if (!error || error == ENOENT || error == HA_ERR_NO_SUCH_TABLE)
       {
-        int new_error;
+        int frm_delete_error, trigger_drop_error= 0;
 	/* Delete the table definition file */
 	strmov(end,reg_ext);
-        if (!(new_error= mysql_file_delete(key_file_frm, path, MYF(MY_WME))))
+        frm_delete_error= mysql_file_delete(key_file_frm, path, MYF(MY_WME));
+        if (frm_delete_error)
+          frm_delete_error= my_errno;
+        else
         {
           non_tmp_table_deleted= TRUE;
-          new_error= Table_triggers_list::drop_all_triggers(thd, db,
-                                                            table->table_name);
+          trigger_drop_error=
+            Table_triggers_list::drop_all_triggers(thd, db, table->table_name);
         }
-        error|= new_error;
+
+        if (trigger_drop_error ||
+            (frm_delete_error && frm_delete_error != ENOENT))
+          error= 1;
+        else if (!frm_delete_error || !error || if_exists)
+        {
+          error= 0;
+          thd->clear_error();
+        }
       }
-       non_tmp_error= error ? TRUE : non_tmp_error;
+      non_tmp_error= error ? TRUE : non_tmp_error;
     }
     if (error)
     {
@@ -2376,7 +2381,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 err:
   if (wrong_tables.length())
   {
-    thd->clear_error();
     if (!foreign_key_error)
       my_printf_error(ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR), MYF(0),
                       wrong_tables.c_ptr_safe());
