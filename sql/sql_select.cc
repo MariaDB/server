@@ -14335,6 +14335,7 @@ Field *create_tmp_field_from_field(THD *thd, Field *org_field,
       ((Field_double *) new_field)->not_fixed= TRUE;
     new_field->vcol_info= 0;
     new_field->stored_in_db= TRUE;
+    new_field->cond_selectivity= 1.0;
   }
   return new_field;
 }
