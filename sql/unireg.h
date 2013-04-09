@@ -178,4 +178,13 @@ int rea_create_table(THD *thd, const char *path,
   		     List<Create_field> &create_field,
                      uint key_count,KEY *key_info,
                      handler *file);
+
+static inline bool is_binary_frm_header(uchar *head)
+{
+  return head[0] == 254
+      && head[1] == 1
+      && head[2] >= FRM_VER
+      && head[2] <= FRM_VER+4;
+}
+
 #endif
