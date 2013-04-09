@@ -32,6 +32,9 @@
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
 				 bool skip_error);
+static bool do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db,
+                      char *new_table_name, char *new_table_alias,
+                      bool skip_error);
 
 static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list);
 
@@ -144,10 +147,6 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
                        MYSQL_OPEN_SKIP_TEMPORARY))
     goto err;
 
-  for (ren_table= table_list; ren_table; ren_table= ren_table->next_local)
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, ren_table->db,
-                     ren_table->table_name, FALSE);
-
   error=0;
   /*
     An exclusive lock on table names is satisfactory to ensure
@@ -235,7 +234,7 @@ static TABLE_LIST *reverse_table_list(TABLE_LIST *table_list)
     true      rename failed
 */
 
-bool
+static bool
 do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
           char *new_table_alias, bool skip_error)
 {
@@ -269,6 +268,10 @@ do_rename(THD *thd, TABLE_LIST *ren_table, char *new_db, char *new_table_name,
 
   if (old_exists)
   {
+    DBUG_ASSERT(!thd->locked_tables_mode);
+    tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
+                     ren_table->db, ren_table->table_name, false);
+
     if (hton != view_pseudo_hton)
     {
       if (!(rc= mysql_rename_table(hton, ren_table->db, old_alias,
