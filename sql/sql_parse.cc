@@ -1011,7 +1011,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     else
       rc= acl_authenticate(thd, 0, packet_length);
 
-    MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
+    mysql_audit_notify_connection_change_user(thd);
     if (rc)
     {
       /* Free user if allocated by acl_authenticate */

@@ -1187,7 +1187,7 @@ bool thd_prepare_connection(THD *thd)
   bool rc;
   lex_start(thd);
   rc= login_connection(thd);
-  MYSQL_AUDIT_NOTIFY_CONNECTION_CONNECT(thd);
+  mysql_audit_notify_connection_connect(thd);
   if (rc)
     return rc;
 
