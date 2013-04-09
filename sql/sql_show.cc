@@ -687,6 +687,50 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
   return my_hash_search(&ignore_db_dirs_hash, (uchar *) buff, buff_len)!=NULL;
 }
 
+class Discovered_table_list: public handlerton::discovered_list
+{
+  THD *thd;
+  const char *wild;
+  size_t wild_length;
+  Dynamic_array<LEX_STRING*> *tables;
+
+public:
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
+                        const char *wild_arg)
+  {
+    thd= thd_arg;
+    tables= tables_arg;
+    if (wild_arg && wild_arg[0])
+    {
+      wild= wild_arg;
+      wild_length= strlen(wild_arg);
+    }
+    else
+      wild= 0;
+  }
+  ~Discovered_table_list() {}
+
+  bool add_table(const char *tname, size_t tlen)
+  {
+    if (wild && my_wildcmp(files_charset_info, tname, tname + tlen,
+                           wild, wild + wild_length,
+                           wild_prefix, wild_one, wild_many))
+        return 0;
+
+    LEX_STRING *name= thd->make_lex_string(tname, tlen);
+    if (!name || tables->append(name))
+      return 1;
+    return 0;
+  }
+
+  bool add_file(const char *fname)
+  {
+    char tname[SAFE_NAME_LEN + 1];
+    size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
+    return add_table(tname, tlen);
+  }
+};
+
 extern "C" {
 static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
 {
@@ -709,11 +753,10 @@ enum find_files_result {
     find_files()
     thd                 thread handler
     files               put found files in this list
-    db                  database name to set in TABLE_LIST structure
+    db                  database name to search tables in
+                        or NULL to search for databases
     path                path to database
     wild                filter for found files
-    dir                 read databases in path if TRUE, read .frm files in
-                        database otherwise
 
   RETURN
     FIND_FILES_OK       success
@@ -723,60 +766,46 @@ enum find_files_result {
 
 
 static find_files_result
-find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, const char *db,
-           const char *path, const char *wild, bool dir)
+find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
+           const char *path, const char *wild)
 {
-  uint i;
-  char *ext;
   MY_DIR *dirp;
-  FILEINFO *file;
-  LEX_STRING *file_name= 0;
-  uint file_name_len;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint col_access=thd->col_access;
-#endif
-  uint wild_length= 0;
-  TABLE_LIST table_list;
+  myf my_dir_flags= MY_THREAD_SPECIFIC;
+  Discovered_table_list tl(thd, files, wild);
   DBUG_ENTER("find_files");
 
-  if (wild)
-  {
-    if (!wild[0])
-      wild= 0;
-    else
-      wild_length= strlen(wild);
-  }
+  if (!db)
+    my_dir_flags|= MY_WANT_STAT;
 
-  bzero((char*) &table_list,sizeof(table_list));
+  if (engines_with_discover_table_names)
+    my_dir_flags|= MY_WANT_SORT;
 
-  if (!(dirp = my_dir(path, MYF((dir ? MY_WANT_STAT : 0) |
-                               MY_THREAD_SPECIFIC))))
+  if (!(dirp = my_dir(path, my_dir_flags)))
   {
     if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db);
+      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db->str);
     else
       my_error(ER_CANT_READ_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
     DBUG_RETURN(FIND_FILES_DIR);
   }
 
-  for (i=0 ; i < (uint) dirp->number_of_files  ; i++)
+  if (!db)                                           /* Return databases */
   {
-    char uname[SAFE_NAME_LEN + 1];              /* Unencoded name */
-    file=dirp->dir_entry+i;
-    if (dir)
-    {                                           /* Return databases */
+    for (uint i=0; i < (uint) dirp->number_of_files; i++)
+    {
+      FILEINFO *file= dirp->dir_entry+i;
 #ifdef USE_SYMDIR
       char *ext;
       char buff[FN_REFLEN];
       if (my_use_symdir && !strcmp(ext=fn_ext(file->name), ".sym"))
       {
-	/* Only show the sym file if it points to a directory */
-	char *end;
+        /* Only show the sym file if it points to a directory */
+        char *end;
         *ext=0;                                 /* Remove extension */
-	unpack_dirname(buff, file->name);
-	end= strend(buff);
-	if (end != buff && end[-1] == FN_LIBCHAR)
-	  end[-1]= 0;				// Remove end FN_LIBCHAR
+        unpack_dirname(buff, file->name);
+        end= strend(buff);
+        if (end != buff && end[-1] == FN_LIBCHAR)
+          end[-1]= 0;				// Remove end FN_LIBCHAR
         if (!mysql_file_stat(key_file_misc, buff, file->mystat, MYF(0)))
                continue;
        }
@@ -787,69 +816,26 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, const char *db,
       if (is_in_ignore_db_dirs_list(file->name))
         continue;
 
-      file_name_len= filename_to_tablename(file->name, uname, sizeof(uname));
-      if (wild)
-      {
-	if (lower_case_table_names)
-	{
-          if (my_wildcmp(files_charset_info,
-                         uname, uname + file_name_len,
-                         wild, wild + wild_length,
-                         wild_prefix, wild_one, wild_many))
-            continue;
-	}
-	else if (wild_compare(uname, wild, 0))
-	  continue;
-      }
-    }
-    else
-    {
-        // Return only .frm files which aren't temp files.
-      if (my_strcasecmp(system_charset_info, ext=fn_rext(file->name),reg_ext) ||
-          is_prefix(file->name, tmp_file_prefix))
-        continue;
-      *ext=0;
-      file_name_len= filename_to_tablename(file->name, uname, sizeof(uname));
-      if (wild)
-      {
-	if (lower_case_table_names)
-	{
-          if (my_wildcmp(files_charset_info,
-                         uname, uname + file_name_len,
-                         wild, wild + wild_length,
-                         wild_prefix, wild_one,wild_many))
-            continue;
-	}
-	else if (wild_compare(uname, wild, 0))
-	  continue;
-      }
-    }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-    /* Don't show tables where we don't have any privileges */
-    if (db && !(col_access & TABLE_ACLS))
-    {
-      table_list.db= (char*) db;
-      table_list.db_length= strlen(db);
-      table_list.table_name= uname;
-      table_list.table_name_length= file_name_len;
-      table_list.grant.privilege=col_access;
-      if (check_grant(thd, TABLE_ACLS, &table_list, TRUE, 1, TRUE))
-        continue;
-    }
-#endif
-    if (!(file_name= thd->make_lex_string(uname, file_name_len)) ||
-        files->append(file_name))
-    {
-      my_dirend(dirp);
-      DBUG_RETURN(FIND_FILES_OOM);
+      if (tl.add_file(file->name))
+        goto err;
     }
   }
+  else
+  {
+    if (ha_discover_table_names(thd, db, dirp, &tl))
+      goto err;
+  }
+
   DBUG_PRINT("info",("found: %d files", files->elements()));
   my_dirend(dirp);
 
   files->sort(cmp_table_names);
 
   DBUG_RETURN(FIND_FILES_OK);
+
+err:
+  my_dirend(dirp);
+  DBUG_RETURN(FIND_FILES_OOM);
 }
 
 
@@ -3729,8 +3715,8 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
       if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
     }
-    return (find_files(thd, files, NullS, mysql_data_home,
-                       lookup_field_vals->db_value.str, 1) != FIND_FILES_OK);
+    return find_files(thd, files, 0, mysql_data_home,
+                      lookup_field_vals->db_value.str);
   }
 
 
@@ -3761,8 +3747,7 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
   */
   if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
-  return (find_files(thd, files, NullS,
-                     mysql_data_home, NullS, 1) != FIND_FILES_OK);
+  return find_files(thd, files, 0, mysql_data_home, NullS);
 }
 
 
@@ -3905,8 +3890,8 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
 
-  find_files_result res= find_files(thd, table_names, db_name->str, path,
-                                    lookup_field_vals->table_value.str, 0);
+  find_files_result res= find_files(thd, table_names, db_name, path,
+                                    lookup_field_vals->table_value.str);
   if (res != FIND_FILES_OK)
   {
     /*
@@ -4545,6 +4530,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
+  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   LOOKUP_FIELD_VALUES lookup_field_vals;
@@ -4651,6 +4637,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
+  bzero((char*) &table_acl_check, sizeof(table_acl_check));
+
   if (make_db_list(thd, &db_names, &lookup_field_vals))
     goto err;
   for (int i=0; i < db_names.elements(); i++)
@@ -4675,6 +4663,19 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       for (int i=0; i < table_names.elements(); i++)
       {
         LEX_STRING *table_name= table_names.at(i);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+        if (!(thd->col_access & TABLE_ACLS))
+        {
+          table_acl_check.db= db_name->str;
+          table_acl_check.db_length= db_name->length;
+          table_acl_check.table_name= table_name->str;
+          table_acl_check.table_name_length= table_name->length;
+          table_acl_check.grant.privilege= thd->col_access;
+          if (check_grant(thd, TABLE_ACLS, &table_acl_check, TRUE, 1, TRUE))
+            continue;
+        }
+#endif
 	restore_record(table, s->default_values);
         table->field[schema_table->idx_field1]->
           store(db_name->str, db_name->length, system_charset_info);

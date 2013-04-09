@@ -1086,11 +1086,60 @@ struct handlerton
    ha_create_table_option *field_options; // these are specified per field
    ha_create_table_option *index_options; // these are specified per index
 
-   const char **tablefile_extensions;
+   /**
+     The list of extensions of files created for a single table in the
+     database directory (datadir/db_name/).
+
+     Used by open_table_error(), by the default rename_table and delete_table
+     handler methods, and by the default discovery implementation.
+  
+     For engines that have more than one file name extentions (separate
+     metadata, index, and/or data files), the order of elements is relevant.
+     First element of engine file name extentions array should be metadata
+     file extention. This is implied by the open_table_error()
+     and the default discovery implementation.
+     
+     Second element - data file extention. This is implied
+     assumed by REPAIR TABLE ... USE_FRM implementation.
+   */
+   const char **tablefile_extensions; // by default - empty list
+
+   /*********************************************************************
+     Table discovery API.
+     It allows the server to "discover" tables that exist in the storage
+     engine, without user issuing an explicit CREATE TABLE statement.
+   **********************************************************************/
+
+   /*
+     The discover_table_names method tells the server
+     about all tables in the specified database that the engine
+     knows about. Tables (or file names of tables) are added to
+     the provided discovered_list collector object using
+     add_table() or add_file() methods.
+   */
+   class discovered_list
+   {
+     public:
+     virtual bool add_table(const char *tname, size_t tlen) = 0;
+     virtual bool add_file(const char *fname) = 0;
+     protected: virtual ~discovered_list() {}
+   };
+
+   /*
+     By default (if not implemented by the engine, but the discovery_table() is
+     implemented) it will perform a file-based discovery:
+
+     - if tablefile_extensions[0] is not null, this will discovers all tables
+       with the tablefile_extensions[0] extension.
+
+     Returns 0 on success and 1 on error.
+   */
+   int (*discover_table_names)(handlerton *hton, LEX_STRING *db, MY_DIR *dir,
+                               discovered_list *result);
 };
 
 
-inline LEX_STRING *hton_name(const handlerton *hton)
+static inline LEX_STRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);
 }
@@ -2406,21 +2455,7 @@ public:
   virtual void free_foreign_key_create_info(char* str) {}
   /** The following can be called without an open handler */
   const char *table_type() const { return hton_name(ht)->str; }
-  /**
-    If frm_error() is called then we will use this to find out what file
-    extentions exist for the storage engine. This is also used by the default
-    rename_table and delete_table method in handler.cc.
-
-    For engines that have two file name extentions (separate meta/index file
-    and data file), the order of elements is relevant. First element of engine
-    file name extentions array should be meta/index file extention. Second
-    element - data file extention. This order is assumed by
-    prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-  */
-  const char **bas_ext() const
-  {
-    return ht->tablefile_extensions;
-  }
+  const char **bas_ext() const { return ht->tablefile_extensions; }
 
   virtual int get_default_no_partitions(HA_CREATE_INFO *create_info)
   { return 1;}
@@ -3037,6 +3072,11 @@ bool ha_check_if_table_exists(THD* thd, const char *db, const char *name,
                              bool *exists);
 int ha_discover(THD* thd, const char* dbname, const char* name,
                 uchar** frmblob, size_t* frmlen);
+int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+                            handlerton::discovered_list *result);
+#ifdef MYSQL_SERVER
+extern volatile int32 engines_with_discover_table_names;
+#endif
 
 /* key cache */
 extern "C" int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *);
