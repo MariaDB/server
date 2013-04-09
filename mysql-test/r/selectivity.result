@@ -935,4 +935,33 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (isnull(`test`.`t
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-4378: 2-way join with a materialized IN subquery in WHERE   
+#                when optimizer_use_condition_selectivity=4
+#
+set use_stat_tables=PREFERABLY;
+set histogram_size=50;
+set histogram_type=SINGLE_PREC_HB;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (8),(9),(6);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (8),(1),(8),(9),(24),(6),(1),(6),(2),(4);
+CREATE TABLE t3 (ln VARCHAR(16)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES 
+('smith'),('black'),('white'),('jones'),
+('brown'),('taylor'),('anderson'),('taylor');
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+FLUSH TABLES;
+set  optimizer_use_condition_selectivity=4;
+SELECT * FROM t1, t2 WHERE 'garcia' IN ( SELECT MIN( ln ) FROM t3 WHERE ln = 'sun' );
+a	b
+set histogram_size=@save_histogram_size;
+set histogram_type=@save_histogram_type;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2,t3;
+set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
