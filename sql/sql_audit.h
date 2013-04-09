@@ -43,10 +43,16 @@ static inline bool mysql_audit_general_enabled()
   return mysql_global_audit_mask[0] & MYSQL_AUDIT_GENERAL_CLASSMASK;
 }
 
+static inline bool mysql_audit_connection_enabled()
+{
+  return mysql_global_audit_mask[0] & MYSQL_AUDIT_CONNECTION_CLASSMASK;
+}
+
 #else
 static inline void mysql_audit_notify(THD *thd, uint event_class,
                                       uint event_subtype, ...) { }
 #define mysql_audit_general_enabled() 0
+#define mysql_audit_connection_enabled() 0
 #endif
 extern void mysql_audit_release(THD *thd);
 
@@ -137,41 +143,58 @@ void mysql_audit_general(THD *thd, uint event_subtype,
   }
 }
 
-#define MYSQL_AUDIT_NOTIFY_CONNECTION_CONNECT(thd) mysql_audit_notify(\
-  (thd), MYSQL_AUDIT_CONNECTION_CLASS, MYSQL_AUDIT_CONNECTION_CONNECT,\
-  (thd)->stmt_da->is_error() ? (thd)->stmt_da->sql_errno() : 0,\
-  (thd)->thread_id, (thd)->security_ctx->user,\
-  (thd)->security_ctx->user ? strlen((thd)->security_ctx->user) : 0,\
-  (thd)->security_ctx->priv_user, strlen((thd)->security_ctx->priv_user),\
-  (thd)->security_ctx->external_user,\
-  (thd)->security_ctx->external_user ?\
-    strlen((thd)->security_ctx->external_user) : 0,\
-  (thd)->security_ctx->proxy_user, strlen((thd)->security_ctx->proxy_user),\
-  (thd)->security_ctx->host,\
-  (thd)->security_ctx->host ? strlen((thd)->security_ctx->host) : 0,\
-  (thd)->security_ctx->ip,\
-  (thd)->security_ctx->ip ? strlen((thd)->security_ctx->ip) : 0,\
-  (thd)->db, (thd)->db ? strlen((thd)->db) : 0)
+static inline
+void mysql_audit_notify_connection_connect(THD *thd)
+{
+  if (mysql_audit_connection_enabled())
+  {
+    const Security_context *sctx= thd->security_ctx;
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
+                       MYSQL_AUDIT_CONNECTION_CONNECT,
+                       thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                       thd->thread_id,
+                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
+                       sctx->priv_user, strlen(sctx->priv_user),
+                       sctx->external_user,
+                       sctx->external_user ?  strlen(sctx->external_user) : 0,
+                       sctx->proxy_user, strlen(sctx->proxy_user),
+                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
+                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
+                       thd->db, thd->db ? strlen(thd->db) : 0);
+  }
+}
 
-#define MYSQL_AUDIT_NOTIFY_CONNECTION_DISCONNECT(thd, errcode)\
-  mysql_audit_notify(\
-  (thd), MYSQL_AUDIT_CONNECTION_CLASS, MYSQL_AUDIT_CONNECTION_DISCONNECT,\
-  (errcode), (thd)->thread_id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+static inline
+void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
+{
+  if (mysql_audit_connection_enabled())
+  {
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
+                       MYSQL_AUDIT_CONNECTION_DISCONNECT,
+                       errcode, thd->thread_id,
+                       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  }
+}
 
-#define MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd) mysql_audit_notify(\
-  (thd), MYSQL_AUDIT_CONNECTION_CLASS, MYSQL_AUDIT_CONNECTION_CHANGE_USER,\
-  (thd)->stmt_da->is_error() ? (thd)->stmt_da->sql_errno() : 0,\
-  (thd)->thread_id, (thd)->security_ctx->user,\
-  (thd)->security_ctx->user ? strlen((thd)->security_ctx->user) : 0,\
-  (thd)->security_ctx->priv_user, strlen((thd)->security_ctx->priv_user),\
-  (thd)->security_ctx->external_user,\
-  (thd)->security_ctx->external_user ?\
-    strlen((thd)->security_ctx->external_user) : 0,\
-  (thd)->security_ctx->proxy_user, strlen((thd)->security_ctx->proxy_user),\
-  (thd)->security_ctx->host,\
-  (thd)->security_ctx->host ? strlen((thd)->security_ctx->host) : 0,\
-  (thd)->security_ctx->ip,\
-  (thd)->security_ctx->ip ? strlen((thd)->security_ctx->ip) : 0,\
-  (thd)->db, (thd)->db ? strlen((thd)->db) : 0)
+static inline
+void mysql_audit_notify_connection_change_user(THD *thd)
+{
+  if (mysql_audit_connection_enabled())
+  {
+    const Security_context *sctx= thd->security_ctx;
+    mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS,
+                       MYSQL_AUDIT_CONNECTION_CHANGE_USER,
+                       thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                       thd->thread_id,
+                       sctx->user, sctx->user ? strlen(sctx->user) : 0,
+                       sctx->priv_user, strlen(sctx->priv_user),
+                       sctx->external_user,
+                       sctx->external_user ?  strlen(sctx->external_user) : 0,
+                       sctx->proxy_user, strlen(sctx->proxy_user),
+                       sctx->host, sctx->host ? strlen(sctx->host) : 0,
+                       sctx->ip, sctx->ip ? strlen(sctx->ip) : 0,
+                       thd->db, thd->db ? strlen(thd->db) : 0);
+  }
+}
 
 #endif /* SQL_AUDIT_INCLUDED */
