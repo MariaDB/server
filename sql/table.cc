@@ -709,7 +709,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   mysql_file_close(file, MYF(MY_WME));
 
   share->init_from_binary_frm_image(thd, NULL, buf, stats.st_size);
-  error_given= true;
+  error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
 
   if (!share->error)
@@ -741,8 +741,6 @@ err_not_open:
   28..29  (used to be key_info_length)
 
   They're still set, for compatibility reasons, but never read.
-
-  TODO verify that we never read data from beyond frm_length!
 */
 
 bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
@@ -758,6 +756,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   bool use_hash;
   char *keynames, *names, *comment_pos;
   const uchar *forminfo;
+  const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos;
   const uchar *disk_buff, *strpos;
   ulong pos, record_offset; 
@@ -791,16 +790,22 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   if (path && writefrm(path, frm_image, frm_length))
     goto err;
 
+  if (frm_length < 64 + 288)
+    goto err;
+
   new_field_pack_flag= frm_image[27];
   new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
 
   /* Position of the form in the form file. */
   len = uint2korr(frm_image+4);
-  if (!(pos= uint4korr(frm_image + 64 + len)))
+  if (frm_length < 64 + len || !(pos= uint4korr(frm_image + 64 + len)))
     goto err;
 
   forminfo= frm_image + pos;
+  if (forminfo + 288 >= frm_image_end)
+    goto err;
+
   share->frm_version= frm_image[2];
   /*
     Check if .frm file created by MySQL 5.0. In this case we want to
@@ -863,6 +868,10 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
 
   /* Read keyinformation */
   disk_buff= frm_image + uint2korr(frm_image+6);
+
+  if (disk_buff + 6 >= frm_image_end)
+    goto err;
+
   if (disk_buff[0] & 0x80)
   {
     share->keys=      keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
@@ -912,6 +921,8 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   {
     if (new_frm_ver >= 3)
     {
+      if (strpos + 8 >= frm_image_end)
+        goto err;
       keyinfo->flags=	   (uint) uint2korr(strpos) ^ HA_NOSAME;
       keyinfo->key_length= (uint) uint2korr(strpos+2);
       keyinfo->key_parts=  (uint) strpos[4];
@@ -921,6 +932,8 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
     }
     else
     {
+      if (strpos + 4 >= frm_image_end)
+        goto err;
       keyinfo->flags=	 ((uint) strpos[0]) ^ HA_NOSAME;
       keyinfo->key_length= (uint) uint2korr(strpos+1);
       keyinfo->key_parts=  (uint) strpos[3];
@@ -958,6 +971,8 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
     keyinfo->rec_per_key= rec_per_key;
     for (j=keyinfo->key_parts ; j-- ; key_part++)
     {
+      if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
+        goto err;
       *rec_per_key++=0;
       key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset= (uint) uint2korr(strpos+2)-1;
@@ -1014,17 +1029,25 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
     share->ext_key_parts+= keyinfo->ext_key_parts;  
   }
   keynames=(char*) key_part;
-  strpos+= (strmov(keynames, (char *) strpos) - keynames)+1;
+  strpos+= strnmov(keynames, (char *) strpos, frm_image_end - strpos) - keynames;
+  if (*strpos++) // key names are \0-terminated
+    goto err;
 
   //reading index comments
   for (keyinfo= share->key_info, i=0; i < keys; i++, keyinfo++)
   {
     if (keyinfo->flags & HA_USES_COMMENT)
     {
+      if (strpos + 2 >= frm_image_end)
+        goto err;
       keyinfo->comment.length= uint2korr(strpos);
-      keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos+2,
+      strpos+= 2;
+
+      if (strpos + keyinfo->comment.length >= frm_image_end)
+        goto err;
+      keyinfo->comment.str= strmake_root(&share->mem_root, (char*) strpos,
                                          keyinfo->comment.length);
-      strpos+= 2 + keyinfo->comment.length;
+      strpos+= keyinfo->comment.length;
     } 
     DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
                (keyinfo->comment.length > 0));
@@ -1038,6 +1061,9 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   record_offset= (ulong) (uint2korr(frm_image+6)+
                           ((uint2korr(frm_image+14) == 0xffff ?
                             uint4korr(frm_image+47) : uint2korr(frm_image+14))));
+
+  if (record_offset + share->reclength >= frm_length)
+    goto err;
  
   if ((n_length= uint4korr(frm_image+55)))
   {
@@ -1046,6 +1072,10 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
     DBUG_PRINT("info", ("extra segment size is %u bytes", n_length));
     next_chunk= frm_image + record_offset + share->reclength;
     buff_end= next_chunk + n_length;
+
+    if (buff_end >= frm_image_end)
+      goto err;
+
     share->connect_string.length= uint2korr(next_chunk);
     if (!(share->connect_string.str= strmake_root(&share->mem_root,
                                                   (char*) next_chunk + 2,
@@ -1882,8 +1912,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
 			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
       goto err; // Wrong field definition
-    else
-      reg_field->flags |= AUTO_INCREMENT_FLAG;
+    reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
 
   if (share->blob_fields)
