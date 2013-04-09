@@ -35,7 +35,9 @@ PLUGIN_LICENSE	GPL
 LOAD_OPTION	ON
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	3.14.15.926
-CREATE TABLE t1(a int) ENGINE=EXAMPLE;
+CREATE TABLE t1 (a int) ENGINE=EXAMPLE;
+CREATE TABLE t2 (a int) ENGINE=EXAMPLE;
+FLUSH TABLES;
 SELECT * FROM t1;
 a
 set global example_ulong_var=500;
@@ -65,6 +67,10 @@ LOAD_OPTION	ON
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	0.1
 DROP TABLE t1;
+select * from information_schema.plugins where plugin_library like 'ha_example%';
+SELECT * FROM t2;
+ERROR 42000: Unknown storage engine 'EXAMPLE'
+DROP TABLE t2;
 UNINSTALL PLUGIN EXAMPLE;
 ERROR 42000: PLUGIN EXAMPLE does not exist
 UNINSTALL PLUGIN non_exist;

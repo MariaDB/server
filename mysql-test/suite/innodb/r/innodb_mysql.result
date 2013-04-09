@@ -633,9 +633,10 @@ select * from bug29807;
 ERROR 42S02: Table 'test.bug29807' doesn't exist in engine
 drop table t1;
 drop table bug29807;
-ERROR 42S02: Unknown table 'bug29807'
-create table bug29807 (a int);
-drop table bug29807;
+Warnings:
+Warning	155	Table 'test.bug29807' doesn't exist in engine
+call mtr.add_suppression("InnoDB: Error: table .test...bug29807. does not exist in the InnoDB internal");
+call mtr.add_suppression("Cannot find or open table test\/bug29807 from");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT) ENGINE=InnoDB;
 switch to connection c1
