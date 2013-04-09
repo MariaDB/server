@@ -180,7 +180,7 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   build_table_filename(path, sizeof(path) - 1, db, table_name, "", 0);
 
   /* Attempt to reconstruct the table. */
-  error= ha_create_table(thd, path, db, table_name, &create_info, TRUE);
+  error= ha_create_table(thd, path, db, table_name, &create_info);
 
   DBUG_RETURN(error);
 }

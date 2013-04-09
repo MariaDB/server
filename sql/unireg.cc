@@ -478,7 +478,7 @@ int rea_create_table(THD *thd, const char *path,
   if (!create_info->frm_only &&
       (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
                                      create_info) ||
-       ha_create_table(thd, path, db, table_name, create_info, 0)))
+       ha_create_table(thd, path, db, table_name, create_info)))
     goto err_handler;
   DBUG_RETURN(0);
 
