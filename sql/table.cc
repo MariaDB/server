@@ -693,9 +693,9 @@ err_not_open:
 
 */
 
-bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
-                                             const uchar *frm_image,
-                                             size_t frm_length)
+int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
+                                            const uchar *frm_image,
+                                            size_t frm_length)
 {
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
@@ -729,10 +729,11 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   KEY_PART_INFO *first_key_part= NULL;
   uint ext_key_parts= 0;
   uint first_key_parts= 0;
+  plugin_ref se_plugin= 0;
   keyinfo= &first_keyinfo;
   share->ext_key_parts= 0;
   MEM_ROOT **root_ptr, *old_root;
-  DBUG_ENTER("open_binary_frm");
+  DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
   old_root= *root_ptr;
@@ -776,15 +777,13 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   DBUG_PRINT("info", ("default_part_db_type = %u", frm_image[61]));
 #endif
   legacy_db_type= (enum legacy_db_type) (uint) frm_image[3];
-  DBUG_ASSERT(share->db_plugin == NULL);
   /*
     if the storage engine is dynamic, no point in resolving it by its
     dynamically allocated legacy_db_type. We will resolve it later by name.
   */
   if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
-    share->db_plugin= ha_lock_engine(NULL, 
-                                     ha_checktype(thd, legacy_db_type, 0, 0));
+    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type, 0, 0));
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
@@ -1045,7 +1044,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       name.length= str_db_type_length;
 
       plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name);
-      if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, share->db_plugin))
+      if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin))
       {
         if (legacy_db_type > DB_TYPE_UNKNOWN &&
             legacy_db_type < DB_TYPE_FIRST_DYNAMIC &&
@@ -1057,14 +1056,11 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
         /*
           tmp_plugin is locked with a local lock.
-          we unlock the old value of share->db_plugin before
+          we unlock the old value of se_plugin before
           replacing it with a globally locked version of tmp_plugin
         */
-        plugin_unlock(NULL, share->db_plugin);
-        share->db_plugin= my_plugin_lock(NULL, tmp_plugin);
-        DBUG_PRINT("info", ("setting dbtype to '%.*s' (%d)",
-                            str_db_type_length, next_chunk + 2,
-                            ha_legacy_type(share->db_type())));
+        plugin_unlock(NULL, se_plugin);
+        se_plugin= plugin_lock(NULL, tmp_plugin);
       }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       else if (str_db_type_length == 9 &&
@@ -1073,7 +1069,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         /*
           Use partition handler
           tmp_plugin is locked with a local lock.
-          we unlock the old value of share->db_plugin before
+          we unlock the old value of se_plugin before
           replacing it with a globally locked version of tmp_plugin
         */
         /* Check if the partitioning engine is ready */
@@ -1083,11 +1079,8 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                    "--skip-partition");
           goto err;
         }
-        plugin_unlock(NULL, share->db_plugin);
-        share->db_plugin= ha_lock_engine(NULL, partition_hton);
-        DBUG_PRINT("info", ("setting dbtype to '%.*s' (%d)",
-                            str_db_type_length, next_chunk + 2,
-                            ha_legacy_type(share->db_type())));
+        plugin_unlock(NULL, se_plugin);
+        se_plugin= ha_lock_engine(NULL, partition_hton);
       }
 #endif
       else if (!tmp_plugin)
@@ -1284,7 +1277,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
-                                      share->db_type())))
+                                      plugin_data(se_plugin, handlerton *))))
     goto err;
 
   record= share->default_values-1;              /* Fieldstart = 1 */
@@ -1909,6 +1902,8 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     (void) my_hash_check(&share->name_hash);
 #endif
 
+  DBUG_ASSERT(!share->db_plugin || plugin_equals(share->db_plugin, se_plugin));
+  share->db_plugin= se_plugin;
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;
   *root_ptr= old_root;
@@ -1918,6 +1913,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   share->error= OPEN_FRM_CORRUPTED;
   share->open_errno= my_errno;
   delete handler_file;
+  plugin_unlock(0, se_plugin);
   my_hash_free(&share->name_hash);
   if (share->ha_data_destroy)
   {
@@ -1936,9 +1932,128 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
   *root_ptr= old_root;
-  DBUG_RETURN(1);
-} /* open_binary_frm */
+  DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+}
 
+
+static bool sql_unusable_for_discovery(THD *thd, const char *sql)
+{
+  LEX *lex= thd->lex;
+  HA_CREATE_INFO *create_info= &lex->create_info;
+
+  // ... not CREATE TABLE
+  if (lex->sql_command != SQLCOM_CREATE_TABLE)
+    return 1;
+  // ... create like
+  if (create_info->options & HA_LEX_CREATE_TABLE_LIKE)
+    return 1;
+  // ... create select
+  if (lex->select_lex.item_list.elements)
+    return 1;
+  // ... temporary
+  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+    return 1;
+  // ... if exists
+  if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+    return 1;
+
+  // XXX error out or rather ignore the following:
+  // ... partitioning
+  if (lex->part_info)
+    return 1;
+  // ... union
+  if (create_info->used_fields & HA_CREATE_USED_UNION)
+    return 1;
+  // ... index/data directory
+  if (create_info->data_file_name || create_info->index_file_name)
+    return 1;
+  // ... engine
+  if (create_info->used_fields & HA_CREATE_USED_ENGINE)
+    return 1;
+
+  return 0;
+}
+
+int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
+                                        const char *sql, size_t sql_length)
+{
+  ulonglong saved_mode= thd->variables.sql_mode;
+  CHARSET_INFO *old_cs= thd->variables.character_set_client;
+  Parser_state parser_state;
+  bool error;
+  char *sql_copy;
+  handler *file;
+  LEX *old_lex;
+  Query_arena *arena, backup;
+  LEX tmp_lex;
+  LEX_CUSTRING frm= {0,0};
+
+  DBUG_ENTER("TABLE_SHARE::init_from_sql_statement_string");
+
+  /*
+    Ouch. Parser may *change* the string it's working on.
+    Currently (2013-02-26) it is used to permanently disable
+    conditional comments.
+    Anyway, let's copy the caller's string...
+  */
+  if (!(sql_copy= thd->strmake(sql, sql_length)))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  if (parser_state.init(thd, sql_copy, sql_length))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  thd->variables.sql_mode= MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE;
+  thd->variables.character_set_client= system_charset_info;
+  tmp_disable_binlog(thd);
+  old_lex= thd->lex;
+  thd->lex= &tmp_lex;
+
+  arena= thd->stmt_arena;
+  if (arena->is_conventional())
+    arena= 0;
+  else
+    thd->set_n_backup_active_arena(arena, &backup);
+
+  lex_start(thd);
+
+  if ((error= parse_sql(thd, & parser_state, NULL)))
+    goto ret;
+
+  if (sql_unusable_for_discovery(thd, sql_copy))
+  {
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), plugin_name(db_plugin)->str,
+             db.str, table_name.str, sql_copy);
+    goto ret;
+  }
+
+  thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
+
+  file= mysql_create_frm_image(thd, db.str, table_name.str,
+                               &thd->lex->create_info, &thd->lex->alter_info,
+                               0, 0, &frm);
+  error|= file == 0;
+  delete file;
+
+  if (frm.str)
+    error= init_from_binary_frm_image(thd, write, frm.str, frm.length);
+
+ret:
+  my_free(const_cast<uchar*>(frm.str));
+  lex_end(thd->lex);
+  thd->lex= old_lex;
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  reenable_binlog(thd);
+  thd->variables.sql_mode= saved_mode;
+  thd->variables.character_set_client= old_cs;
+  if (thd->is_error() || error)
+  {
+    thd->clear_error();
+    my_error(ER_NO_SUCH_TABLE, MYF(0), db.str, table_name.str);
+    DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+  }
+  DBUG_RETURN(0);
+}
 
 bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
 {

@@ -6600,3 +6600,6 @@ ER_SLAVE_STARTED
         eng "SLAVE '%.*s' started"
 ER_SLAVE_STOPPED
         eng "SLAVE '%.*s' stopped"
+ER_SQL_DISCOVER_ERROR
+        eng "Engine %s failed to discover table %`-.192s.%`-.192s with '%s'"
+

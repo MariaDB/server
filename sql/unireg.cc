@@ -44,8 +44,6 @@ static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
-static LEX_CUSTRING create_frm_image(THD *, const char *, HA_CREATE_INFO *,
-                              List<Create_field> &, uint, KEY *, handler *);
 
 /*
   Create a frm (table definition) file
@@ -67,27 +65,7 @@ static LEX_CUSTRING create_frm_image(THD *, const char *, HA_CREATE_INFO *,
     true   error
 */
 
-bool mysql_create_frm(THD *thd, const char *file_name,
-                      const char *db, const char *table,
-		      HA_CREATE_INFO *create_info,
-		      List<Create_field> &create_fields,
-		      uint keys, KEY *key_info,
-		      handler *db_file)
-{
-  DBUG_ENTER("mysql_create_frm");
-  LEX_CUSTRING frm= create_frm_image(thd, table, create_info,
-                                     create_fields, keys, key_info, db_file);
-  if (!frm.str)
-    DBUG_RETURN(1);
-
-  int error= writefrm(file_name, db, table, !create_info->tmp_table(),
-                      frm.str, frm.length);
-
-  my_free(const_cast<uchar*>(frm.str));
-  DBUG_RETURN(error);
-}
-
-LEX_CUSTRING create_frm_image(THD *thd, const char *table,
+LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                               HA_CREATE_INFO *create_info,
                               List<Create_field> &create_fields,
                               uint keys, KEY *key_info, handler *db_file)
@@ -104,7 +82,7 @@ LEX_CUSTRING create_frm_image(THD *thd, const char *table,
   int error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
-  DBUG_ENTER("create_frm_image");
+  DBUG_ENTER("build_frm_image");
 
  /* If fixed row records, we need one bit to check for deleted rows */
   if (!(create_info->table_options & HA_OPTION_PACK_RECORD))
@@ -373,37 +351,30 @@ err:
     1  error
 */
 
-int rea_create_table(THD *thd, const char *path,
-                     const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info,
-                     List<Create_field> &create_fields,
-                     uint keys, KEY *key_info, handler *file)
+int rea_create_table(THD *thd, LEX_CUSTRING *frm,
+                     const char *path, const char *db, const char *table_name,
+                     HA_CREATE_INFO *create_info, handler *file)
 {
   DBUG_ENTER("rea_create_table");
-
-  LEX_CUSTRING frm= create_frm_image(thd, table_name, create_info,
-                                     create_fields, keys, key_info, file);
-  if (!frm.str)
-    DBUG_RETURN(1);
 
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
 
   if (create_info->frm_only)
   {
-    if (writefrm(path, db, table_name, 1, frm.str, frm.length))
+    if (writefrm(path, db, table_name, 1, frm->str, frm->length))
       goto err_handler;
   }
   else
   {
     // TODO don't write frm for temp tables
     if (create_info->tmp_table() &&
-        writefrm(path, db, table_name, 0, frm.str, frm.length))
+        writefrm(path, db, table_name, 0, frm->str, frm->length))
       goto err_handler;
 
     if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
                                               create_info) ||
-       ha_create_table(thd, path, db, table_name, create_info, &frm))
+       ha_create_table(thd, path, db, table_name, create_info, frm))
     {
       file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG,
                                             create_info);
@@ -411,14 +382,12 @@ int rea_create_table(THD *thd, const char *path,
     }
   }
 
-  my_free(const_cast<uchar*>(frm.str));
   DBUG_RETURN(0);
 
 err_handler:
   char frm_name[FN_REFLEN];
   strxmov(frm_name, path, reg_ext, NullS);
   mysql_file_delete(key_file_frm, frm_name, MYF(0));
-  my_free(const_cast<uchar*>(frm.str));
   DBUG_RETURN(1);
 } /* rea_create_table */
 
