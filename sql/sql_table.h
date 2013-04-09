@@ -160,6 +160,8 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     creates an frm file for the #sql-xxx, the table in the engine is not
     created.
 
+  - Assisted discovery, CREATE TABLE statement without the table structure.
+
   These situations are distinguished by the following "create table mode"
   values, where a CREATE ... SELECT is denoted by any non-negative number
   (which should be the number of fields in the SELECT ... part), and other
@@ -169,6 +171,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 #define C_ORDINARY_CREATE         0
 #define C_ALTER_TABLE            -1
 #define C_ALTER_TABLE_FRM_ONLY   -2
+#define C_ASSISTED_DISCOVERY     -3
 
 bool mysql_create_table_no_lock(THD *thd, const char *db,
                                 const char *table_name,

@@ -634,6 +634,7 @@ enum enum_schema_tables
 };
 
 struct TABLE_SHARE;
+struct HA_CREATE_INFO;
 struct st_foreign_key_info;
 typedef struct st_foreign_key_info FOREIGN_KEY_INFO;
 typedef bool (stat_print_fn)(THD *thd, const char *type, uint type_len,
@@ -1169,6 +1170,25 @@ struct handlerton
    int (*discover_table_existence)(handlerton *hton, const char *db,
                                    const char *table_name);
 
+   /*
+     This is the assisted table discovery method. Unlike the fully
+     automatic discovery as above, here a user is expected to issue an
+     explicit CREATE TABLE with the appropriate table attributes to
+     "assist" the discovery of a table. But this "discovering" CREATE TABLE
+     statement will not specify the table structure - the engine discovers
+     it using this method. For example, FederatedX uses it in
+
+      CREATE TABLE t1 ENGINE=FEDERATED CONNECTION="mysql://foo/bar/t1";
+
+     Given a TABLE_SHARE discover_table_structure() fills it in with a correct
+     table structure using one of the TABLE_SHARE::init_from_* methods.
+
+     Assisted discovery works independently from the automatic discover.
+     An engine is allowed to support only assisted discovery and not
+     support automatic one. Or vice versa.
+   */
+   int (*discover_table_structure)(handlerton *hton, THD* thd,
+                                   TABLE_SHARE *share, HA_CREATE_INFO *info);
 };
 
 

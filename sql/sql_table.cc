@@ -2907,7 +2907,7 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
       key_info_buffer     OUT   An array of KEY structs for the indexes.
       key_count           OUT   The number of elements in the array.
       create_table_mode         C_ORDINARY_CREATE, C_ALTER_TABLE,
-                                C_CREATE_SELECT
+                                C_CREATE_SELECT, C_ASSISTED_DISCOVERY
 
   DESCRIPTION
     Prepares the table and key structures for table creation.
@@ -4293,7 +4293,7 @@ err:
     keys		List of keys to create
     is_trans            identifies the type of engine where the table
                         was created: either trans or non-trans.
-    create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE,
+    create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE, C_ASSISTED_DISCOVERY
                         or any positive number (for C_CREATE_SELECT).
 
   DESCRIPTION
@@ -4321,7 +4321,7 @@ bool mysql_create_table_no_lock(THD *thd,
   char		path[FN_REFLEN + 1];
   uint          path_length;
   const char	*alias;
-  handler	*file;
+  handler	*file= 0;
   LEX_CUSTRING  frm= {0,0};
   bool		error= TRUE;
   bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE ||
@@ -4329,12 +4329,6 @@ bool mysql_create_table_no_lock(THD *thd,
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
                        db, table_name, internal_tmp_table));
-
-  file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
-                               create_table_mode, &frm);
-
-  if (!file)
-    goto err;
 
   if (!my_use_symdir || (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
   {
@@ -4386,9 +4380,53 @@ bool mysql_create_table_no_lock(THD *thd,
 
   thd_proc_info(thd, "creating table");
 
-  if (rea_create_table(thd, &frm, path, db, table_name, create_info,
-                       create_table_mode == C_ALTER_TABLE_FRM_ONLY ? 0 : file))
-    goto err;
+  if (create_table_mode == C_ASSISTED_DISCOVERY)
+  {
+    /* check that it's used correctly */
+    DBUG_ASSERT(alter_info->create_list.elements == 0);
+    DBUG_ASSERT(alter_info->key_list.elements == 0);
+
+    TABLE_SHARE share;
+    handlerton *hton= create_info->db_type;
+    int ha_err;
+    Field *no_fields= 0;
+
+    if (!hton->discover_table_structure)
+    {
+      my_error(ER_ILLEGAL_HA, MYF(0), table_name);
+      goto err;
+    }
+
+    init_tmp_table_share(thd, &share, db, 0, table_name, path);
+
+    /* prepare everything for discovery */
+    share.field= &no_fields;
+    share.db_plugin= plugin_int_to_ref(hton2plugin[hton->slot]);
+    share.option_list= create_info->option_list;
+    share.connect_string= create_info->connect_string;
+
+    if (parse_engine_table_options(thd, hton, &share))
+      goto err;
+
+    ha_err= hton->discover_table_structure(hton, thd, &share, create_info);
+    free_table_share(&share);
+
+    if (ha_err)
+    {
+      my_error(ER_GET_ERRNO, MYF(0), ha_err);
+      goto err;
+    }
+  }
+  else
+  {
+    file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
+                                 create_table_mode, &frm);
+    if (!file)
+      goto err;
+    if (rea_create_table(thd, &frm, path, db, table_name, create_info,
+                         create_table_mode == C_ALTER_TABLE_FRM_ONLY ? 0 : file))
+      goto err;
+  }
 
   if (create_info->tmp_table())
   {
@@ -4466,6 +4504,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   const char *db= create_table->db;
   const char *table_name= create_table->table_name;
   bool is_trans= FALSE;
+  int create_table_mode;
   DBUG_ENTER("mysql_create_table");
 
   /* Open or obtain an exclusive metadata lock on table being created  */
@@ -4478,9 +4517,14 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   /* Got lock. */
   DEBUG_SYNC(thd, "locked_table_name");
 
+  if (alter_info->create_list.elements || alter_info->key_list.elements)
+    create_table_mode= C_ORDINARY_CREATE;
+  else
+    create_table_mode= C_ASSISTED_DISCOVERY;
+
   promote_first_timestamp_column(&alter_info->create_list);
-  if (mysql_create_table_no_lock(thd, db, table_name, create_info,
-                                 alter_info, &is_trans, C_ORDINARY_CREATE))
+  if (mysql_create_table_no_lock(thd, db, table_name, create_info, alter_info,
+                                 &is_trans, create_table_mode))
     DBUG_RETURN(1);
 
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
