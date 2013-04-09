@@ -76,9 +76,19 @@ t1	CREATE TABLE `t1` (
 # discover on drop
 #
 flush tables;
-drop table t0, t1;
+drop table t1;
 show tables;
 Tables_in_test
+t0
+#
+# discover of table non-existance on drop
+#
+select * from t0;
+a
+flush tables;
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist
+drop table t0;
 #
 # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 #

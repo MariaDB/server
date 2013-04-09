@@ -3448,8 +3448,13 @@ int handler::delete_table(const char *name)
 {
   int saved_error= 0;
   int error= 0;
-  int enoent_or_zero= ENOENT;                   // Error if no file was deleted
+  int enoent_or_zero;
   char buff[FN_REFLEN];
+
+  if (ht->discover_table)
+    enoent_or_zero= 0; // the table may not exist in the engine, it's ok
+  else
+    enoent_or_zero= ENOENT;  // the first file of bas_ext() *must* exist
 
   for (const char **ext=bas_ext(); *ext ; ext++)
   {

@@ -62,8 +62,18 @@ show create table t1;
 --echo #
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
-drop table t0, t1;
+drop table t1;
 show tables;
+
+--echo #
+--echo # discover of table non-existance on drop
+--echo #
+select * from t0;
+remove_file $mysqld_datadir/test/t0.ARZ;
+flush tables;
+--error ER_NO_SUCH_TABLE
+select * from t1;
+drop table t0;
 
 --echo #
 --echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
