@@ -39,6 +39,8 @@ enum enum_plugin_load_option { PLUGIN_OFF, PLUGIN_ON, PLUGIN_FORCE,
   PLUGIN_FORCE_PLUS_PERMANENT };
 extern const char *global_plugin_typelib_names[];
 
+extern ulong dlopen_count;
+
 #include <my_sys.h>
 
 #ifdef DBUG_OFF
@@ -174,4 +176,6 @@ typedef my_bool (plugin_foreach_func)(THD *thd,
 #define plugin_foreach(A,B,C,D) plugin_foreach_with_mask(A,B,C,PLUGIN_IS_READY,D)
 extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
+extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
+                              plugin_foreach_func *func, void *arg);
 #endif

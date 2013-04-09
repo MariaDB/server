@@ -11449,6 +11449,7 @@ show:
           {
             LEX *lex=Lex;
             lex->wild=0;
+            lex->ident=null_lex_str;
             mysql_init_select(lex);
             lex->current_select->parsing_place= SELECT_LIST;
             bzero((char*) &lex->create_info,sizeof(lex->create_info));
@@ -11510,6 +11511,19 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_PLUGINS;
             if (prepare_schema_table(YYTHD, lex, 0, SCH_PLUGINS))
+              MYSQL_YYABORT;
+          }
+        | PLUGINS_SYM SONAME_SYM TEXT_STRING_sys
+          {
+            Lex->ident= $3;
+            Lex->sql_command= SQLCOM_SHOW_PLUGINS;
+            if (prepare_schema_table(YYTHD, Lex, 0, SCH_ALL_PLUGINS))
+              MYSQL_YYABORT;
+          }
+        | PLUGINS_SYM SONAME_SYM wild_and_where
+          {
+            Lex->sql_command= SQLCOM_SHOW_PLUGINS;
+            if (prepare_schema_table(YYTHD, Lex, 0, SCH_ALL_PLUGINS))
               MYSQL_YYABORT;
           }
         | ENGINE_SYM known_storage_engines show_engine_param
