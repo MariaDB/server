@@ -166,12 +166,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
          (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
     {
       my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
-               real_table_name, static_cast<ulong>(TABLE_COMMENT_MAXLEN));
+               real_table_name, TABLE_COMMENT_MAXLEN);
       DBUG_RETURN(frm);
     }
     char warn_buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_TABLE_COMMENT),
-                real_table_name, static_cast<ulong>(TABLE_COMMENT_MAXLEN));
+                real_table_name, TABLE_COMMENT_MAXLEN);
     push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                  ER_TOO_LONG_TABLE_COMMENT, warn_buff);
     create_info->comment.length= tmp_len;

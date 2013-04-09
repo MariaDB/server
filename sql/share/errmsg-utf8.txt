@@ -6188,9 +6188,9 @@ ER_EXCEPTIONS_WRITE_ERROR
   eng "Write to exceptions table failed. Message: %-.128s""
   ger "Schreiben in Ausnahme-Tabelle fehlgeschlagen. Meldung: %-.128s""
 ER_TOO_LONG_TABLE_COMMENT
-  eng "Comment for table '%-.64s' is too long (max = %lu)"
-  por "Comentário para a tabela '%-.64s' é longo demais (max = %lu)"
-  ger "Kommentar für Tabelle '%-.64s' ist zu lang (max = %lu)"
+  eng "Comment for table '%-.64s' is too long (max = %u)"
+  por "Comentário para a tabela '%-.64s' é longo demais (max = %u)"
+  ger "Kommentar für Tabelle '%-.64s' ist zu lang (max = %u)"
 ER_TOO_LONG_FIELD_COMMENT
   eng "Comment for field '%-.64s' is too long (max = %lu)"
   por "Comentário para o campo '%-.64s' é longo demais (max = %lu)"
