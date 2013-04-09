@@ -1,0 +1,15 @@
+#
+# test what TRUNCATE TABLE does, if the table was created in
+# now-unknown storage engine.
+#
+--source include/have_example_plugin.inc
+install plugin example soname 'ha_example';
+create table t1 (a int) engine=example;
+select 1;
+uninstall plugin example;
+flush tables;
+select count(*) from information_schema.plugins where plugin_name='example';
+--error ER_UNKNOWN_STORAGE_ENGINE
+truncate table t1;
+drop table t1;
+

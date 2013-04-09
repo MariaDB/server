@@ -15,13 +15,38 @@ insert t1 values (2);
 select * from t1;
 
 --echo #
---echo # list tables
+--echo # show tables
 --echo #
-create table t0 (a int) engine=archive;
+create table t2 (a int) engine=archive;
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 show tables;
 select * from t1;
+
+--echo #
+--echo # show full tables
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+show full tables;
+select * from t1;
+
+--echo #
+--echo # discover on truncate
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+--error ER_ILLEGAL_HA
+truncate table t1;
+show tables;
+
+--echo #
+--echo # discover on rename
+--echo #
+remove_file $mysqld_datadir/test/t2.frm;
+flush tables;
+rename table t2 to t0;
+show tables;
 
 --echo #
 --echo # discover on drop

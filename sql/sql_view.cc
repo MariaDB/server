@@ -33,7 +33,7 @@
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
-#include "datadict.h"   // dd_frm_type()
+#include "datadict.h"   // dd_frm_is_view()
 
 #define MD5_BUFF_LENGTH 33
 
@@ -1642,7 +1642,6 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   String non_existant_views;
   char *wrong_object_db= NULL, *wrong_object_name= NULL;
   bool error= FALSE;
-  enum legacy_db_type not_used;
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
   DBUG_ENTER("mysql_drop_view");
@@ -1665,12 +1664,11 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
-    frm_type_enum type= FRMTYPE_ERROR;
+    bool not_exist;
     build_table_filename(path, sizeof(path) - 1,
                          view->db, view->table_name, reg_ext, 0);
 
-    if (access(path, F_OK) || 
-        FRMTYPE_VIEW != (type= dd_frm_type(thd, path, &not_used)))
+    if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
@@ -1681,19 +1679,19 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 			    name);
 	continue;
       }
-      if (type == FRMTYPE_TABLE)
+      if (not_exist)
+      {
+        if (non_existant_views.length())
+          non_existant_views.append(',');
+        non_existant_views.append(String(view->table_name,system_charset_info));
+      }
+      else
       {
         if (!wrong_object_name)
         {
           wrong_object_db= view->db;
           wrong_object_name= view->table_name;
         }
-      }
-      else
-      {
-        if (non_existant_views.length())
-          non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
       }
       continue;
     }

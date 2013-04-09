@@ -57,7 +57,6 @@
 #include <my_dir.h>
 #include "lock.h"                           // MYSQL_OPEN_IGNORE_FLUSH
 #include "debug_sync.h"
-#include "datadict.h"   // dd_frm_type()
 #include "keycaches.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -4072,26 +4071,18 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
   }
   else if (tables->table_open_method != SKIP_OPEN_TABLE)
   {
-    enum legacy_db_type not_used;
-    char path[FN_REFLEN + 1];
-    (void) build_table_filename(path, sizeof(path) - 1, db_name->str, 
-                                table_name->str, reg_ext, 0);
-    switch (dd_frm_type(thd, path, &not_used)) {
-    case FRMTYPE_ERROR:
-      table->field[3]->store(STRING_WITH_LEN("ERROR"),
-                             system_charset_info);
-      break;
-    case FRMTYPE_TABLE:
-      table->field[3]->store(STRING_WITH_LEN("BASE TABLE"),
-                             system_charset_info);
-      break;
-    case FRMTYPE_VIEW:
-      table->field[3]->store(STRING_WITH_LEN("VIEW"),
-                             system_charset_info);
-      break;
-    default:
-      DBUG_ASSERT(0);
+    CHARSET_INFO *cs= system_charset_info;
+    handlerton *hton;
+    if (ha_table_exists(thd, db_name->str, table_name->str, &hton))
+    {
+      if (hton == view_pseudo_hton)
+        table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
+      else
+        table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
+    else
+      table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
+
     if (thd->is_error() && thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE)
     {
       thd->clear_error();

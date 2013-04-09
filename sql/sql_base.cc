@@ -55,7 +55,7 @@
 #include <hash.h>
 #include "rpl_filter.h"
 #include "sql_table.h"                          // build_table_filename
-#include "datadict.h"   // dd_frm_type()
+#include "datadict.h"   // dd_frm_is_view()
 #include "sql_hset.h"   // Hash_set
 #ifdef  __WIN__
 #include <io.h>
@@ -2774,7 +2774,6 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
                                        MDL_SHARED))
     {
       char path[FN_REFLEN + 1];
-      enum legacy_db_type not_used;
       build_table_filename(path, sizeof(path) - 1,
                            table_list->db, table_list->table_name, reg_ext, 0);
       /*
@@ -2784,7 +2783,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
         during prelocking process (in this case in theory we still
         should hold shared metadata lock on it).
       */
-      if (dd_frm_type(thd, path, &not_used) == FRMTYPE_VIEW)
+      if (dd_frm_is_view(thd, path))
       {
         if (!tdc_open_view(thd, table_list, alias, key, key_length,
                            mem_root, 0))

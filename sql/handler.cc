@@ -386,7 +386,6 @@ static int ha_finish_errors(void)
 static volatile int32 need_full_discover_for_existence= 0;
 static volatile int32 engines_with_discover_table_names= 0;
 
-
 static int full_discover_for_existence(handlerton *, const char *, const char *)
 { return 1; }
 
@@ -4373,8 +4372,7 @@ public:
     *cond_hdl= NULL;
     if (sql_errno == ER_NO_SUCH_TABLE ||
         sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
-        sql_errno == ER_WRONG_OBJECT ||
-        sql_errno == ER_OPTION_PREVENTS_STATEMENT) // partition_disabled.test
+        sql_errno == ER_WRONG_OBJECT)
     {
       m_handled_errors++;
       return TRUE;

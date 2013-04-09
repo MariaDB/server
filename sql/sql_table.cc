@@ -4637,9 +4637,13 @@ mysql_rename_table(handlerton *base, const char *old_db,
     if (!(flags & NO_FRM_RENAME) && rename_file_ext(from,to,reg_ext))
     {
       error=my_errno;
-      /* Restore old file name */
       if (file)
-        file->ha_rename_table(to_base, from_base);
+      {
+        if (error == ENOENT)
+          error= 0; // this is ok if file->ha_rename_table() succeeded
+        else
+          file->ha_rename_table(to_base, from_base); // Restore old file name
+      }
     }
   }
   delete file;

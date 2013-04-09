@@ -12749,16 +12749,6 @@ SELECT * FROM t1;
 col1	col2
 DROP TABLE t1;
 #
-# BUG#48757 - missing .ARZ file causes server crash
-#
-CREATE TABLE t1(a INT) ENGINE=ARCHIVE;
-FLUSH TABLE t1;
-SELECT * FROM t1;
-ERROR HY000: Can't find file: './test/t1.ARZ' (errno: 2 "No such file or directory")
-DROP TABLE t1;
-Warnings:
-Warning	2	Can't find file: './test/t1.ARZ' (errno: 2 "No such file or directory")
-#
 # Ensure that TRUNCATE fails for non-empty archive tables.
 #
 CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;

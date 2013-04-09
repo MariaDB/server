@@ -1,0 +1,13 @@
+install plugin example soname 'ha_example';
+create table t1 (a int) engine=example;
+select 1;
+1
+1
+uninstall plugin example;
+flush tables;
+select count(*) from information_schema.plugins where plugin_name='example';
+count(*)
+0
+truncate table t1;
+ERROR 42000: Unknown storage engine 'EXAMPLE'
+drop table t1;
