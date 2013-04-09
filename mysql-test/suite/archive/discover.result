@@ -21,6 +21,8 @@ a
 # show tables
 #
 create table t2 (a int) engine=archive;
+select * from t2;
+a
 flush tables;
 show tables;
 Tables_in_test
@@ -107,4 +109,7 @@ drop table t1;
 #             archive_discover
 #
 create table `a/../`(a int) engine=archive;
+select * from `a/../`;
+a
+flush tables;
 drop table `a/../`;

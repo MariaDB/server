@@ -18,6 +18,7 @@ select * from t1;
 --echo # show tables
 --echo #
 create table t2 (a int) engine=archive;
+select * from t2;
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 show tables;
@@ -84,6 +85,7 @@ drop table t1;
 --echo #             archive_discover
 --echo #
 create table `a/../`(a int) engine=archive;
+select * from `a/../`; flush tables;
 remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
 drop table `a/../`;
 

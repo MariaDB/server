@@ -302,8 +302,7 @@ int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 
   azclose(&frm_stream);
 
-  if (!share->init_from_binary_frm_image(thd, share->normalized_path.str,
-                                         frm_ptr, frm_stream.frm_length))
+  if (!share->init_from_binary_frm_image(thd, 1, frm_ptr, frm_stream.frm_length))
     my_errno= 0;
 
 ret:
@@ -437,7 +436,7 @@ ARCHIVE_SHARE *ha_archive::get_share(const char *table_name, int *rc)
     */
     if (archive_tmp.version < ARCHIVE_VERSION)
       *rc= HA_ERR_TABLE_NEEDS_UPGRADE;
-    else if (frm_compare(&archive_tmp, table_name))
+    else if (frm_compare(&archive_tmp))
       *rc= HA_ERR_TABLE_DEF_CHANGED;
 
     azclose(&archive_tmp);
@@ -669,19 +668,19 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
   Compare frm blob with the on-disk frm file
 
   @param  s     The azio stream.
-  @param  path  A path for readfrm()
 
   @return Zero if equal, non-zero otherwise.
 */
 
-int ha_archive::frm_compare(azio_stream *s, const char *path)
+int ha_archive::frm_compare(azio_stream *s)
 {
   int rc= 0;
-  uchar *frm_ptr= 0, *azfrm_ptr= 0;
+  const uchar *frm_ptr= 0;
+  uchar *azfrm_ptr= 0;
   size_t frm_len;
 
   /* no frm = no discovery. perhaps it's a partitioned table */
-  if (readfrm(path, &frm_ptr, &frm_len))
+  if (table->s->read_frm_image(&frm_ptr, &frm_len))
     goto err;
 
   if (!(azfrm_ptr= (uchar *) my_malloc(s->frm_length,
@@ -699,7 +698,7 @@ int ha_archive::frm_compare(azio_stream *s, const char *path)
   rc= memcmp(frm_ptr, azfrm_ptr, frm_len);
 
 err:
-  my_free(frm_ptr);
+  my_free(const_cast<uchar*>(frm_ptr));
   my_free(azfrm_ptr);
   return rc;
 }
@@ -721,7 +720,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   char linkname[FN_REFLEN];
   int error;
   azio_stream create_stream;            /* Archive file we are working with */
-  uchar *frm_ptr;
+  const uchar *frm_ptr;
   size_t frm_len;
 
   DBUG_ENTER("ha_archive::create");
@@ -784,11 +783,10 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   /*
     Here is where we open up the frm and pass it to archive to store 
   */
-  readfrm(name, &frm_ptr, &frm_len);
-  if (frm_ptr)
+  if (!table_arg->s->read_frm_image(&frm_ptr, &frm_len))
   {
     azwrite_frm(&create_stream, frm_ptr, frm_len);
-    my_free(frm_ptr);
+    my_free(const_cast<uchar*>(frm_ptr));
   }
 
   if (create_info->comment.str)

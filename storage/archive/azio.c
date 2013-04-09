@@ -855,7 +855,7 @@ int azclose (azio_stream *s)
   Though this was added to support MySQL's FRM file, anything can be 
   stored in this location.
 */
-int azwrite_frm(azio_stream *s, uchar *blob, unsigned int length)
+int azwrite_frm(azio_stream *s, const uchar *blob, unsigned int length)
 {
   if (s->mode == 'r') 
     return 1;

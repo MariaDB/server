@@ -80,9 +80,8 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   if (!frm.str)
     DBUG_RETURN(1);
 
-  bool need_sync= opt_sync_frm &&
-                  !(create_info->options & HA_LEX_CREATE_TMP_TABLE);
-  int error= writefrm(file_name, db, table, need_sync, frm.str, frm.length);
+  int error= writefrm(file_name, db, table, !create_info->tmp_table(),
+                      frm.str, frm.length);
 
   my_free(const_cast<uchar*>(frm.str));
   DBUG_RETURN(error);
@@ -382,30 +381,49 @@ int rea_create_table(THD *thd, const char *path,
 {
   DBUG_ENTER("rea_create_table");
 
-  if (mysql_create_frm(thd, path, db, table_name, create_info,
-                       create_fields, keys, key_info, file))
-
+  LEX_CUSTRING frm= create_frm_image(thd, table_name, create_info,
+                                     create_fields, keys, key_info, file);
+  if (!frm.str)
     DBUG_RETURN(1);
 
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
-  if (!create_info->frm_only &&
-      (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
-                                     create_info) ||
-       ha_create_table(thd, path, db, table_name, create_info)))
-    goto err_handler;
+
+  if (create_info->frm_only)
+  {
+    if (writefrm(path, db, table_name, 1, frm.str, frm.length))
+      goto err_handler;
+  }
+  else
+  {
+    // TODO don't write frm for temp tables
+    if (create_info->tmp_table() &&
+        writefrm(path, db, table_name, 0, frm.str, frm.length))
+      goto err_handler;
+
+    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
+                                              create_info) ||
+       ha_create_table(thd, path, db, table_name, create_info, &frm))
+    {
+      file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG,
+                                            create_info);
+      goto err_handler;
+    }
+  }
+
+  my_free(const_cast<uchar*>(frm.str));
   DBUG_RETURN(0);
 
 err_handler:
-  (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG, create_info);
   char frm_name[FN_REFLEN];
   strxmov(frm_name, path, reg_ext, NullS);
   mysql_file_delete(key_file_frm, frm_name, MYF(0));
+  my_free(const_cast<uchar*>(frm.str));
   DBUG_RETURN(1);
 } /* rea_create_table */
 
 
-	/* Pack keyinfo and keynames to keybuff for save in form-file. */
+/* Pack keyinfo and keynames to keybuff for save in form-file. */
 
 static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
                       ulong data_offset)
@@ -488,7 +506,7 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 } /* pack_keys */
 
 
-	/* Make formheader */
+/* Make formheader */
 
 static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
                         uint table_options, ulong data_offset, handler *file)
@@ -510,8 +528,7 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
   com_length=vcol_info_length=0;
   n_length=2L;
 
-	/* Check fields */
-
+  /* Check fields */
   List_iterator<Create_field> it(create_fields);
   Create_field *field;
   while ((field=it++))
@@ -638,8 +655,7 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
   }
   int_length+=int_count*2;			// 255 prefix + 0 suffix
 
-	/* Save values in forminfo */
-
+  /* Save values in forminfo */
   if (reclength > (ulong) file->max_record_length())
   {
     my_error(ER_TOO_BIG_ROWSIZE, MYF(0), static_cast<long>(file->max_record_length()));
@@ -679,8 +695,7 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
 } /* pack_header */
 
 
-	/* get each unique interval each own id */
-
+/* get each unique interval each own id */
 static uint get_interval_id(uint *int_count,List<Create_field> &create_fields,
 			    Create_field *last_field)
 {
@@ -742,7 +757,7 @@ static size_t packed_fields_length(List<Create_field> &create_fields)
   DBUG_RETURN(length);
 }
 
-	/* Save fields, fieldnames and intervals */
+/* Save fields, fieldnames and intervals */
 
 static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
                         ulong data_offset)
@@ -751,10 +766,8 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
   Create_field *field;
   DBUG_ENTER("pack_fields");
 
-	/* Write field info */
-
+  /* Write field info */
   List_iterator<Create_field> it(create_fields);
-
   int_count=0;
   while ((field=it++))
   {
@@ -907,7 +920,7 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
 }
 
 
-	/* save an empty record on start of formfile */
+/* save an empty record on start of formfile */
 
 static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
 			   List<Create_field> &create_fields,

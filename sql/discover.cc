@@ -45,7 +45,7 @@
     3    Could not allocate data for read.  Could not read file
 */
 
-int readfrm(const char *name, uchar **frmdata, size_t *len)
+int readfrm(const char *name, const uchar **frmdata, size_t *len)
 {
   int    error;
   char	 index_file[FN_REFLEN];
@@ -134,7 +134,7 @@ int writefrm(const char *path, const char *db, const char *table,
   {
     error= mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
 
-    if (!error && need_sync)
+    if (!error && need_sync && opt_sync_frm)
         error= mysql_file_sync(file, MYF(MY_WME)) ||
              my_sync_dir_by_file(file_name, MYF(MY_WME));
 

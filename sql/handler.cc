@@ -34,7 +34,7 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_acl.h"            // SUPER_ACL
 #include "sql_base.h"           // free_io_cache
-#include "discover.h"           // writefrm
+#include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
 #include "create_options.h"
 #include "rpl_filter.h"
@@ -4131,7 +4131,7 @@ end:
 */
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info)
+                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
 {
   int error= 1;
   TABLE table;
@@ -4141,9 +4141,28 @@ int ha_create_table(THD *thd, const char *path,
   DBUG_ENTER("ha_create_table");
   
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
-  if (open_table_def(thd, &share) ||
-      open_table_from_share(thd, &share, "", 0, (uint) READ_ALL, 0, &table,
-                            TRUE))
+
+  if (frm)
+  {
+    bool write_frm_now= !create_info->db_type->discover_table &&
+                        !create_info->tmp_table();
+
+    share.frm_image= frm;
+
+    // open an frm image
+    if (share.init_from_binary_frm_image(thd, write_frm_now,
+                                         frm->str, frm->length))
+      goto err;
+  }
+  else
+  {
+    // open an frm file
+    if (open_table_def(thd, &share))
+      goto err;
+  }
+  
+
+  if (open_table_from_share(thd, &share, "", 0, READ_ALL, 0, &table, true))
     goto err;
 
   update_create_info_from_table(create_info, &table);
@@ -4151,7 +4170,9 @@ int ha_create_table(THD *thd, const char *path,
   name= get_canonical_filename(table.file, share.path.str, name_buff);
 
   error= table.file->ha_create(name, &table, create_info);
+
   (void) closefrm(&table, 0);
+
   if (error)
   {
     strxmov(name_buff, db, ".", table_name, NullS);
