@@ -6192,9 +6192,9 @@ ER_TOO_LONG_TABLE_COMMENT
   por "Comentário para a tabela '%-.64s' é longo demais (max = %u)"
   ger "Kommentar für Tabelle '%-.64s' ist zu lang (max = %u)"
 ER_TOO_LONG_FIELD_COMMENT
-  eng "Comment for field '%-.64s' is too long (max = %lu)"
-  por "Comentário para o campo '%-.64s' é longo demais (max = %lu)"
-  ger "Kommentar für Feld '%-.64s' ist zu lang (max = %lu)"
+  eng "Comment for field '%-.64s' is too long (max = %u)"
+  por "Comentário para o campo '%-.64s' é longo demais (max = %u)"
+  ger "Kommentar für Feld '%-.64s' ist zu lang (max = %u)"
 ER_FUNC_INEXISTENT_NAME_COLLISION 42000 
   eng "FUNCTION %s does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual"
   ger "FUNCTION %s existiert nicht. Erläuterungen im Abschnitt 'Function Name Parsing and Resolution' im Referenzhandbuch"

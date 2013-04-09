@@ -175,11 +175,15 @@
     binary value of the 'length' bytes.
 
   Older MariaDB servers can ignore values of unknown types if
-  the type code is less than 128. Otherwise older servers are required
+  the type code is less than 128 (EXTRA2_ENGINE_IMPORTANT).
+  Otherwise older (but newer than 10.0.1) servers are required
   to report an error.
 */
 enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
+
+#define EXTRA2_ENGINE_IMPORTANT 128
+
   EXTRA2_ENGINE_TABLEOPTS=128,
 };
 

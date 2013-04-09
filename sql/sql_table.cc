@@ -1709,7 +1709,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     }
 
     int error= writefrm(shadow_path, lpt->db, lpt->table_name,
-                        !lpt->create_info->tmp_table(), frm.str, frm.length);
+                        lpt->create_info->tmp_table(), frm.str, frm.length);
     my_free(const_cast<uchar*>(frm.str));
 
     if (error || lpt->table->file->ha_create_partitioning_metadata(shadow_path,
@@ -1751,7 +1751,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     build_table_filename(path, sizeof(path) - 1, lpt->db,
                          lpt->table_name, "", 0);
-    strxmov(frm_name, path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
       don't collide with another thread in process to open the frm file.
@@ -4467,7 +4467,7 @@ bool mysql_create_table_no_lock(THD *thd,
                                              create_info, file))
     {
       char frm_name[FN_REFLEN];
-      strxmov(frm_name, path, reg_ext, NullS);
+      strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
       (void) mysql_file_delete(key_file_frm, frm_name, MYF(0));
       goto err;
     }
@@ -6661,7 +6661,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
   {
     char frm_name[FN_REFLEN+1];
-    strxmov(frm_name, path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
     /*
       C_ALTER_TABLE_FRM_ONLY can only be used if old frm exists.
       discovering frm-less engines cannot enjoy this optimization.

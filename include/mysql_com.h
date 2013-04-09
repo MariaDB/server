@@ -41,7 +41,7 @@
 /*
   Maximum length of comments
 */
-#define TABLE_COMMENT_INLINE_MAXLEN 180 /* pre 6.0: 60 characters */
+#define TABLE_COMMENT_INLINE_MAXLEN 180 /* pre 5.5: 60 characters */
 #define TABLE_COMMENT_MAXLEN 2048
 #define COLUMN_COMMENT_MAXLEN 1024
 #define INDEX_COMMENT_MAXLEN 1024

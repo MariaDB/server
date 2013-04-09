@@ -592,11 +592,10 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 {
   bool error_given= false;
   File file;
-  MY_STAT stats;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
   char	path[FN_REFLEN];
-  size_t frmlen;
+  size_t frmlen, read_length;
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
@@ -640,25 +639,25 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
     goto err;
   }
 
-  if (my_fstat(file, &stats, MYF(0)))
-    goto err;
-
-  frmlen= min(FRM_MAX_SIZE, stats.st_size); // safety
+  frmlen= uint4korr(head+10);
+  set_if_smaller(frmlen, FRM_MAX_SIZE); // safety
 
   if (!(buf= (uchar*)my_malloc(frmlen, MYF(MY_THREAD_SPECIFIC|MY_WME))))
     goto err;
 
   memcpy(buf, head, sizeof(head));
 
-  if (mysql_file_read(file, buf + sizeof(head),
-                      frmlen - sizeof(head), MYF(MY_NABP)))
+  read_length= mysql_file_read(file, buf + sizeof(head),
+                               frmlen - sizeof(head), MYF(MY_WME));
+  if (read_length == 0 || read_length == (size_t)-1)
   {
-    share->error = my_errno == HA_ERR_FILE_TOO_SHORT
-                      ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
+    share->error = OPEN_FRM_READ_ERROR;
     my_free(buf);
     goto err;
   }
   mysql_file_close(file, MYF(MY_WME));
+
+  frmlen= read_length + sizeof(head);
 
   share->init_from_binary_frm_image(thd, false, buf, frmlen);
   error_given= true; // init_from_binary_frm_image has already called my_error()
@@ -759,17 +758,21 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (*extra2 != '/')   // old frm had '/' there
   {
     const uchar *e2end= extra2 + len;
-    while (extra2 < e2end)
+    while (extra2 + 3 < e2end)
     {
       uchar type= *extra2++;
       size_t length= *extra2++;
       if (!length)
       {
+        if (extra2 + 258 >= e2end)
+          goto err;
         length= uint2korr(extra2);
         extra2+=2;
         if (length < 256)
           goto err;
       }
+      if (extra2 + length > e2end)
+        goto err;
       switch (type) {
       case EXTRA2_TABLEDEF_VERSION:
         if (tabledef_version.str) // see init_from_sql_statement_string()
@@ -780,12 +783,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
         else
         {
-          uchar *buf= (uchar*) alloc_root(&mem_root, length);
-          if (!buf)
-            goto err;
-          memcpy(buf, extra2, length);
-          tabledef_version.str= buf;
           tabledef_version.length= length;
+          tabledef_version.str= (uchar*)memdup_root(&mem_root, extra2, length);
+          if (!tabledef_version.str)
+            goto err;
         }
         break;
       case EXTRA2_ENGINE_TABLEOPTS:
@@ -797,12 +798,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
-        if (type >= 128)
+        if (type >= EXTRA2_ENGINE_IMPORTANT)
           goto err;
       }
       extra2+= length;
     }
-    if (extra2 > e2end)
+    if (extra2 != e2end)
       goto err;
   }
 
@@ -2116,7 +2117,7 @@ ret:
 
 bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
 {
-  return writefrm(normalized_path.str, db.str, table_name.str, 1, frm, len);
+  return writefrm(normalized_path.str, db.str, table_name.str, false, frm, len);
 }
 
 
@@ -3242,7 +3243,7 @@ rename_file_ext(const char * from,const char * to,const char * ext)
   char from_b[FN_REFLEN],to_b[FN_REFLEN];
   (void) strxmov(from_b,from,ext,NullS);
   (void) strxmov(to_b,to,ext,NullS);
-  return (mysql_file_rename(key_file_frm, from_b, to_b, MYF(0)));
+  return mysql_file_rename(key_file_frm, from_b, to_b, MYF(0));
 }
 
 
