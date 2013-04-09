@@ -65,17 +65,12 @@ LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 	/* Functions defined in this file */
 
-void open_table_error(TABLE_SHARE *share, int error, int db_errno,
-                      myf errortype, int errarg);
-static int open_binary_frm(THD *thd, TABLE_SHARE *share,
-                           uchar *head, File file);
+static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *buf);
 static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
 			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
 
 inline bool is_system_table_name(const char *name, uint length);
-
-static ulong get_form_pos(File file, uchar *head);
 
 /**************************************************************************
   Object_creation_ctx implementation.
@@ -691,7 +686,7 @@ int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags)
   }
 
   error= 4;
-  if (mysql_file_read(file, head, 64, MYF(MY_NABP)))
+  if (mysql_file_read(file, head, sizeof(head), MYF(MY_NABP)))
     goto err;
 
   if (head[0] == (uchar) 254 && head[1] == 1)
@@ -730,18 +725,40 @@ int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags)
   /* No handling of text based files yet */
   if (table_type == 1)
   {
+    MY_STAT stats;
+    uchar *buf;
+
+    if (my_fstat(file, &stats, MYF(0)))
+      goto err;
+
+    if (!(buf= (uchar*)my_malloc(stats.st_size, MYF(MY_THREAD_SPECIFIC|MY_WME))))
+      goto err;
+
+    memcpy(buf, head, sizeof(head));
+
+    if (mysql_file_read(file, buf + sizeof(head),
+                        stats.st_size - sizeof(head), MYF(MY_NABP)))
+    {
+      my_free(buf);
+      goto err;
+    }
+    mysql_file_close(file, MYF(MY_WME));
+
     root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
     old_root= *root_ptr;
     *root_ptr= &share->mem_root;
-    error= open_binary_frm(thd, share, head, file);
+    error= open_binary_frm(thd, share, buf);
     *root_ptr= old_root;
     error_given= 1;
+    my_free(buf);
   }
 
   share->table_category= get_table_category(& share->db, & share->table_name);
 
   if (!error)
     thd->status_var.opened_shares++;
+
+  DBUG_RETURN(error);
 
 err:
   mysql_file_close(file, MYF(MY_WME));
@@ -757,23 +774,30 @@ err_not_open:
 }
 
 
-/*
-  Read data from a binary .frm file from MySQL 3.23 - 5.0 into TABLE_SHARE
+/**
+  Read data from a binary .frm file image into a TABLE_SHARE
+
+  @note
+  frm bytes at the following offsets are unused in MariaDB 10.0:
+
+  8..9    (used to be the number of "form names")
+  28..29  (used to be key_info_length)
+
+  They're still set, for compatibility reasons, but never read.
 */
 
-static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
-                           File file)
+static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
 {
   int error, errarg= 0;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
-  uint key_info_length, com_length, null_bit_pos;
+  uint com_length, null_bit_pos;
   uint extra_rec_buf_length;
   uint i,j;
   bool use_hash;
   char *keynames, *names, *comment_pos;
-  uchar forminfo[288];
+  uchar *forminfo;
   uchar *record;
   uchar *disk_buff, *strpos, *null_flags, *null_pos;
   ulong pos, record_offset; 
@@ -791,7 +815,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   uint vcol_screen_length, UNINIT_VAR(options_len);
   char *vcol_screen_pos;
   uchar *UNINIT_VAR(options);
-  uchar *extra_segment_buff= 0;
   KEY first_keyinfo;
   uint len;
   KEY_PART_INFO *first_key_part= NULL;
@@ -801,37 +824,36 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   share->ext_key_parts= 0;
   DBUG_ENTER("open_binary_frm");
 
-  new_field_pack_flag= head[27];
-  new_frm_ver= (head[2] - FRM_VER);
+  new_field_pack_flag= frm_image[27];
+  new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
-  disk_buff= 0;
 
   error= 3;
-  /* Position of the form in the form file. */
-  if (!(pos= get_form_pos(file, head)))
-    goto err;                                   /* purecov: inspected */
 
-  mysql_file_seek(file,pos,MY_SEEK_SET,MYF(0));
-  if (mysql_file_read(file, forminfo,288,MYF(MY_NABP)))
+  /* Position of the form in the form file. */
+  len = uint2korr(frm_image+4);
+  if (!(pos= uint4korr(frm_image + 64 + len)))
     goto err;
-  share->frm_version= head[2];
+
+  forminfo= frm_image + pos;
+  share->frm_version= frm_image[2];
   /*
     Check if .frm file created by MySQL 5.0. In this case we want to
     display CHAR fields as CHAR and not as VARCHAR.
     We do it this way as we want to keep the old frm version to enable
     MySQL 4.1 to read these files.
   */
-  if (share->frm_version == FRM_VER_TRUE_VARCHAR -1 && head[33] == 5)
+  if (share->frm_version == FRM_VER_TRUE_VARCHAR -1 && frm_image[33] == 5)
     share->frm_version= FRM_VER_TRUE_VARCHAR;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (*(head+61) &&
+  if (*(frm_image+61) &&
       !(share->default_part_db_type= 
-        ha_checktype(thd, (enum legacy_db_type) (uint) *(head+61), 1, 0)))
+        ha_checktype(thd, (enum legacy_db_type) (uint) *(frm_image+61), 1, 0)))
     goto err;
-  DBUG_PRINT("info", ("default_part_db_type = %u", head[61]));
+  DBUG_PRINT("info", ("default_part_db_type = %u", frm_image[61]));
 #endif
-  legacy_db_type= (enum legacy_db_type) (uint) *(head+3);
+  legacy_db_type= (enum legacy_db_type) (uint) *(frm_image+3);
   DBUG_ASSERT(share->db_plugin == NULL);
   /*
     if the storage engine is dynamic, no point in resolving it by its
@@ -841,23 +863,23 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
     share->db_plugin= ha_lock_engine(NULL, 
                                      ha_checktype(thd, legacy_db_type, 0, 0));
-  share->db_create_options= db_create_options= uint2korr(head+30);
+  share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
-  share->mysql_version= uint4korr(head+51);
+  share->mysql_version= uint4korr(frm_image+51);
   share->null_field_first= 0;
-  if (!head[32])				// New frm file in 3.23
+  if (!frm_image[32])				// New frm file in 3.23
   {
-    share->avg_row_length= uint4korr(head+34);
-    share->transactional= (ha_choice) (head[39] & 3);
-    share->page_checksum= (ha_choice) ((head[39] >> 2) & 3);
-    share->row_type= (row_type) head[40];
-    share->table_charset= get_charset((((uint) head[41]) << 8) + 
-                                        (uint) head[38],MYF(0));
+    share->avg_row_length= uint4korr(frm_image+34);
+    share->transactional= (ha_choice) (frm_image[39] & 3);
+    share->page_checksum= (ha_choice) ((frm_image[39] >> 2) & 3);
+    share->row_type= (row_type) frm_image[40];
+    share->table_charset= get_charset((((uint) frm_image[41]) << 8) + 
+                                        (uint) frm_image[38],MYF(0));
     share->null_field_first= 1;
   }
   if (!share->table_charset)
   {
-    /* unknown charset in head[38] or pre-3.23 frm */
+    /* unknown charset in frm_image[38] or pre-3.23 frm */
     if (use_mb(default_charset_info))
     {
       /* Warn that we may be changing the size of character columns */
@@ -872,14 +894,11 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   if (db_create_options & HA_OPTION_LONG_BLOB_PTR)
     share->blob_ptr_size= portable_sizeof_char_ptr;
   error=4;
-  share->max_rows= uint4korr(head+18);
-  share->min_rows= uint4korr(head+22);
+  share->max_rows= uint4korr(frm_image+18);
+  share->min_rows= uint4korr(frm_image+22);
 
   /* Read keyinformation */
-  key_info_length= (uint) uint2korr(head+28);
-  mysql_file_seek(file, (ulong) uint2korr(head+6), MY_SEEK_SET, MYF(0));
-  if (read_string(file,(uchar**) &disk_buff,key_info_length))
-    goto err;                                   /* purecov: inspected */
+  disk_buff= frm_image + uint2korr(frm_image+6);
   if (disk_buff[0] & 0x80)
   {
     share->keys=      keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
@@ -1047,36 +1066,29 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                (keyinfo->comment.length > 0));
   }
 
-  share->reclength = uint2korr((head+16));
+  share->reclength = uint2korr((frm_image+16));
   share->stored_rec_length= share->reclength;
-  if (*(head+26) == 1)
+  if (*(frm_image+26) == 1)
     share->system= 1;				/* one-record-database */
 #ifdef HAVE_CRYPTED_FRM
-  else if (*(head+26) == 2)
+  else if (*(frm_image+26) == 2)
   {
     crypted= get_crypt_for_frm();
     share->crypted= 1;
   }
 #endif
 
-  record_offset= (ulong) (uint2korr(head+6)+
-                          ((uint2korr(head+14) == 0xffff ?
-                            uint4korr(head+47) : uint2korr(head+14))));
+  record_offset= (ulong) (uint2korr(frm_image+6)+
+                          ((uint2korr(frm_image+14) == 0xffff ?
+                            uint4korr(frm_image+47) : uint2korr(frm_image+14))));
  
-  if ((n_length= uint4korr(head+55)))
+  if ((n_length= uint4korr(frm_image+55)))
   {
     /* Read extra data segment */
     uchar *next_chunk, *buff_end;
     DBUG_PRINT("info", ("extra segment size is %u bytes", n_length));
-    if (!(extra_segment_buff= (uchar*) my_malloc(n_length + 1, MYF(MY_WME))))
-      goto err;
-    next_chunk= extra_segment_buff;
-    if (mysql_file_pread(file, extra_segment_buff,
-                         n_length, record_offset + share->reclength,
-                         MYF(MY_NABP)))
-    {
-      goto err;
-    }
+    next_chunk= frm_image + record_offset + share->reclength;
+    buff_end= next_chunk + n_length;
     share->connect_string.length= uint2korr(next_chunk);
     if (!(share->connect_string.str= strmake_root(&share->mem_root,
                                                   (char*) next_chunk + 2,
@@ -1086,7 +1098,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
       goto err;
     }
     next_chunk+= share->connect_string.length + 2;
-    buff_end= extra_segment_buff + n_length;
     if (next_chunk + 2 < buff_end)
     {
       uint str_db_type_length= uint2korr(next_chunk);
@@ -1240,21 +1251,20 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     }
     DBUG_ASSERT(next_chunk <= buff_end);
   }
-  share->key_block_size= uint2korr(head+62);
+  share->key_block_size= uint2korr(frm_image+62);
 
   error=4;
-  extra_rec_buf_length= uint2korr(head+59);
+  extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
   if (!(record= (uchar *) alloc_root(&share->mem_root,
                                      rec_buff_length)))
     goto err;                          /* purecov: inspected */
   share->default_values= record;
-  if (mysql_file_pread(file, record, (size_t) share->reclength,
-                       record_offset, MYF(MY_NABP)))
-    goto err;                          /* purecov: inspected */
+  memcpy(record, frm_image + record_offset, share->reclength);
 
-  mysql_file_seek(file, pos+288, MY_SEEK_SET, MYF(0));
+  disk_buff= frm_image + pos + 288;
+
 #ifdef HAVE_CRYPTED_FRM
   if (crypted)
   {
@@ -1300,8 +1310,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   read_length=(uint) (share->fields * field_pack_length +
 		      pos+ (uint) (n_length+int_length+com_length+
 		                   vcol_screen_length));
-  if (read_string(file,(uchar**) &disk_buff,read_length))
-    goto err;                           /* purecov: inspected */
 #ifdef HAVE_CRYPTED_FRM
   if (crypted)
   {
@@ -1923,8 +1931,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   }
   else
     share->primary_key= MAX_KEY;
-  my_free(disk_buff);
-  disk_buff=0;
   if (new_field_pack_flag <= 1)
   {
     /* Old file format with default as not null */
@@ -2000,15 +2006,12 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   if (use_hash)
     (void) my_hash_check(&share->name_hash);
 #endif
-  my_free(extra_segment_buff);
   DBUG_RETURN (0);
 
  err:
   share->error= error;
   share->open_errno= my_errno;
   share->errarg= errarg;
-  my_free(disk_buff);
-  my_free(extra_segment_buff);
   delete crypted;
   delete handler_file;
   my_hash_free(&share->name_hash);
@@ -2819,50 +2822,6 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
         blob->free();
   }
 }
-
-/**
-  Find where a form starts.
-
-  @param head The start of the form file.
-
-  @remark If formname is NULL then only formnames is read.
-
-  @retval The form position.
-*/
-
-static ulong get_form_pos(File file, uchar *head)
-{
-  uchar *pos, *buf;
-  uint names, length;
-  ulong ret_value=0;
-  DBUG_ENTER("get_form_pos");
-
-  names= uint2korr(head+8);
-
-  if (!(names= uint2korr(head+8)))
-    DBUG_RETURN(0);
-
-  length= uint2korr(head+4);
-
-  mysql_file_seek(file, 64L, MY_SEEK_SET, MYF(0));
-
-  if (!(buf= (uchar*) my_malloc(length+names*4, MYF(MY_WME))))
-    DBUG_RETURN(0);
-
-  if (mysql_file_read(file, buf, length+names*4, MYF(MY_NABP)))
-  {
-    my_free(buf);
-    DBUG_RETURN(0);
-  }
-
-  pos= buf+length;
-  ret_value= uint4korr(pos);
-
-  my_free(buf);
-
-  DBUG_RETURN(ret_value);
-}
-
 
 /*
   Read string from a file with malloc
