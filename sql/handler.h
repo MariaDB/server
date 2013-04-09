@@ -3068,8 +3068,6 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
 
 /* discovery */
 int ha_create_table_from_engine(THD* thd, const char *db, const char *name);
-bool ha_check_if_table_exists(THD* thd, const char *db, const char *name,
-                             bool *exists);
 int ha_discover(THD* thd, const char* dbname, const char* name,
                 uchar** frmblob, size_t* frmlen);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,

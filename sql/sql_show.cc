@@ -4057,12 +4057,14 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     of backward compatibility.
   */
   if (!is_show_fields_or_keys && result && thd->is_error() &&
-      thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE)
+      (thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE ||
+       thd->stmt_da->sql_errno() == ER_WRONG_OBJECT))
   {
     /*
       Hide error for a non-existing table.
       For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist.
+      with a db name and table, but the table does not exist or
+      there is a view with the same name.
     */
     result= false;
     thd->clear_error();
@@ -4383,7 +4385,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   key_length= create_table_def_key(thd, key, &table_list, 0);
   hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
   share= get_table_share(thd, &table_list, key, key_length,
-                         FRM_READ_NO_ERROR_FOR_VIEW, &not_used, hash_value);
+                         FRM_READ_TABLE_OR_VIEW, &not_used, hash_value);
   if (!share)
   {
     res= 0;
@@ -4407,10 +4409,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
       res= 1;
       goto end_share;
     }
-  }
 
-  if (share->is_view)
-  {
     if (open_new_frm(thd, share, table_name->str,
                      (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                              HA_GET_INDEX | HA_TRY_READ_ONLY),

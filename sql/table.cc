@@ -685,14 +685,19 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
   if (memcmp(head, STRING_WITH_LEN("TYPE=VIEW\n")) == 0)
   {
     share->is_view= 1;
-    share->error= op == FRM_READ_NO_ERROR_FOR_VIEW
-                      ? OPEN_FRM_OK : OPEN_FRM_NO_VIEWS;
+    share->error= op == FRM_READ_TABLE_ONLY
+                      ? OPEN_FRM_NOT_A_TABLE : OPEN_FRM_OK;
     goto err;
   }
   if (!is_binary_frm_header(head))
   {
     /* No handling of text based files yet */
     share->error = OPEN_FRM_CORRUPTED;
+    goto err;
+  }
+  if (op == FRM_READ_VIEW_ONLY)
+  {
+    share->error = OPEN_FRM_NOT_A_VIEW;
     goto err;
   }
 
@@ -2802,7 +2807,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
 {
   char buff[FN_REFLEN];
-  myf errortype= ME_ERROR+ME_WAITTANG;          // Write fatals error to log
+  const myf errortype= ME_ERROR+ME_WAITTANG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
 
   switch (error) {
@@ -2825,8 +2830,15 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
     break;
   case OPEN_FRM_ERROR_ALREADY_ISSUED:
     break;
+  case OPEN_FRM_NOT_A_VIEW:
+    my_error(ER_WRONG_OBJECT, MYF(0), share->db.str,
+             share->table_name.str, "VIEW");
+    break;
+  case OPEN_FRM_NOT_A_TABLE:
+    my_error(ER_WRONG_OBJECT, MYF(0), share->db.str,
+             share->table_name.str, "TABLE");
+    break;
   case OPEN_FRM_DISCOVER:
-  case OPEN_FRM_NO_VIEWS:
     DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
   case OPEN_FRM_CORRUPTED:

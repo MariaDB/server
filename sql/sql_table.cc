@@ -2279,11 +2279,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
-    if (drop_temporary ||
-        ((access(path, F_OK) &&
-          ha_create_table_from_engine(thd, db, alias)) ||
-         (!drop_view &&
-          dd_frm_type(thd, path, &frm_db_type) != FRMTYPE_TABLE)))
+    if (drop_temporary || !table_exists(thd, db, alias, path) ||
+         (!drop_view && dd_frm_type(thd, path, &frm_db_type) != FRMTYPE_TABLE))
     {
       /*
         One of the following cases happened:
@@ -4320,49 +4317,9 @@ bool mysql_create_table_no_lock(THD *thd,
 
   if (!internal_tmp_table && !(create_info->options & HA_LEX_CREATE_TMP_TABLE))
   {
-    if (!access(path,F_OK))
+    if (table_exists(thd, db, table_name, path))
     {
       if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
-        goto warn;
-      my_error(ER_TABLE_EXISTS_ERROR,MYF(0),table_name);
-      goto err;
-    }
-    /*
-      We don't assert here, but check the result, because the table could be
-      in the table definition cache and in the same time the .frm could be
-      missing from the disk, in case of manual intervention which deletes
-      the .frm file. The user has to use FLUSH TABLES; to clear the cache.
-      Then she could create the table. This case is pretty obscure and
-      therefore we don't introduce a new error message only for it.
-    */
-    mysql_mutex_lock(&LOCK_open);
-    if (get_cached_table_share(db, table_name))
-    {
-      mysql_mutex_unlock(&LOCK_open);
-      my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name);
-      goto err;
-    }
-    mysql_mutex_unlock(&LOCK_open);
-  }
-
-  /*
-    Check that table with given name does not already
-    exist in any storage engine. In such a case it should
-    be discovered and the error ER_TABLE_EXISTS_ERROR be returned
-    unless user specified CREATE TABLE IF EXISTS
-    An exclusive metadata lock ensures that no
-    one else is attempting to discover the table. Since
-    it's not on disk as a frm file, no one could be using it!
-  */
-  if (!(create_info->options & HA_LEX_CREATE_TMP_TABLE))
-  {
-    bool create_if_not_exists =
-      create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS;
-    bool exists_in_engine;
-    ha_check_if_table_exists(thd, db, table_name, &exists_in_engine);
-    if (exists_in_engine)
-    {
-      if (create_if_not_exists)
         goto warn;
       my_error(ER_TABLE_EXISTS_ERROR, MYF(0), table_name);
       goto err;
