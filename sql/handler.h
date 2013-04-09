@@ -2063,7 +2063,7 @@ public:
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
-  int ha_create_handler_files(const char *name, const char *old_name,
+  int ha_create_partitioning_metadata(const char *name, const char *old_name,
                               int action_flag, HA_CREATE_INFO *info);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
@@ -3003,7 +3003,7 @@ private:
   virtual void drop_table(const char *name);
   virtual int create(const char *name, TABLE *form, HA_CREATE_INFO *info)=0;
 
-  virtual int create_handler_files(const char *name, const char *old_name,
+  virtual int create_partitioning_metadata(const char *name, const char *old_name,
                                    int action_flag, HA_CREATE_INFO *info)
   { return FALSE; }
 

@@ -1707,7 +1707,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
                           lpt->table_name, lpt->create_info,
                           lpt->alter_info->create_list, lpt->key_count,
                           lpt->key_info_buffer, lpt->table->file)) ||
-        lpt->table->file->ha_create_handler_files(shadow_path, NULL,
+        lpt->table->file->ha_create_partitioning_metadata(shadow_path, NULL,
                                                   CHF_CREATE_FLAG,
                                                   lpt->create_info))
     {
@@ -1760,13 +1760,13 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     if (mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME)) ||
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        lpt->table->file->ha_create_handler_files(path, shadow_path,
+        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                   CHF_DELETE_FLAG, NULL) ||
         deactivate_ddl_log_entry(part_info->frm_log_entry->entry_pos) ||
         (sync_ddl_log(), FALSE) ||
         mysql_file_rename(key_file_frm,
                           shadow_frm_name, frm_name, MYF(MY_WME)) ||
-        lpt->table->file->ha_create_handler_files(path, shadow_path,
+        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                   CHF_RENAME_FLAG, NULL))
 #else
         mysql_file_rename(key_file_frm,
@@ -4029,7 +4029,7 @@ static bool check_if_created_table_can_be_opened(THD *thd,
   /*
     It is impossible to open definition of partitioned table without .par file.
   */
-  if (file->ha_create_handler_files(path, NULL, CHF_CREATE_FLAG, create_info))
+  if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG, create_info))
     return TRUE;
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
@@ -4041,7 +4041,7 @@ static bool check_if_created_table_can_be_opened(THD *thd,
     (void) closefrm(&table, 0);
 
   free_table_share(&share);
-  (void) file->ha_create_handler_files(path, NULL, CHF_DELETE_FLAG, create_info);
+  (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG, create_info);
   return result;
 }
 #endif
@@ -7197,7 +7197,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     }
 
     /* Tell the handler that a new frm file is in place. */
-    error= t_table_list->table->file->ha_create_handler_files(path, NULL,
+    error= t_table_list->table->file->ha_create_partitioning_metadata(path, NULL,
                                                               CHF_INDEX_FLAG,
                                                               create_info);
 

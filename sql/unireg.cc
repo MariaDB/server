@@ -476,14 +476,14 @@ int rea_create_table(THD *thd, const char *path,
   if (thd->variables.keep_files_on_create)
     create_info->options|= HA_CREATE_KEEP_FILES;
   if (!create_info->frm_only &&
-      (file->ha_create_handler_files(path, NULL, CHF_CREATE_FLAG,
+      (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
                                      create_info) ||
        ha_create_table(thd, path, db, table_name, create_info, 0)))
     goto err_handler;
   DBUG_RETURN(0);
 
 err_handler:
-  (void) file->ha_create_handler_files(path, NULL, CHF_DELETE_FLAG, create_info);
+  (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG, create_info);
   mysql_file_delete(key_file_frm, frm_name, MYF(0));
   DBUG_RETURN(1);
 } /* rea_create_table */

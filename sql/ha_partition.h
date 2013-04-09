@@ -229,7 +229,7 @@ public:
     chance for the handler to add any interesting comments to the table
     comments not provided by the users comment.
 
-    create_handler_files is called before opening a new handler object
+    create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
     -------------------------------------------------------------------------
@@ -238,7 +238,7 @@ public:
   virtual int rename_table(const char *from, const char *to);
   virtual int create(const char *name, TABLE *form,
 		     HA_CREATE_INFO *create_info);
-  virtual int create_handler_files(const char *name,
+  virtual int create_partitioning_metadata(const char *name,
                                    const char *old_name, int action_flag,
                                    HA_CREATE_INFO *create_info);
   virtual void update_create_info(HA_CREATE_INFO *create_info);
