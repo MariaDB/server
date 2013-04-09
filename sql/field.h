@@ -2383,7 +2383,7 @@ public:
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
   ha_field_option_struct *option_struct;
 
-  uint8 row,col,sc_length,interval_id;	// For rea_create_table
+  uint8 interval_id;                    // For rea_create_table
   uint	offset,pack_flag;
 
     /* 

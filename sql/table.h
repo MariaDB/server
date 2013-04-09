@@ -2490,16 +2490,27 @@ bool get_field(MEM_ROOT *mem, Field *field, class String *res);
 int closefrm(TABLE *table, bool free_share);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
-int set_zone(int nr,int min_zone,int max_zone);
 ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
-ulong make_new_entry(File file,uchar *fileinfo,TYPELIB *formnames,
-		     const char *newname);
-ulong next_io_size(ulong pos);
 void append_unescaped(String *res, const char *pos, uint length);
-File create_frm(THD *thd, const char *name, const char *db,
-                const char *table, uint reclength, uchar *fileinfo,
-  		HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
+void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
+                        HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
 char *fn_rext(char *name);
+
+/* Check that the integer is in the internal */
+static inline int set_zone(int nr,int min_zone,int max_zone)
+{
+  if (nr <= min_zone)
+    return min_zone;
+  if (nr >= max_zone)
+    return max_zone;
+  return nr;
+}
+
+/* Adjust number to next larger disk buffer */
+static inline ulong next_io_size(ulong pos)
+{
+  return MY_ALIGN(pos, IO_SIZE);
+}
 
 /* performance schema */
 extern LEX_STRING PERFORMANCE_SCHEMA_DB_NAME;

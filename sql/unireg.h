@@ -179,6 +179,9 @@ int rea_create_table(THD *thd, const char *path,
                      uint key_count,KEY *key_info,
                      handler *file);
 
+#define FRM_HEADER_SIZE 64
+#define FRM_FORMINFO_SIZE 288
+
 static inline bool is_binary_frm_header(uchar *head)
 {
   return head[0] == 254
