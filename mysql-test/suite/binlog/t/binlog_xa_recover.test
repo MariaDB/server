@@ -111,6 +111,7 @@ PURGE BINARY LOGS TO "master-bin.000006";
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait-binlog_xa_recover.test
 EOF
+--error 0,2006,2013
 SET DEBUG_SYNC= "now SIGNAL con4_cont";
 connection con4;
 --error 2006,2013
