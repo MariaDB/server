@@ -751,15 +751,16 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
   if (!error)
     thd->status_var.opened_shares++;
 
-  DBUG_RETURN(error);
+  goto err_not_open;
 
 err:
   mysql_file_close(file, MYF(MY_WME));
 
 err_not_open:
+  share->error= error;
+
   if (error && !error_given)
   {
-    share->error= error;
     share->open_errno= my_errno;
     open_table_error(share, error, share->open_errno);
   }
