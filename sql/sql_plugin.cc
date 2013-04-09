@@ -3387,17 +3387,6 @@ static void plugin_opt_set_limits(struct my_option *options,
     options->arg_type= OPT_ARG;
 }
 
-extern "C" my_bool get_one_plugin_option(int optid, const struct my_option *,
-                                         char *);
-
-my_bool get_one_plugin_option(int optid __attribute__((unused)),
-                              const struct my_option *opt,
-                              char *argument)
-{
-  return 0;
-}
-
-
 /**
   Creates a set of my_option objects associated with a specified plugin-
   handle.
