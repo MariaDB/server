@@ -36,6 +36,7 @@ bool dd_check_storage_engine_flag(THD *thd,
                                   const char *db, const char *table_name,
                                   uint32 flag,
                                   bool *yes_no);
-bool dd_recreate_table(THD *thd, const char *db, const char *table_name);
+bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
+                       const char *path = NULL);
 
 #endif // DATADICT_INCLUDED

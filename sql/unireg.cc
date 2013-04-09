@@ -49,11 +49,9 @@ static bool pack_header(uchar *forminfo,enum legacy_db_type table_type,
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(File file, List<Create_field> &create_fields,
                         ulong data_offset);
-static bool make_empty_rec(THD *thd, int file, enum legacy_db_type table_type,
-			   uint table_options,
+static bool make_empty_rec(THD *thd, int file, uint table_options,
 			   List<Create_field> &create_fields,
-			   uint reclength, ulong data_offset,
-                           handler *handler);
+			   uint reclength, ulong data_offset);
 
 /**
   An interceptor to hijack ER_TOO_MANY_FIELDS error from
@@ -102,8 +100,8 @@ handle_condition(THD *,
     create_fields	Fields to create
     keys		number of keys to create
     key_info		Keys to create
-    db_file		Handler to use. May be zero, in which case we use
-			create_info->db_type
+    db_file		Handler to use.
+
   RETURN
     false  ok
     true   error
@@ -317,9 +315,8 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   mysql_file_seek(file,
                   (ulong) uint2korr(fileinfo+6) + (ulong) key_buff_length,
                   MY_SEEK_SET, MYF(0));
-  if (make_empty_rec(thd,file,ha_legacy_type(create_info->db_type),
-                     create_info->table_options,
-		     create_fields,reclength, data_offset, db_file))
+  if (make_empty_rec(thd, file, create_info->table_options,
+		     create_fields, reclength, data_offset))
     goto err;
 
   int2store(buff, create_info->connect_string.length);
@@ -1064,12 +1061,9 @@ static bool pack_fields(File file, List<Create_field> &create_fields,
 
 	/* save an empty record on start of formfile */
 
-static bool make_empty_rec(THD *thd, File file,enum legacy_db_type table_type,
-			   uint table_options,
+static bool make_empty_rec(THD *thd, File file, uint table_options,
 			   List<Create_field> &create_fields,
-			   uint reclength,
-                           ulong data_offset,
-                           handler *handler)
+			   uint reclength, ulong data_offset)
 {
   int error= 0;
   Field::utype type;
