@@ -555,4 +555,24 @@ int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void
 {
   return binlog_relay_io_delegate->remove_observer(observer, (st_plugin_int *)p);
 }
+#else
+int register_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p)
+{
+  return 0;
+}
+
+int unregister_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p)
+{
+  return 0;
+}
+
+int register_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p)
+{
+  return 0;
+}
+
+int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p)
+{
+  return 0;
+}
 #endif /* HAVE_REPLICATION */
