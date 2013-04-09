@@ -105,7 +105,6 @@ static HASH archive_open_tables;
 /* The file extension */
 #define ARZ ".ARZ"               // The data file
 #define ARN ".ARN"               // Files used during an optimize call
-#define ARM ".ARM"               // Meta file (deprecated)
 
 /*
   uchar + uchar

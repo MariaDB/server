@@ -433,12 +433,22 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     hton2plugin[hton->slot]= NULL;
   }
 
+  if (hton->discover_table_names)
+    my_atomic_add32(&engines_with_discover_table_names, -1);
+
   my_free(hton);
 
  end:
   DBUG_RETURN(0);
 }
 
+
+static int hton_ext_based_table_discovery(handlerton *hton, LEX_STRING *db,
+                             MY_DIR *dir, handlerton::discovered_list *result)
+{
+  return extension_based_table_discovery(dir, hton->tablefile_extensions[0],
+                                         result);
+}
 
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
@@ -449,8 +459,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 
   hton= (handlerton *)my_malloc(sizeof(handlerton),
                                 MYF(MY_WME | MY_ZEROFILL));
-  hton->tablefile_extensions= no_exts;
-
   if (hton == NULL)
   {
     sql_print_error("Unable to allocate memory for plugin '%s' handlerton.",
@@ -467,6 +475,16 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
 		    plugin->name.str);
     goto err;
   }
+
+  // default list file extensions: empty
+  if (!hton->tablefile_extensions)
+    hton->tablefile_extensions= no_exts;
+
+  // if the enfine can discover a single table and it is file-based
+  // then it can use a default file-based table names discovery
+  if (!hton->discover_table_names &&
+      hton->discover && hton->tablefile_extensions[0])
+    hton->discover_table_names= hton_ext_based_table_discovery;
 
   /*
     the switch below and hton->state should be removed when
@@ -556,6 +574,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   default:
     break;
   };
+
+  if (hton->discover_table_names)
+    my_atomic_add32(&engines_with_discover_table_names, 1);
 
   DBUG_RETURN(0);
 
@@ -4369,6 +4390,50 @@ int ha_discover(THD *thd, const char *db, const char *name,
 
   if (!error)
     status_var_increment(thd->status_var.ha_discover_count);
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Discover all table names in a given database
+*/
+volatile int32 engines_with_discover_table_names= 0;
+
+struct st_discover_names_args
+{
+  LEX_STRING *db;
+  MY_DIR *dirp;
+  handlerton::discovered_list *result;
+};
+
+static my_bool discover_names(THD *thd, plugin_ref plugin,
+                              void *arg)
+{
+  st_discover_names_args *args= (st_discover_names_args *)arg;
+  handlerton *ht= plugin_data(plugin, handlerton *);
+  if (ht->state == SHOW_OPTION_YES && ht->discover_table_names &&
+      ht->discover_table_names(ht, args->db, args->dirp, args->result))
+    return 1;
+
+  return 0;
+}
+
+int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+                            handlerton::discovered_list *result)
+{
+  int error;
+  DBUG_ENTER("ha_discover_table_names");
+  st_discover_names_args args= {db, dirp, result};
+
+  if (engines_with_discover_table_names == 0)
+    DBUG_RETURN(ext_table_discovery_simple(dirp, reg_ext, result));
+
+  error= extension_based_table_discovery(dirp, reg_ext, result);
+
+  if (!error)
+    error= plugin_foreach(thd, discover_names, MYSQL_STORAGE_ENGINE_PLUGIN,
+                          &args);
+
   DBUG_RETURN(error);
 }
 

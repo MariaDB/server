@@ -1,0 +1,56 @@
+-- source include/have_archive.inc
+let $mysqld_datadir= `select @@datadir`;
+
+create table t1 (a int) engine=archive;
+show create table t1;
+insert t1 values (1);
+show tables;
+
+--echo #
+--echo # simple discover on use
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+insert t1 values (2);
+select * from t1;
+
+--echo #
+--echo # list tables
+--echo #
+create table t0 (a int) engine=archive;
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+show tables;
+select * from t1;
+
+--echo #
+--echo # discover on drop
+--echo #
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+drop table t0, t1;
+show tables;
+
+--echo #
+--echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
+--echo #
+
+create table t1 (a int) engine=archive;
+show create table t1;
+insert into t1 values (1);
+optimize table t1;
+remove_file $mysqld_datadir/test/t1.frm;
+flush tables;
+insert into t1 values (2);
+select * from t1 order by a;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # BUG#58205 - Valgrind failure in fn_format when called from
+--echo #             archive_discover
+--echo #
+create table `a/../`(a int) engine=archive;
+remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
+drop table `a/../`;
+

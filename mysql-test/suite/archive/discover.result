@@ -1,0 +1,70 @@
+create table t1 (a int) engine=archive;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+insert t1 values (1);
+show tables;
+Tables_in_test
+t1
+#
+# simple discover on use
+#
+flush tables;
+insert t1 values (2);
+select * from t1;
+a
+1
+2
+#
+# list tables
+#
+create table t0 (a int) engine=archive;
+flush tables;
+show tables;
+Tables_in_test
+t0
+t1
+select * from t1;
+a
+1
+2
+#
+# discover on drop
+#
+flush tables;
+drop table t0, t1;
+show tables;
+Tables_in_test
+#
+# Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
+#
+create table t1 (a int) engine=archive;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+insert into t1 values (1);
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+flush tables;
+insert into t1 values (2);
+select * from t1 order by a;
+a
+1
+2
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+drop table t1;
+#
+# BUG#58205 - Valgrind failure in fn_format when called from
+#             archive_discover
+#
+create table `a/../`(a int) engine=archive;
+drop table `a/../`;
