@@ -1,4 +1,5 @@
-/* Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2006, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,18 +136,46 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         HA_CREATE_INFO *create_info,
                         Alter_info *alter_info);
+
+/*
+  mysql_create_table_no_lock can be called in one of the following
+  mutually exclusive situations:
+
+  - Just a normal ordinary CREATE TABLE statement that explicitly
+    defines the table structure.
+
+  - CREATE TABLE ... SELECT. It is special, because only in this case,
+    the list of fields is allowed to have duplicates, as long as one of the
+    duplicates comes from the select list, and the other doesn't. For
+    example in
+
+       CREATE TABLE t1 (a int(5) NOT NUL) SELECT b+10 as a FROM t2;
+
+    the list in alter_info->create_list will have two fields `a`.
+
+  - ALTER TABLE, that creates a temporary table #sql-xxx, which will be later
+    renamed to replace the original table.
+
+  These situations are distinguished by the following "create table mode"
+  values, where a CREATE ... SELECT is denoted by any non-negative number
+  (which should be the number of fields in the SELECT ... part), and other
+  cases use constants as defined below.
+*/
+#define C_CREATE_SELECT(X)        ((X) > 0 ? (X) : 0)
+#define C_ORDINARY_CREATE         0
+#define C_ALTER_TABLE            -1
+
 bool mysql_create_table_no_lock(THD *thd, const char *db,
                                 const char *table_name,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                bool tmp_table, uint select_field_count,
-                                bool *is_trans);
+                                Alter_info *alter_info, bool *is_trans,
+                                int create_table_mode);
+
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
                                 Alter_info *alter_info,
-                                bool internal_tmp_table,
-                                uint select_field_count, LEX_CUSTRING *frm);
+                                int create_table_mode, LEX_CUSTRING *frm);
 bool mysql_prepare_alter_table(THD *thd, TABLE *table,
                                HA_CREATE_INFO *create_info,
                                Alter_info *alter_info);

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -70,8 +70,7 @@ static int copy_data_between_tables(THD *thd, TABLE *,TABLE *,
 static bool prepare_blob_field(THD *thd, Create_field *sql_field);
 static bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
-                                      bool, uint *, handler *, KEY **, uint *,
-                                      int);
+                                      uint *, handler *, KEY **, uint *, int);
 
 /**
   @brief Helper function for explain_filename
@@ -1671,14 +1670,10 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   strxmov(shadow_frm_name, shadow_path, reg_ext, NullS);
   if (flags & WFRM_WRITE_SHADOW)
   {
-    if (mysql_prepare_create_table(lpt->thd, lpt->create_info,
-                                   lpt->alter_info,
-                                   /*tmp_table*/ 1,
-                                   &lpt->db_options,
-                                   lpt->table->file,
-                                   &lpt->key_info_buffer,
-                                   &lpt->key_count,
-                                   /*select_field_count*/ 0))
+    if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
+                                   &lpt->db_options, lpt->table->file,
+                                   &lpt->key_info_buffer, &lpt->key_count,
+                                   C_ALTER_TABLE))
     {
       DBUG_RETURN(TRUE);
     }
@@ -2907,12 +2902,12 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
       thd                       Thread object.
       create_info               Create information (like MAX_ROWS).
       alter_info                List of columns and indexes to create
-      tmp_table                 If a temporary table is to be created.
       db_options          INOUT Table options (like HA_OPTION_PACK_RECORD).
       file                      The handler for the new table.
       key_info_buffer     OUT   An array of KEY structs for the indexes.
       key_count           OUT   The number of elements in the array.
-      select_field_count        The number of fields coming from a select table.
+      create_table_mode         C_ORDINARY_CREATE, C_ALTER_TABLE,
+                                C_CREATE_SELECT
 
   DESCRIPTION
     Prepares the table and key structures for table creation.
@@ -2927,11 +2922,9 @@ void promote_first_timestamp_column(List<Create_field> *column_definitions)
 
 static int
 mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
-                           Alter_info *alter_info,
-                           bool tmp_table,
-                           uint *db_options,
+                           Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
-                           uint *key_count, int select_field_count)
+                           uint *key_count, int create_table_mode)
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
@@ -2944,6 +2937,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   List_iterator<Create_field> it(alter_info->create_list);
   List_iterator<Create_field> it2(alter_info->create_list);
   uint total_uneven_bit_length= 0;
+  int select_field_count= C_CREATE_SELECT(create_table_mode);
+  bool tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_prepare_create_table");
 
   select_field_pos= alter_info->create_list.elements - select_field_count;
@@ -4074,16 +4069,14 @@ static bool check_if_created_table_can_be_opened(THD *thd,
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                bool internal_tmp_table,
-                                uint select_field_count, LEX_CUSTRING *frm)
+                                Alter_info *alter_info, int create_table_mode,
+                                LEX_CUSTRING *frm)
 {
   uint		db_options, key_count;
   KEY		*key_info_buffer;
   handler       *file;
   DBUG_ENTER("mysql_create_frm_image");
 
-  /* Check for duplicate fields and check type of table to create */
   if (!alter_info->create_list.elements)
   {
     my_message(ER_TABLE_MUST_HAVE_COLUMNS, ER(ER_TABLE_MUST_HAVE_COLUMNS),
@@ -4267,10 +4260,9 @@ handler *mysql_create_frm_image(THD *thd,
   }
 #endif
 
-  if (mysql_prepare_create_table(thd, create_info, alter_info,
-                                 internal_tmp_table, &db_options, file,
-                                 &key_info_buffer, &key_count,
-                                 select_field_count))
+  if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
+                                 file, &key_info_buffer, &key_count,
+                                 create_table_mode))
     goto err;
   create_info->table_options=db_options;
 
@@ -4298,11 +4290,10 @@ err:
     create_info	        Create information (like MAX_ROWS)
     fields		List of fields to create
     keys		List of keys to create
-    internal_tmp_table  Set to 1 if this is an internal temporary table
-			(From ALTER TABLE)
-    select_field_count
     is_trans            identifies the type of engine where the table
                         was created: either trans or non-trans.
+    create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE,
+                        or any positive number (for C_CREATE_SELECT).
 
   DESCRIPTION
     If one creates a temporary table, this is automatically opened
@@ -4323,10 +4314,8 @@ err:
 bool mysql_create_table_no_lock(THD *thd,
                                 const char *db, const char *table_name,
                                 HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info,
-                                bool internal_tmp_table,
-                                uint select_field_count,
-                                bool *is_trans)
+                                Alter_info *alter_info, bool *is_trans,
+                                int create_table_mode)
 {
   char		path[FN_REFLEN + 1];
   uint          path_length;
@@ -4334,6 +4323,7 @@ bool mysql_create_table_no_lock(THD *thd,
   handler	*file;
   LEX_CUSTRING  frm= {0,0};
   bool		error= TRUE;
+  bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE;
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
                        db, table_name, internal_tmp_table));
@@ -4341,7 +4331,7 @@ bool mysql_create_table_no_lock(THD *thd,
   alias= table_case_name(create_info, table_name);
 
   file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
-                               internal_tmp_table, select_field_count, &frm);
+                               create_table_mode, &frm);
 
   if (!file)
     goto err;
@@ -4490,7 +4480,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   promote_first_timestamp_column(&alter_info->create_list);
   result= mysql_create_table_no_lock(thd, create_table->db,
                                      create_table->table_name, create_info,
-                                     alter_info, FALSE, 0, &is_trans);
+                                     alter_info, &is_trans, C_ORDINARY_CREATE);
 
   /*
     Don't write statement if:
@@ -4725,7 +4715,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table, TABLE_LIST* src_table,
 
   if ((res= mysql_create_table_no_lock(thd, table->db, table->table_name,
                                        &local_create_info, &local_alter_info,
-                                       FALSE, 0, &is_trans)))
+                                       &is_trans, C_ORDINARY_CREATE)))
     goto err;
 
   /*
@@ -5017,12 +5007,11 @@ mysql_compare_tables(TABLE *table,
   *need_copy_table= ALTER_TABLE_DATA_CHANGED;
 
   /* Create the prepared information. */
-  if (mysql_prepare_create_table(thd, create_info,
-                                 &tmp_alter_info,
-                                 (table->s->tmp_table != NO_TMP_TABLE),
-                                 &db_options,
-                                 table->file, key_info_buffer,
-                                 &key_count, 0))
+  int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
+                           C_ORDINARY_CREATE : C_ALTER_TABLE;
+  if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
+                                 &db_options, table->file, key_info_buffer,
+                                 &key_count, create_table_mode))
     DBUG_RETURN(1);
   /* Allocate result buffers. */
   if (! (*index_drop_buffer=
@@ -6721,10 +6710,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                   HA_OPTION_PACK_RECORD));
   }
   tmp_disable_binlog(thd);
-  error= mysql_create_table_no_lock(thd, new_db, tmp_name,
-                                    create_info,
-                                    alter_info,
-                                    1, 0, NULL);
+  error= mysql_create_table_no_lock(thd, new_db, tmp_name, create_info,
+                                    alter_info, NULL, C_ALTER_TABLE);
   reenable_binlog(thd);
   if (error)
     goto err;
@@ -7391,11 +7378,11 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
   if (!(copy= new Copy_field[to->s->fields]))
     goto err;		/* purecov: inspected */
 
+  /* We need external lock before we can disable/enable keys */
   if (to->file->ha_external_lock(thd, F_WRLCK))
     goto err;
   errpos= 2;
 
-  /* We need external lock before we can disable/enable keys */
   alter_table_manage_keys(to, from->file->indexes_are_disabled(), keys_onoff);
 
   /* We can abort alter table for any table type */

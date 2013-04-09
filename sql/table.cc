@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2083,7 +2083,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   file= mysql_create_frm_image(thd, db.str, table_name.str,
                                &thd->lex->create_info, &thd->lex->alter_info,
-                               0, 0, &frm);
+                               C_ORDINARY_CREATE, &frm);
   error|= file == 0;
   delete file;
 
