@@ -1285,7 +1285,7 @@ CSphSEQuery::~CSphSEQuery ()
 	SafeDeleteArray ( m_sQueryBuffer );
 	SafeDeleteArray ( m_pWeights );
 	SafeDeleteArray ( m_pBuf );
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 		SafeDelete ( m_dOverrides.at(i) );
 	SPH_VOID_RET();
 }
@@ -1865,7 +1865,7 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 		iReqSize += 8 + strlen(m_sFieldWeight[i] );
 	// overrides
 	iReqSize += 4;
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 	{
 		CSphSEQuery::Override_t * pOverride = m_dOverrides.at(i);
 		const uint32 uSize = pOverride->m_iType==SPH_ATTR_BIGINT ? 16 : 12; // id64 + value
@@ -1972,13 +1972,13 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 
 	// overrides
 	SendInt ( m_dOverrides.elements() );
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 	{
 		CSphSEQuery::Override_t * pOverride = m_dOverrides.at(i);
 		SendString ( pOverride->m_sName );
 		SendDword ( pOverride->m_iType );
 		SendInt ( pOverride->m_dIds.elements() );
-		for ( int j=0; j<pOverride->m_dIds.elements(); j++ )
+		for ( size_t j=0; j<pOverride->m_dIds.elements(); j++ )
 		{
 			SendUint64 ( pOverride->m_dIds.at(j) );
 			if ( pOverride->m_iType==SPH_ATTR_FLOAT )

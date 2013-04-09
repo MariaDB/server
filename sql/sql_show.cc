@@ -687,59 +687,6 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
   return my_hash_search(&ignore_db_dirs_hash, (uchar *) buff, buff_len)!=NULL;
 }
 
-class Discovered_table_list: public handlerton::discovered_list
-{
-  THD *thd;
-  const char *wild;
-  size_t wild_length;
-  Dynamic_array<LEX_STRING*> *tables;
-
-public:
-  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
-                        const char *wild_arg)
-  {
-    thd= thd_arg;
-    tables= tables_arg;
-    if (wild_arg && wild_arg[0])
-    {
-      wild= wild_arg;
-      wild_length= strlen(wild_arg);
-    }
-    else
-      wild= 0;
-  }
-  ~Discovered_table_list() {}
-
-  bool add_table(const char *tname, size_t tlen)
-  {
-    if (wild && my_wildcmp(files_charset_info, tname, tname + tlen,
-                           wild, wild + wild_length,
-                           wild_prefix, wild_one, wild_many))
-        return 0;
-
-    LEX_STRING *name= thd->make_lex_string(tname, tlen);
-    if (!name || tables->append(name))
-      return 1;
-    return 0;
-  }
-
-  bool add_file(const char *fname)
-  {
-    char tname[SAFE_NAME_LEN + 1];
-    size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
-    return add_table(tname, tlen);
-  }
-};
-
-extern "C" {
-static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
-{
-  return my_strnncoll(&my_charset_bin,
-                      (const uchar*)((*a)->str), (*a)->length,
-                      (const uchar*)((*b)->str), (*b)->length);
-}
-}
-
 enum find_files_result {
   FIND_FILES_OK,
   FIND_FILES_OOM,
@@ -767,20 +714,13 @@ enum find_files_result {
 
 static find_files_result
 find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
-           const char *path, const char *wild)
+           const char *path, const LEX_STRING *wild)
 {
   MY_DIR *dirp;
-  myf my_dir_flags= MY_THREAD_SPECIFIC;
   Discovered_table_list tl(thd, files, wild);
   DBUG_ENTER("find_files");
 
-  if (!db)
-    my_dir_flags|= MY_WANT_STAT;
-
-  if (engines_with_discover_table_names)
-    my_dir_flags|= MY_WANT_SORT;
-
-  if (!(dirp = my_dir(path, my_dir_flags)))
+  if (!(dirp = my_dir(path, MY_THREAD_SPECIFIC | (db ? 0 : MY_WANT_STAT))))
   {
     if (my_errno == ENOENT)
       my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db->str);
@@ -819,6 +759,7 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
       if (tl.add_file(file->name))
         goto err;
     }
+    tl.sort();
   }
   else
   {
@@ -826,10 +767,8 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
       goto err;
   }
 
-  DBUG_PRINT("info",("found: %d files", files->elements()));
+  DBUG_PRINT("info",("found: %zu files", files->elements()));
   my_dirend(dirp);
-
-  files->sort(cmp_table_names);
 
   DBUG_RETURN(FIND_FILES_OK);
 
@@ -3716,7 +3655,7 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
         return 1;
     }
     return find_files(thd, files, 0, mysql_data_home,
-                      lookup_field_vals->db_value.str);
+                      &lookup_field_vals->db_value);
   }
 
 
@@ -3747,7 +3686,7 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
   */
   if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
-  return find_files(thd, files, 0, mysql_data_home, NullS);
+  return find_files(thd, files, 0, mysql_data_home, &null_lex_str);
 }
 
 
@@ -3891,7 +3830,7 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
                               lookup_field_vals->table_value.str));
 
   find_files_result res= find_files(thd, table_names, db_name, path,
-                                    lookup_field_vals->table_value.str);
+                                    &lookup_field_vals->table_value);
   if (res != FIND_FILES_OK)
   {
     /*
@@ -4633,7 +4572,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (make_db_list(thd, &db_names, &lookup_field_vals))
     goto err;
-  for (int i=0; i < db_names.elements(); i++)
+  for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4652,7 +4591,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       if (res)
         goto err;
 
-      for (int i=0; i < table_names.elements(); i++)
+      for (size_t i=0; i < table_names.elements(); i++)
       {
         LEX_STRING *table_name= table_names.at(i);
 
@@ -4800,7 +4739,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       DBUG_RETURN(0);
   }
 
-  for (int i=0; i < db_names.elements(); i++)
+  for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
     if (db_name == &INFORMATION_SCHEMA_NAME)
