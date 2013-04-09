@@ -964,4 +964,29 @@ set histogram_type=@save_histogram_type;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2,t3;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-4380: 2-way join with a materialized IN subquery in WHERE   
+#                when optimizer_use_condition_selectivity=3
+#
+set  use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (5),(9);
+CREATE TABLE t2 (b VARCHAR(8));
+INSERT INTO t2 VALUES ('red'),('blue');
+CREATE TABLE t3 (c VARCHAR(8), d VARCHAR(8));
+INSERT INTO t3 VALUES ('white','black'),('cyan','yellow');
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+FLUSH TABLES;
+set optimizer_use_condition_selectivity=3;
+SELECT * FROM t1, t2 WHERE ( 'orange', 'green' ) IN ( 
+SELECT MAX(c), MAX(d) FROM t3, t2 WHERE c >= d AND b = c 
+);
+a	b
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2,t3;
+set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
