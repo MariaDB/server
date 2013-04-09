@@ -4090,7 +4090,7 @@ handler *mysql_create_frm_image(THD *thd,
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
-  if (!create_info->frm_only &&
+  if (create_table_mode != C_ALTER_TABLE_FRM_ONLY &&
       create_info->row_type != ROW_TYPE_FIXED &&
       create_info->row_type != ROW_TYPE_DEFAULT)
     db_options|= HA_OPTION_PACK_RECORD;
@@ -4324,7 +4324,8 @@ bool mysql_create_table_no_lock(THD *thd,
   handler	*file;
   LEX_CUSTRING  frm= {0,0};
   bool		error= TRUE;
-  bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE;
+  bool          internal_tmp_table= create_table_mode == C_ALTER_TABLE ||
+                                    create_table_mode == C_ALTER_TABLE_FRM_ONLY;
   DBUG_ENTER("mysql_create_table_no_lock");
   DBUG_PRINT("enter", ("db: '%s'  table: '%s'  tmp: %d",
                        db, table_name, internal_tmp_table));
@@ -4385,7 +4386,8 @@ bool mysql_create_table_no_lock(THD *thd,
 
   thd_proc_info(thd, "creating table");
 
-  if (rea_create_table(thd, &frm, path, db, table_name, create_info, file))
+  if (rea_create_table(thd, &frm, path, db, table_name, create_info,
+                       create_table_mode == C_ALTER_TABLE_FRM_ONLY ? 0 : file))
     goto err;
 
   if (create_info->tmp_table())
@@ -4409,7 +4411,7 @@ bool mysql_create_table_no_lock(THD *thd,
     thd->thread_specific_used= TRUE;
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  else if (thd->work_part_info && create_info->frm_only)
+  else if (thd->work_part_info && create_table_mode == C_ALTER_TABLE_FRM_ONLY)
   {
     /*
       For partitioned tables we can't find some problems with table
@@ -5944,7 +5946,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   TABLE *table, *new_table= 0;
   MDL_ticket *mdl_ticket;
   MDL_request target_mdl_request;
-  int error= 0;
+  int error= 0, create_table_mode= C_ALTER_TABLE;
   char tmp_name[80],old_name[32],new_name_buff[FN_REFLEN + 1];
   char new_alias_buff[FN_REFLEN], *table_name, *db, *new_alias, *alias;
   char index_file[FN_REFLEN], data_file[FN_REFLEN];
@@ -6615,10 +6617,11 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     char frm_name[FN_REFLEN+1];
     strxmov(frm_name, path, reg_ext, NullS);
     /*
-      frm_only can only be used if old frm exists.
+      C_ALTER_TABLE_FRM_ONLY can only be used if old frm exists.
       discovering frm-less engines cannot enjoy this optimization.
     */
-    create_info->frm_only= !my_access(frm_name, F_OK);
+    if (!my_access(frm_name, F_OK))
+      create_table_mode= C_ALTER_TABLE_FRM_ONLY;
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -6688,13 +6691,13 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                   my_sleep(100000););
   /*
     Create a table with a temporary name.
-    With create_info->frm_only == 1 this creates a .frm file only and
+    With C_ALTER_TABLE_FRM_ONLY this creates a .frm file only and
     we keep the original row format.
     We don't log the statement, it will be logged later.
   */
   if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
   {
-    DBUG_ASSERT(create_info->frm_only);
+    DBUG_ASSERT(create_table_mode == C_ALTER_TABLE_FRM_ONLY);
     /* Ensure we keep the original table format */
     create_info->table_options= ((create_info->table_options &
                                   ~HA_OPTION_PACK_RECORD) |
@@ -6703,7 +6706,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
   tmp_disable_binlog(thd);
   error= mysql_create_table_no_lock(thd, new_db, tmp_name, create_info,
-                                    alter_info, NULL, C_ALTER_TABLE);
+                                    alter_info, NULL, create_table_mode);
   reenable_binlog(thd);
   if (error)
     goto err;
@@ -7224,7 +7227,8 @@ err_new_table_cleanup:
   }
   else
     (void) quick_rm_table(new_db_type, new_db, tmp_name,
-                          create_info->frm_only ? FN_IS_TMP | FRM_ONLY : FN_IS_TMP);
+                          create_table_mode == C_ALTER_TABLE_FRM_ONLY ?
+                          FN_IS_TMP | FRM_ONLY : FN_IS_TMP);
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE

@@ -361,7 +361,7 @@ err:
     db			Data base name
     table_name		Table name
     create_info		create info parameters
-    file		Handler to use or NULL if only frm needs to be created
+    file                Handler to use or NULL if only frm needs to be created
 
   RETURN
     0  ok
@@ -374,20 +374,15 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
 {
   DBUG_ENTER("rea_create_table");
 
-  if (thd->variables.keep_files_on_create)
-    create_info->options|= HA_CREATE_KEEP_FILES;
-
-  if (create_info->frm_only)
-  {
-    if (writefrm(path, db, table_name, 1, frm->str, frm->length))
-      goto err_handler;
-  }
-  else
+  if (file)
   {
     // TODO don't write frm for temp tables
     if (create_info->tmp_table() &&
         writefrm(path, db, table_name, 0, frm->str, frm->length))
       goto err_handler;
+
+    if (thd->variables.keep_files_on_create)
+      create_info->options|= HA_CREATE_KEEP_FILES;
 
     if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
                                               create_info) ||
@@ -397,6 +392,11 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                                             create_info);
       goto err_handler;
     }
+  }
+  else
+  {
+    if (writefrm(path, db, table_name, 1, frm->str, frm->length))
+      goto err_handler;
   }
 
   DBUG_RETURN(0);
