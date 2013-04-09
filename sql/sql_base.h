@@ -109,8 +109,7 @@ create_table_def_key(char *key, const char *db, const char *table_name)
 uint create_tmp_table_def_key(THD *thd, char *key, const char *db,
                               const char *table_name);
 TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
-                             char *key, uint key_length, enum read_frm_op op,
-                             enum open_frm_error *error,
+                             char *key, uint key_length, uint flags,
                              my_hash_value_type hash_value);
 void release_table_share(TABLE_SHARE *share);
 TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);
@@ -119,23 +118,20 @@ TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);
 static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
                                            const char *table_name,
                                            char *key, uint key_length,
-                                           enum read_frm_op op,
-                                           enum open_frm_error *error)
+                                           uint flags)
 {
-  return get_table_share(thd, db, table_name, key, key_length, op, error,
+  return get_table_share(thd, db, table_name, key, key_length, flags,
                 my_calc_hash(&table_def_cache, (uchar*) key, key_length));
 }
 
 // convenience helper: call get_table_share() without precomputed cache key
 static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
-                                           const char *table_name,
-                                           enum read_frm_op op,
-                                           enum open_frm_error *error)
+                                           const char *table_name, uint flags)
 {
   char	key[MAX_DBKEY_LENGTH];
   uint	key_length;
   key_length= create_table_def_key(key, db, table_name);
-  return get_table_share(thd, db, table_name, key, key_length, op, error);
+  return get_table_share(thd, db, table_name, key, key_length, flags);
 }
 
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,

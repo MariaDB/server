@@ -4307,7 +4307,6 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   TABLE tbl;
   TABLE_LIST table_list;
   uint res= 0;
-  enum open_frm_error not_used;
   char db_name_buff[NAME_LEN + 1], table_name_buff[NAME_LEN + 1];
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
@@ -4380,7 +4379,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   }
 
   share= get_table_share(thd, table_list.db, table_list.table_name,
-                         FRM_READ_TABLE_OR_VIEW, &not_used);
+                         GTS_TABLE | GTS_VIEW);
   if (!share)
   {
     res= 0;

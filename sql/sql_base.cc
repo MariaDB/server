@@ -569,8 +569,8 @@ static void table_def_unuse_table(TABLE *table)
   table_list		Table that should be opened
   key			Table cache key
   key_length		Length of key
-  op      		operation: what to open table or view
-  error			out: Error code from open_table_def()
+  flags   		operation: what to open table or view
+  hash_value            = my_calc_hash(&table_def_cache, key, key_length)
 
   IMPLEMENTATION
     Get a table definition from the table definition cache.
@@ -582,15 +582,14 @@ static void table_def_unuse_table(TABLE *table)
 */
 
 TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
-                             char *key, uint key_length,
-                             enum read_frm_op op, enum open_frm_error *error,
+                             char *key, uint key_length, uint flags,
                              my_hash_value_type hash_value)
 {
   bool open_failed;
   TABLE_SHARE *share;
   DBUG_ENTER("get_table_share");
 
-  *error= OPEN_FRM_OK;
+  DBUG_ASSERT(!(flags & GTS_FORCE_DISCOVERY)); // FIXME not implemented
 
   mysql_mutex_lock(&LOCK_open);
 
@@ -634,14 +633,13 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
     mysql_mutex_lock(&share->LOCK_ha_data);
     mysql_mutex_unlock(&LOCK_open);
 
-    open_failed= open_table_def(thd, share, op);
+    open_failed= open_table_def(thd, share, flags);
 
     mysql_mutex_unlock(&share->LOCK_ha_data);
     mysql_mutex_lock(&LOCK_open);
 
     if (open_failed)
     {
-      *error= share->error;
       share->ref_count--;
       (void) my_hash_delete(&table_def_cache, (uchar*) share);
       goto err;
@@ -660,21 +658,20 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
      We found an existing table definition. Return it if we didn't get
      an error when reading the table definition from file.
   */
-  if (share->is_view && op == FRM_READ_TABLE_ONLY)
+  if (share->error)
+  {
+    open_table_error(share, share->error, share->open_errno);
+    goto err;
+  }
+
+  if (share->is_view && !(flags & GTS_VIEW))
   {
     open_table_error(share, OPEN_FRM_NOT_A_TABLE, ENOENT);
     goto err;
   }
-  if (!share->is_view && op == FRM_READ_VIEW_ONLY)
+  if (!share->is_view && !(flags & GTS_TABLE))
   {
     open_table_error(share, OPEN_FRM_NOT_A_VIEW, ENOENT);
-    goto err;
-  }
-
-  if (share->error)
-  {
-    /* Table definition contained an error */
-    open_table_error(share, share->error, share->open_errno);
     goto err;
   }
 
@@ -703,8 +700,23 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
   goto end;
 
 err:
-  share= 0;
+  mysql_mutex_unlock(&LOCK_open);
+  DBUG_RETURN(0);
+
 end:
+  if (flags & GTS_NOLOCK)
+  {
+    share->ref_count--;
+    /*
+      if GTS_NOLOCK is requested, the returned share pointer cannot be used,
+      the share it points to may go away any moment.
+      But perhaps the caller is only interested to know whether a share or
+      table existed?
+      Let's return an invalid pointer here to catch dereferencing attempts.
+    */
+    share= (TABLE_SHARE*) 1;
+  }
+
   mysql_mutex_unlock(&LOCK_open);
   DBUG_RETURN(share);
 }
@@ -2610,10 +2622,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   char	*alias= table_list->alias;
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
-  enum open_frm_error error;
   TABLE_SHARE *share;
   my_hash_value_type hash_value;
-  enum read_frm_op read_op;
+  uint gts_flags;
   DBUG_ENTER("open_table");
 
   /* an open table operation needs a lot of the stack space */
@@ -2883,17 +2894,16 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
     DBUG_RETURN(FALSE);
 
   if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
-    read_op = FRM_READ_TABLE_ONLY;
+    gts_flags= GTS_TABLE;
+  else if (table_list->i_s_requested_object &  OPEN_VIEW_ONLY)
+    gts_flags= GTS_VIEW;
   else
-  if (table_list->i_s_requested_object &  OPEN_VIEW_ONLY)
-    read_op = FRM_READ_VIEW_ONLY;
-  else
-    read_op = FRM_READ_TABLE_OR_VIEW;
+    gts_flags= GTS_TABLE | GTS_VIEW;
 
 retry_share:
 
   share= get_table_share(thd, table_list->db, table_list->table_name,
-                         key, key_length, read_op, &error, hash_value);
+                         key, key_length, gts_flags, hash_value);
 
   if (!share)
   {
@@ -3019,6 +3029,8 @@ retry_share:
   }
   else
   {
+    enum open_frm_error error;
+
     /* If we have too many TABLE instances around, try to get rid of them */
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
@@ -3716,12 +3728,10 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                    MEM_ROOT *mem_root, uint flags)
 {
   TABLE not_used;
-  enum open_frm_error error;
   TABLE_SHARE *share;
 
   if (!(share= get_table_share(thd, table_list->db, table_list->table_name,
-                               cache_key, cache_key_length,
-                               FRM_READ_VIEW_ONLY, &error)))
+                               cache_key, cache_key_length, GTS_VIEW)))
     return TRUE;
 
   DBUG_ASSERT(share->is_view);
@@ -3792,7 +3802,6 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
 {
   TABLE_SHARE *share;
   TABLE *entry;
-  enum open_frm_error not_used;
   bool result= TRUE;
 
   thd->clear_error();
@@ -3801,7 +3810,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
     return result;
 
   if (!(share= get_table_share(thd, table_list->db, table_list->table_name,
-                               FRM_READ_TABLE_ONLY, &not_used)))
+                               GTS_TABLE)))
     goto end_free;
 
   DBUG_ASSERT(! share->is_view);
@@ -3979,8 +3988,9 @@ recover_from_failed_open(THD *thd)
 
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
-        ha_create_table_from_engine(thd, m_failed_table->db,
-                                    m_failed_table->table_name);
+        get_table_share(thd, m_failed_table->db,
+                        m_failed_table->table_name,
+                        GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK);
 
         thd->warning_info->clear_warning_info(thd->query_id);
         thd->clear_error();                 // Clear error message
