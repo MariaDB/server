@@ -4382,13 +4382,12 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
 
   key_length= create_table_def_key(thd, key, &table_list, 0);
   hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
-  mysql_mutex_lock(&LOCK_open);
   share= get_table_share(thd, &table_list, key, key_length,
                          FRM_READ_NO_ERROR_FOR_VIEW, &not_used, hash_value);
   if (!share)
   {
     res= 0;
-    goto end_unlock;
+    goto end;
   }
 
   if (share->is_view)
@@ -4437,10 +4436,10 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     free_root(&tbl.mem_root, MYF(0));
   }
 
-end_share:
-  release_table_share(share);
 
-end_unlock:
+end_share:
+  mysql_mutex_lock(&LOCK_open);
+  release_table_share(share);
   mysql_mutex_unlock(&LOCK_open);
 
 end:

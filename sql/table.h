@@ -2188,9 +2188,9 @@ private:
 #else
   inline void set_check_merged() {}
 #endif
-  /** See comments for set_metadata_id() */
+  /** See comments for set_table_ref_id() */
   enum enum_table_ref_type m_table_ref_type;
-  /** See comments for set_metadata_id() */
+  /** See comments for set_table_ref_id() */
   ulong m_table_ref_version;
 };
 

@@ -1707,9 +1707,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     some_views_deleted= TRUE;
 
     /*
-      For a view, there is a TABLE_SHARE object, but its
-      ref_count never goes above 1. Remove it from the table
-      definition cache, in case the view was cached.
+      For a view, there is a TABLE_SHARE object.
+      Remove it from the table definition cache, in case the view was cached.
     */
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name,
                      FALSE);

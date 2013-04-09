@@ -167,6 +167,24 @@ Repair_mrg_table_error_handler::handle_condition(THD *,
   Protects table_def_hash, used and unused lists in the
   TABLE_SHARE object, LRU lists of used TABLEs and used
   TABLE_SHAREs, refresh_version and the table id counter.
+  In particular:
+
+  end_of_unused_share
+  last_table_id
+  oldest_unused_share
+  refresh_version
+  table_cache_count
+  table_def_cache
+  table_def_shutdown_in_progress
+  unused_tables
+  TABLE::next
+  TABLE::prev
+  TABLE_SHARE::free_tables
+  TABLE_SHARE::m_flush_tickets
+  TABLE_SHARE::next
+  TABLE_SHARE::prev
+  TABLE_SHARE::ref_count
+  TABLE_SHARE::used_tables
 */
 mysql_mutex_t LOCK_open;
 
@@ -584,6 +602,8 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
 
   *error= OPEN_FRM_OK;
 
+  mysql_mutex_lock(&LOCK_open);
+
   /*
     To be able perform any operation on table we should own
     some kind of metadata lock on it.
@@ -594,47 +614,46 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
                                              MDL_SHARED));
 
   /* Read table definition from cache */
-  if ((share= (TABLE_SHARE*) my_hash_search_using_hash_value(&table_def_cache,
-                                                             hash_value, (uchar*) key, key_length)))
-    goto found;
-
-  if (!(share= alloc_table_share(table_list, key, key_length)))
+  share= (TABLE_SHARE*) my_hash_search_using_hash_value(&table_def_cache,
+                                        hash_value, (uchar*) key, key_length);
+  if (!share)
   {
-    DBUG_RETURN(0);
+    if (!(share= alloc_table_share(table_list, key, key_length)))
+      goto err;
+
+    /*
+      We assign a new table id under the protection of LOCK_open.
+      We do this instead of creating a new mutex
+      and using it for the sole purpose of serializing accesses to a
+      static variable, we assign the table id here. We assign it to the
+      share before inserting it into the table_def_cache to be really
+      sure that it cannot be read from the cache without having a table
+      id assigned.
+
+      CAVEAT. This means that the table cannot be used for
+      binlogging/replication purposes, unless get_table_share() has been
+      called directly or indirectly.
+     */
+    assign_new_table_id(share);
+
+    if (my_hash_insert(&table_def_cache, (uchar*) share))
+    {
+      free_table_share(share);
+      goto err;
+    }
+    if (open_table_def(thd, share, op))
+    {
+      *error= share->error;
+      (void) my_hash_delete(&table_def_cache, (uchar*) share);
+      goto err;
+    }
+    share->ref_count++;                         // Mark in use
+    DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
+                        (ulong) share, share->ref_count));
+
+    goto end;
   }
 
-  /*
-    We assign a new table id under the protection of LOCK_open.
-    We do this instead of creating a new mutex
-    and using it for the sole purpose of serializing accesses to a
-    static variable, we assign the table id here. We assign it to the
-    share before inserting it into the table_def_cache to be really
-    sure that it cannot be read from the cache without having a table
-    id assigned.
-
-    CAVEAT. This means that the table cannot be used for
-    binlogging/replication purposes, unless get_table_share() has been
-    called directly or indirectly.
-   */
-  assign_new_table_id(share);
-
-  if (my_hash_insert(&table_def_cache, (uchar*) share))
-  {
-    free_table_share(share);
-    DBUG_RETURN(0);				// return error
-  }
-  if (open_table_def(thd, share, op))
-  {
-    *error= share->error;
-    (void) my_hash_delete(&table_def_cache, (uchar*) share);
-    DBUG_RETURN(0);
-  }
-  share->ref_count++;				// Mark in use
-  DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
-                      (ulong) share, share->ref_count));
-  DBUG_RETURN(share);
-
-found:
   /*
      We found an existing table definition. Return it if we didn't get
      an error when reading the table definition from file.
@@ -643,12 +662,13 @@ found:
   {
     /* Table definition contained an error */
     open_table_error(share, share->error, share->open_errno);
-    DBUG_RETURN(0);
+    goto err;
   }
+
   if (share->is_view && op != FRM_READ_NO_ERROR_FOR_VIEW)
   {
     open_table_error(share, OPEN_FRM_NO_VIEWS, ENOENT);
-    DBUG_RETURN(0);
+    goto err;
   }
 
   ++share->ref_count;
@@ -673,6 +693,12 @@ found:
 
   DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
                       (ulong) share, share->ref_count));
+  goto end;
+
+err:
+  share= 0;
+end:
+  mysql_mutex_unlock(&LOCK_open);
   DBUG_RETURN(share);
 }
 
@@ -3013,13 +3039,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 
 retry_share:
 
-  mysql_mutex_lock(&LOCK_open);
-
   if (!(share= get_table_share_with_discover(thd, table_list, key, key_length,
                                              FRM_READ_NO_ERROR_FOR_VIEW,
                                              &error, hash_value)))
   {
-    mysql_mutex_unlock(&LOCK_open);
     /*
       If thd->is_error() is not set, we either need discover or the error was
       silenced by the prelocking handler, in which case we should skip this
@@ -3042,7 +3065,7 @@ retry_share:
     if (table_list->parent_l)
     {
       my_error(ER_WRONG_MRG_TABLE, MYF(0));
-      goto err_unlock;
+      goto err_lock;
     }
 
     /*
@@ -3050,12 +3073,12 @@ retry_share:
       that it was a view when the statement was prepared.
     */
     if (check_and_update_table_version(thd, table_list, share))
-      goto err_unlock;
+      goto err_lock;
     if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
     {
       my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db,
                table_list->table_name);
-      goto err_unlock;
+      goto err_lock;
     }
 
     /* Open view */
@@ -3065,7 +3088,9 @@ retry_share:
                      READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
                      thd->open_options,
                      0, table_list, mem_root))
-      goto err_unlock;
+      goto err_lock;
+
+    mysql_mutex_lock(&LOCK_open);
 
     /* TODO: Don't free this */
     release_table_share(share);
@@ -3087,12 +3112,12 @@ retry_share:
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db,
              table_list->table_name);
-    goto err_unlock;
+    goto err_lock;
   }
 
+  mysql_mutex_lock(&LOCK_open);
   if (!(flags & MYSQL_OPEN_IGNORE_FLUSH) ||
-      (share->protected_against_usage() &&
-       !(flags & MYSQL_OPEN_FOR_REPAIR)))
+      (share->protected_against_usage() && !(flags & MYSQL_OPEN_FOR_REPAIR)))
   {
     if (share->has_old_version())
     {
@@ -3144,12 +3169,12 @@ retry_share:
   {
     table= share->free_tables.front();
     table_def_use_table(thd, table);
-    /* We need to release share as we have EXTRA reference to it in our hands. */
+    /* Release the share as we hold an extra reference to it */
     release_table_share(share);
   }
   else
   {
-    /* We have too many TABLE instances around let us try to get rid of them. */
+    /* If we have too many TABLE instances around, try to get rid of them */
     while (table_cache_count > table_cache_size && unused_tables)
       free_cache_entry(unused_tables);
 
@@ -3218,7 +3243,6 @@ retry_share:
 
 err_lock:
   mysql_mutex_lock(&LOCK_open);
-err_unlock:
   release_table_share(share);
   mysql_mutex_unlock(&LOCK_open);
 
@@ -3853,30 +3877,26 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
 
   hash_value= my_calc_hash(&table_def_cache, (uchar*) cache_key,
                            cache_key_length);
-  mysql_mutex_lock(&LOCK_open);
-
   if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
                                FRM_READ_NO_ERROR_FOR_VIEW, &error, hash_value)))
-    goto err;
+    return TRUE;
 
-  if (share->is_view &&
-      !open_new_frm(thd, share, alias,
-                    (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
-                            HA_GET_INDEX | HA_TRY_READ_ONLY),
-                    READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD |
-                    flags, thd->open_options, &not_used, table_list,
-                    mem_root))
-  {
-    release_table_share(share);
-    mysql_mutex_unlock(&LOCK_open);
-    return FALSE;
-  }
+  bool err= !share->is_view ||
+       open_new_frm(thd, share, alias,
+                    (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
+                     HA_GET_INDEX | HA_TRY_READ_ONLY),
+                    READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD | flags,
+                    thd->open_options, &not_used, table_list, mem_root);
 
-  my_error(ER_WRONG_OBJECT, MYF(0), share->db.str, share->table_name.str, "VIEW");
+  mysql_mutex_lock(&LOCK_open);
   release_table_share(share);
-err:
   mysql_mutex_unlock(&LOCK_open);
-  return TRUE;
+
+  if (err)
+    my_error(ER_WRONG_OBJECT, MYF(0), table_list->db,
+             table_list->table_name, "VIEW");
+
+  return err;
 }
 
 
@@ -3942,27 +3962,19 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
 
   thd->clear_error();
 
+  if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
+    return result;
+
   hash_value= my_calc_hash(&table_def_cache, (uchar*) cache_key,
                            cache_key_length);
-  mysql_mutex_lock(&LOCK_open);
 
   if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
                                FRM_READ_NO_ERROR_FOR_VIEW, &not_used,
                                hash_value)))
-    goto end_unlock;
+    goto end_free;
 
   if (share->is_view)
-  {
-    release_table_share(share);
-    goto end_unlock;
-  }
-
-  if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
-  {
-    release_table_share(share);
-    goto end_unlock;
-  }
-  mysql_mutex_unlock(&LOCK_open);
+    goto end_release;
 
   if (open_table_from_share(thd, share, table_list->alias,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
@@ -3987,16 +3999,17 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
     closefrm(entry, 0);
     result= FALSE;
   }
-  my_free(entry);
 
+end_release:
   mysql_mutex_lock(&LOCK_open);
   release_table_share(share);
   /* Remove the repaired share from the table cache. */
   tdc_remove_table(thd, TDC_RT_REMOVE_ALL,
                    table_list->db, table_list->table_name,
                    TRUE);
-end_unlock:
   mysql_mutex_unlock(&LOCK_open);
+end_free:
+  my_free(entry);
   return result;
 }
 
