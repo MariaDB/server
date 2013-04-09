@@ -594,7 +594,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   MY_STAT stats;
   uchar *buf;
-  uchar head[64];
+  uchar head[FRM_HEADER_SIZE];
   char	path[FN_REFLEN];
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
@@ -690,6 +690,10 @@ err_not_open:
   28..29  (used to be key_info_length)
 
   They're still set, for compatibility reasons, but never read.
+
+  42..46 are unused since 5.0 (were for RAID support)
+  Also, there're few unused bytes in forminfo.
+
 */
 
 bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
@@ -739,7 +743,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   if (path && writefrm(path, frm_image, frm_length))
     goto err;
 
-  if (frm_length < 64 + 288)
+  if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
     goto err;
 
   new_field_pack_flag= frm_image[27];
@@ -748,11 +752,12 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
 
   /* Position of the form in the form file. */
   len = uint2korr(frm_image+4);
-  if (frm_length < 64 + len || !(pos= uint4korr(frm_image + 64 + len)))
+  if (frm_length < FRM_HEADER_SIZE + len ||
+      !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
     goto err;
 
   forminfo= frm_image + pos;
-  if (forminfo + 288 >= frm_image_end)
+  if (forminfo + FRM_FORMINFO_SIZE >= frm_image_end)
     goto err;
 
   share->frm_version= frm_image[2];
@@ -766,13 +771,13 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
     share->frm_version= FRM_VER_TRUE_VARCHAR;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (*(frm_image+61) &&
+  if (frm_image[61] &&
       !(share->default_part_db_type= 
-        ha_checktype(thd, (enum legacy_db_type) (uint) *(frm_image+61), 1, 0)))
+        ha_checktype(thd, (enum legacy_db_type) (uint) frm_image[61], 1, 0)))
     goto err;
   DBUG_PRINT("info", ("default_part_db_type = %u", frm_image[61]));
 #endif
-  legacy_db_type= (enum legacy_db_type) (uint) *(frm_image+3);
+  legacy_db_type= (enum legacy_db_type) (uint) frm_image[3];
   DBUG_ASSERT(share->db_plugin == NULL);
   /*
     if the storage engine is dynamic, no point in resolving it by its
@@ -1004,7 +1009,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
 
   share->reclength = uint2korr((frm_image+16));
   share->stored_rec_length= share->reclength;
-  if (*(frm_image+26) == 1)
+  if (frm_image[26] == 1)
     share->system= 1;				/* one-record-database */
 
   record_offset= (ulong) (uint2korr(frm_image+6)+
@@ -1196,7 +1201,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
   share->default_values= record;
   memcpy(record, frm_image + record_offset, share->reclength);
 
-  disk_buff= frm_image + pos + 288;
+  disk_buff= frm_image + pos + FRM_FORMINFO_SIZE;
 
   share->fields= uint2korr(forminfo+258);
   pos= uint2korr(forminfo+260);   /* Length of all screens */
@@ -2705,79 +2710,7 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
   }
 }
 
-	/* Add a new form to a form file */
-
-ulong make_new_entry(File file, uchar *fileinfo, TYPELIB *formnames,
-		     const char *newname)
-{
-  uint i,bufflength,maxlength,n_length,length,names;
-  ulong endpos,newpos;
-  uchar buff[IO_SIZE];
-  uchar *pos;
-  DBUG_ENTER("make_new_entry");
-
-  length=(uint) strlen(newname)+1;
-  n_length=uint2korr(fileinfo+4);
-  maxlength=uint2korr(fileinfo+6);
-  names=uint2korr(fileinfo+8);
-  newpos=uint4korr(fileinfo+10);
-
-  if (64+length+n_length+(names+1)*4 > maxlength)
-  {						/* Expand file */
-    newpos+=IO_SIZE;
-    int4store(fileinfo+10,newpos);
-    /* Copy from file-end */
-    endpos= (ulong) mysql_file_seek(file, 0L, MY_SEEK_END, MYF(0));
-    bufflength= (uint) (endpos & (IO_SIZE-1));	/* IO_SIZE is a power of 2 */
-
-    while (endpos > maxlength)
-    {
-      mysql_file_seek(file, (ulong) (endpos-bufflength), MY_SEEK_SET, MYF(0));
-      if (mysql_file_read(file, buff, bufflength, MYF(MY_NABP+MY_WME)))
-	DBUG_RETURN(0L);
-      mysql_file_seek(file, (ulong) (endpos-bufflength+IO_SIZE), MY_SEEK_SET,
-                      MYF(0));
-      if ((mysql_file_write(file, buff, bufflength, MYF(MY_NABP+MY_WME))))
-	DBUG_RETURN(0);
-      endpos-=bufflength; bufflength=IO_SIZE;
-    }
-    bzero(buff,IO_SIZE);			/* Null new block */
-    mysql_file_seek(file, (ulong) maxlength, MY_SEEK_SET, MYF(0));
-    if (mysql_file_write(file, buff, bufflength, MYF(MY_NABP+MY_WME)))
-	DBUG_RETURN(0L);
-    maxlength+=IO_SIZE;				/* Fix old ref */
-    int2store(fileinfo+6,maxlength);
-    for (i=names, pos= (uchar*) *formnames->type_names+n_length-1; i-- ;
-	 pos+=4)
-    {
-      endpos=uint4korr(pos)+IO_SIZE;
-      int4store(pos,endpos);
-    }
-  }
-
-  if (n_length == 1 )
-  {						/* First name */
-    length++;
-    (void) strxmov((char*) buff,"/",newname,"/",NullS);
-  }
-  else
-    (void) strxmov((char*) buff,newname,"/",NullS); /* purecov: inspected */
-  mysql_file_seek(file, 63L+(ulong) n_length, MY_SEEK_SET, MYF(0));
-  if (mysql_file_write(file, buff, (size_t) length+1, MYF(MY_NABP+MY_WME)) ||
-      (names && mysql_file_write(file,
-                                 (uchar*) (*formnames->type_names+n_length-1),
-                                 names*4, MYF(MY_NABP+MY_WME))) ||
-      mysql_file_write(file, fileinfo+10, 4, MYF(MY_NABP+MY_WME)))
-    DBUG_RETURN(0L); /* purecov: inspected */
-
-  int2store(fileinfo+8,names+1);
-  int2store(fileinfo+4,n_length+length);
-  (void) mysql_file_chsize(file, newpos, 0, MYF(MY_WME));/* Append file with '\0' */
-  DBUG_RETURN(newpos);
-} /* make_new_entry */
-
-
-	/* error message when opening a form file */
+/* error message when opening a form file */
 
 void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
                       int db_errno)
@@ -2928,28 +2861,6 @@ static uint find_field(Field **fields, uchar *record, uint start, uint length)
 }
 
 
-	/* Check that the integer is in the internal */
-
-int set_zone(register int nr, int min_zone, int max_zone)
-{
-  if (nr<=min_zone)
-    return (min_zone);
-  if (nr>=max_zone)
-    return (max_zone);
-  return (nr);
-} /* set_zone */
-
-	/* Adjust number to next larger disk buffer */
-
-ulong next_io_size(register ulong pos)
-{
-  reg2 ulong offset;
-  if ((offset= pos & (IO_SIZE-1)))
-    return pos-offset+IO_SIZE;
-  return pos;
-} /* next_io_size */
-
-
 /*
   Store an SQL quoted string.
 
@@ -3012,22 +2923,13 @@ void append_unescaped(String *res, const char *pos, uint length)
 }
 
 
-	/* Create a .frm file */
-
-File create_frm(THD *thd, const char *name, const char *db,
-                const char *table, uint reclength, uchar *fileinfo,
-  		HA_CREATE_INFO *create_info, uint keys, KEY *key_info)
+void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
+                        HA_CREATE_INFO *create_info, uint keys, KEY *key_info)
 {
-  register File file;
   ulong length;
-  uchar fill[IO_SIZE];
-  int create_flags= O_RDWR | O_TRUNC;
   ulong key_comment_total_bytes= 0;
   uint i;
-  DBUG_ENTER("create_frm");
-
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
-    create_flags|= O_EXCL | O_NOFOLLOW;
+  DBUG_ENTER("prepare_frm_header");
 
   /* Fix this when we have new .frm files;  Current limit is 4G rows (TODO) */
   if (create_info->max_rows > UINT_MAX32)
@@ -3035,101 +2937,81 @@ File create_frm(THD *thd, const char *name, const char *db,
   if (create_info->min_rows > UINT_MAX32)
     create_info->min_rows= UINT_MAX32;
 
-  if ((file= mysql_file_create(key_file_frm,
-                               name, CREATE_MODE, create_flags, MYF(0))) >= 0)
+  uint key_length, tmp_key_length, tmp, csid;
+  bzero((char*) fileinfo, FRM_HEADER_SIZE);
+  /* header */
+  fileinfo[0]=(uchar) 254;
+  fileinfo[1]= 1;
+  fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
+
+  fileinfo[3]= (uchar) ha_legacy_type(
+        ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
+  int2store(fileinfo+4,3);
+  int2store(fileinfo+6,IO_SIZE);		/* Next block starts here */
+  /*
+    Keep in sync with pack_keys() in unireg.cc
+    For each key:
+    8 bytes for the key header
+    9 bytes for each key-part (MAX_REF_PARTS)
+    NAME_LEN bytes for the name
+    1 byte for the NAMES_SEP_CHAR (before the name)
+    For all keys:
+    6 bytes for the header
+    1 byte for the NAMES_SEP_CHAR (after the last name)
+    9 extra bytes (padding for safety? alignment?)
+  */
+  for (i= 0; i < keys; i++)
   {
-    uint key_length, tmp_key_length, tmp, csid;
-    bzero((char*) fileinfo,64);
-    /* header */
-    fileinfo[0]=(uchar) 254;
-    fileinfo[1]= 1;
-    fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
-
-    fileinfo[3]= (uchar) ha_legacy_type(
-          ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
-    fileinfo[4]=1;
-    int2store(fileinfo+6,IO_SIZE);		/* Next block starts here */
-    /*
-      Keep in sync with pack_keys() in unireg.cc
-      For each key:
-      8 bytes for the key header
-      9 bytes for each key-part (MAX_REF_PARTS)
-      NAME_LEN bytes for the name
-      1 byte for the NAMES_SEP_CHAR (before the name)
-      For all keys:
-      6 bytes for the header
-      1 byte for the NAMES_SEP_CHAR (after the last name)
-      9 extra bytes (padding for safety? alignment?)
-    */
-    for (i= 0; i < keys; i++)
-    {
-      DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
-                 (key_info[i].comment.length > 0));
-      if (key_info[i].flags & HA_USES_COMMENT)
-        key_comment_total_bytes += 2 + key_info[i].comment.length;
-    }
-
-    key_length= keys * (8 + MAX_REF_PARTS * 9 + NAME_LEN + 1) + 16
-                + key_comment_total_bytes;
-
-    length= next_io_size((ulong) (IO_SIZE+key_length+reclength+
-                                  create_info->extra_size));
-    int4store(fileinfo+10,length);
-    tmp_key_length= (key_length < 0xffff) ? key_length : 0xffff;
-    int2store(fileinfo+14,tmp_key_length);
-    int2store(fileinfo+16,reclength);
-    int4store(fileinfo+18,create_info->max_rows);
-    int4store(fileinfo+22,create_info->min_rows);
-    /* fileinfo[26] is set in mysql_create_frm() */
-    fileinfo[27]=2;				// Use long pack-fields
-    /* fileinfo[28 & 29] is set to key_info_length in mysql_create_frm() */
-    create_info->table_options|=HA_OPTION_LONG_BLOB_PTR; // Use portable blob pointers
-    int2store(fileinfo+30,create_info->table_options);
-    fileinfo[32]=0;				// No filename anymore
-    fileinfo[33]=5;                             // Mark for 5.0 frm file
-    int4store(fileinfo+34,create_info->avg_row_length);
-    csid= (create_info->default_table_charset ?
-           create_info->default_table_charset->number : 0);
-    fileinfo[38]= (uchar) csid;
-    fileinfo[39]= (uchar) ((uint) create_info->transactional |
-                           ((uint) create_info->page_checksum << 2));
-    fileinfo[40]= (uchar) create_info->row_type;
-    /* Next few bytes where for RAID support */
-    fileinfo[41]= (uchar) (csid >> 8);
-    fileinfo[42]= 0;
-    fileinfo[43]= 0;
-    fileinfo[44]= 0;
-    fileinfo[45]= 0;
-    fileinfo[46]= 0;
-    int4store(fileinfo+47, key_length);
-    tmp= MYSQL_VERSION_ID;          // Store to avoid warning from int4store
-    int4store(fileinfo+51, tmp);
-    int4store(fileinfo+55, create_info->extra_size);
-    /*
-      59-60 is reserved for extra_rec_buf_length,
-      61 for default_part_db_type
-    */
-    int2store(fileinfo+62, create_info->key_block_size);
-    bzero(fill,IO_SIZE);
-    for (; length > IO_SIZE ; length-= IO_SIZE)
-    {
-      if (mysql_file_write(file, fill, IO_SIZE, MYF(MY_WME | MY_NABP)))
-      {
-        (void) mysql_file_close(file, MYF(0));
-        (void) mysql_file_delete(key_file_frm, name, MYF(0));
-	return(-1);
-      }
-    }
+    DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
+               (key_info[i].comment.length > 0));
+    if (key_info[i].flags & HA_USES_COMMENT)
+      key_comment_total_bytes += 2 + key_info[i].comment.length;
   }
-  else
-  {
-    if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR,MYF(0),db);
-    else
-      my_error(ER_CANT_CREATE_TABLE,MYF(0),table,my_errno);
-  }
-  DBUG_RETURN(file);
-} /* create_frm */
+
+  key_length= keys * (8 + MAX_REF_PARTS * 9 + NAME_LEN + 1) + 16
+              + key_comment_total_bytes;
+
+  length= next_io_size((ulong) (IO_SIZE+key_length+reclength+
+                                create_info->extra_size));
+  int2store(fileinfo+8,1);
+  int4store(fileinfo+10,length);
+  tmp_key_length= (key_length < 0xffff) ? key_length : 0xffff;
+  int2store(fileinfo+14,tmp_key_length);
+  int2store(fileinfo+16,reclength);
+  int4store(fileinfo+18,create_info->max_rows);
+  int4store(fileinfo+22,create_info->min_rows);
+  /* fileinfo[26] is set in mysql_create_frm() */
+  fileinfo[27]=2;				// Use long pack-fields
+  /* fileinfo[28 & 29] is set to key_info_length in mysql_create_frm() */
+  create_info->table_options|=HA_OPTION_LONG_BLOB_PTR; // Use portable blob pointers
+  int2store(fileinfo+30,create_info->table_options);
+  fileinfo[32]=0;				// No filename anymore
+  fileinfo[33]=5;                             // Mark for 5.0 frm file
+  int4store(fileinfo+34,create_info->avg_row_length);
+  csid= (create_info->default_table_charset ?
+         create_info->default_table_charset->number : 0);
+  fileinfo[38]= (uchar) csid;
+  fileinfo[39]= (uchar) ((uint) create_info->transactional |
+                         ((uint) create_info->page_checksum << 2));
+  fileinfo[40]= (uchar) create_info->row_type;
+  /* Next few bytes where for RAID support */
+  fileinfo[41]= (uchar) (csid >> 8);
+  fileinfo[42]= 0;
+  fileinfo[43]= 0;
+  fileinfo[44]= 0;
+  fileinfo[45]= 0;
+  fileinfo[46]= 0;
+  int4store(fileinfo+47, key_length);
+  tmp= MYSQL_VERSION_ID;          // Store to avoid warning from int4store
+  int4store(fileinfo+51, tmp);
+  int4store(fileinfo+55, create_info->extra_size);
+  /*
+    59-60 is reserved for extra_rec_buf_length,
+    61 for default_part_db_type
+  */
+  int2store(fileinfo+62, create_info->key_block_size);
+  DBUG_VOID_RETURN;
+} /* prepare_fileinfo */
 
 
 void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
