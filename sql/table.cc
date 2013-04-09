@@ -316,6 +316,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     share->normalized_path.length= path_length;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->set_refresh_version();
+    share->open_errno= ENOENT;
 
     /*
       Since alloc_table_share() can be called without any locking (for
@@ -570,24 +571,21 @@ inline bool is_system_table_name(const char *name, uint length)
 }
 
 
-/**
-  Check if a string contains path elements
-*/  
-
+/*
+  We don't try to open 5.0 unencoded name, if
+  - non-encoded name contains '@' signs, 
+    because '@' can be misinterpreted.
+    It is not clear if '@' is escape character in 5.1,
+    or a normal character in 5.0.
+    
+  - non-encoded db or table name contain "#mysql50#" prefix.
+    This kind of tables must have been opened only by the
+    mysql_file_open() above.
+*/
 static bool has_disabled_path_chars(const char *str)
 {
-  for (; *str; str++)
-  {
-    switch (*str) {
-      case FN_EXTCHAR:
-      case '/':
-      case '\\':
-      case '~':
-      case '@':
-        return TRUE;
-    }
-  }
-  return FALSE;
+  return strpbrk(str, "/\\~@.") != 0 ||
+         strncmp(str, STRING_WITH_LEN(MYSQL50_TABLE_NAME_PREFIX)) == 0;
 }
 
 
@@ -626,50 +624,45 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   if ((file= mysql_file_open(key_file_frm,
                              path, O_RDONLY | O_SHARE, MYF(0))) < 0)
   {
-    /*
-      We don't try to open 5.0 unencoded name, if
-      - non-encoded name contains '@' signs, 
-        because '@' can be misinterpreted.
-        It is not clear if '@' is escape character in 5.1,
-        or a normal character in 5.0.
-        
-      - non-encoded db or table name contain "#mysql50#" prefix.
-        This kind of tables must have been opened only by the
-        mysql_file_open() above.
-    */
-    if (has_disabled_path_chars(share->table_name.str) ||
-        has_disabled_path_chars(share->db.str) ||
-        !strncmp(share->db.str, MYSQL50_TABLE_NAME_PREFIX,
-                 MYSQL50_TABLE_NAME_PREFIX_LENGTH) ||
-        !strncmp(share->table_name.str, MYSQL50_TABLE_NAME_PREFIX,
-                 MYSQL50_TABLE_NAME_PREFIX_LENGTH))
+    if (!has_disabled_path_chars(share->table_name.str) &&
+        !has_disabled_path_chars(share->db.str))
+    {
+      /* Try unencoded 5.0 name */
+      uint length;
+      strxnmov(path, sizeof(path)-1,
+               mysql_data_home, "/", share->db.str, "/",
+               share->table_name.str, reg_ext, NullS);
+      length= unpack_filename(path, path) - reg_ext_length;
+      /*
+        The following is a safety test and should never fail
+        as the old file name should never be longer than the new one.
+      */
+      DBUG_ASSERT(length <= share->normalized_path.length);
+      /*
+        If the old and the new names have the same length,
+        then table name does not have tricky characters,
+        so no need to check the old file name.
+      */
+      if (length != share->normalized_path.length &&
+          (file= mysql_file_open(key_file_frm,
+                                  path, O_RDONLY | O_SHARE, MYF(0))) >= 0)
+      {
+        /* Unencoded 5.0 table name found */
+        path[length]= '\0'; // Remove .frm extension
+        strmov(share->normalized_path.str, path);
+        share->normalized_path.length= length;
+      }
+    }
+    /* still no luck? try to discover the table */
+    if (file < 0)
+    {
+      if (flags & GTS_TABLE && flags & GTS_FORCE_DISCOVERY)
+      {
+        ha_discover_table(thd, share);
+        error_given= true;
+      }
       goto err_not_open;
-
-    /* Try unencoded 5.0 name */
-    uint length;
-    strxnmov(path, sizeof(path)-1,
-             mysql_data_home, "/", share->db.str, "/",
-             share->table_name.str, reg_ext, NullS);
-    length= unpack_filename(path, path) - reg_ext_length;
-    /*
-      The following is a safety test and should never fail
-      as the old file name should never be longer than the new one.
-    */
-    DBUG_ASSERT(length <= share->normalized_path.length);
-    /*
-      If the old and the new names have the same length,
-      then table name does not have tricky characters,
-      so no need to check the old file name.
-    */
-    if (length == share->normalized_path.length ||
-        ((file= mysql_file_open(key_file_frm,
-                                path, O_RDONLY | O_SHARE, MYF(0))) < 0))
-      goto err_not_open;
-
-    /* Unencoded 5.0 table name found */
-    path[length]= '\0'; // Remove .frm extension
-    strmov(share->normalized_path.str, path);
-    share->normalized_path.length= length;
+    }
   }
 
   if (mysql_file_read(file, head, sizeof(head), MYF(MY_NABP)))

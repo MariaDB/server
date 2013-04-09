@@ -585,24 +585,15 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
                              char *key, uint key_length, uint flags,
                              my_hash_value_type hash_value)
 {
-  bool open_failed;
   TABLE_SHARE *share;
   DBUG_ENTER("get_table_share");
 
-  DBUG_ASSERT(!(flags & GTS_FORCE_DISCOVERY)); // FIXME not implemented
-
   mysql_mutex_lock(&LOCK_open);
-
-  /*
-    To be able perform any operation on table we should own
-    some kind of metadata lock on it.
-  */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
-                                             MDL_SHARED));
 
   /* Read table definition from cache */
   share= (TABLE_SHARE*) my_hash_search_using_hash_value(&table_def_cache,
                                         hash_value, (uchar*) key, key_length);
+
   if (!share)
   {
     if (!(share= alloc_table_share(db, table_name, key, key_length)))
@@ -633,12 +624,15 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
     mysql_mutex_lock(&share->LOCK_ha_data);
     mysql_mutex_unlock(&LOCK_open);
 
-    open_failed= open_table_def(thd, share, flags);
+    if (flags & GTS_FORCE_DISCOVERY)
+      ha_discover_table(thd, share); // don't read the frm at all
+    else
+      open_table_def(thd, share, flags | GTS_FORCE_DISCOVERY); // frm or discover
 
     mysql_mutex_unlock(&share->LOCK_ha_data);
     mysql_mutex_lock(&LOCK_open);
 
-    if (open_failed)
+    if (share->error)
     {
       share->ref_count--;
       (void) my_hash_delete(&table_def_cache, (uchar*) share);
@@ -649,6 +643,9 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
 
     goto end;
   }
+
+  /* cannot force discovery of a cached share */
+  DBUG_ASSERT(!(flags & GTS_FORCE_DISCOVERY));
 
   /* make sure that open_table_def() for this share is not running */
   mysql_mutex_lock(&share->LOCK_ha_data);
@@ -706,7 +703,7 @@ err:
 end:
   if (flags & GTS_NOLOCK)
   {
-    share->ref_count--;
+    release_table_share(share);
     /*
       if GTS_NOLOCK is requested, the returned share pointer cannot be used,
       the share it points to may go away any moment.
@@ -715,6 +712,15 @@ end:
       Let's return an invalid pointer here to catch dereferencing attempts.
     */
     share= (TABLE_SHARE*) 1;
+  }
+  else
+  {
+    /*
+      To be able perform any operation on table we should own
+      some kind of metadata lock on it.
+    */
+    DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
+                                               MDL_SHARED));
   }
 
   mysql_mutex_unlock(&LOCK_open);

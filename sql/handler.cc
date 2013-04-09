@@ -491,11 +491,11 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   // if the enfine can discover a single table and it is file-based
   // then it can use a default file-based table names discovery
   if (!hton->discover_table_names &&
-      hton->discover && hton->tablefile_extensions[0])
+      hton->discover_table && hton->tablefile_extensions[0])
     hton->discover_table_names= hton_ext_based_table_discovery;
 
   // default discover_table_existence implementation
-  if (!hton->discover_table_existence && hton->discover)
+  if (!hton->discover_table_existence && hton->discover_table)
   {
     if (hton->tablefile_extensions[0])
       hton->discover_table_existence= ext_based_existence;
@@ -4279,56 +4279,44 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache,
 }
 
 
-/**
-  Try to discover one table from handler(s).
-
-  @retval
-    -1   Table did not exists
-  @retval
-    0   OK. In this case *frmblob and *frmlen are set
-  @retval
-    >0   error.  frmblob and frmlen may not be set
-*/
-struct st_discover_args
-{
-  const char *db;
-  const char *name;
-  uchar **frmblob; 
-  size_t *frmlen;
-};
-
 static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
                                    void *arg)
 {
-  st_discover_args *vargs= (st_discover_args *)arg;
+  TABLE_SHARE *share= (TABLE_SHARE *)arg;
   handlerton *hton= plugin_data(plugin, handlerton *);
-  if (hton->state == SHOW_OPTION_YES && hton->discover &&
-      (!(hton->discover(hton, thd, vargs->db, vargs->name, 
-                        vargs->frmblob, 
-                        vargs->frmlen))))
-    return TRUE;
+  if (hton->state == SHOW_OPTION_YES && hton->discover_table)
+  {
+    int error= hton->discover_table(hton, thd, share);
+    if (error != HA_ERR_NO_SUCH_TABLE)
+    {
+      if (error)
+      {
+        DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
+        my_error(ER_GET_ERRNO, MYF(0), error);
+      }
+      else
+        share->error= OPEN_FRM_OK;
 
-  return FALSE;
+      status_var_increment(thd->status_var.ha_discover_count);
+      return TRUE; // abort the search
+    }
+  }
+
+  DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);
+  return FALSE;    // continue with the next engine
 }
 
-int ha_discover(THD *thd, const char *db, const char *name,
-		uchar **frmblob, size_t *frmlen)
+int ha_discover_table(THD *thd, TABLE_SHARE *share)
 {
-  int error= -1; // Table does not exist in any handler
-  DBUG_ENTER("ha_discover");
-  DBUG_PRINT("enter", ("db: %s, name: %s", db, name));
-  st_discover_args args= {db, name, frmblob, frmlen};
+  DBUG_ENTER("ha_discover_table");
 
-  if (is_prefix(name,tmp_file_prefix)) /* skip temporary tables */
-    DBUG_RETURN(error);
+  DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);   // share is not OK yet
 
-  if (plugin_foreach(thd, discover_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args))
-    error= 0;
+  if (!plugin_foreach(thd, discover_handlerton,
+                      MYSQL_STORAGE_ENGINE_PLUGIN, share))
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
-  if (!error)
-    status_var_increment(thd->status_var.ha_discover_count);
-  DBUG_RETURN(error);
+  DBUG_RETURN(share->error != OPEN_FRM_OK);
 }
 
 /**
@@ -4363,6 +4351,45 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
   return ht->discover_table_existence(ht, args->db, args->table_name);
 }
 
+class Table_exists_error_handler : public Internal_error_handler
+{
+public:
+  Table_exists_error_handler()
+    : m_handled_errors(0), m_unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        MYSQL_ERROR::enum_warning_level level,
+                        const char* msg,
+                        MYSQL_ERROR ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_NO_SUCH_TABLE ||
+        sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
+        sql_errno == ER_WRONG_OBJECT ||
+        sql_errno == ER_OPTION_PREVENTS_STATEMENT) // partition_disabled.test
+    {
+      m_handled_errors++;
+      return TRUE;
+    }
+
+    if (level == MYSQL_ERROR::WARN_LEVEL_ERROR)
+      m_unhandled_errors++;
+    return FALSE;
+  }
+
+  bool safely_trapped_errors()
+  {
+    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
+  }
+
+private:
+  int m_handled_errors;
+  int m_unhandled_errors;
+};
+
 bool ha_table_exists(THD *thd, const char *db, const char *table_name)
 {
   DBUG_ENTER("ha_discover_table_existence");
@@ -4371,10 +4398,13 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name)
   {
     TABLE_LIST table;
 
-    DBUG_ASSERT(0);
-    TABLE_SHARE *share= get_table_share(thd, db, table_name,
-                                        GTS_TABLE | GTS_NOLOCK);
-    DBUG_RETURN(share != 0);
+    Table_exists_error_handler no_such_table_handler;
+    thd->push_internal_handler(&no_such_table_handler);
+    get_table_share(thd, db, table_name, GTS_TABLE | GTS_VIEW | GTS_NOLOCK);
+    thd->pop_internal_handler();
+
+    // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
+    DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
   }
 
   mysql_mutex_lock(&LOCK_open);

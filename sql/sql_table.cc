@@ -1928,10 +1928,6 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
       if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                            MYSQL_OPEN_SKIP_TEMPORARY))
         DBUG_RETURN(true);
-      for (table= tables; table; table= table->next_local)
-     
-        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
-                         false);
     }
     else
     {
@@ -2222,23 +2218,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     {
       non_temp_tables_count++;
 
-      if (thd->locked_tables_mode)
-      {
-        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED,
-                                     TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
-        {
-          error= -1;
-          goto err;
-        }
-        close_all_tables_for_name(thd, table->table->s,
-                                  HA_EXTRA_PREPARE_FOR_DROP);
-        table->table= 0;
-      }
-
-      /* Check that we have an exclusive lock on the table to be dropped. */
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db,
                                                  table->table_name,
-                                                 MDL_EXCLUSIVE));
+                                                 MDL_SHARED));
 
       alias= (lower_case_table_names == 2) ? table->alias : table->table_name;
       /* remove .frm file and engine files */
@@ -2307,6 +2289,28 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     else
     {
       char *end;
+
+      if (thd->locked_tables_mode)
+      {
+        if (wait_while_table_is_used(thd, table->table, HA_EXTRA_NOT_USED,
+                                     TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
+        {
+          error= -1;
+          goto err;
+        }
+        close_all_tables_for_name(thd, table->table->s,
+                                  HA_EXTRA_PREPARE_FOR_DROP);
+        table->table= 0;
+      }
+      else
+        tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
+                         false);
+
+      /* Check that we have an exclusive lock on the table to be dropped. */
+      DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db,
+                                                 table->table_name,
+                                                 MDL_EXCLUSIVE));
+
       /*
         Cannot use the db_type from the table, since that might have changed
         while waiting for the exclusive name lock.
@@ -2372,6 +2376,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 err:
   if (wrong_tables.length())
   {
+    thd->clear_error();
     if (!foreign_key_error)
       my_printf_error(ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR), MYF(0),
                       wrong_tables.c_ptr_safe());

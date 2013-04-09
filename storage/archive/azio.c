@@ -855,7 +855,7 @@ int azclose (azio_stream *s)
   Though this was added to support MySQL's FRM file, anything can be 
   stored in this location.
 */
-int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
+int azwrite_frm(azio_stream *s, uchar *blob, unsigned int length)
 {
   if (s->mode == 'r') 
     return 1;
@@ -867,7 +867,7 @@ int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
   s->frm_length= length;
   s->start+= length;
 
-  if (my_pwrite(s->file, (uchar*) blob, s->frm_length,
+  if (my_pwrite(s->file, blob, s->frm_length,
                 s->frm_start_pos, MYF(MY_NABP)) ||
       write_header(s) ||
       (my_seek(s->file, 0, MY_SEEK_END, MYF(0)) == MY_FILEPOS_ERROR))
@@ -876,9 +876,9 @@ int azwrite_frm(azio_stream *s, char *blob, unsigned int length)
   return 0;
 }
 
-int azread_frm(azio_stream *s, char *blob)
+int azread_frm(azio_stream *s, uchar *blob)
 {
-  return my_pread(s->file, (uchar*) blob, s->frm_length,
+  return my_pread(s->file, blob, s->frm_length,
                   s->frm_start_pos, MYF(MY_NABP)) ? 1 : 0;
 }
 

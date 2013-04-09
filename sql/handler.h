@@ -1075,10 +1075,6 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
-   int (*discover)(handlerton *hton, THD* thd, const char *db, 
-                   const char *name,
-                   uchar **frmblob, 
-                   size_t *frmlen);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -1109,6 +1105,20 @@ struct handlerton
      It allows the server to "discover" tables that exist in the storage
      engine, without user issuing an explicit CREATE TABLE statement.
    **********************************************************************/
+
+   /*
+     This method is required for any engine that supports automatic table
+     discovery, there is no default implementation.
+
+     Given a TABLE_SHARE discover_table() fills it in with a correct table
+     structure using one of the TABLE_SHARE::init_from_* methods.
+
+     Returns HA_ERR_NO_SUCH_TABLE if the table did not exist in the engine,
+     zero if the table was discovered successfully, or any other
+     HA_ERR_* error code as appropriate if the table existed, but the
+     discovery failed.
+   */
+   int (*discover_table)(handlerton *hton, THD* thd, TABLE_SHARE *share);
 
    /*
      The discover_table_names method tells the server
@@ -1157,6 +1167,7 @@ struct handlerton
    */
    int (*discover_table_existence)(handlerton *hton, const char *db,
                                    const char *table_name);
+
 };
 
 
@@ -3088,8 +3099,7 @@ int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
 
 /* discovery */
-int ha_discover(THD* thd, const char* dbname, const char* name,
-                uchar** frmblob, size_t* frmlen);
+int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             handlerton::discovered_list *result);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name);

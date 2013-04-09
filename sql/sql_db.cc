@@ -832,11 +832,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
     mysql_ha_rm_tables(thd, tables);
 
   for (table= tables; table; table= table->next_local)
-  {
-    tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
-                     false);
     deleted_tables++;
-  }
 
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&

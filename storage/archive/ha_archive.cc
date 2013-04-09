@@ -26,6 +26,7 @@
 #include <myisam.h>                             // T_EXTEND
 
 #include "ha_archive.h"
+#include "discover.h"
 #include <my_dir.h>
 
 #include <mysql/plugin.h>
@@ -120,10 +121,7 @@ extern "C" PSI_file_key arch_key_file_data;
 static handler *archive_create_handler(handlerton *hton, 
                                        TABLE_SHARE *table, 
                                        MEM_ROOT *mem_root);
-int archive_discover(handlerton *hton, THD* thd, const char *db, 
-                     const char *name,
-                     uchar **frmblob, 
-                     size_t *frmlen);
+int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share);
 
 /*
   Number of rows that will force a bulk insert.
@@ -220,7 +218,7 @@ int archive_db_init(void *p)
   archive_hton->db_type= DB_TYPE_ARCHIVE_DB;
   archive_hton->create= archive_create_handler;
   archive_hton->flags= HTON_NO_FLAGS;
-  archive_hton->discover= archive_discover;
+  archive_hton->discover_table= archive_discover;
   archive_hton->tablefile_extensions= ha_archive_exts;
 
   if (mysql_mutex_init(az_key_mutex_archive_mutex,
@@ -270,19 +268,17 @@ ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   archive_reader_open= FALSE;
 }
 
-int archive_discover(handlerton *hton, THD* thd, const char *db, 
-                     const char *name,
-                     uchar **frmblob, 
-                     size_t *frmlen)
+int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("archive_discover");
-  DBUG_PRINT("archive_discover", ("db: %s, name: %s", db, name)); 
+  DBUG_PRINT("archive_discover", ("db: '%s'  name: '%s'", share->db.str,
+                                  share->table_name.str)); 
   azio_stream frm_stream;
   char az_file[FN_REFLEN];
-  char *frm_ptr;
+  uchar *frm_ptr;
   MY_STAT file_stat; 
 
-  build_table_filename(az_file, sizeof(az_file) - 1, db, name, ARZ, 0);
+  strxmov(az_file, share->normalized_path.str, ARZ, NullS);
 
   if (!(mysql_file_stat(/* arch_key_file_data */ 0, az_file, &file_stat, MYF(0))))
     goto err;
@@ -295,19 +291,23 @@ int archive_discover(handlerton *hton, THD* thd, const char *db,
   }
 
   if (frm_stream.frm_length == 0)
-    goto err;
+    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  frm_ptr= (char *)my_malloc(sizeof(char) * frm_stream.frm_length, MYF(0));
+  frm_ptr= (uchar *)my_malloc(sizeof(char) * frm_stream.frm_length, MYF(0));
   azread_frm(&frm_stream, frm_ptr);
   azclose(&frm_stream);
 
-  *frmlen= frm_stream.frm_length;
-  *frmblob= (uchar*) frm_ptr;
+  // don't go through the discovery again
+  if (writefrm(share->normalized_path.str, frm_ptr, frm_stream.frm_length))
+    DBUG_RETURN(my_errno);
+
+  share->init_from_binary_frm_image(thd, frm_ptr);
+
+  my_free(frm_ptr);
 
   DBUG_RETURN(0);
 err:
-  my_errno= 0;
-  DBUG_RETURN(1);
+  DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 }
 
 /*
@@ -650,9 +650,9 @@ int ha_archive::close(void)
 int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
 {
   int rc= 0;
-  char *frm_ptr;
+  uchar *frm_ptr;
 
-  if (!(frm_ptr= (char *) my_malloc(src->frm_length, MYF(0))))
+  if (!(frm_ptr= (uchar *) my_malloc(src->frm_length, MYF(0))))
     return HA_ERR_OUT_OF_MEM;
 
   /* Write file offset is set to the end of the file. */
@@ -758,7 +758,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
         if (frm_ptr)
         {
           mysql_file_read(frm_file, frm_ptr, (size_t)file_stat.st_size, MYF(0));
-          azwrite_frm(&create_stream, (char *)frm_ptr, (size_t)file_stat.st_size);
+          azwrite_frm(&create_stream, frm_ptr, (size_t)file_stat.st_size);
           my_free(frm_ptr);
         }
       }
