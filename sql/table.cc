@@ -39,6 +39,7 @@
 #include "sql_select.h"
 #include "sql_derived.h"
 #include "sql_statistics.h"
+#include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
 
 /* INFORMATION_SCHEMA name */
@@ -613,7 +614,6 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   uchar *buf;
   uchar head[64];
   char	path[FN_REFLEN];
-  MEM_ROOT **root_ptr, *old_root;
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
@@ -708,12 +708,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   }
   mysql_file_close(file, MYF(MY_WME));
 
-  root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
-  old_root= *root_ptr;
-  *root_ptr= &share->mem_root;
-  share->init_from_binary_frm_image(thd, buf);
+  share->init_from_binary_frm_image(thd, NULL, buf, stats.st_size);
   error_given= true;
-  *root_ptr= old_root;
   my_free(buf);
 
   if (!share->error)
@@ -745,9 +741,12 @@ err_not_open:
   28..29  (used to be key_info_length)
 
   They're still set, for compatibility reasons, but never read.
+
+  TODO verify that we never read data from beyond frm_length!
 */
 
-bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const uchar *frm_image)
+bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const char *path,
+                                   const uchar *frm_image, size_t frm_length)
 {
   TABLE_SHARE *share= this;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
@@ -782,7 +781,15 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const uchar *frm_image)
   uint first_key_parts= 0;
   keyinfo= &first_keyinfo;
   share->ext_key_parts= 0;
+  MEM_ROOT **root_ptr, *old_root;
   DBUG_ENTER("open_binary_frm");
+
+  root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
+  old_root= *root_ptr;
+  *root_ptr= &share->mem_root;
+
+  if (path && writefrm(path, frm_image, frm_length))
+    goto err;
 
   new_field_pack_flag= frm_image[27];
   new_frm_ver= (frm_image[2] - FRM_VER);
@@ -1922,6 +1929,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const uchar *frm_image)
 #endif
 
   share->error= OPEN_FRM_OK;
+  *root_ptr= old_root;
   DBUG_RETURN(0);
 
  err:
@@ -1945,6 +1953,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, const uchar *frm_image)
   if (!thd->is_error())
     open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
 
+  *root_ptr= old_root;
   DBUG_RETURN(1);
 } /* open_binary_frm */
 

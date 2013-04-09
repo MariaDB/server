@@ -281,7 +281,7 @@ int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
   strxmov(az_file, share->normalized_path.str, ARZ, NullS);
 
   if (!(mysql_file_stat(/* arch_key_file_data */ 0, az_file, &file_stat, MYF(0))))
-    goto err;
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
   if (!(azopen(&frm_stream, az_file, O_RDONLY|O_BINARY)))
   {
@@ -293,21 +293,23 @@ int archive_discover(handlerton *hton, THD* thd, TABLE_SHARE *share)
   if (frm_stream.frm_length == 0)
     DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  frm_ptr= (uchar *)my_malloc(sizeof(char) * frm_stream.frm_length, MYF(0));
-  azread_frm(&frm_stream, frm_ptr);
+  frm_ptr= (uchar *)my_malloc(sizeof(char) * frm_stream.frm_length,
+                              MYF(MY_THREAD_SPECIFIC | MY_WME));
+  if (!frm_ptr)
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  if (azread_frm(&frm_stream, frm_ptr))
+    goto ret;
+
   azclose(&frm_stream);
 
-  // don't go through the discovery again
-  if (writefrm(share->normalized_path.str, frm_ptr, frm_stream.frm_length))
-    DBUG_RETURN(my_errno);
+  if (!share->init_from_binary_frm_image(thd, share->normalized_path.str,
+                                         frm_ptr, frm_stream.frm_length))
+    my_errno= 0;
 
-  share->init_from_binary_frm_image(thd, frm_ptr);
-
+ret:
   my_free(frm_ptr);
-
-  DBUG_RETURN(0);
-err:
-  DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+  DBUG_RETURN(my_errno);
 }
 
 /*
