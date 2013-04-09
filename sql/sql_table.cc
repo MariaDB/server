@@ -2303,7 +2303,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         Let's lock the plugin till the end of the statement.
       */
       if (table_type && table_type != view_pseudo_hton)
-        plugin_lock(thd, plugin_int_to_ref(hton2plugin[table_type->slot]));
+        ha_lock_engine(thd, table_type);
 
       if (thd->locked_tables_mode)
       {
@@ -4052,6 +4052,7 @@ static bool check_if_created_table_can_be_opened(THD *thd,
     return TRUE;
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
+  share.db_plugin= ha_lock_engine(thd, file->ht);
 
   result= (open_table_def(thd, &share) ||
            open_table_from_share(thd, &share, "", 0, (uint) READ_ALL,
@@ -4401,7 +4402,7 @@ bool mysql_create_table_no_lock(THD *thd,
 
     /* prepare everything for discovery */
     share.field= &no_fields;
-    share.db_plugin= plugin_int_to_ref(hton2plugin[hton->slot]);
+    share.db_plugin= ha_lock_engine(thd, hton);
     share.option_list= create_info->option_list;
     share.connect_string= create_info->connect_string;
 
@@ -4435,7 +4436,8 @@ bool mysql_create_table_no_lock(THD *thd,
       THD::temporary_tables list.
     */
 
-    TABLE *table= open_table_uncached(thd, path, db, table_name, TRUE);
+    TABLE *table= open_table_uncached(thd, create_info->db_type, path,
+                                      db, table_name, TRUE);
 
     if (!table)
     {
@@ -6779,7 +6781,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       build_table_filename(path, sizeof(path) - 1, new_db, tmp_name, "",
                            FN_IS_TMP);
       /* Open our intermediate table. */
-      new_table= open_table_uncached(thd, path, new_db, tmp_name, TRUE);
+      new_table= open_table_uncached(thd, new_db_type, path,
+                                     new_db, tmp_name, TRUE);
     }
     if (!new_table)
       goto err_new_table_cleanup;

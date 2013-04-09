@@ -4536,7 +4536,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
     */
     DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                                MDL_INTENTION_EXCLUSIVE));
-    new_table= open_table_uncached(thd, path, db, table_name, 0);
+    new_table= open_table_uncached(thd, old_db_type, path, db, table_name, 0);
     if (!new_table)
       DBUG_RETURN(TRUE);
 

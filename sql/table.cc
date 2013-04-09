@@ -1101,10 +1101,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name);
       if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin))
       {
-        if (legacy_db_type > DB_TYPE_UNKNOWN &&
-            legacy_db_type < DB_TYPE_FIRST_DYNAMIC &&
-            legacy_db_type != ha_legacy_type(
-                plugin_data(tmp_plugin, handlerton *)))
+        if (se_plugin)
         {
           /* bad file, legacy_db_type did not match the name */
           goto err;
@@ -1235,6 +1232,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     DBUG_ASSERT(next_chunk <= buff_end);
   }
   share->key_block_size= uint2korr(frm_image+62);
+
+  if (share->db_plugin && !plugin_equals(share->db_plugin, se_plugin))
+    goto err; // wrong engine (someone changed the frm under our feet?)
 
   extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
@@ -1955,7 +1955,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     (void) my_hash_check(&share->name_hash);
 #endif
 
-  DBUG_ASSERT(!share->db_plugin || plugin_equals(share->db_plugin, se_plugin));
   share->db_plugin= se_plugin;
   share->error= OPEN_FRM_OK;
   thd->status_var.opened_shares++;

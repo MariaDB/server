@@ -5908,6 +5908,8 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
   the opened TABLE instance will be addded to THD::temporary_tables list.
 
   @param thd                          Thread context.
+  @param hton                         Storage engine of the table, if known,
+                                      or NULL otherwise.
   @param path                         Path (without .frm)
   @param db                           Database name.
   @param table_name                   Table name.
@@ -5923,7 +5925,8 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
   @retval NULL on error.
 */
 
-TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
+TABLE *open_table_uncached(THD *thd, handlerton *hton,
+                           const char *path, const char *db,
                            const char *table_name,
                            bool add_to_temporary_tables_list)
 {
@@ -5953,6 +5956,7 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
 
   init_tmp_table_share(thd, share, saved_cache_key, key_length,
                        strend(saved_cache_key)+1, tmp_path);
+  share->db_plugin= ha_lock_engine(thd, hton);
 
   if (open_table_def(thd, share, GTS_TABLE | GTS_FORCE_DISCOVERY) ||
       open_table_from_share(thd, share, table_name,
