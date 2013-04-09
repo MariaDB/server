@@ -86,7 +86,7 @@
 #define READ_ALL		1	/* openfrm: Read all parameters */
 #define CHANGE_FRM		2	/* openfrm: open .frm as O_RDWR */
 #define READ_KEYINFO		4	/* L{s nyckeldata fr}n filen */
-#define EXTRA_RECORD		8	/* Reservera plats f|r extra record */
+#define EXTRA_RECORD		8	/* Reserve space for an extra record */
 #define DONT_OPEN_TABLES	8	/* Don't open database-files (frd) */
 #define DONT_OPEN_MASTER_REG	16	/* Don't open first reg-file (prt) */
 #define EXTRA_LONG_RECORD	16	/* Plats f|r dubbel s|k-record */

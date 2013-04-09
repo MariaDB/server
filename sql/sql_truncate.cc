@@ -258,25 +258,16 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
 {
   bool error= TRUE;
   TABLE_SHARE *share= table->s;
-  HA_CREATE_INFO create_info;
   handlerton *table_type= table->s->db_type();
   DBUG_ENTER("recreate_temporary_table");
-
-  memset(&create_info, 0, sizeof(create_info));
-  create_info.options|= HA_LEX_CREATE_TMP_TABLE;
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
 
   /* Don't free share. */
   close_temporary_table(thd, table, FALSE, FALSE);
 
-  /*
-    We must use share->normalized_path.str since for temporary tables it
-    differs from what dd_recreate_table() would generate based
-    on table and schema names.
-  */
-  ha_create_table(thd, share->normalized_path.str, share->db.str,
-                  share->table_name.str, &create_info);
+  dd_recreate_table(thd, share->db.str, share->table_name.str,
+                    share->normalized_path.str);
 
   if (open_table_uncached(thd, share->path.str, share->db.str,
                           share->table_name.str, TRUE))
