@@ -62,6 +62,15 @@ Tables_in_test
 t0
 t1
 #
+# discover on HA_ERR_TABLE_DEF_CHANGED
+#
+alter table t1 modify a int default 5;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=ARCHIVE DEFAULT CHARSET=latin1
+#
 # discover on drop
 #
 flush tables;

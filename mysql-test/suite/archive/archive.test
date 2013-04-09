@@ -1736,7 +1736,7 @@ DROP TABLE t1;
 create table t1 (a int, b char(50)) engine=archive;
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ
 copy_file std_data/t917689.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
---error 1194
+# --error 1194
 select * from t1;
 show warnings;
 drop table t1;

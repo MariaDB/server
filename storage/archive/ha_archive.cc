@@ -159,12 +159,11 @@ static PSI_mutex_info all_archive_mutexes[]=
   { &az_key_mutex_ARCHIVE_SHARE_mutex, "ARCHIVE_SHARE::mutex", 0}
 };
 
-PSI_file_key arch_key_file_metadata, arch_key_file_data, arch_key_file_frm;
+PSI_file_key arch_key_file_metadata, arch_key_file_data;
 static PSI_file_info all_archive_files[]=
 {
     { &arch_key_file_metadata, "metadata", 0},
-    { &arch_key_file_data, "data", 0},
-    { &arch_key_file_frm, "FRM", 0}
+    { &arch_key_file_data, "data", 0}
 };
 
 static void init_archive_psi_keys(void)
@@ -438,6 +437,9 @@ ARCHIVE_SHARE *ha_archive::get_share(const char *table_name, int *rc)
     */
     if (archive_tmp.version < ARCHIVE_VERSION)
       *rc= HA_ERR_TABLE_NEEDS_UPGRADE;
+    else if (frm_compare(&archive_tmp, table_name))
+      *rc= HA_ERR_TABLE_DEF_CHANGED;
+
     azclose(&archive_tmp);
 
     (void) my_hash_insert(&archive_open_tables, (uchar*) share);
@@ -566,14 +568,8 @@ int ha_archive::open(const char *name, int mode, uint open_options)
   {
   case 0:
     break;
+  case HA_ERR_TABLE_DEF_CHANGED:
   case HA_ERR_CRASHED_ON_USAGE:
-    DBUG_PRINT("ha_archive", ("archive table was crashed"));
-    if (open_options & HA_OPEN_FOR_REPAIR)
-    {
-      rc= 0;
-      break;
-    }
-    /* fall through */
   case HA_ERR_TABLE_NEEDS_UPGRADE:
     if (open_options & HA_OPEN_FOR_REPAIR)
     {
@@ -654,7 +650,8 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
   int rc= 0;
   uchar *frm_ptr;
 
-  if (!(frm_ptr= (uchar *) my_malloc(src->frm_length, MYF(0))))
+  if (!(frm_ptr= (uchar *) my_malloc(src->frm_length,
+                                     MYF(MY_THREAD_SPECIFIC | MY_WME))))
     return HA_ERR_OUT_OF_MEM;
 
   /* Write file offset is set to the end of the file. */
@@ -664,6 +661,46 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
 
   my_free(frm_ptr);
 
+  return rc;
+}
+
+
+/**
+  Compare frm blob with the on-disk frm file
+
+  @param  s     The azio stream.
+  @param  path  A path for readfrm()
+
+  @return Zero if equal, non-zero otherwise.
+*/
+
+int ha_archive::frm_compare(azio_stream *s, const char *path)
+{
+  int rc= 0;
+  uchar *frm_ptr= 0, *azfrm_ptr= 0;
+  size_t frm_len;
+
+  /* no frm = no discovery. perhaps it's a partitioned table */
+  if (readfrm(path, &frm_ptr, &frm_len))
+    goto err;
+
+  if (!(azfrm_ptr= (uchar *) my_malloc(s->frm_length,
+                                       MYF(MY_THREAD_SPECIFIC | MY_WME))))
+    goto err;
+
+  rc= 1;
+
+  if (frm_len != s->frm_length)
+    goto err;
+
+  if (azread_frm(s, azfrm_ptr))
+    goto err;
+
+  rc= memcmp(frm_ptr, azfrm_ptr, frm_len);
+
+err:
+  my_free(frm_ptr);
+  my_free(azfrm_ptr);
   return rc;
 }
 
@@ -684,9 +721,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   char linkname[FN_REFLEN];
   int error;
   azio_stream create_stream;            /* Archive file we are working with */
-  File frm_file;                   /* File handler for readers */
-  MY_STAT file_stat;  // Stat information for the data file
   uchar *frm_ptr;
+  size_t frm_len;
 
   DBUG_ENTER("ha_archive::create");
 
@@ -735,56 +771,41 @@ int ha_archive::create(const char *name, TABLE *table_arg,
     There is a chance that the file was "discovered". In this case
     just use whatever file is there.
   */
-  if (!(mysql_file_stat(/* arch_key_file_data */ 0, name_buff, &file_stat, MYF(0))))
+  my_errno= 0;
+  if (!(azopen(&create_stream, name_buff, O_CREAT|O_RDWR|O_BINARY)))
   {
-    my_errno= 0;
-    if (!(azopen(&create_stream, name_buff, O_CREAT|O_RDWR|O_BINARY)))
-    {
-      error= errno;
-      goto error2;
-    }
-
-    if (linkname[0])
-      my_symlink(name_buff, linkname, MYF(0));
-    fn_format(name_buff, name, "", ".frm",
-              MY_REPLACE_EXT | MY_UNPACK_FILENAME);
-
-    /*
-      Here is where we open up the frm and pass it to archive to store 
-    */
-    if ((frm_file= mysql_file_open(arch_key_file_frm, name_buff, O_RDONLY, MYF(0))) >= 0)
-    {
-      if (!mysql_file_fstat(frm_file, &file_stat, MYF(MY_WME)))
-      {
-        frm_ptr= (uchar *)my_malloc(sizeof(uchar) * (size_t)file_stat.st_size, MYF(0));
-        if (frm_ptr)
-        {
-          mysql_file_read(frm_file, frm_ptr, (size_t)file_stat.st_size, MYF(0));
-          azwrite_frm(&create_stream, frm_ptr, (size_t)file_stat.st_size);
-          my_free(frm_ptr);
-        }
-      }
-      mysql_file_close(frm_file, MYF(0));
-    }
-
-    if (create_info->comment.str)
-      azwrite_comment(&create_stream, create_info->comment.str, 
-                      create_info->comment.length);
-
-    /* 
-      Yes you need to do this, because the starting value 
-      for the autoincrement may not be zero.
-    */
-    create_stream.auto_increment= stats.auto_increment_value ?
-                                    stats.auto_increment_value - 1 : 0;
-    if (azclose(&create_stream))
-    {
-      error= errno;
-      goto error2;
-    }
+    error= errno;
+    goto error2;
   }
-  else
-    my_errno= 0;
+
+  if (linkname[0])
+    my_symlink(name_buff, linkname, MYF(0));
+
+  /*
+    Here is where we open up the frm and pass it to archive to store 
+  */
+  readfrm(name, &frm_ptr, &frm_len);
+  if (frm_ptr)
+  {
+    azwrite_frm(&create_stream, frm_ptr, frm_len);
+    my_free(frm_ptr);
+  }
+
+  if (create_info->comment.str)
+    azwrite_comment(&create_stream, create_info->comment.str, 
+                    create_info->comment.length);
+
+  /* 
+    Yes you need to do this, because the starting value 
+    for the autoincrement may not be zero.
+  */
+  create_stream.auto_increment= stats.auto_increment_value ?
+                                  stats.auto_increment_value - 1 : 0;
+  if (azclose(&create_stream))
+  {
+    error= errno;
+    goto error2;
+  }
 
   DBUG_PRINT("ha_archive", ("Creating File %s", name_buff));
   DBUG_PRINT("ha_archive", ("Creating Link %s", linkname));
@@ -901,7 +922,6 @@ int ha_archive::write_row(uchar *buf)
   if (share->crashed)
     DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 
-  ha_statistic_increment(&SSV::ha_write_count);
   mysql_mutex_lock(&share->mutex);
 
   if (!share->archive_write_open && init_archive_writer())
@@ -938,7 +958,8 @@ int ha_archive::write_row(uchar *buf)
         First we create a buffer that we can use for reading rows, and can pass
         to get_row().
       */
-      if (!(read_buf= (uchar*) my_malloc(table->s->reclength, MYF(MY_WME))))
+      if (!(read_buf= (uchar*) my_malloc(table->s->reclength,
+                                         MYF(MY_THREAD_SPECIFIC | MY_WME))))
       {
         rc= HA_ERR_OUT_OF_MEM;
         goto error;
@@ -1325,7 +1346,6 @@ int ha_archive::rnd_next(uchar *buf)
   }
   scan_rows--;
 
-  ha_statistic_increment(&SSV::ha_read_rnd_next_count);
   current_position= aztell(&archive);
   rc= get_row(&archive, buf);
 
@@ -1361,7 +1381,6 @@ int ha_archive::rnd_pos(uchar * buf, uchar *pos)
 {
   int rc;
   DBUG_ENTER("ha_archive::rnd_pos");
-  ha_statistic_increment(&SSV::ha_read_rnd_next_count);
   current_position= (my_off_t)my_get_ptr(pos, ref_length);
   if (azseek(&archive, current_position, SEEK_SET) == (my_off_t)(-1L))
   {
