@@ -3753,11 +3753,6 @@ SHOW_VAR status_variables[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
-static struct st_mysql_show_var aria_status_variables[]= {
-  {"Aria", (char*) &status_variables, SHOW_ARRAY},
-  {NullS, NullS, SHOW_LONG}
-};
-
 /****************************************************************************
  * Maria MRR implementation: use DS-MRR
  ***************************************************************************/
@@ -3832,7 +3827,7 @@ maria_declare_plugin(aria)
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */
   0x0105,                       /* 1.5              */
-  aria_status_variables,        /* status variables */
+  status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.5",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */

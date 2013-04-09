@@ -2626,7 +2626,7 @@ static bool status_vars_inited= 0;
 C_MODE_START
 static int show_var_cmp(const void *var1, const void *var2)
 {
-  return strcmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
+  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 C_MODE_END
 
@@ -2831,6 +2831,17 @@ static bool show_status_array(THD *thd, const char *wild,
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
     if (ucase_names)
       my_caseup_str(system_charset_info, name_buffer);
+    else
+    {
+      my_casedn_str(system_charset_info, name_buffer);
+      DBUG_ASSERT(name_buffer[0] >= 'a');
+      DBUG_ASSERT(name_buffer[0] <= 'z');
+
+      /* traditionally status variables have a first letter uppercased */
+      if (status_var)
+        name_buffer[0]-= 'a' - 'A';
+    }
+
 
     restore_record(table, s->default_values);
     table->field[0]->store(name_buffer, strlen(name_buffer),

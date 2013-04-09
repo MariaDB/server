@@ -1117,7 +1117,7 @@ static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
 
 static struct st_mysql_show_var func_status[]=
 {
-  {"example_func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
+  {"func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
   {0,0,SHOW_UNDEF}
 };
 
