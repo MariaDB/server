@@ -297,6 +297,8 @@ private:
   static int savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv);
   static int commit(handlerton *hton, MYSQL_THD thd, bool all);
   static int rollback(handlerton *hton, MYSQL_THD thd, bool all);
+  static int discover_assisted(handlerton *, THD*, TABLE_SHARE *,
+                               HA_CREATE_INFO *);
 
   bool append_stmt_insert(String *query);
 
