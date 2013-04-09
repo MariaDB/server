@@ -320,18 +320,18 @@ static void check_unused(THD *thd)
   Create a table cache key
 
   SYNOPSIS
-    create_table_def_key()
+    create_tmp_table_def_key()
     thd			Thread handler
     key			Create key here (must be of size MAX_DBKEY_LENGTH)
-    table_list		Table definition
-    tmp_table		Set if table is a tmp table
+    db                  Database name.
+    table_name          Table name.
 
  IMPLEMENTATION
     The table cache_key is created from:
     db_name + \0
     table_name + \0
 
-    if the table is a tmp table, we add the following to make each tmp table
+    additionally we add the following to make each tmp table
     unique on the slave:
 
     4 bytes for master thread id
@@ -341,19 +341,13 @@ static void check_unused(THD *thd)
     Length of key
 */
 
-uint create_table_def_key(THD *thd, char *key,
-                          const TABLE_LIST *table_list,
-                          bool tmp_table)
+uint create_tmp_table_def_key(THD *thd, char *key,
+                              const char *db, const char *table_name)
 {
-  uint key_length= create_table_def_key(key, table_list->db,
-                                        table_list->table_name);
-
-  if (tmp_table)
-  {
-    int4store(key + key_length, thd->server_id);
-    int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
-    key_length+= TMP_TABLE_KEY_EXTRA;
-  }
+  uint key_length= create_table_def_key(key, db, table_name);
+  int4store(key + key_length, thd->server_id);
+  int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
+  key_length+= TMP_TABLE_KEY_EXTRA;
   return key_length;
 }
 
@@ -587,9 +581,9 @@ static void table_def_unuse_table(TABLE *table)
    #  Share for table
 */
 
-TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
-                             uint key_length, enum read_frm_op op,
-                             enum open_frm_error *error,
+TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
+                             char *key, uint key_length,
+                             enum read_frm_op op, enum open_frm_error *error,
                              my_hash_value_type hash_value)
 {
   bool open_failed;
@@ -604,9 +598,7 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
     To be able perform any operation on table we should own
     some kind of metadata lock on it.
   */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                             table_list->db,
-                                             table_list->table_name,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
                                              MDL_SHARED));
 
   /* Read table definition from cache */
@@ -614,7 +606,7 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
                                         hash_value, (uchar*) key, key_length);
   if (!share)
   {
-    if (!(share= alloc_table_share(table_list, key, key_length)))
+    if (!(share= alloc_table_share(db, table_name, key, key_length)))
       goto err;
 
     /*
@@ -2071,7 +2063,7 @@ TABLE *find_temporary_table(THD *thd, const char *db, const char *table_name)
 TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl)
 {
   char key[MAX_DBKEY_LENGTH];
-  uint key_length= create_table_def_key(thd, key, tl, 1);
+  uint key_length= create_tmp_table_def_key(thd, key, tl->db, tl->table_name);
 
   return find_temporary_table(thd, key, key_length);
 }
@@ -2251,15 +2243,12 @@ bool rename_temporary_table(THD* thd, TABLE *table, const char *db,
   char *key;
   uint key_length;
   TABLE_SHARE *share= table->s;
-  TABLE_LIST table_list;
   DBUG_ENTER("rename_temporary_table");
 
   if (!(key=(char*) alloc_root(&share->mem_root, MAX_DBKEY_LENGTH)))
     DBUG_RETURN(1);				/* purecov: inspected */
 
-  table_list.db= (char*) db;
-  table_list.table_name= (char*) table_name;
-  key_length= create_table_def_key(thd, key, &table_list, 1);
+  key_length= create_tmp_table_def_key(thd, key, db, table_name);
   share->set_table_cache_key(key, key_length);
   DBUG_RETURN(0);
 }
@@ -2686,8 +2675,9 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   if (thd->killed)
     DBUG_RETURN(TRUE);
 
-  key_length= (create_table_def_key(thd, key, table_list, 1) -
-               TMP_TABLE_KEY_EXTRA);
+  key_length= create_tmp_table_def_key(thd, key, table_list->db,
+                                       table_list->table_name) -
+               TMP_TABLE_KEY_EXTRA;
 
   /*
     Unless requested otherwise, try to resolve this table in the list
@@ -2954,8 +2944,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 
 retry_share:
 
-  share= get_table_share(thd, table_list, key, key_length,
-                         read_op, &error, hash_value);
+  share= get_table_share(thd, table_list->db, table_list->table_name,
+                         key, key_length, read_op, &error, hash_value);
 
   if (!share)
   {
@@ -3779,13 +3769,11 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
 {
   TABLE not_used;
   enum open_frm_error error;
-  my_hash_value_type hash_value;
   TABLE_SHARE *share;
 
-  hash_value= my_calc_hash(&table_def_cache, (uchar*) cache_key,
-                           cache_key_length);
-  if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
-                               FRM_READ_VIEW_ONLY, &error, hash_value)))
+  if (!(share= get_table_share(thd, table_list->db, table_list->table_name,
+                               cache_key, cache_key_length,
+                               FRM_READ_VIEW_ONLY, &error)))
     return TRUE;
 
   DBUG_ASSERT(share->is_view);
@@ -3854,27 +3842,18 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 
 static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
 {
-  char	cache_key[MAX_DBKEY_LENGTH];
-  uint	cache_key_length;
   TABLE_SHARE *share;
   TABLE *entry;
   enum open_frm_error not_used;
   bool result= TRUE;
-  my_hash_value_type hash_value;
-
-  cache_key_length= create_table_def_key(thd, cache_key, table_list, 0);
 
   thd->clear_error();
 
   if (!(entry= (TABLE*)my_malloc(sizeof(TABLE), MYF(MY_WME))))
     return result;
 
-  hash_value= my_calc_hash(&table_def_cache, (uchar*) cache_key,
-                           cache_key_length);
-
-  if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
-                               FRM_READ_TABLE_ONLY, &not_used,
-                               hash_value)))
+  if (!(share= get_table_share(thd, table_list->db, table_list->table_name,
+                               FRM_READ_TABLE_ONLY, &not_used)))
     goto end_free;
 
   DBUG_ASSERT(! share->is_view);
@@ -5995,7 +5974,6 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
   TABLE_SHARE *share;
   char cache_key[MAX_DBKEY_LENGTH], *saved_cache_key, *tmp_path;
   uint key_length;
-  TABLE_LIST table_list;
   DBUG_ENTER("open_table_uncached");
   DBUG_PRINT("enter",
              ("table: '%s'.'%s'  path: '%s'  server_id: %u  "
@@ -6003,10 +5981,8 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
               db, table_name, path,
               (uint) thd->server_id, (ulong) thd->variables.pseudo_thread_id));
 
-  table_list.db=         (char*) db;
-  table_list.table_name= (char*) table_name;
   /* Create the cache_key for temporary tables */
-  key_length= create_table_def_key(thd, cache_key, &table_list, 1);
+  key_length= create_tmp_table_def_key(thd, cache_key, db, table_name);
 
   if (!(tmp_table= (TABLE*) my_malloc(sizeof(*tmp_table) + sizeof(*share) +
                                       strlen(path)+1 + key_length,

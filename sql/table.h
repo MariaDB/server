@@ -1624,7 +1624,7 @@ struct TABLE_LIST
 
   /**
     Prepare TABLE_LIST that consists of one table instance to use in
-    simple_open_and_lock_tables
+    open_and_lock_tables
   */
   inline void init_one_table(const char *db_name_arg,
                              size_t db_length_arg,
@@ -2464,8 +2464,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                TABLE *table, Field *field,
                                LEX_STRING *vcol_expr, bool *error_reported);
-TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
-                               uint key_length);
+TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
+                               char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);

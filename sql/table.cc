@@ -285,8 +285,8 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db, const LEX_STRING *name)
     #  Share
 */
 
-TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
-                               uint key_length)
+TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
+                               char *key, uint key_length)
 {
   MEM_ROOT mem_root;
   TABLE_SHARE *share;
@@ -294,12 +294,10 @@ TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
   char path[FN_REFLEN];
   uint path_length;
   DBUG_ENTER("alloc_table_share");
-  DBUG_PRINT("enter", ("table: '%s'.'%s'",
-                       table_list->db, table_list->table_name));
+  DBUG_PRINT("enter", ("table: '%s'.'%s'", db, table_name));
 
   path_length= build_table_filename(path, sizeof(path) - 1,
-                                    table_list->db,
-                                    table_list->table_name, "", 0);
+                                    db, table_name, "", 0);
   init_sql_alloc(&mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
   if (multi_alloc_root(&mem_root,
                        &share, sizeof(*share),

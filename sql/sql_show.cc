@@ -4308,9 +4308,6 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   TABLE_LIST table_list;
   uint res= 0;
   enum open_frm_error not_used;
-  my_hash_value_type hash_value;
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
   char db_name_buff[NAME_LEN + 1], table_name_buff[NAME_LEN + 1];
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
@@ -4382,10 +4379,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     goto end;
   }
 
-  key_length= create_table_def_key(thd, key, &table_list, 0);
-  hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
-  share= get_table_share(thd, &table_list, key, key_length,
-                         FRM_READ_TABLE_OR_VIEW, &not_used, hash_value);
+  share= get_table_share(thd, table_list.db, table_list.table_name,
+                         FRM_READ_TABLE_OR_VIEW, &not_used);
   if (!share)
   {
     res= 0;
