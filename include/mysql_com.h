@@ -34,6 +34,13 @@
 #define MYSQL50_TABLE_NAME_PREFIX_LENGTH  (sizeof(MYSQL50_TABLE_NAME_PREFIX)-1)
 #define SAFE_NAME_LEN (NAME_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH)
 
+#ifdef EMBEDDED_LIBRARY
+#define RPL_VERSION_HACK ""
+#else
+/* this version must be the one that *does not* support pluggable auth */
+#define RPL_VERSION_HACK "5.5.5-"
+#endif
+
 #define SERVER_VERSION_LENGTH 60
 #define SQLSTATE_LENGTH 5
 #define LIST_PROCESS_HOST_LEN 64
