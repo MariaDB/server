@@ -2433,9 +2433,12 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
 #endif
 }
 
+enum read_frm_op {
+  FRM_READ_TABLE_ONLY,
+  FRM_READ_NO_ERROR_FOR_VIEW
+};
 
 size_t max_row_length(TABLE *table, const uchar *data);
-
 
 void init_mdl_requests(TABLE_LIST *table_list);
 
@@ -2451,7 +2454,8 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);
 void free_table_share(TABLE_SHARE *share);
-int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags);
+int open_table_def(THD *thd, TABLE_SHARE *share,
+                   enum read_frm_op op = FRM_READ_TABLE_ONLY);
 void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_and_convert_db_name(LEX_STRING *db, bool preserve_lettercase);

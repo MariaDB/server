@@ -4104,7 +4104,7 @@ int ha_create_table(THD *thd, const char *path,
   DBUG_ENTER("ha_create_table");
   
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
-  if (open_table_def(thd, &share, 0) ||
+  if (open_table_def(thd, &share) ||
       open_table_from_share(thd, &share, "", 0, (uint) READ_ALL, 0, &table,
                             TRUE))
     goto err;
@@ -4171,7 +4171,7 @@ int ha_create_table_from_engine(THD* thd, const char *db, const char *name)
     DBUG_RETURN(2);
 
   init_tmp_table_share(thd, &share, db, 0, name, path);
-  if (open_table_def(thd, &share, 0))
+  if (open_table_def(thd, &share))
   {
     DBUG_RETURN(3);
   }

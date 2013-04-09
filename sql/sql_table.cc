@@ -4023,7 +4023,7 @@ static bool check_if_created_table_can_be_opened(THD *thd,
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
 
-  result= (open_table_def(thd, &share, 0) ||
+  result= (open_table_def(thd, &share) ||
            open_table_from_share(thd, &share, "", 0, (uint) READ_ALL,
                                  0, &table, TRUE));
   if (! result)
