@@ -206,24 +206,18 @@ bool mysql_create_frm(THD *thd, const char *file_name,
   prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
 
   key_buff_length= uint4korr(fileinfo+47);
-  filepos= uint4korr(fileinfo+10);
 
-  {
-    size_t len1, len2, len3;
-    len1= FRM_HEADER_SIZE; // fileinfo
-    len1+= 7; // "form entry"
+  frm_length= FRM_HEADER_SIZE; // fileinfo;
+  frm_length+= 7; // "form entry"
 
-    len2= uint2korr(fileinfo+6); // 4096
-    len2+= key_buff_length;
-    len2+= reclength;
-    len2+= create_info->extra_size;
+  int2store(fileinfo+6, frm_length);
+  frm_length+= key_buff_length;
+  frm_length+= reclength; // row with default values
+  frm_length+= create_info->extra_size;
 
-    len3= filepos;
-    len3+= FRM_FORMINFO_SIZE; //forminfo
-    len3+= packed_fields_length(create_fields);
-
-    frm_length= len3;
-  }
+  filepos= frm_length;
+  frm_length+= FRM_FORMINFO_SIZE; // forminfo
+  frm_length+= packed_fields_length(create_fields);
   
   frm_ptr= (uchar*) my_malloc(frm_length, MYF(MY_ZEROFILL | MY_THREAD_SPECIFIC));
   if (!frm_ptr)

@@ -2926,7 +2926,6 @@ void append_unescaped(String *res, const char *pos, uint length)
 void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
                         HA_CREATE_INFO *create_info, uint keys, KEY *key_info)
 {
-  ulong length;
   ulong key_comment_total_bytes= 0;
   uint i;
   DBUG_ENTER("prepare_frm_header");
@@ -2947,7 +2946,6 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
   int2store(fileinfo+4,3);
-  int2store(fileinfo+6,IO_SIZE);		/* Next block starts here */
   /*
     Keep in sync with pack_keys() in unireg.cc
     For each key:
@@ -2971,10 +2969,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   key_length= keys * (8 + MAX_REF_PARTS * 9 + NAME_LEN + 1) + 16
               + key_comment_total_bytes;
 
-  length= next_io_size((ulong) (IO_SIZE+key_length+reclength+
-                                create_info->extra_size));
   int2store(fileinfo+8,1);
-  int4store(fileinfo+10,length);
   tmp_key_length= (key_length < 0xffff) ? key_length : 0xffff;
   int2store(fileinfo+14,tmp_key_length);
   int2store(fileinfo+16,reclength);
