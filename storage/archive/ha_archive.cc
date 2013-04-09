@@ -673,33 +673,12 @@ int ha_archive::frm_copy(azio_stream *src, azio_stream *dst)
 
 int ha_archive::frm_compare(azio_stream *s)
 {
-  int rc= 0;
-  const uchar *frm_ptr= 0;
-  uchar *azfrm_ptr= 0;
-  size_t frm_len;
+  if (!s->frmver_length)
+    return 0; // Old pre-10.0 archive table. Never rediscover.
 
-  /* no frm = no discovery. perhaps it's a partitioned table */
-  if (table->s->read_frm_image(&frm_ptr, &frm_len))
-    goto err;
-
-  if (!(azfrm_ptr= (uchar *) my_malloc(s->frm_length,
-                                       MYF(MY_THREAD_SPECIFIC | MY_WME))))
-    goto err;
-
-  rc= 1;
-
-  if (frm_len != s->frm_length)
-    goto err;
-
-  if (azread_frm(s, azfrm_ptr))
-    goto err;
-
-  rc= memcmp(frm_ptr, azfrm_ptr, frm_len);
-
-err:
-  my_free(const_cast<uchar*>(frm_ptr));
-  my_free(azfrm_ptr);
-  return rc;
+  LEX_CUSTRING *ver= &table->s->tabledef_version;
+  return ver->length != s->frmver_length ||
+         memcmp(ver->str,  s->frmver, ver->length);
 }
 
 

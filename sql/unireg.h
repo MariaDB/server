@@ -167,6 +167,22 @@
 #include "sql_list.h"                           /* List<> */
 #include "field.h"                              /* Create_field */
 
+/*
+  Types of values in the MariaDB extra2 frm segment.
+  Each value is written as
+    type:       1 byte
+    length:     1 byte  (1..255) or \0 and 2 bytes.
+    binary value of the 'length' bytes.
+
+  Older MariaDB servers can ignore values of unknown types if
+  the type code is less than 128. Otherwise older servers are required
+  to report an error.
+*/
+enum extra2_frm_value_type {
+  EXTRA2_TABLEDEF_VERSION=0,
+  EXTRA2_ENGINE_TABLEOPTS=128,
+};
+
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,
                      const char *path, const char *db, const char *table_name,
                      HA_CREATE_INFO *create_info, handler *file);

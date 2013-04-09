@@ -12701,12 +12701,12 @@ CREATE TABLE t1(a INT, b BLOB) ENGINE=archive;
 SELECT DATA_LENGTH, AVG_ROW_LENGTH FROM
 INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 DATA_LENGTH	AVG_ROW_LENGTH
-535	15
+550	15
 INSERT INTO t1 VALUES(1, 'sampleblob1'),(2, 'sampleblob2');
 SELECT DATA_LENGTH, AVG_ROW_LENGTH FROM
 INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 DATA_LENGTH	AVG_ROW_LENGTH
-569	284
+584	292
 DROP TABLE t1;
 SET @save_join_buffer_size= @@join_buffer_size;
 SET @@join_buffer_size= 8192;
@@ -12818,10 +12818,11 @@ select * from t1;
 a	b
 flush tables;
 select * from t1;
-a	b
-1	aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ERROR HY000: Table 't1' is marked as crashed and should be repaired
 show warnings;
 Level	Code	Message
+Warning	127	Got error 127 when reading table `test`.`t1`
+Error	1194	Table 't1' is marked as crashed and should be repaired
 drop table t1;
 create temporary table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);

@@ -1738,7 +1738,7 @@ select * from t1; # open the table to create the frm
 flush tables;     # and close the table again
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ
 copy_file std_data/t917689.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
-#--error ER_CRASHED_ON_USAGE
+--error ER_CRASHED_ON_USAGE
 select * from t1;
 show warnings;
 drop table t1;

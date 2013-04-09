@@ -13,6 +13,7 @@ remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 insert t1 values (2);
 select * from t1;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # show tables
@@ -22,24 +23,22 @@ select * from t2;
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 show tables;
-select * from t1;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # show full tables
 --echo #
-remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 show full tables;
-select * from t1;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # discover on truncate
 --echo #
-remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 --error ER_ILLEGAL_HA
 truncate table t1;
-show tables;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # discover on rename
@@ -47,7 +46,7 @@ show tables;
 remove_file $mysqld_datadir/test/t2.frm;
 flush tables;
 rename table t2 to t0;
-show tables;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # discover on HA_ERR_TABLE_DEF_CHANGED
@@ -63,7 +62,7 @@ show create table t1;
 remove_file $mysqld_datadir/test/t1.frm;
 flush tables;
 drop table t1;
-show tables;
+--list_files $mysqld_datadir/test
 
 --echo #
 --echo # discover of table non-existance on drop
@@ -74,6 +73,8 @@ flush tables;
 --error ER_NO_SUCH_TABLE
 select * from t1;
 drop table t0;
+--list_files $mysqld_datadir/test
+show status like 'Handler_discover';
 
 --echo #
 --echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE

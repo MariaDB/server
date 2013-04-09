@@ -1360,6 +1360,7 @@ enum ha_choice { HA_CHOICE_UNDEF, HA_CHOICE_NO, HA_CHOICE_YES };
 struct HA_CREATE_INFO
 {
   CHARSET_INFO *table_charset, *default_table_charset;
+  LEX_CUSTRING tabledef_version;
   LEX_STRING connect_string;
   const char *password, *tablespace;
   LEX_STRING comment;
@@ -1393,6 +1394,7 @@ struct HA_CREATE_INFO
   enum ha_storage_media storage_media;  ///< DEFAULT, DISK or MEMORY
   enum ha_choice page_checksum;         ///< If we have page_checksums
   engine_option_value *option_list;     ///< list of table create options
+
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
