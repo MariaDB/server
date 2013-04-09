@@ -341,9 +341,27 @@ bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
                          MYSQL_OPEN_SKIP_TEMPORARY))
       DBUG_RETURN(TRUE);
 
-    if (dd_check_storage_engine_flag(thd, table_ref->db, table_ref->table_name,
-                                     HTON_CAN_RECREATE, hton_can_recreate))
+    handlerton *hton;
+    if (!ha_table_exists(thd, table_ref->db, table_ref->table_name, &hton) ||
+        hton == view_pseudo_hton)
+    {
+      my_error(ER_NO_SUCH_TABLE, MYF(0), table_ref->db, table_ref->table_name);
       DBUG_RETURN(TRUE);
+    }
+
+    if (!hton)
+    {
+      /*
+        The table exists, but its storage engine is unknown, perhaps not
+        loaded at the moment. We need to open and parse the frm to know the
+        storage engine in question, so let's proceed with the truncation and
+        try to open the table. This will produce the correct error message
+        about unknown engine.
+      */
+      *hton_can_recreate= false;
+    }
+    else
+      *hton_can_recreate= hton->flags & HTON_CAN_RECREATE;
   }
 
   /*

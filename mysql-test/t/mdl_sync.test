@@ -4382,7 +4382,7 @@ connection default;
 --echo # Connection con2
 connection con2;
 --echo # Reaping: RENAME TABLE db1.t1 TO test.t1
---error ER_FILE_NOT_FOUND, ER_FILE_NOT_FOUND
+--error ER_NO_SUCH_TABLE
 --reap
 
 --echo # Connection default

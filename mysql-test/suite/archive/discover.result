@@ -18,18 +18,49 @@ a
 1
 2
 #
-# list tables
+# show tables
 #
-create table t0 (a int) engine=archive;
+create table t2 (a int) engine=archive;
 flush tables;
 show tables;
 Tables_in_test
-t0
 t1
+t2
 select * from t1;
 a
 1
 2
+#
+# show full tables
+#
+flush tables;
+show full tables;
+Tables_in_test	Table_type
+t1	BASE TABLE
+t2	BASE TABLE
+select * from t1;
+a
+1
+2
+#
+# discover on truncate
+#
+flush tables;
+truncate table t1;
+ERROR HY000: Table storage engine for 't1' doesn't have this option
+show tables;
+Tables_in_test
+t1
+t2
+#
+# discover on rename
+#
+flush tables;
+rename table t2 to t0;
+show tables;
+Tables_in_test
+t0
+t1
 #
 # discover on drop
 #

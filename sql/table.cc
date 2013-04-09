@@ -573,24 +573,6 @@ inline bool is_system_table_name(const char *name, uint length)
 
 
 /*
-  We don't try to open 5.0 unencoded name, if
-  - non-encoded name contains '@' signs, 
-    because '@' can be misinterpreted.
-    It is not clear if '@' is escape character in 5.1,
-    or a normal character in 5.0.
-    
-  - non-encoded db or table name contain "#mysql50#" prefix.
-    This kind of tables must have been opened only by the
-    mysql_file_open() above.
-*/
-static bool has_disabled_path_chars(const char *str)
-{
-  return strpbrk(str, "/\\~@.") != 0 ||
-         strncmp(str, STRING_WITH_LEN(MYSQL50_TABLE_NAME_PREFIX)) == 0;
-}
-
-
-/*
   Read table definition from a binary / text based .frm file
   
   SYNOPSIS
@@ -3176,7 +3158,7 @@ rename_file_ext(const char * from,const char * to,const char * ext)
   char from_b[FN_REFLEN],to_b[FN_REFLEN];
   (void) strxmov(from_b,from,ext,NullS);
   (void) strxmov(to_b,to,ext,NullS);
-  return (mysql_file_rename(key_file_frm, from_b, to_b, MYF(MY_WME)));
+  return (mysql_file_rename(key_file_frm, from_b, to_b, MYF(0)));
 }
 
 
