@@ -156,6 +156,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   - ALTER TABLE, that creates a temporary table #sql-xxx, which will be later
     renamed to replace the original table.
 
+  - ALTER TABLE as above, but which only modifies the frm file, it only
+    creates an frm file for the #sql-xxx, the table in the engine is not
+    created.
+
   These situations are distinguished by the following "create table mode"
   values, where a CREATE ... SELECT is denoted by any non-negative number
   (which should be the number of fields in the SELECT ... part), and other
@@ -164,6 +168,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 #define C_CREATE_SELECT(X)        ((X) > 0 ? (X) : 0)
 #define C_ORDINARY_CREATE         0
 #define C_ALTER_TABLE            -1
+#define C_ALTER_TABLE_FRM_ONLY   -2
 
 bool mysql_create_table_no_lock(THD *thd, const char *db,
                                 const char *table_name,

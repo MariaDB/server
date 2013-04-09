@@ -1389,7 +1389,6 @@ struct HA_CREATE_INFO
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   enum ha_choice transactional;
-  bool frm_only;                        ///< 1 if no ha_create_table()
   bool varchar;                         ///< 1 if table has a VARCHAR
   enum ha_storage_media storage_media;  ///< DEFAULT, DISK or MEMORY
   enum ha_choice page_checksum;         ///< If we have page_checksums
