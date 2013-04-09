@@ -1764,7 +1764,7 @@ static void plugin_load(MEM_ROOT *tmp_root, int *argc, char **argv)
     mysql_mutex_unlock(&LOCK_plugin);
   }
   if (error > 0)
-    sql_print_error(ER(ER_GET_ERRNO), my_errno);
+    sql_print_error(ER(ER_GET_ERRNO), my_errno, table->file->table_type());
   end_read_record(&read_record_info);
   table->m_needs_reopen= TRUE;                  // Force close to free memory
   close_mysql_tables(new_thd);

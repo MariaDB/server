@@ -49,7 +49,7 @@ t2.frm
 #
 flush tables;
 truncate table t1;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine ARCHIVE of the table `test`.`t1` doesn't have this option
 t1.ARZ
 t1.frm
 t2.ARZ

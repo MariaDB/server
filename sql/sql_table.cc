@@ -963,7 +963,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
     plugin_ref plugin= ha_resolve_by_name(thd, &handler_name);
     if (!plugin)
     {
-      my_error(ER_ILLEGAL_HA, MYF(0), ddl_log_entry->handler_name);
+      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), ddl_log_entry->handler_name);
       goto error;
     }
     hton= plugin_data(plugin, handlerton*);
@@ -3255,15 +3255,13 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   if (auto_increment &&
       (file->ha_table_flags() & HA_NO_AUTO_INCREMENT))
   {
-    my_message(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT,
-               ER(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT), MYF(0));
+    my_error(ER_TABLE_CANT_HANDLE_AUTO_INCREMENT, MYF(0), file->table_type());
     DBUG_RETURN(TRUE);
   }
 
   if (blob_columns && (file->ha_table_flags() & HA_NO_BLOBS))
   {
-    my_message(ER_TABLE_CANT_HANDLE_BLOB, ER(ER_TABLE_CANT_HANDLE_BLOB),
-               MYF(0));
+    my_error(ER_TABLE_CANT_HANDLE_BLOB, MYF(0), file->table_type());
     DBUG_RETURN(TRUE);
   }
 
@@ -3439,8 +3437,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     {
       if (!(file->ha_table_flags() & HA_CAN_FULLTEXT))
       {
-	my_message(ER_TABLE_CANT_HANDLE_FT, ER(ER_TABLE_CANT_HANDLE_FT),
-                   MYF(0));
+	my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), file->table_type());
 	DBUG_RETURN(TRUE);
       }
     }
@@ -3457,8 +3454,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     {
       if (!(file->ha_table_flags() & HA_CAN_RTREEKEYS))
       {
-        my_message(ER_TABLE_CANT_HANDLE_SPKEYS, ER(ER_TABLE_CANT_HANDLE_SPKEYS),
-                   MYF(0));
+	my_error(ER_TABLE_CANT_HANDLE_SPKEYS, MYF(0), file->table_type());
         DBUG_RETURN(TRUE);
       }
       if (key_info->key_parts != 1)
@@ -3573,7 +3569,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	{
 	  if (!(file->ha_table_flags() & HA_CAN_INDEX_BLOBS))
 	  {
-	    my_error(ER_BLOB_USED_AS_KEY, MYF(0), column->field_name.str);
+	    my_error(ER_BLOB_USED_AS_KEY, MYF(0), column->field_name.str,
+                     file->table_type());
 	    DBUG_RETURN(TRUE);
 	  }
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
@@ -3695,7 +3692,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
       else if (length == 0 && (sql_field->flags & NOT_NULL_FLAG))
       {
-	my_error(ER_WRONG_KEY_COLUMN, MYF(0), column->field_name.str);
+	my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(),
+                 column->field_name.str);
 	  DBUG_RETURN(TRUE);
       }
       if (length > file->max_key_part_length() && key->type != Key::FULLTEXT)
@@ -4394,7 +4392,7 @@ bool mysql_create_table_no_lock(THD *thd,
 
     if (!hton->discover_table_structure)
     {
-      my_error(ER_ILLEGAL_HA, MYF(0), table_name);
+      my_error(ER_ILLEGAL_HA, MYF(0), hton_name(hton)->str, db, table_name);
       goto err;
     }
 
@@ -4414,7 +4412,7 @@ bool mysql_create_table_no_lock(THD *thd,
 
     if (ha_err)
     {
-      my_error(ER_GET_ERRNO, MYF(0), ha_err);
+      my_error(ER_GET_ERRNO, MYF(0), ha_err, hton_name(hton)->str);
       goto err;
     }
   }
@@ -5417,6 +5415,7 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
 
   switch (keys_onoff) {
   case ENABLE:
+    DEBUG_SYNC(table->in_use, "alter_table_enable_indexes");
     error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
     break;
   case LEAVE_AS_IS:
@@ -5431,7 +5430,8 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   {
     push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                         ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
-                        table->s->table_name.str);
+                        table->file->table_type(),
+                        table->s->db.str, table->s->table_name.str);
     error= 0;
   } else if (error)
     table->file->print_error(error, MYF(0));
@@ -6051,7 +6051,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
           (!create_info->db_type || /* unknown engine */
            !(create_info->db_type->flags & HTON_SUPPORT_LOG_TABLES)))
       {
-        my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0));
+        my_error(ER_UNSUPORTED_LOG_ENGINE, MYF(0),
+                 hton_name(create_info->db_type)->str);
         DBUG_RETURN(TRUE);
       }
 
@@ -6267,11 +6268,19 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   DBUG_PRINT("info", ("old type: %s  new type: %s",
              ha_resolve_storage_engine_name(old_db_type),
              ha_resolve_storage_engine_name(new_db_type)));
-  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED) ||
-      ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
+  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), table_name);
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(old_db_type)->str,
+             db, table_name);
+    goto err;
+  }
+
+  if (ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
+  {
+    DBUG_PRINT("info", ("doesn't support alter"));
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(new_db_type)->str,
+             new_db, new_name);
     goto err;
   }
   
@@ -6279,35 +6288,13 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   if (!(alter_info->flags & ~(ALTER_RENAME | ALTER_KEYS_ONOFF)) &&
       !table->s->tmp_table) // no need to touch frm
   {
-    switch (alter_info->keys_onoff) {
-    case LEAVE_AS_IS:
-      break;
-    case ENABLE:
-      if (wait_while_table_is_used(thd, table, extra_func,
-                                   TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
-        goto err;
-      DEBUG_SYNC(thd,"alter_table_enable_indexes");
-      error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
-      table->s->allow_access_to_protected_table();
-      break;
-    case DISABLE:
-      if (wait_while_table_is_used(thd, table, extra_func,
-                                   TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
-        goto err;
-      error=table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
-      table->s->allow_access_to_protected_table();
-      break;
-    default:
-      DBUG_ASSERT(FALSE);
-      error= 0;
-      break;
-    }
-    if (error == HA_ERR_WRONG_COMMAND)
+    if (alter_info->keys_onoff != LEAVE_AS_IS)
     {
-      error= 0;
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
-			  ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
-			  table->alias.c_ptr());
+      if (wait_while_table_is_used(thd, table, extra_func,
+                                   TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
+        goto err;
+      error= alter_table_manage_keys(table, 0, alter_info->keys_onoff);
+      table->s->allow_access_to_protected_table();
     }
 
     if (!error && (new_name != table_name || new_db != db))
@@ -6365,7 +6352,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       error= 0;
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
 			  ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
-			  table->alias.c_ptr());
+                          table->file->table_type(),
+                          table->s->db.str, table->s->table_name.str);
     }
 
     if (!error)

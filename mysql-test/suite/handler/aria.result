@@ -586,7 +586,7 @@ Note	1051	Unknown table 't1'
 create table t1 (a int not null) ENGINE=csv;
 --> client 2
 handler t1 open;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine CSV of the table `test`.`t1` doesn't have this option
 --> client 1
 drop table t1;
 create table t1 (a int);

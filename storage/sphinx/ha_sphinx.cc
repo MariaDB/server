@@ -3424,7 +3424,8 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 	// report and bail
 	if ( sError[0] )
 	{
-		my_error ( ER_CANT_CREATE_TABLE, MYF(0), sError, -1 );
+		my_error ( ER_CANT_CREATE_TABLE, MYF(0),
+                           table->s->db.str, table->s->table_name, sError );
 		SPH_RET(-1);
 	}
 
