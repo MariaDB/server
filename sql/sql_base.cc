@@ -575,17 +575,12 @@ static void table_def_unuse_table(TABLE *table)
   table_list		Table that should be opened
   key			Table cache key
   key_length		Length of key
-  db_flags		Flags to open_table_def():
-			OPEN_VIEW
+  op      		operation: what to open table or view
   error			out: Error code from open_table_def()
 
   IMPLEMENTATION
     Get a table definition from the table definition cache.
     If it doesn't exist, create a new from the table definition file.
-
-  NOTES
-    We must have wrlock on LOCK_open when we come here
-    (To be changed later)
 
   RETURN
    0  Error
@@ -673,16 +668,21 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
      We found an existing table definition. Return it if we didn't get
      an error when reading the table definition from file.
   */
+  if (share->is_view && op == FRM_READ_TABLE_ONLY)
+  {
+    open_table_error(share, OPEN_FRM_NOT_A_TABLE, ENOENT);
+    goto err;
+  }
+  if (!share->is_view && op == FRM_READ_VIEW_ONLY)
+  {
+    open_table_error(share, OPEN_FRM_NOT_A_VIEW, ENOENT);
+    goto err;
+  }
+
   if (share->error)
   {
     /* Table definition contained an error */
     open_table_error(share, share->error, share->open_errno);
-    goto err;
-  }
-
-  if (share->is_view && op != FRM_READ_NO_ERROR_FOR_VIEW)
-  {
-    open_table_error(share, OPEN_FRM_NO_VIEWS, ENOENT);
     goto err;
   }
 
@@ -715,98 +715,6 @@ err:
 end:
   mysql_mutex_unlock(&LOCK_open);
   DBUG_RETURN(share);
-}
-
-
-/**
-  Get a table share. If it didn't exist, try creating it from engine
-
-  For arguments and return values, see get_table_share()
-*/
-
-static TABLE_SHARE *
-get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
-                              char *key, uint key_length,
-                              enum read_frm_op op, enum open_frm_error *error,
-                              my_hash_value_type hash_value)
-
-{
-  TABLE_SHARE *share;
-  bool exists;
-  DBUG_ENTER("get_table_share_with_discover");
-
-  share= get_table_share(thd, table_list, key, key_length, op, error,
-                         hash_value);
-  /*
-    If share is not NULL, we found an existing share.
-
-    If share is NULL, and there is no error, we're inside
-    pre-locking, which silences 'ER_NO_SUCH_TABLE' errors
-    with the intention to silently drop non-existing tables 
-    from the pre-locking list. In this case we still need to try
-    auto-discover before returning a NULL share.
-
-    Or, we're inside SHOW CREATE VIEW, which
-    also installs a silencer for ER_NO_SUCH_TABLE error.
-
-    If share is NULL and the error is ER_NO_SUCH_TABLE, this is
-    the same as above, only that the error was not silenced by
-    pre-locking or SHOW CREATE VIEW.
-
-    In both these cases it won't harm to try to discover the
-    table.
-
-    Finally, if share is still NULL, it's a real error and we need
-    to abort.
-
-    @todo Rework alternative ways to deal with ER_NO_SUCH TABLE.
-  */
-  if (share ||
-      (thd->is_error() && thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE))
-    DBUG_RETURN(share);
-
-  *error= OPEN_FRM_OK;
-
-  /* Table didn't exist. Check if some engine can provide it */
-  if (ha_check_if_table_exists(thd, table_list->db, table_list->table_name,
-                               &exists))
-  {
-    thd->clear_error();
-    /* Conventionally, the storage engine API does not report errors. */
-    my_error(ER_OUT_OF_RESOURCES, MYF(0));
-  }
-  else if (! exists)
-  {
-    /*
-      No such table in any engine.
-      Hide "Table doesn't exist" errors if the table belongs to a view.
-      The check for thd->is_error() is necessary to not push an
-      unwanted error in case the error was already silenced.
-      @todo Rework the alternative ways to deal with ER_NO_SUCH TABLE.
-    */
-    if (thd->is_error())
-    {
-      if (table_list->parent_l)
-      {
-        thd->clear_error();
-        my_error(ER_WRONG_MRG_TABLE, MYF(0));
-      }
-      else if (table_list->belong_to_view)
-      {
-        TABLE_LIST *view= table_list->belong_to_view;
-        thd->clear_error();
-        my_error(ER_VIEW_INVALID, MYF(0),
-                 view->view_db.str, view->view_name.str);
-      }
-    }
-  }
-  else
-  {
-    thd->clear_error();
-    *error= OPEN_FRM_DISCOVER; /* Run auto-discover. */
-  }
-  DBUG_RETURN(NULL);
 }
 
 
@@ -871,7 +779,7 @@ void release_table_share(TABLE_SHARE *share)
     #  TABLE_SHARE for table
 */
 
-TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
+static TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
 {
   char key[SAFE_NAME_LEN*2+2];
   uint key_length;
@@ -2445,10 +2353,9 @@ void drop_open_table(THD *thd, TABLE *table, const char *db_name,
     or in some storage engine.
 
     @param       thd        Thread context
-    @param       table      Table list element
-    @param       fast_check Check only if share or .frm file exists 
-    @param[out]  exists     Out parameter which is set to TRUE if table
-                            exists and to FALSE otherwise.
+    @param       db         database name
+    @param       table_name table name
+    @param       path       (optional) path to the frm file
 
     @note This function acquires LOCK_open internally.
 
@@ -2460,48 +2367,36 @@ void drop_open_table(THD *thd, TABLE *table, const char *db_name,
     @retval  FALSE  No error. 'exists' out parameter set accordingly.
 */
 
-bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool fast_check,
-                           bool *exists)
+bool table_exists(THD *thd, const char *db, const char *table_name,
+                  const char *path)
 {
-  char path[FN_REFLEN + 1];
+  char path_buf[FN_REFLEN + 1];
   TABLE_SHARE *share;
-  DBUG_ENTER("check_if_table_exists");
-
-  *exists= TRUE;
-
-  DBUG_ASSERT(fast_check ||
-              thd->mdl_context.
-              is_lock_owner(MDL_key::TABLE, table->db,
-                            table->table_name, MDL_SHARED));
+  DBUG_ENTER("table_exists");
 
   mysql_mutex_lock(&LOCK_open);
-  share= get_cached_table_share(table->db, table->table_name);
+  share= get_cached_table_share(db, table_name);
   mysql_mutex_unlock(&LOCK_open);
 
   if (share)
-    goto end;
+    DBUG_RETURN(TRUE);
 
-  build_table_filename(path, sizeof(path) - 1, table->db, table->table_name,
-                       reg_ext, 0);
+  if (!path)
+  {
+    build_table_filename(path_buf, sizeof(path_buf) - 1,
+                         db, table_name, reg_ext, 0);
+    path= path_buf;
+  }
 
   if (!access(path, F_OK))
-    goto end;
-
-  if (fast_check)
-  {
-    *exists= FALSE;
-    goto end;
-  }
-
-  /* .FRM file doesn't exist. Check if some engine can provide it. */
-  if (ha_check_if_table_exists(thd, table->db, table->table_name, exists))
-  {
-    my_printf_error(ER_OUT_OF_RESOURCES, "Failed to open '%-.64s', error while "
-                    "unpacking from engine", MYF(0), table->table_name);
     DBUG_RETURN(TRUE);
-  }
-end:
-  DBUG_RETURN(FALSE);
+
+  /* .FRM file doesn't exist. Try to discover it */
+  uchar *frmblob= NULL;
+  size_t frmlen;
+  bool exists= ! ha_discover(thd, db, table_name, &frmblob, &frmlen);
+  my_free(frmblob);
+  DBUG_RETURN(exists);
 }
 
 
@@ -2781,6 +2676,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   enum open_frm_error error;
   TABLE_SHARE *share;
   my_hash_value_type hash_value;
+  enum read_frm_op read_op;
   DBUG_ENTER("open_table");
 
   /* an open table operation needs a lot of the stack space */
@@ -3040,12 +2936,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 
   if (table_list->open_strategy == TABLE_LIST::OPEN_IF_EXISTS)
   {
-    bool exists;
-
-    if (check_if_table_exists(thd, table_list, 0, &exists))
-      DBUG_RETURN(TRUE);
-
-    if (!exists)
+    if (!table_exists(thd, table_list))
       DBUG_RETURN(FALSE);
 
     /* Table exists. Let us try to open it. */
@@ -3053,21 +2944,41 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   else if (table_list->open_strategy == TABLE_LIST::OPEN_STUB)
     DBUG_RETURN(FALSE);
 
+  if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
+    read_op = FRM_READ_TABLE_ONLY;
+  else
+  if (table_list->i_s_requested_object &  OPEN_VIEW_ONLY)
+    read_op = FRM_READ_VIEW_ONLY;
+  else
+    read_op = FRM_READ_TABLE_OR_VIEW;
+
 retry_share:
 
-  if (!(share= get_table_share_with_discover(thd, table_list, key, key_length,
-                                             FRM_READ_NO_ERROR_FOR_VIEW,
-                                             &error, hash_value)))
+  share= get_table_share(thd, table_list, key, key_length,
+                         read_op, &error, hash_value);
+
+  if (!share)
   {
     /*
-      If thd->is_error() is not set, we either need discover or the error was
-      silenced by the prelocking handler, in which case we should skip this
-      table.
+      Hide "Table doesn't exist" errors if the table belongs to a view.
+      The check for thd->is_error() is necessary to not push an
+      unwanted error in case the error was already silenced.
+      @todo Rework the alternative ways to deal with ER_NO_SUCH TABLE.
     */
-    if (error == OPEN_FRM_DISCOVER && !thd->is_error())
+    if (thd->is_error())
     {
-      (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
-                                            table_list);
+      if (table_list->parent_l)
+      {
+        thd->clear_error();
+        my_error(ER_WRONG_MRG_TABLE, MYF(0));
+      }
+      else if (table_list->belong_to_view)
+      {
+        TABLE_LIST *view= table_list->belong_to_view;
+        thd->clear_error();
+        my_error(ER_VIEW_INVALID, MYF(0),
+                 view->view_db.str, view->view_name.str);
+      }
     }
     DBUG_RETURN(TRUE);
   }
@@ -3090,12 +3001,6 @@ retry_share:
     */
     if (check_and_update_table_version(thd, table_list, share))
       goto err_lock;
-    if (table_list->i_s_requested_object & OPEN_TABLE_ONLY)
-    {
-      my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db,
-               table_list->table_name);
-      goto err_lock;
-    }
 
     /* Open view */
     if (open_new_frm(thd, share, alias,
@@ -3115,20 +3020,6 @@ retry_share:
 
     mysql_mutex_unlock(&LOCK_open);
     DBUG_RETURN(FALSE);
-  }
-
-  /*
-    Note that situation when we are trying to open a table for what
-    was a view during previous execution of PS will be handled in by
-    the caller. Here we should simply open our table even if
-    TABLE_LIST::view is true.
-  */
-
-  if (table_list->i_s_requested_object &  OPEN_VIEW_ONLY)
-  {
-    my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db,
-             table_list->table_name);
-    goto err_lock;
   }
 
   mysql_mutex_lock(&LOCK_open);
@@ -3894,11 +3785,12 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
   hash_value= my_calc_hash(&table_def_cache, (uchar*) cache_key,
                            cache_key_length);
   if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
-                               FRM_READ_NO_ERROR_FOR_VIEW, &error, hash_value)))
+                               FRM_READ_VIEW_ONLY, &error, hash_value)))
     return TRUE;
 
-  bool err= !share->is_view ||
-       open_new_frm(thd, share, alias,
+  DBUG_ASSERT(share->is_view);
+
+  bool err= open_new_frm(thd, share, alias,
                     (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                      HA_GET_INDEX | HA_TRY_READ_ONLY),
                     READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD | flags,
@@ -3907,10 +3799,6 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
   mysql_mutex_lock(&LOCK_open);
   release_table_share(share);
   mysql_mutex_unlock(&LOCK_open);
-
-  if (err)
-    my_error(ER_WRONG_OBJECT, MYF(0), table_list->db,
-             table_list->table_name, "VIEW");
 
   return err;
 }
@@ -3985,12 +3873,11 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
                            cache_key_length);
 
   if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
-                               FRM_READ_NO_ERROR_FOR_VIEW, &not_used,
+                               FRM_READ_TABLE_ONLY, &not_used,
                                hash_value)))
     goto end_free;
 
-  if (share->is_view)
-    goto end_release;
+  DBUG_ASSERT(! share->is_view);
 
   if (open_table_from_share(thd, share, table_list->alias,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
@@ -4016,7 +3903,6 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
     result= FALSE;
   }
 
-end_release:
   mysql_mutex_lock(&LOCK_open);
   release_table_share(share);
   /* Remove the repaired share from the table cache. */
@@ -4786,7 +4672,7 @@ lock_table_names(THD *thd,
   if (mdl_requests.is_empty())
     DBUG_RETURN(FALSE);
 
-  /* Check if CREATE TABLE IF NOT EXISTS was used */
+  /* Check if CREATE TABLE was used */
   create_table= (tables_start && tables_start->open_strategy ==
                  TABLE_LIST::OPEN_IF_EXISTS);
 
@@ -4825,12 +4711,9 @@ lock_table_names(THD *thd,
 
   for (;;)
   {
-    bool exists= TRUE;
-    bool res;
-
     if (create_table)
       thd->push_internal_handler(&error_handler);  // Avoid warnings & errors
-    res= thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout);
+    bool res= thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout);
     if (create_table)
       thd->pop_internal_handler();
     if (!res)
@@ -4840,13 +4723,10 @@ lock_table_names(THD *thd,
       DBUG_RETURN(TRUE);                        // Return original error
 
     /*
-      We come here in the case of lock timeout when executing
-      CREATE TABLE IF NOT EXISTS.
-      Verify that table really exists (it should as we got a lock conflict)
+      We come here in the case of lock timeout when executing CREATE TABLE.
+      Verify that table does exist (it usually does, as we got a lock conflict)
     */
-    if (check_if_table_exists(thd, tables_start, 1, &exists))
-      DBUG_RETURN(TRUE);                       // Should never happen
-    if (exists)
+    if (table_exists(thd, tables_start))
     {
       if (thd->lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
       {
@@ -4858,17 +4738,16 @@ lock_table_names(THD *thd,
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), tables_start->table_name);
       DBUG_RETURN(TRUE);
     }
-    /* purecov: begin inspected */
     /*
-      We got error from acquire_locks but table didn't exists.
-      In theory this should never happen, except maybe in
-      CREATE or DROP DATABASE scenario.
+      We got error from acquire_locks, but the table didn't exists.
+      This could happen if another connection runs a statement
+      involving this non-existent table, and this statement took the mdl,
+      but didn't error out with ER_NO_SUCH_TABLE yet (yes, a race condition).
       We play safe and restart the original acquire_locks with the
-      original timeout
+      original timeout.
     */
     create_table= 0;
     lock_wait_timeout= org_lock_wait_timeout;
-    /* purecov: end */
   }
 }
 

@@ -569,7 +569,8 @@ enum open_frm_error {
   OPEN_FRM_CORRUPTED,
   OPEN_FRM_DISCOVER,
   OPEN_FRM_ERROR_ALREADY_ISSUED,
-  OPEN_FRM_NO_VIEWS,
+  OPEN_FRM_NOT_A_VIEW,
+  OPEN_FRM_NOT_A_TABLE
 };
 
 /**
@@ -2448,7 +2449,8 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
 
 enum read_frm_op {
   FRM_READ_TABLE_ONLY,
-  FRM_READ_NO_ERROR_FOR_VIEW
+  FRM_READ_VIEW_ONLY,
+  FRM_READ_TABLE_OR_VIEW
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);

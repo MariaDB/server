@@ -934,16 +934,10 @@ update_binlog:
     for (tbl= tables; tbl; tbl= tbl->next_local)
     {
       uint tbl_name_len;
-      bool exists;
       char quoted_name[FN_REFLEN+3];
 
       // Only write drop table to the binlog for tables that no longer exist.
-      if (check_if_table_exists(thd, tbl, 0, &exists))
-      {
-        error= true;
-        goto exit;
-      }
-      if (exists)
+      if (table_exists(thd, tbl))
         continue;
 
       my_snprintf(quoted_name, sizeof(quoted_name), "%`s", tbl->table_name);
