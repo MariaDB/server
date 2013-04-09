@@ -2279,8 +2279,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
-    if (drop_temporary || !table_exists(thd, db, alias, path) ||
-         (!drop_view && dd_frm_type(thd, path, &frm_db_type) != FRMTYPE_TABLE))
+    if (!table->internal_tmp_table &&
+        (drop_temporary || !ha_table_exists(thd, db, alias) ||
+         (!drop_view && dd_frm_type(thd, path, &frm_db_type) != FRMTYPE_TABLE)))
     {
       /*
         One of the following cases happened:
@@ -2288,6 +2289,10 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . "DROP" but table was not found on disk and table can't be
             created from engine.
           . ./sql/datadict.cc +32 /Alfranio - TODO: We need to test this.
+
+        Table->internal_tmp_table is set when one of the #sql-xxx files
+        was left in the datadir after a crash during ALTER TABLE.
+        See Bug#30152.
       */
       if (if_exists)
 	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
@@ -4317,7 +4322,7 @@ bool mysql_create_table_no_lock(THD *thd,
 
   if (!internal_tmp_table && !(create_info->options & HA_LEX_CREATE_TMP_TABLE))
   {
-    if (table_exists(thd, db, table_name, path))
+    if (ha_table_exists(thd, db, table_name))
     {
       if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
         goto warn;
