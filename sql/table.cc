@@ -596,6 +596,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
   char	path[FN_REFLEN];
+  size_t frmlen;
   DBUG_ENTER("open_table_def");
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
@@ -642,13 +643,15 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   if (my_fstat(file, &stats, MYF(0)))
     goto err;
 
-  if (!(buf= (uchar*)my_malloc(stats.st_size, MYF(MY_THREAD_SPECIFIC|MY_WME))))
+  frmlen= min(FRM_MAX_SIZE, stats.st_size); // safety
+
+  if (!(buf= (uchar*)my_malloc(frmlen, MYF(MY_THREAD_SPECIFIC|MY_WME))))
     goto err;
 
   memcpy(buf, head, sizeof(head));
 
   if (mysql_file_read(file, buf + sizeof(head),
-                      stats.st_size - sizeof(head), MYF(MY_NABP)))
+                      frmlen - sizeof(head), MYF(MY_NABP)))
   {
     share->error = my_errno == HA_ERR_FILE_TOO_SHORT
                       ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
@@ -657,7 +660,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   }
   mysql_file_close(file, MYF(MY_WME));
 
-  share->init_from_binary_frm_image(thd, false, buf, stats.st_size);
+  share->init_from_binary_frm_image(thd, false, buf, frmlen);
   error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
 
