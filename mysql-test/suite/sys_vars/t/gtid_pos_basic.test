@@ -1,3 +1,5 @@
+--source include/not_embedded.inc
+
 SET @old_gtid_pos= @@gtid_pos;
 
 SET GLOBAL gtid_pos= '';
