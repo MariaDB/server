@@ -53,7 +53,6 @@ static TYPELIB global_plugin_typelib=
   { array_elements(global_plugin_typelib_names)-1,
     "", global_plugin_typelib_names, NULL };
 
-
 char *opt_plugin_load= NULL;
 char *opt_plugin_dir_ptr;
 char opt_plugin_dir[FN_REFLEN];
@@ -197,6 +196,8 @@ static bool reap_needed= false;
 static int plugin_array_version=0;
 
 static bool initialized= 0;
+ulong dlopen_count;
+
 
 /*
   write-lock on LOCK_system_variables_hash is required before modifying
@@ -746,6 +747,7 @@ static st_plugin_dl *plugin_dl_add(const LEX_STRING *dl, int report)
     report_error(report, ER_CANT_OPEN_LIBRARY, dlpath, errno, errmsg);
     goto ret;
   }
+  dlopen_count++;
 
   /* Checks which plugin interface present and reads info */
   if (!(sym= dlsym(plugin_dl.handle, maria_plugin_interface_version_sym)))
@@ -1484,6 +1486,8 @@ int plugin_init(int *argc, char **argv, int flags)
 
   if (initialized)
     DBUG_RETURN(0);
+
+  dlopen_count =0;
 
 #ifdef HAVE_PSI_INTERFACE
   init_plugin_psi_keys();
@@ -2330,6 +2334,74 @@ bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
 err:
   my_afree(plugins);
   DBUG_RETURN(TRUE);
+}
+
+
+static bool plugin_dl_foreach_internal(THD *thd, st_plugin_dl *plugin_dl,
+                                       st_maria_plugin *plug,
+                                       plugin_foreach_func *func, void *arg)
+{
+  for (; plug->name; plug++)
+  {
+    st_plugin_int tmp, *plugin;
+
+    tmp.name.str= const_cast<char*>(plug->name);
+    tmp.name.length= strlen(plug->name);
+    tmp.plugin= plug;
+    tmp.plugin_dl= plugin_dl;
+
+    mysql_mutex_lock(&LOCK_plugin);
+    if ((plugin= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)) &&
+        plugin->plugin == plug)
+
+    {
+      tmp.state= plugin->state;
+      tmp.load_option= plugin->load_option;
+    }
+    else
+    {
+      tmp.state= PLUGIN_IS_FREED;
+      tmp.load_option= PLUGIN_OFF;
+    }
+    mysql_mutex_unlock(&LOCK_plugin);
+
+    plugin= &tmp;
+    if (func(thd, plugin_int_to_ref(plugin), arg))
+      return 1;
+  }
+  return 0;
+}
+
+bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
+                       plugin_foreach_func *func, void *arg)
+{
+  bool err= 0;
+
+  if (dl)
+  {
+    mysql_mutex_lock(&LOCK_plugin);
+    st_plugin_dl *plugin_dl= plugin_dl_add(dl, REPORT_TO_USER);
+    mysql_mutex_unlock(&LOCK_plugin);
+
+    if (!plugin_dl)
+      return 1;
+
+    err= plugin_dl_foreach_internal(thd, plugin_dl, plugin_dl->plugins,
+                                    func, arg);
+
+    mysql_mutex_lock(&LOCK_plugin);
+    plugin_dl_del(plugin_dl);
+    mysql_mutex_unlock(&LOCK_plugin);
+  }
+  else
+  {
+    struct st_maria_plugin **builtins;
+    for (builtins= mysql_mandatory_plugins; !err && *builtins; builtins++)
+      err= plugin_dl_foreach_internal(thd, 0, *builtins, func, arg);
+    for (builtins= mysql_optional_plugins; !err && *builtins; builtins++)
+      err= plugin_dl_foreach_internal(thd, 0, *builtins, func, arg);
+  }
+  return err;
 }
 
 

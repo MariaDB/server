@@ -1,0 +1,22 @@
+if (!$DIALOG_EXAMPLES_SO) { skip requires dialog_examples.so; }
+if (!$HA_EXAMPLE_SO) { skip requires ha_examples.so; }
+if (!$LIBDAEMON_EXAMPLE_SO) { skip requires libdaemon_examples.so; }
+if (!$UDF_EXAMPLE_SO) { skip requires udf_example.so; }
+
+flush status;
+show status like '%libraries%';
+#--sorted_result
+#select * from information_schema.all_plugins;
+#show status like '%libraries%';
+select * from information_schema.all_plugins where plugin_library='ha_example.so';
+show status like '%libraries%';
+--sorted_result
+show plugins soname 'ha_example.so';
+show status like '%libraries%';
+--sorted_result
+show plugins soname like '%example%';
+show status like '%libraries%';
+--sorted_result
+show plugins soname where library = 'ha_example.so';
+select variable_value > 10 from information_schema.global_status where variable_name like '%libraries%';
+

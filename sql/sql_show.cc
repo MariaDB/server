@@ -119,6 +119,14 @@ append_algorithm(TABLE_LIST *table, String *buff);
 
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
+typedef struct st_lookup_field_values
+{
+  LEX_STRING db_value, table_value;
+  bool wild_db_value, wild_table_value;
+} LOOKUP_FIELD_VALUES;
+
+bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
+
 /***************************************************************************
 ** List all table types supported
 ***************************************************************************/
@@ -157,7 +165,6 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
         cs);
 
   switch (plugin_state(plugin)) {
-  /* case PLUGIN_IS_FREED: does not happen */
   case PLUGIN_IS_DELETED:
     table->field[2]->store(STRING_WITH_LEN("DELETED"), cs);
     break;
@@ -169,6 +176,9 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
     break;
   case PLUGIN_IS_DISABLED:
     table->field[2]->store(STRING_WITH_LEN("DISABLED"), cs);
+    break;
+  case PLUGIN_IS_FREED: // filtered in fill_plugins, used in fill_all_plugins
+    table->field[2]->store(STRING_WITH_LEN("NOT INSTALLED"), cs);
     break;
   default:
     DBUG_ASSERT(0);
@@ -263,6 +273,65 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
                                ~PLUGIN_IS_FREED, table))
     DBUG_RETURN(1);
 
+  DBUG_RETURN(0);
+}
+
+
+int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_all_plugins");
+  TABLE *table= tables->table;
+  LOOKUP_FIELD_VALUES lookup;
+
+  if (get_lookup_field_values(thd, cond, tables, &lookup))
+    DBUG_RETURN(0);
+
+  if (lookup.db_value.str && !lookup.db_value.str[0])
+    DBUG_RETURN(0); // empty string never matches a valid SONAME
+
+  MY_DIR *dirp= my_dir(opt_plugin_dir, MY_THREAD_SPECIFIC);
+  if (!dirp)
+  {
+    my_error(ER_CANT_READ_DIR, MYF(0), opt_plugin_dir, my_errno);
+    DBUG_RETURN(1);
+  }
+
+  if (!lookup.db_value.str)
+    plugin_dl_foreach(thd, 0, show_plugins, table);
+
+  const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
+  for (uint i=0; i < (uint) dirp->number_of_files; i++)
+  {
+    FILEINFO *file= dirp->dir_entry+i;
+    LEX_STRING dl= { file->name, strlen(file->name) };
+    const char *dlend= dl.str + dl.length;
+    const size_t so_ext_len= sizeof(SO_EXT) - 1;
+
+    if (strcasecmp(dlend - so_ext_len, SO_EXT))
+      continue;
+
+    if (lookup.db_value.str)
+    {
+      if (lookup.wild_db_value)
+      {
+        if (my_wildcmp(files_charset_info, dl.str, dlend, wstr, wend,
+                       wild_prefix, wild_one, wild_many))
+          continue;
+      }
+      else
+      {
+        if (my_strnncoll(files_charset_info,
+                         (uchar*)dl.str, dl.length,
+                         (uchar*)lookup.db_value.str, lookup.db_value.length))
+          continue;
+      }
+    }
+
+    plugin_dl_foreach(thd, &dl, show_plugins, table);
+    thd->clear_error();
+  }
+
+  my_dirend(dirp);
   DBUG_RETURN(0);
 }
 
@@ -3260,13 +3329,6 @@ void calc_sum_of_all_status(STATUS_VAR *to)
 /* This is only used internally, but we need it here as a forward reference */
 extern ST_SCHEMA_TABLE schema_tables[];
 
-typedef struct st_lookup_field_values
-{
-  LEX_STRING db_value, table_value;
-  bool wild_db_value, wild_table_value;
-} LOOKUP_FIELD_VALUES;
-
-
 /*
   Store record to I_S table, convert HEAP table
   to MyISAM if necessary
@@ -3585,6 +3647,17 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
       thd->make_lex_string(&lookup_field_values->table_value, 
                            wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
+    }
+    break;
+  case SQLCOM_SHOW_PLUGINS:
+    if (lex->ident.str)
+      thd->make_lex_string(&lookup_field_values->db_value, 
+                           lex->ident.str, lex->ident.length);
+    else if (lex->wild)
+    {
+      thd->make_lex_string(&lookup_field_values->db_value, 
+                           lex->wild->ptr(), lex->wild->length());
+      lookup_field_values->wild_db_value= 1;
     }
     break;
   default:
@@ -8558,7 +8631,7 @@ ST_FIELD_INFO plugin_fields_info[]=
   {"PLUGIN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
    SKIP_OPEN_TABLE},
   {"PLUGIN_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_STATUS", 10, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
+  {"PLUGIN_STATUS", 16, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
   {"PLUGIN_TYPE", 80, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
   {"PLUGIN_TYPE_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"PLUGIN_LIBRARY", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Library",
@@ -8819,6 +8892,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"PLUGINS", plugin_fields_info, create_schema_table,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
+  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
+   fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
   {"PROCESSLIST", processlist_fields_info, create_schema_table,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
   {"PROFILING", query_profile_statistics_info, create_schema_table,
