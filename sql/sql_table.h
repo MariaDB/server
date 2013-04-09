@@ -131,9 +131,6 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
                           const char *table, const char *ext, uint flags);
 uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt);
-bool check_table_file_presence(char *old_path, char *path, const char *db,
-                               const char *table_name, const char *alias,
-                               bool issue_error);
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
                         HA_CREATE_INFO *create_info,
                         Alter_info *alter_info);
