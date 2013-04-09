@@ -113,7 +113,7 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
                              enum open_frm_error *error,
                              my_hash_value_type hash_value);
 void release_table_share(TABLE_SHARE *share);
-
+TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);
 
 // convenience helper: call get_table_share() without precomputed hash_value
 static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
@@ -368,13 +368,6 @@ TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
 void mark_tmp_table_for_reuse(TABLE *table);
-
-bool table_exists(THD *thd, const char *db, const char *table_name,
-                  const char *path);
-static inline bool table_exists(THD *thd, TABLE_LIST *table)
-{
-  return table_exists(thd, table->db, table->table_name, NULL);
-}
 
 int update_virtual_fields(THD *thd, TABLE *table,
       enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);

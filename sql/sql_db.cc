@@ -937,7 +937,7 @@ update_binlog:
       char quoted_name[FN_REFLEN+3];
 
       // Only write drop table to the binlog for tables that no longer exist.
-      if (table_exists(thd, tbl))
+      if (ha_table_exists(thd, tbl->db, tbl->table_name))
         continue;
 
       my_snprintf(quoted_name, sizeof(quoted_name), "%`s", tbl->table_name);

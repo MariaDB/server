@@ -1136,6 +1136,27 @@ struct handlerton
    */
    int (*discover_table_names)(handlerton *hton, LEX_STRING *db, MY_DIR *dir,
                                discovered_list *result);
+
+   /*
+     This is a method that allows to server to check if a table exists without
+     an overhead of the complete discovery.
+
+     By default (if not implemented by the engine, but the discovery_table() is
+     implemented) it will try to perform a file-based discovery:
+
+     - if tablefile_extensions[0] is not null this will look for a file name
+       with the tablefile_extensions[0] extension.
+
+     - if tablefile_extensions[0] is null, this will resort to discover_table().
+
+     Note that resorting to discover_table() is slow and the engine
+     should probably implement its own discover_table_existence() method,
+     if its tablefile_extensions[0] is null.
+
+     Returns 1 if the table exists and 0 if it does not.
+   */
+   int (*discover_table_existence)(handlerton *hton, const char *db,
+                                   const char *table_name);
 };
 
 
@@ -3072,6 +3093,8 @@ int ha_discover(THD* thd, const char* dbname, const char* name,
                 uchar** frmblob, size_t* frmlen);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
                             handlerton::discovered_list *result);
+bool ha_table_exists(THD *thd, const char *db, const char *table_name);
+
 #ifdef MYSQL_SERVER
 extern volatile int32 engines_with_discover_table_names;
 #endif

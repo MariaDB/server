@@ -383,6 +383,11 @@ static int ha_finish_errors(void)
   return 0;
 }
 
+volatile int32 need_full_discover_for_existence= 0;
+static int full_discover_for_existence(handlerton *, const char *, const char *)
+{ return 1; }
+static int ext_based_existence(handlerton *, const char *, const char *)
+{ return 1; }
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
@@ -432,6 +437,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     DBUG_ASSERT(hton->slot < MAX_HA);
     hton2plugin[hton->slot]= NULL;
   }
+
+  if (hton->discover_table_existence == full_discover_for_existence)
+    my_atomic_add32(&need_full_discover_for_existence, -1);
 
   if (hton->discover_table_names)
     my_atomic_add32(&engines_with_discover_table_names, -1);
@@ -485,6 +493,18 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   if (!hton->discover_table_names &&
       hton->discover && hton->tablefile_extensions[0])
     hton->discover_table_names= hton_ext_based_table_discovery;
+
+  // default discover_table_existence implementation
+  if (!hton->discover_table_existence && hton->discover)
+  {
+    if (hton->tablefile_extensions[0])
+      hton->discover_table_existence= ext_based_existence;
+    else
+    {
+      hton->discover_table_existence= full_discover_for_existence;
+      my_atomic_add32(&need_full_discover_for_existence, 1);
+    }
+  }
 
   /*
     the switch below and hton->state should be removed when
@@ -4377,6 +4397,83 @@ int ha_discover(THD *thd, const char *db, const char *name,
   DBUG_RETURN(error);
 }
 
+/**
+  Check if a given table exists, without doing a full discover, if possible
+*/
+
+static my_bool file_ext_exists(char *path, size_t path_len, const char *ext)
+{
+  strmake(path + path_len, ext, FN_REFLEN - path_len);
+  return !access(path, F_OK);
+}
+
+struct st_discover_existence_args
+{
+  char *path;
+  size_t  path_len;
+  const char *db, *table_name;
+};
+
+static my_bool discover_existence(THD *thd, plugin_ref plugin,
+                                  void *arg)
+{
+  st_discover_existence_args *args= (st_discover_existence_args*)arg;
+  handlerton *ht= plugin_data(plugin, handlerton *);
+  if (ht->state != SHOW_OPTION_YES || !ht->discover_table_existence)
+    return FALSE;
+
+  if (ht->discover_table_existence == ext_based_existence)
+    return file_ext_exists(args->path, args->path_len,
+                           ht->tablefile_extensions[0]);
+
+  return ht->discover_table_existence(ht, args->db, args->table_name);
+}
+
+bool ha_table_exists(THD *thd, const char *db, const char *table_name)
+{
+  DBUG_ENTER("ha_discover_table_existence");
+
+  if (need_full_discover_for_existence)
+  {
+    enum open_frm_error err;
+    TABLE_LIST table;
+
+    DBUG_ASSERT(0);
+    TABLE_SHARE *share= get_table_share(thd, db, table_name,
+                                        FRM_READ_TABLE_ONLY, &err);
+
+    if (share)
+    {
+      mysql_mutex_lock(&LOCK_open);
+      release_table_share(share);
+      mysql_mutex_unlock(&LOCK_open);
+      DBUG_RETURN(TRUE);
+    }
+    DBUG_RETURN(FALSE);
+  }
+
+  mysql_mutex_lock(&LOCK_open);
+  TABLE_SHARE *share= get_cached_table_share(db, table_name);
+  mysql_mutex_unlock(&LOCK_open);
+
+  if (share)
+    DBUG_RETURN(TRUE);
+
+  char path[FN_REFLEN + 1];
+  size_t path_len = build_table_filename(path, sizeof(path) - 1,
+                                         db, table_name, "", 0);
+
+  if (file_ext_exists(path, path_len, reg_ext))
+    DBUG_RETURN(TRUE);
+
+  st_discover_existence_args args= {path, path_len, db, table_name};
+
+  if (plugin_foreach(thd, discover_existence, MYSQL_STORAGE_ENGINE_PLUGIN,
+                     &args))
+    DBUG_RETURN(TRUE);
+
+  DBUG_RETURN(FALSE);
+}
 
 /**
   Discover all table names in a given database

@@ -771,7 +771,7 @@ void release_table_share(TABLE_SHARE *share)
     #  TABLE_SHARE for table
 */
 
-static TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
+TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name)
 {
   char key[SAFE_NAME_LEN*2+2];
   uint key_length;
@@ -2338,58 +2338,6 @@ void drop_open_table(THD *thd, TABLE *table, const char *db_name,
 
 
 /**
-    Check that table exists in table definition cache, on disk
-    or in some storage engine.
-
-    @param       thd        Thread context
-    @param       db         database name
-    @param       table_name table name
-    @param       path       (optional) path to the frm file
-
-    @note This function acquires LOCK_open internally.
-
-    @note If there is no .FRM file for the table but it exists in one
-          of engines (e.g. it was created on another node of NDB cluster)
-          this function will fetch and create proper .FRM file for it.
-
-    @retval  TRUE   Some error occurred
-    @retval  FALSE  No error. 'exists' out parameter set accordingly.
-*/
-
-bool table_exists(THD *thd, const char *db, const char *table_name,
-                  const char *path)
-{
-  char path_buf[FN_REFLEN + 1];
-  TABLE_SHARE *share;
-  DBUG_ENTER("table_exists");
-
-  mysql_mutex_lock(&LOCK_open);
-  share= get_cached_table_share(db, table_name);
-  mysql_mutex_unlock(&LOCK_open);
-
-  if (share)
-    DBUG_RETURN(TRUE);
-
-  if (!path)
-  {
-    build_table_filename(path_buf, sizeof(path_buf) - 1,
-                         db, table_name, reg_ext, 0);
-    path= path_buf;
-  }
-
-  if (!access(path, F_OK))
-    DBUG_RETURN(TRUE);
-
-  /* .FRM file doesn't exist. Try to discover it */
-  uchar *frmblob= NULL;
-  size_t frmlen;
-  bool exists= ! ha_discover(thd, db, table_name, &frmblob, &frmlen);
-  my_free(frmblob);
-  DBUG_RETURN(exists);
-}
-
-
-/**
   An error handler which converts, if possible, ER_LOCK_DEADLOCK error
   that can occur when we are trying to acquire a metadata lock to
   a request for back-off and re-start of open_tables() process.
@@ -2926,7 +2874,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 
   if (table_list->open_strategy == TABLE_LIST::OPEN_IF_EXISTS)
   {
-    if (!table_exists(thd, table_list))
+    if (!ha_table_exists(thd, table_list->db, table_list->table_name))
       DBUG_RETURN(FALSE);
 
     /* Table exists. Let us try to open it. */
@@ -4705,7 +4653,7 @@ lock_table_names(THD *thd,
       We come here in the case of lock timeout when executing CREATE TABLE.
       Verify that table does exist (it usually does, as we got a lock conflict)
     */
-    if (table_exists(thd, tables_start))
+    if (ha_table_exists(thd, tables_start->db, tables_start->table_name))
     {
       if (thd->lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
       {
