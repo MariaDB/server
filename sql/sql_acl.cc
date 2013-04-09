@@ -7957,7 +7957,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     data_len= SCRAMBLE_LENGTH;
   }
 
-  end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
+  end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
   int4store((uchar*) end, mpvio->thd->thread_id);
   end+= 4;
 
