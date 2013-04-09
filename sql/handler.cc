@@ -2189,7 +2189,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   /* DB_TYPE_UNKNOWN is used in ALTER TABLE when renaming only .frm files */
   if (table_type == NULL ||
       ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(ENOENT);
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
 
   path= get_canonical_filename(file, path, tmp_path);
   if ((error= file->ha_delete_table(path)) && generate_warning)
@@ -2205,6 +2205,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
     /* Fill up strucutures that print_error may need */
     dummy_share.path.str= (char*) path;
     dummy_share.path.length= strlen(path);
+    dummy_share.normalized_path= dummy_share.path;
     dummy_share.db.str= (char*) db;
     dummy_share.db.length= strlen(db);
     dummy_share.table_name.str= (char*) alias;
@@ -3208,7 +3209,17 @@ void handler::print_error(int error, myf errflag)
       errflag|= ME_NOREFRESH;
     }
   }    
-  my_error(textno, errflag, table_share->table_name.str, error);
+
+  /* if we got an OS error from a file-based engine, specify a path of error */
+  if (error < HA_ERR_FIRST && bas_ext()[0])
+  {
+    char buff[FN_REFLEN];
+    strxnmov(buff, sizeof(buff),
+             table_share->normalized_path.str, bas_ext()[0], NULL);
+    my_error(textno, errflag, buff, error);
+  }
+  else
+    my_error(textno, errflag, table_share->table_name.str, error);
   DBUG_VOID_RETURN;
 }
 

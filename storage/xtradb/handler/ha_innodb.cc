@@ -2615,7 +2615,9 @@ innobase_init(
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
         innobase_hton->kill_query = innobase_kill_query;
-        innobase_hton->tablefile_extensions = ha_innobase_exts;
+
+        if (srv_file_per_table)
+          innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 

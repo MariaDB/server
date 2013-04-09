@@ -575,13 +575,14 @@ static void table_def_unuse_table(TABLE *table)
 */
 
 TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
-                             uint key_length, enum read_frm_op op, int *error,
+                             uint key_length, enum read_frm_op op,
+                             enum open_frm_error *error,
                              my_hash_value_type hash_value)
 {
   TABLE_SHARE *share;
   DBUG_ENTER("get_table_share");
 
-  *error= 0;
+  *error= OPEN_FRM_OK;
 
   /*
     To be able perform any operation on table we should own
@@ -641,12 +642,12 @@ found:
   if (share->error)
   {
     /* Table definition contained an error */
-    open_table_error(share, share->error, share->open_errno, share->errarg);
+    open_table_error(share, share->error, share->open_errno);
     DBUG_RETURN(0);
   }
   if (share->is_view && op != FRM_READ_NO_ERROR_FOR_VIEW)
   {
-    open_table_error(share, 1, ENOENT, 0);
+    open_table_error(share, OPEN_FRM_NO_VIEWS, ENOENT);
     DBUG_RETURN(0);
   }
 
@@ -685,7 +686,7 @@ found:
 static TABLE_SHARE *
 get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
                               char *key, uint key_length,
-                              enum read_frm_op op, int *error,
+                              enum read_frm_op op, enum open_frm_error *error,
                               my_hash_value_type hash_value)
 
 {
@@ -724,7 +725,7 @@ get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
        thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE))
     DBUG_RETURN(share);
 
-  *error= 0;
+  *error= OPEN_FRM_OK;
 
   /* Table didn't exist. Check if some engine can provide it */
   if (ha_check_if_table_exists(thd, table_list->db, table_list->table_name,
@@ -762,7 +763,7 @@ get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
   else
   {
     thd->clear_error();
-    *error= 7; /* Run auto-discover. */
+    *error= OPEN_FRM_DISCOVER; /* Run auto-discover. */
   }
   DBUG_RETURN(NULL);
 }
@@ -2735,7 +2736,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
   char	*alias= table_list->alias;
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
-  int error;
+  enum open_frm_error error;
   TABLE_SHARE *share;
   my_hash_value_type hash_value;
   DBUG_ENTER("open_table");
@@ -3020,12 +3021,11 @@ retry_share:
   {
     mysql_mutex_unlock(&LOCK_open);
     /*
-      If thd->is_error() is not set, we either need discover
-      (error == 7), or the error was silenced by the prelocking
-      handler (error == 0), in which case we should skip this
+      If thd->is_error() is not set, we either need discover or the error was
+      silenced by the prelocking handler, in which case we should skip this
       table.
     */
-    if (error == 7 && !thd->is_error())
+    if (error == OPEN_FRM_DISCOVER && !thd->is_error())
     {
       (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                             table_list);
@@ -3172,7 +3172,7 @@ retry_share:
     {
       my_free(table);
 
-      if (error == 7)
+      if (error == OPEN_FRM_DISCOVER)
         (void) ot_ctx->request_backoff_action(Open_table_context::OT_DISCOVER,
                                               table_list);
       else if (share->crashed)
@@ -3847,7 +3847,7 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                    MEM_ROOT *mem_root, uint flags)
 {
   TABLE not_used;
-  int error;
+  enum open_frm_error error;
   my_hash_value_type hash_value;
   TABLE_SHARE *share;
 
@@ -3934,7 +3934,7 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
   uint	cache_key_length;
   TABLE_SHARE *share;
   TABLE *entry;
-  int not_used;
+  enum open_frm_error not_used;
   bool result= TRUE;
   my_hash_value_type hash_value;
 
