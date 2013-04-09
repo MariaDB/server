@@ -108,7 +108,8 @@ create_table_def_key(char *key, const char *db, const char *table_name)
 }
 
 TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
-                             uint key_length, enum read_frm_op op, int *error,
+                             uint key_length, enum read_frm_op op,
+                             enum open_frm_error *error,
                              my_hash_value_type hash_value);
 void release_table_share(TABLE_SHARE *share);
 TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);

@@ -562,6 +562,16 @@ typedef I_P_List <Wait_for_flush,
                  Wait_for_flush_list;
 
 
+enum open_frm_error {
+  OPEN_FRM_OK = 0,
+  OPEN_FRM_OPEN_ERROR,
+  OPEN_FRM_READ_ERROR,
+  OPEN_FRM_CORRUPTED,
+  OPEN_FRM_DISCOVER,
+  OPEN_FRM_ERROR_ALREADY_ISSUED,
+  OPEN_FRM_NO_VIEWS,
+};
+
 /**
   Control block to access table statistics loaded 
   from persistent statistical tables
@@ -694,7 +704,8 @@ struct TABLE_SHARE
   uint next_number_index;               /* autoincrement key number */
   uint next_number_key_offset;          /* autoinc keypart offset in a key */
   uint next_number_keypart;             /* autoinc keypart number in a key */
-  uint error, open_errno, errarg;       /* error from open_table_def() */
+  enum open_frm_error error;            /* error from open_table_def() */
+  uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
   uint vfields;                         /* Number of computed (virtual) fields */
@@ -2442,9 +2453,10 @@ size_t max_row_length(TABLE *table, const uchar *data);
 
 void init_mdl_requests(TABLE_LIST *table_list);
 
-int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
-                          uint db_stat, uint prgflag, uint ha_open_flags,
-                          TABLE *outparam, bool is_create_table);
+enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
+                       const char *alias, uint db_stat, uint prgflag,
+                       uint ha_open_flags, TABLE *outparam,
+                       bool is_create_table);
 bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                TABLE *table, Field *field,
                                LEX_STRING *vcol_expr, bool *error_reported);
@@ -2454,9 +2466,11 @@ void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);
 void free_table_share(TABLE_SHARE *share);
-int open_table_def(THD *thd, TABLE_SHARE *share,
+enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
                    enum read_frm_op op = FRM_READ_TABLE_ONLY);
-void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg);
+
+void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
+                      int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_and_convert_db_name(LEX_STRING *db, bool preserve_lettercase);
 bool check_db_name(LEX_STRING *db);

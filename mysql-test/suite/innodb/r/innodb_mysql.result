@@ -630,7 +630,7 @@ a
 DROP TABLE t1,t2,t3;
 create table t1 (a int) engine=innodb;
 select * from bug29807;
-ERROR 42S02: Table 'test.bug29807' doesn't exist
+ERROR 42S02: Table 'test.bug29807' doesn't exist in engine
 drop table t1;
 drop table bug29807;
 ERROR 42S02: Unknown table 'bug29807'

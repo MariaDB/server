@@ -4305,7 +4305,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   TABLE tbl;
   TABLE_LIST table_list;
   uint res= 0;
-  int not_used;
+  enum open_frm_error not_used;
   my_hash_value_type hash_value;
   char key[MAX_DBKEY_LENGTH];
   uint key_length;

@@ -2323,8 +2323,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                              !dont_log_query);
 
       /* No error if non existent table and 'IF EXIST' clause or view */
-      if ((error == ENOENT || error == HA_ERR_NO_SUCH_TABLE) && 
-	  (if_exists || table_type == NULL))
+      if (error == ENOENT || (error == HA_ERR_NO_SUCH_TABLE && 
+	  (if_exists || table_type == NULL)))
       {
 	error= 0;
         thd->clear_error();

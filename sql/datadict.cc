@@ -60,6 +60,11 @@ frm_type_enum dd_frm_type(THD *thd, char *path, enum legacy_db_type *dbt)
        (header[2] < FRM_VER+3 || header[2] > FRM_VER+4)))
     DBUG_RETURN(FRMTYPE_TABLE);
 
+  /*
+    XXX this is a bug.
+    if header[3] is > DB_TYPE_FIRST_DYNAMIC, then the complete
+    storage engine name must be read from the frm
+  */
   *dbt= (enum legacy_db_type) (uint) *(header + 3);
 
   /* Probably a table. */

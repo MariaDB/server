@@ -64,7 +64,7 @@ LEX_STRING parse_vcol_keyword= { C_STRING_WITH_LEN("PARSE_VCOL_EXPR ") };
 
 	/* Functions defined in this file */
 
-static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *buf);
+static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image);
 static void fix_type_pointers(const char ***array, TYPELIB *point_to_type,
 			      uint types, char **names);
 static uint find_field(Field **fields, uchar *record, uint start, uint length);
@@ -608,20 +608,13 @@ static bool has_disabled_path_chars(const char *str)
     table_def_cache
     The data is returned in 'share', which is alloced by
     alloc_table_share().. The code assumes that share is initialized.
-
-  RETURN VALUES
-   0	ok
-   1	Error (see open_table_error)
-   2    Error (see open_table_error)
-   3    Wrong data in .frm file
-   4    Error (see open_table_error)
-   5    Error (see open_table_error: charset unavailable)
-   6    Unknown .frm version
 */
 
-int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
+enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
+                                   enum read_frm_op op)
 {
-  int error, table_type;
+  enum open_frm_error error;
+  bool is_binary_frm= false;
   bool error_given;
   File file;
   uchar head[64];
@@ -631,7 +624,7 @@ int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
   DBUG_PRINT("enter", ("table: '%s'.'%s'  path: '%s'", share->db.str,
                        share->table_name.str, share->normalized_path.str));
 
-  error= 1;
+  error= OPEN_FRM_OPEN_ERROR;
   error_given= 0;
 
   strxmov(path, share->normalized_path.str, reg_ext, NullS);
@@ -684,31 +677,38 @@ int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
     share->normalized_path.length= length;
   }
 
-  error= 4;
   if (mysql_file_read(file, head, sizeof(head), MYF(MY_NABP)))
+  {
+    error = my_errno == HA_ERR_FILE_TOO_SHORT
+              ? OPEN_FRM_CORRUPTED : OPEN_FRM_READ_ERROR;
     goto err;
+  }
 
   if (head[0] == (uchar) 254 && head[1] == 1)
   {
     if (head[2] == FRM_VER || head[2] == FRM_VER+1 ||
         (head[2] >= FRM_VER+3 && head[2] <= FRM_VER+4))
     {
-      table_type= 1;
+      is_binary_frm= true;
     }
     else
     {
-      error= 6;                                 // Unknown .frm version
+      my_printf_error(ER_NOT_FORM_FILE,
+                      "Table '%-.64s' was created with a different version "
+                      "of MySQL and cannot be read", 
+                      MYF(0), path);
+      error= OPEN_FRM_ERROR_ALREADY_ISSUED;
       goto err;
     }
   }
   else if (memcmp(head, STRING_WITH_LEN("TYPE=")) == 0)
   {
-    error= 5;
+    error= OPEN_FRM_NO_VIEWS;
     if (memcmp(head+5,"VIEW",4) == 0)
     {
       share->is_view= 1;
       if (op == FRM_READ_NO_ERROR_FOR_VIEW)
-        error= 0;
+        error= OPEN_FRM_OK;
     }
     goto err;
   }
@@ -716,7 +716,7 @@ int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
     goto err;
 
   /* No handling of text based files yet */
-  if (table_type == 1)
+  if (is_binary_frm)
   {
     MY_STAT stats;
     uchar *buf;
@@ -740,7 +740,7 @@ int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
     root_ptr= my_pthread_getspecific_ptr(MEM_ROOT**, THR_MALLOC);
     old_root= *root_ptr;
     *root_ptr= &share->mem_root;
-    error= open_binary_frm(thd, share, buf);
+    error= open_binary_frm(thd, share, buf) ? OPEN_FRM_CORRUPTED : OPEN_FRM_OK;
     *root_ptr= old_root;
     error_given= 1;
     my_free(buf);
@@ -760,7 +760,8 @@ err_not_open:
   if (error && !error_given)
   {
     share->error= error;
-    open_table_error(share, error, (share->open_errno= my_errno), 0);
+    share->open_errno= my_errno;
+    open_table_error(share, error, share->open_errno);
   }
 
   DBUG_RETURN(error);
@@ -779,9 +780,8 @@ err_not_open:
   They're still set, for compatibility reasons, but never read.
 */
 
-static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
+static bool open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
 {
-  int error, errarg= 0;
   uint new_frm_ver, field_pack_length, new_field_pack_flag;
   uint interval_count, interval_parts, read_length, int_length;
   uint db_create_options, keys, key_parts, n_length;
@@ -819,8 +819,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   new_field_pack_flag= frm_image[27];
   new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
-
-  error= 3;
 
   /* Position of the form in the form file. */
   len = uint2korr(frm_image+4);
@@ -885,7 +883,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   share->db_record_offset= 1;
   if (db_create_options & HA_OPTION_LONG_BLOB_PTR)
     share->blob_ptr_size= portable_sizeof_char_ptr;
-  error=4;
   share->max_rows= uint4korr(frm_image+18);
   share->min_rows= uint4korr(frm_image+22);
 
@@ -1125,7 +1122,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
         /* Check if the partitioning engine is ready */
         if (!plugin_is_ready(&name, MYSQL_STORAGE_ENGINE_PLUGIN))
         {
-          error= 8;
           my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
                    "--skip-partition");
           goto err;
@@ -1140,7 +1136,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
       else if (!tmp_plugin)
       {
         /* purecov: begin inspected */
-        error= 8;
         name.str[name.length]=0;
         my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), name.str);
         goto err;
@@ -1238,7 +1233,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   }
   share->key_block_size= uint2korr(frm_image+62);
 
-  error=4;
   extra_rec_buf_length= uint2korr(frm_image+59);
   rec_buff_length= ALIGN_SIZE(share->reclength + 1 + extra_rec_buf_length);
   share->rec_buff_length= rec_buff_length;
@@ -1396,7 +1390,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
 	geom_type= (Field::geometry_type) strpos[14];
 	charset= &my_charset_bin;
 #else
-	error= 4;  // unsupported field type
 	goto err;
 #endif
       }
@@ -1407,8 +1400,16 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
           charset= &my_charset_bin;
         else if (!(charset= get_charset(csid, MYF(0))))
         {
-          error= 5; // Unknown or unavailable charset
-          errarg= (int) csid;
+          const char *csname= get_charset_name((uint) csid);
+          char tmp[10];
+          if (!csname || csname[0] =='?')
+          {
+            my_snprintf(tmp, sizeof(tmp), "#%d", csid);
+            csname= tmp;
+          }
+          my_printf_error(ER_UNKNOWN_COLLATION,
+                          "Unknown collation '%s' in table '%-.64s' definition", 
+                          MYF(0), csname, share->table_name.str);
           goto err;
         }
       }
@@ -1452,10 +1453,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
         if (opt_interval_id)
           interval_nr= (uint)vcol_screen_pos[3];
         else if ((uint)vcol_screen_pos[0] != 1)
-        {
-          error= 4;
           goto err;
-        }
+
         fld_stored_in_db= (bool) (uint) vcol_screen_pos[2];
         vcol_expr_length= vcol_info_length -
                           (uint)(FRM_VCOL_HEADER_SIZE(opt_interval_id));
@@ -1554,10 +1553,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
 		  (TYPELIB*) 0),
 		 share->fieldnames.type_names[i]);
     if (!reg_field)				// Not supported field type
-    {
-      error= 4;
-      goto err;			/* purecov: inspected */
-    }
+      goto err;
+
 
     reg_field->field_index= i;
     reg_field->comment=comment;
@@ -1583,20 +1580,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
     if (reg_field->unireg_check == Field::NEXT_NUMBER)
       share->found_next_number_field= field_ptr;
 
-    if (use_hash)
-    {
-      if (my_hash_insert(&share->name_hash,
-                         (uchar*) field_ptr))
-      {
-        /*
-          Set return code 8 here to indicate that an error has
-          occurred but that the error message already has been
-          sent (OOM).
-        */
-        error= 8; 
-        goto err;
-      }
-    }
+    if (use_hash && my_hash_insert(&share->name_hash, (uchar*) field_ptr))
+      goto err;
     if (!reg_field->stored_in_db)
     {
       share->stored_fields--;
@@ -1748,10 +1733,8 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
                                                  (uint) key_part->offset,
                                                  (uint) key_part->length);
 	if (!key_part->fieldnr)
-        {
-          error= 4;                             // Wrong file
           goto err;
-        }
+
         field= key_part->field= share->field[key_part->fieldnr-1];
         key_part->type= field->key_type();
         if (field->null_ptr)
@@ -1924,11 +1907,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
                             share->default_values, reg_field,
 			    &share->next_number_key_offset,
                             &share->next_number_keypart)) < 0)
-    {
-      /* Wrong field definition */
-      error= 4;
-      goto err;
-    }
+      goto err; // Wrong field definition
     else
       reg_field->flags |= AUTO_INCREMENT_FLAG;
   }
@@ -1974,12 +1953,11 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   if (use_hash)
     (void) my_hash_check(&share->name_hash);
 #endif
-  DBUG_RETURN (0);
+  DBUG_RETURN(0);
 
  err:
-  share->error= error;
+  share->error= OPEN_FRM_CORRUPTED;
   share->open_errno= my_errno;
-  share->errarg= errarg;
   delete handler_file;
   my_hash_free(&share->name_hash);
   if (share->ha_data_destroy)
@@ -1995,8 +1973,10 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   }
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  open_table_error(share, error, share->open_errno, errarg);
-  DBUG_RETURN(error);
+  if (!thd->is_error())
+    open_table_error(share, OPEN_FRM_CORRUPTED, share->open_errno);
+
+  DBUG_RETURN(1);
 } /* open_binary_frm */
 
 /*
@@ -2306,11 +2286,12 @@ end:
    7    Table definition has changed in engine
 */
 
-int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
-                          uint db_stat, uint prgflag, uint ha_open_flags,
-                          TABLE *outparam, bool is_create_table)
+enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
+                       const char *alias, uint db_stat, uint prgflag,
+                       uint ha_open_flags, TABLE *outparam,
+                       bool is_create_table)
 {
-  int error;
+  enum open_frm_error error;
   uint records, i, bitmap_size;
   bool error_reported= FALSE;
   uchar *record, *bitmaps;
@@ -2322,7 +2303,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
 
   thd->lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_VIEW; // not a view
 
-  error= 1;
+  error= OPEN_FRM_ERROR_ALREADY_ISSUED; // for OOM errors below
   bzero((char*) outparam, sizeof(*outparam));
   outparam->in_use= thd;
   outparam->s= share;
@@ -2351,7 +2332,6 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
     DBUG_ASSERT(!db_stat);
   }
 
-  error= 4;
   outparam->reginfo.lock_type= TL_UNLOCK;
   outparam->current_lock= F_UNLCK;
   records=0;
@@ -2504,7 +2484,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
                                       &(*field_ptr)->vcol_info->expr_str,
                                       &error_reported))
         {
-          error= 4; // in case no error is reported
+          error= OPEN_FRM_CORRUPTED;
           goto err;
         }
         *(vfield_ptr++)= *field_ptr;
@@ -2615,53 +2595,32 @@ partititon_err:
   outparam->default_column_bitmaps();
 
   /* The table struct is now initialized;  Open the table */
-  error= 2;
   if (db_stat)
   {
-    int ha_err;
-    if ((ha_err= (outparam->file->
-                  ha_open(outparam, share->normalized_path.str,
-                          (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
-                          (db_stat & HA_OPEN_TEMPORARY ? HA_OPEN_TMP_TABLE :
-                           ((db_stat & HA_WAIT_IF_LOCKED) ||
-                            (specialflag & SPECIAL_WAIT_IF_LOCKED)) ?
-                           HA_OPEN_WAIT_IF_LOCKED :
-                           (db_stat & (HA_ABORT_IF_LOCKED | HA_GET_INFO)) ?
-                          HA_OPEN_ABORT_IF_LOCKED :
-                           HA_OPEN_IGNORE_IF_LOCKED) | ha_open_flags))))
+    if (db_stat & HA_OPEN_TEMPORARY)
+      ha_open_flags|= HA_OPEN_TMP_TABLE;
+    else if ((db_stat & HA_WAIT_IF_LOCKED) ||
+             (specialflag & SPECIAL_WAIT_IF_LOCKED))
+      ha_open_flags|= HA_OPEN_WAIT_IF_LOCKED;
+    else if (db_stat & (HA_ABORT_IF_LOCKED | HA_GET_INFO))
+      ha_open_flags|= HA_OPEN_ABORT_IF_LOCKED;
+    else
+      ha_open_flags|= HA_OPEN_IGNORE_IF_LOCKED;
+
+    int ha_err= outparam->file->ha_open(outparam, share->normalized_path.str,
+                                 (db_stat & HA_READ_ONLY ? O_RDONLY : O_RDWR),
+                                  ha_open_flags);
+    if (ha_err)
     {
+      share->open_errno= ha_err;
       /* Set a flag if the table is crashed and it can be auto. repaired */
       share->crashed= (outparam->file->auto_repair(ha_err) &&
                        !(ha_open_flags & HA_OPEN_FOR_REPAIR));
-
-      switch (ha_err)
-      {
-        case HA_ERR_NO_SUCH_TABLE:
-	  /*
-            The table did not exists in storage engine, use same error message
-            as if the .frm file didn't exist
-          */
-	  error= 1;
-	  my_errno= ENOENT;
-          break;
-        case EMFILE:
-	  /*
-            Too many files opened, use same error message as if the .frm
-            file can't open
-           */
-          DBUG_PRINT("error", ("open file: %s failed, too many files opened (errno: %d)", 
-		  share->normalized_path.str, ha_err));
-	  error= 1;
-	  my_errno= EMFILE;
-          break;
-        default:
-          outparam->file->print_error(ha_err, MYF(0));
-          error_reported= TRUE;
-          if (ha_err == HA_ERR_TABLE_DEF_CHANGED)
-            error= 7;
-          break;
-      }
-      goto err;                                 /* purecov: inspected */
+      outparam->file->print_error(ha_err, MYF(0));
+      error_reported= TRUE;
+      if (ha_err == HA_ERR_TABLE_DEF_CHANGED)
+        error= OPEN_FRM_DISCOVER;
+      goto err;
     }
   }
 
@@ -2675,11 +2634,11 @@ partititon_err:
   thd->status_var.opened_tables++;
 
   thd->lex->context_analysis_only= save_context_analysis_only;
-  DBUG_RETURN (0);
+  DBUG_RETURN (OPEN_FRM_OK);
 
  err:
   if (! error_reported)
-    open_table_error(share, error, my_errno, 0);
+    open_table_error(share, error, my_errno);
   delete outparam->file;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (outparam->part_info)
@@ -2864,16 +2823,15 @@ ulong make_new_entry(File file, uchar *fileinfo, TYPELIB *formnames,
 
 	/* error message when opening a form file */
 
-void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg)
+void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
+                      int db_errno)
 {
-  int err_no;
   char buff[FN_REFLEN];
   myf errortype= ME_ERROR+ME_WAITTANG;          // Write fatals error to log
   DBUG_ENTER("open_table_error");
 
   switch (error) {
-  case 7:
-  case 1:
+  case OPEN_FRM_OPEN_ERROR:
     /*
       Test if file didn't exists. We have to also test for EINVAL as this
       may happen on windows when opening a file with a not legal file name
@@ -2887,46 +2845,22 @@ void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg)
                errortype, buff, db_errno);
     }
     break;
-  case 2:
-  {
-    const char *datext= "";
-    
-    if (share->db_type() && share->db_type()->tablefile_extensions[0])
-       datext= share->db_type()->tablefile_extensions[0];
-
-    err_no= (db_errno == ENOENT) ? ER_FILE_NOT_FOUND : (db_errno == EAGAIN) ?
-      ER_FILE_USED : ER_CANT_OPEN_FILE;
-    strxmov(buff, share->normalized_path.str, datext, NullS);
-    my_error(err_no,errortype, buff, db_errno);
+  case OPEN_FRM_OK:
+    DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
-  }
-  case 5:
-  {
-    const char *csname= get_charset_name((uint) errarg);
-    char tmp[10];
-    if (!csname || csname[0] =='?')
-    {
-      my_snprintf(tmp, sizeof(tmp), "#%d", errarg);
-      csname= tmp;
-    }
-    my_printf_error(ER_UNKNOWN_COLLATION,
-                    "Unknown collation '%s' in table '%-.64s' definition", 
-                    MYF(0), csname, share->table_name.str);
+  case OPEN_FRM_ERROR_ALREADY_ISSUED:
     break;
-  }
-  case 6:
-    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
-    my_printf_error(ER_NOT_FORM_FILE,
-                    "Table '%-.64s' was created with a different version "
-                    "of MySQL and cannot be read", 
-                    MYF(0), buff);
+  case OPEN_FRM_DISCOVER:
+  case OPEN_FRM_NO_VIEWS:
+    DBUG_ASSERT(0); // open_table_error() is never called for this one
     break;
-  case 8:
-    break;
-  default:				/* Better wrong error than none */
-  case 4:
+  case OPEN_FRM_CORRUPTED:
     strxmov(buff, share->normalized_path.str, reg_ext, NullS);
     my_error(ER_NOT_FORM_FILE, errortype, buff);
+    break;
+  case OPEN_FRM_READ_ERROR:
+    strxmov(buff, share->normalized_path.str, reg_ext, NullS);
+    my_error(ER_ERROR_ON_READ, errortype, buff, db_errno);
     break;
   }
   DBUG_VOID_RETURN;
