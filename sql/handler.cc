@@ -4132,8 +4132,7 @@ end:
 */
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info,
-		    bool update_create_info)
+                    HA_CREATE_INFO *create_info)
 {
   int error= 1;
   TABLE table;
@@ -4148,8 +4147,7 @@ int ha_create_table(THD *thd, const char *path,
                             TRUE))
     goto err;
 
-  if (update_create_info)
-    update_create_info_from_table(create_info, &table);
+  update_create_info_from_table(create_info, &table);
 
   name= get_canonical_filename(table.file, share.path.str, name_buff);
 

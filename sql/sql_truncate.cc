@@ -276,7 +276,7 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
     on table and schema names.
   */
   ha_create_table(thd, share->normalized_path.str, share->db.str,
-                  share->table_name.str, &create_info, 1);
+                  share->table_name.str, &create_info);
 
   if (open_table_uncached(thd, share->path.str, share->db.str,
                           share->table_name.str, TRUE))
