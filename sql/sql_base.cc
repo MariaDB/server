@@ -713,15 +713,6 @@ end:
     */
     share= (TABLE_SHARE*) 1;
   }
-  else
-  {
-    /*
-      To be able perform any operation on table we should own
-      some kind of metadata lock on it.
-    */
-    DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db, table_name,
-                                               MDL_SHARED));
-  }
 
   mysql_mutex_unlock(&LOCK_open);
   DBUG_RETURN(share);
