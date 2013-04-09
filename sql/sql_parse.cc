@@ -7683,6 +7683,7 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
   return TRUE;
 }
 
+C_MODE_START
 
 /*
   Check if path does not contain mysql data home directory
@@ -7695,7 +7696,6 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
     0	ok
     1	error ;  Given path contains data directory
 */
-C_MODE_START
 
 int test_if_data_home_dir(const char *dir)
 {
@@ -7705,6 +7705,22 @@ int test_if_data_home_dir(const char *dir)
 
   if (!dir)
     DBUG_RETURN(0);
+
+  /*
+    data_file_name and index_file_name include the table name without
+    extension. Mostly this does not refer to an existing file. When
+    comparing data_file_name or index_file_name against the data
+    directory, we try to resolve all symbolic links. On some systems,
+    we use realpath(3) for the resolution. This returns ENOENT if the
+    resolved path does not refer to an existing file. my_realpath()
+    does then copy the requested path verbatim, without symlink
+    resolution. Thereafter the comparison can fail even if the
+    requested path is within the data directory. E.g. if symlinks to
+    another file system are used. To make realpath(3) return the
+    resolved path, we strip the table name and compare the directory
+    path only. If the directory doesn't exist either, table creation
+    will fail anyway.
+  */
 
   (void) fn_format(path, dir, "", "",
                    (MY_RETURN_REAL_PATH|MY_RESOLVE_SYMLINKS));
@@ -7738,6 +7754,22 @@ int test_if_data_home_dir(const char *dir)
 
 C_MODE_END
 
+
+int error_if_data_home_dir(const char *path, const char *what)
+{
+  size_t dirlen;
+  char   dirpath[FN_REFLEN];
+  if (path)
+  {
+    dirname_part(dirpath, path, &dirlen);
+    if (test_if_data_home_dir(dirpath))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), what);
+      return 1;
+    }
+  }
+  return 0;
+}
 
 /**
   Check that host name string is valid.

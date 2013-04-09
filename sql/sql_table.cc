@@ -4346,55 +4346,7 @@ bool mysql_create_table_no_lock(THD *thd,
   if (!file)
     goto err;
 
-#ifdef HAVE_READLINK
-  {
-    size_t dirlen;
-    char   dirpath[FN_REFLEN];
-
-    /*
-      data_file_name and index_file_name include the table name without
-      extension. Mostly this does not refer to an existing file. When
-      comparing data_file_name or index_file_name against the data
-      directory, we try to resolve all symbolic links. On some systems,
-      we use realpath(3) for the resolution. This returns ENOENT if the
-      resolved path does not refer to an existing file. my_realpath()
-      does then copy the requested path verbatim, without symlink
-      resolution. Thereafter the comparison can fail even if the
-      requested path is within the data directory. E.g. if symlinks to
-      another file system are used. To make realpath(3) return the
-      resolved path, we strip the table name and compare the directory
-      path only. If the directory doesn't exist either, table creation
-      will fail anyway.
-    */
-    if (create_info->data_file_name)
-    {
-      dirname_part(dirpath, create_info->data_file_name, &dirlen);
-      if (test_if_data_home_dir(dirpath))
-      {
-        my_error(ER_WRONG_ARGUMENTS, MYF(0), "DATA DIRECTORY");
-        goto err;
-      }
-    }
-    if (create_info->index_file_name)
-    {
-      dirname_part(dirpath, create_info->index_file_name, &dirlen);
-      if (test_if_data_home_dir(dirpath))
-      {
-        my_error(ER_WRONG_ARGUMENTS, MYF(0), "INDEX DIRECTORY");
-        goto err;
-      }
-    }
-  }
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (check_partition_dirs(thd->lex->part_info))
-  {
-    goto err;
-  }
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
-
   if (!my_use_symdir || (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
-#endif /* HAVE_READLINK */
   {
     if (create_info->data_file_name)
       push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -4406,6 +4358,11 @@ bool mysql_create_table_no_lock(THD *thd,
                           "INDEX DIRECTORY");
     create_info->data_file_name= create_info->index_file_name= 0;
   }
+  else
+  if (error_if_data_home_dir(create_info->data_file_name,  "DATA DIRECTORY") ||
+      error_if_data_home_dir(create_info->index_file_name, "INDEX DIRECTORY")||
+      check_partition_dirs(thd->lex->part_info))
+    goto err;
 
   /* Check if table exists */
   if (create_info->tmp_table())

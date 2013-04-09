@@ -8065,7 +8065,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   global_system_variables.sql_mode=
     expand_sql_mode(global_system_variables.sql_mode);
-#if defined(HAVE_BROKEN_REALPATH)
+#if !defined(HAVE_REALPATH) || defined(HAVE_BROKEN_REALPATH)
   my_use_symdir=0;
   my_disable_symlinks=1;
   have_symlink=SHOW_OPTION_NO;
