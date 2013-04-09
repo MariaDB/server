@@ -128,8 +128,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
     hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
     mysql_mutex_lock(&LOCK_open);
-    share= get_table_share(thd, table_list, key, key_length, 0,
-                           &error, hash_value);
+    share= get_table_share(thd, table_list, key, key_length,
+                           FRM_READ_TABLE_ONLY, &error, hash_value);
     mysql_mutex_unlock(&LOCK_open);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file

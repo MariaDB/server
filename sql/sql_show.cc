@@ -4383,8 +4383,8 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   key_length= create_table_def_key(thd, key, &table_list, 0);
   hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
   mysql_mutex_lock(&LOCK_open);
-  share= get_table_share(thd, &table_list, key,
-                         key_length, OPEN_VIEW, &not_used, hash_value);
+  share= get_table_share(thd, &table_list, key, key_length,
+                         FRM_READ_NO_ERROR_FOR_VIEW, &not_used, hash_value);
   if (!share)
   {
     res= 0;

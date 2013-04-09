@@ -575,7 +575,7 @@ static void table_def_unuse_table(TABLE *table)
 */
 
 TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
-                             uint key_length, uint db_flags, int *error,
+                             uint key_length, enum read_frm_op op, int *error,
                              my_hash_value_type hash_value)
 {
   TABLE_SHARE *share;
@@ -622,7 +622,7 @@ TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
     free_table_share(share);
     DBUG_RETURN(0);				// return error
   }
-  if (open_table_def(thd, share, db_flags))
+  if (open_table_def(thd, share, op))
   {
     *error= share->error;
     (void) my_hash_delete(&table_def_cache, (uchar*) share);
@@ -644,7 +644,7 @@ found:
     open_table_error(share, share->error, share->open_errno, share->errarg);
     DBUG_RETURN(0);
   }
-  if (share->is_view && !(db_flags & OPEN_VIEW))
+  if (share->is_view && op != FRM_READ_NO_ERROR_FOR_VIEW)
   {
     open_table_error(share, 1, ENOENT, 0);
     DBUG_RETURN(0);
@@ -685,7 +685,7 @@ found:
 static TABLE_SHARE *
 get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
                               char *key, uint key_length,
-                              uint db_flags, int *error,
+                              enum read_frm_op op, int *error,
                               my_hash_value_type hash_value)
 
 {
@@ -693,7 +693,7 @@ get_table_share_with_discover(THD *thd, TABLE_LIST *table_list,
   bool exists;
   DBUG_ENTER("get_table_share_with_discover");
 
-  share= get_table_share(thd, table_list, key, key_length, db_flags, error,
+  share= get_table_share(thd, table_list, key, key_length, op, error,
                          hash_value);
   /*
     If share is not NULL, we found an existing share.
@@ -3014,10 +3014,9 @@ retry_share:
 
   mysql_mutex_lock(&LOCK_open);
 
-  if (!(share= get_table_share_with_discover(thd, table_list, key,
-                                             key_length, OPEN_VIEW,
-                                             &error,
-                                             hash_value)))
+  if (!(share= get_table_share_with_discover(thd, table_list, key, key_length,
+                                             FRM_READ_NO_ERROR_FOR_VIEW,
+                                             &error, hash_value)))
   {
     mysql_mutex_unlock(&LOCK_open);
     /*
@@ -3856,10 +3855,8 @@ bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                            cache_key_length);
   mysql_mutex_lock(&LOCK_open);
 
-  if (!(share= get_table_share(thd, table_list, cache_key,
-                               cache_key_length,
-                               OPEN_VIEW, &error,
-                               hash_value)))
+  if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
+                               FRM_READ_NO_ERROR_FOR_VIEW, &error, hash_value)))
     goto err;
 
   if (share->is_view &&
@@ -3949,9 +3946,8 @@ static bool auto_repair_table(THD *thd, TABLE_LIST *table_list)
                            cache_key_length);
   mysql_mutex_lock(&LOCK_open);
 
-  if (!(share= get_table_share(thd, table_list, cache_key,
-                               cache_key_length,
-                               OPEN_VIEW, &not_used,
+  if (!(share= get_table_share(thd, table_list, cache_key, cache_key_length,
+                               FRM_READ_NO_ERROR_FOR_VIEW, &not_used,
                                hash_value)))
     goto end_unlock;
 
@@ -6117,7 +6113,7 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
   init_tmp_table_share(thd, share, saved_cache_key, key_length,
                        strend(saved_cache_key)+1, tmp_path);
 
-  if (open_table_def(thd, share, 0) ||
+  if (open_table_def(thd, share) ||
       open_table_from_share(thd, share, table_name,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX),
@@ -9249,7 +9245,7 @@ my_bool mysql_rm_tmp_tables(void)
           memcpy(filePathCopy, filePath, filePath_len - ext_len);
           filePathCopy[filePath_len - ext_len]= 0;
           init_tmp_table_share(thd, &share, "", 0, "", filePathCopy);
-          if (!open_table_def(thd, &share, 0) &&
+          if (!open_table_def(thd, &share) &&
               ((handler_file= get_new_handler(&share, thd->mem_root,
                                               share.db_type()))))
           {

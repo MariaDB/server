@@ -619,7 +619,7 @@ static bool has_disabled_path_chars(const char *str)
    6    Unknown .frm version
 */
 
-int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags)
+int open_table_def(THD *thd, TABLE_SHARE *share, enum read_frm_op op)
 {
   int error, table_type;
   bool error_given;
@@ -693,17 +693,11 @@ int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags)
     if (head[2] == FRM_VER || head[2] == FRM_VER+1 ||
         (head[2] >= FRM_VER+3 && head[2] <= FRM_VER+4))
     {
-      /* Open view only */
-      if (db_flags & OPEN_VIEW_ONLY)
-      {
-        error_given= 1;
-        goto err;
-      }
       table_type= 1;
     }
     else
     {
-      error= 6;                                 // Unkown .frm version
+      error= 6;                                 // Unknown .frm version
       goto err;
     }
   }
@@ -713,7 +707,7 @@ int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags)
     if (memcmp(head+5,"VIEW",4) == 0)
     {
       share->is_view= 1;
-      if (db_flags & OPEN_VIEW)
+      if (op == FRM_READ_NO_ERROR_FOR_VIEW)
         error= 0;
     }
     goto err;
