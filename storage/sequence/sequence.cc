@@ -323,7 +323,7 @@ static int init(void *p)
 static struct st_mysql_storage_engine descriptor =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-maria_declare_plugin(seq)
+maria_declare_plugin(sequence)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &descriptor,
