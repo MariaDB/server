@@ -70,7 +70,6 @@ protected:
   PCONNECT     previous;                // Previous user in chain
   PGLOBAL      g;                        // The common handle to CONNECT
 //char         dbname[32];              // The DBCONNECT database
-  PTDBDOS      tabp;                    // The table used on create
   query_id_t   last_query_id;           // the latest user query id
   int          count;                    // if used by several handlers
   // Statistics

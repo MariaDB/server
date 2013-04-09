@@ -220,6 +220,7 @@ typedef struct _global {            /* Global structure                */
   char      Message[MAX_STR];
   short     Trace;
   int       Createas;               /* To pass info to created table   */
+  void     *Xchk;                   /* indexes in create/alter         */
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

@@ -70,7 +70,6 @@ user_connect::user_connect(THD *thd, const char *dbn)
   next= NULL;
   previous= NULL;
   g= NULL;
-  tabp= NULL;
   last_query_id= 0;
   count= 0;
    
@@ -141,6 +140,8 @@ bool user_connect::CheckCleanup(void)
   if (thdp->query_id > last_query_id) {
     PlugCleanup(g, true);
     PlugSubSet(g, g->Sarea, g->Sarea_Size);
+    g->Xchk = NULL;
+    g->Createas = 0;
     last_query_id= thdp->query_id;
 
     if (xtrace)

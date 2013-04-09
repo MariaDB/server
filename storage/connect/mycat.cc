@@ -556,26 +556,8 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 /***********************************************************************/
 bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
   {
-  PIXDEF xdp, pxd= NULL, toidx= NULL;
-
-  // Now take care of the index definitions
-	for (int n= 0; ; n++) {
-		if (xtrace)
-			printf("Getting index %d info\n", n + 1);
-
-		if (!(xdp= Hc->GetIndexInfo(n)))
-			break;
-
-    if (pxd)
-			pxd->SetNext(xdp);
-		else
-			toidx= xdp;
-
-    pxd= xdp;
-    } // endfor n
-
-  // All is correct, attach new index(es)
-  defp->SetIndx(toidx);
+  // Attach new index(es)
+  defp->SetIndx(Hc->GetIndexInfo());
 	return false;
   } // end of GetIndexInfo
 

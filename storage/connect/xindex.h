@@ -76,6 +76,7 @@ typedef struct index_off {
 class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   friend class PLUGCAT;
   friend class DOSDEF;
+  friend class ha_connect;
   friend int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add);
  public:
   // Constructor

@@ -882,6 +882,25 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
 } // end of GetBooleanOption
 
 /****************************************************************************/
+/*  Set the value of the opname option (does not work for oplist options)   */
+/*  Currently used only to set the Sepindex value.                          */
+/****************************************************************************/
+bool ha_connect::SetBooleanOption(char *opname, bool b)
+{
+  PTOS options= GetTableOptionStruct(table);
+
+  if (!options)
+    return true;
+
+  if (!stricmp(opname, "SepIndex"))
+    options->sepindex= b;
+  else
+    return true;
+
+  return false;
+} // end of SetBooleanOption
+
+/****************************************************************************/
 /*  Return the value of an integer option or NO_IVAL if not specified.      */
 /****************************************************************************/
 int ha_connect::GetIntegerOption(char *opname)
@@ -1167,40 +1186,41 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 /****************************************************************************/
 /*  Returns the index description structure used to make the index.         */
 /****************************************************************************/
-PIXDEF ha_connect::GetIndexInfo(int n)
+PIXDEF ha_connect::GetIndexInfo(void)
 {
   char    *name, *pn;
   bool     unique;
-  PIXDEF   xdp= NULL;
-  PKPDEF   kpp, pkp= NULL;
+  PIXDEF   xdp, pxd=NULL, toidx= NULL;
+  PKPDEF   kpp, pkp;
   PGLOBAL& g= xp->g;
   KEY      kp;
 
-  // Find the index to describe
-  if ((unsigned)n < table->s->keynames.count)
-//    kp= table->key_info[n];    which one ???
+  for (int n= 0; (unsigned)n < table->s->keynames.count; n++) {
+    if (xtrace)
+      printf("Getting created index %d info\n", n + 1);
+
+    // Find the index to describe
     kp= table->s->key_info[n];
-  else
-    return NULL;
 
-  // Now get index information
-  pn= (char*)table->s->keynames.type_names[n];
-  name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
-  strcpy(name, pn);    // This is probably unuseful
-  unique= (kp.flags & 1) != 0;
-
-  // Allocate the index description block
-  xdp= new(g) INDEXDEF(name, unique, n);
-
-  // Get the the key parts info
-  for (int k= 0; (unsigned)k < kp.key_parts; k++) {
-    pn= (char*)kp.key_part[k].field->field_name;
+    // Now get index information
+    pn= (char*)table->s->keynames.type_names[n];
     name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
     strcpy(name, pn);    // This is probably unuseful
+    unique= (kp.flags & 1) != 0;
+    pkp= NULL;
 
-    // Allocate the key part description block
-    kpp= new(g) KPARTDEF(name, k + 1);
-    kpp->SetKlen(kp.key_part[k].length);
+    // Allocate the index description block
+    xdp= new(g) INDEXDEF(name, unique, n);
+
+    // Get the the key parts info
+    for (int k= 0; (unsigned)k < kp.key_parts; k++) {
+      pn= (char*)kp.key_part[k].field->field_name;
+      name= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
+      strcpy(name, pn);    // This is probably unuseful
+
+      // Allocate the key part description block
+      kpp= new(g) KPARTDEF(name, k + 1);
+      kpp->SetKlen(kp.key_part[k].length);
 
 #if 0             // NIY
     // Index on auto increment column can be an XXROW index
@@ -1213,16 +1233,25 @@ PIXDEF ha_connect::GetIndexInfo(int n)
       } // endif AUTO_INCREMENT
 #endif // 0
 
-    if (pkp)
-      pkp->SetNext(kpp);
+      if (pkp)
+        pkp->SetNext(kpp);
+      else
+        xdp->SetToKeyParts(kpp);
+
+      pkp= kpp;
+      } // endfor k
+
+    xdp->SetNParts(kp.key_parts);
+
+    if (pxd)
+      pxd->SetNext(xdp);
     else
-      xdp->SetToKeyParts(kpp);
+      toidx= xdp;
 
-    pkp= kpp;
-    } // endfor k
+    pxd= xdp;
+    } // endfor n
 
-  xdp->SetNParts(kp.key_parts);
-  return xdp;
+  return toidx;
 } // end of GetIndexInfo
 
 const char *ha_connect::GetDBName(const char* name)
@@ -1387,10 +1416,11 @@ bool ha_connect::OpenTable(PGLOBAL g, bool del)
     istable= true;
 //  strmake(tname, table_name, sizeof(tname)-1);
 
-    if (xmod == MODE_ANY && *tdbp->GetName() != '#')
-      // We may be in a create index query
-      if (xp) // xp can be null when called from create
-        xp->tabp= (PTDBDOS)tdbp;  // The table on which the index is created
+    // We may be in a create index query
+    if (xmod == MODE_ANY && *tdbp->GetName() != '#') {
+      // The current indexes
+      PIXDEF oldpix= GetIndexInfo();
+      } // endif xmod
 
 //  tdbp->SetOrig((PTBX)table);  // used by CheckCond
   } else
@@ -2984,7 +3014,7 @@ err:
 int ha_connect::external_lock(THD *thd, int lock_type)
 {
   int     rc= 0;
-  bool    del= false;
+  bool    del= false, xcheck=false, cras= false;
   MODE    newmode;
   PTOS    options= GetTableOptionStruct(table);
   PGLOBAL g= GetPlug(thd);
@@ -3019,51 +3049,88 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     // This is unlocking, do it by closing the table
     if (xp->CheckQueryID())
       rc= 2;          // Logical error ???
-    else if (tdbp) {
-      if (tdbp->GetMode() == MODE_ANY && *tdbp->GetName() == '#' &&
-          xp->tabp && ((PTDBASE)tdbp)->GetDef()->Indexable()) {
-        PDOSDEF defp1= (PDOSDEF)((PTDBASE)tdbp)->GetDef();
-        PDOSDEF defp2= (PDOSDEF)xp->tabp->GetDef();
-        PIXDEF  xp1, xp2, sxp;
+    else if (g->Xchk) {
+      if (!tdbp || *tdbp->GetName() == '#') {
+        bool    oldsep= ((PCHK)g->Xchk)->oldsep;
+        bool    newsep= ((PCHK)g->Xchk)->newsep;
+        PTDBDOS tdp= (PTDBDOS)(tdbp ? tdbp : GetTDB(g));
+        PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
+        PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
+        PIXDEF  oldpix= ((PCHK)g->Xchk)->oldpix;
+        PIXDEF  newpix= ((PCHK)g->Xchk)->newpix;
+        PIXDEF *xlst, *xprc; 
 
-        // Look for new created indexes
-        for (xp1= defp1->GetIndx(); xp1; xp1= xp1->GetNext()) {
-          for (xp2= defp2->GetIndx(); xp2; xp2= xp2->GetNext())
-            if (!stricmp(xp1->GetName(), xp2->GetName()))
+        ddp->SetIndx(oldpix);
+
+        if (oldsep != newsep) {
+          // All indexes have to be remade
+          ddp->DeleteIndexFile(g, NULL);
+          oldpix= NULL;
+          ddp->SetIndx(NULL);
+          SetBooleanOption("Sepindex", newsep);
+        } else if (newsep) {
+          // Make the list of dropped indexes
+          xlst= &drp; xprc= &oldpix;
+      
+          for (xp2= oldpix; xp2; xp2= xp) {
+            for (xp1= newpix; xp1; xp1= xp1->Next)
+              if (!stricmp(xp1->Name, xp2->Name))
+                break;        // Index not to drop
+      
+            xp= xp2->GetNext();
+      
+            if (!xp1) {
+              *xlst= xp2;
+              *xprc= xp;
+              *(xlst= &xp2->Next)= NULL;
+            } else
+              xprc= &xp2->Next;
+      
+            } // endfor xp2
+      
+          if (drp) {
+            // Here we erase the index files
+            ddp->DeleteIndexFile(g, drp);
+            } // endif xp1
+
+        } else if (oldpix) {
+          // TODO: optimize the case of just adding new indexes
+          if (!newpix)
+            ddp->DeleteIndexFile(g, NULL);
+
+          oldpix= NULL;     // To remake all indexes
+          ddp->SetIndx(NULL);
+        } // endif sepindex
+
+        // Make the list of new created indexes
+        xlst= &adp; xprc= &newpix;
+
+        for (xp1= newpix; xp1; xp1= xp) {
+          for (xp2= oldpix; xp2; xp2= xp2->Next)
+            if (!stricmp(xp1->Name, xp2->Name))
               break;        // Index already made
 
+          xp= xp1->Next;
+
           if (!xp2) {
-            // Here we do make the index on tabp
-            sxp= xp1->GetNext();
-            xp1->SetNext(NULL);
-            xp->tabp->MakeIndex(g, xp1, true);
-            xp1->SetNext(sxp);
-            } // endif xp2
+            *xlst= xp1;
+            *xprc= xp;
+            *(xlst= &xp1->Next)= NULL;
+          } else
+            xprc= &xp1->Next;
 
           } // endfor xp1
 
-        // Look for dropped indexes
-        for (xp2= defp2->GetIndx(); xp2; xp2= xp2->GetNext()) {
-          for (xp1= defp1->GetIndx(); xp1; xp1= xp1->GetNext())
-            if (!stricmp(xp1->GetName(), xp2->GetName()))
-              break;        // Index not to drop
-
-          if (!xp1) {
-            // Here we erase the index file
-            sxp= xp2->GetNext();
-            xp2->SetNext(NULL);
-            defp2->DeleteIndexFile(g, xp2);
-            xp2->SetNext(sxp);
-            } // endif xp1
-
-          } // endfor xp2
+        if (adp)
+          // Here we do make the new indexes
+          tdp->MakeIndex(g, adp, true);
 
         } // endif Mode
 
-      if (CloseTable(g))
-        rc= HA_ERR_INTERNAL_ERROR;
+      } // endelse Xchk
 
-    } // endif tdbp
+    if (CloseTable(g))
+      rc= HA_ERR_INTERNAL_ERROR;
 
     DBUG_RETURN(rc);
     } // endif MODE_ANY
@@ -3126,7 +3193,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   } else if (newmode == MODE_READ) {
     switch (thd->lex->sql_command) {
       case SQLCOM_CREATE_TABLE:
-        g->Createas= 1;       // To tell created table to ignore FLAG
+        xcheck= true;
+        cras= true;
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
       case SQLCOM_INSERT_SELECT:
@@ -3142,10 +3210,11 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         break;
       case SQLCOM_DROP_INDEX:
       case SQLCOM_CREATE_INDEX:
+      case SQLCOM_ALTER_TABLE:
+        xcheck= true;
 //      stop= true;
       case SQLCOM_DROP_TABLE:
       case SQLCOM_RENAME_TABLE:
-      case SQLCOM_ALTER_TABLE:
         newmode= MODE_ANY;
         break;
       case SQLCOM_CREATE_VIEW:
@@ -3169,6 +3238,16 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     tdbp= NULL;
     valid_info= false;
     } // endif CheckCleanup
+
+  if (xcheck) {
+    // This must occur after CheckCleanup
+    g->Xchk= new(g) XCHK;
+    ((PCHK)g->Xchk)->oldsep= GetBooleanOption("Sepindex", false);
+    ((PCHK)g->Xchk)->oldpix= GetIndexInfo();
+    } // endif xcheck
+
+  if (cras)
+    g->Createas= 1;       // To tell created table to ignore FLAG
 
   if (xtrace)
     printf("Calling CntCheckDB db=%s\n", GetDBName(NULL));
@@ -3691,9 +3770,9 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       ok= true;
 
       if ((dsn= create_info->connect_string.str)) {
+        PMYDEF  mydef= new(g) MYSQLDEF();
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
-        PMYDEF  mydef= new(g) MYSQLDEF();
 
         dsn= (char*)PlugSubAlloc(g, NULL, strlen(dsn) + 1);
         strncpy(dsn, create_info->connect_string.str,
@@ -3959,7 +4038,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   Field  *fp;
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
-  PIXDEF  xdp, pxd= NULL, toidx= NULL;
   PGLOBAL g= GetPlug(table_arg->in_use);
 
   DBUG_ENTER("ha_connect::create");
@@ -4189,43 +4267,40 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
         } // endif buf
 
-    } else {
-      // Check whether indexes were specified
+      } // endif filename
+
+    // To check whether indexes have to be made or remade
+    if (!g->Xchk) {
+      PIXDEF xdp;
+
+      // We should be in CREATE TABLE
+      if (table->in_use->lex->sql_command != SQLCOM_CREATE_TABLE)
+        push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
+          "Wrong command in create, please contact CONNECT team");
 
       // Get the index definitions
-      for (int n= 0; (unsigned)n < table->s->keynames.count; n++) {
-        if (xtrace)
-          printf("Getting created index %d info\n", n + 1);
-
-        xdp= GetIndexInfo(n);
-
-        if (pxd)
-          pxd->SetNext(xdp);
-        else
-          toidx= xdp;
-
-        pxd= xdp;
-        } // endfor n
-
-      if (toidx) {
+      if (xdp= GetIndexInfo()) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-        DBUG_ASSERT(cat);
-
-        if (cat)
+        if (cat) {
           cat->SetDataPath(g, table_arg->in_use->db);
 
-        if ((rc= optimize(NULL, NULL))) {
-          printf("Create rc=%d %s\n", rc, g->Message);
-          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-          rc= HA_ERR_INTERNAL_ERROR;
-        } else
-          CloseTable(g);
+          if ((rc= optimize(NULL, NULL))) {
+            printf("Create rc=%d %s\n", rc, g->Message);
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+            rc= HA_ERR_INTERNAL_ERROR;
+          } else
+            CloseTable(g);
 
-        } // endif toidx
+          } // endif cat
 
-    } // endif filename
+        } // endif xdp
+
+    } else {
+      ((PCHK)g->Xchk)->newsep= GetBooleanOption("Sepindex", false);
+      ((PCHK)g->Xchk)->newpix= GetIndexInfo();
+    } // endif Xchk
 
     table= st;
     } // endif type
@@ -4250,17 +4325,35 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 {
 //ha_table_option_struct *param_old, *param_new;
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
-  // TO DO: implement and check it.
+  // TO DO: really implement and check it.
   THD *thd= current_thd;
+
   push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
     "The current version of CONNECT did not check what you changed in ALTER. Use at your own risk");
+  
   if (table) {
-    PTOS options= info->option_struct;
+    PTOS newopt= info->option_struct;
+    PTOS oldopt= table->s->option_struct;
 
-    if (options->filename)
+#if 0
+    if (newopt->sepindex != oldopt->sepindex) {
+      // All indexes to be remade
+      PGLOBAL g= GetPlug(thd);
+
+      if (!g)
+        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, 
+          "Execute OPTIMIZE TABLE to remake the indexes");
+      else
+        g->Xchk= new(g) XCHK;
+
+      } // endif sepindex
+#endif // 0
+
+    if (newopt->filename)
       DBUG_RETURN(COMPATIBLE_DATA_NO);
 
     } // endif table
+
   DBUG_RETURN(COMPATIBLE_DATA_YES);
 } // end of check_if_incompatible_data
 
