@@ -1724,12 +1724,12 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       handlers that have the main version of the frm file stored in the
       handler.
     */
-    uchar *data;
+    const uchar *data;
     size_t length;
     if (readfrm(shadow_path, &data, &length) ||
         packfrm(data, length, &lpt->pack_frm_data, &lpt->pack_frm_len))
     {
-      my_free(data);
+      my_free(const_cast<uchar*>(data));
       my_free(lpt->pack_frm_data);
       mem_alloc_error(length);
       error= 1;
@@ -5981,7 +5981,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   char new_alias_buff[FN_REFLEN], *table_name, *db, *new_alias, *alias;
   char index_file[FN_REFLEN], data_file[FN_REFLEN];
   char path[FN_REFLEN + 1];
-  char reg_path[FN_REFLEN+1];
   ha_rows copied,deleted;
   handlerton *old_db_type, *new_db_type, *save_old_db_type;
   enum_alter_table_change_level need_copy_table= ALTER_TABLE_METADATA_ONLY;
@@ -6051,7 +6050,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   /*
-    Assign variables table_name, new_name, db, new_db, path, reg_path
+    Assign variables table_name, new_name, db, new_db, path,
     to simplify further comparisions: we want to see if it's a RENAME
     later just by comparing the pointers, avoiding the need for strcmp.
   */
@@ -6061,7 +6060,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   db=table_list->db;
   if (!new_db || !my_strcasecmp(table_alias_charset, new_db, db))
     new_db= db;
-  build_table_filename(reg_path, sizeof(reg_path) - 1, db, table_name, reg_ext, 0);
   build_table_filename(path, sizeof(path) - 1, db, table_name, "", 0);
 
   mysql_ha_rm_tables(thd, table_list);
@@ -6644,13 +6642,16 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                         need_copy_table, need_lock_for_indexes));
   }
 
-  /*
-    better have a negative test here, instead of positive, like
-    alter_info->flags & ALTER_ADD_COLUMN|ALTER_ADD_INDEX|...
-    so that ALTER TABLE won't break when somebody will add new flag
-  */
   if (need_copy_table == ALTER_TABLE_METADATA_ONLY)
-    create_info->frm_only= 1;
+  {
+    char frm_name[FN_REFLEN+1];
+    strxmov(frm_name, path, reg_ext, NullS);
+    /*
+      frm_only can only be used if old frm exists.
+      discovering frm-less engines cannot enjoy this optimization.
+    */
+    create_info->frm_only= !my_access(frm_name, F_OK);
+  }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table_for_fast_alter_partition)

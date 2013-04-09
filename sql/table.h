@@ -988,8 +988,11 @@ struct TABLE_SHARE
   
   uint actual_n_key_parts(THD *thd);
 
+  LEX_CUSTRING *frm_image; ///< only during CREATE TABLE (@sa ha_create_table)
   bool init_from_binary_frm_image(THD *thd, bool write,
                                   const uchar *frm_image, size_t frm_length);
+  bool write_frm_image(const uchar *frm_image, size_t frm_length);
+  bool read_frm_image(const uchar **frm_image, size_t *frm_length);
 };
 
 

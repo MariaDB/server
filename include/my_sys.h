@@ -877,7 +877,7 @@ extern void *my_az_allocator(void *dummy, unsigned int items, unsigned int size)
 extern void my_az_free(void *dummy, void *address);
 extern int my_compress_buffer(uchar *dest, size_t *destLen,
                               const uchar *source, size_t sourceLen);
-extern int packfrm(uchar *, size_t, uchar **, size_t *);
+extern int packfrm(const uchar *, size_t, uchar **, size_t *);
 extern int unpackfrm(uchar **, size_t *, const uchar *);
 
 extern ha_checksum my_checksum(ha_checksum crc, const uchar *mem,

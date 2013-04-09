@@ -76,7 +76,7 @@ class ha_archive: public handler
   archive_record_buffer *create_record_buffer(unsigned int length);
   void destroy_record_buffer(archive_record_buffer *r);
   int frm_copy(azio_stream *src, azio_stream *dst);
-  int frm_compare(azio_stream *src, const char *path);
+  int frm_compare(azio_stream *src);
 
 public:
   ha_archive(handlerton *hton, TABLE_SHARE *table_arg);

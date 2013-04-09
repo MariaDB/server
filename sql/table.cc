@@ -661,9 +661,6 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   error_given= true; // init_from_binary_frm_image has already called my_error()
   my_free(buf);
 
-  if (!share->error)
-    thd->status_var.opened_shares++;
-
   goto err_not_open;
 
 err:
@@ -741,9 +738,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   old_root= *root_ptr;
   *root_ptr= &share->mem_root;
 
-  if (write && writefrm(share->normalized_path.str,
-                        share->db.str, share->table_name.str, MY_SYNC,
-                        frm_image, frm_length))
+  if (write && write_frm_image(frm_image, frm_length))
     goto err;
 
   if (frm_length < FRM_HEADER_SIZE + FRM_FORMINFO_SIZE)
@@ -1915,6 +1910,7 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #endif
 
   share->error= OPEN_FRM_OK;
+  thd->status_var.opened_shares++;
   *root_ptr= old_root;
   DBUG_RETURN(0);
 
@@ -1942,6 +1938,33 @@ bool TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   *root_ptr= old_root;
   DBUG_RETURN(1);
 } /* open_binary_frm */
+
+
+bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
+{
+  return writefrm(normalized_path.str, db.str, table_name.str, 1, frm, len);
+}
+
+
+bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
+{
+  if (partition_info_str)               // cannot discover a partition
+  {
+    DBUG_ASSERT(db_type()->discover_table == 0);
+    return 1;
+  }
+
+  if (frm_image)
+  {
+    *frm= frm_image->str;
+    *len= frm_image->length;
+    frm_image->str= 0; // pass the ownership to the caller
+    frm_image= 0;
+    return 0;
+  }
+  return readfrm(normalized_path.str, frm, len);
+}
+
 
 /*
   @brief

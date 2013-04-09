@@ -107,7 +107,7 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
   }
 
   /* Attempt to reconstruct the table. */
-  error= ha_create_table(thd, path, db, table_name, &create_info);
+  error= ha_create_table(thd, path, db, table_name, &create_info, NULL);
 
   DBUG_RETURN(error);
 }
