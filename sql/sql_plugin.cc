@@ -308,8 +308,6 @@ static void unlock_variables(THD *thd, struct system_variables *vars);
 static void cleanup_variables(THD *thd, struct system_variables *vars);
 static void plugin_vars_free_values(sys_var *vars);
 static void restore_pluginvar_names(sys_var *first);
-static void plugin_opt_set_limits(struct my_option *,
-                                  const struct st_mysql_sys_var *);
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin);
 static void reap_plugins(void);
@@ -3286,8 +3284,8 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
   options->block_size= (long) (opt)->blk_sz
 
 
-static void plugin_opt_set_limits(struct my_option *options,
-                                  const struct st_mysql_sys_var *opt)
+void plugin_opt_set_limits(struct my_option *options,
+                           const struct st_mysql_sys_var *opt)
 {
   options->sub_size= 0;
 
@@ -3864,5 +3862,20 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
       if (opt->comment)
         insert_dynamic(options, (uchar*) opt);
   }
+}
+
+
+/**
+  Returns a sys_var corresponding to a particular MYSQL_SYSVAR(...)
+*/
+sys_var *find_plugin_sysvar(st_plugin_int *plugin, st_mysql_sys_var *plugin_var)
+{
+  for (sys_var *var= plugin->system_vars; var; var= var->next)
+  {
+    sys_var_pluginvar *pvar=var->cast_pluginvar();
+    if (pvar->plugin_var == plugin_var)
+      return var;
+  }
+  return 0;
 }
 

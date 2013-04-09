@@ -118,6 +118,8 @@ static HASH example_open_tables;
 /* The mutex used to init the hash; variable for example share methods */
 mysql_mutex_t example_mutex;
 
+static MYSQL_THDVAR_ULONG(varopt_default, PLUGIN_VAR_RQCMDARG,
+  "default value of the VAROPT table option", NULL, NULL, 5, 0, 100, 0);
 
 /**
   Structure for CREATE TABLE options (table options).
@@ -133,6 +135,7 @@ struct ha_table_option_struct
   ulonglong ullparam;
   uint enumparam;
   bool boolparam;
+  ulonglong varparam;
 };
 
 
@@ -179,6 +182,12 @@ ha_create_table_option example_table_option_list[]=
     The default is 1, that is true, yes, on.
   */
   HA_TOPTION_BOOL("YESNO", boolparam, 1),
+  /*
+    one option defined by the system variable. The type, the range, or
+    a list of allowed values is the same as for the system variable.
+  */
+  HA_TOPTION_SYSVAR("VAROPT", varparam, varopt_default),
+
   HA_TOPTION_END
 };
 
@@ -1089,6 +1098,7 @@ static MYSQL_SYSVAR_ULONG(
 static struct st_mysql_sys_var* example_system_variables[]= {
   MYSQL_SYSVAR(enum_var),
   MYSQL_SYSVAR(ulong_var),
+  MYSQL_SYSVAR(varopt_default),
   NULL
 };
 

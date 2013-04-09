@@ -3224,8 +3224,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
-    if (parse_option_list(thd, &sql_field->option_struct,
-                          sql_field->option_list,
+    if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
+                          &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
@@ -3427,8 +3427,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, &key_info->option_struct,
-                          key_info->option_list,
+    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
+                          &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
@@ -3874,8 +3874,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                           file->engine_name()->str,
                           "TRANSACTIONAL=1");
 
-  if (parse_option_list(thd, &create_info->option_struct,
-                          create_info->option_list,
+  if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
+                          &create_info->option_list,
                           file->partition_ht()->table_options, FALSE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
