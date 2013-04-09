@@ -1,1 +1,2 @@
 --plugin-load=$HA_TEST_SQL_DISCOVERY_SO
+--loose-test-sql-discovery
