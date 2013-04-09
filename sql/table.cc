@@ -621,48 +621,15 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   share->error= OPEN_FRM_OPEN_ERROR;
 
   strxmov(path, share->normalized_path.str, reg_ext, NullS);
-  if ((file= mysql_file_open(key_file_frm,
-                             path, O_RDONLY | O_SHARE, MYF(0))) < 0)
+  file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  if (file < 0)
   {
-    if (!has_disabled_path_chars(share->table_name.str) &&
-        !has_disabled_path_chars(share->db.str))
+    if ((flags & GTS_TABLE) && (flags & GTS_FORCE_DISCOVERY))
     {
-      /* Try unencoded 5.0 name */
-      uint length;
-      strxnmov(path, sizeof(path)-1,
-               mysql_data_home, "/", share->db.str, "/",
-               share->table_name.str, reg_ext, NullS);
-      length= unpack_filename(path, path) - reg_ext_length;
-      /*
-        The following is a safety test and should never fail
-        as the old file name should never be longer than the new one.
-      */
-      DBUG_ASSERT(length <= share->normalized_path.length);
-      /*
-        If the old and the new names have the same length,
-        then table name does not have tricky characters,
-        so no need to check the old file name.
-      */
-      if (length != share->normalized_path.length &&
-          (file= mysql_file_open(key_file_frm,
-                                  path, O_RDONLY | O_SHARE, MYF(0))) >= 0)
-      {
-        /* Unencoded 5.0 table name found */
-        path[length]= '\0'; // Remove .frm extension
-        strmov(share->normalized_path.str, path);
-        share->normalized_path.length= length;
-      }
+      ha_discover_table(thd, share);
+      error_given= true;
     }
-    /* still no luck? try to discover the table */
-    if (file < 0)
-    {
-      if (flags & GTS_TABLE && flags & GTS_FORCE_DISCOVERY)
-      {
-        ha_discover_table(thd, share);
-        error_given= true;
-      }
-      goto err_not_open;
-    }
+    goto err_not_open;
   }
 
   if (mysql_file_read(file, head, sizeof(head), MYF(MY_NABP)))
