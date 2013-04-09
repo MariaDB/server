@@ -269,7 +269,7 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   dd_recreate_table(thd, share->db.str, share->table_name.str,
                     share->normalized_path.str);
 
-  if (open_table_uncached(thd, share->path.str, share->db.str,
+  if (open_table_uncached(thd, table_type, share->path.str, share->db.str,
                           share->table_name.str, TRUE))
   {
     error= FALSE;

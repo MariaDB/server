@@ -4162,6 +4162,8 @@ int ha_create_table(THD *thd, const char *path,
   else
   {
     // open an frm file
+    share.db_plugin= ha_lock_engine(thd, create_info->db_type);
+
     if (open_table_def(thd, &share))
       goto err;
   }
@@ -4343,12 +4345,17 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
 int ha_discover_table(THD *thd, TABLE_SHARE *share)
 {
   DBUG_ENTER("ha_discover_table");
+  int found;
 
   DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);   // share is not OK yet
-  DBUG_ASSERT(!share->db_plugin);
 
-  if (!plugin_foreach(thd, discover_handlerton,
-                      MYSQL_STORAGE_ENGINE_PLUGIN, share))
+  if (share->db_plugin)
+    found= discover_handlerton(thd, share->db_plugin, share);
+  else
+    found= plugin_foreach(thd, discover_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, share);
+  
+  if (!found)
     open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
   DBUG_RETURN(share->error != OPEN_FRM_OK);
