@@ -22,7 +22,6 @@
 #include "sql_priv.h"
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "table.h"
-#include "frm_crypt.h"           // get_crypt_for_frm
 #include "key.h"                                // find_ref_key
 #include "sql_table.h"                          // build_table_filename,
                                                 // primary_key_name
@@ -806,7 +805,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   handler *handler_file= 0;
   KEY	*keyinfo;
   KEY_PART_INFO *key_part= NULL;
-  SQL_CRYPT *crypted=0;
   Field  **field_ptr, *reg_field;
   const char **interval_array;
   enum legacy_db_type legacy_db_type;
@@ -1070,13 +1068,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   share->stored_rec_length= share->reclength;
   if (*(frm_image+26) == 1)
     share->system= 1;				/* one-record-database */
-#ifdef HAVE_CRYPTED_FRM
-  else if (*(frm_image+26) == 2)
-  {
-    crypted= get_crypt_for_frm();
-    share->crypted= 1;
-  }
-#endif
 
   record_offset= (ulong) (uint2korr(frm_image+6)+
                           ((uint2korr(frm_image+14) == 0xffff ?
@@ -1265,15 +1256,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
 
   disk_buff= frm_image + pos + 288;
 
-#ifdef HAVE_CRYPTED_FRM
-  if (crypted)
-  {
-    crypted->decode((char*) forminfo+256,288-256);
-    if (sint2korr(forminfo+284) != 0)		// Should be 0
-      goto err;                        // Wrong password
-  }
-#endif
-
   share->fields= uint2korr(forminfo+258);
   pos= uint2korr(forminfo+260);   /* Length of all screens */
   n_length= uint2korr(forminfo+268);
@@ -1310,14 +1292,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   read_length=(uint) (share->fields * field_pack_length +
 		      pos+ (uint) (n_length+int_length+com_length+
 		                   vcol_screen_length));
-#ifdef HAVE_CRYPTED_FRM
-  if (crypted)
-  {
-    crypted->decode((char*) disk_buff,read_length);
-    delete crypted;
-    crypted=0;
-  }
-#endif
   strpos= disk_buff+pos;
 
   share->intervals= (TYPELIB*) (field_ptr+share->fields+1);
@@ -2012,7 +1986,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *frm_image)
   share->error= error;
   share->open_errno= my_errno;
   share->errarg= errarg;
-  delete crypted;
   delete handler_file;
   my_hash_free(&share->name_hash);
   if (share->ha_data_destroy)
@@ -2822,30 +2795,6 @@ void free_field_buffers_larger_than(TABLE *table, uint32 size)
         blob->free();
   }
 }
-
-/*
-  Read string from a file with malloc
-
-  NOTES:
-    We add an \0 at end of the read string to make reading of C strings easier
-*/
-
-int read_string(File file, uchar**to, size_t length)
-{
-  DBUG_ENTER("read_string");
-
-  my_free(*to);
-  if (!(*to= (uchar*) my_malloc(length+1,MYF(MY_WME))) ||
-      mysql_file_read(file, *to, length, MYF(MY_NABP)))
-  {
-     my_free(*to);                            /* purecov: inspected */
-    *to= 0;                                   /* purecov: inspected */
-    DBUG_RETURN(1);                           /* purecov: inspected */
-  }
-  *((char*) *to+length)= '\0';
-  DBUG_RETURN (0);
-} /* read_string */
-
 
 	/* Add a new form to a form file */
 

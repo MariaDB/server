@@ -74,9 +74,13 @@ int readfrm(const char *name, uchar **frmdata, size_t *len)
 
   // Read whole frm file
   error= 3;
-  read_data= 0;                                 // Nothing to free
-  if (read_string(file, &read_data, read_len))
+  if (!(read_data= (uchar*)my_malloc(read_len, MYF(MY_WME))))
     goto err;
+  if (mysql_file_read(file, read_data, read_len, MYF(MY_NABP)))
+  {
+    my_free(read_data);
+    goto err;
+  }
 
   // Setup return data
   *frmdata= (uchar*) read_data;
