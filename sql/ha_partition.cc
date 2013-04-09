@@ -511,7 +511,7 @@ int ha_partition::rename_table(const char *from, const char *to)
   Create the handler file (.par-file)
 
   SYNOPSIS
-    create_handler_files()
+    create_partitioning_metadata()
     name                              Full path of table name
     create_info                       Create info generated for CREATE TABLE
 
@@ -520,19 +520,19 @@ int ha_partition::rename_table(const char *from, const char *to)
     0                         Success
 
   DESCRIPTION
-    create_handler_files is called to create any handler specific files
+    create_partitioning_metadata is called to create any handler specific files
     before opening the file with openfrm to later call ::create on the
     file object.
     In the partition handler this is used to store the names of partitions
     and types of engines in the partitions.
 */
 
-int ha_partition::create_handler_files(const char *path,
+int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
                                        int action_flag,
                                        HA_CREATE_INFO *create_info)
 {
-  DBUG_ENTER("ha_partition::create_handler_files()");
+  DBUG_ENTER("ha_partition::create_partitioning_metadata()");
 
   /*
     We need to update total number of parts since we might write the handler
