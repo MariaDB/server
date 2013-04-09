@@ -2067,7 +2067,7 @@ public:
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
   int ha_create_partitioning_metadata(const char *name, const char *old_name,
-                              int action_flag, HA_CREATE_INFO *info);
+                                      int action_flag);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
                            const char *path,
@@ -3007,7 +3007,7 @@ private:
   virtual int create(const char *name, TABLE *form, HA_CREATE_INFO *info)=0;
 
   virtual int create_partitioning_metadata(const char *name, const char *old_name,
-                                   int action_flag, HA_CREATE_INFO *info)
+                                   int action_flag)
   { return FALSE; }
 
   virtual int change_partitions(HA_CREATE_INFO *create_info,
