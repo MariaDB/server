@@ -24,7 +24,7 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext,
 #ifdef MYSQL_SERVER
 int readfrm(const char *name, const uchar **data, size_t *length);
 int writefrm(const char *path, const char *db, const char *table,
-             bool need_sync, const uchar *frmdata, size_t len);
+             bool tmp_table, const uchar *frmdata, size_t len);
 
 int ext_table_discovery_simple(MY_DIR *dirp,
                                handlerton::discovered_list *result);

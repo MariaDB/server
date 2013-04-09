@@ -67,7 +67,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                               uint keys, KEY *key_info, handler *db_file)
 {
   LEX_STRING str_db_type;
-  uint reclength, key_info_length, maxlength, tmp_len, i;
+  uint reclength, key_info_length, tmp_len, i;
   ulong key_buff_length;
   ulong filepos, data_offset;
   uint options_len;
@@ -173,7 +173,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   /*
     If table comment is longer than TABLE_COMMENT_INLINE_MAXLEN bytes,
     store the comment in an extra segment (up to TABLE_COMMENT_MAXLEN bytes).
-    Pre 6.0, the limit was 60 characters, with no extra segment-handling.
+    Pre 5.5, the limit was 60 characters, with no extra segment-handling.
   */
   if (create_info->comment.length > TABLE_COMMENT_INLINE_MAXLEN)
   {
@@ -212,7 +212,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   frm.length+= extra2_size + 4;                 // mariadb extra2 frm segment
 
   int2store(fileinfo+4, extra2_size);
-  int2store(fileinfo+6, frm.length);
+  int2store(fileinfo+6, frm.length);            // Position to key information
   frm.length+= key_buff_length;
   frm.length+= reclength;                       // row with default values
   frm.length+= create_info->extra_size;
@@ -228,7 +228,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   /* write the extra2 segment */
   pos = frm_ptr + 64;
-  *pos++ = EXTRA2_TABLEDEF_VERSION;
+  compile_time_assert(EXTRA2_TABLEDEF_VERSION != '/');
+  *pos++ = EXTRA2_TABLEDEF_VERSION;     // old servers write '/' here
   *pos++ = create_info->tabledef_version.length;
   memcpy(pos, create_info->tabledef_version.str,
               create_info->tabledef_version.length);
@@ -241,7 +242,11 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       *pos++= options_len;
     else
     {
-      DBUG_ASSERT(options_len <= 65535); // FIXME if necessary
+      /*
+        At the moment we support options_len up to 64K.
+        We can easily extend it in the future, if the need arises.
+      */
+      DBUG_ASSERT(options_len <= 65535);
       int2store(pos + 1, options_len);
       pos+= 3;
     }
@@ -255,9 +260,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
   key_info_length= pack_keys(pos, keys, key_info, data_offset);
 
-  maxlength=(uint) next_io_size((ulong) (uint2korr(forminfo)+1000));
-  int2store(forminfo+2,maxlength);
-  int4store(fileinfo+10,(ulong) (filepos+maxlength));
+  int2store(forminfo+2, frm.length - filepos);
+  int4store(fileinfo+10, frm.length);
   fileinfo[26]= (uchar) test((create_info->max_rows == 1) &&
 			     (create_info->min_rows == 1) && (keys == 0));
   int2store(fileinfo+28,key_info_length);
@@ -312,7 +316,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       pos+= key_info[i].parser_name->length + 1;
     }
   }
-  if (forminfo[46] == (uchar)255)
+  if (forminfo[46] == (uchar)255)       // New style MySQL 5.5 table comment
   {
     int2store(pos, create_info->comment.length);
     pos+=2;
@@ -378,7 +382,7 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
   {
     // TODO don't write frm for temp tables
     if (create_info->tmp_table() &&
-        writefrm(path, db, table_name, 0, frm->str, frm->length))
+        writefrm(path, db, table_name, true, frm->str, frm->length))
       goto err_handler;
 
     if (thd->variables.keep_files_on_create)
@@ -393,7 +397,7 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
   }
   else
   {
-    if (writefrm(path, db, table_name, 1, frm->str, frm->length))
+    if (writefrm(path, db, table_name, false, frm->str, frm->length))
       goto err_handler;
   }
 
@@ -524,19 +528,18 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
                                                      COLUMN_COMMENT_MAXLEN);
     if (tmp_len < field->comment.length)
     {
-      if ((current_thd->variables.sql_mode &
-	   (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES)))
-      {
-        my_error(ER_TOO_LONG_FIELD_COMMENT, MYF(0), field->field_name,
-                 static_cast<ulong>(COLUMN_COMMENT_MAXLEN));
+      myf myf_warning= ME_JUST_WARNING;
+      ulonglong sql_mode= current_thd->variables.sql_mode;
+
+      if (sql_mode & (MODE_STRICT_TRANS_TABLES | MODE_STRICT_ALL_TABLES))
+        myf_warning= 0;
+
+      my_error(ER_TOO_LONG_FIELD_COMMENT, myf_warning, field->field_name,
+               COLUMN_COMMENT_MAXLEN);
+
+      if (!myf_warning)
 	DBUG_RETURN(1);
-      }
-      char warn_buff[MYSQL_ERRMSG_SIZE];
-      my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_FIELD_COMMENT),
-                  field->field_name,
-                  static_cast<ulong>(COLUMN_COMMENT_MAXLEN));
-      push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                   ER_TOO_LONG_FIELD_COMMENT, warn_buff);
+
       field->comment.length= tmp_len;
     }
     if (field->vcol_info)
@@ -562,7 +565,7 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
         expressions saved in the frm file for virtual columns.
       */
       vcol_info_length+= field->vcol_info->expr_str.length+
-	                 FRM_VCOL_HEADER_SIZE(field->interval!=NULL);
+	                 FRM_VCOL_HEADER_SIZE(field->interval);
     }
 
     totlength+= field->length;
@@ -890,10 +893,10 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
       */
       if (field->vcol_info && field->vcol_info->expr_str.length)
       {
-        *buff++= (uchar)(1 + test(field->interval_id));
+        *buff++= (uchar)(1 + test(field->interval));
         *buff++= (uchar) field->sql_type;
         *buff++= (uchar) field->stored_in_db;
-        if (field->interval_id)
+        if (field->interval)
           *buff++= (uchar) field->interval_id;
         memcpy(buff, field->vcol_info->expr_str.str, field->vcol_info->expr_str.length);
         buff+= field->vcol_info->expr_str.length;

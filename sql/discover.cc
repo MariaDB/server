@@ -111,17 +111,21 @@ int readfrm(const char *name, const uchar **frmdata, size_t *len)
 */
 
 int writefrm(const char *path, const char *db, const char *table,
-             bool need_sync, const uchar *frmdata, size_t len)
+             bool tmp_table, const uchar *frmdata, size_t len)
 {
   char	 file_name[FN_REFLEN+1];
   int error;
+  int create_flags= O_RDWR | O_TRUNC;
   DBUG_ENTER("writefrm");
   DBUG_PRINT("enter",("name: '%s' len: %lu ",path, (ulong) len));
+
+  if (tmp_table)
+    create_flags|= O_EXCL | O_NOFOLLOW;
 
   strxnmov(file_name, sizeof(file_name)-1, path, reg_ext, NullS);
 
   File file= mysql_file_create(key_file_frm, file_name,
-                               CREATE_MODE, O_RDWR | O_TRUNC, MYF(0));
+                               CREATE_MODE, create_flags, MYF(0));
 
   if ((error= file < 0))
   {
@@ -134,7 +138,7 @@ int writefrm(const char *path, const char *db, const char *table,
   {
     error= mysql_file_write(file, frmdata, len, MYF(MY_WME | MY_NABP));
 
-    if (!error && need_sync && opt_sync_frm)
+    if (!error && !tmp_table && opt_sync_frm)
         error= mysql_file_sync(file, MYF(MY_WME)) ||
              my_sync_dir_by_file(file_name, MYF(MY_WME));
 

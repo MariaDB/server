@@ -2539,12 +2539,6 @@ static inline int set_zone(int nr,int min_zone,int max_zone)
   return nr;
 }
 
-/* Adjust number to next larger disk buffer */
-static inline ulong next_io_size(ulong pos)
-{
-  return MY_ALIGN(pos, IO_SIZE);
-}
-
 /* performance schema */
 extern LEX_STRING PERFORMANCE_SCHEMA_DB_NAME;
 
