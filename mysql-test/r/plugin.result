@@ -44,7 +44,7 @@ set global example_ulong_var=500;
 set global example_enum_var= e1;
 show status like 'example%';
 Variable_name	Value
-example_func_example	enum_var is 0, ulong_var is 500, really
+Example_func_example	enum_var is 0, ulong_var is 500, really
 show variables like 'example%';
 Variable_name	Value
 example_enum_var	e1

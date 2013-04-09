@@ -1133,22 +1133,21 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
 
   if (plugin->plugin->status_vars)
   {
-#ifdef FIX_LATER
-    /**
-      @todo
-      unfortunately, status variables were introduced without a
-      pluginname_ namespace, that is pluginname_ was not added automatically
-      to status variable names. It should be fixed together with the next
-      incompatible API change.
+    /*
+      historical ndb behavior caused MySQL plugins to specify
+      status var names in full, with the plugin name prefix.
+      this was never fixed in MySQL.
+      MariaDB fixes that but support MySQL style too.
     */
-    SHOW_VAR array[2]= {
+    SHOW_VAR *show_vars= plugin->plugin->status_vars;
+    SHOW_VAR tmp_array[2]= {
       {plugin->plugin->name, (char*)plugin->plugin->status_vars, SHOW_ARRAY},
       {0, 0, SHOW_UNDEF}
     };
-    remove_status_vars(array);
-#else
-    remove_status_vars(plugin->plugin->status_vars);
-#endif /* FIX_LATER */
+    if (strncasecmp(show_vars->name, plugin->name.str, plugin->name.length))
+      show_vars= tmp_array;
+
+    remove_status_vars(show_vars);
   }
 
   if (plugin_type_deinitialize[plugin->plugin->type])
@@ -1358,24 +1357,22 @@ static int plugin_initialize(struct st_plugin_int *plugin)
 
   if (plugin->plugin->status_vars)
   {
-#ifdef FIX_LATER
     /*
-      We have a problem right now where we can not prepend without
-      breaking backwards compatibility. We will fix this shortly so
-      that engines have "use names" and we wil use those for
-      CREATE TABLE, and use the plugin name then for adding automatic
-      variable names.
+      historical ndb behavior caused MySQL plugins to specify
+      status var names in full, with the plugin name prefix.
+      this was never fixed in MySQL.
+      MariaDB fixes that, but supports MySQL style too.
     */
-    SHOW_VAR array[2]= {
+    SHOW_VAR *show_vars= plugin->plugin->status_vars;
+    SHOW_VAR tmp_array[2]= {
       {plugin->plugin->name, (char*)plugin->plugin->status_vars, SHOW_ARRAY},
       {0, 0, SHOW_UNDEF}
     };
-    if (add_status_vars(array)) // add_status_vars makes a copy
+    if (strncasecmp(show_vars->name, plugin->name.str, plugin->name.length))
+      show_vars= tmp_array;
+
+    if (add_status_vars(show_vars))
       goto err;
-#else
-    if (add_status_vars(plugin->plugin->status_vars))
-      goto err;
-#endif /* FIX_LATER */
   }
 
   /*

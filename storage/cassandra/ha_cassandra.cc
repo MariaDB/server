@@ -2568,21 +2568,21 @@ struct st_mysql_storage_engine cassandra_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 static SHOW_VAR cassandra_status_variables[]= {
-  {"Cassandra_row_inserts",
+  {"row_inserts",
     (char*) &cassandra_counters.row_inserts,         SHOW_LONG},
-  {"Cassandra_row_insert_batches",
+  {"row_insert_batches",
     (char*) &cassandra_counters.row_insert_batches,  SHOW_LONG},
 
-  {"Cassandra_multiget_keys_scanned",
+  {"multiget_keys_scanned",
     (char*) &cassandra_counters.multiget_keys_scanned, SHOW_LONG},
-  {"Cassandra_multiget_reads",
+  {"multiget_reads",
     (char*) &cassandra_counters.multiget_reads,      SHOW_LONG},
-  {"Cassandra_multiget_rows_read",
+  {"multiget_rows_read",
     (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
 
-  {"Cassandra_timeout_exceptions",
+  {"timeout_exceptions",
     (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
-  {"Cassandra_unavailable_exceptions",
+  {"unavailable_exceptions",
     (char*) &cassandra_counters.unavailable_exceptions, SHOW_LONG},
   {NullS, NullS, SHOW_LONG}
 };
