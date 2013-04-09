@@ -529,8 +529,7 @@ int ha_partition::rename_table(const char *from, const char *to)
 
 int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
-                                       int action_flag,
-                                       HA_CREATE_INFO *create_info)
+                                       int action_flag)
 {
   DBUG_ENTER("ha_partition::create_partitioning_metadata()");
 

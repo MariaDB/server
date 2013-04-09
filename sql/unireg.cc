@@ -384,12 +384,10 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
     if (thd->variables.keep_files_on_create)
       create_info->options|= HA_CREATE_KEEP_FILES;
 
-    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG,
-                                              create_info) ||
+    if (file->ha_create_partitioning_metadata(path, NULL, CHF_CREATE_FLAG) ||
        ha_create_table(thd, path, db, table_name, create_info, frm))
     {
-      file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG,
-                                            create_info);
+      file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
       goto err_handler;
     }
   }

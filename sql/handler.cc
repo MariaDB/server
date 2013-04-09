@@ -3844,11 +3844,11 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 
 int
 handler::ha_create_partitioning_metadata(const char *name, const char *old_name,
-                        int action_flag, HA_CREATE_INFO *info)
+                                         int action_flag)
 {
   mark_trx_read_write();
 
-  return create_partitioning_metadata(name, old_name, action_flag, info);
+  return create_partitioning_metadata(name, old_name, action_flag);
 }
 
 
