@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -122,13 +123,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                                                create_fields,
                                                keys, key_info);
   DBUG_PRINT("info", ("Options length: %u", options_len));
-  if (options_len)
-  {
-    create_info->table_options|= HA_OPTION_TEXT_CREATE_OPTIONS;
-    create_info->extra_size+= (options_len + 4);
-  }
-  else
-    create_info->table_options&= ~HA_OPTION_TEXT_CREATE_OPTIONS;
 
   /*
     This gives us the byte-position of the character at
@@ -193,13 +187,31 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     forminfo[46]=(uchar) create_info->comment.length;
   }
 
+  if (!create_info->tabledef_version.str)
+  {
+    uchar *to= (uchar*) thd->alloc(MY_UUID_SIZE);
+    if (unlikely(!to))
+      DBUG_RETURN(frm);
+    my_uuid(to);
+    create_info->tabledef_version.str= to;
+    create_info->tabledef_version.length= MY_UUID_SIZE;
+  }
+  DBUG_ASSERT(create_info->tabledef_version.length > 0);
+  DBUG_ASSERT(create_info->tabledef_version.length <= 255);
+
   prepare_frm_header(thd, reclength, fileinfo, create_info, keys, key_info);
+
+  /* one byte for a type, one or three for a length */
+  uint extra2_size= 1 + 1 + create_info->tabledef_version.length;
+  if (options_len)
+    extra2_size+= 1 + (options_len > 255 ? 3 : 1) + options_len;
 
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
-  frm.length+= uint2korr(fileinfo+4) + 4;       // "form entry"
+  frm.length+= extra2_size + 4;                 // mariadb extra2 frm segment
 
+  int2store(fileinfo+4, extra2_size);
   int2store(fileinfo+6, frm.length);
   frm.length+= key_buff_length;
   frm.length+= reclength;                       // row with default values
@@ -214,11 +226,34 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (!frm_ptr)
     DBUG_RETURN(frm);
 
-  pos = frm_ptr + uint2korr(fileinfo+6);
-  key_info_length= pack_keys(pos, keys, key_info, data_offset);
+  /* write the extra2 segment */
+  pos = frm_ptr + 64;
+  *pos++ = EXTRA2_TABLEDEF_VERSION;
+  *pos++ = create_info->tabledef_version.length;
+  memcpy(pos, create_info->tabledef_version.str,
+              create_info->tabledef_version.length);
+  pos+= create_info->tabledef_version.length;
 
-  memcpy(frm_ptr + FRM_HEADER_SIZE, "//", 3);
-  int4store(frm_ptr + 67, filepos);
+  if (options_len)
+  {
+    *pos++= EXTRA2_ENGINE_TABLEOPTS;
+    if (options_len < 255)
+      *pos++= options_len;
+    else
+    {
+      DBUG_ASSERT(options_len <= 65535); // FIXME if necessary
+      int2store(pos + 1, options_len);
+      pos+= 3;
+    }
+    pos= engine_table_options_frm_image(pos, create_info->option_list,
+                                        create_fields, keys, key_info);
+  }
+
+  int4store(pos, filepos); // end of the extra2 segment
+  pos+= 4;
+
+  DBUG_ASSERT(pos == frm_ptr + uint2korr(fileinfo+6));
+  key_info_length= pack_keys(pos, keys, key_info, data_offset);
 
   maxlength=(uint) next_io_size((ulong) (uint2korr(forminfo)+1000));
   int2store(forminfo+2,maxlength);
@@ -285,19 +320,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos+= create_info->comment.length;
   }
 
-  if (options_len)
-  {
-    int4store(pos, options_len);
-    pos+= 4;
-    engine_table_options_frm_image(pos,
-                                   create_info->option_list,
-                                   create_fields,
-                                   keys, key_info);
-    pos+= options_len;
-  }
-
-  memcpy(frm_ptr + filepos, forminfo, FRM_FORMINFO_SIZE);
-  if (pack_fields(frm_ptr + filepos + FRM_FORMINFO_SIZE, create_fields, data_offset))
+  memcpy(frm_ptr + filepos, forminfo, 288);
+  if (pack_fields(frm_ptr + filepos + 288, create_fields, data_offset))
     goto err;
 
   {
@@ -332,14 +356,12 @@ err:
   SYNOPSIS
     rea_create_table()
     thd			Thread handler
+    frm                 binary frm image of the table to create
     path		Name of file (including database, without .frm)
     db			Data base name
     table_name		Table name
     create_info		create info parameters
-    create_fields	Fields to create
-    keys		number of keys to create
-    key_info		Keys to create
-    file		Handler to use
+    file		Handler to use or NULL if only frm needs to be created
 
   RETURN
     0  ok

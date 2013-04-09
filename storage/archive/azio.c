@@ -364,6 +364,8 @@ void read_header(azio_stream *s, unsigned char *buffer)
 {
   if (buffer[0] == az_magic[0]  && buffer[1] == az_magic[1])
   {
+    uchar tmp[AZ_FRMVER_LEN + 2];
+
     s->version= (unsigned int)buffer[AZ_VERSION_POS];
     s->minor_version= (unsigned int)buffer[AZ_MINOR_VERSION_POS];
     s->block_size= 1024 * buffer[AZ_BLOCK_POS];
@@ -379,6 +381,22 @@ void read_header(azio_stream *s, unsigned char *buffer)
     s->comment_start_pos= (unsigned int)uint4korr(buffer + AZ_COMMENT_POS);
     s->comment_length= (unsigned int)uint4korr(buffer + AZ_COMMENT_LENGTH_POS);
     s->dirty= (unsigned int)buffer[AZ_DIRTY_POS];
+
+    /*
+      we'll hard-code the current frm format for now, to avoid
+      changing archive table versions.
+    */
+    if (s->frm_length == 0 ||
+        my_pread(s->file, tmp,  sizeof(tmp), s->frm_start_pos + 64, MYF(MY_NABP)) ||
+        tmp[0] != 0 || tmp[1] != AZ_FRMVER_LEN)
+    {
+      s->frmver_length= 0;
+    }
+    else
+    {
+      s->frmver_length= tmp[1];
+      memcpy(s->frmver, tmp+2, s->frmver_length);
+    }
   }
   else if (buffer[0] == gz_magic[0]  && buffer[1] == gz_magic[1])
   {

@@ -17,6 +17,8 @@ select * from t1;
 a
 1
 2
+t1.ARZ
+t1.frm
 #
 # show tables
 #
@@ -28,10 +30,9 @@ show tables;
 Tables_in_test
 t1
 t2
-select * from t1;
-a
-1
-2
+t1.ARZ
+t2.ARZ
+t2.frm
 #
 # show full tables
 #
@@ -40,29 +41,27 @@ show full tables;
 Tables_in_test	Table_type
 t1	BASE TABLE
 t2	BASE TABLE
-select * from t1;
-a
-1
-2
+t1.ARZ
+t2.ARZ
+t2.frm
 #
 # discover on truncate
 #
 flush tables;
 truncate table t1;
 ERROR HY000: Table storage engine for 't1' doesn't have this option
-show tables;
-Tables_in_test
-t1
-t2
+t1.ARZ
+t1.frm
+t2.ARZ
+t2.frm
 #
 # discover on rename
 #
 flush tables;
 rename table t2 to t0;
-show tables;
-Tables_in_test
-t0
-t1
+t0.ARZ
+t1.ARZ
+t1.frm
 #
 # discover on HA_ERR_TABLE_DEF_CHANGED
 #
@@ -77,9 +76,7 @@ t1	CREATE TABLE `t1` (
 #
 flush tables;
 drop table t1;
-show tables;
-Tables_in_test
-t0
+t0.ARZ
 #
 # discover of table non-existance on drop
 #
@@ -89,6 +86,9 @@ flush tables;
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 drop table t0;
+show status like 'Handler_discover';
+Variable_name	Value
+Handler_discover	7
 #
 # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
 #

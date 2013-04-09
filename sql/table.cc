@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -706,7 +706,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint i,j;
   bool use_hash;
   char *keynames, *names, *comment_pos;
-  const uchar *forminfo;
+  const uchar *forminfo, *extra2;
   const uchar *frm_image_end = frm_image + frm_length;
   uchar *record, *null_flags, *null_pos;
   const uchar *disk_buff, *strpos;
@@ -723,7 +723,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bool null_bits_are_used;
   uint vcol_screen_length, UNINIT_VAR(options_len);
   char *vcol_screen_pos;
-  const uchar *UNINIT_VAR(options);
+  const uchar *options= 0;
   KEY first_keyinfo;
   uint len;
   KEY_PART_INFO *first_key_part= NULL;
@@ -749,8 +749,60 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   new_frm_ver= (frm_image[2] - FRM_VER);
   field_pack_length= new_frm_ver < 2 ? 11 : 17;
 
-  /* Position of the form in the form file. */
+  /* Length of the MariaDB extra2 segment in the form file. */
   len = uint2korr(frm_image+4);
+  extra2= frm_image + 64;
+
+  if (*extra2 != '/')   // old frm had '/' there
+  {
+    const uchar *e2end= extra2 + len;
+    while (extra2 < e2end)
+    {
+      uchar type= *extra2++;
+      size_t length= *extra2++;
+      if (!length)
+      {
+        length= uint2korr(extra2);
+        extra2+=2;
+        if (length < 256)
+          goto err;
+      }
+      switch (type) {
+      case EXTRA2_TABLEDEF_VERSION:
+        if (tabledef_version.str) // see init_from_sql_statement_string()
+        {
+          if (length != tabledef_version.length ||
+              memcmp(extra2, tabledef_version.str, length))
+            goto err;
+        }
+        else
+        {
+          uchar *buf= (uchar*) alloc_root(&mem_root, length);
+          if (!buf)
+            goto err;
+          memcpy(buf, extra2, length);
+          tabledef_version.str= buf;
+          tabledef_version.length= length;
+        }
+        break;
+      case EXTRA2_ENGINE_TABLEOPTS:
+        if (options)
+          goto err;
+        /* remember but delay parsing until we have read fields and keys */
+        options= extra2;
+        options_len= length;
+        break;
+      default:
+        /* abort frm parsing if it's an unknown but important extra2 value */
+        if (type >= 128)
+          goto err;
+      }
+      extra2+= length;
+    }
+    if (extra2 > e2end)
+      goto err;
+  }
+
   if (frm_length < FRM_HEADER_SIZE + len ||
       !(pos= uint4korr(frm_image + FRM_HEADER_SIZE + len)))
     goto err;
@@ -1169,12 +1221,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
     DBUG_ASSERT(next_chunk <= buff_end);
 
-    if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS)
+    if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS_legacy)
     {
-      /*
-        store options position, but skip till the time we will
-        know number of fields
-      */
+      if (options)
+        goto err;
       options_len= uint4korr(next_chunk);
       options= next_chunk + 4;
       next_chunk+= options_len + 4;
@@ -1839,7 +1889,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           null_length, 255);
   }
 
-  if (share->db_create_options & HA_OPTION_TEXT_CREATE_OPTIONS)
+  if (options)
   {
     DBUG_ASSERT(options_len);
     if (engine_table_options_frm_read(options, options_len, share))
@@ -2027,6 +2077,9 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
   }
 
   thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
+
+  if (tabledef_version.str)
+    thd->lex->create_info.tabledef_version= tabledef_version;
 
   file= mysql_create_frm_image(thd, db.str, table_name.str,
                                &thd->lex->create_info, &thd->lex->alter_info,
@@ -3086,7 +3139,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
 
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
-  int2store(fileinfo+4,3);
+
   /*
     Keep in sync with pack_keys() in unireg.cc
     For each key:

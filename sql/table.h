@@ -616,6 +616,8 @@ struct TABLE_SHARE
   I_P_List <TABLE, TABLE_share> used_tables;
   I_P_List <TABLE, TABLE_share> free_tables;
 
+  LEX_CUSTRING tabledef_version;
+
   engine_option_value *option_list;     /* text options for table */
   ha_table_option_struct *option_struct; /* structure with parsed options */
 

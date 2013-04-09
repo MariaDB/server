@@ -318,7 +318,7 @@ enum ha_base_keytype {
 #define HA_OPTION_NULL_FIELDS		1024
 #define HA_OPTION_PAGE_CHECKSUM		2048
 /* .frm has extra create options in linked-list format */
-#define HA_OPTION_TEXT_CREATE_OPTIONS   (1L << 14)
+#define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1L << 14) /* 5.2 to 5.5, unused since 10.0 */
 #define HA_OPTION_TEMP_COMPRESS_RECORD  (1L << 15)      /* set by isamchk */
 #define HA_OPTION_READ_ONLY_DATA        (1L << 16)      /* Set by isamchk */
 #define HA_OPTION_NO_CHECKSUM           (1L << 17)
