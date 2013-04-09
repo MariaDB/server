@@ -714,22 +714,26 @@ struct ha_index_option_struct;
 enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
                       HA_OPTION_TYPE_STRING, /* char * */
                       HA_OPTION_TYPE_ENUM,   /* uint */
-                      HA_OPTION_TYPE_BOOL};  /* bool */
+                      HA_OPTION_TYPE_BOOL,   /* bool */
+                      HA_OPTION_TYPE_SYSVAR};/* type of the sysval */
 
 #define HA_xOPTION_NUMBER(name, struc, field, def, min, max, blk_siz)   \
   { HA_OPTION_TYPE_ULL, name, sizeof(name)-1,                        \
-    offsetof(struc, field), def, min, max, blk_siz, 0 }
+    offsetof(struc, field), def, min, max, blk_siz, 0, 0 }
 #define HA_xOPTION_STRING(name, struc, field)                        \
   { HA_OPTION_TYPE_STRING, name, sizeof(name)-1,                     \
-    offsetof(struc, field), 0, 0, 0, 0, 0 }
+    offsetof(struc, field), 0, 0, 0, 0, 0, 0}
 #define HA_xOPTION_ENUM(name, struc, field, values, def)             \
   { HA_OPTION_TYPE_ENUM, name, sizeof(name)-1,                       \
     offsetof(struc, field), def, 0,                                  \
-    sizeof(values)-1, 0, values }
+    sizeof(values)-1, 0, values, 0 }
 #define HA_xOPTION_BOOL(name, struc, field, def)                     \
   { HA_OPTION_TYPE_BOOL, name, sizeof(name)-1,                       \
-    offsetof(struc, field), def, 0, 1, 0, 0 }
-#define HA_xOPTION_END { HA_OPTION_TYPE_ULL, 0, 0, 0, 0, 0, 0, 0, 0 }
+    offsetof(struc, field), def, 0, 1, 0, 0, 0 }
+#define HA_xOPTION_SYSVAR(name, struc, field, sysvar)                \
+  { HA_OPTION_TYPE_SYSVAR, name, sizeof(name)-1,                     \
+    offsetof(struc, field), 0, 0, 0, 0, 0, MYSQL_SYSVAR(sysvar) }
+#define HA_xOPTION_END { HA_OPTION_TYPE_ULL, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 
 #define HA_TOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
   HA_xOPTION_NUMBER(name, ha_table_option_struct, field, def, min, max, blk_siz)
@@ -739,6 +743,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_table_option_struct, field, values, def)
 #define HA_TOPTION_BOOL(name, field, def)                            \
   HA_xOPTION_BOOL(name, ha_table_option_struct, field, def)
+#define HA_TOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_table_option_struct, field, sysvar)
 #define HA_TOPTION_END HA_xOPTION_END
 
 #define HA_FOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
@@ -749,6 +755,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_field_option_struct, field, values, def)
 #define HA_FOPTION_BOOL(name, field, def)                            \
   HA_xOPTION_BOOL(name, ha_field_option_struct, field, def)
+#define HA_FOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_field_option_struct, field, sysvar)
 #define HA_FOPTION_END HA_xOPTION_END
 
 #define HA_IOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
@@ -759,6 +767,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_index_option_struct, field, values, def)
 #define HA_IOPTION_BOOL(name, field, values, def)                    \
   HA_xOPTION_BOOL(name, ha_index_option_struct, field, values, def)
+#define HA_IOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
 
 typedef struct st_ha_create_table_option {
@@ -769,6 +779,7 @@ typedef struct st_ha_create_table_option {
   ulonglong def_value;
   ulonglong min_value, max_value, block_size;
   const char *values;
+  struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
 enum handler_iterator_type
@@ -1195,6 +1206,11 @@ struct handlerton
 static inline LEX_STRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);
+}
+
+static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
+{
+  return find_plugin_sysvar(hton2plugin[hton->slot], var);
 }
 
 

@@ -448,6 +448,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     }
   }
 
+  free_sysvar_table_options(hton);
+  update_discovery_counters(hton, -1);
+
   /*
     In case a plugin is uninstalled and re-installed later, it should
     reuse an array slot. Otherwise the number of uninstall/install
@@ -460,8 +463,6 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     DBUG_ASSERT(hton->slot < MAX_HA);
     hton2plugin[hton->slot]= NULL;
   }
-
-  update_discovery_counters(hton, -1);
 
   my_free(hton);
 
@@ -603,6 +604,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     break;
   };
 
+  resolve_sysvar_table_options(hton);
   update_discovery_counters(hton, 1);
 
   DBUG_RETURN(0);

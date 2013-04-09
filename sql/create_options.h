@@ -69,9 +69,11 @@ class engine_option_value: public Sql_alloc
 typedef struct st_key KEY;
 class Create_field;
 
+bool resolve_sysvar_table_options(handlerton *hton);
+void free_sysvar_table_options(handlerton *hton);
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
-bool parse_option_list(THD* thd, void *option_struct,
-                       engine_option_value *option_list,
+bool parse_option_list(THD* thd, handlerton *hton, void *option_struct,
+                       engine_option_value **option_list,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root);
 bool engine_table_options_frm_read(const uchar *buff, uint length,
