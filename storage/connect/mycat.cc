@@ -161,6 +161,7 @@ bool IsTypeNullable(TABTYPE type)
   {
   bool nullable;
 
+#if 0
   switch (type) {                      
     case TAB_ODBC:
     case TAB_MYSQL:
@@ -173,6 +174,18 @@ bool IsTypeNullable(TABTYPE type)
       nullable= false;
       break;
     } // endswitch type
+#endif // 0
+
+  switch (type) {                      
+    case TAB_MAC:
+    case TAB_DIR:
+      nullable= false;
+      break;
+    default:
+      nullable= true;
+      break;
+    } // endswitch type
+
 
   return nullable;
   } // end of IsTypeNullable

@@ -759,6 +759,11 @@ void TBLCOL::ReadColumn(PGLOBAL g)
   if (Colp) {
     Colp->ReadColumn(g);
     Value->SetValue_pval(To_Val);
+
+    // Set null when applicable
+    if (Colp->IsNullable())
+      Value->SetNull(Value->IsZero());
+
     } // endif Colp
 
   } // end of ReadColumn
@@ -774,6 +779,7 @@ void TBTBLK::ReadColumn(PGLOBAL g)
     htrc("TBT ReadColumn: name=%s\n", Name);
 
   Value->SetValue_psz((char*)((PTDBTBL)To_Tdb)->Tdbp->GetName());
+
   } // end of ReadColumn
 
 /* ------------------------------------------------------------------- */

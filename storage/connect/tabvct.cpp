@@ -534,6 +534,11 @@ void VCTCOL::ReadColumn(PGLOBAL g)
 //ColBlk = txfp->CurBlk;        done in ReadBlock
   ColPos = txfp->CurNum;
   Value->SetValue_pvblk(Blk, ColPos);
+
+  // Set null when applicable
+  if (Nullable)
+    Value->SetNull(Value->IsZero());
+
   } // end of ReadColumn
 
 /***********************************************************************/

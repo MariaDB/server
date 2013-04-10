@@ -382,6 +382,10 @@ void BINCOL::ReadColumn(PGLOBAL g)
       longjmp(g->jumper[g->jump_level], 11);
       } // endswitch Fmt
 
+  // Set null when applicable
+  if (Nullable)
+    Value->SetNull(Value->IsZero());
+
   } // end of ReadColumn
 
 /***********************************************************************/

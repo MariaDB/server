@@ -156,7 +156,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0003 March 02, 2013";
+       char  version[]= "Version 1.01.0004 April 10, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -2146,9 +2146,14 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
     if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
       sprintf(g->Message, "Table %s is not indexable", tdbp->GetName());
       rc= HA_ERR_INTERNAL_ERROR;
-    } else
-      if (((PTDBASE)tdbp)->ResetTableOpt(g, true))
+    } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
+      if (rc == RC_INFO) {
+        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        rc= 0;
+      } else
         rc = HA_ERR_INTERNAL_ERROR;
+
+    } // endif's
 
   } else
     rc= HA_ERR_INTERNAL_ERROR;
@@ -4310,7 +4315,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         if (cat) {
           cat->SetDataPath(g, table_arg->in_use->db);
 
-          if ((rc= optimize(NULL, NULL))) {
+          if ((rc= optimize(table->in_use, NULL))) {
             printf("Create rc=%d %s\n", rc, g->Message);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             rc= HA_ERR_INTERNAL_ERROR;
