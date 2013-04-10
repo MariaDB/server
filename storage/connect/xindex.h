@@ -147,6 +147,7 @@ class DllExport KPARTDEF : public BLOCK { /* Index Key Part desc block */
   friend class XINDEX;
   friend class PLUGCAT;
   friend class DOSDEF;
+  friend class ha_connect;
   friend int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add);
  public:
   KPARTDEF(PSZ name, int n);       // Constructor

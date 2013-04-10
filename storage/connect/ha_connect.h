@@ -108,7 +108,8 @@ public:
   int      GetColNameLen(Field *fp);
   char    *GetColName(Field *fp);
   void     AddColName(char *cp, Field *fp);
-  TABLE    *GetTable(void) {return table;}
+  TABLE   *GetTable(void) {return table;}
+  bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 
   PCONNECT GetUser(THD *thd);
   PGLOBAL  GetPlug(THD *thd);
