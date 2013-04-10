@@ -2988,6 +2988,30 @@ err:
     return true;
 }
 
+// Check that two indexes are equivalent 
+bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
+{
+  bool   b= true;
+  PKPDEF kp1, kp2;
+
+  if (stricmp(xp1->Name, xp2->Name))
+    b= false;
+  else if (xp1->Nparts  != xp2->Nparts  ||
+           xp1->MaxSame != xp2->MaxSame ||
+           xp1->Unique  != xp2->Unique)
+    b= false;
+  else for (kp1= xp1->ToKeyParts, kp2= xp2->ToKeyParts;
+            b && (kp1 || kp2);
+            kp1= kp1->Next, kp2= kp2->Next)
+    if (!kp1 || !kp2)
+      b= false;
+    else if (stricmp(kp1->Name, kp2->Name))
+      b= false;
+    else if (kp1->Klen != kp2->Klen)
+      b= false;
+
+  return b;
+} // end of IsSameIndex
 
 /**
   @brief
@@ -3074,7 +3098,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       
           for (xp2= oldpix; xp2; xp2= xp) {
             for (xp1= newpix; xp1; xp1= xp1->Next)
-              if (!stricmp(xp1->Name, xp2->Name))
+              if (IsSameIndex(xp1, xp2))
                 break;        // Index not to drop
       
             xp= xp2->GetNext();
@@ -3107,7 +3131,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
         for (xp1= newpix; xp1; xp1= xp) {
           for (xp2= oldpix; xp2; xp2= xp2->Next)
-            if (!stricmp(xp1->Name, xp2->Name))
+            if (IsSameIndex(xp1, xp2))
               break;        // Index already made
 
           xp= xp1->Next;
