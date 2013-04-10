@@ -1112,7 +1112,6 @@ thread-cache-size 0
 thread-pool-idle-timeout 60
 thread-pool-max-threads 500
 thread-pool-oversubscribe 3
-thread-pool-size 4
 thread-pool-stall-limit 500
 thread-stack 294912
 time-format %H:%i:%s
