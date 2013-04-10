@@ -1341,6 +1341,11 @@ void CSVCOL::ReadColumn(PGLOBAL g)
     PSZ fp = tdbp->Field[Fldnum];
 
     Value->SetValue_psz(fp);
+
+    // Set null when applicable
+    if (Nullable)
+      Value->SetNull(Value->IsZero());
+
   } // endif Mode
 
   } // end of ReadColumn

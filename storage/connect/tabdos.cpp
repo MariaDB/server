@@ -571,7 +571,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
         goto err;
 
     } else
-      break;     // Physical table does not exist yet or anymore
+      return RC_INFO;     // Error or Physical table does not exist
 
   if (Use == USE_OPEN)
     CloseDB(g);
@@ -1111,6 +1111,10 @@ void DOSCOL::ReadColumn(PGLOBAL g)
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
       longjmp(g->jumper[g->jump_level], 34);
     } // endswitch Ftype
+
+  // Set null when applicable
+  if (Nullable)
+    Value->SetNull(Value->IsZero());
 
   } // end of ReadColumn
 
