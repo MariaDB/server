@@ -53,7 +53,9 @@ rename table t2 to t0;
 --echo #
 copy_file $mysqld_datadir/test/t1.ARZ $MYSQL_TMP_DIR/t1.ARZ;
 alter table t1 modify a int default 5;
-move_file $MYSQL_TMP_DIR/t1.ARZ $mysqld_datadir/test/t1.ARZ;
+remove_file $mysqld_datadir/test/t1.ARZ;
+copy_file $MYSQL_TMP_DIR/t1.ARZ $mysqld_datadir/test/t1.ARZ;
+remove_file $MYSQL_TMP_DIR/t1.ARZ;
 show create table t1;
 
 --echo #

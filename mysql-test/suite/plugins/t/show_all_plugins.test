@@ -8,15 +8,19 @@ show status like '%libraries%';
 #--sorted_result
 #select * from information_schema.all_plugins;
 #show status like '%libraries%';
-select * from information_schema.all_plugins where plugin_library='ha_example.so';
+--replace_result .dll .so
+eval select * from information_schema.all_plugins where plugin_library='$HA_EXAMPLE_SO';
 show status like '%libraries%';
 --sorted_result
-show plugins soname 'ha_example.so';
+--replace_result .dll .so
+eval show plugins soname '$HA_EXAMPLE_SO';
 show status like '%libraries%';
 --sorted_result
+--replace_result .dll .so
 show plugins soname like '%example%';
 show status like '%libraries%';
 --sorted_result
-show plugins soname where library = 'ha_example.so';
+--replace_result .dll .so
+eval show plugins soname where library = '$HA_EXAMPLE_SO';
 select variable_value > 10 from information_schema.global_status where variable_name like '%libraries%';
 
