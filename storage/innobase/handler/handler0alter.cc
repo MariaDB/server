@@ -310,8 +310,7 @@ innobase_check_index_keys(
 					}
 				}
 
-				my_error(ER_WRONG_KEY_COLUMN, MYF(0),
-                                         field->table->file->table_type(),
+				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 					 field->field_name);
 				return(ER_WRONG_KEY_COLUMN);
 			}
@@ -325,8 +324,7 @@ innobase_check_index_keys(
 					continue;
 				}
 
-				my_error(ER_WRONG_KEY_COLUMN, MYF(0),
-                                         field->table->file->table_type(),
+				my_error(ER_WRONG_KEY_COLUMN, MYF(0), "InnoDB",
 					 key_part1.field->field_name);
 				return(ER_WRONG_KEY_COLUMN);
 			}
