@@ -65,8 +65,9 @@ class MYCAT : public CATALOG {
   bool    GetIndexInfo(PGLOBAL g, PTABDEF defp);
   bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}  // Temporary
   PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
-                                  LPCSTR am, PRELDEF *prp = NULL);
-  PTDB    GetTable(PGLOBAL g, PTABLE tablep, MODE mode = MODE_READ);
+                                  LPCSTR type, PRELDEF *prp = NULL);
+  PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
+                              MODE mode = MODE_READ, LPCSTR type = NULL);
   void    ClearDB(PGLOBAL g);
 
  protected:
