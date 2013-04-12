@@ -5,10 +5,7 @@
 # 2010-01-21 OBN - Added 
 #
 source include/not_embedded.inc;
-source include/have_semisync_plugin.inc;
-# The following is to prevent a mis-match on windows that has the name of of the lib ending with 'dll' 
---replace_regex /\.dll/.so/
-eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_SO';
+source include/have_semisync.inc;
 select @@global.rpl_semi_sync_slave_trace_level;
 SET @start_global_value = @@global.rpl_semi_sync_slave_trace_level;
 
@@ -59,5 +56,3 @@ set global rpl_semi_sync_slave_trace_level="some text";
 #
 SET @@global.rpl_semi_sync_slave_trace_level = @start_global_value;
 select @@global.rpl_semi_sync_slave_trace_level;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-

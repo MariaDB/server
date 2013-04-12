@@ -2215,7 +2215,7 @@ longlong Item_func_shift_left::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 longlong Item_func_shift_right::val_int()
@@ -2230,7 +2230,7 @@ longlong Item_func_shift_right::val_int()
     return 0;
   }
   null_value=0;
-  return (shift < sizeof(longlong)*8 ? (longlong) res : LL(0));
+  return (shift < sizeof(longlong)*8 ? (longlong) res : 0);
 }
 
 
@@ -3163,7 +3163,7 @@ void Item_func_find_in_set::fix_length_and_dec()
 			      find->length(), 0);
 	enum_bit=0;
 	if (enum_value)
-	  enum_bit=LL(1) << (enum_value-1);
+	  enum_bit=1LL << (enum_value-1);
       }
     }
   }
@@ -3244,7 +3244,7 @@ longlong Item_func_find_in_set::val_int()
                wc == (my_wc_t) separator)
         return (longlong) ++position;
       else
-        return LL(0);
+        return 0;
     }
   }
   return 0;
@@ -3965,7 +3965,7 @@ class Interruptible_wait
 
 
 /** Time to wait before polling the connection status. */
-const ulonglong Interruptible_wait::m_interrupt_interval= 5 * ULL(1000000000);
+const ulonglong Interruptible_wait::m_interrupt_interval= 5 * 1000000000ULL;
 
 
 /**
@@ -4089,7 +4089,7 @@ longlong Item_func_get_lock::val_int()
   thd->mysys_var->current_mutex= &LOCK_user_locks;
   thd->mysys_var->current_cond=  &ull->cond;
 
-  timed_cond.set_timeout(timeout * ULL(1000000000));
+  timed_cond.set_timeout(timeout * 1000000000ULL);
 
   error= 0;
   thd_wait_begin(thd, THD_WAIT_USER_LOCK);
@@ -4669,7 +4669,7 @@ double user_var_entry::val_real(bool *null_value)
 longlong user_var_entry::val_int(bool *null_value) const
 {
   if ((*null_value= (value == 0)))
-    return LL(0);
+    return 0;
 
   switch (type) {
   case REAL_RESULT:
@@ -4693,7 +4693,7 @@ longlong user_var_entry::val_int(bool *null_value) const
     DBUG_ASSERT(0);				// Impossible
     break;
   }
-  return LL(0);					// Impossible
+  return 0;					// Impossible
 }
 
 
@@ -5186,7 +5186,7 @@ longlong Item_func_get_user_var::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   if (!var_entry)
-    return LL(0);				// No such variable
+    return 0;				// No such variable
   return (var_entry->val_int(&null_value));
 }
 
@@ -5668,24 +5668,6 @@ enum_field_types Item_func_get_system_var::field_type() const
 }
 
 
-/*
-  Uses var, var_type, component, cache_present, used_query_id, thd,
-  cached_llval, null_value, cached_null_value
-*/
-#define get_sys_var_safe(type) \
-do { \
-  type value; \
-  mysql_mutex_lock(&LOCK_global_system_variables); \
-  value= *(type*) var->value_ptr(thd, var_type, &component); \
-  mysql_mutex_unlock(&LOCK_global_system_variables); \
-  cache_present |= GET_SYS_VAR_CACHE_LONG; \
-  used_query_id= thd->query_id; \
-  cached_llval= null_value ? 0 : (longlong) value; \
-  cached_null_value= null_value; \
-  return cached_llval; \
-} while (0)
-
-
 longlong Item_func_get_system_var::val_int()
 {
   THD *thd= current_thd;
@@ -5719,51 +5701,11 @@ longlong Item_func_get_system_var::val_int()
     }
   }
 
-  switch (var->show_type())
-  {
-    case SHOW_SINT:     get_sys_var_safe (int);
-    case SHOW_SLONG:    get_sys_var_safe (long);
-    case SHOW_SLONGLONG:get_sys_var_safe (longlong);
-    case SHOW_UINT:     get_sys_var_safe (uint);
-    case SHOW_ULONG:    get_sys_var_safe (ulong);
-    case SHOW_ULONGLONG:get_sys_var_safe (ulonglong);
-    case SHOW_HA_ROWS:  get_sys_var_safe (ha_rows);
-    case SHOW_BOOL:     get_sys_var_safe (bool);
-    case SHOW_MY_BOOL:  get_sys_var_safe (my_bool);
-    case SHOW_DOUBLE:
-      {
-        double dval= val_real();
-
-        used_query_id= thd->query_id;
-        cached_llval= (longlong) dval;
-        cache_present|= GET_SYS_VAR_CACHE_LONG;
-        return cached_llval;
-      }
-    case SHOW_CHAR:
-    case SHOW_CHAR_PTR:
-    case SHOW_LEX_STRING:
-      {
-        String *str_val= val_str(NULL);
-
-        if (str_val && str_val->length())
-          cached_llval= longlong_from_string_with_check (system_charset_info,
-                                                          str_val->c_ptr(), 
-                                                          str_val->c_ptr() + 
-                                                          str_val->length());
-        else
-        {
-          null_value= TRUE;
-          cached_llval= 0;
-        }
-
-        cache_present|= GET_SYS_VAR_CACHE_LONG;
-        return cached_llval;
-      }
-
-    default:            
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str); 
-      return 0;                               // keep the compiler happy
-  }
+  cached_llval= var->val_int(&null_value, thd, var_type, &component);
+  cache_present |= GET_SYS_VAR_CACHE_LONG;
+  used_query_id= thd->query_id;
+  cached_null_value= null_value;
+  return cached_llval;
 }
 
 
@@ -5796,61 +5738,10 @@ String* Item_func_get_system_var::val_str(String* str)
     }
   }
 
-  str= &cached_strval;
-  switch (var->show_type())
-  {
-    case SHOW_CHAR:
-    case SHOW_CHAR_PTR:
-    case SHOW_LEX_STRING:
-    {
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      char *cptr= var->show_type() == SHOW_CHAR ? 
-        (char*) var->value_ptr(thd, var_type, &component) :
-        *(char**) var->value_ptr(thd, var_type, &component);
-      if (cptr)
-      {
-        size_t len= var->show_type() == SHOW_LEX_STRING ?
-          ((LEX_STRING*)(var->value_ptr(thd, var_type, &component)))->length :
-          strlen(cptr);
-        if (str->copy(cptr, len, collation.collation))
-        {
-          null_value= TRUE;
-          str= NULL;
-        }
-      }
-      else
-      {
-        null_value= TRUE;
-        str= NULL;
-      }
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      break;
-    }
-
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-      str->set (val_int(), collation.collation);
-      break;
-    case SHOW_DOUBLE:
-      str->set_real (val_real(), decimals, collation.collation);
-      break;
-
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      str= NULL;
-      break;
-  }
-
+  str= var->val_str(&cached_strval, thd, var_type, &component);
   cache_present|= GET_SYS_VAR_CACHE_STRING;
   used_query_id= thd->query_id;
-  cached_null_value= null_value;
+  cached_null_value= null_value= !str;
   return str;
 }
 
@@ -5888,58 +5779,11 @@ double Item_func_get_system_var::val_real()
     }
   }
 
-  switch (var->show_type())
-  {
-    case SHOW_DOUBLE:
-      mysql_mutex_lock(&LOCK_global_system_variables);
-      cached_dval= *(double*) var->value_ptr(thd, var_type, &component);
-      mysql_mutex_unlock(&LOCK_global_system_variables);
-      used_query_id= thd->query_id;
-      cached_null_value= null_value;
-      if (null_value)
-        cached_dval= 0;
-      cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-      return cached_dval;
-    case SHOW_CHAR:
-    case SHOW_LEX_STRING:
-    case SHOW_CHAR_PTR:
-      {
-        mysql_mutex_lock(&LOCK_global_system_variables);
-        char *cptr= var->show_type() == SHOW_CHAR ? 
-          (char*) var->value_ptr(thd, var_type, &component) :
-          *(char**) var->value_ptr(thd, var_type, &component);
-        if (cptr)
-          cached_dval= double_from_string_with_check (system_charset_info, 
-                                                cptr, cptr + strlen (cptr));
-        else
-        {
-          null_value= TRUE;
-          cached_dval= 0;
-        }
-        mysql_mutex_unlock(&LOCK_global_system_variables);
-        used_query_id= thd->query_id;
-        cached_null_value= null_value;
-        cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-        return cached_dval;
-      }
-    case SHOW_SINT:
-    case SHOW_SLONG:
-    case SHOW_SLONGLONG:
-    case SHOW_UINT:
-    case SHOW_ULONG:
-    case SHOW_ULONGLONG:
-    case SHOW_HA_ROWS:
-    case SHOW_BOOL:
-    case SHOW_MY_BOOL:
-        cached_dval= (double) val_int();
-        cache_present|= GET_SYS_VAR_CACHE_DOUBLE;
-        used_query_id= thd->query_id;
-        cached_null_value= null_value;
-        return cached_dval;
-    default:
-      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
-      return 0;
-  }
+  cached_dval= var->val_real(&null_value, thd, var_type, &component);
+  cache_present |= GET_SYS_VAR_CACHE_DOUBLE;
+  used_query_id= thd->query_id;
+  cached_null_value= null_value;
+  return cached_dval;
 }
 
 
@@ -6143,7 +5987,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   table=((Item_field *)item)->field->table;
   if (!(table->file->ha_table_flags() & HA_CAN_FULLTEXT))
   {
-    my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0));
+    my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
     return 1;
   }
   table->fulltext_searched=1;

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ const char field_separator=',';
 #define LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
-((ulong) ((LL(1) << min(arg, 4) * 8) - LL(1)))
+((ulong) ((1LL << min(arg, 4) * 8) - 1))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
 #define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
@@ -3659,7 +3659,7 @@ int Field_long::store(longlong nr, bool unsigned_val)
       res=0;
       error= 1;
     }
-    else if ((ulonglong) nr >= (LL(1) << 32))
+    else if ((ulonglong) nr >= (1LL << 32))
     {
       res=(int32) (uint32) ~0L;
       error= 1;
@@ -4593,7 +4593,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   longlong tmp= number_to_datetime(nr, 0, &l_time, (thd->variables.sql_mode &
                                                  MODE_NO_ZERO_DATE) |
                                    MODE_NO_ZERO_IN_DATE, &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != LL(-1));
+  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
 }
 
 
@@ -5811,8 +5811,8 @@ String *Field_datetime::val_str(String *val_buffer,
     Avoid problem with slow longlong arithmetic and sprintf
   */
 
-  part1=(long) (tmp/LL(1000000));
-  part2=(long) (tmp - (ulonglong) part1*LL(1000000));
+  part1=(long) (tmp/1000000LL);
+  part2=(long) (tmp - (ulonglong) part1*1000000LL);
 
   pos=(char*) val_buffer->ptr() + MAX_DATETIME_WIDTH;
   *pos--=0;
@@ -5843,8 +5843,8 @@ bool Field_datetime::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   longlong tmp=Field_datetime::val_int();
   uint32 part1,part2;
-  part1=(uint32) (tmp/LL(1000000));
-  part2=(uint32) (tmp - (ulonglong) part1*LL(1000000));
+  part1=(uint32) (tmp/1000000LL);
+  part2=(uint32) (tmp - (ulonglong) part1*1000000LL);
 
   ltime->time_type=	MYSQL_TIMESTAMP_DATETIME;
   ltime->neg=		0;
@@ -7966,7 +7966,7 @@ int Field_set::store(longlong nr, bool unsigned_val)
   if (sizeof(ulonglong)*8 <= typelib->count)
     max_nr= ULONGLONG_MAX;
   else
-    max_nr= (ULL(1) << typelib->count) - 1;
+    max_nr= (1ULL << typelib->count) - 1;
 
   if ((ulonglong) nr > max_nr)
   {

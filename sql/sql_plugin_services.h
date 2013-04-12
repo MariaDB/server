@@ -1,4 +1,5 @@
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,11 +42,6 @@ static struct thd_wait_service_st thd_wait_handler= {
   thd_wait_end
 };
 
-static struct my_thread_scheduler_service my_thread_scheduler_handler= {
-  my_thread_scheduler_set,
-  my_thread_scheduler_reset,
-};
-
 static struct progress_report_service_st progress_report_handler= {
   thd_progress_init,
   thd_progress_report,
@@ -63,7 +59,6 @@ static struct st_service_ref list_of_services[]=
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
   { "thd_alloc_service",           VERSION_thd_alloc,           &thd_alloc_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
-  { "my_thread_scheduler_service", VERSION_my_thread_scheduler, &my_thread_scheduler_handler },
   { "progress_report_service",     VERSION_progress_report,     &progress_report_handler },
   { "debug_sync_service",          VERSION_debug_sync,          0 }, // updated in plugin_init()
   { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler }

@@ -199,7 +199,7 @@ DROP TABLE example;
 --rmdir $MYSQLTEST_VARDIR/p2Index
 --rmdir $MYSQLTEST_VARDIR/p3Index
 
---error ER_CANT_CREATE_TABLE,1
+--error 1
 CREATE TABLE `example` (
   `ID_EXAMPLE` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `DESCRIPTION` varchar(30) NOT NULL,

@@ -1,4 +1,4 @@
-source include/have_semisync_plugin.inc;
+source include/have_semisync.inc;
 source include/not_embedded.inc;
 source include/have_innodb.inc;
 source include/master-slave.inc;
@@ -7,7 +7,6 @@ let $engine_type= InnoDB;
 #let $engine_type= MyISAM;
 
 # Suppress warnings that might be generated during the test
-disable_query_log;
 connection master;
 call mtr.add_suppression("Timeout waiting for reply of binlog");
 call mtr.add_suppression("Read semi-sync reply");
@@ -16,7 +15,6 @@ connection slave;
 call mtr.add_suppression("Master server does not support semi-sync");
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
-enable_query_log;
 connection master;
 
 # wait for dying connections (if any) to disappear
@@ -32,27 +30,15 @@ let $_connections_normal_slave= query_get_value(SHOW STATUS LIKE 'Threads_connec
 --echo # Uninstall semi-sync plugins on master and slave
 --echo #
 connection slave;
-disable_query_log;
 source include/stop_slave.inc;
 reset slave;
-disable_warnings;
-error 0,1305;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-error 0,1305;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-enable_warnings;
+set global rpl_semi_sync_master_enabled= 0;
+set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
 reset master;
-set sql_log_bin=0;
-disable_warnings;
-error 0,1305;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-error 0,1305;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-enable_warnings;
-set sql_log_bin=1;
-enable_query_log;
+set global rpl_semi_sync_master_enabled= 0;
+set global rpl_semi_sync_slave_enabled= 0;
 
 --echo #
 --echo # Main test of semi-sync replication start here
@@ -61,16 +47,7 @@ enable_query_log;
 connection master;
 echo [ on master ];
 
-disable_query_log;
-let $value = query_get_value(show variables like 'rpl_semi_sync_master_enabled', Value, 1);
-if ($value == No such row)
-{
-    set sql_log_bin=0;
-    eval INSTALL PLUGIN rpl_semi_sync_master SONAME '$SEMISYNC_MASTER_SO';
-    set global rpl_semi_sync_master_timeout= 60000; /* 60s */
-    set sql_log_bin=1;
-}
-enable_query_log;
+set global rpl_semi_sync_master_timeout= 60000; # 60s
 
 echo [ default state of semi-sync on master should be OFF ];
 show variables like 'rpl_semi_sync_master_enabled';
@@ -116,27 +93,11 @@ show status like 'Rpl_semi_sync_master_status';
 --replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
-disable_query_log;
 # reset master to make sure the following test will start with a clean environment
 reset master;
-enable_query_log;
-
---echo #
---echo # INSTALL PLUGIN semi-sync on slave
---echo #
 
 connection slave;
 echo [ on slave ];
-
-disable_query_log;
-let $value= query_get_value(show variables like 'rpl_semi_sync_slave_enabled', Value, 1);
-if ($value == No such row)
-{
-    set sql_log_bin=0;
-    eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_SO';
-    set sql_log_bin=1;
-}
-enable_query_log;
 
 echo [ default state of semi-sync on slave should be OFF ];
 show variables like 'rpl_semi_sync_slave_enabled';
@@ -177,15 +138,17 @@ let $_connections_semisync_slave= query_get_value(SHOW STATUS LIKE 'Threads_conn
 replace_result $_connections_normal_slave CONNECTIONS_NORMAL_SLAVE $_connections_semisync_slave CONNECTIONS_SEMISYNC_SLAVE;
 eval select $_connections_semisync_slave - $_connections_normal_slave as 'Should be 0';
 
-let $i=10;
 echo [ insert records to table ];
-disable_query_log;
-while ($i)
-{
-  eval insert into t1 values ($i);
-  dec $i;
-}
-enable_query_log;
+insert t1 values (10);
+insert t1 values (9);
+insert t1 values (8);
+insert t1 values (7);
+insert t1 values (6);
+insert t1 values (5);
+insert t1 values (4);
+insert t1 values (3);
+insert t1 values (2);
+insert t1 values (1);
 
 echo [ master status after inserts ];
 show status like 'Rpl_semi_sync_master_status';
@@ -271,14 +234,16 @@ show status like 'Rpl_semi_sync_master_yes_tx';
 
 # Semi-sync status on master is now OFF, so all these transactions
 # will be replicated asynchronously.
-let $i=10;
-disable_query_log;
-while ($i)
-{
-  eval delete from t1 where a=$i;
-  dec $i;
-}
-enable_query_log;
+delete from t1 where a=10;
+delete from t1 where a=9;
+delete from t1 where a=8;
+delete from t1 where a=7;
+delete from t1 where a=6;
+delete from t1 where a=5;
+delete from t1 where a=4;
+delete from t1 where a=3;
+delete from t1 where a=2;
+delete from t1 where a=1;
 
 insert into t1 values (100);
 
@@ -408,9 +373,8 @@ connection master;
 let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
 if ($_tid)
 {
-  disable_query_log;
+  --replace_result $_tid _tid
   eval kill query $_tid;
-  enable_query_log;
 
   # After dump thread exit, Rpl_semi_sync_master_clients will be 0
   let $status_var= Rpl_semi_sync_master_clients;
@@ -463,9 +427,8 @@ reset master;
 let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
 if ($_tid)
 {
-  disable_query_log;
+  --replace_result $_tid _tid
   eval kill query $_tid;
-  enable_query_log;
 
   # After dump thread exit, Rpl_semi_sync_master_clients will be 0
   let $status_var= Rpl_semi_sync_master_clients;
@@ -525,9 +488,8 @@ echo [ on master ];
 let $_tid= `select id from information_schema.processlist where command = 'Binlog Dump' limit 1`;
 if ($_tid)
 {
-  disable_query_log;
+  --replace_result $_tid _tid
   eval kill query $_tid;
-  enable_query_log;
 
   # After dump thread exit, Rpl_semi_sync_master_clients will be 0
   let $status_var= Rpl_semi_sync_master_clients;
@@ -562,11 +524,7 @@ connection slave;
 source include/stop_slave.inc;
 connection master;
 echo [ on master ];
-set sql_log_bin=0;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-set sql_log_bin=1;
-enable_query_log;
-SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled';
+set global rpl_semi_sync_master_enabled= 0;
 
 connection slave;
 echo [ on slave ];
@@ -577,19 +535,13 @@ connection master;
 echo [ on master ];
 insert into t1 values (10);
 sync_slave_with_master;
-echo [ on slave ];
-SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 
 --echo #
 --echo # Test non-semi-sync slave connect to semi-sync master
 --echo #
 
 connection master;
-set sql_log_bin=0;
-replace_result $SEMISYNC_MASTER_SO SEMISYNC_MASTER_SO;
-eval INSTALL PLUGIN rpl_semi_sync_master SONAME '$SEMISYNC_MASTER_SO';
-set global rpl_semi_sync_master_timeout= 5000; /* 5s */
-set sql_log_bin=1;
+set global rpl_semi_sync_master_timeout= 5000; # 5s
 set global rpl_semi_sync_master_enabled= 1;
 
 connection slave;
@@ -598,16 +550,9 @@ source include/stop_slave.inc;
 SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 
 echo [ uninstall semi-sync slave plugin ];
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
-source include/start_slave.inc;
-SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
-source include/stop_slave.inc;
+set global rpl_semi_sync_slave_enabled= 0;
 
 echo [ reinstall semi-sync slave plugin and disable semi-sync ];
-replace_result $SEMISYNC_SLAVE_SO SEMISYNC_SLAVE_SO;
-eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_SO';
-set global rpl_semi_sync_slave_enabled= 0;
 SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
 SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 source include/start_slave.inc;
@@ -619,14 +564,10 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 
 connection slave;
 source include/stop_slave.inc;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
+set global rpl_semi_sync_slave_enabled= 0;
 
 connection master;
-# The dump thread may still be running on the master, and so the following
-# UNINSTALL could generate a warning about the plugin is busy.
-disable_warnings;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-enable_warnings;
+set global rpl_semi_sync_master_enabled= 0;
 
 connection slave;
 change master to master_user='root',master_password='';
@@ -639,4 +580,5 @@ sync_slave_with_master;
 connection master;
 drop user rpl@127.0.0.1;
 flush privileges;
+set global rpl_semi_sync_master_timeout= default;
 --source include/rpl_end.inc

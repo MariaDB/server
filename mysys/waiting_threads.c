@@ -1,4 +1,5 @@
 /* Copyright (C) 2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1068,7 +1069,7 @@ int wt_thd_cond_timedwait(WT_THD *thd, mysql_mutex_t *mutex)
     ret= WT_OK;
   rc_unlock(rc);
 
-  end_wait_time= starttime.val *1000 + (*thd->timeout_short)*ULL(1000000);
+  end_wait_time= starttime.val *1000 + (*thd->timeout_short)*1000000ULL;
   set_timespec_time_nsec(timeout, end_wait_time);
   if (ret == WT_TIMEOUT && !thd->killed)
     ret= mysql_cond_timedwait(&rc->cond, mutex, &timeout);
@@ -1081,7 +1082,7 @@ int wt_thd_cond_timedwait(WT_THD *thd, mysql_mutex_t *mutex)
       ret= WT_DEADLOCK;
     else if (*thd->timeout_long > *thd->timeout_short)
     {
-      end_wait_time= starttime.val *1000 + (*thd->timeout_long)*ULL(1000000);
+      end_wait_time= starttime.val *1000 + (*thd->timeout_long)*1000000ULL;
       set_timespec_time_nsec(timeout, end_wait_time);
       if (!thd->killed)
         ret= mysql_cond_timedwait(&rc->cond, mutex, &timeout);

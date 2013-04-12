@@ -118,6 +118,8 @@ static HASH example_open_tables;
 /* The mutex used to init the hash; variable for example share methods */
 mysql_mutex_t example_mutex;
 
+static MYSQL_THDVAR_ULONG(varopt_default, PLUGIN_VAR_RQCMDARG,
+  "default value of the VAROPT table option", NULL, NULL, 5, 0, 100, 0);
 
 /**
   Structure for CREATE TABLE options (table options).
@@ -133,6 +135,7 @@ struct ha_table_option_struct
   ulonglong ullparam;
   uint enumparam;
   bool boolparam;
+  ulonglong varparam;
 };
 
 
@@ -179,6 +182,12 @@ ha_create_table_option example_table_option_list[]=
     The default is 1, that is true, yes, on.
   */
   HA_TOPTION_BOOL("YESNO", boolparam, 1),
+  /*
+    one option defined by the system variable. The type, the range, or
+    a list of allowed values is the same as for the system variable.
+  */
+  HA_TOPTION_SYSVAR("VAROPT", varparam, varopt_default),
+
   HA_TOPTION_END
 };
 
@@ -229,6 +238,27 @@ static void init_example_psi_keys()
 #endif
 
 
+/**
+  @brief
+  If frm_error() is called then we will use this to determine
+  the file extensions that exist for the storage engine. This is also
+  used by the default rename_table and delete_table method in
+  handler.cc and by the default discover_many method.
+
+  For engines that have two file name extentions (separate meta/index file
+  and data file), the order of elements is relevant. First element of engine
+  file name extentions array should be meta/index file extention. Second
+  element - data file extention. This order is assumed by
+  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
+
+  @see
+  rename_table method in handler.cc and
+  delete_table method in handler.cc
+*/
+
+static const char *ha_example_exts[] = {
+  NullS
+};
 static int example_init_func(void *p)
 {
   DBUG_ENTER("example_init_func");
@@ -247,6 +277,7 @@ static int example_init_func(void *p)
   example_hton->flags=   HTON_CAN_RECREATE;
   example_hton->table_options= example_table_option_list;
   example_hton->field_options= example_field_option_list;
+  example_hton->tablefile_extensions= ha_example_exts;
 
   DBUG_RETURN(0);
 }
@@ -352,33 +383,6 @@ ha_example::ha_example(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg)
 {}
 
-
-/**
-  @brief
-  If frm_error() is called then we will use this to determine
-  the file extensions that exist for the storage engine. This is also
-  used by the default rename_table and delete_table method in
-  handler.cc.
-
-  For engines that have two file name extentions (separate meta/index file
-  and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
-  element - data file extention. This order is assumed by
-  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-
-  @see
-  rename_table method in handler.cc and
-  delete_table method in handler.cc
-*/
-
-static const char *ha_example_exts[] = {
-  NullS
-};
-
-const char **ha_example::bas_ext() const
-{
-  return ha_example_exts;
-}
 
 /**
   @brief
@@ -1094,6 +1098,7 @@ static MYSQL_SYSVAR_ULONG(
 static struct st_mysql_sys_var* example_system_variables[]= {
   MYSQL_SYSVAR(enum_var),
   MYSQL_SYSVAR(ulong_var),
+  MYSQL_SYSVAR(varopt_default),
   NULL
 };
 
@@ -1112,7 +1117,7 @@ static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
 
 static struct st_mysql_show_var func_status[]=
 {
-  {"example_func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
+  {"func_example",  (char *)show_func_example, SHOW_SIMPLE_FUNC},
   {0,0,SHOW_UNDEF}
 };
 

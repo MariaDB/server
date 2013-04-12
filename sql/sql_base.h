@@ -69,6 +69,8 @@ enum enum_tdc_remove_table_type {TDC_RT_REMOVE_ALL, TDC_RT_REMOVE_NOT_OWN,
 #define RTFC_WAIT_OTHER_THREAD_FLAG 0x0002
 #define RTFC_CHECK_KILLED_FLAG      0x0004
 
+extern HASH table_def_cache;
+
 bool check_dup(const char *db, const char *name, TABLE_LIST *tables);
 extern mysql_mutex_t LOCK_open;
 bool table_cache_init(void);
@@ -79,9 +81,6 @@ void table_def_start_shutdown(void);
 void assign_new_table_id(TABLE_SHARE *share);
 uint cached_open_tables(void);
 uint cached_table_definitions(void);
-uint create_table_def_key(THD *thd, char *key,
-                          const TABLE_LIST *table_list,
-                          bool tmp_table);
 
 /**
   Create a table cache key for non-temporary table.
@@ -107,11 +106,33 @@ create_table_def_key(char *key, const char *db, const char *table_name)
                         NAME_LEN) - key + 1);
 }
 
-TABLE_SHARE *get_table_share(THD *thd, TABLE_LIST *table_list, char *key,
-                             uint key_length, uint db_flags, int *error,
+uint create_tmp_table_def_key(THD *thd, char *key, const char *db,
+                              const char *table_name);
+TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
+                             char *key, uint key_length, uint flags,
                              my_hash_value_type hash_value);
 void release_table_share(TABLE_SHARE *share);
 TABLE_SHARE *get_cached_table_share(const char *db, const char *table_name);
+
+// convenience helper: call get_table_share() without precomputed hash_value
+static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
+                                           const char *table_name,
+                                           char *key, uint key_length,
+                                           uint flags)
+{
+  return get_table_share(thd, db, table_name, key, key_length, flags,
+                my_calc_hash(&table_def_cache, (uchar*) key, key_length));
+}
+
+// convenience helper: call get_table_share() without precomputed cache key
+static inline TABLE_SHARE *get_table_share(THD *thd, const char *db,
+                                           const char *table_name, uint flags)
+{
+  char	key[MAX_DBKEY_LENGTH];
+  uint	key_length;
+  key_length= create_table_def_key(key, db, table_name);
+  return get_table_share(thd, db, table_name, key, key_length, flags);
+}
 
 TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type update,
                    uint lock_flags);
@@ -174,8 +195,8 @@ bool open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
-TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
-			   const char *table_name,
+TABLE *open_table_uncached(THD *thd, handlerton *hton, const char *path,
+                           const char *db, const char *table_name,
                            bool add_to_temporary_tables_list);
 TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name);
 TABLE *find_write_locked_table(TABLE *list, const char *db,
@@ -327,13 +348,23 @@ void tdc_remove_table(THD *thd, enum_tdc_remove_table_type remove_type,
 bool tdc_open_view(THD *thd, TABLE_LIST *table_list, const char *alias,
                    char *cache_key, uint cache_key_length,
                    MEM_ROOT *mem_root, uint flags);
+
+static inline bool tdc_open_view(THD *thd, TABLE_LIST *table_list,
+                                 const char *alias, MEM_ROOT *mem_root,
+                                 uint flags)
+{
+  char key[MAX_DBKEY_LENGTH];
+  uint key_length;
+  key_length= create_table_def_key(key, table_list->db, table_list->table_name);
+  return tdc_open_view(thd, table_list, alias, key, key_length, mem_root, flags);
+}
+
 void tdc_flush_unused_tables();
 TABLE *find_table_for_mdl_upgrade(THD *thd, const char *db,
                                   const char *table_name,
                                   bool no_error);
 void mark_tmp_table_for_reuse(TABLE *table);
-bool check_if_table_exists(THD *thd, TABLE_LIST *table, bool fast_check,
-                           bool *exists);
+
 int update_virtual_fields(THD *thd, TABLE *table,
       enum enum_vcol_update_mode vcol_update_mode= VCOL_UPDATE_FOR_READ);
 int dynamic_column_error_message(enum_dyncol_func_result rc);
@@ -350,7 +381,6 @@ extern TABLE *unused_tables;
 extern Item **not_found_item;
 extern Field *not_found_field;
 extern Field *view_ref_found;
-extern HASH table_def_cache;
 
 /**
   clean/setup table fields and map.

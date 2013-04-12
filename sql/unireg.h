@@ -23,8 +23,6 @@
 
 /*  Extra functions used by unireg library */
 
-typedef struct st_ha_create_information HA_CREATE_INFO;
-
 #ifndef NO_ALARM_LOOP
 #define NO_ALARM_LOOP		/* lib5 and popen can't use alarm */
 #endif
@@ -88,7 +86,7 @@ typedef struct st_ha_create_information HA_CREATE_INFO;
 #define READ_ALL		1	/* openfrm: Read all parameters */
 #define CHANGE_FRM		2	/* openfrm: open .frm as O_RDWR */
 #define READ_KEYINFO		4	/* L{s nyckeldata fr}n filen */
-#define EXTRA_RECORD		8	/* Reservera plats f|r extra record */
+#define EXTRA_RECORD		8	/* Reserve space for an extra record */
 #define DONT_OPEN_TABLES	8	/* Don't open database-files (frd) */
 #define DONT_OPEN_MASTER_REG	16	/* Don't open first reg-file (prt) */
 #define EXTRA_LONG_RECORD	16	/* Plats f|r dubbel s|k-record */
@@ -169,15 +167,44 @@ typedef struct st_ha_create_information HA_CREATE_INFO;
 #include "sql_list.h"                           /* List<> */
 #include "field.h"                              /* Create_field */
 
-bool mysql_create_frm(THD *thd, const char *file_name,
-                      const char *db, const char *table,
-		      HA_CREATE_INFO *create_info,
-		      List<Create_field> &create_field,
-		      uint key_count,KEY *key_info,handler *db_type);
-int rea_create_table(THD *thd, const char *path,
-                     const char *db, const char *table_name,
-                     HA_CREATE_INFO *create_info,
-  		     List<Create_field> &create_field,
-                     uint key_count,KEY *key_info,
-                     handler *file);
+/*
+  Types of values in the MariaDB extra2 frm segment.
+  Each value is written as
+    type:       1 byte
+    length:     1 byte  (1..255) or \0 and 2 bytes.
+    binary value of the 'length' bytes.
+
+  Older MariaDB servers can ignore values of unknown types if
+  the type code is less than 128 (EXTRA2_ENGINE_IMPORTANT).
+  Otherwise older (but newer than 10.0.1) servers are required
+  to report an error.
+*/
+enum extra2_frm_value_type {
+  EXTRA2_TABLEDEF_VERSION=0,
+
+#define EXTRA2_ENGINE_IMPORTANT 128
+
+  EXTRA2_ENGINE_TABLEOPTS=128,
+};
+
+int rea_create_table(THD *thd, LEX_CUSTRING *frm,
+                     const char *path, const char *db, const char *table_name,
+                     HA_CREATE_INFO *create_info, handler *file);
+LEX_CUSTRING build_frm_image(THD *thd, const char *table,
+                             HA_CREATE_INFO *create_info,
+                             List<Create_field> &create_fields,
+                             uint keys, KEY *key_info, handler *db_file);
+
+#define FRM_HEADER_SIZE 64
+#define FRM_FORMINFO_SIZE 288
+#define FRM_MAX_SIZE (256*1024)
+
+static inline bool is_binary_frm_header(uchar *head)
+{
+  return head[0] == 254
+      && head[1] == 1
+      && head[2] >= FRM_VER
+      && head[2] <= FRM_VER+4;
+}
+
 #endif

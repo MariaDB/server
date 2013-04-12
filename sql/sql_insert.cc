@@ -3895,8 +3895,8 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   {
     if (!mysql_create_table_no_lock(thd, create_table->db,
                                     create_table->table_name,
-                                    create_info, alter_info, 0,
-                                    select_field_count, NULL))
+                                    create_info, alter_info, NULL,
+                                    select_field_count))
     {
       DEBUG_SYNC(thd,"create_table_select_before_open");
 

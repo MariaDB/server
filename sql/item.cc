@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab
+   Copyright (c) 2010, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4012,8 +4012,8 @@ double Item_copy_string::val_real()
 longlong Item_copy_string::val_int()
 {
   int err;
-  return null_value ? LL(0) : my_strntoll(str_value.charset(),str_value.ptr(),
-                                          str_value.length(),10, (char**) 0,
+  return null_value ? 0 : my_strntoll(str_value.charset(),str_value.ptr(),
+                                          str_value.length(), 10, (char**) 0,
                                           &err); 
 }
 
@@ -4183,7 +4183,7 @@ double Item_copy_decimal::val_real()
 longlong Item_copy_decimal::val_int()
 {
   if (null_value)
-    return LL(0);
+    return 0;
   else
   {
     longlong result;

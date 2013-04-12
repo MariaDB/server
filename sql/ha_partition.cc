@@ -78,6 +78,17 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static uint alter_table_flags(uint flags);
 
+/*
+  If frm_error() is called then we will use this to to find out what file
+  extensions exist for the storage engine. This is also used by the default
+  rename_table and delete_table method in handler.cc.
+*/
+
+static const char *ha_partition_ext[]=
+{
+  ha_par_ext, NullS
+};
+
 
 static int partition_initialize(void *p)
 {
@@ -93,6 +104,7 @@ static int partition_initialize(void *p)
   partition_hton->flags= HTON_NOT_USER_SELECTABLE |
                          HTON_HIDDEN |
                          HTON_TEMPORARY_NOT_SUPPORTED;
+  partition_hton->tablefile_extensions= ha_partition_ext;
 
   return 0;
 }
@@ -499,7 +511,7 @@ int ha_partition::rename_table(const char *from, const char *to)
   Create the handler file (.par-file)
 
   SYNOPSIS
-    create_handler_files()
+    create_partitioning_metadata()
     name                              Full path of table name
     create_info                       Create info generated for CREATE TABLE
 
@@ -508,19 +520,18 @@ int ha_partition::rename_table(const char *from, const char *to)
     0                         Success
 
   DESCRIPTION
-    create_handler_files is called to create any handler specific files
+    create_partitioning_metadata is called to create any handler specific files
     before opening the file with openfrm to later call ::create on the
     file object.
     In the partition handler this is used to store the names of partitions
     and types of engines in the partitions.
 */
 
-int ha_partition::create_handler_files(const char *path,
+int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
-                                       int action_flag,
-                                       HA_CREATE_INFO *create_info)
+                                       int action_flag)
 {
-  DBUG_ENTER("ha_partition::create_handler_files()");
+  DBUG_ENTER("ha_partition::create_partitioning_metadata()");
 
   /*
     We need to update total number of parts since we might write the handler
@@ -7309,21 +7320,6 @@ int ha_partition::final_drop_index(TABLE *table_arg)
       break;
   return ret;
 }
-
-
-/*
-  If frm_error() is called then we will use this to to find out what file
-  extensions exist for the storage engine. This is also used by the default
-  rename_table and delete_table method in handler.cc.
-*/
-
-static const char *ha_partition_ext[]=
-{
-  ha_par_ext, NullS
-};
-
-const char **ha_partition::bas_ext() const
-{ return ha_partition_ext; }
 
 
 uint ha_partition::min_of_the_max_uint(

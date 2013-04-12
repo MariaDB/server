@@ -304,7 +304,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   /* There can be only one table in '*tables'. */
   if (! (table->file->ha_table_flags() & HA_CAN_SQL_HANDLER))
   {
-    my_error(ER_ILLEGAL_HA, MYF(0), tables->alias);
+    my_error(ER_ILLEGAL_HA, MYF(0), table->file->table_type(),
+             table->s->db.str, table->s->table_name.str);
     goto err;
   }
 
@@ -901,7 +902,8 @@ retry:
       break;
     }
     default:
-      my_message(ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA), MYF(0));
+      my_error(ER_ILLEGAL_HA, MYF(0), table->file->table_type(),
+               table->s->db.str, table->s->table_name.str);
       goto err;
     }
 

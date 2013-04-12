@@ -2182,8 +2182,7 @@ JOIN::reinit()
   DBUG_ENTER("JOIN::reinit");
 
   unit->offset_limit_cnt= (ha_rows)(select_lex->offset_limit ?
-                                    select_lex->offset_limit->val_uint() :
-                                    ULL(0));
+                                    select_lex->offset_limit->val_uint() : 0);
 
   first_record= 0;
   cleaned= false;

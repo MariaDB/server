@@ -208,6 +208,8 @@ our @opt_mysqld_envs;
 
 my $opt_stress;
 
+my $opt_dry_run;
+
 my $opt_compress;
 my $opt_ssl;
 my $opt_skip_ssl;
@@ -347,7 +349,7 @@ my $exe_ndb_mgm;
 our %mysqld_variables;
 our @optional_plugins;
 
-my $source_dist= 0;
+my $source_dist=  -d "../sql";
 
 my $opt_max_save_core= env_or_val(MTR_MAX_SAVE_CORE => 5);
 my $opt_max_save_datadir= env_or_val(MTR_MAX_SAVE_DATADIR => 20);
@@ -374,6 +376,8 @@ sub main {
   # in all cases where the calling tool does not log the commands
   # directly before it executes them, like "make test-force-pl" in RPM builds.
   mtr_report("Logging: $0 ", join(" ", @ARGV));
+
+  $DEFAULT_SUITES.=",sequence,sql_discovery" if $source_dist;
 
   command_line_setup();
 
@@ -419,6 +423,14 @@ sub main {
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
   mark_time_used('collect');
+
+  if ($opt_dry_run)
+  {
+    for (@$tests) {
+      print $_->fullname(), "\n";
+    }
+    exit 0;
+  }
 
   if ( $opt_report_features ) {
     # Put "report features" as the first test to run
@@ -1237,6 +1249,7 @@ sub command_line_setup {
 	     'report-times'             => \$opt_report_times,
 	     'result-file'              => \$opt_resfile,
 	     'stress=s'                 => \$opt_stress,
+             'dry-run'                  => \$opt_dry_run,
 
              'help|h'                   => \$opt_usage,
 	     # list-options is internal, not listed in help
@@ -1253,11 +1266,6 @@ sub command_line_setup {
   # --------------------------------------------------------------------------
   if ($opt_verbose != 0){
     report_option('verbose', $opt_verbose);
-  }
-
-  if ( -d "../sql" )
-  {
-    $source_dist=  1;
   }
 
   # Find the absolute path to the test directory
@@ -6295,6 +6303,8 @@ Options to control what engine/variation to run
                         all generated configs
   combination=<opt>     Use at least twice to run tests with specified
                         options to mysqld
+  dry-run               Don't run any tests, print the list of tests
+                        that were selected for execution
 
 Options to control directories to use
   tmpdir=DIR            The directory where temporary files are stored

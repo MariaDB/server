@@ -562,6 +562,17 @@ typedef I_P_List <Wait_for_flush,
                  Wait_for_flush_list;
 
 
+enum open_frm_error {
+  OPEN_FRM_OK = 0,
+  OPEN_FRM_OPEN_ERROR,
+  OPEN_FRM_READ_ERROR,
+  OPEN_FRM_CORRUPTED,
+  OPEN_FRM_DISCOVER,
+  OPEN_FRM_ERROR_ALREADY_ISSUED,
+  OPEN_FRM_NOT_A_VIEW,
+  OPEN_FRM_NOT_A_TABLE
+};
+
 /**
   Control block to access table statistics loaded 
   from persistent statistical tables
@@ -606,6 +617,8 @@ struct TABLE_SHARE
   */
   I_P_List <TABLE, TABLE_share> used_tables;
   I_P_List <TABLE, TABLE_share> free_tables;
+
+  LEX_CUSTRING tabledef_version;
 
   engine_option_value *option_list;     /* text options for table */
   ha_table_option_struct *option_struct; /* structure with parsed options */
@@ -656,8 +669,9 @@ struct TABLE_SHARE
   plugin_ref db_plugin;			/* storage engine plugin */
   inline handlerton *db_type() const	/* table_type for handler */
   { 
-    // DBUG_ASSERT(db_plugin);
-    return db_plugin ? plugin_data(db_plugin, handlerton*) : NULL;
+    return is_view   ? view_pseudo_hton :
+           db_plugin ? plugin_data(db_plugin, handlerton*)
+                     : NULL;
   }
   enum row_type row_type;		/* How rows are stored */
   enum tmp_table_type tmp_table;
@@ -696,7 +710,8 @@ struct TABLE_SHARE
   uint next_number_index;               /* autoincrement key number */
   uint next_number_key_offset;          /* autoinc keypart offset in a key */
   uint next_number_keypart;             /* autoinc keypart number in a key */
-  uint error, open_errno, errarg;       /* error from open_table_def() */
+  enum open_frm_error error;            /* error from open_table_def() */
+  uint open_errno;                      /* error from open_table_def() */
   uint column_bitmap_size;
   uchar frm_version;
   uint vfields;                         /* Number of computed (virtual) fields */
@@ -976,6 +991,40 @@ struct TABLE_SHARE
   }
   
   uint actual_n_key_parts(THD *thd);
+
+  LEX_CUSTRING *frm_image; ///< only during CREATE TABLE (@sa ha_create_table)
+
+  /*
+    populates TABLE_SHARE from the table description in the binary frm image.
+    if 'write' is true, this frm image is also written into a corresponding
+    frm file, that serves as a persistent metadata cache to avoid
+    discovering the table over and over again
+  */
+  int init_from_binary_frm_image(THD *thd, bool write,
+                                 const uchar *frm_image, size_t frm_length);
+
+  /*
+    populates TABLE_SHARE from the table description, specified as the
+    complete CREATE TABLE sql statement.
+    if 'write' is true, this frm image is also written into a corresponding
+    frm file, that serves as a persistent metadata cache to avoid
+    discovering the table over and over again
+  */
+  int init_from_sql_statement_string(THD *thd, bool write,
+                                     const char *sql, size_t sql_length);
+  /*
+    writes the frm image to an frm file, corresponding to this table
+  */
+  bool write_frm_image(const uchar *frm_image, size_t frm_length);
+
+  /*
+    returns an frm image for this table.
+    the memory is allocated and must be freed later
+  */
+  bool read_frm_image(const uchar **frm_image, size_t *frm_length);
+
+  /* frees the memory allocated in read_frm_image */
+  void free_frm_image(const uchar *frm);
 };
 
 
@@ -1616,7 +1665,7 @@ struct TABLE_LIST
 
   /**
     Prepare TABLE_LIST that consists of one table instance to use in
-    simple_open_and_lock_tables
+    open_and_lock_tables
   */
   inline void init_one_table(const char *db_name_arg,
                              size_t db_length_arg,
@@ -2040,7 +2089,7 @@ struct TABLE_LIST
   bool prepare_security(THD *thd);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *find_view_security_context(THD *thd);
-  bool prepare_view_securety_context(THD *thd);
+  bool prepare_view_security_context(THD *thd);
 #endif
   /*
     Cleanup for re-execution in a prepared statement or a stored
@@ -2183,9 +2232,9 @@ private:
 #else
   inline void set_check_merged() {}
 #endif
-  /** See comments for set_metadata_id() */
+  /** See comments for set_table_ref_id() */
   enum enum_table_ref_type m_table_ref_type;
-  /** See comments for set_metadata_id() */
+  /** See comments for set_table_ref_id() */
   ulong m_table_ref_version;
 };
 
@@ -2439,26 +2488,35 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
 #endif
 }
 
+enum get_table_share_flags {
+  GTS_TABLE                = 1,
+  GTS_VIEW                 = 2,
+  GTS_NOLOCK               = 4,
+  GTS_FORCE_DISCOVERY      = 8
+};
 
 size_t max_row_length(TABLE *table, const uchar *data);
 
-
 void init_mdl_requests(TABLE_LIST *table_list);
 
-int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
-                          uint db_stat, uint prgflag, uint ha_open_flags,
-                          TABLE *outparam, bool is_create_table);
+enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
+                       const char *alias, uint db_stat, uint prgflag,
+                       uint ha_open_flags, TABLE *outparam,
+                       bool is_create_table);
 bool unpack_vcol_info_from_frm(THD *thd, MEM_ROOT *mem_root,
                                TABLE *table, Field *field,
                                LEX_STRING *vcol_expr, bool *error_reported);
-TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
-                               uint key_length);
+TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
+                               char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length,
                           const char *table_name, const char *path);
 void free_table_share(TABLE_SHARE *share);
-int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags);
-void open_table_error(TABLE_SHARE *share, int error, int db_errno, int errarg);
+enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share,
+                                   uint flags = GTS_TABLE);
+
+void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
+                      int db_errno);
 void update_create_info_from_table(HA_CREATE_INFO *info, TABLE *form);
 bool check_and_convert_db_name(LEX_STRING *db, bool preserve_lettercase);
 bool check_db_name(LEX_STRING *db);
@@ -2469,19 +2527,23 @@ char *get_field(MEM_ROOT *mem, Field *field);
 bool get_field(MEM_ROOT *mem, Field *field, class String *res);
 
 int closefrm(TABLE *table, bool free_share);
-int read_string(File file, uchar* *to, size_t length);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
-int set_zone(int nr,int min_zone,int max_zone);
 ulong get_form_pos(File file, uchar *head, TYPELIB *save_names);
-ulong make_new_entry(File file,uchar *fileinfo,TYPELIB *formnames,
-		     const char *newname);
-ulong next_io_size(ulong pos);
 void append_unescaped(String *res, const char *pos, uint length);
-File create_frm(THD *thd, const char *name, const char *db,
-                const char *table, uint reclength, uchar *fileinfo,
-  		HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
+void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
+                        HA_CREATE_INFO *create_info, uint keys, KEY *key_info);
 char *fn_rext(char *name);
+
+/* Check that the integer is in the internal */
+static inline int set_zone(int nr,int min_zone,int max_zone)
+{
+  if (nr <= min_zone)
+    return min_zone;
+  if (nr >= max_zone)
+    return max_zone;
+  return nr;
+}
 
 /* performance schema */
 extern LEX_STRING PERFORMANCE_SCHEMA_DB_NAME;

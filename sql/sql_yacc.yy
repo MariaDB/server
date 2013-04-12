@@ -1461,7 +1461,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <table>
         table_ident table_ident_nodb references xid
-        table_ident_opt_wild
+        table_ident_opt_wild create_like
 
 %type <simple_string>
         remember_name remember_end opt_db text_or_password
@@ -2115,7 +2115,7 @@ create:
             lex->name.length= 0;
             lex->create_last_non_select_table= lex->last_table();
           }
-          create2
+          create_body
           {
             LEX *lex= YYTHD->lex;
             lex->current_select= &lex->select_lex; 
@@ -4290,36 +4290,23 @@ size_number:
   End tablespace part
 */
 
-create2:
-          '(' create2a {}
-        | opt_create_table_options
-          opt_create_partitioning
-          create3 {}
-        | LIKE table_ident
+create_body:
+          '(' create_field_list ')'
+          { Lex->create_info.option_list= NULL; }
+          opt_create_table_options opt_create_partitioning opt_create_select {}
+        | opt_create_table_options opt_create_partitioning opt_create_select {}
+        /*
+          the following rule is redundant, but there's a shift/reduce
+          conflict that prevents the rule above from parsing a syntax like
+          CREATE TABLE t1 (SELECT 1);
+        */
+        | '(' create_select ')' { Select->set_braces(1);} union_opt {}
+        | create_like
           {
-            THD *thd= YYTHD;
-            TABLE_LIST *src_table;
-            LEX *lex= thd->lex;
 
-            lex->create_info.options|= HA_LEX_CREATE_TABLE_LIKE;
-            src_table= lex->select_lex.add_table_to_list(thd, $2, NULL, 0,
-                                                         TL_READ,
-                                                         MDL_SHARED_READ);
-            if (! src_table)
-              MYSQL_YYABORT;
-            /* CREATE TABLE ... LIKE is not allowed for views. */
-            src_table->required_type= FRMTYPE_TABLE;
-          }
-        | '(' LIKE table_ident ')'
-          {
-            THD *thd= YYTHD;
-            TABLE_LIST *src_table;
-            LEX *lex= thd->lex;
-
-            lex->create_info.options|= HA_LEX_CREATE_TABLE_LIKE;
-            src_table= lex->select_lex.add_table_to_list(thd, $3, NULL, 0,
-                                                         TL_READ,
-                                                         MDL_SHARED_READ);
+            Lex->create_info.options|= HA_LEX_CREATE_TABLE_LIKE;
+            TABLE_LIST *src_table= Lex->select_lex.add_table_to_list(YYTHD,
+                                        $1, NULL, 0, TL_READ, MDL_SHARED_READ);
             if (! src_table)
               MYSQL_YYABORT;
             /* CREATE TABLE ... LIKE is not allowed for views. */
@@ -4327,21 +4314,12 @@ create2:
           }
         ;
 
-create2a:
-          create_field_list ')'
-          {
-            Lex->create_info.option_list= NULL;
-          }
-          opt_create_table_options
-          opt_create_partitioning
-          create3 {}
-        |  opt_create_partitioning
-           create_select ')'
-           { Select->set_braces(1);}
-           union_opt {}
+create_like:
+          LIKE table_ident                      { $$= $2; }
+        | '(' LIKE table_ident ')'              { $$= $3; }
         ;
 
-create3:
+opt_create_select:
           /* empty */ {}
         | opt_duplicate opt_as create_select
           { Select->set_braces(0);}
@@ -11471,6 +11449,7 @@ show:
           {
             LEX *lex=Lex;
             lex->wild=0;
+            lex->ident=null_lex_str;
             mysql_init_select(lex);
             lex->current_select->parsing_place= SELECT_LIST;
             bzero((char*) &lex->create_info,sizeof(lex->create_info));
@@ -11532,6 +11511,19 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_PLUGINS;
             if (prepare_schema_table(YYTHD, lex, 0, SCH_PLUGINS))
+              MYSQL_YYABORT;
+          }
+        | PLUGINS_SYM SONAME_SYM TEXT_STRING_sys
+          {
+            Lex->ident= $3;
+            Lex->sql_command= SQLCOM_SHOW_PLUGINS;
+            if (prepare_schema_table(YYTHD, Lex, 0, SCH_ALL_PLUGINS))
+              MYSQL_YYABORT;
+          }
+        | PLUGINS_SYM SONAME_SYM wild_and_where
+          {
+            Lex->sql_command= SQLCOM_SHOW_PLUGINS;
+            if (prepare_schema_table(YYTHD, Lex, 0, SCH_ALL_PLUGINS))
               MYSQL_YYABORT;
           }
         | ENGINE_SYM known_storage_engines show_engine_param

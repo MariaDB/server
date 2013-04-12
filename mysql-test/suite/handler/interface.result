@@ -269,7 +269,7 @@ handler t1 open;
 lock table t1 write;
 alter table t1 engine=csv;
 handler t1 read a next;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine CSV of the table `test`.`t1` doesn't have this option
 handler t1 close;
 unlock tables;
 drop table t1;

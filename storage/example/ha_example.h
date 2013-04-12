@@ -73,11 +73,6 @@ public:
   const char *index_type(uint inx) { return "HASH"; }
 
   /** @brief
-    The file extensions.
-   */
-  const char **bas_ext() const;
-
-  /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */

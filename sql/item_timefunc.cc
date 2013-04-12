@@ -709,8 +709,8 @@ static bool get_interval_info(const char *str,uint length,CHARSET_INFO *cs,
   {
     longlong value;
     const char *start= str;
-    for (value=0; str != end && my_isdigit(cs,*str) ; str++)
-      value= value*LL(10) + (longlong) (*str - '0');
+    for (value=0; str != end && my_isdigit(cs, *str) ; str++)
+      value= value*10 + *str - '0';
     msec_length= 6 - (str - start);
     values[i]= value;
     while (str != end && !my_isdigit(cs,*str))

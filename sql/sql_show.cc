@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -57,10 +57,7 @@
 #include <my_dir.h>
 #include "lock.h"                           // MYSQL_OPEN_IGNORE_FLUSH
 #include "debug_sync.h"
-#include "datadict.h"   // dd_frm_type()
 #include "keycaches.h"
-
-#define STR_OR_NIL(S) ((S) ? (S) : "<nil>")
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -122,6 +119,14 @@ append_algorithm(TABLE_LIST *table, String *buff);
 
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
+typedef struct st_lookup_field_values
+{
+  LEX_STRING db_value, table_value;
+  bool wild_db_value, wild_table_value;
+} LOOKUP_FIELD_VALUES;
+
+bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
+
 /***************************************************************************
 ** List all table types supported
 ***************************************************************************/
@@ -160,7 +165,6 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
         cs);
 
   switch (plugin_state(plugin)) {
-  /* case PLUGIN_IS_FREED: does not happen */
   case PLUGIN_IS_DELETED:
     table->field[2]->store(STRING_WITH_LEN("DELETED"), cs);
     break;
@@ -172,6 +176,9 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
     break;
   case PLUGIN_IS_DISABLED:
     table->field[2]->store(STRING_WITH_LEN("DISABLED"), cs);
+    break;
+  case PLUGIN_IS_FREED: // filtered in fill_plugins, used in fill_all_plugins
+    table->field[2]->store(STRING_WITH_LEN("NOT INSTALLED"), cs);
     break;
   default:
     DBUG_ASSERT(0);
@@ -266,6 +273,65 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
                                ~PLUGIN_IS_FREED, table))
     DBUG_RETURN(1);
 
+  DBUG_RETURN(0);
+}
+
+
+int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_all_plugins");
+  TABLE *table= tables->table;
+  LOOKUP_FIELD_VALUES lookup;
+
+  if (get_lookup_field_values(thd, cond, tables, &lookup))
+    DBUG_RETURN(0);
+
+  if (lookup.db_value.str && !lookup.db_value.str[0])
+    DBUG_RETURN(0); // empty string never matches a valid SONAME
+
+  MY_DIR *dirp= my_dir(opt_plugin_dir, MY_THREAD_SPECIFIC);
+  if (!dirp)
+  {
+    my_error(ER_CANT_READ_DIR, MYF(0), opt_plugin_dir, my_errno);
+    DBUG_RETURN(1);
+  }
+
+  if (!lookup.db_value.str)
+    plugin_dl_foreach(thd, 0, show_plugins, table);
+
+  const char *wstr= lookup.db_value.str, *wend= wstr + lookup.db_value.length;
+  for (uint i=0; i < (uint) dirp->number_of_files; i++)
+  {
+    FILEINFO *file= dirp->dir_entry+i;
+    LEX_STRING dl= { file->name, strlen(file->name) };
+    const char *dlend= dl.str + dl.length;
+    const size_t so_ext_len= sizeof(SO_EXT) - 1;
+
+    if (strcasecmp(dlend - so_ext_len, SO_EXT))
+      continue;
+
+    if (lookup.db_value.str)
+    {
+      if (lookup.wild_db_value)
+      {
+        if (my_wildcmp(files_charset_info, dl.str, dlend, wstr, wend,
+                       wild_prefix, wild_one, wild_many))
+          continue;
+      }
+      else
+      {
+        if (my_strnncoll(files_charset_info,
+                         (uchar*)dl.str, dl.length,
+                         (uchar*)lookup.db_value.str, lookup.db_value.length))
+          continue;
+      }
+    }
+
+    plugin_dl_foreach(thd, &dl, show_plugins, table);
+    thd->clear_error();
+  }
+
+  my_dirend(dirp);
   DBUG_RETURN(0);
 }
 
@@ -689,6 +755,11 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
   return my_hash_search(&ignore_db_dirs_hash, (uchar *) buff, buff_len)!=NULL;
 }
 
+enum find_files_result {
+  FIND_FILES_OK,
+  FIND_FILES_OOM,
+  FIND_FILES_DIR
+};
 
 /*
   find_files() - find files in a given directory.
@@ -697,11 +768,10 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
     find_files()
     thd                 thread handler
     files               put found files in this list
-    db                  database name to set in TABLE_LIST structure
+    db                  database name to search tables in
+                        or NULL to search for databases
     path                path to database
     wild                filter for found files
-    dir                 read databases in path if TRUE, read .frm files in
-                        database otherwise
 
   RETURN
     FIND_FILES_OK       success
@@ -710,65 +780,40 @@ db_name_is_in_ignore_db_dirs_list(const char *directory)
 */
 
 
-find_files_result
-find_files(THD *thd, List<LEX_STRING> *files, const char *db,
-           const char *path, const char *wild, bool dir)
+static find_files_result
+find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
+           const char *path, const LEX_STRING *wild)
 {
-  uint i;
-  char *ext;
   MY_DIR *dirp;
-  FILEINFO *file;
-  LEX_STRING *file_name= 0;
-  uint file_name_len;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-  uint col_access=thd->col_access;
-#endif
-  uint wild_length= 0;
-  TABLE_LIST table_list;
+  Discovered_table_list tl(thd, files, wild);
   DBUG_ENTER("find_files");
 
-  if (wild)
-  {
-    if (!wild[0])
-      wild= 0;
-    else
-      wild_length= strlen(wild);
-  }
-
-  bzero((char*) &table_list,sizeof(table_list));
-
-  if (!(dirp = my_dir(path,MYF((dir ? MY_WANT_STAT : 0) |
-                               MY_THREAD_SPECIFIC))))
+  if (!(dirp = my_dir(path, MY_THREAD_SPECIFIC | (db ? 0 : MY_WANT_STAT))))
   {
     if (my_errno == ENOENT)
-      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL+ME_WAITTANG), db);
+      my_error(ER_BAD_DB_ERROR, MYF(ME_BELL | ME_WAITTANG), db->str);
     else
-      my_error(ER_CANT_READ_DIR, MYF(ME_BELL+ME_WAITTANG), path, my_errno);
+      my_error(ER_CANT_READ_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
     DBUG_RETURN(FIND_FILES_DIR);
   }
 
-  for (i=0 ; i < (uint) dirp->number_off_files  ; i++)
+  if (!db)                                           /* Return databases */
   {
-    char uname[SAFE_NAME_LEN + 1];              /* Unencoded name */
-    file=dirp->dir_entry+i;
-    if (dir)
-    {                                           /* Return databases */
-      if ((file->name[0] == '.' &&
-          ((file->name[1] == '.' && file->name[2] == '\0') ||
-            file->name[1] == '\0')))
-        continue;                               /* . or .. */
+    for (uint i=0; i < (uint) dirp->number_of_files; i++)
+    {
+      FILEINFO *file= dirp->dir_entry+i;
 #ifdef USE_SYMDIR
       char *ext;
       char buff[FN_REFLEN];
       if (my_use_symdir && !strcmp(ext=fn_ext(file->name), ".sym"))
       {
-	/* Only show the sym file if it points to a directory */
-	char *end;
+        /* Only show the sym file if it points to a directory */
+        char *end;
         *ext=0;                                 /* Remove extension */
-	unpack_dirname(buff, file->name);
-	end= strend(buff);
-	if (end != buff && end[-1] == FN_LIBCHAR)
-	  end[-1]= 0;				// Remove end FN_LIBCHAR
+        unpack_dirname(buff, file->name);
+        end= strend(buff);
+        if (end != buff && end[-1] == FN_LIBCHAR)
+          end[-1]= 0;				// Remove end FN_LIBCHAR
         if (!mysql_file_stat(key_file_misc, buff, file->mystat, MYF(0)))
                continue;
        }
@@ -779,70 +824,25 @@ find_files(THD *thd, List<LEX_STRING> *files, const char *db,
       if (is_in_ignore_db_dirs_list(file->name))
         continue;
 
-      file_name_len= filename_to_tablename(file->name, uname, sizeof(uname));
-      if (wild)
-      {
-	if (lower_case_table_names)
-	{
-          if (my_wildcmp(files_charset_info,
-                         uname, uname + file_name_len,
-                         wild, wild + wild_length,
-                         wild_prefix, wild_one, wild_many))
-            continue;
-	}
-	else if (wild_compare(uname, wild, 0))
-	  continue;
-      }
+      if (tl.add_file(file->name))
+        goto err;
     }
-    else
-    {
-        // Return only .frm files which aren't temp files.
-      if (my_strcasecmp(system_charset_info, ext=fn_rext(file->name),reg_ext) ||
-          is_prefix(file->name, tmp_file_prefix))
-        continue;
-      *ext=0;
-      file_name_len= filename_to_tablename(file->name, uname, sizeof(uname));
-      if (wild)
-      {
-	if (lower_case_table_names)
-	{
-          if (my_wildcmp(files_charset_info,
-                         uname, uname + file_name_len,
-                         wild, wild + wild_length,
-                         wild_prefix, wild_one,wild_many))
-            continue;
-	}
-	else if (wild_compare(uname, wild, 0))
-	  continue;
-      }
-    }
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-    /* Don't show tables where we don't have any privileges */
-    if (db && !(col_access & TABLE_ACLS))
-    {
-      table_list.db= (char*) db;
-      table_list.db_length= strlen(db);
-      table_list.table_name= uname;
-      table_list.table_name_length= file_name_len;
-      table_list.grant.privilege=col_access;
-      if (check_grant(thd, TABLE_ACLS, &table_list, TRUE, 1, TRUE))
-        continue;
-    }
-#endif
-    if (!(file_name=
-          thd->make_lex_string(file_name, uname, file_name_len, TRUE)) ||
-        files->push_back(file_name))
-    {
-      my_dirend(dirp);
-      DBUG_RETURN(FIND_FILES_OOM);
-    }
+    tl.sort();
   }
-  DBUG_PRINT("info",("found: %d files", files->elements));
+  else
+  {
+    if (ha_discover_table_names(thd, db, dirp, &tl))
+      goto err;
+  }
+
+  DBUG_PRINT("info",("found: %zu files", files->elements()));
   my_dirend(dirp);
 
-  (void) ha_find_files(thd, db, path, wild, dir, files);
-
   DBUG_RETURN(FIND_FILES_OK);
+
+err:
+  my_dirend(dirp);
+  DBUG_RETURN(FIND_FILES_OOM);
 }
 
 
@@ -2626,7 +2626,7 @@ static bool status_vars_inited= 0;
 C_MODE_START
 static int show_var_cmp(const void *var1, const void *var2)
 {
-  return strcmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
+  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 C_MODE_END
 
@@ -2831,6 +2831,17 @@ static bool show_status_array(THD *thd, const char *wild,
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
     if (ucase_names)
       my_caseup_str(system_charset_info, name_buffer);
+    else
+    {
+      my_casedn_str(system_charset_info, name_buffer);
+      DBUG_ASSERT(name_buffer[0] >= 'a');
+      DBUG_ASSERT(name_buffer[0] <= 'z');
+
+      /* traditionally status variables have a first letter uppercased */
+      if (status_var)
+        name_buffer[0]-= 'a' - 'A';
+    }
+
 
     restore_record(table, s->default_values);
     table->field[0]->store(name_buffer, strlen(name_buffer),
@@ -3329,13 +3340,6 @@ void calc_sum_of_all_status(STATUS_VAR *to)
 /* This is only used internally, but we need it here as a forward reference */
 extern ST_SCHEMA_TABLE schema_tables[];
 
-typedef struct st_lookup_field_values
-{
-  LEX_STRING db_value, table_value;
-  bool wild_db_value, wild_table_value;
-} LOOKUP_FIELD_VALUES;
-
-
 /*
   Store record to I_S table, convert HEAP table
   to MyISAM if necessary
@@ -3443,8 +3447,8 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
                                (uchar *) item_field->field_name,
                                strlen(item_field->field_name), 0))
     {
-      thd->make_lex_string(&lookup_field_vals->db_value, tmp_str->ptr(),
-                           tmp_str->length(), FALSE);
+      thd->make_lex_string(&lookup_field_vals->db_value,
+                           tmp_str->ptr(), tmp_str->length());
     }
     /* Lookup value is table name */
     else if (!cs->coll->strnncollsp(cs, (uchar *) field_name2,
@@ -3452,8 +3456,8 @@ bool get_lookup_value(THD *thd, Item_func *item_func,
                                     (uchar *) item_field->field_name,
                                     strlen(item_field->field_name), 0))
     {
-      thd->make_lex_string(&lookup_field_vals->table_value, tmp_str->ptr(),
-                           tmp_str->length(), FALSE);
+      thd->make_lex_string(&lookup_field_vals->table_value,
+                           tmp_str->ptr(), tmp_str->length());
     }
   }
   return 0;
@@ -3630,7 +3634,7 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
                              LOOKUP_FIELD_VALUES *lookup_field_values)
 {
   LEX *lex= thd->lex;
-  const char *wild= lex->wild ? lex->wild->ptr() : NullS;
+  String *wild= lex->wild;
   bool rc= 0;
 
   bzero((char*) lookup_field_values, sizeof(LOOKUP_FIELD_VALUES));
@@ -3638,8 +3642,8 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           wild, strlen(wild), 0);
+      thd->make_lex_string(&lookup_field_values->db_value,
+                           wild->ptr(), wild->length());
       lookup_field_values->wild_db_value= 1;
     }
     break;
@@ -3648,12 +3652,23 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
   case SQLCOM_SHOW_TRIGGERS:
   case SQLCOM_SHOW_EVENTS:
     thd->make_lex_string(&lookup_field_values->db_value, 
-                         lex->select_lex.db, strlen(lex->select_lex.db), 0);
+                         lex->select_lex.db, strlen(lex->select_lex.db));
     if (wild)
     {
       thd->make_lex_string(&lookup_field_values->table_value, 
-                           wild, strlen(wild), 0);
+                           wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
+    }
+    break;
+  case SQLCOM_SHOW_PLUGINS:
+    if (lex->ident.str)
+      thd->make_lex_string(&lookup_field_values->db_value, 
+                           lex->ident.str, lex->ident.length);
+    else if (lex->wild)
+    {
+      thd->make_lex_string(&lookup_field_values->db_value, 
+                           lex->wild->ptr(), lex->wild->length());
+      lookup_field_values->wild_db_value= 1;
     }
     break;
   default:
@@ -3698,23 +3713,15 @@ enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table)
     wild                  wild string
     idx_field_vals        idx_field_vals->db_name contains db name or
                           wild string
-    with_i_schema         returns 1 if we added 'IS' name to list
-                          otherwise returns 0
 
   RETURN
     zero                  success
     non-zero              error
 */
 
-int make_db_list(THD *thd, List<LEX_STRING> *files,
-                 LOOKUP_FIELD_VALUES *lookup_field_vals,
-                 bool *with_i_schema)
+int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
+                 LOOKUP_FIELD_VALUES *lookup_field_vals)
 {
-  LEX_STRING *i_s_name_copy= 0;
-  i_s_name_copy= thd->make_lex_string(i_s_name_copy,
-                                      INFORMATION_SCHEMA_NAME.str,
-                                      INFORMATION_SCHEMA_NAME.length, TRUE);
-  *with_i_schema= 0;
   if (lookup_field_vals->wild_db_value)
   {
     /*
@@ -3727,12 +3734,11 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
                            INFORMATION_SCHEMA_NAME.str,
                            lookup_field_vals->db_value.str))
     {
-      *with_i_schema= 1;
-      if (files->push_back(i_s_name_copy))
+      if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
     }
-    return (find_files(thd, files, NullS, mysql_data_home,
-                       lookup_field_vals->db_value.str, 1) != FIND_FILES_OK);
+    return find_files(thd, files, 0, mysql_data_home,
+                      &lookup_field_vals->db_value);
   }
 
 
@@ -3748,12 +3754,11 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
     if (is_infoschema_db(lookup_field_vals->db_value.str,
                          lookup_field_vals->db_value.length))
     {
-      *with_i_schema= 1;
-      if (files->push_back(i_s_name_copy))
+      if (files->append_val(&INFORMATION_SCHEMA_NAME))
         return 1;
       return 0;
     }
-    if (files->push_back(&lookup_field_vals->db_value))
+    if (files->append_val(&lookup_field_vals->db_value))
       return 1;
     return 0;
   }
@@ -3762,17 +3767,15 @@ int make_db_list(THD *thd, List<LEX_STRING> *files,
     Create list of existing databases. It is used in case
     of select from information schema table
   */
-  if (files->push_back(i_s_name_copy))
+  if (files->append_val(&INFORMATION_SCHEMA_NAME))
     return 1;
-  *with_i_schema= 1;
-  return (find_files(thd, files, NullS,
-                     mysql_data_home, NullS, 1) != FIND_FILES_OK);
+  return find_files(thd, files, 0, mysql_data_home, &null_lex_str);
 }
 
 
 struct st_add_schema_table
 {
-  List<LEX_STRING> *files;
+  Dynamic_array<LEX_STRING*> *files;
   const char *wild;
 };
 
@@ -3782,7 +3785,7 @@ static my_bool add_schema_table(THD *thd, plugin_ref plugin,
 {
   LEX_STRING *file_name= 0;
   st_add_schema_table *data= (st_add_schema_table *)p_data;
-  List<LEX_STRING> *file_list= data->files;
+  Dynamic_array<LEX_STRING*> *file_list= data->files;
   const char *wild= data->wild;
   ST_SCHEMA_TABLE *schema_table= plugin_data(plugin, ST_SCHEMA_TABLE *);
   DBUG_ENTER("add_schema_table");
@@ -3802,16 +3805,16 @@ static my_bool add_schema_table(THD *thd, plugin_ref plugin,
       DBUG_RETURN(0);
   }
 
-  if ((file_name= thd->make_lex_string(file_name, schema_table->table_name,
-                                       strlen(schema_table->table_name),
-                                       TRUE)) &&
-      !file_list->push_back(file_name))
+  if ((file_name= thd->make_lex_string(schema_table->table_name,
+                                       strlen(schema_table->table_name))) &&
+      !file_list->append(file_name))
     DBUG_RETURN(0);
   DBUG_RETURN(1);
 }
 
 
-int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
+int schema_tables_add(THD *thd, Dynamic_array<LEX_STRING*> *files,
+                      const char *wild)
 {
   LEX_STRING *file_name= 0;
   ST_SCHEMA_TABLE *tmp_schema_table= schema_tables;
@@ -3835,9 +3838,9 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
         continue;
     }
     if ((file_name=
-         thd->make_lex_string(file_name, tmp_schema_table->table_name,
-                              strlen(tmp_schema_table->table_name), TRUE)) &&
-        !files->push_back(file_name))
+         thd->make_lex_string(tmp_schema_table->table_name,
+                              strlen(tmp_schema_table->table_name))) &&
+        !files->append(file_name))
       continue;
     DBUG_RETURN(1);
   }
@@ -3862,7 +3865,6 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
   @param[in]      table_names           List of table names in database
   @param[in]      lex                   pointer to LEX struct
   @param[in]      lookup_field_vals     pointer to LOOKUP_FIELD_VALUE struct
-  @param[in]      with_i_schema         TRUE means that we add I_S tables to list
   @param[in]      db_name               database name
 
   @return         Operation status
@@ -3872,40 +3874,32 @@ int schema_tables_add(THD *thd, List<LEX_STRING> *files, const char *wild)
 */
 
 static int
-make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
-                     LOOKUP_FIELD_VALUES *lookup_field_vals,
-                     bool with_i_schema, LEX_STRING *db_name)
+make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
+                     LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
+                     LEX_STRING *db_name)
 {
   char path[FN_REFLEN + 1];
   build_table_filename(path, sizeof(path) - 1, db_name->str, "", "", 0);
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (with_i_schema)
+    if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       LEX_STRING *name;
       ST_SCHEMA_TABLE *schema_table=
         find_schema_table(thd, lookup_field_vals->table_value.str);
       if (schema_table && !schema_table->hidden)
       {
-        if (!(name= 
-              thd->make_lex_string(NULL, schema_table->table_name,
-                                   strlen(schema_table->table_name), TRUE)) ||
-            table_names->push_back(name))
+        if (!(name= thd->make_lex_string(schema_table->table_name,
+                                         strlen(schema_table->table_name))) ||
+            table_names->append(name))
           return 1;
       }
     }
     else
     {
-      if (table_names->push_back(&lookup_field_vals->table_value))
+      if (table_names->append_val(&lookup_field_vals->table_value))
         return 1;
-      /*
-        Check that table is relevant in current transaction.
-        (used for ndb engine, see ndbcluster_find_files(), ha_ndbcluster.cc)
-      */
-      (void) ha_find_files(thd, db_name->str, path,
-                         lookup_field_vals->table_value.str, 0,
-                         table_names);
     }
     return 0;
   }
@@ -3914,12 +3908,12 @@ make_table_name_list(THD *thd, List<LEX_STRING> *table_names, LEX *lex,
     This call will add all matching the wildcards (if specified) IS tables
     to the list
   */
-  if (with_i_schema)
+  if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
 
-  find_files_result res= find_files(thd, table_names, db_name->str, path,
-                                    lookup_field_vals->table_value.str, 0);
+  find_files_result res= find_files(thd, table_names, db_name, path,
+                                    &lookup_field_vals->table_value);
   if (res != FIND_FILES_OK)
   {
     /*
@@ -4015,10 +4009,10 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     These copies are used for make_table_list() while unaltered values
     are passed to process_table() functions.
   */
-  if (!thd->make_lex_string(&db_name, orig_db_name->str,
-                            orig_db_name->length, FALSE) ||
-      !thd->make_lex_string(&table_name, orig_table_name->str,
-                            orig_table_name->length, FALSE))
+  if (!thd->make_lex_string(&db_name,
+                            orig_db_name->str, orig_db_name->length) ||
+      !thd->make_lex_string(&table_name,
+                            orig_table_name->str, orig_table_name->length))
     goto end;
 
   /*
@@ -4085,12 +4079,14 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     of backward compatibility.
   */
   if (!is_show_fields_or_keys && result && thd->is_error() &&
-      thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE)
+      (thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE ||
+       thd->stmt_da->sql_errno() == ER_WRONG_OBJECT))
   {
     /*
       Hide error for a non-existing table.
       For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist.
+      with a db name and table, but the table does not exist or
+      there is a view with the same name.
     */
     result= false;
     thd->clear_error();
@@ -4142,7 +4138,6 @@ end:
   @param[in]      table                    TABLE struct for I_S table
   @param[in]      db_name                  database name
   @param[in]      table_name               table name
-  @param[in]      with_i_schema            I_S table if TRUE
 
   @return         Operation status
     @retval       0           success
@@ -4150,37 +4145,28 @@ end:
 */
 
 static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
-                                   LEX_STRING *db_name, LEX_STRING *table_name,
-                                   bool with_i_schema)
+                                   LEX_STRING *db_name, LEX_STRING *table_name)
 {
   TABLE *table= tables->table;
-  if (with_i_schema)
+  if (db_name == &INFORMATION_SCHEMA_NAME)
   {
     table->field[3]->store(STRING_WITH_LEN("SYSTEM VIEW"),
                            system_charset_info);
   }
   else if (tables->table_open_method != SKIP_OPEN_TABLE)
   {
-    enum legacy_db_type not_used;
-    char path[FN_REFLEN + 1];
-    (void) build_table_filename(path, sizeof(path) - 1, db_name->str, 
-                                table_name->str, reg_ext, 0);
-    switch (dd_frm_type(thd, path, &not_used)) {
-    case FRMTYPE_ERROR:
-      table->field[3]->store(STRING_WITH_LEN("ERROR"),
-                             system_charset_info);
-      break;
-    case FRMTYPE_TABLE:
-      table->field[3]->store(STRING_WITH_LEN("BASE TABLE"),
-                             system_charset_info);
-      break;
-    case FRMTYPE_VIEW:
-      table->field[3]->store(STRING_WITH_LEN("VIEW"),
-                             system_charset_info);
-      break;
-    default:
-      DBUG_ASSERT(0);
+    CHARSET_INFO *cs= system_charset_info;
+    handlerton *hton;
+    if (ha_table_exists(thd, db_name->str, table_name->str, &hton))
+    {
+      if (hton == view_pseudo_hton)
+        table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
+      else
+        table->field[3]->store(STRING_WITH_LEN("BASE TABLE"), cs);
     }
+    else
+      table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
+
     if (thd->is_error() && thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE)
     {
       thd->clear_error();
@@ -4335,10 +4321,6 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   TABLE tbl;
   TABLE_LIST table_list;
   uint res= 0;
-  int not_used;
-  my_hash_value_type hash_value;
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
   char db_name_buff[NAME_LEN + 1], table_name_buff[NAME_LEN + 1];
 
   bzero((char*) &table_list, sizeof(TABLE_LIST));
@@ -4410,15 +4392,12 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     goto end;
   }
 
-  key_length= create_table_def_key(thd, key, &table_list, 0);
-  hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
-  mysql_mutex_lock(&LOCK_open);
-  share= get_table_share(thd, &table_list, key,
-                         key_length, OPEN_VIEW, &not_used, hash_value);
+  share= get_table_share(thd, table_list.db, table_list.table_name,
+                         GTS_TABLE | GTS_VIEW);
   if (!share)
   {
     res= 0;
-    goto end_unlock;
+    goto end;
   }
 
   if (share->is_view)
@@ -4438,10 +4417,7 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
       res= 1;
       goto end_share;
     }
-  }
 
-  if (share->is_view)
-  {
     if (open_new_frm(thd, share, table_name->str,
                      (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                              HA_GET_INDEX | HA_TRY_READ_ONLY),
@@ -4467,10 +4443,10 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
     free_root(&tbl.mem_root, MYF(0));
   }
 
-end_share:
-  release_table_share(share);
 
-end_unlock:
+end_share:
+  mysql_mutex_lock(&LOCK_open);
+  release_table_share(share);
   mysql_mutex_unlock(&LOCK_open);
 
 end:
@@ -4560,14 +4536,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
+  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  LEX_STRING *db_name, *table_name;
-  bool with_i_schema;
   enum enum_schema_tables schema_table_idx;
-  List<LEX_STRING> db_names;
-  List_iterator_fast<LEX_STRING> it(db_names);
+  Dynamic_array<LEX_STRING*> db_names;
   COND *partial_cond= 0;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
@@ -4630,9 +4604,9 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  DBUG_PRINT("INDEX VALUES",("db_name='%s', table_name='%s'",
-                             STR_OR_NIL(lookup_field_vals.db_value.str),
-                             STR_OR_NIL(lookup_field_vals.table_value.str)));
+  DBUG_PRINT("info",("db_name='%s', table_name='%s'",
+                     lookup_field_vals.db_value.str,
+                     lookup_field_vals.table_value.str));
 
   if (!lookup_field_vals.wild_db_value && !lookup_field_vals.wild_table_value)
   {
@@ -4669,11 +4643,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  if (make_db_list(thd, &db_names, &lookup_field_vals, &with_i_schema))
+  bzero((char*) &table_acl_check, sizeof(table_acl_check));
+
+  if (make_db_list(thd, &db_names, &lookup_field_vals))
     goto err;
-  it.rewind(); /* To get access to new elements in basis list */
-  while ((db_name= it++))
+  for (size_t i=0; i < db_names.elements(); i++)
   {
+    LEX_STRING *db_name= db_names.at(i);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
@@ -4682,18 +4658,30 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
     {
-      List<LEX_STRING> table_names;
+      Dynamic_array<LEX_STRING*> table_names;
       int res= make_table_name_list(thd, &table_names, lex,
-                                    &lookup_field_vals,
-                                    with_i_schema, db_name);
+                                    &lookup_field_vals, db_name);
       if (res == 2)   /* Not fatal error, continue */
         continue;
       if (res)
         goto err;
 
-      List_iterator_fast<LEX_STRING> it_files(table_names);
-      while ((table_name= it_files++))
+      for (size_t i=0; i < table_names.elements(); i++)
       {
+        LEX_STRING *table_name= table_names.at(i);
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+        if (!(thd->col_access & TABLE_ACLS))
+        {
+          table_acl_check.db= db_name->str;
+          table_acl_check.db_length= db_name->length;
+          table_acl_check.table_name= table_name->str;
+          table_acl_check.table_name_length= table_name->length;
+          table_acl_check.grant.privilege= thd->col_access;
+          if (check_grant(thd, TABLE_ACLS, &table_acl_check, TRUE, 1, TRUE))
+            continue;
+        }
+#endif
 	restore_record(table, s->default_values);
         table->field[schema_table->idx_field1]->
           store(db_name->str, db_name->length, system_charset_info);
@@ -4721,14 +4709,13 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           /* SHOW TABLE NAMES command */
           if (schema_table_idx == SCH_TABLE_NAMES)
           {
-            if (fill_schema_table_names(thd, tables, db_name,
-                                        table_name, with_i_schema))
+            if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
           else
           {
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
-                !with_i_schema)
+                db_name != &INFORMATION_SCHEMA_NAME)
             {
               /*
                 Here we need to filter out warnings, which can happen
@@ -4762,11 +4749,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
           }
         }
       }
-      /*
-        If we have information schema its always the first table and only
-        the first table. Reset for other tables.
-      */
-      with_i_schema= 0;
     }
   }
 
@@ -4798,9 +4780,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   */
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
-  List<LEX_STRING> db_names;
-  LEX_STRING *db_name;
-  bool with_i_schema;
+  Dynamic_array<LEX_STRING*> db_names;
   HA_CREATE_INFO create;
   TABLE *table= tables->table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -4813,15 +4793,14 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_PRINT("INDEX VALUES",("db_name: %s  table_name: %s",
                              lookup_field_vals.db_value.str,
                              lookup_field_vals.table_value.str));
-  if (make_db_list(thd, &db_names, &lookup_field_vals,
-                   &with_i_schema))
+  if (make_db_list(thd, &db_names, &lookup_field_vals))
     DBUG_RETURN(1);
 
   /*
     If we have lookup db value we should check that the database exists
   */
   if(lookup_field_vals.db_value.str && !lookup_field_vals.wild_db_value &&
-     !with_i_schema)
+     db_names.at(0) != &INFORMATION_SCHEMA_NAME)
   {
     char path[FN_REFLEN+16];
     uint path_len;
@@ -4835,15 +4814,14 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       DBUG_RETURN(0);
   }
 
-  List_iterator_fast<LEX_STRING> it(db_names);
-  while ((db_name=it++))
+  for (size_t i=0; i < db_names.elements(); i++)
   {
-    if (with_i_schema)       // information schema name is always first in list
+    LEX_STRING *db_name= db_names.at(i);
+    if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       if (store_schema_shemata(thd, table, db_name,
                                system_charset_info))
         DBUG_RETURN(1);
-      with_i_schema= 0;
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -7860,9 +7838,9 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
      because of lower_case_table_names
   */
   thd->make_lex_string(&db, INFORMATION_SCHEMA_NAME.str,
-                       INFORMATION_SCHEMA_NAME.length, 0);
+                       INFORMATION_SCHEMA_NAME.length);
   thd->make_lex_string(&table, schema_table->table_name,
-                       strlen(schema_table->table_name), 0);
+                       strlen(schema_table->table_name));
   if (schema_table->old_format(thd, schema_table) ||   /* Handle old syntax */
       !sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
                               0, 0, TL_READ, MDL_SHARED_READ))
@@ -8664,7 +8642,7 @@ ST_FIELD_INFO plugin_fields_info[]=
   {"PLUGIN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Name",
    SKIP_OPEN_TABLE},
   {"PLUGIN_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
-  {"PLUGIN_STATUS", 10, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
+  {"PLUGIN_STATUS", 16, MYSQL_TYPE_STRING, 0, 0, "Status", SKIP_OPEN_TABLE},
   {"PLUGIN_TYPE", 80, MYSQL_TYPE_STRING, 0, 0, "Type", SKIP_OPEN_TABLE},
   {"PLUGIN_TYPE_VERSION", 20, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
   {"PLUGIN_LIBRARY", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Library",
@@ -8925,6 +8903,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
   {"PLUGINS", plugin_fields_info, create_schema_table,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
+  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
+   fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
   {"PROCESSLIST", processlist_fields_info, create_schema_table,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
   {"PROFILING", query_profile_statistics_info, create_schema_table,

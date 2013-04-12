@@ -258,27 +258,18 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
 {
   bool error= TRUE;
   TABLE_SHARE *share= table->s;
-  HA_CREATE_INFO create_info;
   handlerton *table_type= table->s->db_type();
   DBUG_ENTER("recreate_temporary_table");
-
-  memset(&create_info, 0, sizeof(create_info));
-  create_info.options|= HA_LEX_CREATE_TMP_TABLE;
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
 
   /* Don't free share. */
   close_temporary_table(thd, table, FALSE, FALSE);
 
-  /*
-    We must use share->normalized_path.str since for temporary tables it
-    differs from what dd_recreate_table() would generate based
-    on table and schema names.
-  */
-  ha_create_table(thd, share->normalized_path.str, share->db.str,
-                  share->table_name.str, &create_info, 1);
+  dd_recreate_table(thd, share->db.str, share->table_name.str,
+                    share->normalized_path.str);
 
-  if (open_table_uncached(thd, share->path.str, share->db.str,
+  if (open_table_uncached(thd, table_type, share->path.str, share->db.str,
                           share->table_name.str, TRUE))
   {
     error= FALSE;
@@ -350,9 +341,27 @@ bool Truncate_statement::lock_table(THD *thd, TABLE_LIST *table_ref,
                          MYSQL_OPEN_SKIP_TEMPORARY))
       DBUG_RETURN(TRUE);
 
-    if (dd_check_storage_engine_flag(thd, table_ref->db, table_ref->table_name,
-                                     HTON_CAN_RECREATE, hton_can_recreate))
+    handlerton *hton;
+    if (!ha_table_exists(thd, table_ref->db, table_ref->table_name, &hton) ||
+        hton == view_pseudo_hton)
+    {
+      my_error(ER_NO_SUCH_TABLE, MYF(0), table_ref->db, table_ref->table_name);
       DBUG_RETURN(TRUE);
+    }
+
+    if (!hton)
+    {
+      /*
+        The table exists, but its storage engine is unknown, perhaps not
+        loaded at the moment. We need to open and parse the frm to know the
+        storage engine in question, so let's proceed with the truncation and
+        try to open the table. This will produce the correct error message
+        about unknown engine.
+      */
+      *hton_can_recreate= false;
+    }
+    else
+      *hton_can_recreate= hton->flags & HTON_CAN_RECREATE;
   }
 
   /*

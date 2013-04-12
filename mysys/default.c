@@ -846,7 +846,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
         if (!(search_dir= my_dir(ptr, MYF(MY_WME))))
           goto err;
 
-        for (i= 0; i < (uint) search_dir->number_off_files; i++)
+        for (i= 0; i < (uint) search_dir->number_of_files; i++)
         {
           search_file= search_dir->dir_entry + i;
           ext= fn_ext(search_file->name);
