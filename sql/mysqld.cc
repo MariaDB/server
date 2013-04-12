@@ -1824,7 +1824,7 @@ void clean_up(bool print_message)
 #endif
   query_cache_destroy();
   hostname_cache_free();
-  item_user_lock_free();
+  item_func_sleep_free();
   lex_free();				/* Free some memory */
   item_create_cleanup();
   if (!opt_noacl)
