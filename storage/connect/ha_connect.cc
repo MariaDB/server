@@ -832,7 +832,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
 
-  if (!opval && options->oplist)
+  if (!opval && options && options->oplist)
     opval= GetListOption(opname, options->oplist);
 
   if (!opval) {
@@ -931,7 +931,7 @@ int ha_connect::GetIntegerOption(char *opname)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL && options->oplist)
+  if (opval == NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(opname, options->oplist)))
       opval= atoi(pv);
 

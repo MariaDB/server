@@ -72,6 +72,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+          void SetDatabase(LPCSTR db) {Database = (char*)db;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

@@ -581,19 +581,17 @@ bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
 /*  found, make and add the descriptor and return a pointer to it.     */
 /***********************************************************************/
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
-                                       LPCSTR am, PRELDEF *prp)
+                                       LPCSTR type, PRELDEF *prp)
   {
-	LPCSTR  type;
-
 	if (xtrace)
-		printf("GetTableDesc: name=%s am=%s\n", name, SVP(am));
+		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
   // Firstly check whether this table descriptor is in memory
   if (To_Desc)
 		return  To_Desc;
 
-	// Here get the type of this table
-	if (!(type= Hc->GetStringOption("Type")))
+ 	// If not specified get the type of this table
+  if (!type && !(type= Hc->GetStringOption("Type")))
 		type= "DOS";
 
   return MakeTableDesc(g, name, type);
@@ -658,7 +656,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 /***********************************************************************/
 /*  Initialize a Table Description Block construction.                 */
 /***********************************************************************/
-PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode)
+PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
   {
   PRELDEF tdp;
   PTDB    tdbp= NULL;
@@ -668,7 +666,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode)
 		printf("GetTableDB: name=%s\n", name);
 
   // Look for the description of the requested table
-  tdp= GetTableDesc(g, name, NULL);
+  tdp= GetTableDesc(g, name, type);
 
   if (tdp) {
 		if (xtrace)

@@ -90,13 +90,16 @@ class DllExport CATALOG {
   virtual bool    ClearName(PGLOBAL g, PSZ name) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
   virtual PRELDEF GetTableDescEx(PGLOBAL g, PTABLE tablep) {return NULL;}
-  virtual PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am,
+  virtual PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name, LPCSTR type,
                                           PRELDEF *prp = NULL) {return NULL;}
   virtual PRELDEF GetFirstTable(PGLOBAL g) {return NULL;}
   virtual PRELDEF GetNextTable(PGLOBAL g) {return NULL;}
-  virtual bool    TestCond(PGLOBAL g, const char *name, const char *type) {return true;}
+  virtual bool    TestCond(PGLOBAL g, const char *name, const char *type)
+                                {return true;}
   virtual bool    DropTable(PGLOBAL g, PSZ name, bool erase) {return true;}
-  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep, MODE mode = MODE_READ) {return NULL;}
+  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
+                           MODE mode = MODE_READ, LPCSTR type = NULL)
+                                {return NULL;}
   virtual void    TableNames(PGLOBAL g, char *buffer, int maxbuf, int info[]) {}
   virtual void    ColumnNames(PGLOBAL g, char *tabname, char *buffer,
                                          int maxbuf, int info[]) {}

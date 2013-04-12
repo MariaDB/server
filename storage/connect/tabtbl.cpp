@@ -71,6 +71,9 @@
 #include "tabcol.h"
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabtbl.h"      // TDBTBL and TBLCOL classes dcls
+#if defined(MYSQL_SUPPORT)
+#include "tabmysql.h"
+#endif   // MYSQL_SUPPORT
 #include "ha_connect.h"
 #include "mycat.h"       // For GetHandler
 
@@ -222,8 +225,8 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   TABLE_LIST   table_list;
   TABLE_SHARE *s;
   PCATLG       cat = To_Def->GetCat();
-  PHC           hc = ((MYCAT*)cat)->GetHandler();
-  THD          *thd = (hc->GetTable())->in_use;
+  PHC          hc = ((MYCAT*)cat)->GetHandler();
+  THD         *thd = (hc->GetTable())->in_use;
 
   if (!thd)
     return NULL;         // Should not happen anymore
@@ -251,9 +254,29 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   flags = 24;
 
   if (!open_table_def(thd, s, flags)) {
-    hc->tshp = s;
-    tdbp = cat->GetTable(g, tabp);
-    hc->tshp = NULL;
+    if (stricmp((*s->db_plugin)->name.str, "connect")) {
+#if defined(MYSQL_SUPPORT)
+      // Access sub-table via MySQL API
+      if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYSQL"))) {
+        sprintf(g->Message, "Cannot access %s.%s", db, tblp->Name);
+        return NULL;
+        } // endif Define
+
+      if (tabp->GetQualifier())
+        ((PTDBMY)tdbp)->SetDatabase(tabp->GetQualifier());
+
+#else   // !MYSQL_SUPPORT
+      sprintf(g->Message, "%s.%s is not a CONNECT table",
+                          db, tblp->Name);
+      return NULL;
+#endif   // MYSQL_SUPPORT
+    } else {
+      // Sub-table is a CONNECT table
+      hc->tshp = s;
+      tdbp = cat->GetTable(g, tabp);
+      hc->tshp = NULL;
+    } // endif plugin
+
   } else
     sprintf(g->Message, "Error %d opening share\n", s->error);
 
@@ -742,8 +765,12 @@ bool TBLCOL::Init(PGLOBAL g)
   } else if (!tdbp->Accept) {
     sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tdbp->Tdbp->GetName());
     return TRUE;
-  } else
+  } else {
+    if (Nullable)
+      Value->SetNull(true);
+
     Value->Reset();
+  } // endif's
 
   return FALSE;
   } // end of Init
@@ -761,8 +788,8 @@ void TBLCOL::ReadColumn(PGLOBAL g)
     Value->SetValue_pval(To_Val);
 
     // Set null when applicable
-    if (Colp->IsNullable())
-      Value->SetNull(Value->IsZero());
+    if (Nullable)
+      Value->SetNull(Value->IsNull());
 
     } // endif Colp
 
