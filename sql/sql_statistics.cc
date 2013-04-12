@@ -3417,6 +3417,7 @@ double get_column_range_cardinality(Field *field,
       else
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
       res= col_non_nulls * sel;
+      set_if_bigger(res, col_stats->get_avg_frequency());
     }
     else
       res= col_non_nulls;
