@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2011, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2012, Monty Program Ab
+   Copyright (c) 2012, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -138,53 +138,4 @@ void one_thread_scheduler(scheduler_functions *func)
 #endif
   func->end_thread= no_threads_end;
 }
-
-
-
-/*
-  no pluggable schedulers in mariadb.
-  when we'll want it, we'll do it properly
-*/
-#if 0
-
-static scheduler_functions *saved_thread_scheduler;
-static uint saved_thread_handling;
-
-extern "C"
-int my_thread_scheduler_set(scheduler_functions *scheduler)
-{
-  DBUG_ASSERT(scheduler != 0);
-
-  if (scheduler == NULL)
-    return 1;
-
-  saved_thread_scheduler= thread_scheduler;
-  saved_thread_handling= thread_handling;
-  thread_scheduler= scheduler;
-  // Scheduler loaded dynamically
-  thread_handling= SCHEDULER_TYPES_COUNT;
-  return 0;
-}
-
-
-extern "C"
-int my_thread_scheduler_reset()
-{
-  DBUG_ASSERT(saved_thread_scheduler != NULL);
-
-  if (saved_thread_scheduler == NULL)
-    return 1;
-
-  thread_scheduler= saved_thread_scheduler;
-  thread_handling= saved_thread_handling;
-  saved_thread_scheduler= 0;
-  return 0;
-}
-#else
-extern "C" int my_thread_scheduler_set(scheduler_functions *scheduler)
-{ return 1; }
-
-extern "C" int my_thread_scheduler_reset()
-{ return 1; }
-#endif
 

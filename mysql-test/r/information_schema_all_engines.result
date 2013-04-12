@@ -1,6 +1,7 @@
 use INFORMATION_SCHEMA;
 show tables;
 Tables_in_information_schema
+ALL_PLUGINS
 CHARACTER_SETS
 CLIENT_STATISTICS
 COLLATIONS
@@ -74,6 +75,7 @@ c2.table_name = t.table_name AND
 c2.column_name LIKE '%SCHEMA%'
         ) order by t.table_name;
 table_name	column_name
+ALL_PLUGINS	PLUGIN_NAME
 CHARACTER_SETS	CHARACTER_SET_NAME
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
@@ -147,6 +149,7 @@ c2.table_name = t.table_name AND
 c2.column_name LIKE '%SCHEMA%'
         ) order by t.table_name;
 table_name	column_name
+ALL_PLUGINS	PLUGIN_NAME
 CHARACTER_SETS	CHARACTER_SET_NAME
 CLIENT_STATISTICS	CLIENT
 COLLATIONS	COLLATION_NAME
@@ -205,7 +208,7 @@ USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
 XTRADB_ADMIN_COMMAND	result_message
-select 1 as f1 from information_schema.tables  where "CHARACTER_SETS"=
+select 1 as f1 from information_schema.tables  where "ALL_PLUGINS"=
 (select cast(table_name as char)  from information_schema.tables
 order by table_name limit 1) limit 1;
 f1
@@ -226,6 +229,7 @@ c2.table_schema='information_schema' and
 group by c2.column_type order by num limit 1)
 group by t.table_name order by num1, t.table_name;
 table_name	group_concat(t.table_schema, '.', t.table_name)	num1
+ALL_PLUGINS	information_schema.ALL_PLUGINS	1
 CHARACTER_SETS	information_schema.CHARACTER_SETS	1
 CLIENT_STATISTICS	information_schema.CLIENT_STATISTICS	1
 COLLATIONS	information_schema.COLLATIONS	1
@@ -288,6 +292,7 @@ VIEWS	information_schema.VIEWS	1
 +---------------------------------------+
 Database: information_schema
 |                Tables                 |
+| ALL_PLUGINS                           |
 | CHARACTER_SETS                        |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
@@ -351,6 +356,7 @@ Database: information_schema
 +---------------------------------------+
 Database: INFORMATION_SCHEMA
 |                Tables                 |
+| ALL_PLUGINS                           |
 | CHARACTER_SETS                        |
 | CLIENT_STATISTICS                     |
 | COLLATIONS                            |
@@ -417,5 +423,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	58
+information_schema	59
 mysql	26

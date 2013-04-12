@@ -45,7 +45,6 @@ public:
   }
   /* Rows also use a fixed-size format */
   enum row_type get_row_type() const { return ROW_TYPE_FIXED; }
-  const char **bas_ext() const;
   ulonglong table_flags() const
   {
     return (HA_FAST_KEY_READ | HA_NO_BLOBS | HA_NULL_IN_KEY |

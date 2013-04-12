@@ -313,12 +313,12 @@ enum ha_base_keytype {
 #define HA_OPTION_CHECKSUM		32
 #define HA_OPTION_DELAY_KEY_WRITE	64
 #define HA_OPTION_NO_PACK_KEYS		128  /* Reserved for MySQL */
-#define HA_OPTION_CREATE_FROM_ENGINE    256
+/* unused                               256 */
 #define HA_OPTION_RELIES_ON_SQL_LAYER   512
 #define HA_OPTION_NULL_FIELDS		1024
 #define HA_OPTION_PAGE_CHECKSUM		2048
 /* .frm has extra create options in linked-list format */
-#define HA_OPTION_TEXT_CREATE_OPTIONS   (1L << 14)
+#define HA_OPTION_TEXT_CREATE_OPTIONS_legacy (1L << 14) /* 5.2 to 5.5, unused since 10.0 */
 #define HA_OPTION_TEMP_COMPRESS_RECORD  (1L << 15)      /* set by isamchk */
 #define HA_OPTION_READ_ONLY_DATA        (1L << 16)      /* Set by isamchk */
 #define HA_OPTION_NO_CHECKSUM           (1L << 17)
@@ -405,7 +405,7 @@ enum ha_base_keytype {
 #define HA_ERR_WRONG_INDEX	124	/* Wrong index given to function */
 #define HA_ERR_CRASHED		126	/* Indexfile is crashed */
 #define HA_ERR_WRONG_IN_RECORD	127	/* Record-file is crashed */
-#define HA_ERR_OUT_OF_MEM	128	/* Record-file is crashed */
+#define HA_ERR_OUT_OF_MEM	128	/* Out of memory */
 #define HA_ERR_NOT_A_TABLE      130     /* not a MYI file - no signature */
 #define HA_ERR_WRONG_COMMAND	131	/* Command not supported */
 #define HA_ERR_OLD_FILE		132	/* old databasfile */

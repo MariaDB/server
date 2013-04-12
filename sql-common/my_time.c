@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -24,10 +25,10 @@
 ulonglong log_10_int[20]=
 {
   1, 10, 100, 1000, 10000UL, 100000UL, 1000000UL, 10000000UL,
-  ULL(100000000), ULL(1000000000), ULL(10000000000), ULL(100000000000),
-  ULL(1000000000000), ULL(10000000000000), ULL(100000000000000),
-  ULL(1000000000000000), ULL(10000000000000000), ULL(100000000000000000),
-  ULL(1000000000000000000), ULL(10000000000000000000)
+  100000000ULL, 1000000000ULL, 10000000000ULL, 100000000000ULL,
+  1000000000000ULL, 10000000000000ULL, 100000000000000ULL,
+  1000000000000000ULL, 10000000000000000ULL, 100000000000000000ULL,
+  1000000000000000000ULL, 10000000000000000000ULL
 };
 
 
@@ -1170,19 +1171,19 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 
   time_res->time_type=MYSQL_TIMESTAMP_DATETIME;
 
-  if (nr <= (YY_PART_YEAR-1)*LL(10000000000)+LL(1231235959))
+  if (nr <= (YY_PART_YEAR-1)*10000000000LL+1231235959LL)
   {
-    nr= nr+LL(20000000000000);                   /* YYMMDDHHMMSS, 2000-2069 */
+    nr= nr+20000000000000LL;                   /* YYMMDDHHMMSS, 2000-2069 */
     goto ok;
   }
-  if (nr <  YY_PART_YEAR*LL(10000000000)+ LL(101000000))
+  if (nr <  YY_PART_YEAR*10000000000LL+ 101000000LL)
     goto err;
-  if (nr <= LL(991231235959))
-    nr= nr+LL(19000000000000);		/* YYMMDDHHMMSS, 1970-1999 */
+  if (nr <= 991231235959LL)
+    nr= nr+19000000000000LL;		/* YYMMDDHHMMSS, 1970-1999 */
 
  ok:
-  part1=(long) (nr/LL(1000000));
-  part2=(long) (nr - (longlong) part1*LL(1000000));
+  part1=(long) (nr/1000000LL);
+  part2=(long) (nr - (longlong) part1*1000000LL);
   time_res->year=  (int) (part1/10000L);  part1%=10000L;
   time_res->month= (int) part1 / 100;
   time_res->day=   (int) part1 % 100;
@@ -1202,7 +1203,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
   /* Don't want to have was_cut get set if NO_ZERO_DATE was violated. */
   if (nr || !(flags & TIME_NO_ZERO_DATE))
     *was_cut= 1;
-  return LL(-1);
+  return -1;
 
  err:
   {
@@ -1212,7 +1213,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
     time_res->time_type= save;                     /* Restore range */
     *was_cut= 1;                                /* Found invalid date */
   }
-  return LL(-1);
+  return -1;
 }
 
 /*
@@ -1277,7 +1278,7 @@ ulonglong TIME_to_ulonglong_datetime(const MYSQL_TIME *my_time)
 {
   return ((ulonglong) (my_time->year * 10000UL +
                        my_time->month * 100UL +
-                       my_time->day) * ULL(1000000) +
+                       my_time->day) * 1000000ULL +
           (ulonglong) (my_time->hour * 10000UL +
                        my_time->minute * 100UL +
                        my_time->second));
@@ -1338,7 +1339,7 @@ ulonglong TIME_to_ulonglong(const MYSQL_TIME *my_time)
     return TIME_to_ulonglong_time(my_time);
   case MYSQL_TIMESTAMP_NONE:
   case MYSQL_TIMESTAMP_ERROR:
-    return ULL(0);
+    return 0;
   default:
     DBUG_ASSERT(0);
   }

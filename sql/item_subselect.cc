@@ -2935,7 +2935,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
         res= TRUE;
         goto out;
       }
-      for (int i= 0; i < eqs.elements(); i++)
+      for (size_t i= 0; i < eqs.elements(); i++)
       {
         if (optimizer->arguments()[0]->maybe_null)
         {

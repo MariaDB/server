@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -716,7 +716,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     *p_start_coord= &start_coord;
   LOG_POS_COORD coord_buf= { log_file_name, BIN_LOG_HEADER_SIZE },
     *p_coord= &coord_buf;
-  if (heartbeat_period != LL(0))
+  if (heartbeat_period != 0)
   {
     heartbeat_ts= &heartbeat_buf;
     set_timespec_nsec(*heartbeat_ts, 0);
@@ -1827,7 +1827,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else
     mi->heartbeat_period= (float) min(SLAVE_MAX_HEARTBEAT_PERIOD,
                                       (slave_net_timeout/2.0));
-  mi->received_heartbeats= LL(0); // counter lives until master is CHANGEd
+  mi->received_heartbeats= 0; // counter lives until master is CHANGEd
   /*
     reset the last time server_id list if the current CHANGE MASTER 
     is mentioning IGNORE_SERVER_IDS= (...)

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -89,13 +90,15 @@
 #define IF_WIN(A,B) B
 #endif
 
-#ifndef EMBEDDED_LIBRARY
+#ifdef EMBEDDED_LIBRARY
+#define IF_EMBEDDED(A,B) A
+#else
+#define IF_EMBEDDED(A,B) B
+
 #ifdef WITH_NDB_BINLOG
 #define HAVE_NDB_BINLOG 1
 #endif
-#endif /* !EMBEDDED_LIBRARY */
 
-#ifndef EMBEDDED_LIBRARY
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
 #endif
@@ -475,7 +478,7 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 #endif
 
-#define swap_variables(t, a, b) { t dummy; dummy= a; a= b; b= dummy; }
+#define swap_variables(t, a, b) do { t dummy; dummy= a; a= b; b= dummy; } while(0)
 #define test(a)		((a) ? 1 : 0)
 #define set_if_bigger(a,b)  do { if ((a) < (b)) (a)=(b); } while(0)
 #define set_if_smaller(a,b) do { if ((a) > (b)) (a)=(b); } while(0)
@@ -1006,24 +1009,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 typedef char		my_bool; /* Small bool */
 
-/* Macros for converting *constants* to the right type */
 #define MYF(v)		(myf) (v)
-
-#ifndef LL
-#ifdef HAVE_LONG_LONG
-#define LL(A) A ## LL
-#else
-#define LL(A) A ## L
-#endif
-#endif
-
-#ifndef ULL
-#ifdef HAVE_LONG_LONG
-#define ULL(A) A ## ULL
-#else
-#define ULL(A) A ## UL
-#endif
-#endif
 
 /*
   Defines to make it possible to prioritize register assignments. No

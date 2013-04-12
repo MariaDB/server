@@ -22,10 +22,8 @@
 #include	"mysys_err.h"
 #if defined(HAVE_DIRENT_H)
 # include <dirent.h>
-# define NAMLEN(dirent) strlen((dirent)->d_name)
 #else
 # define dirent direct
-# define NAMLEN(dirent) (dirent)->d_namlen
 # if defined(HAVE_SYS_NDIR_H)
 #  include <sys/ndir.h>
 # endif
@@ -60,25 +58,29 @@
 
 static int	comp_names(struct fileinfo *a,struct fileinfo *b);
 
+typedef struct {
+  MY_DIR        dir;
+  DYNAMIC_ARRAY array;
+  MEM_ROOT      root;
+} MY_DIR_HANDLE;
 
-	/* We need this because program don't know with malloc we used */
+/* We need this because the caller doesn't know which malloc we've used */
 
-void my_dirend(MY_DIR *buffer)
+void my_dirend(MY_DIR *dir)
 {
+  MY_DIR_HANDLE *dirh= (MY_DIR_HANDLE*) dir;
   DBUG_ENTER("my_dirend");
-  if (buffer)
+  if (dirh)
   {
-    delete_dynamic((DYNAMIC_ARRAY*)((char*)buffer + 
-                                    ALIGN_SIZE(sizeof(MY_DIR))));
-    free_root((MEM_ROOT*)((char*)buffer + ALIGN_SIZE(sizeof(MY_DIR)) + 
-                          ALIGN_SIZE(sizeof(DYNAMIC_ARRAY))), MYF(0));
-    my_free(buffer);
+    delete_dynamic(&dirh->array);
+    free_root(&dirh->root, MYF(0));
+    my_free(dirh);
   }
   DBUG_VOID_RETURN;
 } /* my_dirend */
 
 
-	/* Compare in sort of filenames */
+        /* Compare in sort of filenames */
 
 static int comp_names(struct fileinfo *a, struct fileinfo *b)
 {
@@ -88,13 +90,27 @@ static int comp_names(struct fileinfo *a, struct fileinfo *b)
 
 #if !defined(_WIN32)
 
+static char *directory_file_name (char * dst, const char *src)
+{
+  /* Process as Unix format: just remove test the final slash. */
+  char *end;
+  DBUG_ASSERT(strlen(src) < (FN_REFLEN + 1));
+
+  if (src[0] == 0)
+    src= (char*) ".";                           /* Use empty as current */
+  end=strmov(dst, src);
+  if (end[-1] != FN_LIBCHAR + 1)
+  {
+    *end++= FN_LIBCHAR;                          /* Add last '/' */
+    *end='\0';
+  }
+  return end;
+}
+
 MY_DIR	*my_dir(const char *path, myf MyFlags)
 {
-  char          *buffer;
-  MY_DIR        *result= 0;
+  MY_DIR_HANDLE *dirh= 0;
   FILEINFO      finfo;
-  DYNAMIC_ARRAY *dir_entries_storage;
-  MEM_ROOT      *names_storage;
   DIR		*dirp;
   struct dirent *dp;
   char		tmp_path[FN_REFLEN + 2], *tmp_file;
@@ -107,59 +123,53 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   mysql_mutex_lock(&THR_LOCK_open);
 #endif
 
-  dirp = opendir(directory_file_name(tmp_path,(char *) path));
-#if defined(__amiga__)
-  if ((dirp->dd_fd) < 0)			/* Directory doesn't exists */
-    goto error;
-#endif
-  if (dirp == NULL || 
-      ! (buffer= my_malloc(ALIGN_SIZE(sizeof(MY_DIR)) + 
-                           ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)) +
-                           sizeof(MEM_ROOT), MyFlags)))
+  tmp_file= directory_file_name(tmp_path, path);
+
+  if (!(dirp= opendir(tmp_path)))
     goto error;
 
-  dir_entries_storage= (DYNAMIC_ARRAY*)(buffer + ALIGN_SIZE(sizeof(MY_DIR))); 
-  names_storage= (MEM_ROOT*)(buffer + ALIGN_SIZE(sizeof(MY_DIR)) +
-                             ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)));
+  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
+    goto error;
   
-  if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
-  {
-    my_free(buffer);
     goto error;
-  }
-  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE,
-                  MYF(MyFlags));
   
-  /* MY_DIR structure is allocated and completly initialized at this point */
-  result= (MY_DIR*)buffer;
-
-  tmp_file=strend(tmp_path);
+  init_alloc_root(&dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
+                  MYF(MyFlags));
 
   dp= (struct dirent*) dirent_tmp;
   
   while (!(READDIR(dirp,(struct dirent*) dirent_tmp,dp)))
   {
-    if (!(finfo.name= strdup_root(names_storage, dp->d_name)))
-      goto error;
+    MY_STAT statbuf, *mystat= 0;
     
+    if (dp->d_name[0] == '.' &&
+        (dp->d_name[1] == '\0' ||
+         (dp->d_name[1] == '.' && dp->d_name[2] == '\0')))
+      continue;                               /* . or .. */
+
     if (MyFlags & MY_WANT_STAT)
     {
-      if (!(finfo.mystat= (MY_STAT*)alloc_root(names_storage, 
-                                               sizeof(MY_STAT))))
-        goto error;
-      
-      bzero(finfo.mystat, sizeof(MY_STAT));
-      (void) strmov(tmp_file,dp->d_name);
-      (void) my_stat(tmp_path, finfo.mystat, MyFlags);
-      if (!(finfo.mystat->st_mode & MY_S_IREAD))
+      mystat= &statbuf;
+      bzero(mystat, sizeof(*mystat));
+      (void) strmov(tmp_file, dp->d_name);
+      (void) my_stat(tmp_path, mystat, MyFlags);
+      if (!(mystat->st_mode & MY_S_IREAD))
         continue;
     }
-    else
-      finfo.mystat= NULL;
 
-    if (push_dynamic(dir_entries_storage, (uchar*)&finfo))
+    if (!(finfo.name= strdup_root(&dirh->root, dp->d_name)))
+      goto error;
+    
+    if (mystat &&
+        !((mystat= memdup_root(&dirh->root, mystat, sizeof(*mystat)))))
+      goto error;
+
+    finfo.mystat= mystat;
+
+    if (push_dynamic(&dirh->array, (uchar*)&finfo))
       goto error;
   }
 
@@ -167,13 +177,14 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
 #if !defined(HAVE_READDIR_R)
   mysql_mutex_unlock(&THR_LOCK_open);
 #endif
-  result->dir_entry= (FILEINFO *)dir_entries_storage->buffer;
-  result->number_off_files= dir_entries_storage->elements;
   
-  if (!(MyFlags & MY_DONT_SORT))
-    my_qsort((void *) result->dir_entry, result->number_off_files,
-          sizeof(FILEINFO), (qsort_cmp) comp_names);
-  DBUG_RETURN(result);
+  if (MyFlags & MY_WANT_SORT)
+    sort_dynamic(&dirh->array, (qsort_cmp) comp_names);
+
+  dirh->dir.dir_entry= dynamic_element(&dirh->array, 0, FILEINFO *);
+  dirh->dir.number_of_files= dirh->array.elements;
+  
+  DBUG_RETURN(&dirh->dir);
 
  error:
 #if !defined(HAVE_READDIR_R)
@@ -182,36 +193,12 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   my_errno=errno;
   if (dirp)
     (void) closedir(dirp);
-  my_dirend(result);
+  my_dirend(&dirh->dir);
   if (MyFlags & (MY_FAE | MY_WME))
-    my_error(EE_DIR,MYF(ME_BELL+ME_WAITTANG),path,my_errno);
-  DBUG_RETURN((MY_DIR *) NULL);
+    my_error(EE_DIR, MYF(ME_BELL | ME_WAITTANG), path, my_errno);
+  DBUG_RETURN(NULL);
 } /* my_dir */
 
-
-/*
- * Convert from directory name to filename.
- * On UNIX, it's simple: just make sure there is a terminating /
-
- * Returns pointer to dst;
- */
-
-char * directory_file_name (char * dst, const char *src)
-{
-  /* Process as Unix format: just remove test the final slash. */
-  char *end;
-  DBUG_ASSERT(strlen(src) < (FN_REFLEN + 1));
-
-  if (src[0] == 0)
-    src= (char*) ".";				/* Use empty as current */
-  end= strnmov(dst, src, FN_REFLEN + 1);
-  if (end[-1] != FN_LIBCHAR)
-  {
-    end[0]=FN_LIBCHAR;				/* Add last '/' */
-    end[1]='\0';
-  }
-  return dst;
-}
 
 #else
 
@@ -223,18 +210,11 @@ char * directory_file_name (char * dst, const char *src)
 
 MY_DIR	*my_dir(const char *path, myf MyFlags)
 {
-  char          *buffer;
-  MY_DIR        *result= 0;
+  MY_DIR_HANDLE *dirh= 0;
   FILEINFO      finfo;
-  DYNAMIC_ARRAY *dir_entries_storage;
-  MEM_ROOT      *names_storage;
-#ifdef __BORLANDC__
-  struct ffblk       find;
-#else
   struct _finddata_t find;
-#endif
   ushort	mode;
-  char		tmp_path[FN_REFLEN],*tmp_file,attrib;
+  char		tmp_path[FN_REFLEN], *tmp_file,attrib;
 #ifdef _WIN64
   __int64       handle;
 #else
@@ -257,32 +237,18 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   tmp_file[2]='*';
   tmp_file[3]='\0';
 
-  if (!(buffer= my_malloc(ALIGN_SIZE(sizeof(MY_DIR)) + 
-                          ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)) +
-                          sizeof(MEM_ROOT), MyFlags)))
+  if (!(dirh= my_malloc(sizeof(*dirh), MyFlags | MY_ZEROFILL)))
     goto error;
-
-  dir_entries_storage= (DYNAMIC_ARRAY*)(buffer + ALIGN_SIZE(sizeof(MY_DIR))); 
-  names_storage= (MEM_ROOT*)(buffer + ALIGN_SIZE(sizeof(MY_DIR)) +
-                             ALIGN_SIZE(sizeof(DYNAMIC_ARRAY)));
   
-  if (my_init_dynamic_array(dir_entries_storage, sizeof(FILEINFO),
+  if (my_init_dynamic_array(&dirh->array, sizeof(FILEINFO),
                             ENTRIES_START_SIZE, ENTRIES_INCREMENT,
                             MYF(MyFlags)))
-  {
-    my_free(buffer);
     goto error;
-  }
-  init_alloc_root(names_storage, NAMES_START_SIZE, NAMES_START_SIZE, MYF(MyFlags));
-  
-  /* MY_DIR structure is allocated and completly initialized at this point */
-  result= (MY_DIR*)buffer;
 
-#ifdef __BORLANDC__
-  if ((handle= findfirst(tmp_path,&find,0)) == -1L)
-#else
+  init_alloc_root(&dirh->root, NAMES_START_SIZE, NAMES_START_SIZE,
+                  MYF(MyFlags));
+
   if ((handle=_findfirst(tmp_path,&find)) == -1L)
-#endif
   {
     DBUG_PRINT("info", ("findfirst returned error, errno: %d", errno));
     if  (errno != EINVAL)
@@ -295,12 +261,8 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
   }
   else
   {
-
     do
     {
-#ifdef __BORLANDC__
-      attrib= find.ff_attrib;
-#else
       attrib= find.attrib;
       /*
         Do not show hidden and system files which Windows sometimes create.
@@ -309,71 +271,55 @@ MY_DIR	*my_dir(const char *path, myf MyFlags)
       */
       if (attrib & (_A_HIDDEN | _A_SYSTEM))
         continue;
-#endif
-#ifdef __BORLANDC__
-      if (!(finfo.name= strdup_root(names_storage, find.ff_name)))
+
+      if (find.name[0] == '.' &&
+          (find.name[1] == '\0' ||
+           (find.name[1] == '.' && find.name[2] == '\0')))
+        continue;                               /* . or .. */
+
+      if (!(finfo.name= strdup_root(&dirh->root, find.name)))
         goto error;
-#else
-      if (!(finfo.name= strdup_root(names_storage, find.name)))
-        goto error;
-#endif
       if (MyFlags & MY_WANT_STAT)
       {
-        if (!(finfo.mystat= (MY_STAT*)alloc_root(names_storage,
-                                                 sizeof(MY_STAT))))
+        if (!(finfo.mystat= (MY_STAT*)alloc_root(&dirh->root, sizeof(MY_STAT))))
           goto error;
 
         bzero(finfo.mystat, sizeof(MY_STAT));
-#ifdef __BORLANDC__
-        finfo.mystat->st_size=find.ff_fsize;
-#else
         finfo.mystat->st_size=find.size;
-#endif
         mode= MY_S_IREAD;
         if (!(attrib & _A_RDONLY))
           mode|= MY_S_IWRITE;
         if (attrib & _A_SUBDIR)
           mode|= MY_S_IFDIR;
         finfo.mystat->st_mode= mode;
-#ifdef __BORLANDC__
-        finfo.mystat->st_mtime= ((uint32) find.ff_ftime);
-#else
         finfo.mystat->st_mtime= ((uint32) find.time_write);
-#endif
       }
       else
         finfo.mystat= NULL;
 
-      if (push_dynamic(dir_entries_storage, (uchar*)&finfo))
+      if (push_dynamic(&dirh->array, (uchar*)&finfo))
         goto error;
     }
-#ifdef __BORLANDC__
-    while (findnext(&find) == 0);
-#else
     while (_findnext(handle,&find) == 0);
-
     _findclose(handle);
-#endif
   }
 
-  result->dir_entry= (FILEINFO *)dir_entries_storage->buffer;
-  result->number_off_files= dir_entries_storage->elements;
+  if (MyFlags & MY_WANT_SORT)
+    sort_dynamic(&dirh->array, (qsort_cmp) comp_names);
 
-  if (!(MyFlags & MY_DONT_SORT))
-    my_qsort((void *) result->dir_entry, result->number_off_files,
-          sizeof(FILEINFO), (qsort_cmp) comp_names);
-  DBUG_PRINT("exit", ("found %d files", result->number_off_files));
-  DBUG_RETURN(result);
+  dirh->dir.dir_entry= dynamic_element(&dirh->array, 0, FILEINFO *);
+  dirh->dir.number_of_files= dirh->array.elements;
+
+  DBUG_PRINT("exit", ("found %d files", dirh->dir.number_of_files));
+  DBUG_RETURN(&dirh->dir);
 error:
   my_errno=errno;
-#ifndef __BORLANDC__
   if (handle != -1)
       _findclose(handle);
-#endif
-  my_dirend(result);
-  if (MyFlags & MY_FAE+MY_WME)
-    my_error(EE_DIR,MYF(ME_BELL+ME_WAITTANG),path,errno);
-  DBUG_RETURN((MY_DIR *) NULL);
+  my_dirend(&dirh->dir);
+  if (MyFlags & (MY_FAE | MY_WME))
+    my_error(EE_DIR,MYF(ME_BELL | ME_WAITTANG), path, errno);
+  DBUG_RETURN(NULL);
 } /* my_dir */
 
 #endif /* _WIN32 */

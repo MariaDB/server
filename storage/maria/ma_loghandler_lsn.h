@@ -83,8 +83,8 @@ typedef TRANSLOG_ADDRESS LSN;
   other bytes are a LSN.
 */
 typedef LSN LSN_WITH_FLAGS;
-#define LSN_WITH_FLAGS_TO_LSN(x)   (x & ULL(0x00FFFFFFFFFFFFFF))
-#define LSN_WITH_FLAGS_TO_FLAGS(x) (x & ULL(0xFF00000000000000))
+#define LSN_WITH_FLAGS_TO_LSN(x)   (x & 0x00FFFFFFFFFFFFFFULL)
+#define LSN_WITH_FLAGS_TO_FLAGS(x) (x & 0xFF00000000000000ULL)
 
 #define FILENO_IMPOSSIBLE     0 /**< log file's numbering starts at 1 */
 #define LOG_OFFSET_IMPOSSIBLE 0 /**< log always has a header */
@@ -106,6 +106,6 @@ typedef LSN LSN_WITH_FLAGS;
    Unlike ULONGLONG_MAX, it can be safely used in comparison with valid LSNs
    (ULONGLONG_MAX is too big for correctness of cmp_translog_addr()).
 */
-#define LSN_MAX (LSN)ULL(0x00FFFFFFFFFFFFFF)
+#define LSN_MAX (LSN)0x00FFFFFFFFFFFFFFULL
 
 #endif

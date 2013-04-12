@@ -2166,6 +2166,13 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template(prebuilt);
 }
 
+/****************************************************************//**
+Gives the file extension of an InnoDB single-table tablespace. */
+static const char* ha_innobase_exts[] = {
+  ".ibd",
+  NullS
+};
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return	0 on success, error code on failure */
@@ -2214,6 +2221,9 @@ innobase_init(
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
         innobase_hton->kill_query = innobase_kill_query;
+
+        if (srv_file_per_table)
+          innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -3348,13 +3358,6 @@ ha_innobase::table_flags() const
                 return int_table_flags;
         return int_table_flags | HA_BINLOG_STMT_CAPABLE;
 }
-
-/****************************************************************//**
-Gives the file extension of an InnoDB single-table tablespace. */
-static const char* ha_innobase_exts[] = {
-  ".ibd",
-  NullS
-};
 
 /****************************************************************//**
 Returns the table type (storage engine name).

@@ -171,12 +171,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
 }
 
 
-const char **ha_myisammrg::bas_ext() const
-{
-  return ha_myisammrg_exts;
-}
-
-
 const char *ha_myisammrg::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
@@ -1724,6 +1718,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->create= myisammrg_create_handler;
   myisammrg_hton->panic= myisammrg_panic;
   myisammrg_hton->flags= HTON_NO_PARTITION;
+  myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
 
   return 0;
 }

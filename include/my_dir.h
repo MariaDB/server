@@ -46,8 +46,9 @@ extern "C" {
 #define MY_S_ISFIFO(m)	(((m) & MY_S_IFMT) == MY_S_IFIFO)
 
 /* Ensure these dosn't clash with anything in my_sys.h */
-#define MY_DONT_SORT	8192	/* my_lib; Don't sort files */
+#define MY_WANT_SORT     8192   /* my_lib; sort files */
 #define MY_WANT_STAT	16384	/* my_lib; stat files */
+#define MY_DONT_SORT        0
 
 	/* typedefs for my_dir & my_stat */
 
@@ -94,7 +95,7 @@ typedef struct st_my_dir	/* Struct returned from my_dir */
     we don't want to change code that uses my_dir.
   */
   struct fileinfo	*dir_entry;
-  uint			number_off_files;
+  uint			number_of_files;
 } MY_DIR;
 
 extern MY_DIR *my_dir(const char *path,myf MyFlags);

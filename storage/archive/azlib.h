@@ -198,6 +198,7 @@ extern "C" {
 #define AZ_BUFSIZE_READ 32768
 #define AZ_BUFSIZE_WRITE 16384
 
+#define AZ_FRMVER_LEN 16 /* same as MY_UUID_SIZE in 10.0.2 */
 
 typedef struct azio_stream {
   z_stream stream;
@@ -227,6 +228,8 @@ typedef struct azio_stream {
   unsigned char dirty;   /* State of file */
   unsigned int frm_start_pos;   /* Position for start of FRM */
   unsigned int frm_length;   /* Position for start of FRM */
+  unsigned char frmver[AZ_FRMVER_LEN];
+  unsigned int frmver_length;
   unsigned int comment_start_pos;   /* Position for start of comment */
   unsigned int comment_length;   /* Position for start of comment */
 } azio_stream;
@@ -331,8 +334,8 @@ extern int azclose(azio_stream *file);
    error number (see function gzerror below).
 */
 
-extern int azwrite_frm (azio_stream *s, char *blob, unsigned int length);
-extern int azread_frm (azio_stream *s, char *blob);
+extern int azwrite_frm (azio_stream *s, const uchar *blob, unsigned int length);
+extern int azread_frm (azio_stream *s, uchar *blob);
 extern int azwrite_comment (azio_stream *s, char *blob, unsigned int length);
 extern int azread_comment (azio_stream *s, char *blob);
 

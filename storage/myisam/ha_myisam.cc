@@ -677,12 +677,6 @@ static const char *ha_myisam_exts[] = {
   NullS
 };
 
-const char **ha_myisam::bas_ext() const
-{
-  return ha_myisam_exts;
-}
-
-
 const char *ha_myisam::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
@@ -2209,6 +2203,7 @@ static int myisam_init(void *p)
   myisam_hton->create= myisam_create_handler;
   myisam_hton->panic= myisam_panic;
   myisam_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+  myisam_hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
 
   return 0;

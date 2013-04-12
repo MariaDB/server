@@ -42,21 +42,18 @@ CREATE TABLE t2
 b INTEGER NOT NULL,
 KEY (b))
 ENGINE = MYISAM
-/*!50100  PARTITION BY RANGE (a)
-(PARTITION p0 VALUES LESS THAN (2),
+PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (2),
 PARTITION p1 VALUES LESS THAN (20),
 PARTITION p2 VALUES LESS THAN (100),
-PARTITION p3 VALUES LESS THAN MAXVALUE ) */;
+PARTITION p3 VALUES LESS THAN MAXVALUE);
 SET DEBUG_SYNC= 'alter_table_before_open_tables SIGNAL removing_partitions WAIT_FOR waiting_for_alter';
 SET DEBUG_SYNC= 'alter_table_before_rename_result_table WAIT_FOR delete_done';
 ALTER TABLE t2 REMOVE PARTITIONING;
 # Con default
-SET SESSION debug_dbug= "+d,sleep_before_no_locks_delete_table";
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitions';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_binlog SIGNAL delete_done';
 DROP TABLE IF EXISTS t2;
-SET SESSION debug_dbug= "-d,sleep_before_no_locks_delete_table";
 # Con 1
 ERROR 42S02: Table 'test.t2' doesn't exist
 SET DEBUG_SYNC= 'RESET';

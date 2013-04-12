@@ -148,7 +148,7 @@ my_bool maria_upgrade()
                "Converting them to Aria names",
                MYF(ME_JUST_INFO));
 
-    for (i= 0; i < dir->number_off_files; i++)
+    for (i= 0; i < dir->number_of_files; i++)
     {
       const char *file= dir->dir_entry[i].name;
       if (strncmp(file, "maria_log.", 10) == 0 &&

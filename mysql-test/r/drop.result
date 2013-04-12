@@ -142,9 +142,9 @@ create table `#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ERROR 42000: Incorrect table name '#mysql50#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa12345'
 show tables;
 Tables_in_mysqltestbug26703
+#mysql50#abc`def
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1234
 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-#mysql50#abc`def
 use test;
 drop database mysqltestbug26703;
 End of 5.1 tests
