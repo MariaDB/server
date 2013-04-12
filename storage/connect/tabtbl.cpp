@@ -254,7 +254,11 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   flags = 24;
 
   if (!open_table_def(thd, s, flags)) {
+#ifdef DBUG_OFF
+    if (stricmp(s->db_plugin->name.str, "connect")) {
+#else
     if (stricmp((*s->db_plugin)->name.str, "connect")) {
+#endif
 #if defined(MYSQL_SUPPORT)
       // Access sub-table via MySQL API
       if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYSQL"))) {
