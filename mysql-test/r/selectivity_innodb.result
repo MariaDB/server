@@ -997,6 +997,28 @@ a	b
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 DROP TABLE t1,t2,t3;
 set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-4389: join with degenerated range condition in WHERE   
+#                when optimizer_use_condition_selectivity=3
+#
+set use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (f1 VARCHAR(1));
+INSERT t1 VALUES ('p'),('q');
+CREATE TABLE t2 (f2 VARCHAR(1));
+INSERT INTO t2 VALUES 
+('o'),('v'),('f'),('f'),('e'),('l'),('j'),('p'),('r'),('j'),
+('j'),('u'),('i'),('r'),('x'),('a'),('x'),('s');
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+FLUSH TABLES;
+SET optimizer_use_condition_selectivity=3;
+SELECT * FROM t1, t2 AS t2a, t2 AS t2b WHERE f1 <= 'a' AND t2a.f2 = f1;
+f1	f2	f2
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2;
+set use_stat_tables=@save_use_stat_tables;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;
