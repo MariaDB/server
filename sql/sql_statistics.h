@@ -124,6 +124,7 @@ private:
     case DOUBLE_PREC_HB:
       return ((uint) (1 << 16) - 1);
     }
+    return 1;
   }
 
 public:
@@ -135,6 +136,7 @@ public:
     case DOUBLE_PREC_HB:
       return size / 2;
     }
+    return 0;
   }
 
 private:
@@ -146,6 +148,7 @@ private:
     case DOUBLE_PREC_HB:
       return (uint) (((uint16 *) values)[i]);
     }
+    return 0;
   }
 
   uint find_bucket(double pos, bool first)
