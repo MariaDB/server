@@ -507,6 +507,7 @@ void lex_start(THD *thd)
   lex->expr_allows_subselect= TRUE;
   lex->use_only_table_context= FALSE;
   lex->parse_vcol_expr= FALSE;
+  lex->check_exists= FALSE;
   lex->verbose= 0;
 
   lex->name.str= 0;

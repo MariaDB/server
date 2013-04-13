@@ -4954,6 +4954,246 @@ is_index_maintenance_unique (TABLE *table, Alter_info *alter_info)
 
 
 /*
+   Preparation for table creation
+
+   SYNOPSIS
+     handle_if_exists_option()
+       thd                       Thread object.
+       table                     The altered table.
+       alter_info                List of columns and indexes to create
+
+   DESCRIPTION
+     Looks for the IF [NOT] EXISTS options, checks the states and remove items
+     from the list if existing found.
+
+   RETURN VALUES
+     NONE
+*/
+
+static void
+handle_if_exists_options(THD *thd, TABLE *table, Alter_info *alter_info)
+{
+  Field **f_ptr;
+  DBUG_ENTER("handle_if_exists_option");
+
+  /* Handle ADD COLUMN IF NOT EXISTS. */
+  {
+    List_iterator<Create_field> it(alter_info->create_list);
+    Create_field *sql_field;
+
+    while ((sql_field=it++))
+    {
+      if (!sql_field->create_if_not_exists || sql_field->change)
+        continue;
+      /*
+         If there is a field with the same name in the table already,
+         remove the sql_field from the list.
+      */
+      for (f_ptr=table->field; *f_ptr; f_ptr++)
+      {
+        if (my_strcasecmp(system_charset_info,
+              sql_field->field_name, (*f_ptr)->field_name) == 0)
+        {
+          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+              ER_DUP_FIELDNAME, ER(ER_DUP_FIELDNAME),
+              sql_field->field_name);
+          it.remove();
+          if (alter_info->create_list.is_empty())
+          {
+            alter_info->flags&= ~ALTER_ADD_COLUMN;
+            if (alter_info->key_list.is_empty())
+              alter_info->flags&= ~ALTER_ADD_INDEX;
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  /* Handle MODIFY COLUMN IF EXISTS. */
+  {
+    List_iterator<Create_field> it(alter_info->create_list);
+    Create_field *sql_field;
+
+    while ((sql_field=it++))
+    {
+      if (!sql_field->create_if_not_exists || !sql_field->change)
+        continue;
+      /*
+         If there is NO field with the same name in the table already,
+         remove the sql_field from the list.
+      */
+      for (f_ptr=table->field; *f_ptr; f_ptr++)
+      {
+        if (my_strcasecmp(system_charset_info,
+              sql_field->field_name, (*f_ptr)->field_name) == 0)
+        {
+          break;
+        }
+      }
+      if (*f_ptr == NULL)
+      {
+        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            ER_BAD_FIELD_ERROR, ER(ER_BAD_FIELD_ERROR),
+            sql_field->change, table->s->table_name.str);
+        it.remove();
+        if (alter_info->create_list.is_empty())
+        {
+          alter_info->flags&= ~(ALTER_ADD_COLUMN | ALTER_CHANGE_COLUMN);
+          if (alter_info->key_list.is_empty())
+            alter_info->flags&= ~ALTER_ADD_INDEX;
+        }
+      }
+    }
+  }
+
+  /* Handle DROP COLUMN/KEY IF EXISTS. */
+  {
+    List_iterator<Alter_drop> drop_it(alter_info->drop_list);
+    Alter_drop *drop;
+    bool remove_drop;
+    while ((drop= drop_it++))
+    {
+      if (!drop->drop_if_exists)
+        continue;
+      remove_drop= TRUE;
+      if (drop->type == Alter_drop::COLUMN)
+      {
+        /*
+           If there is NO field with that name in the table,
+           remove the 'drop' from the list.
+        */
+        for (f_ptr=table->field; *f_ptr; f_ptr++)
+        {
+          if (my_strcasecmp(system_charset_info,
+                            drop->name, (*f_ptr)->field_name) == 0)
+          {
+            remove_drop= FALSE;
+            break;
+          }
+        }
+      }
+      else /* Alter_drop::KEY */
+      {
+        uint n_key;
+        for (n_key=0; n_key < table->s->keys; n_key++)
+        {
+          if (my_strcasecmp(system_charset_info,
+                            drop->name, table->key_info[n_key].name) == 0)
+          {
+            remove_drop= FALSE;
+            break;
+          }
+        }
+      }
+      if (remove_drop)
+      {
+        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            ER_CANT_DROP_FIELD_OR_KEY, ER(ER_CANT_DROP_FIELD_OR_KEY),
+            drop->name);
+        drop_it.remove();
+        if (alter_info->drop_list.is_empty())
+          alter_info->flags&= ~(ALTER_DROP_COLUMN | ALTER_DROP_INDEX);
+      }
+    }
+  }
+
+  /* ALTER TABLE ADD KEY IF NOT EXISTS */
+  /* ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS */
+  {
+    Key *key;
+    List_iterator<Key> key_it(alter_info->key_list);
+    uint n_key;
+    while ((key=key_it++))
+    {
+      if (!key->create_if_not_exists)
+        continue;
+      for (n_key=0; n_key < table->s->keys; n_key++)
+      {
+        if (my_strcasecmp(system_charset_info,
+              key->name.str, table->key_info[n_key].name) == 0)
+        {
+          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+              ER_DUP_KEYNAME, ER(ER_DUP_KEYNAME), key->name.str);
+          key_it.remove();
+          if (key->type == Key::FOREIGN_KEY)
+          {
+            /* ADD FOREIGN KEY appends two items. */
+            key_it.remove();
+          }
+          if (alter_info->key_list.is_empty())
+            alter_info->flags&= ~ALTER_ADD_INDEX;
+          break;
+        }
+      }
+    }
+  }
+  
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  partition_info *tab_part_info= table->part_info;
+  if (tab_part_info && thd->lex->check_exists)
+  {
+    /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
+    if (alter_info->flags & ALTER_ADD_PARTITION)
+    {
+      partition_info *alt_part_info= thd->lex->part_info;
+      if (alt_part_info)
+      {
+        List_iterator<partition_element> new_part_it(alt_part_info->partitions);
+        partition_element *pe;
+        while ((pe= new_part_it++))
+        {
+          if (!tab_part_info->has_unique_name(pe))
+          {
+            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                ER_SAME_NAME_PARTITION, ER(ER_SAME_NAME_PARTITION),
+                pe->partition_name);
+            alter_info->flags&= ~ALTER_ADD_PARTITION;
+            thd->lex->part_info= NULL;
+            break;
+          }
+        }
+      }
+    }
+    /* ALTER TABLE DROP PARTITION IF EXISTS */
+    if (alter_info->flags & ALTER_DROP_PARTITION)
+    {
+      List_iterator<char> names_it(alter_info->partition_names);
+      char *name;
+
+      while ((name= names_it++))
+      {
+        List_iterator<partition_element> part_it(tab_part_info->partitions);
+        partition_element *part_elem;
+        while ((part_elem= part_it++))
+        {
+          if (my_strcasecmp(system_charset_info,
+                              part_elem->partition_name, name) == 0)
+            break;
+        }
+        if (!part_elem)
+        {
+          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+              ER_DROP_PARTITION_NON_EXISTENT,
+              ER(ER_DROP_PARTITION_NON_EXISTENT), "DROP");
+          names_it.remove();
+        }
+      }
+      if (alter_info->partition_names.elements == 0)
+        alter_info->flags&= ~ALTER_DROP_PARTITION;
+    }
+  }
+#endif /*WITH_PARTITION_STORAGE_ENGINE*/
+
+  /* Clear the ALTER_FOREIGN_KEY flag if nothing other than that set. */
+  if (alter_info->flags == ALTER_FOREIGN_KEY)
+    alter_info->flags= 0;
+
+  DBUG_VOID_RETURN;
+}
+
+
+/*
   SYNOPSIS
     mysql_compare_tables()
       table                     The original table.
@@ -5873,7 +6113,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new Key(key_type, key_name, strlen(key_name),
                    &key_create_info,
                    test(key_info->flags & HA_GENERATED_KEY),
-                   key_parts, key_info->option_list);
+                   key_parts, key_info->option_list, FALSE);
       new_key_list.push_back(key);
     }
   }
@@ -6384,6 +6624,17 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         mdl_ticket->downgrade_exclusive_lock(MDL_SHARED_NO_READ_WRITE);
     }
     DBUG_RETURN(error);
+  }
+
+  handle_if_exists_options(thd, table, alter_info);
+
+  /* Look if we have to do anything at all. */
+  /* Normally ALTER can become NOOP only after handling */
+  /* the IF (NOT) EXISTS options. */
+  if (alter_info->flags == 0)
+  {
+    copied= deleted= 0;
+    goto end_temporary;
   }
 
   /* We have to do full alter table. */
