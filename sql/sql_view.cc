@@ -1672,7 +1672,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     {
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
-      if (thd->lex->drop_if_exists)
+      if (thd->lex->check_exists)
       {
 	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),

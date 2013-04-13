@@ -8886,6 +8886,7 @@ void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
                        FLAGSTR(pack_flag, FIELDFLAG_DECIMAL),
                        f_packtype(pack_flag)));
   vcol_info= 0;
+  create_if_not_exists= FALSE;
   stored_in_db= TRUE;
 
   DBUG_VOID_RETURN;
@@ -8923,7 +8924,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
                         char *fld_change, List<String> *fld_interval_list,
                         CHARSET_INFO *fld_charset, uint fld_geom_type,
 			Virtual_column_info *fld_vcol_info,
-                        engine_option_value *create_opt)
+                        engine_option_value *create_opt, bool check_exists)
 {
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
@@ -8977,6 +8978,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
 
   comment= *fld_comment;
   vcol_info= fld_vcol_info;
+  create_if_not_exists= check_exists;
   stored_in_db= TRUE;
 
   /* Initialize data for a computed field */
@@ -9585,6 +9587,7 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
+  create_if_not_exists= FALSE;
   stored_in_db= old_field->stored_in_db;
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;
