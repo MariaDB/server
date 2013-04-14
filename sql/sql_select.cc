@@ -3848,6 +3848,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     DBUG_RETURN(TRUE);
 
   join->join_tab=stat;
+  join->top_join_tab_count= table_count;
   join->map2table=stat_ref;
   join->table= table_vector;
   join->const_tables=const_count;
@@ -3894,6 +3895,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 
   if (join->choose_subquery_plan(all_table_map & ~join->const_table_map))
     goto error;
+
+  DEBUG_SYNC(join->thd, "inside_make_join_statistics");
 
   /* Generate an execution plan from the found optimal join order. */
   DBUG_RETURN(join->thd->check_killed() || get_best_combination(join));
@@ -10586,6 +10589,10 @@ bool JOIN_TAB::preread_init()
                                                join->select_lex->select_number))
                         dbug_serve_apcs(join->thd, 1);
                  );
+
+  /* init ftfuns for just initialized derived table */
+  if (table->fulltext_searched)
+    init_ftfuncs(join->thd, join->select_lex, test(join->order));
 
   return FALSE;
 }
