@@ -3526,16 +3526,33 @@ err_during_init:
 /*
   Check the temporary directory used by commands like
   LOAD DATA INFILE.
+
+  As the directory never changes during a mysqld run, we only
+  test this once and cache the result. This also resolve a race condition
+  when this can be run by multiple threads at the same time.
  */
+
+static bool check_temp_dir_run= 0;
+static int check_temp_dir_result= 0;
+
 static 
 int check_temp_dir(char* tmp_file)
 {
-  int fd;
+  File fd;
+  int result= 1;                                // Assume failure
   MY_DIR *dirp;
   char tmp_dir[FN_REFLEN];
   size_t tmp_dir_size;
 
   DBUG_ENTER("check_temp_dir");
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  if (check_temp_dir_run)
+  {
+    result= check_temp_dir_result;
+    goto end;
+  }
+  check_temp_dir_run= 1;
 
   /*
     Get the directory from the temporary file.
@@ -3546,26 +3563,32 @@ int check_temp_dir(char* tmp_file)
     Check if the directory exists.
    */
   if (!(dirp=my_dir(tmp_dir,MYF(MY_WME))))
-    DBUG_RETURN(1);
+    goto end;
   my_dirend(dirp);
 
   /*
-    Check permissions to create a file.
+    Check permissions to create a file. We use O_TRUNC to ensure that
+    things works even if we happen to have and old file laying around.
    */
   if ((fd= mysql_file_create(key_file_misc,
                              tmp_file, CREATE_MODE,
-                             O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
+                             O_WRONLY | O_BINARY | O_TRUNC | O_NOFOLLOW,
                              MYF(MY_WME))) < 0)
-  DBUG_RETURN(1);
+    goto end;
 
+  result= 0;                                    // Directory name ok
   /*
     Clean up.
    */
   mysql_file_close(fd, MYF(0));
   mysql_file_delete(key_file_misc, tmp_file, MYF(0));
 
-  DBUG_RETURN(0);
+end:
+  check_temp_dir_result= result;
+  mysql_mutex_unlock(&LOCK_thread_count);
+  DBUG_RETURN(result);
 }
+
 
 /**
   Slave SQL thread entry point.

@@ -6,6 +6,7 @@
 # on the 1st master
 
 --source include/not_embedded.inc
+--let $rpl_server_count= 0
 
 --connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
 
