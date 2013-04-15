@@ -640,11 +640,7 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
       goto err;
     }
 
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  share->m_psi= PSI_CALL(get_table_share)(false, share);
-#else
-  share->m_psi= NULL;
-#endif
+    share->m_psi= PSI_CALL_get_table_share(false, share);
 
     DBUG_PRINT("exit", ("share: 0x%lx  ref_count: %u",
                         (ulong) share, share->ref_count));
@@ -6007,11 +6003,7 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
     DBUG_RETURN(0);
   }
 
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  share->m_psi= PSI_CALL(get_table_share)(true, share);
-#else
-  share->m_psi= NULL;
-#endif
+  share->m_psi= PSI_CALL_get_table_share(true, share);
 
   if (open_table_from_share(thd, share, table_name,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |

@@ -2265,14 +2265,11 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   }
   delete file;
 
-#ifdef HAVE_PSI_TABLE_INTERFACE
   if (likely(error == 0))
   {
-    my_bool temp_table= (my_bool)is_prefix(alias, tmp_file_prefix);
-    PSI_CALL(drop_table_share)(temp_table, db, strlen(db),
-                               alias, strlen(alias));
+    PSI_CALL_drop_table_share(is_prefix(alias, tmp_file_prefix),
+                              db, strlen(db), alias, strlen(alias));
   }
-#endif
 
   DBUG_RETURN(error);
 }
@@ -2343,31 +2340,27 @@ THD *handler::ha_thd(void) const
 
 void handler::unbind_psi()
 {
-#ifdef HAVE_PSI_TABLE_INTERFACE
   /*
     Notify the instrumentation that this table is not owned
     by this thread any more.
   */
-  PSI_CALL(unbind_table)(m_psi);
-#endif
+  PSI_CALL_unbind_table(m_psi);
 }
 
 void handler::rebind_psi()
 {
-#ifdef HAVE_PSI_TABLE_INTERFACE
   /*
     Notify the instrumentation that this table is now owned
     by this thread.
   */
-  PSI_table_share *share_psi= ha_table_share_psi(table_share);
-  m_psi= PSI_CALL(rebind_table)(share_psi, this, m_psi);
-#endif
+  PSI_table_share *share_psi= ha_table_share_psi();
+  m_psi= PSI_CALL_rebind_table(share_psi, this, m_psi);
 }
 
 
-PSI_table_share *handler::ha_table_share_psi(const TABLE_SHARE *share) const
+PSI_table_share *handler::ha_table_share_psi() const
 {
-  return share->m_psi;
+  return table_share->m_psi;
 }
 
 /** @brief
@@ -2409,10 +2402,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
   {
     DBUG_ASSERT(m_psi == NULL);
     DBUG_ASSERT(table_share != NULL);
-#ifdef HAVE_PSI_TABLE_INTERFACE
-    PSI_table_share *share_psi= ha_table_share_psi(table_share);
-    m_psi= PSI_CALL(open_table)(share_psi, this);
-#endif
+    m_psi= PSI_CALL_open_table(ha_table_share_psi(), this);
 
     if (table->s->db_options_in_use & HA_OPTION_READ_ONLY_DATA)
       table->db_stat|=HA_READ_ONLY;
@@ -2443,10 +2433,8 @@ int handler::ha_close(void)
   */
   if (table->in_use)
     status_var_add(table->in_use->status_var.rows_tmp_read, rows_tmp_read);
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  PSI_CALL(close_table)(m_psi);
+  PSI_CALL_close_table(m_psi);
   m_psi= NULL; /* instrumentation handle, invalid after close_table() */
-#endif
   
   DBUG_RETURN(close());
 }
@@ -4355,9 +4343,7 @@ int ha_create_table(THD *thd, const char *path,
       goto err;
   }
 
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  share.m_psi= PSI_CALL(get_table_share)(temp_table, &share);
-#endif
+  share.m_psi= PSI_CALL_get_table_share(temp_table, &share);
 
   if (open_table_from_share(thd, &share, "", 0, READ_ALL, 0, &table, true))
     goto err;
@@ -4373,10 +4359,8 @@ int ha_create_table(THD *thd, const char *path,
   if (error)
   {
     my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
-#ifdef HAVE_PSI_TABLE_INTERFACE
-    PSI_CALL(drop_table_share)(temp_table, share.db.str, share.db.length,
-                               share.table_name.str, share.table_name.length);
-#endif
+    PSI_CALL_drop_table_share(temp_table, share.db.str, share.db.length,
+                              share.table_name.str, share.table_name.length);
   }
  
 err:

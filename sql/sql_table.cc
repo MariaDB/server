@@ -4668,18 +4668,16 @@ mysql_rename_table(handlerton *base, const char *old_db,
   else if (error)
     my_error(ER_ERROR_ON_RENAME, MYF(0), from, to, error);
 
-#ifdef HAVE_PSI_TABLE_INTERFACE
   /*
     Remove the old table share from the pfs table share array. The new table
     share will be created when the renamed table is first accessed.
    */
   if (likely(error == 0))
   {
-    my_bool temp_table= (my_bool)is_prefix(old_name, tmp_file_prefix);
-    PSI_CALL(drop_table_share)(temp_table, old_db, strlen(old_db),
-                               old_name, strlen(old_name));
+    PSI_CALL_drop_table_share(is_prefix(old_name, tmp_file_prefix),
+                              old_db, strlen(old_db),
+                              old_name, strlen(old_name));
   }
-#endif
 
   DBUG_RETURN(error != 0);
 }
