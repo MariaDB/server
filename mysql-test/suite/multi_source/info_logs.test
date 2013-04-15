@@ -130,6 +130,13 @@ start slave;
 --echo # EOF
 --echo #
 
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
+
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;
 
@@ -145,6 +152,13 @@ EOF
 set default_master_connection = 'MASTER 2.2';
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
+
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;
