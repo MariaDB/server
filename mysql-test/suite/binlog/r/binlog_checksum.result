@@ -12,6 +12,7 @@ flush logs;
 drop table t1;
 show binlog events from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int)
 master-bin.000001	#	Rotate	#	#	master-bin.000002;pos=4
 show tables;

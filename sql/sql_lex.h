@@ -299,7 +299,8 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt;
+    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
+    use_gtid_opt;
 
   void init()
   {
@@ -315,7 +316,7 @@ struct LEX_MASTER_INFO
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
-      repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
+      repl_ignore_server_ids_opt= use_gtid_opt= LEX_MI_UNCHANGED;
   }
 };
 

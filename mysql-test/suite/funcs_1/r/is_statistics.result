@@ -130,6 +130,8 @@ def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	PRIMARY
 def	mysql	proxies_priv	mysql	Grantor
+def	mysql	rpl_slave_state	mysql	PRIMARY
+def	mysql	rpl_slave_state	mysql	PRIMARY
 def	mysql	servers	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY
 def	mysql	table_stats	mysql	PRIMARY

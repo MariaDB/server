@@ -56,9 +56,8 @@ master_user='root';
 # the schema creation will be replicated from the 1st master,
 # so we want to skip it in the second replication connection.
 
-# Normally it should have been 2 events, but
-# currently Binlog_checkpoint also counts. Maybe we'll need
-# to modify the test later
+# Normally it should have been 2 events, but currently Binlog_checkpoint +
+# 2 Gtid also count. Maybe we'll need to modify the test later
 
 --let $skip_counter_saved = `select @@global.sql_slave_skip_counter`
 --let $max_relay_log_size_saved= `select @@global.max_relay_log_size`
@@ -72,7 +71,7 @@ select @@session.sql_slave_skip_counter;
 set global sql_slave_skip_counter= default;
 select @@global.sql_slave_skip_counter;
 select @@session.sql_slave_skip_counter;
-set global sql_slave_skip_counter= 3;
+set global sql_slave_skip_counter= 5;
 set default_master_connection = 'master1';
 select @@session.sql_slave_skip_counter;
 set default_master_connection = 'qqq';

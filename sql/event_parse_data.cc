@@ -574,8 +574,8 @@ void Event_parse_data::check_originator_id(THD *thd)
       status= Event_parse_data::SLAVESIDE_DISABLED;
       status_changed= true;
     }
-    originator = thd->server_id;
+    originator = thd->variables.server_id;
   }
   else
-    originator = server_id;
+    originator = global_system_variables.server_id;
 }

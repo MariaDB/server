@@ -38,9 +38,10 @@ master-bin.000006	#
 show binlog events in 'master-bin.000003' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000003	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000003	#	Gtid_list	#	#	[#-#-#]
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000002
 master-bin.000003	#	Binlog_checkpoint	#	#	master-bin.000003
-master-bin.000003	#	Query	#	#	BEGIN
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000003	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.000003	#	Xid	#	#	COMMIT /* XID */
@@ -48,9 +49,10 @@ master-bin.000003	#	Rotate	#	#	master-bin.00000<binlog_start>;pos=<binlog_start>
 show binlog events in 'master-bin.00000<binlog_start>' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.00000<binlog_start>	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.00000<binlog_start>	#	Gtid_list	#	#	[#-#-#]
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.00000<binlog_start>
-master-bin.00000<binlog_start>	#	Query	#	#	BEGIN
+master-bin.00000<binlog_start>	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.00000<binlog_start>	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.00000<binlog_start>	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.00000<binlog_start>	#	Xid	#	#	COMMIT /* XID */
@@ -58,12 +60,13 @@ master-bin.00000<binlog_start>	#	Rotate	#	#	master-bin.000005;pos=<binlog_start>
 show binlog events in 'master-bin.000005' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000005	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000005	#	Gtid_list	#	#	[#-#-#]
 master-bin.000005	#	Binlog_checkpoint	#	#	master-bin.00000<binlog_start>
-master-bin.000005	#	Query	#	#	BEGIN
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000005	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.000005	#	Xid	#	#	COMMIT /* XID */
-master-bin.000005	#	Query	#	#	BEGIN
+master-bin.000005	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000005	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.000005	#	Xid	#	#	COMMIT /* XID */
@@ -71,6 +74,7 @@ master-bin.000005	#	Rotate	#	#	master-bin.000006;pos=<binlog_start>
 show binlog events in 'master-bin.000006' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000006	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000006	#	Gtid_list	#	#	[#-#-#]
 master-bin.000006	#	Binlog_checkpoint	#	#	master-bin.00000<binlog_start>
 PURGE BINARY LOGS TO "master-bin.000006";
 show binary logs;
@@ -112,8 +116,9 @@ master-bin.000004	#
 show binlog events in 'master-bin.00000<binlog_start>' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.00000<binlog_start>	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.00000<binlog_start>	#	Gtid_list	#	#	[#-#-#]
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.000001
-master-bin.00000<binlog_start>	#	Query	#	#	BEGIN
+master-bin.00000<binlog_start>	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.00000<binlog_start>	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.00000<binlog_start>	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.00000<binlog_start>	#	Xid	#	#	COMMIT /* XID */
@@ -128,8 +133,9 @@ Checking that master-bin.000004 is the last binlog checkpoint
 show binlog events in 'master-bin.00000<binlog_start>' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.00000<binlog_start>	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.00000<binlog_start>	#	Gtid_list	#	#	[#-#-#]
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.000001
-master-bin.00000<binlog_start>	#	Query	#	#	BEGIN
+master-bin.00000<binlog_start>	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.00000<binlog_start>	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.00000<binlog_start>	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.00000<binlog_start>	#	Xid	#	#	COMMIT /* XID */
@@ -192,9 +198,10 @@ master-bin.000005	#
 show binlog events in 'master-bin.00000<binlog_start>' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.00000<binlog_start>	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.00000<binlog_start>	#	Gtid_list	#	#	[#-#-#]
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.000003
 master-bin.00000<binlog_start>	#	Binlog_checkpoint	#	#	master-bin.00000<binlog_start>
-master-bin.00000<binlog_start>	#	Query	#	#	BEGIN
+master-bin.00000<binlog_start>	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.00000<binlog_start>	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.00000<binlog_start>	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.00000<binlog_start>	#	Xid	#	#	COMMIT /* XID */
