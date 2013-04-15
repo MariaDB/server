@@ -722,7 +722,7 @@ static bool add_create_index (LEX *lex, Key::Keytype type,
 {
   Key *key;
   key= new Key(type, name, info ? info : &lex->key_create_info, generated, 
-               lex->col_list, lex->option_list);
+               lex->col_list, lex->option_list, lex->check_exists);
   if (key == NULL)
     return TRUE;
 
@@ -835,6 +835,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  AUTHORS_SYM
 %token  AUTOEXTEND_SIZE_SYM
 %token  AUTO_INC
+%token  AUTO_SYM
 %token  AVG_ROW_LENGTH
 %token  AVG_SYM                       /* SQL-2003-N */
 %token  BACKUP_SYM
@@ -1094,6 +1095,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LOW_PRIORITY
 %token  LT                            /* OPERATOR */
 %token  MASTER_CONNECT_RETRY_SYM
+%token  MASTER_USE_GTID_SYM
 %token  MASTER_HOST_SYM
 %token  MASTER_LOG_FILE_SYM
 %token  MASTER_LOG_POS_SYM
@@ -1454,7 +1456,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
         sp_opt_label BIN_NUM label_ident TEXT_STRING_filesystem ident_or_empty
-        opt_constraint constraint opt_ident
+        opt_constraint constraint opt_ident opt_if_not_exists_ident
 
 %type <lex_str_ptr>
         opt_table_alias
@@ -1471,7 +1473,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
-        udf_type if_exists opt_local opt_table_options table_options
+        udf_type opt_if_exists opt_local opt_table_options table_options
         table_option opt_if_not_exists opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options spatial_type union_option
@@ -2062,6 +2064,16 @@ master_file_def:
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
+        | MASTER_USE_GTID_SYM EQ ulong_num
+          {
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
+            {
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
+              MYSQL_YYABORT;
+            }
+            Lex->mi.use_gtid_opt= $3 ?
+              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
+          }
         ;
 
 optional_connection_name:
@@ -2131,36 +2143,36 @@ create:
             }
             create_table_set_open_action_and_adjust_tables(lex);
           }
-        | CREATE opt_unique INDEX_SYM ident key_alg ON table_ident
+        | CREATE opt_unique INDEX_SYM opt_if_not_exists ident key_alg ON table_ident
           {
-            if (add_create_index_prepare(Lex, $7))
+            if (add_create_index_prepare(Lex, $8))
               MYSQL_YYABORT;
           }
           '(' key_list ')' normal_key_options
           {
-            if (add_create_index(Lex, $2, $4))
+            if (add_create_index(Lex, $2, $5))
               MYSQL_YYABORT;
           }
-        | CREATE fulltext INDEX_SYM ident init_key_options ON
+        | CREATE fulltext INDEX_SYM opt_if_not_exists ident init_key_options ON
           table_ident
           {
-            if (add_create_index_prepare(Lex, $7))
+            if (add_create_index_prepare(Lex, $8))
               MYSQL_YYABORT;
           }
           '(' key_list ')' fulltext_key_options
           {
-            if (add_create_index(Lex, $2, $4))
+            if (add_create_index(Lex, $2, $5))
               MYSQL_YYABORT;
           }
-        | CREATE spatial INDEX_SYM ident init_key_options ON
+        | CREATE spatial INDEX_SYM opt_if_not_exists ident init_key_options ON
           table_ident
           {
-            if (add_create_index_prepare(Lex, $7))
+            if (add_create_index_prepare(Lex, $8))
               MYSQL_YYABORT;
           }
           '(' key_list ')' spatial_key_options
           {
-            if (add_create_index(Lex, $2, $4))
+            if (add_create_index(Lex, $2, $5))
               MYSQL_YYABORT;
           }
         | CREATE DATABASE opt_if_not_exists ident
@@ -5079,9 +5091,17 @@ table_option:
         ;
 
 opt_if_not_exists:
-          /* empty */ { $$= 0; }
-        | IF not EXISTS { $$=HA_LEX_CREATE_IF_NOT_EXISTS; }
-        ;
+          /* empty */
+          {
+            Lex->check_exists= FALSE;
+            $$= 0;
+          }
+        | IF not EXISTS
+          {
+            Lex->check_exists= TRUE;
+            $$=HA_LEX_CREATE_IF_NOT_EXISTS;
+          }
+         ;
 
 opt_create_table_options:
           /* empty */
@@ -5399,14 +5419,14 @@ column_def:
         ;
 
 key_def:
-          normal_key_type opt_ident key_alg '(' key_list ')'
+          normal_key_type opt_if_not_exists_ident key_alg '(' key_list ')'
           { Lex->option_list= NULL; }
           normal_key_options
           {
             if (add_create_index (Lex, $1, $2))
               MYSQL_YYABORT;
           }
-        | fulltext opt_key_or_index opt_ident init_key_options 
+        | fulltext opt_key_or_index opt_if_not_exists_ident init_key_options 
             '(' key_list ')'
           { Lex->option_list= NULL; }
             fulltext_key_options
@@ -5414,7 +5434,7 @@ key_def:
             if (add_create_index (Lex, $1, $3))
               MYSQL_YYABORT;
           }
-        | spatial opt_key_or_index opt_ident init_key_options 
+        | spatial opt_key_or_index opt_if_not_exists_ident init_key_options 
             '(' key_list ')'
           { Lex->option_list= NULL; }
             spatial_key_options
@@ -5430,7 +5450,7 @@ key_def:
             if (add_create_index (Lex, $2, $3.str ? $3 : $1))
               MYSQL_YYABORT;
           }
-        | opt_constraint FOREIGN KEY_SYM opt_ident '(' key_list ')' references
+        | opt_constraint FOREIGN KEY_SYM opt_if_not_exists_ident '(' key_list ')' references
           {
             LEX *lex=Lex;
             Key *key= new Foreign_key($4.str ? $4 : $1, lex->col_list,
@@ -5438,7 +5458,8 @@ key_def:
                                       lex->ref_list,
                                       lex->fk_delete_opt,
                                       lex->fk_update_opt,
-                                      lex->fk_match_option);
+                                      lex->fk_match_option,
+                                      lex->check_exists);
             if (key == NULL)
               MYSQL_YYABORT;
             lex->alter_info.key_list.push_back(key);
@@ -6407,6 +6428,18 @@ opt_ident:
         | field_ident { $$= $1; }
         ;
 
+opt_if_not_exists_ident:
+        opt_if_not_exists opt_ident
+        {
+          LEX *lex= Lex;
+          if (lex->check_exists && lex->sql_command != SQLCOM_ALTER_TABLE)
+          {
+            my_parse_error(ER(ER_SYNTAX_ERROR));
+            MYSQL_YYABORT;
+          }
+          $$= $2;
+        };
+
 opt_component:
           /* empty */    { $$= null_lex_str; }
         | '.' ident      { $$= $2; }
@@ -6663,7 +6696,7 @@ alter_commands:
   new table and so forth.
 */
         | add_partition_rule
-        | DROP PARTITION_SYM alt_part_name_list
+        | DROP PARTITION_SYM opt_if_exists alt_part_name_list
           {
             Lex->alter_info.flags|= ALTER_DROP_PARTITION;
           }
@@ -6764,7 +6797,7 @@ all_or_alt_part_name_list:
         ;
 
 add_partition_rule:
-          ADD PARTITION_SYM opt_no_write_to_binlog
+          ADD PARTITION_SYM opt_if_not_exists opt_no_write_to_binlog
           {
             LEX *lex= Lex;
             lex->part_info= new partition_info();
@@ -6774,7 +6807,7 @@ add_partition_rule:
               MYSQL_YYABORT;
             }
             lex->alter_info.flags|= ALTER_ADD_PARTITION;
-            lex->no_write_to_binlog= $3;
+            lex->no_write_to_binlog= $4;
           }
           add_part_extra
           {}
@@ -6850,7 +6883,7 @@ alter_list:
         ;
 
 add_column:
-          ADD opt_column
+          ADD opt_column opt_if_not_exists
           {
             LEX *lex=Lex;
             lex->change=0;
@@ -6872,10 +6905,10 @@ alter_list_item:
           {
             Lex->alter_info.flags|= ALTER_ADD_COLUMN | ALTER_ADD_INDEX;
           }
-        | CHANGE opt_column field_ident
+        | CHANGE opt_column opt_if_exists field_ident
           {
             LEX *lex=Lex;
-            lex->change= $3.str;
+            lex->change= $4.str;
             lex->alter_info.flags|= ALTER_CHANGE_COLUMN;
             lex->option_list= NULL;
           }
@@ -6883,7 +6916,7 @@ alter_list_item:
           {
             Lex->create_last_non_select_table= Lex->last_table();
           }
-        | MODIFY_SYM opt_column field_ident
+        | MODIFY_SYM opt_column opt_if_exists field_ident
           {
             LEX *lex=Lex;
             lex->length=lex->dec=0; lex->type=0;
@@ -6897,12 +6930,12 @@ alter_list_item:
           field_def
           {
             LEX *lex=Lex;
-            if (add_field_to_list(lex->thd,&$3,
-                                  (enum enum_field_types) $5,
+            if (add_field_to_list(lex->thd,&$4,
+                                  (enum enum_field_types) $6,
                                   lex->length,lex->dec,lex->type,
                                   lex->default_value, lex->on_update_value,
                                   &lex->comment,
-                                  $3.str, &lex->interval_list, lex->charset,
+                                  $4.str, &lex->interval_list, lex->charset,
                                   lex->uint_geom_type,
                                   lex->vcol_info, lex->option_list))
               MYSQL_YYABORT;
@@ -6911,32 +6944,33 @@ alter_list_item:
           {
             Lex->create_last_non_select_table= Lex->last_table();
           }
-        | DROP opt_column field_ident opt_restrict
+        | DROP opt_column opt_if_exists field_ident opt_restrict
           {
             LEX *lex=Lex;
-            Alter_drop *ad= new Alter_drop(Alter_drop::COLUMN, $3.str);
+            Alter_drop *ad= new Alter_drop(Alter_drop::COLUMN, $4.str, $3);
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad);
             lex->alter_info.flags|= ALTER_DROP_COLUMN;
           }
-        | DROP FOREIGN KEY_SYM opt_ident
+        | DROP FOREIGN KEY_SYM opt_if_exists opt_ident
           {
             Lex->alter_info.flags|= ALTER_DROP_INDEX | ALTER_FOREIGN_KEY;
           }
         | DROP PRIMARY_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, primary_key_name);
+            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, primary_key_name,
+                                           FALSE);
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad);
             lex->alter_info.flags|= ALTER_DROP_INDEX;
           }
-        | DROP key_or_index field_ident
+        | DROP key_or_index opt_if_exists field_ident
           {
             LEX *lex=Lex;
-            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, $3.str);
+            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, $4.str, $3);
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->alter_info.drop_list.push_back(ad);
@@ -10815,41 +10849,41 @@ do:
 */
 
 drop:
-          DROP opt_temporary table_or_tables if_exists
+          DROP opt_temporary table_or_tables opt_if_exists
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_DROP_TABLE;
             lex->drop_temporary= $2;
-            lex->drop_if_exists= $4;
+            lex->check_exists= $4;
             YYPS->m_lock_type= TL_UNLOCK;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
           table_list opt_restrict
           {}
-        | DROP INDEX_SYM ident ON table_ident {}
+        | DROP INDEX_SYM opt_if_exists ident ON table_ident {}
           {
             LEX *lex=Lex;
-            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, $3.str);
+            Alter_drop *ad= new Alter_drop(Alter_drop::KEY, $4.str, $3);
             if (ad == NULL)
               MYSQL_YYABORT;
             lex->sql_command= SQLCOM_DROP_INDEX;
             lex->alter_info.reset();
             lex->alter_info.flags= ALTER_DROP_INDEX;
             lex->alter_info.drop_list.push_back(ad);
-            if (!lex->current_select->add_table_to_list(lex->thd, $5, NULL,
+            if (!lex->current_select->add_table_to_list(lex->thd, $6, NULL,
                                                         TL_OPTION_UPDATING,
                                                         TL_READ_NO_INSERT,
                                                         MDL_SHARED_NO_WRITE))
               MYSQL_YYABORT;
           }
-        | DROP DATABASE if_exists ident
+        | DROP DATABASE opt_if_exists ident
           {
             LEX *lex=Lex;
             lex->sql_command= SQLCOM_DROP_DB;
-            lex->drop_if_exists=$3;
+            lex->check_exists=$3;
             lex->name= $4;
           }
-        | DROP FUNCTION_SYM if_exists ident '.' ident
+        | DROP FUNCTION_SYM opt_if_exists ident '.' ident
           {
             THD *thd= YYTHD;
             LEX *lex= thd->lex;
@@ -10865,14 +10899,14 @@ drop:
               MYSQL_YYABORT;
             }
             lex->sql_command = SQLCOM_DROP_FUNCTION;
-            lex->drop_if_exists= $3;
+            lex->check_exists= $3;
             spname= new sp_name($4, $6, true);
             if (spname == NULL)
               MYSQL_YYABORT;
             spname->init_qname(thd);
             lex->spname= spname;
           }
-        | DROP FUNCTION_SYM if_exists ident
+        | DROP FUNCTION_SYM opt_if_exists ident
           {
             THD *thd= YYTHD;
             LEX *lex= thd->lex;
@@ -10886,14 +10920,14 @@ drop:
             if (thd->db && lex->copy_db_to(&db.str, &db.length))
               MYSQL_YYABORT;
             lex->sql_command = SQLCOM_DROP_FUNCTION;
-            lex->drop_if_exists= $3;
+            lex->check_exists= $3;
             spname= new sp_name(db, $4, false);
             if (spname == NULL)
               MYSQL_YYABORT;
             spname->init_qname(thd);
             lex->spname= spname;
           }
-        | DROP PROCEDURE_SYM if_exists sp_name
+        | DROP PROCEDURE_SYM opt_if_exists sp_name
           {
             LEX *lex=Lex;
             if (lex->sphead)
@@ -10902,34 +10936,34 @@ drop:
               MYSQL_YYABORT;
             }
             lex->sql_command = SQLCOM_DROP_PROCEDURE;
-            lex->drop_if_exists= $3;
+            lex->check_exists= $3;
             lex->spname= $4;
           }
         | DROP USER clear_privileges user_list
           {
             Lex->sql_command = SQLCOM_DROP_USER;
           }
-        | DROP VIEW_SYM if_exists
+        | DROP VIEW_SYM opt_if_exists
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DROP_VIEW;
-            lex->drop_if_exists= $3;
+            lex->check_exists= $3;
             YYPS->m_lock_type= TL_UNLOCK;
             YYPS->m_mdl_type= MDL_EXCLUSIVE;
           }
           table_list opt_restrict
           {}
-        | DROP EVENT_SYM if_exists sp_name
+        | DROP EVENT_SYM opt_if_exists sp_name
           {
-            Lex->drop_if_exists= $3;
+            Lex->check_exists= $3;
             Lex->spname= $4;
             Lex->sql_command = SQLCOM_DROP_EVENT;
           }
-        | DROP TRIGGER_SYM if_exists sp_name
+        | DROP TRIGGER_SYM opt_if_exists sp_name
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_DROP_TRIGGER;
-            lex->drop_if_exists= $3;
+            lex->check_exists= $3;
             lex->spname= $4;
           }
         | DROP TABLESPACE tablespace_name opt_ts_engine opt_ts_wait
@@ -10942,10 +10976,10 @@ drop:
             LEX *lex= Lex;
             lex->alter_tablespace_info->ts_cmd_type= DROP_LOGFILE_GROUP;
           }
-        | DROP SERVER_SYM if_exists ident_or_text
+        | DROP SERVER_SYM opt_if_exists ident_or_text
           {
             Lex->sql_command = SQLCOM_DROP_SERVER;
-            Lex->drop_if_exists= $3;
+            Lex->check_exists= $3;
             Lex->server_options.server_name= $4.str;
             Lex->server_options.server_name_length= $4.length;
           }
@@ -10983,9 +11017,17 @@ table_alias_ref:
           }
         ;
 
-if_exists:
-          /* empty */ { $$= 0; }
-        | IF EXISTS { $$= 1; }
+opt_if_exists:
+          /* empty */
+        {
+          Lex->check_exists= FALSE;
+          $$= 0;
+        }
+        | IF EXISTS
+        {
+          Lex->check_exists= TRUE;
+          $$= 1;
+        }
         ;
 
 opt_temporary:
@@ -13173,6 +13215,7 @@ keyword_sp:
         | AUTHORS_SYM              {}
         | AUTO_INC                 {}
         | AUTOEXTEND_SIZE_SYM      {}
+        | AUTO_SYM                 {}
         | AVG_ROW_LENGTH           {}
         | AVG_SYM                  {}
         | BINLOG_SYM               {}
@@ -13283,6 +13326,7 @@ keyword_sp:
         | MAX_ROWS                 {}
         | MASTER_SYM               {}
         | MASTER_HEARTBEAT_PERIOD_SYM {}
+        | MASTER_USE_GTID_SYM      {}
         | MASTER_HOST_SYM          {}
         | MASTER_PORT_SYM          {}
         | MASTER_LOG_FILE_SYM      {}

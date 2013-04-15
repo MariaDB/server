@@ -5,6 +5,7 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--let $rpl_server_count= 0
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
 
@@ -41,6 +42,12 @@ set default_master_connection = 'master1';
 
 # each of the 3 commands should produce 
 # 'master1' status
+
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1
 show slave 'master1' status;
@@ -131,6 +138,12 @@ start slave;
 
 # See both connections in the same status output
 
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
+
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;
 
@@ -194,6 +207,12 @@ create table db1.t3 (f1 int) engine=InnoDB;
 --sync_with_master 0,'master1'
 
 --source wait_for_sql_thread_read_all.inc
+
+let $wait_for_all= 1; 
+let $show_statement= SHOW ALL SLAVES STATUS;
+let $field= Slave_IO_State;
+let $condition= = 'Waiting for master to send event';
+--source include/wait_show_condition.inc
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;

@@ -345,7 +345,7 @@ uint create_tmp_table_def_key(THD *thd, char *key,
                               const char *db, const char *table_name)
 {
   uint key_length= create_table_def_key(key, db, table_name);
-  int4store(key + key_length, thd->server_id);
+  int4store(key + key_length, thd->variables.server_id);
   int4store(key + key_length + 4, thd->variables.pseudo_thread_id);
   key_length+= TMP_TABLE_KEY_EXTRA;
   return key_length;
@@ -388,6 +388,14 @@ bool table_def_init(void)
   init_tdc_psi_keys();
 #endif
   mysql_mutex_init(key_LOCK_open, &LOCK_open, MY_MUTEX_INIT_FAST);
+  mysql_mutex_record_order(&LOCK_active_mi, &LOCK_open);
+  /*
+    When we delete from the table_def_cache(), the free function
+    table_def_free_entry() is invoked from my_hash_delete(), which calls
+    free_table_share(), which may unload plugins, which can remove status
+    variables and hence takes LOCK_status. Record this locking order here.
+  */
+  mysql_mutex_record_order(&LOCK_open, &LOCK_status);
   oldest_unused_share= &end_of_unused_share;
   end_of_unused_share.prev= &oldest_unused_share;
 
@@ -2662,7 +2670,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
 	{
           DBUG_PRINT("error",
                      ("query_id: %lu  server_id: %u  pseudo_thread_id: %lu",
-                      (ulong) table->query_id, (uint) thd->server_id,
+                      (ulong) table->query_id, (uint) thd->variables.server_id,
                       (ulong) thd->variables.pseudo_thread_id));
 	  my_error(ER_CANT_REOPEN_TABLE, MYF(0), table->alias.c_ptr());
 	  DBUG_RETURN(TRUE);
@@ -5939,7 +5947,8 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
              ("table: '%s'.'%s'  path: '%s'  server_id: %u  "
               "pseudo_thread_id: %lu",
               db, table_name, path,
-              (uint) thd->server_id, (ulong) thd->variables.pseudo_thread_id));
+              (uint) thd->variables.server_id,
+              (ulong) thd->variables.pseudo_thread_id));
 
   /* Create the cache_key for temporary tables */
   key_length= create_tmp_table_def_key(thd, cache_key, db, table_name);
@@ -9343,7 +9352,6 @@ int init_ftfuncs(THD *thd, SELECT_LEX *select_lex, bool no_order)
     List_iterator<Item_func_match> li(*(select_lex->ftfunc_list));
     Item_func_match *ifm;
     DBUG_PRINT("info",("Performing FULLTEXT search"));
-    thd_proc_info(thd, "FULLTEXT initialization");
 
     while ((ifm=li++))
       ifm->init_search(no_order);

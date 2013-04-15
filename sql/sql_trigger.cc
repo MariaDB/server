@@ -443,7 +443,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   if (!create)
   {
-    bool if_exists= thd->lex->drop_if_exists;
+    bool if_exists= thd->lex->check_exists;
 
     /*
       Protect the query table list from the temporary and potentially

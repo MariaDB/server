@@ -43,7 +43,7 @@ insert into t3 values(connection_id());
 send update t2 set a = a + 1 + get_lock('crash_lock%20C', 10);
 
 connection master1;
-let $wait_condition= SELECT a > 1 FROM t2;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'update%' AND state='User lock';
 source include/wait_condition.inc;
 select (@id := id) - id from t3;
 kill @id;

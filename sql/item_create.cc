@@ -447,6 +447,19 @@ protected:
 };
 
 
+class Create_func_binlog_gtid_pos : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_binlog_gtid_pos s_singleton;
+
+protected:
+  Create_func_binlog_gtid_pos() {}
+  virtual ~Create_func_binlog_gtid_pos() {}
+};
+
+
 class Create_func_bit_count : public Create_func_arg1
 {
 public:
@@ -3100,6 +3113,16 @@ Create_func_bin::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_binlog_gtid_pos Create_func_binlog_gtid_pos::s_singleton;
+
+Item*
+Create_func_binlog_gtid_pos::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  return new (thd->mem_root) Item_func_binlog_gtid_pos(arg1, arg2);
+}
+
+
 Create_func_bit_count Create_func_bit_count::s_singleton;
 
 Item*
@@ -5322,6 +5345,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("ATAN2") }, BUILDER(Create_func_atan)},
   { { C_STRING_WITH_LEN("BENCHMARK") }, BUILDER(Create_func_benchmark)},
   { { C_STRING_WITH_LEN("BIN") }, BUILDER(Create_func_bin)},
+  { { C_STRING_WITH_LEN("BINLOG_GTID_POS") }, BUILDER(Create_func_binlog_gtid_pos)},
   { { C_STRING_WITH_LEN("BIT_COUNT") }, BUILDER(Create_func_bit_count)},
   { { C_STRING_WITH_LEN("BIT_LENGTH") }, BUILDER(Create_func_bit_length)},
   { { C_STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},

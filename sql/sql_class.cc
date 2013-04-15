@@ -112,7 +112,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated)
+  generated(rhs.generated),
+  create_if_not_exists(rhs.create_if_not_exists)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
@@ -827,6 +828,7 @@ THD::THD()
   col_access=0;
   is_slave_error= thread_specific_used= FALSE;
   my_hash_clear(&handler_tables_hash);
+  my_hash_clear(&ull_hash);
   tmp_table=0;
   cuted_fields= 0L;
   sent_row_count= 0L;
@@ -866,7 +868,6 @@ THD::THD()
   net.vio=0;
   net.buff= 0;
   client_capabilities= 0;                       // minimalistic client
-  ull=0;
   system_thread= NON_SYSTEM_THREAD;
   cleanup_done= abort_on_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
@@ -891,7 +892,7 @@ THD::THD()
   /* Variables with default values */
   proc_info="login";
   where= THD::DEFAULT_WHERE;
-  server_id = ::server_id;
+  variables.server_id = global_system_variables.server_id;
   slave_net = 0;
   command=COM_CONNECT;
   *scramble= '\0';
@@ -1400,8 +1401,6 @@ void THD::cleanup(void)
   if (global_read_lock.is_acquired())
     global_read_lock.unlock_global_read_lock(this);
 
-  /* All metadata locks must have been released by now. */
-  DBUG_ASSERT(!mdl_context.has_locks());
   if (user_connect)
   {
     decrease_user_connections(user_connect);
@@ -1419,13 +1418,9 @@ void THD::cleanup(void)
   sp_cache_clear(&sp_proc_cache);
   sp_cache_clear(&sp_func_cache);
 
-  if (ull)
-  {
-    mysql_mutex_lock(&LOCK_user_locks);
-    item_user_lock_release(ull);
-    mysql_mutex_unlock(&LOCK_user_locks);
-    ull= NULL;
-  }
+  mysql_ull_cleanup(this);
+  /* All metadata locks must have been released by now. */
+  DBUG_ASSERT(!mdl_context.has_locks());
 
   apc_target.destroy();
   cleanup_done=1;
@@ -4001,6 +3996,15 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd)
 }
 
 
+/**
+  Check if THD socket is still connected.
+ */
+extern "C" int thd_is_connected(MYSQL_THD thd)
+{
+  return thd->is_connected();
+}
+
+
 #ifdef INNODB_COMPATIBILITY_HOOKS
 extern "C" const struct charset_info_st *thd_charset(MYSQL_THD thd)
 {
@@ -4321,6 +4325,8 @@ void THD::leave_locked_tables_mode()
     /* Also ensure that we don't release metadata locks for open HANDLERs. */
     if (handler_tables_hash.records)
       mysql_ha_set_explicit_lock_duration(this);
+    if (ull_hash.records)
+      mysql_ull_set_explicit_lock_duration(this);
   }
   locked_tables_mode= LTM_NONE;
 }
@@ -5097,7 +5103,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
   size_t const len= pack_row(table, cols, row_data, record);
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
                                       len, is_trans,
                                       static_cast<Write_rows_log_event*>(0));
 
@@ -5141,7 +5147,7 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 #endif
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      before_size + after_size, is_trans,
 				      static_cast<Update_rows_log_event*>(0));
 
@@ -5172,7 +5178,7 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
   size_t const len= pack_row(table, cols, row_data, record);
 
   Rows_log_event* const ev=
-    binlog_prepare_pending_rows_event(table, server_id, cols, colcnt,
+    binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      len, is_trans,
 				      static_cast<Delete_rows_log_event*>(0));
 

@@ -157,6 +157,10 @@ def	mysql	proxies_priv	Proxied_user	4		NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bi
 def	mysql	proxies_priv	Timestamp	7	CURRENT_TIMESTAMP	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update CURRENT_TIMESTAMP	select,insert,update,references	
 def	mysql	proxies_priv	User	2		NO	char	16	48	NULL	NULL	NULL	utf8	utf8_bin	char(16)	PRI		select,insert,update,references	
 def	mysql	proxies_priv	With_grant	5	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(1)			select,insert,update,references	
+def	mysql	rpl_slave_state	domain_id	1	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned	PRI		select,insert,update,references	
+def	mysql	rpl_slave_state	seq_no	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	
+def	mysql	rpl_slave_state	server_id	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references	
+def	mysql	rpl_slave_state	sub_id	2	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned	PRI		select,insert,update,references	
 def	mysql	servers	Db	3		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references	
 def	mysql	servers	Host	2		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references	
 def	mysql	servers	Owner	9		NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references	
@@ -472,6 +476,10 @@ NULL	mysql	procs_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 NULL	mysql	proxies_priv	With_grant	tinyint	NULL	NULL	NULL	NULL	tinyint(1)
 3.0000	mysql	proxies_priv	Grantor	char	77	231	utf8	utf8_bin	char(77)
 NULL	mysql	proxies_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
+NULL	mysql	rpl_slave_state	domain_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	mysql	rpl_slave_state	sub_id	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
+NULL	mysql	rpl_slave_state	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
+NULL	mysql	rpl_slave_state	seq_no	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 3.0000	mysql	servers	Server_name	char	64	192	utf8	utf8_general_ci	char(64)
 3.0000	mysql	servers	Host	char	64	192	utf8	utf8_general_ci	char(64)
 3.0000	mysql	servers	Db	char	64	192	utf8	utf8_general_ci	char(64)

@@ -1265,10 +1265,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       /* TODO: The following has to be changed to an 8 byte integer */
       pos = uint4korr(packet);
       flags = uint2korr(packet + 4);
-      thd->server_id=0; /* avoid suicide */
+      thd->variables.server_id=0; /* avoid suicide */
       if ((slave_server_id= uint4korr(packet+6))) // mysqlbinlog.server_id==0
 	kill_zombie_dump_threads(slave_server_id);
-      thd->server_id = slave_server_id;
+      thd->variables.server_id = slave_server_id;
 
       general_log_print(thd, command, "Log: '%s'  Pos: %ld", packet+10,
                       (long) pos);
@@ -2084,7 +2084,7 @@ mysql_execute_command(THD *thd)
     if (!(lex->sql_command == SQLCOM_UPDATE_MULTI) &&
 	!(lex->sql_command == SQLCOM_SET_OPTION) &&
 	!(lex->sql_command == SQLCOM_DROP_TABLE &&
-          lex->drop_temporary && lex->drop_if_exists) &&
+          lex->drop_temporary && lex->check_exists) &&
         all_tables_not_ok(thd, all_tables))
     {
       /* we warn the slave SQL thread */
@@ -3285,7 +3285,7 @@ end_with_restore_list:
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
     /* DDL and binlog write order are protected by metadata locks. */
-    res= mysql_rm_table(thd, first_table, lex->drop_if_exists,
+    res= mysql_rm_table(thd, first_table, lex->check_exists,
 			lex->drop_temporary);
   }
   break;
@@ -3499,7 +3499,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    res= mysql_rm_db(thd, lex->name.str, lex->drop_if_exists, 0);
+    res= mysql_rm_db(thd, lex->name.str, lex->check_exists, 0);
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:
@@ -3627,7 +3627,7 @@ end_with_restore_list:
   case SQLCOM_DROP_EVENT:
     if (!(res= Events::drop_event(thd,
                                   lex->spname->m_db, lex->spname->m_name,
-                                  lex->drop_if_exists)))
+                                  lex->check_exists)))
       my_ok(thd);
     break;
 #else
@@ -4314,7 +4314,7 @@ create_sp_error:
 
         if (lex->spname->m_db.str == NULL)
         {
-          if (lex->drop_if_exists)
+          if (lex->check_exists)
           {
             push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                                 ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
@@ -4383,7 +4383,7 @@ create_sp_error:
 	my_ok(thd);
 	break;
       case SP_KEY_NOT_FOUND:
-	if (lex->drop_if_exists)
+	if (lex->check_exists)
 	{
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
@@ -4596,7 +4596,7 @@ create_sp_error:
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->drop_if_exists && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->check_exists && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name));
@@ -6016,7 +6016,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
     lex->col_list.push_back(new Key_part_spec(*field_name, 0));
     key= new Key(Key::PRIMARY, null_lex_str,
                       &default_key_create_info,
-                      0, lex->col_list, NULL);
+                      0, lex->col_list, NULL, lex->check_exists);
     lex->alter_info.key_list.push_back(key);
     lex->col_list.empty();
   }
@@ -6026,7 +6026,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
     lex->col_list.push_back(new Key_part_spec(*field_name, 0));
     key= new Key(Key::UNIQUE, null_lex_str,
                  &default_key_create_info, 0,
-                 lex->col_list, NULL);
+                 lex->col_list, NULL, lex->check_exists);
     lex->alter_info.key_list.push_back(key);
     lex->col_list.empty();
   }
@@ -6078,7 +6078,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
       new_field->init(thd, field_name->str, type, length, decimals, type_modifier,
                       default_value, on_update_value, comment, change,
                       interval_list, cs, uint_geom_type, vcol_info,
-                      create_options))
+                      create_options, lex->check_exists))
     DBUG_RETURN(1);
 
   lex->alter_info.create_list.push_back(new_field);

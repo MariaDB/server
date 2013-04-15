@@ -126,6 +126,11 @@ class Master_info : public Slave_reporting_capability
   ulonglong received_heartbeats;  // counter of received heartbeat events
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
+  /*
+    True if slave position is set using GTID state rather than old-style
+    file/offset binlog position.
+  */
+  bool using_gtid;
 };
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,
@@ -170,7 +175,7 @@ public:
 };
 
 bool check_master_connection_name(LEX_STRING *name);
-void create_logfile_name_with_suffix(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, 
                              bool append,
                              LEX_STRING *suffix);

@@ -9,23 +9,6 @@ if ($binlog_start)
 {
   --let $_binlog_start= $binlog_start
 }
-if (!$binlog_start)
-{
-  # If $binlog_start is not set, we will set it as the third event's
-  # position (second in relay log which has not Binlog Checkpoing event).
-  # The first two events (Description Event and Binlog Checkpoint
-  # event) are always ignored. For description event's length might be changed
-  # because of adding new events, 'SHOW BINLOG EVENTS LIMIT 2' is used to get
-  # the right value.
-  if ($is_relay_log)
-  {
-    --let $_binlog_start= query_get_value(SHOW BINLOG EVENTS LIMIT 1, End_log_pos, 1)
-  }
-  if (!$is_relay_log)
-  {
-    --let $_binlog_start= query_get_value(SHOW BINLOG EVENTS LIMIT 2, End_log_pos, 2)
-  }
-}
 
 --let $_statement=show binlog events
 if ($is_relay_log)
@@ -36,6 +19,25 @@ if ($is_relay_log)
 if ($binlog_file)
 {
   --let $_statement= $_statement in '$binlog_file'
+}
+
+if (!$binlog_start)
+{
+  # If $binlog_start is not set, we will set it as the fourth event's
+  # position (second in relay log which has not Binlog Checkpoing nor
+  # Gtid_list events).
+  # The first three events (Description Event, Gtid list, and Binlog Checkpoint
+  # event) are always ignored. For description event's length might be changed
+  # because of adding new events, 'SHOW BINLOG EVENTS LIMIT 3' is used to get
+  # the right value.
+  if ($is_relay_log)
+  {
+    --let $_binlog_start= query_get_value($_statement LIMIT 1, End_log_pos, 1)
+  }
+  if (!$is_relay_log)
+  {
+    --let $_binlog_start= query_get_value($_statement LIMIT 3, End_log_pos, 3)
+  }
 }
 
 --let $_statement= $_statement from $_binlog_start
@@ -49,5 +51,5 @@ if (`SELECT '$binlog_limit' <> ''`)
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $_binlog_start <binlog_start>
 --replace_column 2 # 4 # 5 #
---replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /block_len=[0-9]+/block_len=#/ /Server ver:.*$/SERVER_VERSION, BINLOG_VERSION/
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /table_id: [0-9]+/table_id: #/ /file_id=[0-9]+/file_id=#/ /block_len=[0-9]+/block_len=#/ /Server ver:.*$/SERVER_VERSION, BINLOG_VERSION/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /\[([0-9]-[0-9]-[0-9]+)\]/[#-#-#]/
 --eval $_statement

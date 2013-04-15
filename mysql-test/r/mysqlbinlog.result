@@ -37,7 +37,6 @@ create table t1 (word varchar(20))
 SET TIMESTAMP=1000000000/*!*/;
 create table t2 (id int auto_increment not null primary key)
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -46,7 +45,6 @@ insert into t1 values ("abirvalg")
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET INSERT_ID=1/*!*/;
@@ -56,7 +54,6 @@ insert into t2 values ()
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -65,7 +62,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -74,7 +70,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -83,7 +78,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -103,6 +97,9 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -112,16 +109,11 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-use `test`/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`word`)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -142,6 +134,8 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
+BEGIN
+/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -151,37 +145,29 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -198,6 +184,9 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -207,10 +196,6 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-use `test`/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 insert into t1 values ("Alas")
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -246,7 +231,6 @@ create table t1 (word varchar(20))
 SET TIMESTAMP=1000000000/*!*/;
 create table t2 (id int auto_increment not null primary key)
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -255,7 +239,6 @@ insert into t1 values ("abirvalg")
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET INSERT_ID=1/*!*/;
@@ -265,7 +248,6 @@ insert into t2 values ()
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -274,7 +256,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -283,7 +264,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -292,7 +272,6 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -312,6 +291,9 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -321,16 +303,11 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-use `test`/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`word`)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -351,6 +328,8 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
 ROLLBACK/*!*/;
+BEGIN
+/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -360,37 +339,29 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET INSERT_ID=1/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -407,6 +378,9 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
 /*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
 DELIMITER /*!*/;
+BEGIN
+/*!*/;
+use `test`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=999999999/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1/*!*/;
@@ -416,10 +390,6 @@ SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/
 SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-use `test`/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 insert into t1 values ("Alas")
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -583,7 +553,6 @@ SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 create table t1 (a varchar(64) character set utf8)
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -591,19 +560,25 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
+/*!*/;
+BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.collation_database=7/*!*/;
-BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
+/*!*/;
+BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
+LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`)
+/*!*/;
+SET TIMESTAMP=1000000000/*!*/;
+COMMIT
+/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -612,36 +587,24 @@ LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FI
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
-LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`)
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
-COMMIT
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.collation_database=7/*!*/;
-BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
+/*!*/;
+BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
-BEGIN
-/*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 LOAD DATA LOCAL INFILE 'MYSQLTEST_VARDIR/tmp/SQL_LOAD_MB-#-#' INTO TABLE `t1` FIELDS TERMINATED BY '\t' ENCLOSED BY '' ESCAPED BY '\\' LINES TERMINATED BY '\n' (`a`)
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
-SET TIMESTAMP=1000000000/*!*/;
 BEGIN
 /*!*/;
 SET TIMESTAMP=1000000000/*!*/;
@@ -663,13 +626,13 @@ FLUSH LOGS;
 INSERT INTO t1 VALUES ('0123456789');
 FLUSH LOGS;
 DROP TABLE t1;
-We expect this value to be 1
+We expect this value to be 2 (one for the INSERT, one for COMMIT).
 The bug being tested was that 'Query' lines were not preceded by '#'
 If the line is in the table, it had to have been preceded by a '#'
 
-SELECT COUNT(*) AS `BUG#28293_expect_3` FROM patch WHERE a LIKE '%Query%';
-BUG#28293_expect_3
-3
+SELECT COUNT(*) AS `BUG#28293_expect_2` FROM patch WHERE a LIKE '%Query%';
+BUG#28293_expect_2
+2
 DROP TABLE patch;
 FLUSH LOGS;
 CREATE TABLE t1(a INT);
@@ -925,12 +888,19 @@ FLUSH LOGS;
 show binlog events in 'master-bin.000002' from <binlog_start>;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Binlog_checkpoint	#	#	master-bin.000002
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	CREATE DATABASE test1
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	use `test1`; CREATE TABLE t1(id int)
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	DROP DATABASE test1
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	CREATE DATABASE test1
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	use `test1`; CREATE TABLE t1(id int)
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	use `test1`; DROP TABLE `t1` /* generated by server */
+master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	DROP DATABASE test1
 RESET MASTER;
 USE test;
