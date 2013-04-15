@@ -5743,6 +5743,14 @@ longlong Item_func_get_system_var::val_int()
 {
   THD *thd= current_thd;
 
+  DBUG_EXECUTE_IF("simulate_non_gtid_aware_master",
+                  {
+                    if (0 == strcmp("gtid_domain_id", var->name.str))
+                    {
+                      my_error(ER_VAR_CANT_BE_READ, MYF(0), var->name.str);
+                      return 0;
+                    }
+                  });
   if (cache_present && thd->query_id == used_query_id)
   {
     if (cache_present & GET_SYS_VAR_CACHE_LONG)
@@ -6730,7 +6738,7 @@ ulonglong uuid_value;
 
 void uuid_short_init()
 {
-  uuid_value= ((((ulonglong) server_id) << 56) + 
+  uuid_value= ((((ulonglong) global_system_variables.server_id) << 56) +
                (((ulonglong) server_start_time) << 24));
 }
 

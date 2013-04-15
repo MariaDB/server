@@ -55,6 +55,7 @@
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 #include "threadpool.h"
+#include "sql_repl.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1201,6 +1202,114 @@ static Sys_var_ulong Sys_pseudo_thread_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
+static Sys_var_uint Sys_gtid_domain_id(
+       "gtid_domain_id",
+       "Used with global transaction ID to identify logically independent "
+       "replication streams. When events can propagate through multiple "
+       "parallel paths (for example multiple masters), each independent "
+       "source server must use a distinct domain_id. For simple tree-shaped "
+       "replication topologies, it can be left at its default, 0.",
+       SESSION_VAR(gtid_domain_id),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
+static Sys_var_ulonglong Sys_gtid_seq_no(
+       "gtid_seq_no",
+       "Internal server usage, for replication with global transaction id. "
+       "When set, next event group logged to the binary log will use this "
+       "sequence number, not generate a new one, thus allowing to preserve "
+       "master's GTID in slave's binlog.",
+       SESSION_ONLY(gtid_seq_no),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
+
+#ifdef HAVE_REPLICATION
+bool
+Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
+{
+  String str, *res;
+  bool running;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+  if (!(res= var->value->val_str(&str)))
+    return true;
+  if (rpl_gtid_pos_check(&((*res)[0]), res->length()))
+    return true;
+
+  if (!(var->save_result.string_value.str=
+        thd->strmake(res->ptr(), res->length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  var->save_result.string_value.length= res->length();
+  return false;
+}
+
+
+bool
+Sys_var_gtid_pos::global_update(THD *thd, set_var *var)
+{
+  bool err;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (master_info_index->give_error_if_slave_running())
+    err= true;
+  else
+    err= rpl_gtid_pos_update(thd, var->save_result.string_value.str,
+                             var->save_result.string_value.length);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return err;
+}
+
+
+uchar *
+Sys_var_gtid_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  String str;
+  char *p;
+
+  str.length(0);
+  if (rpl_append_gtid_state(&str, true) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_pos_dummy;
+static Sys_var_gtid_pos Sys_gtid_pos(
+       "gtid_pos",
+       "The list of global transaction IDs that were last replicated on the "
+       "server, one for each replication domain. This defines where a slave "
+       "starts replicating from on a master when connecting with global "
+       "transaction ID.",
+       GLOBAL_VAR(opt_gtid_pos_dummy), NO_CMD_LINE);
+#endif
+
+
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
 {
   SV *sv= type == OPT_GLOBAL ? &global_system_variables : &thd->variables;
@@ -1966,17 +2075,27 @@ static Sys_var_charptr Sys_secure_file_priv(
 
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
-  server_id_supplied = 1;
-  thd->server_id= server_id;
+  if (type == OPT_GLOBAL)
+  {
+    server_id_supplied = 1;
+    thd->variables.server_id= global_system_variables.server_id;
+    /*
+      Historically, server_id was a global variable that is exported to
+      plugins. Now it is a session variable, and lives in the
+      global_system_variables struct, but we still need to export the
+      value for reading to plugins for backwards compatibility reasons.
+    */
+    ::server_id= global_system_variables.server_id;
+  }
   return false;
 }
 static Sys_var_ulong Sys_server_id(
        "server_id",
        "Uniquely identifies the server instance in the community of "
        "replication partners",
-       GLOBAL_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
+       SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
 
 static Sys_var_mybool Sys_slave_compressed_protocol(
        "slave_compressed_protocol",
@@ -3367,6 +3486,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
   uint res= 0;                                  // Default value
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3378,6 +3498,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return res;
 }
   
@@ -3389,6 +3510,8 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
   bool result= true;
   Master_info *mi;
 
+  if (type == OPT_GLOBAL)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3402,6 +3525,8 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
     mysql_mutex_unlock(&mi->rli.run_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
+  if (type == OPT_GLOBAL)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 

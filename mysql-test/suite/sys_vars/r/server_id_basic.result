@@ -44,12 +44,18 @@ SELECT @@global.server_id;
 @@global.server_id
 4294967295
 '#--------------------FN_DYNVARS_144_04-------------------------#'
+SELECT @@server_id;
+@@server_id
+4294967295
 SET @@server_id = 2;
-ERROR HY000: Variable 'server_id' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@server_id;
+@@server_id
+2
 SET @@session.server_id = 3;
-ERROR HY000: Variable 'server_id' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@server_id;
+@@server_id
+3
 SET @@local.server_id = 4;
-ERROR HY000: Variable 'server_id' is a GLOBAL variable and should be set with SET GLOBAL
 '#------------------FN_DYNVARS_144_05-----------------------#'
 SET @@global.server_id = -1;
 Warnings:
@@ -106,12 +112,11 @@ SELECT @@server_id = @@global.server_id;
 1
 '#---------------------FN_DYNVARS_001_10----------------------#'
 SET server_id = 2048;
-ERROR HY000: Variable 'server_id' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT server_id;
 ERROR 42S22: Unknown column 'server_id' in 'field list'
 SELECT @@server_id;
 @@server_id
-512
+2048
 SET global server_id = 99;
 SET @@global.server_id = @start_global_value;
 SELECT @@global.server_id;

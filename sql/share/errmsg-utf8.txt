@@ -6524,4 +6524,22 @@ ER_SLAVE_STOPPED
         eng "SLAVE '%.*s' stopped"
 ER_SQL_DISCOVER_ERROR
         eng "Engine %s failed to discover table %`-.192s.%`-.192s with '%s'"
-
+ER_FAILED_GTID_STATE_INIT
+        eng "Failed initializing replication GTID state"
+ER_INCORRECT_GTID_STATE
+        eng "Could not parse GTID list for GTID_POS"
+ER_CANNOT_UPDATE_GTID_STATE
+        eng "Could not update replication slave gtid state"
+ER_DUPLICATE_GTID_DOMAIN
+	eng "GTID %u-%u-%llu and %u-%u-%llu conflict (duplicate domain id %u)"
+ER_GTID_OPEN_TABLE_FAILED
+        eng "Failed to open %s.%s"
+        ger "Öffnen von %s.%s fehlgeschlagen"
+ER_GTID_POSITION_NOT_FOUND_IN_BINLOG
+	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog"
+ER_CANNOT_LOAD_SLAVE_GTID_STATE
+	eng "Failed to load replication slave GTID state from table %s.%s"
+ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+	eng "Requested GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
+ER_MASTER_GTID_POS_MISSING_DOMAIN
+	eng "Requested GTID_POS contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
