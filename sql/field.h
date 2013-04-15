@@ -2151,6 +2151,7 @@ public:
   bool has_charset(void) const { return TRUE; }
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
+  uint decimals() const { return 0; }
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
@@ -2382,10 +2383,11 @@ public:
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
   ha_field_option_struct *option_struct;
 
-  uint8 row,col,sc_length,interval_id;	// For rea_create_table
+  uint8 interval_id;                    // For rea_create_table
   uint	offset,pack_flag;
+  bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
 
-    /* 
+  /* 
     This is additinal data provided for any computed(virtual) field.
     In particular it includes a pointer to the item by  which this field
     can be computed from other fields.
@@ -2398,7 +2400,8 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), option_list(NULL), option_struct(NULL)
+  Create_field() :after(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(FALSE)
   {}
   Create_field(Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
@@ -2416,7 +2419,7 @@ public:
             Item *on_update_value, LEX_STRING *comment, char *change,
             List<String> *interval_list, CHARSET_INFO *cs,
             uint uint_geom_type, Virtual_column_info *vcol_info,
-            engine_option_value *option_list);
+            engine_option_value *option_list, bool check_exists);
 
   bool field_flags_are_binary()
   {

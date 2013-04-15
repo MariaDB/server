@@ -302,6 +302,9 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
     make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
                                  str, length, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : ts_type, NullS);
+  DBUG_EXECUTE_IF("str_to_datetime_warn",
+                  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+                               ER_YES, str););
   return ts_type;
 }
 
@@ -1014,13 +1017,13 @@ calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign, longlong *s
 			       (uint) l_time2->day);
   }
 
-  microseconds= ((longlong)days*LL(86400) +
+  microseconds= ((longlong)days*86400LL +
                  (longlong)(l_time1->hour*3600L +
                             l_time1->minute*60L +
                             l_time1->second) -
                  l_sign*(longlong)(l_time2->hour*3600L +
                                    l_time2->minute*60L +
-                                   l_time2->second)) * LL(1000000) +
+                                   l_time2->second)) * 1000000LL +
                 (longlong)l_time1->second_part -
                 l_sign*(longlong)l_time2->second_part;
 

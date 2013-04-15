@@ -87,13 +87,17 @@ my_bool my_gethwaddr(uchar *to)
   int fd, res= 1;
   struct ifreq ifr[32];
   struct ifconf ifc;
+  DBUG_ENTER("my_gethwaddr");
 
   ifc.ifc_req= ifr;
   ifc.ifc_len= sizeof(ifr);
 
   fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (fd < 0)
+  {
+    DBUG_PRINT("error", ("socket() call failed with %d", errno));
     goto err;
+  }
 
   if (ioctl(fd, SIOCGIFCONF, (char*)&ifc) >= 0)
   {
@@ -106,8 +110,8 @@ my_bool my_gethwaddr(uchar *to)
                              ETHER_ADDR_LEN);
 #else
       /*
-        A bug in OpenSolaris used to prevent non-root from getting a mac address:
-        {no url. Oracle killed the old OpenSolaris bug database}
+        A bug in OpenSolaris used to prevent non-root from getting a mac
+        address: {no url. Oracle killed the old OpenSolaris bug database}
 
         Thus, we'll use an alternative method and extract the address from the
         arp table.
@@ -124,7 +128,7 @@ my_bool my_gethwaddr(uchar *to)
 
   close(fd);
 err:
-  return res;
+  DBUG_RETURN(res);
 }
 
 #elif defined(_WIN32)

@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -669,7 +669,7 @@ int decimal_shift(decimal_t *dec, int shift)
     if (do_left)
     {
       do_mini_left_shift(dec, l_mini_shift, beg, end);
-      mini_shift=- l_mini_shift;
+      mini_shift= -l_mini_shift;
     }
     else
     {
@@ -1032,7 +1032,7 @@ int decimal2ulonglong(const decimal_t *from, ulonglong *to)
 
   if (from->sign)
   {
-      *to=ULL(0);
+      *to= 0;
       return E_DEC_OVERFLOW;
   }
 
@@ -1445,7 +1445,9 @@ int decimal_bin_size(int precision, int scale)
       intg0=intg/DIG_PER_DEC1, frac0=scale/DIG_PER_DEC1,
       intg0x=intg-intg0*DIG_PER_DEC1, frac0x=scale-frac0*DIG_PER_DEC1;
 
-  DBUG_ASSERT(scale >= 0 && precision > 0 && scale <= precision);
+  DBUG_ASSERT(scale >= 0);
+  DBUG_ASSERT(precision > 0);
+  DBUG_ASSERT(scale <= precision);
   return intg0*sizeof(dec1)+dig2bytes[intg0x]+
          frac0*sizeof(dec1)+dig2bytes[frac0x];
 }

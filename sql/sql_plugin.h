@@ -39,6 +39,8 @@ enum enum_plugin_load_option { PLUGIN_OFF, PLUGIN_ON, PLUGIN_FORCE,
   PLUGIN_FORCE_PLUS_PERMANENT };
 extern const char *global_plugin_typelib_names[];
 
+extern ulong dlopen_count;
+
 #include <my_sys.h>
 #include "sql_list.h"
 
@@ -151,9 +153,7 @@ extern void plugin_shutdown(void);
 void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root);
 extern bool plugin_is_ready(const LEX_STRING *name, int type);
 #define my_plugin_lock_by_name(A,B,C) plugin_lock_by_name(A,B,C)
-#define my_plugin_lock_by_name_ci(A,B,C) plugin_lock_by_name(A,B,C)
 #define my_plugin_lock(A,B) plugin_lock(A,B)
-#define my_plugin_lock_ci(A,B) plugin_lock(A,B)
 extern plugin_ref plugin_lock(THD *thd, plugin_ref ptr);
 extern plugin_ref plugin_lock_by_name(THD *thd, const LEX_STRING *name,
                                       int type);
@@ -166,6 +166,8 @@ extern bool mysql_uninstall_plugin(THD *thd, const LEX_STRING *name,
 extern bool plugin_register_builtin(struct st_mysql_plugin *plugin);
 extern void plugin_thdvar_init(THD *thd);
 extern void plugin_thdvar_cleanup(THD *thd);
+sys_var *find_plugin_sysvar(st_plugin_int *plugin, st_mysql_sys_var *var);
+void plugin_opt_set_limits(struct my_option *, const struct st_mysql_sys_var *);
 extern SHOW_COMP_OPTION plugin_status(const char *name, size_t len, int type);
 extern bool check_valid_path(const char *path, size_t length);
 
@@ -175,4 +177,6 @@ typedef my_bool (plugin_foreach_func)(THD *thd,
 #define plugin_foreach(A,B,C,D) plugin_foreach_with_mask(A,B,C,PLUGIN_IS_READY,D)
 extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
+extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
+                              plugin_foreach_func *func, void *arg);
 #endif

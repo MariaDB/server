@@ -12,12 +12,12 @@ Warning	1292	Truncated incorrect datetime value: '2012103123595912'
 Warning	1292	Truncated incorrect datetime value: '20121031235959123'
 select cast(0 as date), cast('0000-00-00' as date), cast('0' as date);
 cast(0 as date)	cast('0000-00-00' as date)	cast('0' as date)
-0000-00-00	0000-00-00	NULL
+0000-00-00	0000-00-00	0000-00-00
 Warnings:
 Warning	1292	Incorrect datetime value: '0'
 select extract(hour from '100000:02:03'), extract(hour from '100000:02:03 ');
 extract(hour from '100000:02:03')	extract(hour from '100000:02:03 ')
-NULL	NULL
+0	0
 Warnings:
 Warning	1292	Truncated incorrect time value: '100000:02:03'
 Warning	1292	Truncated incorrect time value: '100000:02:03 '

@@ -507,6 +507,7 @@ void lex_start(THD *thd)
   lex->expr_allows_subselect= TRUE;
   lex->use_only_table_context= FALSE;
   lex->parse_vcol_expr= FALSE;
+  lex->check_exists= FALSE;
   lex->verbose= 0;
 
   lex->name.str= 0;
@@ -1883,6 +1884,7 @@ void st_select_lex::init_query()
   max_equal_elems= 0;
   ref_pointer_array= 0;
   select_n_where_fields= 0;
+  select_n_reserved= 0;
   select_n_having_items= 0;
   n_child_sum_items= 0;
   subquery_in_having= explicit_limit= 0;
@@ -2328,6 +2330,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
   ref_pointer_array=
     (Item **)thd->stmt_arena->alloc(sizeof(Item*) * (n_child_sum_items +
                                                      item_list.elements +
+                                                     select_n_reserved +
                                                      select_n_having_items +
                                                      select_n_where_fields +
                                                      order_group_num)*5);
@@ -2883,7 +2886,7 @@ void st_select_lex_unit::set_limit(st_select_lex *sl)
     val= fix_fields_successful ? item->val_uint() : 0;
   }
   else
-    val= ULL(0);
+    val= 0;
 
   offset_limit_cnt= (ha_rows)val;
 #ifndef BIG_TABLES
@@ -3877,7 +3880,8 @@ void SELECT_LEX::update_used_tables()
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();
-  }      
+  }
+  join->result->update_used_tables();
 }
 
 

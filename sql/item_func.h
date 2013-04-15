@@ -431,6 +431,13 @@ public:
   void fix_num_length_and_dec();
   virtual void find_num_type()= 0; /* To be called from fix_length_and_dec */
 
+  inline void fix_decimals()
+  {
+    DBUG_ASSERT(result_type() == DECIMAL_RESULT);
+    if (decimals == NOT_FIXED_DEC)
+      set_if_smaller(decimals, max_length - 1);
+  }
+
   double val_real();
   longlong val_int();
   my_decimal *val_decimal(my_decimal *);
@@ -1250,6 +1257,9 @@ public:
 };
 
 
+void item_func_sleep_init(void);
+void item_func_sleep_free(void);
+
 class Item_func_sleep :public Item_int_func
 {
 public:
@@ -1499,14 +1509,8 @@ public:
 
 #endif /* HAVE_DLOPEN */
 
-/*
-** User level locks
-*/
-
-class User_level_lock;
-void item_user_lock_init(void);
-void item_user_lock_release(User_level_lock *ull);
-void item_user_lock_free(void);
+void mysql_ull_cleanup(THD *thd);
+void mysql_ull_set_explicit_lock_duration(THD *thd);
 
 class Item_func_get_lock :public Item_int_func
 {

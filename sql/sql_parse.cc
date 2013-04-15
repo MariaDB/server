@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -804,9 +804,10 @@ end:
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  mysql_mutex_lock(&LOCK_thread_count);
-  thread_count--;
+  thread_safe_decrement32(&thread_count, &thread_count_lock);
   in_bootstrap= FALSE;
+
+  mysql_mutex_lock(&LOCK_thread_count);
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
   my_thread_end();
@@ -1110,9 +1111,16 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
   thd->set_time();
-  thd->set_query_id(get_query_id());
   if (!(server_command_flags[command] & CF_SKIP_QUERY_ID))
-    next_query_id();
+    thd->set_query_id(next_query_id());
+  else
+  {
+    /*
+      ping, get statistics or similar stateless command.
+      No reason to increase query id here.
+    */
+    thd->set_query_id(get_query_id());
+  }
   inc_thread_running();
 
   if (!(server_command_flags[command] & CF_SKIP_QUESTIONS))
@@ -1183,7 +1191,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     else
       rc= acl_authenticate(thd, 0, packet_length);
 
-    MYSQL_AUDIT_NOTIFY_CONNECTION_CHANGE_USER(thd);
+    mysql_audit_notify_connection_change_user(thd);
     if (rc)
     {
       /* Free user if allocated by acl_authenticate */
@@ -1569,7 +1577,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     if (!(uptime= (ulong) (thd->start_time - server_start_time)))
       queries_per_second1000= 0;
     else
-      queries_per_second1000= thd->query_id * LL(1000) / uptime;
+      queries_per_second1000= thd->query_id * 1000 / uptime;
 
     length= my_snprintf(buff, buff_len - 1,
                         "Uptime: %lu  Threads: %d  Questions: %lu  "
@@ -1851,7 +1859,7 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     break;
   case SCH_USER_STATS:
   case SCH_CLIENT_STATS:
-    if (check_global_access(thd, SUPER_ACL | PROCESS_ACL))
+    if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
       DBUG_RETURN(1);
   case SCH_TABLE_STATS:
   case SCH_INDEX_STATS:
@@ -2026,7 +2034,7 @@ bool sp_process_definer(THD *thd)
     if ((strcmp(lex->definer->user.str, thd->security_ctx->priv_user) ||
          my_strcasecmp(system_charset_info, lex->definer->host.str,
                        thd->security_ctx->priv_host)) &&
-        check_global_access(thd, SUPER_ACL))
+        check_global_access(thd, SUPER_ACL, true))
     {
       my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
       DBUG_RETURN(TRUE);
@@ -2277,7 +2285,7 @@ mysql_execute_command(THD *thd)
     if (!(lex->sql_command == SQLCOM_UPDATE_MULTI) &&
 	!(lex->sql_command == SQLCOM_SET_OPTION) &&
 	!(lex->sql_command == SQLCOM_DROP_TABLE &&
-          lex->drop_temporary && lex->drop_if_exists) &&
+          lex->drop_temporary && lex->check_exists) &&
         all_tables_not_ok(thd, all_tables))
     {
       /* we warn the slave SQL thread */
@@ -3301,6 +3309,7 @@ end_with_restore_list:
       thd->first_successful_insert_id_in_cur_stmt=
         thd->first_successful_insert_id_in_prev_stmt;
 
+#ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("after_mysql_insert",
                     {
                       const char act1[]=
@@ -3316,6 +3325,7 @@ end_with_restore_list:
                                                          STRING_WITH_LEN(act2)));
                     };);
     DEBUG_SYNC(thd, "after_mysql_insert");
+#endif
     break;
   }
   case SQLCOM_REPLACE_SELECT:
@@ -3489,7 +3499,7 @@ end_with_restore_list:
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
     /* DDL and binlog write order are protected by metadata locks. */
-    res= mysql_rm_table(thd, first_table, lex->drop_if_exists,
+    res= mysql_rm_table(thd, first_table, lex->check_exists,
 			lex->drop_temporary);
   }
   break;
@@ -3703,7 +3713,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    res= mysql_rm_db(thd, lex->name.str, lex->drop_if_exists, 0);
+    res= mysql_rm_db(thd, lex->name.str, lex->check_exists, 0);
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:
@@ -3831,7 +3841,7 @@ end_with_restore_list:
   case SQLCOM_DROP_EVENT:
     if (!(res= Events::drop_event(thd,
                                   lex->spname->m_db, lex->spname->m_name,
-                                  lex->drop_if_exists)))
+                                  lex->check_exists)))
       my_ok(thd);
     break;
 #else
@@ -4520,7 +4530,7 @@ create_sp_error:
 
         if (lex->spname->m_db.str == NULL)
         {
-          if (lex->drop_if_exists)
+          if (lex->check_exists)
           {
             push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
                                 ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
@@ -4589,7 +4599,7 @@ create_sp_error:
 	my_ok(thd);
 	break;
       case SP_KEY_NOT_FOUND:
-	if (lex->drop_if_exists)
+	if (lex->check_exists)
 	{
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
@@ -4804,7 +4814,7 @@ create_sp_error:
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->drop_if_exists && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->check_exists && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name));
@@ -5238,6 +5248,10 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 
   if ((db != NULL) && (db != any_db))
   {
+    /*
+      Check if this is reserved database, like information schema or
+      performance schema
+    */
     const ACL_internal_schema_access *access;
     access= get_cached_schema_access(grant_internal_info, db);
     if (access)
@@ -5680,14 +5694,17 @@ bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
     1	Access denied.  In this case an error is sent to the client
 */
 
-bool check_global_access(THD *thd, ulong want_access)
+bool check_global_access(THD *thd, ulong want_access, bool no_errors)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   char command[128];
   if ((thd->security_ctx->master_access & want_access))
     return 0;
-  get_privilege_desc(command, sizeof(command), want_access);
-  my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+  if (!no_errors)
+  {
+    get_privilege_desc(command, sizeof(command), want_access);
+    my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), command);
+  }
   status_var_increment(thd->status_var.access_denied_errors);
   return 1;
 #else
@@ -6227,7 +6244,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
     lex->col_list.push_back(new Key_part_spec(*field_name, 0));
     key= new Key(Key::PRIMARY, null_lex_str,
                       &default_key_create_info,
-                      0, lex->col_list, NULL);
+                      0, lex->col_list, NULL, lex->check_exists);
     lex->alter_info.key_list.push_back(key);
     lex->col_list.empty();
   }
@@ -6237,7 +6254,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
     lex->col_list.push_back(new Key_part_spec(*field_name, 0));
     key= new Key(Key::UNIQUE, null_lex_str,
                  &default_key_create_info, 0,
-                 lex->col_list, NULL);
+                 lex->col_list, NULL, lex->check_exists);
     lex->alter_info.key_list.push_back(key);
     lex->col_list.empty();
   }
@@ -6289,7 +6306,7 @@ bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
       new_field->init(thd, field_name->str, type, length, decimals, type_modifier,
                       default_value, on_update_value, comment, change,
                       interval_list, cs, uint_geom_type, vcol_info,
-                      create_options))
+                      create_options, lex->check_exists))
     DBUG_RETURN(1);
 
   lex->alter_info.create_list.push_back(new_field);
@@ -7894,6 +7911,7 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
   return TRUE;
 }
 
+C_MODE_START
 
 /*
   Check if path does not contain mysql data home directory
@@ -7906,7 +7924,6 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
     0	ok
     1	error ;  Given path contains data directory
 */
-C_MODE_START
 
 int test_if_data_home_dir(const char *dir)
 {
@@ -7916,6 +7933,22 @@ int test_if_data_home_dir(const char *dir)
 
   if (!dir)
     DBUG_RETURN(0);
+
+  /*
+    data_file_name and index_file_name include the table name without
+    extension. Mostly this does not refer to an existing file. When
+    comparing data_file_name or index_file_name against the data
+    directory, we try to resolve all symbolic links. On some systems,
+    we use realpath(3) for the resolution. This returns ENOENT if the
+    resolved path does not refer to an existing file. my_realpath()
+    does then copy the requested path verbatim, without symlink
+    resolution. Thereafter the comparison can fail even if the
+    requested path is within the data directory. E.g. if symlinks to
+    another file system are used. To make realpath(3) return the
+    resolved path, we strip the table name and compare the directory
+    path only. If the directory doesn't exist either, table creation
+    will fail anyway.
+  */
 
   (void) fn_format(path, dir, "", "",
                    (MY_RETURN_REAL_PATH|MY_RESOLVE_SYMLINKS));
@@ -7949,6 +7982,22 @@ int test_if_data_home_dir(const char *dir)
 
 C_MODE_END
 
+
+int error_if_data_home_dir(const char *path, const char *what)
+{
+  size_t dirlen;
+  char   dirpath[FN_REFLEN];
+  if (path)
+  {
+    dirname_part(dirpath, path, &dirlen);
+    if (test_if_data_home_dir(dirpath))
+    {
+      my_error(ER_WRONG_ARGUMENTS, MYF(0), what);
+      return 1;
+    }
+  }
+  return 0;
+}
 
 /**
   Check that host name string is valid.

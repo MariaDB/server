@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010-2011 Monty Program Ab
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -143,15 +143,15 @@
   however, needs to rollback the effects of the
   succeeded statement to keep replication consistent.
 */
-#define OPTION_MASTER_SQL_ERROR (1ULL << 35)
+#define OPTION_MASTER_SQL_ERROR         (1ULL << 35)
 
 /*
   Dont report errors for individual rows,
   But just report error on commit (or read ofcourse)
   Note! Reserved for use in MySQL Cluster
 */
-#define OPTION_ALLOW_BATCH              (ULL(1) << 36) // THD, intern (slave)
-#define OPTION_SKIP_REPLICATION         (ULL(1) << 37) // THD, user
+#define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
+#define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 
 /*
   Check how many bytes are available on buffer.
@@ -227,7 +227,7 @@ template <class T> bool valid_buffer_range(T jump,
 #define OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE (1ULL << 25)
 #define OPTIMIZER_SWITCH_TABLE_ELIMINATION         (1ULL << 26)
 #define OPTIMIZER_SWITCH_EXTENDED_KEYS             (1ULL << 27)
-#define OPTIMIZER_SWITCH_LAST                      (1ULL << 27)
+#define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \

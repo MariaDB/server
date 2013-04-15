@@ -364,9 +364,14 @@ int my_mb_wc_latin1(CHARSET_INFO *cs  __attribute__((unused)),
 {
   if (str >= end)
     return MY_CS_TOOSMALL;
-  
-  *wc=cs_to_uni[*str];
-  return (!wc[0] && str[0]) ? -1 : 1;
+  /*
+    There are no unassigned characters in latin1.
+    Every code point in latin1 is mapped to some Unicode code point.
+    We can always return 1, no needs to check the value of cs_to_uni[*str].
+  */
+  *wc= cs_to_uni[*str];
+  DBUG_ASSERT(wc[0] || !str[0]);
+  return 1;
 }
 
 static

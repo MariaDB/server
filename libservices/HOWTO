@@ -76,7 +76,7 @@ it should also declare all the accompanying data structures, as necessary
 ==================================================================
   /* GPL header */
   #include <service_versions.h>
-  SERVICE_VERSION *foo_service= (void*)VERSION_foo;
+  SERVICE_VERSION foo_service= (void*)VERSION_foo;
 ==================================================================
 
 7. add the new file to libservices/CMakeLists.txt (MYSQLSERVICES_SOURCES)

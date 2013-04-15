@@ -616,12 +616,6 @@ int vio_close(Vio *vio)
 
 const char *vio_description(Vio * vio)
 {
-  if (!vio->desc[0])
-  {
-    my_snprintf(vio->desc, VIO_DESCRIPTION_SIZE,
-                (vio->type == VIO_TYPE_SOCKET ? "socket (%d)" : "TCP/IP (%d)"),
-                mysql_socket_getfd(vio->mysql_socket));
-  }
   return vio->desc;
 }
 

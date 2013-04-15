@@ -1483,16 +1483,6 @@ SELECT @@GLOBAL.server_id;
 @@GLOBAL.server_id
 0
 SET GLOBAL server_id = @old_server_id;
-SELECT @@GLOBAL.INIT_CONNECT, @@GLOBAL.INIT_CONNECT IS NULL;
-@@GLOBAL.INIT_CONNECT	@@GLOBAL.INIT_CONNECT IS NULL
-	1
-CREATE TABLE t1 (a INT);
-INSERT INTO t1 VALUES ();
-SET @bug42778= @@sql_safe_updates;
-SET @@sql_safe_updates= 0;
-DELETE FROM t1 ORDER BY (@@GLOBAL.INIT_CONNECT) ASC LIMIT 10;
-SET @@sql_safe_updates= @bug42778;
-DROP TABLE t1;
 #
 # BUG#10206 - InnoDB: Transaction requiring Max_BinLog_Cache_size > 4GB always rollsback
 #

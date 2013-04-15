@@ -34,6 +34,7 @@ enum enum_mysql_completiontype {
 };
 
 extern "C" int test_if_data_home_dir(const char *dir);
+int error_if_data_home_dir(const char *path, const char *what);
 
 bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
@@ -196,7 +197,7 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
 
 /* These were under the INNODB_COMPATIBILITY_HOOKS */
 
-bool check_global_access(THD *thd, ulong want_access);
+bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
 
 inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {

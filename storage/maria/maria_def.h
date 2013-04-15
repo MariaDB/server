@@ -855,7 +855,7 @@ struct st_maria_handler
 #define MARIA_MAX_KEYPTR_SIZE	5	/* For calculating block lengths */
 
 /* Marker for impossible delete link */
-#define IMPOSSIBLE_PAGE_NO LL(0xFFFFFFFFFF)
+#define IMPOSSIBLE_PAGE_NO 0xFFFFFFFFFFLL
 
 /* The UNIQUE check is done with a hashed long key */
 

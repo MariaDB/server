@@ -1285,7 +1285,7 @@ CSphSEQuery::~CSphSEQuery ()
 	SafeDeleteArray ( m_sQueryBuffer );
 	SafeDeleteArray ( m_pWeights );
 	SafeDeleteArray ( m_pBuf );
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 		SafeDelete ( m_dOverrides.at(i) );
 	SPH_VOID_RET();
 }
@@ -1865,7 +1865,7 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 		iReqSize += 8 + strlen(m_sFieldWeight[i] );
 	// overrides
 	iReqSize += 4;
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 	{
 		CSphSEQuery::Override_t * pOverride = m_dOverrides.at(i);
 		const uint32 uSize = pOverride->m_iType==SPH_ATTR_BIGINT ? 16 : 12; // id64 + value
@@ -1972,13 +1972,13 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 
 	// overrides
 	SendInt ( m_dOverrides.elements() );
-	for ( int i=0; i<m_dOverrides.elements(); i++ )
+	for ( size_t i=0; i<m_dOverrides.elements(); i++ )
 	{
 		CSphSEQuery::Override_t * pOverride = m_dOverrides.at(i);
 		SendString ( pOverride->m_sName );
 		SendDword ( pOverride->m_iType );
 		SendInt ( pOverride->m_dIds.elements() );
-		for ( int j=0; j<pOverride->m_dIds.elements(); j++ )
+		for ( size_t j=0; j<pOverride->m_dIds.elements(); j++ )
 		{
 			SendUint64 ( pOverride->m_dIds.at(j) );
 			if ( pOverride->m_iType==SPH_ATTR_FLOAT )
@@ -2004,9 +2004,6 @@ int CSphSEQuery::BuildRequest ( char ** ppBuffer )
 //////////////////////////////////////////////////////////////////////////////
 // SPHINX HANDLER
 //////////////////////////////////////////////////////////////////////////////
-
-static const char * ha_sphinx_exts[] = { NullS };
-
 
 #if MYSQL_VERSION_ID<50100
 ha_sphinx::ha_sphinx ( TABLE_ARG * table )
@@ -2046,16 +2043,6 @@ ha_sphinx::~ha_sphinx()
     delete [] m_dFields;
   }
 }
-
-
-// If frm_error() is called then we will use this to to find out what file extentions
-// exist for the storage engine. This is also used by the default rename_table and
-// delete_table method in handler.cc.
-const char ** ha_sphinx::bas_ext() const
-{
-	return ha_sphinx_exts;
-}
-
 
 // Used for opening tables. The name will be the name of the file.
 // A table is opened when it needs to be opened. For instance
@@ -3437,7 +3424,8 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 	// report and bail
 	if ( sError[0] )
 	{
-		my_error ( ER_CANT_CREATE_TABLE, MYF(0), sError, -1 );
+		my_error ( ER_CANT_CREATE_TABLE, MYF(0),
+                           table->s->db.str, table->s->table_name, sError );
 		SPH_RET(-1);
 	}
 

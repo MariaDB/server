@@ -769,18 +769,11 @@ sub collect_one_test_case {
   if ( $tinfo->{'ndb_test'} )
   {
     # This is a NDB test
-    if ( $::opt_skip_ndbcluster == 2 )
+    if ( $::ndbcluster_enabled == 0)
     {
-      # Ndb is not supported, skip it
+      # ndbcluster is disabled
       $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "No ndbcluster support or ndb tests not enabled";
-      return $tinfo;
-    }
-    elsif ( $::opt_skip_ndbcluster )
-    {
-      # All ndb test's should be skipped
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "No ndbcluster";
+      $tinfo->{'comment'}= "ndbcluster disabled";
       return $tinfo;
     }
   }
@@ -975,6 +968,8 @@ sub get_tags_from_file($$) {
   } elsif ($over and $file =~ m@^$pdir/(.*)$@) {
     $suffix = $1;
     @prefix = map { "$_/" } $sdir, $pdir;
+  } else {
+    $over = 0; # file neither in $sdir nor in $pdir
   }
 
   while (my $line= <$F>)

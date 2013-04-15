@@ -104,7 +104,7 @@ public:
                           MYF(MY_THREAD_SPECIFIC));
   }
 
-  Elem& at(int idx)
+  Elem& at(size_t idx)
   {
     return *(((Elem*)array.buffer) + idx);
   }
@@ -124,9 +124,19 @@ public:
     return (insert_dynamic(&array, (uchar*)&el));
   }
 
-  int elements()
+  bool append_val(Elem el)
+  {
+    return (insert_dynamic(&array, (uchar*)&el));
+  }
+
+  size_t elements()
   {
     return array.elements;
+  }
+
+  void set_elements(size_t n)
+  {
+    array.elements= n;
   }
 
   ~Dynamic_array()

@@ -58,10 +58,7 @@ static HASH oqgraph_open_tables;
 static mysql_mutex_t LOCK_oqgraph;
 static bool oqgraph_init_done= 0;
 
-#define HASH_KEY_LENGTH size_t
-
-static uchar* get_key(const uchar *ptr, HASH_KEY_LENGTH *length,
-                      my_bool)
+static uchar* get_key(const uchar *ptr, size_t *length, my_bool)
 {
   const OQGRAPH_INFO *share= (const OQGRAPH_INFO*) ptr;
   *length= strlen(share->name);
@@ -82,7 +79,6 @@ static void init_psi_keys()
 #else
 #define init_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
-
 
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
@@ -291,16 +287,6 @@ ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
     share(0), graph(0), records_changed(0), key_stat_version(0)
 { }
 
-
-static const char *ha_oqgraph_exts[] =
-{
-  NullS
-};
-
-const char **ha_oqgraph::bas_ext() const
-{
-  return ha_oqgraph_exts;
-}
 
 ulonglong ha_oqgraph::table_flags() const
 {

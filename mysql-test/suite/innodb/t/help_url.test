@@ -2,6 +2,7 @@
 # MDEV-4273 MYSQL_VERSION_MAJOR.MYSQL_VERSION_MINOR not replaced
 #
 --source include/have_innodb.inc
+--source include/not_embedded.inc
 
 call mtr.add_suppression('InnoDB: Error');
 
