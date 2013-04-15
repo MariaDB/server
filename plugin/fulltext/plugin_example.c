@@ -254,24 +254,6 @@ static struct st_mysql_sys_var* simple_system_variables[]= {
   Plugin library descriptor
 */
 
-mysql_declare_plugin(ftexample)
-{
-  MYSQL_FTPARSER_PLUGIN,      /* type                            */
-  &simple_parser_descriptor,  /* descriptor                      */
-  "simple_parser",            /* name                            */
-  "Sergei Golubchik",         /* author                          */
-  "Simple Full-Text Parser",  /* description                     */
-  PLUGIN_LICENSE_GPL,
-  simple_parser_plugin_init,  /* init function (when loaded)     */
-  simple_parser_plugin_deinit,/* deinit function (when unloaded) */
-  0x0001,                     /* version                         */
-  simple_status,              /* status variables                */
-  simple_system_variables,    /* system variables                */
-  NULL,
-  0,
-}
-mysql_declare_plugin_end;
-
 maria_declare_plugin(ftexample)
 {
   MYSQL_FTPARSER_PLUGIN,      /* type                            */

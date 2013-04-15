@@ -5454,7 +5454,7 @@ restart_bitmap_scan:
       {
         bits= uint6korr(data);
         /* Skip not allocated pages and blob / full tail pages */
-        if (bits && bits != LL(07777777777777777))
+        if (bits && bits != 07777777777777777LL)
           break;
       }
       bit_pos= 0;
@@ -7123,7 +7123,7 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
 
       memcpy(field_pos, field_length_data, size_length);
       field_length_data+= size_length;
-      memcpy(field_pos + size_length, &header, sizeof(&header));
+      memcpy(field_pos + size_length, &header, sizeof(header));
       header+= blob_length;
       *blob_lengths++= blob_length;
       break;

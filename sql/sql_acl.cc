@@ -52,6 +52,8 @@
 #include "sql_db.h"
 #include "sql_array.h"
 
+#include "sql_plugin_compat.h"
+
 bool mysql_user_table_is_in_short_password_format= false;
 
 static const
@@ -4532,11 +4534,15 @@ end:
   @see check_access
   @see check_table_access
 
-  @note This functions assumes that either number of tables to be inspected
+  @note
+     This functions assumes that either number of tables to be inspected
      by it is limited explicitly (i.e. is is not UINT_MAX) or table list
      used and thd->lex->query_tables_own_last value correspond to each
      other (the latter should be either 0 or point to next_global member
      of one of elements of this table list).
+
+     We delay locking of LOCK_grant until we really need it as we assume that
+     most privileges be resolved with user or db level accesses.
 
    @return Access status
      @retval FALSE Access granted; But column privileges might need to be
@@ -4554,6 +4560,8 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
   Security_context *sctx= thd->security_ctx;
   uint i;
   ulong orig_want_access= want_access;
+  my_bool locked= 0;
+  GRANT_TABLE *grant_table;
   DBUG_ENTER("check_grant");
   DBUG_ASSERT(number > 0);
 
@@ -4577,11 +4585,9 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
     */
     tl->grant.orig_want_privilege= (want_access & ~SHOW_VIEW_ACL);
   }
+  number= i;
 
-  mysql_rwlock_rdlock(&LOCK_grant);
-  for (tl= tables;
-       tl && number-- && tl != first_not_own_table;
-       tl= tl->next_global)
+  for (tl= tables; number-- ; tl= tl->next_global)
   {
     sctx = test(tl->security_ctx) ? tl->security_ctx : thd->security_ctx;
 
@@ -4634,13 +4640,18 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       }
       continue;
     }
-    GRANT_TABLE *grant_table= table_hash_search(sctx->host, sctx->ip,
-                                                tl->get_db_name(),
-                                                sctx->priv_user,
-                                                tl->get_table_name(),
-                                                FALSE);
 
-    if (!grant_table)
+    if (!locked)
+    {
+      locked= 1;
+      mysql_rwlock_rdlock(&LOCK_grant);
+    }
+
+    if (!(grant_table= table_hash_search(sctx->host, sctx->ip,
+                                         tl->get_db_name(),
+                                         sctx->priv_user,
+                                         tl->get_table_name(),
+                                         FALSE)))
     {
       want_access &= ~tl->grant.privilege;
       goto err;					// No grants
@@ -4667,11 +4678,13 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       goto err;					// impossible
     }
   }
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (locked)
+    mysql_rwlock_unlock(&LOCK_grant);
   DBUG_RETURN(FALSE);
 
 err:
-  mysql_rwlock_unlock(&LOCK_grant);
+  if (locked)
+    mysql_rwlock_unlock(&LOCK_grant);
   if (!no_errors)				// Not a silent skip of table
   {
     char command[128];
@@ -7025,10 +7038,8 @@ bool sp_grant_privileges(THD *thd, const char *sp_db, const char *sp_name,
   tables->db= (char*)sp_db;
   tables->table_name= tables->alias= (char*)sp_name;
 
-  thd->make_lex_string(&combo->user,
-                       combo->user.str, strlen(combo->user.str), 0);
-  thd->make_lex_string(&combo->host,
-                       combo->host.str, strlen(combo->host.str), 0);
+  thd->make_lex_string(&combo->user, combo->user.str, strlen(combo->user.str));
+  thd->make_lex_string(&combo->host, combo->host.str, strlen(combo->host.str));
 
   combo->password= empty_lex_str;
   combo->plugin= empty_lex_str;
@@ -7950,7 +7961,7 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     data_len= SCRAMBLE_LENGTH;
   }
 
-  end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
+  end= strxnmov(end, SERVER_VERSION_LENGTH, RPL_VERSION_HACK, server_version, NullS) + 1;
   int4store((uchar*) end, mpvio->thd->thread_id);
   end+= 4;
 
@@ -8254,7 +8265,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
   thd->user_connect= 0;
   strmake(sctx->priv_user, sctx->user, USERNAME_LENGTH);
 
-  if (thd->make_lex_string(&mpvio->db, db_buff, db_len, 0) == 0)
+  if (thd->make_lex_string(&mpvio->db, db_buff, db_len) == 0)
     DBUG_RETURN(1); /* The error is set by make_lex_string(). */
 
   /*
@@ -8480,7 +8491,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   Security_context *sctx= thd->security_ctx;
 
-  if (thd->make_lex_string(&mpvio->db, db, db_len, 0) == 0)
+  if (thd->make_lex_string(&mpvio->db, db, db_len) == 0)
     return packet_error; /* The error is set by make_lex_string(). */
   my_free(sctx->user);
   if (!(sctx->user= my_strndup(user, user_len, MYF(MY_WME))))
@@ -8869,7 +8880,20 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   if (plugin)
   {
     st_mysql_auth *auth= (st_mysql_auth *) plugin_decl(plugin)->info;
-    res= auth->authenticate_user(mpvio, &mpvio->auth_info);
+    switch (auth->interface_version) {
+    case 0x0200:
+      res= auth->authenticate_user(mpvio, &mpvio->auth_info);
+      break;
+    case 0x0100:
+      {
+        MYSQL_SERVER_AUTH_INFO_0x0100 compat;
+        compat.downgrade(&mpvio->auth_info);
+        res= auth->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
+        compat.upgrade(&mpvio->auth_info);
+      }
+      break;
+    default: DBUG_ASSERT(0);
+    }
 
     if (unlock_plugin)
       plugin_unlock(thd, plugin);
@@ -8919,8 +8943,6 @@ bool acl_authenticate(THD *thd, uint connect_errors,
   enum  enum_server_command command= com_change_user_pkt_len ? COM_CHANGE_USER
                                                              : COM_CONNECT;
   DBUG_ENTER("acl_authenticate");
-
-  compile_time_assert(MYSQL_USERNAME_LENGTH == USERNAME_LENGTH);
 
   bzero(&mpvio, sizeof(mpvio));
   mpvio.read_packet= server_mpvio_read_packet;

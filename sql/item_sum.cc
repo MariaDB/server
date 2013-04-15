@@ -152,9 +152,10 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
       If it is there under a construct where it is not allowed 
       we report an error. 
     */ 
-    invalid= !(allow_sum_func & (1 << max_arg_level));
+    invalid= !(allow_sum_func & ((nesting_map)1 << max_arg_level));
   }
-  else if (max_arg_level >= 0 || !(allow_sum_func & (1 << nest_level)))
+  else if (max_arg_level >= 0 ||
+           !(allow_sum_func & ((nesting_map)1 << nest_level)))
   {
     /*
       The set function can be aggregated only in outer subqueries.
@@ -163,7 +164,8 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
     */
     if (register_sum_func(thd, ref))
       return TRUE;
-    invalid= aggr_level < 0 && !(allow_sum_func & (1 << nest_level));
+    invalid= aggr_level < 0 &&
+             !(allow_sum_func & ((nesting_map)1 << nest_level));
     if (!invalid && thd->variables.sql_mode & MODE_ANSI)
       invalid= aggr_level < 0 && max_arg_level < nest_level;
   }
@@ -311,14 +313,15 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
        sl && sl->nest_level > max_arg_level;
        sl= sl->master_unit()->outer_select() )
   {
-    if (aggr_level < 0 && (allow_sum_func & (1 << sl->nest_level)))
+    if (aggr_level < 0 &&
+        (allow_sum_func & ((nesting_map)1 << sl->nest_level)))
     {
       /* Found the most nested subquery where the function can be aggregated */
       aggr_level= sl->nest_level;
       aggr_sel= sl;
     }
   }
-  if (sl && (allow_sum_func & (1 << sl->nest_level)))
+  if (sl && (allow_sum_func & ((nesting_map)1 << sl->nest_level)))
   {
     /* 
       We reached the subquery of level max_arg_level and checked
@@ -375,7 +378,12 @@ bool Item_sum::collect_outer_ref_processor(uchar *param)
   if ((ds= depended_from()) &&
       ds->nest_level_base == prm->nest_level_base &&
       ds->nest_level < prm->nest_level)
-    prm->parameters->add_unique(this, &cmp_items);
+  {
+    if (prm->collect)
+      prm->parameters->add_unique(this, &cmp_items);
+    else
+      prm->count++;
+  }
   return FALSE;
 }
 
@@ -559,7 +567,7 @@ void Item_sum::update_used_tables ()
       used_tables_cache&= PSEUDO_TABLE_BITS;
 
       // the aggregate function is aggregated into its local context
-      used_tables_cache |=  (1 << aggr_sel->join->table_count) - 1;
+      used_tables_cache|= ((table_map)1 << aggr_sel->join->tables) - 1;
       
       } because if we do it, table elimination will assume that
         - constructs like "COUNT(*)" use columns from all tables
@@ -727,7 +735,15 @@ int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 }
 
 
-int item_sum_distinct_walk(void *element, element_count num_of_dups,
+static int item_sum_distinct_walk_for_count(void *element, 
+                                            element_count num_of_dups,
+                                            void *item)
+{
+  return ((Aggregator_distinct*) (item))->unique_walk_function_for_count(element);
+}
+ 
+
+static int item_sum_distinct_walk(void *element, element_count num_of_dups,
                                   void *item)
 {
   return ((Aggregator_distinct*) (item))->unique_walk_function(element);
@@ -1097,7 +1113,12 @@ void Aggregator_distinct::endup()
   {
     /* go over the tree of distinct keys and calculate the aggregate value */
     use_distinct_values= TRUE;
-    tree->walk(table, item_sum_distinct_walk, (void*) this);
+    tree_walk_action func;
+    if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+      func= item_sum_distinct_walk_for_count;
+    else
+      func= item_sum_distinct_walk;
+    tree->walk(table, func, (void*) this);
     use_distinct_values= FALSE;
   }
   /* prevent consecutive recalculations */
@@ -1474,6 +1495,22 @@ bool Aggregator_distinct::unique_walk_function(void *element)
 }
 
 
+/*
+  A variant of unique_walk_function() that is to be used with Item_sum_count.
+
+  COUNT is a special aggregate function: it doesn't need the values, it only
+  needs to count them. COUNT needs to know the values are not NULLs, but NULL
+  values are not put into the Unique, so we don't need to check for NULLs here.
+*/
+
+bool Aggregator_distinct::unique_walk_function_for_count(void *element)
+{
+  Item_sum_count *sum= (Item_sum_count *)item_sum;
+  sum->count++;
+  return 0;
+}
+
+
 Aggregator_distinct::~Aggregator_distinct()
 {
   if (tree)
@@ -1589,9 +1626,10 @@ void Item_sum_avg::fix_length_and_dec()
     f_scale=  args[0]->decimals;
     dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
   }
-  else {
+  else
+  {
     decimals= min(args[0]->decimals + prec_increment, NOT_FIXED_DEC);
-    max_length= args[0]->max_length + prec_increment;
+    max_length= min(args[0]->max_length + prec_increment, float_length(decimals));
   }
 }
 

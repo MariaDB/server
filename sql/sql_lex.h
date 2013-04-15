@@ -740,6 +740,8 @@ public:
     and all inner subselects.
   */
   uint select_n_where_fields;
+  /* reserved for exists 2 in */
+  uint select_n_reserved;
   enum_parsing_place parsing_place; /* where we are parsing expression */
   bool with_sum_func;   /* sum function indicator */
 
@@ -2433,7 +2435,8 @@ struct LEX: public Query_tables_list
   uint16 create_view_algorithm;
   uint8 create_view_check;
   uint8 context_analysis_only;
-  bool drop_if_exists, drop_temporary, local_file, one_shot_set;
+  bool drop_temporary, local_file, one_shot_set;
+  bool check_exists;
   bool autocommit;
   bool verbose, no_write_to_binlog;
 

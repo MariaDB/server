@@ -496,8 +496,8 @@ The following options may be given as the first argument:
  mrr_cost_based, mrr_sort_keys, optimize_join_buffer_size,
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
- subquery_cache, table_elimination, extended_keys } and
- val is one of {on, off, default}
+ subquery_cache, table_elimination, extended_keys,
+ exists_to_in } and val is one of {on, off, default}
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -890,6 +890,25 @@ The following options may be given as the first argument:
  values are COMMIT or ROLLBACK.
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
+ --thread-pool-idle-timeout=# 
+ Timeout in seconds for an idle thread in the thread
+ pool.Worker thread will be shut down after timeout
+ --thread-pool-max-threads=# 
+ Maximum allowed number of worker threads in the thread
+ pool
+ --thread-pool-oversubscribe=# 
+ How many additional active worker threads in a group are
+ allowed.
+ --thread-pool-size=# 
+ Number of thread groups in the pool. This parameter is
+ roughly equivalent to maximum number of concurrently
+ executing threads (threads in a waiting state do not
+ count as executing).
+ --thread-pool-stall-limit=# 
+ Maximum query execution time in milliseconds,before an
+ executing non-yielding thread is considered stalled.If a
+ worker thread is stalled, additional worker thread may be
+ created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
@@ -1192,6 +1211,10 @@ table-definition-cache 400
 table-open-cache 400
 tc-heuristic-recover COMMIT
 thread-cache-size 0
+thread-pool-idle-timeout 60
+thread-pool-max-threads 500
+thread-pool-oversubscribe 3
+thread-pool-stall-limit 500
 thread-stack 294912
 time-format %H:%i:%s
 timed-mutexes FALSE

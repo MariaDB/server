@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ const char field_separator=',';
 #define LONGLONG_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define DECIMAL_TO_STRING_CONVERSION_BUFFER_SIZE 128
 #define BLOB_PACK_LENGTH_TO_MAX_LENGH(arg) \
-((ulong) ((LL(1) << min(arg, 4) * 8) - LL(1)))
+((ulong) ((1LL << min(arg, 4) * 8) - 1))
 
 #define ASSERT_COLUMN_MARKED_FOR_READ DBUG_ASSERT(!table || (!table->read_set || bitmap_is_set(table->read_set, field_index)))
 #define ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED DBUG_ASSERT(is_stat_field || !table || (!table->write_set || bitmap_is_set(table->write_set, field_index) || bitmap_is_set(table->vcol_set, field_index)))
@@ -199,7 +199,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_LONG,         MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_INT24,
+    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_LONG,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -230,7 +230,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_FLOAT,       MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_FLOAT,       MYSQL_TYPE_INT24,
+    MYSQL_TYPE_FLOAT,       MYSQL_TYPE_FLOAT,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -261,7 +261,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_INT24,
+    MYSQL_TYPE_DOUBLE,      MYSQL_TYPE_DOUBLE,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_VARCHAR,     MYSQL_TYPE_VARCHAR,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -292,7 +292,7 @@ static enum_field_types field_types_merge_rules [FIELDTYPE_NUM][FIELDTYPE_NUM]=
   //MYSQL_TYPE_NULL         MYSQL_TYPE_TIMESTAMP
     MYSQL_TYPE_NULL,        MYSQL_TYPE_TIMESTAMP,
   //MYSQL_TYPE_LONGLONG     MYSQL_TYPE_INT24
-    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_INT24,
+    MYSQL_TYPE_LONGLONG,    MYSQL_TYPE_LONGLONG,
   //MYSQL_TYPE_DATE         MYSQL_TYPE_TIME
     MYSQL_TYPE_NEWDATE,     MYSQL_TYPE_TIME,
   //MYSQL_TYPE_DATETIME     MYSQL_TYPE_YEAR
@@ -3643,7 +3643,7 @@ int Field_long::store(longlong nr, bool unsigned_val)
       res=0;
       error= 1;
     }
-    else if ((ulonglong) nr >= (LL(1) << 32))
+    else if ((ulonglong) nr >= (1LL << 32))
     {
       res=(int32) (uint32) ~0L;
       error= 1;
@@ -4577,7 +4577,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
   longlong tmp= number_to_datetime(nr, 0, &l_time, (thd->variables.sql_mode &
                                                  MODE_NO_ZERO_DATE) |
                                    MODE_NO_ZERO_IN_DATE, &error);
-  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != LL(-1));
+  return store_TIME_with_warning(thd, &l_time, &str, error, tmp != -1);
 }
 
 
@@ -5793,8 +5793,8 @@ String *Field_datetime::val_str(String *val_buffer,
     Avoid problem with slow longlong arithmetic and sprintf
   */
 
-  part1=(long) (tmp/LL(1000000));
-  part2=(long) (tmp - (ulonglong) part1*LL(1000000));
+  part1=(long) (tmp/1000000LL);
+  part2=(long) (tmp - (ulonglong) part1*1000000LL);
 
   pos=(char*) val_buffer->ptr() + MAX_DATETIME_WIDTH;
   *pos--=0;
@@ -5825,8 +5825,8 @@ bool Field_datetime::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   longlong tmp=Field_datetime::val_int();
   uint32 part1,part2;
-  part1=(uint32) (tmp/LL(1000000));
-  part2=(uint32) (tmp - (ulonglong) part1*LL(1000000));
+  part1=(uint32) (tmp/1000000LL);
+  part2=(uint32) (tmp - (ulonglong) part1*1000000LL);
 
   ltime->time_type=	MYSQL_TIMESTAMP_DATETIME;
   ltime->neg=		0;
@@ -7617,6 +7617,19 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
     if (wkb_type < (uint32) Geometry::wkb_point ||
 	wkb_type > (uint32) Geometry::wkb_last)
       goto err;
+
+    if (geom_type != Field::GEOM_GEOMETRY && 
+        geom_type != Field::GEOM_GEOMETRYCOLLECTION &&
+        (uint32) geom_type != wkb_type)
+    {
+      my_printf_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, 
+          ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD), MYF(0),
+          Geometry::ci_collection[geom_type]->m_name.str,
+          Geometry::ci_collection[wkb_type]->m_name.str, field_name,
+          (ulong) table->in_use->warning_info->current_row_for_warning());
+      goto err_exit;
+    }
+
     Field_blob::store_length(length);
     if (table->copy_blobs || length <= MAX_FIELD_WIDTH)
     {						// Must make a copy
@@ -7628,9 +7641,10 @@ int Field_geom::store(const char *from, uint length, CHARSET_INFO *cs)
   return 0;
 
 err:
-  bzero(ptr, Field_blob::pack_length());  
   my_message(ER_CANT_CREATE_GEOMETRY_OBJECT,
              ER(ER_CANT_CREATE_GEOMETRY_OBJECT), MYF(0));
+err_exit:
+  bzero(ptr, Field_blob::pack_length());  
   return -1;
 }
 
@@ -7893,7 +7907,7 @@ int Field_set::store(longlong nr, bool unsigned_val)
   if (sizeof(ulonglong)*8 <= typelib->count)
     max_nr= ULONGLONG_MAX;
   else
-    max_nr= (ULL(1) << typelib->count) - 1;
+    max_nr= (1ULL << typelib->count) - 1;
 
   if ((ulonglong) nr > max_nr)
   {
@@ -8870,6 +8884,7 @@ void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
                        FLAGSTR(pack_flag, FIELDFLAG_DECIMAL),
                        f_packtype(pack_flag)));
   vcol_info= 0;
+  create_if_not_exists= FALSE;
   stored_in_db= TRUE;
 
   DBUG_VOID_RETURN;
@@ -8907,7 +8922,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
                         char *fld_change, List<String> *fld_interval_list,
                         CHARSET_INFO *fld_charset, uint fld_geom_type,
 			Virtual_column_info *fld_vcol_info,
-                        engine_option_value *create_opt)
+                        engine_option_value *create_opt, bool check_exists)
 {
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
@@ -8961,6 +8976,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
 
   comment= *fld_comment;
   vcol_info= fld_vcol_info;
+  create_if_not_exists= check_exists;
   stored_in_db= TRUE;
 
   /* Initialize data for a computed field */
@@ -9567,6 +9583,7 @@ Create_field::Create_field(Field *old_field,Field *orig_field)
   comment=    old_field->comment;
   decimals=   old_field->decimals();
   vcol_info=  old_field->vcol_info;
+  create_if_not_exists= FALSE;
   stored_in_db= old_field->stored_in_db;
   option_list= old_field->option_list;
   option_struct= old_field->option_struct;

@@ -167,6 +167,8 @@ static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_log_archive			= FALSE;
 static char*	innobase_log_arch_dir			= NULL;
 #endif /* UNIV_LOG_ARCHIVE */
+static my_bool	innobase_use_atomic_writes		= FALSE;
+static my_bool	innobase_use_fallocate			= TRUE;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_locks_unsafe_for_binlog	= FALSE;
@@ -471,8 +473,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_buffer_pool_load_status,	  SHOW_CHAR},
   {"buffer_pool_pages_data",
   (char*) &export_vars.innodb_buffer_pool_pages_data,	  SHOW_LONG},
+  {"buffer_pool_bytes_data",
+  (char*) &export_vars.innodb_buffer_pool_bytes_data,	  SHOW_LONG},
   {"buffer_pool_pages_dirty",
   (char*) &export_vars.innodb_buffer_pool_pages_dirty,	  SHOW_LONG},
+  {"buffer_pool_bytes_dirty",
+  (char*) &export_vars.innodb_buffer_pool_bytes_dirty,	  SHOW_LONG},
   {"buffer_pool_pages_flushed",
   (char*) &export_vars.innodb_buffer_pool_pages_flushed,  SHOW_LONG},
   {"buffer_pool_pages_free",
@@ -567,6 +573,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_truncated_status_writes,	  SHOW_LONG},
   {"available_undo_logs",
   (char*) &export_vars.innodb_available_undo_logs,        SHOW_LONG},
+#ifdef UNIV_DEBUG
+  {"purge_trx_id_age",
+  (char*) &export_vars.innodb_purge_trx_id_age,		  SHOW_LONG},
+  {"purge_view_trx_id_age",
+  (char*) &export_vars.innodb_purge_view_trx_id_age,	  SHOW_LONG},
+#endif /* UNIV_DEBUG */
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -1407,6 +1419,8 @@ convert_error_code_to_mysql(
 		return(HA_ERR_INDEX_CORRUPT);
 	case DB_UNDO_RECORD_TOO_BIG:
 		return(HA_ERR_UNDO_REC_TOO_BIG);
+	case DB_OUT_OF_MEMORY:
+		return(HA_ERR_OUT_OF_MEM);
 	}
 }
 
@@ -1621,99 +1635,6 @@ innobase_get_lower_case_table_names(void)
 	return(lower_case_table_names);
 }
 
-#if defined (__WIN__) && defined (MYSQL_DYNAMIC_PLUGIN)
-extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-/*******************************************************************//**
-Map an OS error to an errno value. The OS error number is stored in
-_doserrno and the mapped value is stored in errno) */
-void __cdecl
-_dosmaperr(
-	unsigned long);	/*!< in: OS error value */
-
-/*********************************************************************//**
-Creates a temporary file.
-@return	temporary file descriptor, or < 0 on error */
-UNIV_INTERN
-int
-innobase_mysql_tmpfile(void)
-/*========================*/
-{
-	int	fd;				/* handle of opened file */
-	HANDLE	osfh;				/* OS handle of opened file */
-	char*	tmpdir;				/* point to the directory
-						where to create file */
-	TCHAR	path_buf[MAX_PATH - 14];	/* buffer for tmp file path.
-						The length cannot be longer
-						than MAX_PATH - 14, or
-						GetTempFileName will fail. */
-	char	filename[MAX_PATH];		/* name of the tmpfile */
-	DWORD	fileaccess = GENERIC_READ	/* OS file access */
-			     | GENERIC_WRITE
-			     | DELETE;
-	DWORD	fileshare = FILE_SHARE_READ	/* OS file sharing mode */
-			    | FILE_SHARE_WRITE
-			    | FILE_SHARE_DELETE;
-	DWORD	filecreate = CREATE_ALWAYS;	/* OS method of open/create */
-	DWORD	fileattrib =			/* OS file attribute flags */
-			     FILE_ATTRIBUTE_NORMAL
-			     | FILE_FLAG_DELETE_ON_CLOSE
-			     | FILE_ATTRIBUTE_TEMPORARY
-			     | FILE_FLAG_SEQUENTIAL_SCAN;
-
-	DBUG_ENTER("innobase_mysql_tmpfile");
-
-	tmpdir = my_tmpdir(&mysql_tmpdir_list);
-
-	/* The tmpdir parameter can not be NULL for GetTempFileName. */
-	if (!tmpdir) {
-		uint	ret;
-
-		/* Use GetTempPath to determine path for temporary files. */
-		ret = GetTempPath(sizeof(path_buf), path_buf);
-		if (ret > sizeof(path_buf) || (ret == 0)) {
-
-			_dosmaperr(GetLastError());	/* map error */
-			DBUG_RETURN(-1);
-		}
-
-		tmpdir = path_buf;
-	}
-
-	/* Use GetTempFileName to generate a unique filename. */
-	if (!GetTempFileName(tmpdir, "ib", 0, filename)) {
-
-		_dosmaperr(GetLastError());	/* map error */
-		DBUG_RETURN(-1);
-	}
-
-	DBUG_PRINT("info", ("filename: %s", filename));
-
-	/* Open/Create the file. */
-	osfh = CreateFile(filename, fileaccess, fileshare, NULL,
-			  filecreate, fileattrib, NULL);
-	if (osfh == INVALID_HANDLE_VALUE) {
-
-		/* open/create file failed! */
-		_dosmaperr(GetLastError());	/* map error */
-		DBUG_RETURN(-1);
-	}
-
-	do {
-		/* Associates a CRT file descriptor with the OS file handle. */
-		fd = _open_osfhandle((intptr_t) osfh, 0);
-	} while (fd == -1 && errno == EINTR);
-
-	if (fd == -1) {
-		/* Open failed, close the file handle. */
-
-		_dosmaperr(GetLastError());	/* map error */
-		CloseHandle(osfh);		/* no need to check if
-						CloseHandle fails */
-	}
-
-	DBUG_RETURN(fd);
-}
-#else
 /*********************************************************************//**
 Creates a temporary file.
 @return	temporary file descriptor, or < 0 on error */
@@ -1723,7 +1644,15 @@ innobase_mysql_tmpfile(void)
 /*========================*/
 {
 	int	fd2 = -1;
-	File	fd = mysql_tmpfile("ib");
+	File	fd;
+
+	DBUG_EXECUTE_IF(
+		"innobase_tmpfile_creation_failure",
+		return(-1);
+	);
+
+	fd = mysql_tmpfile("ib");
+
 	if (fd >= 0) {
 		/* Copy the file descriptor, so that the additional resources
 		allocated by create_temp_file() can be freed by invoking
@@ -1767,7 +1696,6 @@ innobase_mysql_tmpfile(void)
 	}
 	return(fd2);
 }
-#endif /* defined (__WIN__) && defined (MYSQL_DYNAMIC_PLUGIN) */
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -2635,6 +2563,13 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	reset_template();
 }
 
+/****************************************************************//**
+Gives the file extension of an InnoDB single-table tablespace. */
+static const char* ha_innobase_exts[] = {
+  ".ibd",
+  NullS
+};
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return	0 on success, error code on failure */
@@ -2690,6 +2625,9 @@ innobase_init(
 
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
         innobase_hton->kill_query = innobase_kill_query;
+
+        if (srv_file_per_table)
+          innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -3025,6 +2963,38 @@ innobase_change_buffering_inited_ok:
 	srv_latin1_ordering = my_charset_latin1.sort_order;
 
 	innobase_commit_concurrency_init_default();
+
+#ifdef HAVE_POSIX_FALLOCATE
+	srv_use_posix_fallocate = 0 && (ibool) innobase_use_fallocate;
+#endif
+	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
+	if (innobase_use_atomic_writes) {
+		fprintf(stderr, "InnoDB: using atomic writes.\n");
+
+		/* Force doublewrite buffer off, atomic writes replace it. */
+		if (srv_use_doublewrite_buf) {
+			fprintf(stderr, "InnoDB: Switching off doublewrite buffer "
+				"because of atomic writes.\n");
+				innobase_use_doublewrite = srv_use_doublewrite_buf = FALSE;
+		}
+
+		/* Force O_DIRECT on Unixes (on Windows writes are always unbuffered)*/
+#ifndef _WIN32
+		if(!innobase_file_flush_method ||
+			!strstr(innobase_file_flush_method, "O_DIRECT")) {
+			innobase_file_flush_method = 
+				srv_file_flush_method_str = (char*)"O_DIRECT";
+			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
+		}
+#endif
+#ifdef HAVE_POSIX_FALLOCATE
+		/* Due to a bug in directFS, using atomics needs  
+		 * posix_fallocate to extend the file
+		 * pwrite()  past end of the file won't work
+		 */
+		srv_use_posix_fallocate = TRUE;
+#endif
+	}
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -3922,13 +3892,6 @@ ha_innobase::table_flags() const
 
 	return(int_table_flags | HA_BINLOG_STMT_CAPABLE);
 }
-
-/****************************************************************//**
-Gives the file extension of an InnoDB single-table tablespace. */
-static const char* ha_innobase_exts[] = {
-	".ibd",
-	NullS
-};
 
 /****************************************************************//**
 Returns the table type (storage engine name).
@@ -14619,6 +14582,20 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   "Disable with --skip-innodb-doublewrite.",
   NULL, NULL, TRUE);
 
+static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Prevent partial page writes, via atomic writes."
+  "The option is used to prevent partial writes in case of a crash/poweroff, "
+  "as faster alternative to doublewrite buffer."
+  "Currently this option works only "
+  "on Linux only with FusionIO device, and directFS filesystem.",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.",
+  NULL, NULL, TRUE);
+
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,
   "Number of IOPs the server can do. Tunes the background IO rate",
@@ -15179,11 +15156,23 @@ static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
   "Print all deadlocks to MySQL error log (off by default)",
   NULL, NULL, FALSE);
 
-#ifdef UNIV_DEBUG_never
+#ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_NOCMDOPT,
   "Debug flags for InnoDB to limit TRX_RSEG_N_SLOTS for trx_rsegf_undo_find_free()",
   NULL, NULL, 0, 0, 1024, 0);
+
+static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
+  btr_cur_limit_optimistic_insert_debug, PLUGIN_VAR_RQCMDARG,
+  "Artificially limit the number of records per B-tree page (0=unlimited).",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
+  srv_purge_view_update_only_debug, PLUGIN_VAR_NOCMDOPT,
+  "Pause actual purging any delete-marked records, but merely update the purge view. "
+  "It is to create artificially the situation the purge view have been updated "
+  "but the each purges were not done yet.",
+  NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
@@ -15206,6 +15195,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_file_path),
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
+  MYSQL_SYSVAR(use_atomic_writes),
+  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(file_io_threads),
   MYSQL_SYSVAR(read_io_threads),
@@ -15299,8 +15290,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(undo_directory),
   MYSQL_SYSVAR(undo_tablespaces),
   MYSQL_SYSVAR(sync_array_size),
-#ifdef UNIV_DEBUG_never /* disable this flag. --innodb-trx becomes ambiguous */
+#ifdef UNIV_DEBUG
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
+  MYSQL_SYSVAR(limit_optimistic_insert_debug),
+  MYSQL_SYSVAR(trx_purge_view_update_only_debug),
 #endif /* UNIV_DEBUG */
   NULL
 };

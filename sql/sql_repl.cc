@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -716,7 +716,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
     *p_start_coord= &start_coord;
   LOG_POS_COORD coord_buf= { log_file_name, BIN_LOG_HEADER_SIZE },
     *p_coord= &coord_buf;
-  if (heartbeat_period != LL(0))
+  if (heartbeat_period != 0)
   {
     heartbeat_ts= &heartbeat_buf;
     set_timespec_nsec(*heartbeat_ts, 0);
@@ -966,6 +966,7 @@ impossible position";
 
       event_type=
         (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+#ifdef ENABLED_DEBUG_SYNC
       DBUG_EXECUTE_IF("dump_thread_wait_before_send_xid",
                       {
                         if (event_type == XID_EVENT)
@@ -984,6 +985,7 @@ impossible position";
                                                              STRING_WITH_LEN(act2)));
                         }
                       });
+#endif
       if (event_type == FORMAT_DESCRIPTION_EVENT)
       {
         current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
@@ -1348,6 +1350,8 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
         if (thd->lex->mi.pos)
         {
+          if (thd->lex->mi.relay_log_pos)
+            slave_errno=ER_BAD_SLAVE_UNTIL_COND;
           mi->rli.until_condition= Relay_log_info::UNTIL_MASTER_POS;
           mi->rli.until_log_pos= thd->lex->mi.pos;
           /*
@@ -1359,6 +1363,8 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
         }
         else if (thd->lex->mi.relay_log_pos)
         {
+          if (thd->lex->mi.pos)
+            slave_errno=ER_BAD_SLAVE_UNTIL_COND;
           mi->rli.until_condition= Relay_log_info::UNTIL_RELAY_POS;
           mi->rli.until_log_pos= thd->lex->mi.relay_log_pos;
           strmake(mi->rli.until_log_name, thd->lex->mi.relay_log_name,
@@ -1820,7 +1826,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   else
     mi->heartbeat_period= (float) min(SLAVE_MAX_HEARTBEAT_PERIOD,
                                       (slave_net_timeout/2.0));
-  mi->received_heartbeats= LL(0); // counter lives until master is CHANGEd
+  mi->received_heartbeats= 0; // counter lives until master is CHANGEd
   /*
     reset the last time server_id list if the current CHANGE MASTER 
     is mentioning IGNORE_SERVER_IDS= (...)

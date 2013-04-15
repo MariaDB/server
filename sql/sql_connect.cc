@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2007, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -226,7 +226,7 @@ void time_out_user_resource_limits(THD *thd, USER_CONN *uc)
   DBUG_ENTER("time_out_user_resource_limits");
 
   /* If more than a hour since last check, reset resource checking */
-  if (check_time  - uc->reset_utime >= LL(3600000000))
+  if (check_time  - uc->reset_utime >= 3600000000ULL)
   {
     uc->questions=0;
     uc->updates=0;
@@ -1187,7 +1187,7 @@ bool thd_prepare_connection(THD *thd)
   bool rc;
   lex_start(thd);
   rc= login_connection(thd);
-  MYSQL_AUDIT_NOTIFY_CONNECTION_CONNECT(thd);
+  mysql_audit_notify_connection_connect(thd);
   if (rc)
     return rc;
 

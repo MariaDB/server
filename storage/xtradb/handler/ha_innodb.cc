@@ -85,6 +85,7 @@ extern "C" {
 #include "row0sel.h"
 #include "row0upd.h"
 #include "log0log.h"
+#include "log0online.h"
 #include "lock0lock.h"
 #include "dict0crea.h"
 #include "btr0cur.h"
@@ -185,6 +186,8 @@ static my_bool	innobase_file_format_check		= TRUE;
 static my_bool	innobase_log_archive			= FALSE;
 static char*	innobase_log_arch_dir			= NULL;
 #endif /* UNIV_LOG_ARCHIVE */
+static my_bool	innobase_use_atomic_writes		= FALSE;
+static my_bool	innobase_use_fallocate			= TRUE;
 static my_bool	innobase_use_doublewrite		= TRUE;
 static my_bool	innobase_use_checksums			= TRUE;
 static my_bool	innobase_fast_checksum			= FALSE;
@@ -297,6 +300,7 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	{&ibuf_pessimistic_insert_mutex_key,
 		 "ibuf_pessimistic_insert_mutex", 0},
 	{&kernel_mutex_key, "kernel_mutex", 0},
+	{&log_bmp_sys_mutex_key, "log_bmp_sys_mutex", 0},
 	{&log_sys_mutex_key, "log_sys_mutex", 0},
 #  ifdef UNIV_MEM_DEBUG
 	{&mem_hash_mutex_key, "mem_hash_mutex", 0},
@@ -437,6 +441,25 @@ uint
 innobase_alter_table_flags(
 /*=======================*/
 	uint	flags);
+/************************************************************//**
+Synchronously read and parse the redo log up to the last
+checkpoint to write the changed page bitmap.
+@return 0 to indicate success.  Current implementation cannot fail. */
+static
+my_bool
+innobase_flush_changed_page_bitmaps() __attribute__((unused));
+/*==================================*/
+/************************************************************//**
+Delete all the bitmap files for data less than the specified LSN.
+If called with lsn == 0 (i.e. set by RESET request) or
+IB_ULONGLONG_MAX, restart the bitmap file sequence, otherwise
+continue it.
+@return 0 to indicate success, 1 for failure. */
+static
+my_bool
+innobase_purge_changed_page_bitmaps(
+/*================================*/
+	ulonglong lsn) __attribute__((unused));	/*!< in: LSN to purge files up to */
 
 static const char innobase_hton_name[]= "InnoDB";
 
@@ -688,8 +711,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_background_log_sync,	  SHOW_LONG},
   {"buffer_pool_pages_data",
   (char*) &export_vars.innodb_buffer_pool_pages_data,	  SHOW_LONG},
+  {"buffer_pool_bytes_data",
+  (char*) &export_vars.innodb_buffer_pool_bytes_data,	  SHOW_LONG},
   {"buffer_pool_pages_dirty",
   (char*) &export_vars.innodb_buffer_pool_pages_dirty,	  SHOW_LONG},
+  {"buffer_pool_bytes_dirty",
+  (char*) &export_vars.innodb_buffer_pool_bytes_dirty,	  SHOW_LONG},
   {"buffer_pool_pages_flushed",
   (char*) &export_vars.innodb_buffer_pool_pages_flushed,  SHOW_LONG},
   {"buffer_pool_pages_LRU_flushed",
@@ -870,6 +897,12 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_x_lock_spin_rounds,	  SHOW_LONGLONG},
   {"x_lock_spin_waits",
   (char*) &export_vars.innodb_x_lock_spin_waits,	  SHOW_LONGLONG},
+#ifdef UNIV_DEBUG
+  {"purge_trx_id_age",
+  (char*) &export_vars.innodb_purge_trx_id_age,		  SHOW_LONG},
+  {"purge_view_trx_id_age",
+  (char*) &export_vars.innodb_purge_view_trx_id_age,	  SHOW_LONG},
+#endif /* UNIV_DEBUG */
   {NullS, NullS, SHOW_LONG}
 };
 
@@ -1219,11 +1252,23 @@ convert_error_code_to_mysql(
 	case DB_TABLE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
 
-	case DB_TOO_BIG_RECORD:
-		my_error(ER_TOO_BIG_ROWSIZE, MYF(0),
-			 page_get_free_space_of_empty(flags
-						      & DICT_TF_COMPACT) / 2);
+	case DB_TOO_BIG_RECORD: {
+		/* If prefix is true then a 768-byte prefix is stored
+		locally for BLOB fields. Refer to dict_table_get_format() */
+		bool prefix = ((flags & DICT_TF_FORMAT_MASK)
+		 	       >> DICT_TF_FORMAT_SHIFT) < UNIV_FORMAT_B;
+		my_printf_error(ER_TOO_BIG_ROWSIZE,
+			"Row size too large (> %lu). Changing some columns "
+			"to TEXT or BLOB %smay help. In current row "
+			"format, BLOB prefix of %d bytes is stored inline.",
+			MYF(0),
+			page_get_free_space_of_empty(flags &
+				DICT_TF_COMPACT) / 2,
+			prefix ? "or using ROW_FORMAT=DYNAMIC "
+			"or ROW_FORMAT=COMPRESSED ": "",
+			prefix ? DICT_MAX_FIXED_COL_LEN : 0);
 		return(HA_ERR_TO_BIG_ROW);
+	}
 
 	case DB_TOO_BIG_INDEX_COL:
 		my_error(ER_INDEX_COLUMN_TOO_LONG, MYF(0),
@@ -1262,6 +1307,8 @@ convert_error_code_to_mysql(
 		return(HA_ERR_INDEX_CORRUPT);
 	case DB_UNDO_RECORD_TOO_BIG:
 		return(HA_ERR_UNDO_REC_TOO_BIG);
+	case DB_OUT_OF_MEMORY:
+		return(HA_ERR_OUT_OF_MEM);
 	}
 }
 
@@ -1439,100 +1486,6 @@ innobase_get_lower_case_table_names(void)
 	return(lower_case_table_names);
 }
 
-#if defined (__WIN__) && defined (MYSQL_DYNAMIC_PLUGIN)
-extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-/*******************************************************************//**
-Map an OS error to an errno value. The OS error number is stored in
-_doserrno and the mapped value is stored in errno) */
-extern "C"
-void __cdecl
-_dosmaperr(
-	unsigned long);	/*!< in: OS error value */
-
-/*********************************************************************//**
-Creates a temporary file.
-@return	temporary file descriptor, or < 0 on error */
-extern "C" UNIV_INTERN
-int
-innobase_mysql_tmpfile(void)
-/*========================*/
-{
-	int	fd;				/* handle of opened file */
-	HANDLE	osfh;				/* OS handle of opened file */
-	char*	tmpdir;				/* point to the directory
-						where to create file */
-	TCHAR	path_buf[MAX_PATH - 14];	/* buffer for tmp file path.
-						The length cannot be longer
-						than MAX_PATH - 14, or
-						GetTempFileName will fail. */
-	char	filename[MAX_PATH];		/* name of the tmpfile */
-	DWORD	fileaccess = GENERIC_READ	/* OS file access */
-			     | GENERIC_WRITE
-			     | DELETE;
-	DWORD	fileshare = FILE_SHARE_READ	/* OS file sharing mode */
-			    | FILE_SHARE_WRITE
-			    | FILE_SHARE_DELETE;
-	DWORD	filecreate = CREATE_ALWAYS;	/* OS method of open/create */
-	DWORD	fileattrib =			/* OS file attribute flags */
-			     FILE_ATTRIBUTE_NORMAL
-			     | FILE_FLAG_DELETE_ON_CLOSE
-			     | FILE_ATTRIBUTE_TEMPORARY
-			     | FILE_FLAG_SEQUENTIAL_SCAN;
-
-	DBUG_ENTER("innobase_mysql_tmpfile");
-
-	tmpdir = my_tmpdir(&mysql_tmpdir_list);
-
-	/* The tmpdir parameter can not be NULL for GetTempFileName. */
-	if (!tmpdir) {
-		uint	ret;
-
-		/* Use GetTempPath to determine path for temporary files. */
-		ret = GetTempPath(sizeof(path_buf), path_buf);
-		if (ret > sizeof(path_buf) || (ret == 0)) {
-
-			_dosmaperr(GetLastError());	/* map error */
-			DBUG_RETURN(-1);
-		}
-
-		tmpdir = path_buf;
-	}
-
-	/* Use GetTempFileName to generate a unique filename. */
-	if (!GetTempFileName(tmpdir, "ib", 0, filename)) {
-
-		_dosmaperr(GetLastError());	/* map error */
-		DBUG_RETURN(-1);
-	}
-
-	DBUG_PRINT("info", ("filename: %s", filename));
-
-	/* Open/Create the file. */
-	osfh = CreateFile(filename, fileaccess, fileshare, NULL,
-			  filecreate, fileattrib, NULL);
-	if (osfh == INVALID_HANDLE_VALUE) {
-
-		/* open/create file failed! */
-		_dosmaperr(GetLastError());	/* map error */
-		DBUG_RETURN(-1);
-	}
-
-	do {
-		/* Associates a CRT file descriptor with the OS file handle. */
-		fd = _open_osfhandle((intptr_t) osfh, 0);
-	} while (fd == -1 && errno == EINTR);
-
-	if (fd == -1) {
-		/* Open failed, close the file handle. */
-
-		_dosmaperr(GetLastError());	/* map error */
-		CloseHandle(osfh);		/* no need to check if
-						CloseHandle fails */
-	}
-
-	DBUG_RETURN(fd);
-}
-#else
 /*********************************************************************//**
 Creates a temporary file.
 @return	temporary file descriptor, or < 0 on error */
@@ -1542,7 +1495,15 @@ innobase_mysql_tmpfile(void)
 /*========================*/
 {
 	int	fd2 = -1;
-	File	fd = mysql_tmpfile("ib");
+	File	fd;
+
+	DBUG_EXECUTE_IF(
+		"innobase_tmpfile_creation_failure",
+		return(-1);
+	);
+
+	fd = mysql_tmpfile("ib");
+
 	if (fd >= 0) {
 		/* Copy the file descriptor, so that the additional resources
 		allocated by create_temp_file() can be freed by invoking
@@ -1586,7 +1547,6 @@ innobase_mysql_tmpfile(void)
 	}
 	return(fd2);
 }
-#endif /* defined (__WIN__) && defined (MYSQL_DYNAMIC_PLUGIN) */
 
 /*********************************************************************//**
 Wrapper around MySQL's copy_and_convert function.
@@ -1702,10 +1662,13 @@ innobase_next_autoinc(
 		offset = 0;
 	}
 
-	/* Check for overflow. */
+	/* Check for overflow. Current can be > max_value if the value is
+	in reality a negative value.The visual studio compilers converts
+	large double values automatically into unsigned long long datatype
+	maximum value */
 	if (block >= max_value
 	    || offset > max_value
-	    || current == max_value
+	    || current >= max_value
 	    || max_value - offset <= offset) {
 
 		next_value = max_value;
@@ -1778,7 +1741,7 @@ innobase_trx_init(
 	trx->fake_changes = THDVAR(thd, fake_changes);
 
 #ifdef EXTENDED_SLOWLOG
-	if (thd_log_slow_verbosity(thd) & SLOG_V_INNODB) {
+	if (thd_log_slow_verbosity(thd) & (1ULL << SLOG_V_INNODB)) {
 		trx->take_stats = TRUE;
 	} else {
 		trx->take_stats = FALSE;
@@ -2599,6 +2562,13 @@ skip_overwrite:
 }
 
 
+/****************************************************************//**
+Gives the file extension of an InnoDB single-table tablespace. */
+static const char* ha_innobase_exts[] = {
+  ".ibd",
+  NullS
+};
+
 /*********************************************************************//**
 Opens an InnoDB database.
 @return	0 on success, error code on failure */
@@ -2647,6 +2617,9 @@ innobase_init(
         innobase_hton->release_temporary_latches=innobase_release_temporary_latches;
 	innobase_hton->alter_table_flags = innobase_alter_table_flags;
         innobase_hton->kill_query = innobase_kill_query;
+
+        if (srv_file_per_table)
+          innobase_hton->tablefile_extensions = ha_innobase_exts;
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
@@ -2717,6 +2690,7 @@ innobase_init(
 	} else {
 		srv_log_block_size = 512;
 	}
+	ut_ad (srv_log_block_size >= OS_MIN_LOG_BLOCK_SIZE);
 
 	if (!srv_log_block_size) {
 		fprintf(stderr,
@@ -3107,6 +3081,38 @@ innobase_change_buffering_inited_ok:
 	srv_kill_idle_transaction = 0;
 #endif
 
+#ifdef HAVE_POSIX_FALLOCATE
+	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
+#endif
+	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
+	if (innobase_use_atomic_writes) {
+		fprintf(stderr, "InnoDB: using atomic writes.\n");
+
+		/* Force doublewrite buffer off, atomic writes replace it. */
+		if (srv_use_doublewrite_buf) {
+			fprintf(stderr, "InnoDB: Switching off doublewrite buffer "
+				"because of atomic writes.\n");
+				innobase_use_doublewrite = srv_use_doublewrite_buf = FALSE;
+		}
+
+		/* Force O_DIRECT on Unixes (on Windows writes are always unbuffered)*/
+#ifndef _WIN32
+		if(!innobase_file_flush_method ||
+			!strstr(innobase_file_flush_method, "O_DIRECT")) {
+			innobase_file_flush_method = 
+				srv_file_flush_method_str = (char*)"O_DIRECT";
+			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
+		}
+#endif
+#ifdef HAVE_POSIX_FALLOCATE
+		/* Due to a bug in directFS, using atomics needs  
+		 * posix_fallocate to extend the file
+		 * pwrite()  past end of the file won't work
+		 */
+		srv_use_posix_fallocate = TRUE;
+#endif
+	}
+
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
 	if (PSI_server) {
@@ -3267,6 +3273,36 @@ innobase_alter_table_flags(
 		| HA_INPLACE_ADD_PK_INDEX_NO_READ_WRITE);
 }
 
+/************************************************************//**
+Synchronously read and parse the redo log up to the last
+checkpoint to write the changed page bitmap.
+@return 0 to indicate success.  Current implementation cannot fail. */
+static
+my_bool
+innobase_flush_changed_page_bitmaps()
+/*=================================*/
+{
+	if (srv_track_changed_pages) {
+		os_event_reset(srv_checkpoint_completed_event);
+		log_online_follow_redo_log();
+	}
+	return FALSE;
+}
+
+/************************************************************//**
+Delete all the bitmap files for data less than the specified LSN.
+If called with lsn == IB_ULONGLONG_MAX (i.e. set by RESET request),
+restart the bitmap file sequence, otherwise continue it.
+@return 0 to indicate success, 1 for failure. */
+static
+my_bool
+innobase_purge_changed_page_bitmaps(
+/*================================*/
+	ulonglong lsn)	/*!< in: LSN to purge files up to */
+{
+	return (my_bool)log_online_purge_changed_page_bitmaps(lsn);
+}
+
 /****************************************************************//**
 Copy the current replication position from MySQL to a transaction. */
 static
@@ -3330,7 +3366,7 @@ innobase_commit_low(
 		header for undo purposes, see the comment at corresponding call
 		at innobase_xa_prepare(). */
 
-		innobase_copy_repl_coords_to_trx(current_thd, trx);
+		innobase_copy_repl_coords_to_trx((THD *) trx->mysql_thd, trx);
 
 		trx_commit_for_mysql(trx);
 	}
@@ -4041,13 +4077,6 @@ ha_innobase::table_flags() const
 }
 
 /****************************************************************//**
-Gives the file extension of an InnoDB single-table tablespace. */
-static const char* ha_innobase_exts[] = {
-  ".ibd",
-  NullS
-};
-
-/****************************************************************//**
 Returns the index type. */
 UNIV_INTERN
 const char*
@@ -4057,17 +4086,6 @@ ha_innobase::index_type(
 				/*!< out: index type */
 {
 	return("BTREE");
-}
-
-/****************************************************************//**
-Returns the table file name extension.
-@return	file extension string */
-UNIV_INTERN
-const char**
-ha_innobase::bas_ext() const
-/*========================*/
-{
-	return(ha_innobase_exts);
 }
 
 /****************************************************************//**
@@ -10646,23 +10664,26 @@ ha_innobase::external_lock(
 
 	if (trx->n_mysql_tables_in_use == 0) {
 #ifdef EXTENDED_SLOWLOG
-		increment_thd_innodb_stats(thd,
-					(unsigned long long) trx->id,
-					trx->io_reads,
-					trx->io_read,
-					trx->io_reads_wait_timer,
-					trx->lock_que_wait_timer,
-					trx->innodb_que_wait_timer,
-					trx->distinct_page_access);
+		if (UNIV_UNLIKELY(trx->take_stats)) {
+			increment_thd_innodb_stats(thd,
+						   (unsigned long long) trx->id,
+						   trx->io_reads,
+						   trx->io_read,
+						   trx->io_reads_wait_timer,
+						   trx->lock_que_wait_timer,
+						   trx->innodb_que_wait_timer,
+						   trx->distinct_page_access);
 
-		trx->io_reads = 0;
-		trx->io_read = 0;
-		trx->io_reads_wait_timer = 0;
-		trx->lock_que_wait_timer = 0;
-		trx->innodb_que_wait_timer = 0;
-		trx->distinct_page_access = 0;
-		if (trx->distinct_page_access_hash)
-			memset(trx->distinct_page_access_hash, 0, DPAH_SIZE);
+			trx->io_reads = 0;
+			trx->io_read = 0;
+			trx->io_reads_wait_timer = 0;
+			trx->lock_que_wait_timer = 0;
+			trx->innodb_que_wait_timer = 0;
+			trx->distinct_page_access = 0;
+			if (trx->distinct_page_access_hash)
+				memset(trx->distinct_page_access_hash, 0,
+				       DPAH_SIZE);
+		}
 #endif
 
 		trx->mysql_n_tables_locked = 0;
@@ -12740,7 +12761,8 @@ static MYSQL_SYSVAR_ULONG(page_size, innobase_page_size,
 static MYSQL_SYSVAR_ULONG(log_block_size, innobase_log_block_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "###EXPERIMENTAL###: The log block size of the transaction log file. Changing for created log file is not supported. Use on your own risk!",
-  NULL, NULL, (1 << 9)/*512*/, (1 << 9)/*512*/, (1 << UNIV_PAGE_SIZE_SHIFT_MAX), 0);
+  NULL, NULL, (1 << 9)/*512*/, OS_MIN_LOG_BLOCK_SIZE,
+  (1 << UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
 static MYSQL_SYSVAR_STR(data_home_dir, innobase_data_home_dir,
   PLUGIN_VAR_READONLY,
@@ -12762,6 +12784,20 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable InnoDB doublewrite buffer (enabled by default). "
   "Disable with --skip-innodb-doublewrite.",
+  NULL, NULL, TRUE);
+
+static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Prevent partial page writes, via atomic writes."
+  "The option is used to prevent partial writes in case of a crash/poweroff, "
+  "as faster alternative to doublewrite buffer."
+  "Currently this option works only "
+  "on Linux only with FusionIO device, and directFS filesystem.",
+  NULL, NULL, FALSE);
+
+static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
+  "Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
@@ -13163,7 +13199,7 @@ static MYSQL_SYSVAR_ULONGLONG(max_bitmap_file_size, srv_max_bitmap_file_size,
     "The maximum size of changed page bitmap files",
     NULL, NULL, 100*1024*1024ULL, 4096ULL, ULONGLONG_MAX, 0);
 
-static MYSQL_SYSVAR_ULONGLONG(changed_pages_limit, srv_changed_pages_limit,
+static MYSQL_SYSVAR_ULONGLONG(max_changed_pages, srv_max_changed_pages,
   PLUGIN_VAR_RQCMDARG,
   "The maximum number of rows for "
   "INFORMATION_SCHEMA.INNODB_CHANGED_PAGES table, "
@@ -13173,8 +13209,8 @@ static MYSQL_SYSVAR_ULONGLONG(changed_pages_limit, srv_changed_pages_limit,
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 static MYSQL_SYSVAR_UINT(change_buffering_debug, ibuf_debug,
   PLUGIN_VAR_RQCMDARG,
-  "Debug flags for InnoDB change buffering (0=none)",
-  NULL, NULL, 0, 0, 1, 0);
+  "Debug flags for InnoDB change buffering (0=none, 2=crash at merge)",
+  NULL, NULL, 0, 0, 2, 0);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
@@ -13188,11 +13224,23 @@ static MYSQL_SYSVAR_ULONG(read_ahead_threshold, srv_read_ahead_threshold,
   "trigger a readahead.",
   NULL, NULL, 56, 0, 64, 0);
 
-#ifdef UNIV_DEBUG_never
+#ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_UINT(trx_rseg_n_slots_debug, trx_rseg_n_slots_debug,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_NOCMDOPT,
   "Debug flags for InnoDB to limit TRX_RSEG_N_SLOTS for trx_rsegf_undo_find_free()",
   NULL, NULL, 0, 0, 1024, 0);
+
+static MYSQL_SYSVAR_UINT(limit_optimistic_insert_debug,
+  btr_cur_limit_optimistic_insert_debug, PLUGIN_VAR_RQCMDARG,
+  "Artificially limit the number of records per B-tree page (0=unlimited).",
+  NULL, NULL, 0, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
+  srv_purge_view_update_only_debug, PLUGIN_VAR_NOCMDOPT,
+  "Pause actual purging any delete-marked records, but merely update the purge view. "
+  "It is to create artificially the situation the purge view have been updated "
+  "but the each purges were not done yet.",
+  NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_LONGLONG(ibuf_max_size, srv_ibuf_max_size,
@@ -13372,6 +13420,11 @@ static MYSQL_SYSVAR_BOOL(locking_fake_changes, srv_fake_changes_locks,
   "not take any locks at all.",
   NULL, NULL, TRUE);
 
+static MYSQL_SYSVAR_BOOL(print_all_deadlocks, srv_print_all_deadlocks,
+  PLUGIN_VAR_OPCMDARG,
+  "Print all deadlocks to MySQL error log (off by default)",
+  NULL, NULL, FALSE);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_block_size),
@@ -13391,6 +13444,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(doublewrite_file),
   MYSQL_SYSVAR(data_home_dir),
   MYSQL_SYSVAR(doublewrite),
+  MYSQL_SYSVAR(use_atomic_writes),
+  MYSQL_SYSVAR(use_fallocate),
   MYSQL_SYSVAR(recovery_stats),
   MYSQL_SYSVAR(fast_shutdown),
   MYSQL_SYSVAR(file_io_threads),
@@ -13464,7 +13519,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffering),
   MYSQL_SYSVAR(track_changed_pages),
   MYSQL_SYSVAR(max_bitmap_file_size),
-  MYSQL_SYSVAR(changed_pages_limit),
+  MYSQL_SYSVAR(max_changed_pages),
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
   MYSQL_SYSVAR(change_buffering_debug),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
@@ -13476,14 +13531,17 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(purge_threads),
   MYSQL_SYSVAR(purge_batch_size),
   MYSQL_SYSVAR(rollback_segments),
-#ifdef UNIV_DEBUG_never /* disable this flag. --innodb-trx becomes ambiguous */
+#ifdef UNIV_DEBUG
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
+  MYSQL_SYSVAR(limit_optimistic_insert_debug),
+  MYSQL_SYSVAR(trx_purge_view_update_only_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(corrupt_table_action),
   MYSQL_SYSVAR(lazy_drop_table),
   MYSQL_SYSVAR(fake_changes),
   MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(merge_sort_block_size),
+  MYSQL_SYSVAR(print_all_deadlocks),
   NULL
 };
 

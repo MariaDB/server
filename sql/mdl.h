@@ -234,6 +234,7 @@ public:
                             TRIGGER,
                             EVENT,
                             COMMIT,
+                            USER_LOCK,           /* user level locks. */
                             /* This should be the last ! */
                             NAMESPACE_END };
 
@@ -264,8 +265,14 @@ public:
                     const char *db, const char *name)
   {
     m_ptr[0]= (char) mdl_namespace;
-    m_db_name_length= (uint16) (strmov(m_ptr + 1, db) - m_ptr - 1);
-    m_length= (uint16) (strmov(m_ptr + m_db_name_length + 2, name) - m_ptr + 1);
+    /*
+      It is responsibility of caller to ensure that db and object names
+      are not longer than NAME_LEN. Still we play safe and try to avoid
+      buffer overruns.
+    */
+    m_db_name_length= (uint16) (strmake(m_ptr + 1, db, NAME_LEN) - m_ptr - 1);
+    m_length= (uint16) (strmake(m_ptr + m_db_name_length + 2, name, NAME_LEN) -
+                        m_ptr + 1);
   }
   void mdl_key_init(const MDL_key *rhs)
   {
@@ -508,6 +515,7 @@ public:
   }
   enum_mdl_type get_type() const { return m_type; }
   MDL_lock *get_lock() const { return m_lock; }
+  MDL_key *get_key() const;
   void downgrade_exclusive_lock(enum_mdl_type type);
 
   bool has_stronger_or_equal_type(enum_mdl_type type) const;
@@ -671,6 +679,7 @@ public:
   bool is_lock_owner(MDL_key::enum_mdl_namespace mdl_namespace,
                      const char *db, const char *name,
                      enum_mdl_type mdl_type);
+  unsigned long get_lock_owner(MDL_key *mdl_key);
 
   bool has_lock(const MDL_savepoint &mdl_savepoint, MDL_ticket *mdl_ticket);
 
@@ -739,9 +748,9 @@ private:
     Lists of MDL tickets:
     ---------------------
     The entire set of locks acquired by a connection can be separated
-    in three subsets according to their: locks released at the end of
-    statement, at the end of transaction and locks are released
-    explicitly.
+    in three subsets according to their duration: locks released at
+    the end of statement, at the end of transaction and locks are
+    released explicitly.
 
     Statement and transactional locks are locks with automatic scope.
     They are accumulated in the course of a transaction, and released
@@ -750,11 +759,12 @@ private:
     locks). They must not be (and never are) released manually,
     i.e. with release_lock() call.
 
-    Locks with explicit duration are taken for locks that span
+    Tickets with explicit duration are taken for locks that span
     multiple transactions or savepoints.
     These are: HANDLER SQL locks (HANDLER SQL is
     transaction-agnostic), LOCK TABLES locks (you can COMMIT/etc
-    under LOCK TABLES, and the locked tables stay locked), and
+    under LOCK TABLES, and the locked tables stay locked), user level
+    locks (GET_LOCK()/RELEASE_LOCK() functions) and
     locks implementing "global read lock".
 
     Statement/transactional locks are always prepended to the
@@ -763,20 +773,19 @@ private:
     a savepoint, we start popping and releasing tickets from the
     front until we reach the last ticket acquired after the savepoint.
 
-    Locks with explicit duration stored are not stored in any
+    Locks with explicit duration are not stored in any
     particular order, and among each other can be split into
-    three sets:
+    four sets:
 
-    [LOCK TABLES locks] [HANDLER locks] [GLOBAL READ LOCK locks]
+    [LOCK TABLES locks] [USER locks] [HANDLER locks] [GLOBAL READ LOCK locks]
 
     The following is known about these sets:
 
-    * GLOBAL READ LOCK locks are always stored after LOCK TABLES
-      locks and after HANDLER locks. This is because one can't say
-      SET GLOBAL read_only=1 or FLUSH TABLES WITH READ LOCK
-      if one has locked tables. One can, however, LOCK TABLES
-      after having entered the read only mode. Note, that
-      subsequent LOCK TABLES statement will unlock the previous
+    * GLOBAL READ LOCK locks are always stored last.
+      This is because one can't say SET GLOBAL read_only=1 or
+      FLUSH TABLES WITH READ LOCK if one has locked tables. One can,
+      however, LOCK TABLES after having entered the read only mode.
+      Note, that subsequent LOCK TABLES statement will unlock the previous
       set of tables, but not the GRL!
       There are no HANDLER locks after GRL locks because
       SET GLOBAL read_only performs a FLUSH TABLES WITH
@@ -863,6 +872,17 @@ void mdl_destroy();
 
 extern bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
                                                    bool needs_thr_lock_abort);
+extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd);
+
+/**
+  Check if a connection in question is no longer connected.
+
+  @details
+  Replication apply thread is always connected. Otherwise,
+  does a poll on the associated socket to check if the client
+  is gone.
+*/
+extern "C" int thd_is_connected(MYSQL_THD thd);
 
 #ifndef DBUG_OFF
 extern mysql_mutex_t LOCK_open;

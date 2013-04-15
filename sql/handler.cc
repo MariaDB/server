@@ -30,7 +30,7 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_acl.h"            // SUPER_ACL
 #include "sql_base.h"           // free_io_cache
-#include "discover.h"           // writefrm
+#include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
 #include "create_options.h"
 #include "rpl_filter.h"
@@ -229,13 +229,6 @@ handlerton *ha_checktype(THD *thd, enum legacy_db_type database_type,
 
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 
-  switch (database_type) {
-  case DB_TYPE_MRG_ISAM:
-    return ha_resolve_by_legacy_type(thd, DB_TYPE_MRG_MYISAM);
-  default:
-    break;
-  }
-
   return ha_default_handlerton(thd);
 } /* ha_checktype */
 
@@ -388,6 +381,34 @@ static int ha_finish_errors(void)
   return 0;
 }
 
+static volatile int32 need_full_discover_for_existence= 0;
+static volatile int32 engines_with_discover_table_names= 0;
+
+static int full_discover_for_existence(handlerton *, const char *, const char *)
+{ return 1; }
+
+static int ext_based_existence(handlerton *, const char *, const char *)
+{ return 1; }
+
+static int hton_ext_based_table_discovery(handlerton *hton, LEX_STRING *db,
+                             MY_DIR *dir, handlerton::discovered_list *result)
+{
+  /*
+    tablefile_extensions[0] is the metadata file, see
+    the comment above tablefile_extensions declaration
+  */
+  return extension_based_table_discovery(dir, hton->tablefile_extensions[0],
+                                         result);
+}
+
+static void update_discovery_counters(handlerton *hton, int val)
+{
+  if (hton->discover_table_existence == full_discover_for_existence)
+    my_atomic_add32(&need_full_discover_for_existence,  val);
+
+  if (hton->discover_table_names)
+    my_atomic_add32(&engines_with_discover_table_names, val);
+}
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
@@ -425,6 +446,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     }
   }
 
+  free_sysvar_table_options(hton);
+  update_discovery_counters(hton, -1);
+
   /*
     In case a plugin is uninstalled and re-installed later, it should
     reuse an array slot. Otherwise the number of uninstall/install
@@ -448,18 +472,21 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
+  static const char *no_exts[]= { 0 };
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
   hton= (handlerton *)my_malloc(sizeof(handlerton),
                                 MYF(MY_WME | MY_ZEROFILL));
-
   if (hton == NULL)
   {
     sql_print_error("Unable to allocate memory for plugin '%s' handlerton.",
                     plugin->name.str);
     goto err_no_hton_memory;
   }
+
+  hton->tablefile_extensions= no_exts;
+  hton->discover_table_names= hton_ext_based_table_discovery;
 
   hton->slot= HA_SLOT_UNDEF;
   /* Historical Requirement */
@@ -469,6 +496,21 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     sql_print_error("Plugin '%s' init function returned error.",
 		    plugin->name.str);
     goto err;
+  }
+
+  // hton_ext_based_table_discovery() works only when discovery
+  // is supported and the engine if file-based.
+  if (hton->discover_table_names == hton_ext_based_table_discovery &&
+      (!hton->discover_table || !hton->tablefile_extensions[0]))
+    hton->discover_table_names= NULL;
+
+  // default discover_table_existence implementation
+  if (!hton->discover_table_existence && hton->discover_table)
+  {
+    if (hton->tablefile_extensions[0])
+      hton->discover_table_existence= ext_based_existence;
+    else
+      hton->discover_table_existence= full_discover_for_existence;
   }
 
   /*
@@ -559,6 +601,9 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
   default:
     break;
   };
+
+  resolve_sysvar_table_options(hton);
+  update_discovery_counters(hton, 1);
 
   DBUG_RETURN(0);
 
@@ -1096,7 +1141,8 @@ int ha_prepare(THD *thd)
       else
       {
         push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
-                            ER_ILLEGAL_HA, ER(ER_ILLEGAL_HA),
+                            ER_GET_ERRNO, ER(ER_GET_ERRNO),
+                            HA_ERR_WRONG_COMMAND,
                             ha_resolve_storage_engine_name(ht));
       }
     }
@@ -1967,7 +2013,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
     }
     if ((err= ht->savepoint_set(ht, thd, (uchar *)(sv+1)+ht->savepoint_offset)))
     { // cannot happen
-      my_error(ER_GET_ERRNO, MYF(0), err);
+      my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
     }
     status_var_increment(thd->status_var.ha_savepoint_count);
@@ -1998,7 +2044,7 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
     if ((err= ht->savepoint_release(ht, thd,
                                     (uchar *)(sv+1) + ht->savepoint_offset)))
     { // cannot happen
-      my_error(ER_GET_ERRNO, MYF(0), err);
+      my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
     }
   }
@@ -2172,14 +2218,14 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   TABLE_SHARE dummy_share;
   DBUG_ENTER("ha_delete_table");
 
+  /* table_type is NULL in ALTER TABLE when renaming only .frm files */
+  if (table_type == NULL || table_type == view_pseudo_hton ||
+      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
+    DBUG_RETURN(HA_ERR_NO_SUCH_TABLE);
+
   bzero((char*) &dummy_table, sizeof(dummy_table));
   bzero((char*) &dummy_share, sizeof(dummy_share));
   dummy_table.s= &dummy_share;
-
-  /* DB_TYPE_UNKNOWN is used in ALTER TABLE when renaming only .frm files */
-  if (table_type == NULL ||
-      ! (file=get_new_handler((TABLE_SHARE*)0, thd->mem_root, table_type)))
-    DBUG_RETURN(ENOENT);
 
   path= get_canonical_filename(file, path, tmp_path);
   if ((error= file->ha_delete_table(path)) && generate_warning)
@@ -2195,6 +2241,7 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
     /* Fill up strucutures that print_error may need */
     dummy_share.path.str= (char*) path;
     dummy_share.path.length= strlen(path);
+    dummy_share.normalized_path= dummy_share.path;
     dummy_share.db.str= (char*) db;
     dummy_share.db.length= strlen(db);
     dummy_share.table_name.str= (char*) alias;
@@ -3122,7 +3169,7 @@ void handler::print_error(int error, myf errflag)
   DBUG_ENTER("handler::print_error");
   DBUG_PRINT("enter",("error: %d",error));
 
-  int textno=ER_GET_ERRNO;
+  int textno= -1; // impossible value
   switch (error) {
   case EACCES:
     textno=ER_OPEN_AS_READONLY;
@@ -3235,7 +3282,9 @@ void handler::print_error(int error, myf errflag)
     textno=ER_OUT_OF_RESOURCES;
     break;
   case HA_ERR_WRONG_COMMAND:
-    textno=ER_ILLEGAL_HA;
+    my_error(ER_ILLEGAL_HA, MYF(0), table_type(), table_share->db.str,
+             table_share->table_name.str);
+    DBUG_VOID_RETURN;
     break;
   case HA_ERR_OLD_FILE:
     textno=ER_OLD_KEYFILE;
@@ -3354,10 +3403,11 @@ void handler::print_error(int error, myf errflag)
         }
       }
       else
-	my_error(ER_GET_ERRNO,errflag,error);
+	my_error(ER_GET_ERRNO, errflag, error, table_type());
       DBUG_VOID_RETURN;
     }
   }
+  DBUG_ASSERT(textno > 0);
   if (fatal_error)
   {
     /* Ensure this becomes a true error */
@@ -3371,7 +3421,17 @@ void handler::print_error(int error, myf errflag)
       errflag|= ME_NOREFRESH;
     }
   }    
-  my_error(textno, errflag, table_share->table_name.str, error);
+
+  /* if we got an OS error from a file-based engine, specify a path of error */
+  if (error < HA_ERR_FIRST && bas_ext()[0])
+  {
+    char buff[FN_REFLEN];
+    strxnmov(buff, sizeof(buff),
+             table_share->normalized_path.str, bas_ext()[0], NULL);
+    my_error(textno, errflag, buff, error);
+  }
+  else
+    my_error(textno, errflag, table_share->table_name.str, error);
   DBUG_VOID_RETURN;
 }
 
@@ -3573,8 +3633,13 @@ int handler::delete_table(const char *name)
 {
   int saved_error= 0;
   int error= 0;
-  int enoent_or_zero= ENOENT;                   // Error if no file was deleted
+  int enoent_or_zero;
   char buff[FN_REFLEN];
+
+  if (ht->discover_table)
+    enoent_or_zero= 0; // the table may not exist in the engine, it's ok
+  else
+    enoent_or_zero= ENOENT;  // the first file of bas_ext() *must* exist
 
   for (const char **ext=bas_ext(); *ext ; ext++)
   {
@@ -3959,16 +4024,16 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info)
 /**
   Create handler files for CREATE TABLE: public interface.
 
-  @sa handler::create_handler_files()
+  @sa handler::create_partitioning_metadata()
 */
 
 int
-handler::ha_create_handler_files(const char *name, const char *old_name,
-                        int action_flag, HA_CREATE_INFO *info)
+handler::ha_create_partitioning_metadata(const char *name, const char *old_name,
+                                         int action_flag)
 {
   mark_trx_read_write();
 
-  return create_handler_files(name, old_name, action_flag, info);
+  return create_partitioning_metadata(name, old_name, action_flag);
 }
 
 
@@ -4256,153 +4321,68 @@ end:
 */
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info,
-		    bool update_create_info)
+                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
 {
   int error= 1;
   TABLE table;
   char name_buff[FN_REFLEN];
   const char *name;
   TABLE_SHARE share;
+  bool temp_table __attribute__((unused)) = create_info->tmp_table() ||
+                                is_prefix(table_name, tmp_file_prefix);
   DBUG_ENTER("ha_create_table");
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  my_bool temp_table= (my_bool)is_prefix(table_name, tmp_file_prefix) ||
-               (create_info->options & HA_LEX_CREATE_TMP_TABLE ? TRUE : FALSE);
-#endif
   
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
-  if (open_table_def(thd, &share, 0))
-    goto err;
+
+  if (frm)
+  {
+    bool write_frm_now= !create_info->db_type->discover_table &&
+                        !create_info->tmp_table();
+
+    share.frm_image= frm;
+
+    // open an frm image
+    if (share.init_from_binary_frm_image(thd, write_frm_now,
+                                         frm->str, frm->length))
+      goto err;
+  }
+  else
+  {
+    // open an frm file
+    share.db_plugin= ha_lock_engine(thd, create_info->db_type);
+
+    if (open_table_def(thd, &share))
+      goto err;
+  }
 
 #ifdef HAVE_PSI_TABLE_INTERFACE
   share.m_psi= PSI_CALL(get_table_share)(temp_table, &share);
 #endif
-  if (open_table_from_share(thd, &share, "", 0, (uint) READ_ALL, 0, &table,
-                            TRUE))
+
+  if (open_table_from_share(thd, &share, "", 0, READ_ALL, 0, &table, true))
     goto err;
 
-  if (update_create_info)
-    update_create_info_from_table(create_info, &table);
+  update_create_info_from_table(create_info, &table);
 
   name= get_canonical_filename(table.file, share.path.str, name_buff);
 
   error= table.file->ha_create(name, &table, create_info);
+
   (void) closefrm(&table, 0);
+
   if (error)
   {
-    strxmov(name_buff, db, ".", table_name, NullS);
-    my_error(ER_CANT_CREATE_TABLE, MYF(ME_BELL+ME_WAITTANG), name_buff, error);
+    my_error(ER_CANT_CREATE_TABLE, MYF(0), db, table_name, error);
 #ifdef HAVE_PSI_TABLE_INTERFACE
-    PSI_CALL(drop_table_share)(temp_table, db, strlen(db), table_name,
-                               strlen(table_name));
+    PSI_CALL(drop_table_share)(temp_table, share.db.str, share.db.length,
+                               share.table_name.str, share.table_name.length);
 #endif
   }
+ 
 err:
   free_table_share(&share);
   DBUG_RETURN(error != 0);
 }
-
-/**
-  Try to discover table from engine.
-
-  @note
-    If found, write the frm file to disk.
-
-  @retval
-  -1    Table did not exists
-  @retval
-   0    Table created ok
-  @retval
-   > 0  Error, table existed but could not be created
-*/
-int ha_create_table_from_engine(THD* thd, const char *db, const char *name)
-{
-  int error;
-  uchar *frmblob;
-  size_t frmlen;
-  char path[FN_REFLEN + 1];
-  HA_CREATE_INFO create_info;
-  TABLE table;
-  TABLE_SHARE share;
-  DBUG_ENTER("ha_create_table_from_engine");
-  DBUG_PRINT("enter", ("name '%s'.'%s'", db, name));
-
-  bzero((uchar*) &create_info,sizeof(create_info));
-  if ((error= ha_discover(thd, db, name, &frmblob, &frmlen)))
-  {
-    /* Table could not be discovered and thus not created */
-    DBUG_RETURN(error);
-  }
-
-  /*
-    Table exists in handler and could be discovered
-    frmblob and frmlen are set, write the frm to disk
-  */
-
-  build_table_filename(path, sizeof(path) - 1, db, name, "", 0);
-  // Save the frm file
-  error= writefrm(path, frmblob, frmlen);
-  my_free(frmblob);
-  if (error)
-    DBUG_RETURN(2);
-
-  init_tmp_table_share(thd, &share, db, 0, name, path);
-  if (open_table_def(thd, &share, 0))
-  {
-    DBUG_RETURN(3);
-  }
-
-#ifdef HAVE_PSI_TABLE_INTERFACE
-  /*
-    Table discovery is not instrumented.
-    Once discovered, the table will be opened normally,
-    and instrumented normally.
-  */
-#endif
-
-  if (open_table_from_share(thd, &share, "" ,0, 0, 0, &table, FALSE))
-  {
-    free_table_share(&share);
-    DBUG_RETURN(3);
-  }
-
-  update_create_info_from_table(&create_info, &table);
-  create_info.table_options|= HA_OPTION_CREATE_FROM_ENGINE;
-
-  get_canonical_filename(table.file, path, path);
-  error=table.file->ha_create(path, &table, &create_info);
-  (void) closefrm(&table, 1);
-
-  DBUG_RETURN(error != 0);
-}
-
-
-/**
-  Try to find a table in a storage engine. 
-
-  @param db   Normalized table schema name
-  @param name Normalized table name.
-  @param[out] exists Only valid if the function succeeded.
-
-  @retval TRUE   An error is found
-  @retval FALSE  Success, check *exists
-*/
-
-bool
-ha_check_if_table_exists(THD* thd, const char *db, const char *name,
-                         bool *exists)
-{
-  uchar *frmblob= NULL;
-  size_t frmlen;
-  DBUG_ENTER("ha_check_if_table_exists");
-
-  *exists= ! ha_discover(thd, db, name, &frmblob, &frmlen);
-  if (*exists)
-    my_free(frmblob);
-
-  DBUG_RETURN(FALSE);
-}
-
 
 void st_ha_check_opt::init()
 {
@@ -4526,148 +4506,347 @@ int ha_change_key_cache(KEY_CACHE *old_key_cache,
 }
 
 
-/**
-  Try to discover one table from handler(s).
-
-  @retval
-    -1   Table did not exists
-  @retval
-    0   OK. In this case *frmblob and *frmlen are set
-  @retval
-    >0   error.  frmblob and frmlen may not be set
-*/
-struct st_discover_args
-{
-  const char *db;
-  const char *name;
-  uchar **frmblob; 
-  size_t *frmlen;
-};
-
 static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
                                    void *arg)
 {
-  st_discover_args *vargs= (st_discover_args *)arg;
+  TABLE_SHARE *share= (TABLE_SHARE *)arg;
   handlerton *hton= plugin_data(plugin, handlerton *);
-  if (hton->state == SHOW_OPTION_YES && hton->discover &&
-      (!(hton->discover(hton, thd, vargs->db, vargs->name, 
-                        vargs->frmblob, 
-                        vargs->frmlen))))
-    return TRUE;
+  if (hton->state == SHOW_OPTION_YES && hton->discover_table)
+  {
+    share->db_plugin= plugin;
+    int error= hton->discover_table(hton, thd, share);
+    if (error != HA_ERR_NO_SUCH_TABLE)
+    {
+      if (error)
+      {
+        DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
+        my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
+        share->db_plugin= 0;
+      }
+      else
+        share->error= OPEN_FRM_OK;
 
-  return FALSE;
+      status_var_increment(thd->status_var.ha_discover_count);
+      return TRUE; // abort the search
+    }
+    share->db_plugin= 0;
+  }
+
+  DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);
+  return FALSE;    // continue with the next engine
 }
 
-int ha_discover(THD *thd, const char *db, const char *name,
-		uchar **frmblob, size_t *frmlen)
+int ha_discover_table(THD *thd, TABLE_SHARE *share)
 {
-  int error= -1; // Table does not exist in any handler
-  DBUG_ENTER("ha_discover");
-  DBUG_PRINT("enter", ("db: %s, name: %s", db, name));
-  st_discover_args args= {db, name, frmblob, frmlen};
+  DBUG_ENTER("ha_discover_table");
+  int found;
 
-  if (is_prefix(name,tmp_file_prefix)) /* skip temporary tables */
-    DBUG_RETURN(error);
+  DBUG_ASSERT(share->error == OPEN_FRM_OPEN_ERROR);   // share is not OK yet
 
-  if (plugin_foreach(thd, discover_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args))
-    error= 0;
+  if (share->db_plugin)
+    found= discover_handlerton(thd, share->db_plugin, share);
+  else
+    found= plugin_foreach(thd, discover_handlerton,
+                        MYSQL_STORAGE_ENGINE_PLUGIN, share);
+  
+  if (!found)
+    open_table_error(share, OPEN_FRM_OPEN_ERROR, ENOENT); // not found
 
-  if (!error)
-    status_var_increment(thd->status_var.ha_discover_count);
+  DBUG_RETURN(share->error != OPEN_FRM_OK);
+}
+
+static my_bool file_ext_exists(char *path, size_t path_len, const char *ext)
+{
+  strmake(path + path_len, ext, FN_REFLEN - path_len);
+  return !access(path, F_OK);
+}
+
+struct st_discover_existence_args
+{
+  char *path;
+  size_t  path_len;
+  const char *db, *table_name;
+  handlerton *hton;
+};
+
+static my_bool discover_existence(THD *thd, plugin_ref plugin,
+                                  void *arg)
+{
+  st_discover_existence_args *args= (st_discover_existence_args*)arg;
+  handlerton *ht= plugin_data(plugin, handlerton *);
+  if (ht->state != SHOW_OPTION_YES || !ht->discover_table_existence)
+    return FALSE;
+
+  args->hton= ht;
+
+  if (ht->discover_table_existence == ext_based_existence)
+    return file_ext_exists(args->path, args->path_len,
+                           ht->tablefile_extensions[0]);
+
+  return ht->discover_table_existence(ht, args->db, args->table_name);
+}
+
+class Table_exists_error_handler : public Internal_error_handler
+{
+public:
+  Table_exists_error_handler()
+    : m_handled_errors(0), m_unhandled_errors(0)
+  {}
+
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        MYSQL_ERROR::enum_warning_level level,
+                        const char* msg,
+                        MYSQL_ERROR ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (sql_errno == ER_NO_SUCH_TABLE ||
+        sql_errno == ER_NO_SUCH_TABLE_IN_ENGINE ||
+        sql_errno == ER_WRONG_OBJECT)
+    {
+      m_handled_errors++;
+      return TRUE;
+    }
+
+    if (level == MYSQL_ERROR::WARN_LEVEL_ERROR)
+      m_unhandled_errors++;
+    return FALSE;
+  }
+
+  bool safely_trapped_errors()
+  {
+    return ((m_handled_errors > 0) && (m_unhandled_errors == 0));
+  }
+
+private:
+  int m_handled_errors;
+  int m_unhandled_errors;
+};
+
+/**
+  Check if a given table exists, without doing a full discover, if possible
+
+  If the 'hton' is not NULL, it's set to the handlerton of the storage engine
+  of this table, or to view_pseudo_hton if the frm belongs to a view.
+
+
+  @retval true    Table exists (even if the error occurred, like bad frm)
+  @retval false   Table does not exist (one can do CREATE TABLE table_name)
+*/
+bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+                     handlerton **hton)
+{
+  DBUG_ENTER("ha_table_exists");
+
+  if (hton)
+    *hton= 0;
+
+  if (need_full_discover_for_existence)
+  {
+    TABLE_LIST table;
+    uint flags = GTS_TABLE | GTS_VIEW;
+
+    if (!hton)
+      flags|= GTS_NOLOCK;
+
+    Table_exists_error_handler no_such_table_handler;
+    thd->push_internal_handler(&no_such_table_handler);
+    TABLE_SHARE *share= get_table_share(thd, db, table_name, flags);
+    thd->pop_internal_handler();
+
+    if (hton && share)
+    {
+      *hton= share->db_type();
+      mysql_mutex_lock(&LOCK_open);
+      release_table_share(share);
+      mysql_mutex_unlock(&LOCK_open);
+    }
+
+    // the table doesn't exist if we've caught ER_NO_SUCH_TABLE and nothing else
+    DBUG_RETURN(!no_such_table_handler.safely_trapped_errors());
+  }
+
+  mysql_mutex_lock(&LOCK_open);
+  TABLE_SHARE *share= get_cached_table_share(db, table_name);
+  if (hton && share)
+    *hton= share->db_type();
+  mysql_mutex_unlock(&LOCK_open);
+
+  if (share)
+    DBUG_RETURN(TRUE);
+
+  char path[FN_REFLEN + 1];
+  size_t path_len = build_table_filename(path, sizeof(path) - 1,
+                                         db, table_name, "", 0);
+
+  if (file_ext_exists(path, path_len, reg_ext))
+  {
+    if (hton)
+    {
+      enum legacy_db_type db_type;
+      if (dd_frm_type(thd, path, &db_type) != FRMTYPE_VIEW)
+        *hton= ha_resolve_by_legacy_type(thd, db_type);
+      else
+        *hton= view_pseudo_hton;
+    }
+    DBUG_RETURN(TRUE);
+  }
+
+  st_discover_existence_args args= {path, path_len, db, table_name, 0};
+
+  if (plugin_foreach(thd, discover_existence, MYSQL_STORAGE_ENGINE_PLUGIN,
+                     &args))
+  {
+    if (hton)
+      *hton= args.hton;
+    DBUG_RETURN(TRUE);
+  }
+
+  DBUG_RETURN(FALSE);
+}
+
+/**
+  Discover all table names in a given database
+*/
+extern "C" {
+
+static int cmp_file_names(const void *a, const void *b)
+{
+  CHARSET_INFO *cs= character_set_filesystem;
+  char *aa= ((FILEINFO *)a)->name;
+  char *bb= ((FILEINFO *)b)->name;
+  return my_strnncoll(cs, (uchar*)aa, strlen(aa), (uchar*)bb, strlen(bb));
+}
+
+static int cmp_table_names(LEX_STRING * const *a, LEX_STRING * const *b)
+{
+  return my_strnncoll(&my_charset_bin, (uchar*)((*a)->str), (*a)->length,
+                                       (uchar*)((*b)->str), (*b)->length);
+}
+
+}
+
+Discovered_table_list::Discovered_table_list(THD *thd_arg,
+                 Dynamic_array<LEX_STRING*> *tables_arg,
+                 const LEX_STRING *wild_arg)
+{
+  thd= thd_arg;
+  tables= tables_arg;
+  if (wild_arg->str && wild_arg->str[0])
+  {
+    wild= wild_arg->str;
+    wend= wild + wild_arg->length;
+  }
+  else
+    wild= 0;
+}
+
+bool Discovered_table_list::add_table(const char *tname, size_t tlen)
+{
+  if (wild && my_wildcmp(files_charset_info, tname, tname + tlen, wild, wend,
+                         wild_prefix, wild_one, wild_many))
+      return 0;
+
+  LEX_STRING *name= thd->make_lex_string(tname, tlen);
+  if (!name || tables->append(name))
+    return 1;
+  return 0;
+}
+
+bool Discovered_table_list::add_file(const char *fname)
+{
+  char tname[SAFE_NAME_LEN + 1];
+  size_t tlen= filename_to_tablename(fname, tname, sizeof(tname));
+  return add_table(tname, tlen);
+}
+
+
+void Discovered_table_list::sort()
+{
+  tables->sort(cmp_table_names);
+}
+
+void Discovered_table_list::remove_duplicates()
+{
+  LEX_STRING **src= tables->front();
+  LEX_STRING **dst= src;
+  while (++dst < tables->back())
+  {
+    LEX_STRING *s= *src, *d= *dst;
+    DBUG_ASSERT(strncmp(s->str, d->str, min(s->length, d->length)) <= 0);
+    if ((s->length != d->length || strncmp(s->str, d->str, d->length)))
+    {
+      src++;
+      if (src != dst)
+        *src= *dst;
+    }
+  }
+  tables->set_elements(src - tables->front() + 1);
+}
+
+struct st_discover_names_args
+{
+  LEX_STRING *db;
+  MY_DIR *dirp;
+  Discovered_table_list *result;
+  uint possible_duplicates;
+};
+
+static my_bool discover_names(THD *thd, plugin_ref plugin,
+                              void *arg)
+{
+  st_discover_names_args *args= (st_discover_names_args *)arg;
+  handlerton *ht= plugin_data(plugin, handlerton *);
+
+  if (ht->state == SHOW_OPTION_YES && ht->discover_table_names)
+  {
+    uint old_elements= args->result->tables->elements();
+    if (ht->discover_table_names(ht, args->db, args->dirp, args->result))
+      return 1;
+
+    /*
+      hton_ext_based_table_discovery never discovers a table that has
+      a corresponding .frm file; but custom engine discover methods might
+    */
+    if (ht->discover_table_names != hton_ext_based_table_discovery)
+      args->possible_duplicates+= args->result->tables->elements() - old_elements;
+  }
+
+  return 0;
+}
+
+int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+                            Discovered_table_list *result)
+{
+  int error;
+  DBUG_ENTER("ha_discover_table_names");
+
+  if (engines_with_discover_table_names == 0)
+  {
+    error= ext_table_discovery_simple(dirp, result);
+    result->sort();
+  }
+  else
+  {
+    st_discover_names_args args= {db, dirp, result, 0};
+
+    /* extension_based_table_discovery relies on dirp being sorted */
+    my_qsort(dirp->dir_entry, dirp->number_of_files,
+             sizeof(FILEINFO), cmp_file_names);
+
+    error= extension_based_table_discovery(dirp, reg_ext, result) ||
+           plugin_foreach(thd, discover_names,
+                            MYSQL_STORAGE_ENGINE_PLUGIN, &args);
+    result->sort();
+
+    if (args.possible_duplicates > 0)
+      result->remove_duplicates();
+  }
+
   DBUG_RETURN(error);
 }
 
-
-/**
-  Call this function in order to give the handler the possiblity
-  to ask engine if there are any new tables that should be written to disk
-  or any dropped tables that need to be removed from disk
-*/
-struct st_find_files_args
-{
-  const char *db;
-  const char *path;
-  const char *wild;
-  bool dir;
-  List<LEX_STRING> *files;
-};
-
-static my_bool find_files_handlerton(THD *thd, plugin_ref plugin,
-                                   void *arg)
-{
-  st_find_files_args *vargs= (st_find_files_args *)arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
-
-
-  if (hton->state == SHOW_OPTION_YES && hton->find_files)
-      if (hton->find_files(hton, thd, vargs->db, vargs->path, vargs->wild, 
-                          vargs->dir, vargs->files))
-        return TRUE;
-
-  return FALSE;
-}
-
-int
-ha_find_files(THD *thd,const char *db,const char *path,
-	      const char *wild, bool dir, List<LEX_STRING> *files)
-{
-  int error= 0;
-  DBUG_ENTER("ha_find_files");
-  DBUG_PRINT("enter", ("db: '%s'  path: '%s'  wild: '%s'  dir: %d", 
-		       db, path, wild, dir));
-  st_find_files_args args= {db, path, wild, dir, files};
-
-  plugin_foreach(thd, find_files_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args);
-  /* The return value is not currently used */
-  DBUG_RETURN(error);
-}
-
-/**
-  Ask handler if the table exists in engine.
-  @retval
-    HA_ERR_NO_SUCH_TABLE     Table does not exist
-  @retval
-    HA_ERR_TABLE_EXIST       Table exists
-  @retval
-    \#                  Error code
-*/
-struct st_table_exists_in_engine_args
-{
-  const char *db;
-  const char *name;
-  int err;
-};
-
-static my_bool table_exists_in_engine_handlerton(THD *thd, plugin_ref plugin,
-                                   void *arg)
-{
-  st_table_exists_in_engine_args *vargs= (st_table_exists_in_engine_args *)arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
-
-  int err= HA_ERR_NO_SUCH_TABLE;
-
-  if (hton->state == SHOW_OPTION_YES && hton->table_exists_in_engine)
-    err = hton->table_exists_in_engine(hton, thd, vargs->db, vargs->name);
-
-  vargs->err = err;
-  if (vargs->err == HA_ERR_TABLE_EXIST)
-    return TRUE;
-
-  return FALSE;
-}
-
-int ha_table_exists_in_engine(THD* thd, const char* db, const char* name)
-{
-  DBUG_ENTER("ha_table_exists_in_engine");
-  DBUG_PRINT("enter", ("db: %s, name: %s", db, name));
-  st_table_exists_in_engine_args args= {db, name, HA_ERR_NO_SUCH_TABLE};
-  plugin_foreach(thd, table_exists_in_engine_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args);
-  DBUG_PRINT("exit", ("error: %d", args.err));
-  DBUG_RETURN(args.err);
-}
 
 #ifdef HAVE_NDB_BINLOG
 /*
@@ -5017,26 +5196,20 @@ static my_bool exts_handlerton(THD *unused, plugin_ref plugin,
 {
   List<char> *found_exts= (List<char> *) arg;
   handlerton *hton= plugin_data(plugin, handlerton *);
-  handler *file;
-  if (hton->state == SHOW_OPTION_YES && hton->create &&
-      (file= hton->create(hton, (TABLE_SHARE*) 0, current_thd->mem_root)))
+  List_iterator_fast<char> it(*found_exts);
+  const char **ext, *old_ext;
+
+  for (ext= hton->tablefile_extensions; *ext; ext++)
   {
-    List_iterator_fast<char> it(*found_exts);
-    const char **ext, *old_ext;
-
-    for (ext= file->bas_ext(); *ext; ext++)
+    while ((old_ext= it++))
     {
-      while ((old_ext= it++))
-      {
-        if (!strcmp(old_ext, *ext))
-	  break;
-      }
-      if (!old_ext)
-        found_exts->push_back((char *) *ext);
-
-      it.rewind();
+      if (!strcmp(old_ext, *ext))
+        break;
     }
-    delete file;
+    if (!old_ext)
+      found_exts->push_back((char *) *ext);
+
+    it.rewind();
   }
   return FALSE;
 }
@@ -5137,7 +5310,7 @@ bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat)
   if (!result && !thd->is_error())
     my_eof(thd);
   else if (!thd->is_error())
-    my_error(ER_GET_ERRNO, MYF(0), errno);
+    my_error(ER_GET_ERRNO, MYF(0), errno, hton_name(db_type)->str);
   return result;
 }
 

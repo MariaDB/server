@@ -239,11 +239,7 @@ struct st_vio
   struct sockaddr_storage remote;	/* Remote internet address */
   int addrLen;                          /* Length of remote address */
   enum enum_vio_type	type;		/* Type of connection */
-  /*
-    Description string. This member MUST NOT be used directly, but only
-    via function "vio_description"
-  */
-  char			desc[VIO_DESCRIPTION_SIZE];
+  const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */
   char                  *read_pos;      /* start of unfetched data in the
                                            read buffer */

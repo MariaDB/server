@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,7 +69,6 @@ class Lex_input_stream;
 class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
-class User_level_lock;
 class user_var_entry;
 
 enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
@@ -87,38 +86,38 @@ enum enum_mark_columns
 enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
-#define MODE_REAL_AS_FLOAT              1
-#define MODE_PIPES_AS_CONCAT            2
-#define MODE_ANSI_QUOTES                4
-#define MODE_IGNORE_SPACE               8
-#define MODE_IGNORE_BAD_TABLE_OPTIONS   16
-#define MODE_ONLY_FULL_GROUP_BY         32
-#define MODE_NO_UNSIGNED_SUBTRACTION    64
-#define MODE_NO_DIR_IN_CREATE           128
-#define MODE_POSTGRESQL                 256
-#define MODE_ORACLE                     512
-#define MODE_MSSQL                      1024
-#define MODE_DB2                        2048
-#define MODE_MAXDB                      4096
-#define MODE_NO_KEY_OPTIONS             8192
-#define MODE_NO_TABLE_OPTIONS           16384
-#define MODE_NO_FIELD_OPTIONS           32768
-#define MODE_MYSQL323                   65536L
-#define MODE_MYSQL40                    (MODE_MYSQL323*2)
-#define MODE_ANSI                       (MODE_MYSQL40*2)
-#define MODE_NO_AUTO_VALUE_ON_ZERO      (MODE_ANSI*2)
-#define MODE_NO_BACKSLASH_ESCAPES       (MODE_NO_AUTO_VALUE_ON_ZERO*2)
-#define MODE_STRICT_TRANS_TABLES        (MODE_NO_BACKSLASH_ESCAPES*2)
-#define MODE_STRICT_ALL_TABLES          (MODE_STRICT_TRANS_TABLES*2)
-#define MODE_NO_ZERO_IN_DATE            (MODE_STRICT_ALL_TABLES*2)
-#define MODE_NO_ZERO_DATE               (MODE_NO_ZERO_IN_DATE*2)
-#define MODE_INVALID_DATES              (MODE_NO_ZERO_DATE*2)
-#define MODE_ERROR_FOR_DIVISION_BY_ZERO (MODE_INVALID_DATES*2)
-#define MODE_TRADITIONAL                (MODE_ERROR_FOR_DIVISION_BY_ZERO*2)
-#define MODE_NO_AUTO_CREATE_USER        (MODE_TRADITIONAL*2)
-#define MODE_HIGH_NOT_PRECEDENCE        (MODE_NO_AUTO_CREATE_USER*2)
-#define MODE_NO_ENGINE_SUBSTITUTION     (MODE_HIGH_NOT_PRECEDENCE*2)
-#define MODE_PAD_CHAR_TO_FULL_LENGTH    (ULL(1) << 31)
+#define MODE_REAL_AS_FLOAT              (1ULL << 0)
+#define MODE_PIPES_AS_CONCAT            (1ULL << 1)
+#define MODE_ANSI_QUOTES                (1ULL << 2)
+#define MODE_IGNORE_SPACE               (1ULL << 3)
+#define MODE_IGNORE_BAD_TABLE_OPTIONS   (1ULL << 4)
+#define MODE_ONLY_FULL_GROUP_BY         (1ULL << 5)
+#define MODE_NO_UNSIGNED_SUBTRACTION    (1ULL << 6)
+#define MODE_NO_DIR_IN_CREATE           (1ULL << 7)
+#define MODE_POSTGRESQL                 (1ULL << 8)
+#define MODE_ORACLE                     (1ULL << 9)
+#define MODE_MSSQL                      (1ULL << 10)
+#define MODE_DB2                        (1ULL << 11)
+#define MODE_MAXDB                      (1ULL << 12)
+#define MODE_NO_KEY_OPTIONS             (1ULL << 13)
+#define MODE_NO_TABLE_OPTIONS           (1ULL << 14)
+#define MODE_NO_FIELD_OPTIONS           (1ULL << 15)
+#define MODE_MYSQL323                   (1ULL << 16)
+#define MODE_MYSQL40                    (1ULL << 17)
+#define MODE_ANSI                       (1ULL << 18)
+#define MODE_NO_AUTO_VALUE_ON_ZERO      (1ULL << 19)
+#define MODE_NO_BACKSLASH_ESCAPES       (1ULL << 20)
+#define MODE_STRICT_TRANS_TABLES        (1ULL << 21)
+#define MODE_STRICT_ALL_TABLES          (1ULL << 22)
+#define MODE_NO_ZERO_IN_DATE            (1ULL << 23)
+#define MODE_NO_ZERO_DATE               (1ULL << 24)
+#define MODE_INVALID_DATES              (1ULL << 25)
+#define MODE_ERROR_FOR_DIVISION_BY_ZERO (1ULL << 26)
+#define MODE_TRADITIONAL                (1ULL << 27)
+#define MODE_NO_AUTO_CREATE_USER        (1ULL << 28)
+#define MODE_HIGH_NOT_PRECEDENCE        (1ULL << 29)
+#define MODE_NO_ENGINE_SUBSTITUTION     (1ULL << 30)
+#define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -235,8 +234,9 @@ public:
   enum drop_type {KEY, COLUMN };
   const char *name;
   enum drop_type type;
-  Alter_drop(enum drop_type par_type,const char *par_name)
-    :name(par_name), type(par_type) {}
+  bool drop_if_exists;
+  Alter_drop(enum drop_type par_type,const char *par_name, bool par_exists)
+    :name(par_name), type(par_type), drop_if_exists(par_exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -270,20 +270,23 @@ public:
   LEX_STRING name;
   engine_option_value *option_list;
   bool generated;
+  bool create_if_not_exists;
 
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
       KEY_CREATE_INFO *key_info_arg,
       bool generated_arg, List<Key_part_spec> &cols,
-      engine_option_value *create_opt)
+      engine_option_value *create_opt, bool if_not_exists_opt)
     :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    name(name_arg), option_list(create_opt), generated(generated_arg)
+    name(name_arg), option_list(create_opt), generated(generated_arg),
+    create_if_not_exists(if_not_exists_opt)
   {}
   Key(enum Keytype type_par, const char *name_arg, size_t name_len_arg,
       KEY_CREATE_INFO *key_info_arg, bool generated_arg,
       List<Key_part_spec> &cols,
-      engine_option_value *create_opt)
+      engine_option_value *create_opt, bool if_not_exists_opt)
     :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    option_list(create_opt), generated(generated_arg)
+    option_list(create_opt), generated(generated_arg),
+    create_if_not_exists(if_not_exists_opt)
   {
     name.str= (char *)name_arg;
     name.length= name_len_arg;
@@ -314,8 +317,10 @@ public:
   uint delete_opt, update_opt, match_opt;
   Foreign_key(const LEX_STRING &name_arg, List<Key_part_spec> &cols,
 	      Table_ident *table,   List<Key_part_spec> &ref_cols,
-	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg)
-    :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL),
+	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
+              bool if_not_exists_opt)
+    :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
+         if_not_exists_opt),
     ref_table(table), ref_columns(ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)
@@ -597,6 +602,9 @@ typedef struct system_variables
   ulong wt_timeout_long, wt_deadlock_search_depth_long;
 
   double long_query_time_double;
+
+  my_bool pseudo_slave_mode;
+
 } SV;
 
 /**
@@ -1711,11 +1719,11 @@ public:
 
   HASH		handler_tables_hash;
   /*
-    One thread can hold up to one named user-level lock. This variable
-    points to a lock object if the lock is present. See item_func.cc and
+    A thread can hold named user-level locks. This variable
+    contains granted tickets if a lock is present. See item_func.cc and
     chapter 'Miscellaneous functions', for functions GET_LOCK, RELEASE_LOCK.
   */
-  User_level_lock *ull;
+  HASH ull_hash;
 #ifndef DBUG_OFF
   uint dbug_sentry; // watch out for memory corruption
 #endif
@@ -2719,9 +2727,21 @@ public:
     return alloc_root(&transaction.mem_root,size);
   }
 
-  LEX_STRING *make_lex_string(LEX_STRING *lex_str,
-                              const char* str, uint length,
-                              bool allocate_lex_string);
+  LEX_STRING *make_lex_string(LEX_STRING *lex_str, const char* str, uint length)
+  {
+    if (!(lex_str->str= strmake_root(mem_root, str, length)))
+      return 0;
+    lex_str->length= length;
+    return lex_str;
+  }
+
+  LEX_STRING *make_lex_string(const char* str, uint length)
+  {
+    LEX_STRING *lex_str;
+    if (!(lex_str= (LEX_STRING *)alloc_root(mem_root, sizeof(LEX_STRING))))
+      return 0;
+    return make_lex_string(lex_str, str, length);
+  }
 
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
 		      const char *from, uint from_length,
@@ -3193,7 +3213,10 @@ public:
   { set_query(CSET_STRING()); }
   void set_query_and_id(char *query_arg, uint32 query_length_arg,
                         CHARSET_INFO *cs, query_id_t new_query_id);
-  void set_query_id(query_id_t new_query_id);
+  void set_query_id(query_id_t new_query_id)
+  {
+    query_id= new_query_id;
+  }
   void set_open_tables(TABLE *open_tables_arg)
   {
     mysql_mutex_lock(&LOCK_thd_data);
@@ -3480,6 +3503,7 @@ public:
 #else
   void begin_dataset() {}
 #endif
+  virtual void update_used_tables() {}
 };
 
 
@@ -4253,6 +4277,7 @@ public:
     return updated;
   }
   virtual void abort_result_set();
+  void update_used_tables();
 };
 
 class my_var : public Sql_alloc  {
@@ -4276,7 +4301,6 @@ public:
 
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
-  Item_func_set_user_var **set_var_items;
 public:
   List<my_var> var_list;
   select_dumpvar()  { var_list.empty(); row_count= 0;}

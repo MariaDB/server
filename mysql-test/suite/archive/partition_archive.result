@@ -15,10 +15,10 @@ ENGINE = ARCHIVE;
 INSERT INTO t1 VALUES(CURRENT_DATE);
 SELECT DATA_LENGTH, INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 DATA_LENGTH	INDEX_LENGTH
-8658	0
+535	0
 SELECT DATA_LENGTH, INDEX_LENGTH FROM information_schema.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 DATA_LENGTH	INDEX_LENGTH
-8658	0
+535	0
 DROP TABLE t1;
 drop database if exists db99;
 drop table if exists t1;
@@ -30,6 +30,7 @@ partition by list (a)
 (partition p0 values in (1), partition p1 values in (2));
 insert into t1 values (1), (2);
 create index inx on t1 (a);
+ERROR HY000: Can't create table `db99`.`#sql-temporary` (errno: 1 "Operation not permitted")
 alter table t1 add partition (partition p2 values in (3));
 alter table t1 drop partition p2;
 use test;

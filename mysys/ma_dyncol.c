@@ -1,4 +1,4 @@
-/* Copyright (c) 2011,2012  Monty Program Ab;
+/* Copyright (c) 2011,2013  Monty Program Ab;
    Copyright (c) 2011,2012 Oleksandr Byelkin
 
    Redistribution and use in source and binary forms, with or without
@@ -866,7 +866,7 @@ dynamic_column_uint_read(DYNAMIC_COLUMN_VALUE *store_it_here,
 static size_t dynamic_column_sint_bytes(longlong val)
 {
   return dynamic_column_uint_bytes((val << 1) ^
-                                   (val < 0 ? ULL(0xffffffffffffffff) : 0));
+                                   (val < 0 ? 0xffffffffffffffffull : 0));
 }
 
 
@@ -884,7 +884,7 @@ dynamic_column_sint_store(DYNAMIC_COLUMN *str, longlong val)
 {
   return dynamic_column_uint_store(str,
                                  (val << 1) ^
-                                 (val < 0 ? ULL(0xffffffffffffffff) : 0));
+                                 (val < 0 ? 0xffffffffffffffffULL : 0));
 }
 
 
@@ -906,7 +906,7 @@ dynamic_column_sint_read(DYNAMIC_COLUMN_VALUE *store_it_here,
   dynamic_column_uint_read(store_it_here, data, length);
   val= store_it_here->x.ulong_value;
   if (val & 1)
-    val= (val >> 1) ^ ULL(0xffffffffffffffff);
+    val= (val >> 1) ^ 0xffffffffffffffffULL;
   else
     val>>= 1;
   store_it_here->x.long_value= (longlong) val;

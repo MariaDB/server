@@ -2,7 +2,7 @@
 #define HANDLER_INCLUDED
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011 Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -31,6 +31,7 @@
 #include "thr_lock.h"          /* thr_lock_type, THR_LOCK_DATA */
 #include "sql_cache.h"
 #include "structs.h"                            /* SHOW_COMP_OPTION */
+#include "sql_array.h"          /* Dynamic_array<> */
 
 #include <my_compare.h>
 #include <ft_global.h>
@@ -59,9 +60,9 @@
 
 /* Bits in table_flags() to show what database can do */
 
-#define HA_NO_TRANSACTIONS     (1 << 0) /* Doesn't support transactions */
-#define HA_PARTIAL_COLUMN_READ (1 << 1) /* read may not return all columns */
-#define HA_TABLE_SCAN_ON_INDEX (1 << 2) /* No separate data/index file */
+#define HA_NO_TRANSACTIONS     (1ULL << 0) /* Doesn't support transactions */
+#define HA_PARTIAL_COLUMN_READ (1ULL << 1) /* read may not return all columns */
+#define HA_TABLE_SCAN_ON_INDEX (1ULL << 2) /* No separate data/index file */
 /*
   The following should be set if the following is not true when scanning
   a table with rnd_next()
@@ -70,37 +71,37 @@
   If this flag is not set, filesort will do a position() call for each matched
   row to be able to find the row later.
 */
-#define HA_REC_NOT_IN_SEQ      (1 << 3)
-#define HA_CAN_GEOMETRY        (1 << 4)
+#define HA_REC_NOT_IN_SEQ      (1ULL << 3)
+#define HA_CAN_GEOMETRY        (1ULL << 4)
 /*
   Reading keys in random order is as fast as reading keys in sort order
   (Used in records.cc to decide if we should use a record cache and by
   filesort to decide if we should sort key + data or key + pointer-to-row
 */
-#define HA_FAST_KEY_READ       (1 << 5)
+#define HA_FAST_KEY_READ       (1ULL << 5)
 /*
   Set the following flag if we on delete should force all key to be read
   and on update read all keys that changes
 */
-#define HA_REQUIRES_KEY_COLUMNS_FOR_DELETE (1 << 6)
-#define HA_NULL_IN_KEY         (1 << 7) /* One can have keys with NULL */
-#define HA_DUPLICATE_POS       (1 << 8)    /* ha_position() gives dup row */
-#define HA_NO_BLOBS            (1 << 9) /* Doesn't support blobs */
-#define HA_CAN_INDEX_BLOBS     (1 << 10)
-#define HA_AUTO_PART_KEY       (1 << 11) /* auto-increment in multi-part key */
-#define HA_REQUIRE_PRIMARY_KEY (1 << 12) /* .. and can't create a hidden one */
-#define HA_STATS_RECORDS_IS_EXACT (1 << 13) /* stats.records is exact */
+#define HA_REQUIRES_KEY_COLUMNS_FOR_DELETE (1ULL << 6)
+#define HA_NULL_IN_KEY         (1ULL << 7) /* One can have keys with NULL */
+#define HA_DUPLICATE_POS       (1ULL << 8)    /* ha_position() gives dup row */
+#define HA_NO_BLOBS            (1ULL << 9) /* Doesn't support blobs */
+#define HA_CAN_INDEX_BLOBS     (1ULL << 10)
+#define HA_AUTO_PART_KEY       (1ULL << 11) /* auto-increment in multi-part key */
+#define HA_REQUIRE_PRIMARY_KEY (1ULL << 12) /* .. and can't create a hidden one */
+#define HA_STATS_RECORDS_IS_EXACT (1ULL << 13) /* stats.records is exact */
 /*
   INSERT_DELAYED only works with handlers that uses MySQL internal table
   level locks
 */
-#define HA_CAN_INSERT_DELAYED  (1 << 14)
+#define HA_CAN_INSERT_DELAYED  (1ULL << 14)
 /*
   If we get the primary key columns for free when we do an index read
   It also implies that we have to retrive the primary key when using
   position() and rnd_pos().
 */
-#define HA_PRIMARY_KEY_IN_READ_INDEX (1 << 15)
+#define HA_PRIMARY_KEY_IN_READ_INDEX (1ULL << 15)
 /*
   If HA_PRIMARY_KEY_REQUIRED_FOR_POSITION is set, it means that to position()
   uses a primary key given by the record argument.
@@ -108,36 +109,36 @@
   If not set, the position is returned as the current rows position
   regardless of what argument is given.
 */ 
-#define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1 << 16) 
-#define HA_CAN_RTREEKEYS       (1 << 17)
-#define HA_NOT_DELETE_WITH_CACHE (1 << 18)
+#define HA_PRIMARY_KEY_REQUIRED_FOR_POSITION (1ULL << 16) 
+#define HA_CAN_RTREEKEYS       (1ULL << 17)
+#define HA_NOT_DELETE_WITH_CACHE (1ULL << 18)
 /*
   The following is we need to a primary key to delete (and update) a row.
   If there is no primary key, all columns needs to be read on update and delete
 */
-#define HA_PRIMARY_KEY_REQUIRED_FOR_DELETE (1 << 19)
-#define HA_NO_PREFIX_CHAR_KEYS (1 << 20)
-#define HA_CAN_FULLTEXT        (1 << 21)
-#define HA_CAN_SQL_HANDLER     (1 << 22)
-#define HA_NO_AUTO_INCREMENT   (1 << 23)
+#define HA_PRIMARY_KEY_REQUIRED_FOR_DELETE (1ULL << 19)
+#define HA_NO_PREFIX_CHAR_KEYS (1ULL << 20)
+#define HA_CAN_FULLTEXT        (1ULL << 21)
+#define HA_CAN_SQL_HANDLER     (1ULL << 22)
+#define HA_NO_AUTO_INCREMENT   (1ULL << 23)
 /* Has automatic checksums and uses the old checksum format */
-#define HA_HAS_OLD_CHECKSUM    (1 << 24)
+#define HA_HAS_OLD_CHECKSUM    (1ULL << 24)
 /* Table data are stored in separate files (for lower_case_table_names) */
-#define HA_FILE_BASED	       (1 << 26)
-#define HA_NO_VARCHAR	       (1 << 27)
-#define HA_CAN_BIT_FIELD       (1 << 28) /* supports bit fields */
-#define HA_NEED_READ_RANGE_BUFFER (1 << 29) /* for read_multi_range */
-#define HA_ANY_INDEX_MAY_BE_UNIQUE (1 << 30)
-#define HA_NO_COPY_ON_ALTER    (LL(1) << 31)
-#define HA_HAS_RECORDS	       (LL(1) << 32) /* records() gives exact count*/
+#define HA_FILE_BASED	       (1ULL << 26)
+#define HA_NO_VARCHAR	       (1ULL << 27)
+#define HA_CAN_BIT_FIELD       (1ULL << 28) /* supports bit fields */
+#define HA_NEED_READ_RANGE_BUFFER (1ULL << 29) /* for read_multi_range */
+#define HA_ANY_INDEX_MAY_BE_UNIQUE (1ULL << 30)
+#define HA_NO_COPY_ON_ALTER    (1ULL << 31)
+#define HA_HAS_RECORDS	       (1ULL << 32) /* records() gives exact count*/
 /* Has it's own method of binlog logging */
-#define HA_HAS_OWN_BINLOGGING  (LL(1) << 33)
+#define HA_HAS_OWN_BINLOGGING  (1ULL << 33)
 /*
   Engine is capable of row-format and statement-format logging,
   respectively
 */
-#define HA_BINLOG_ROW_CAPABLE  (LL(1) << 34)
-#define HA_BINLOG_STMT_CAPABLE (LL(1) << 35)
+#define HA_BINLOG_ROW_CAPABLE  (1ULL << 34)
+#define HA_BINLOG_STMT_CAPABLE (1ULL << 35)
 /*
     When a multiple key conflict happens in a REPLACE command mysql
     expects the conflicts to be reported in the ascending order of
@@ -160,20 +161,20 @@
     This flag helps the underlying SE to inform the server that the keys are not
     ordered.
 */
-#define HA_DUPLICATE_KEY_NOT_IN_ORDER    (LL(1) << 36)
+#define HA_DUPLICATE_KEY_NOT_IN_ORDER    (1ULL << 36)
 
 /*
   Engine supports REPAIR TABLE. Used by CHECK TABLE FOR UPGRADE if an
   incompatible table is detected. If this flag is set, CHECK TABLE FOR UPGRADE
   will report ER_TABLE_NEEDS_UPGRADE, otherwise ER_TABLE_NEED_REBUILD.
 */
-#define HA_CAN_REPAIR                    (LL(1) << 37)
+#define HA_CAN_REPAIR                    (1ULL << 37)
 
 /* Has automatic checksums and uses the new checksum format */
-#define HA_HAS_NEW_CHECKSUM    (LL(1) << 38)
-#define HA_CAN_VIRTUAL_COLUMNS (LL(1) << 39)
-#define HA_MRR_CANT_SORT       (LL(1) << 40)
-#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (LL(1) << 41)
+#define HA_HAS_NEW_CHECKSUM    (1ULL << 38)
+#define HA_CAN_VIRTUAL_COLUMNS (1ULL << 39)
+#define HA_MRR_CANT_SORT       (1ULL << 40)
+#define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41)
 
 /*
   Table condition pushdown must be performed regardless of
@@ -186,7 +187,7 @@
   then the "query=..." condition must be always pushed down into storage
   engine.
 */
-#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN (LL(1) << 42)
+#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN (1ULL << 42)
 
 /*
   Set of all binlog flags. Currently only contain the capabilities
@@ -352,25 +353,23 @@ static const uint MYSQL_START_TRANS_OPT_READ_WRITE         = 4;
 
 enum legacy_db_type
 {
-  DB_TYPE_UNKNOWN=0,DB_TYPE_DIAB_ISAM=1,
-  DB_TYPE_HASH,DB_TYPE_MISAM,DB_TYPE_PISAM,
-  DB_TYPE_RMS_ISAM, DB_TYPE_HEAP, DB_TYPE_ISAM,
-  DB_TYPE_MRG_ISAM, DB_TYPE_MYISAM, DB_TYPE_MRG_MYISAM,
-  DB_TYPE_BERKELEY_DB, DB_TYPE_INNODB,
-  DB_TYPE_GEMINI, DB_TYPE_NDBCLUSTER,
-  DB_TYPE_EXAMPLE_DB, DB_TYPE_ARCHIVE_DB, DB_TYPE_CSV_DB,
-  DB_TYPE_FEDERATED_DB,
-  DB_TYPE_BLACKHOLE_DB,
-  DB_TYPE_PARTITION_DB,
-  DB_TYPE_BINLOG,
-  DB_TYPE_SOLID,
-  DB_TYPE_PBXT,
-  DB_TYPE_TABLE_FUNCTION,
-  DB_TYPE_MEMCACHE,
-  DB_TYPE_FALCON,
-  DB_TYPE_MARIA,
-  /** Performance schema engine. */
-  DB_TYPE_PERFORMANCE_SCHEMA,
+  /* note these numerical values are fixed and can *not* be changed */
+  DB_TYPE_UNKNOWN=0,
+  DB_TYPE_HEAP=6,
+  DB_TYPE_MYISAM=9,
+  DB_TYPE_MRG_MYISAM=10,
+  DB_TYPE_INNODB=12,
+  DB_TYPE_NDBCLUSTER=14,
+  DB_TYPE_EXAMPLE_DB=15,
+  DB_TYPE_ARCHIVE_DB=16,
+  DB_TYPE_CSV_DB=17,
+  DB_TYPE_FEDERATED_DB=18,
+  DB_TYPE_BLACKHOLE_DB=19,
+  DB_TYPE_PARTITION_DB=20,
+  DB_TYPE_BINLOG=21,
+  DB_TYPE_PBXT=23,
+  DB_TYPE_MARIA=27,
+  DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_FIRST_DYNAMIC=42,
   DB_TYPE_DEFAULT=127 // Must be last
 };
@@ -627,6 +626,7 @@ enum enum_schema_tables
   SCH_PARAMETERS,
   SCH_PARTITIONS,
   SCH_PLUGINS,
+  SCH_ALL_PLUGINS,
   SCH_PROCESSLIST,
   SCH_PROFILES,
   SCH_REFERENTIAL_CONSTRAINTS,
@@ -651,6 +651,7 @@ enum enum_schema_tables
 };
 
 struct TABLE_SHARE;
+struct HA_CREATE_INFO;
 struct st_foreign_key_info;
 typedef struct st_foreign_key_info FOREIGN_KEY_INFO;
 typedef bool (stat_print_fn)(THD *thd, const char *type, uint type_len,
@@ -730,22 +731,26 @@ struct ha_index_option_struct;
 enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
                       HA_OPTION_TYPE_STRING, /* char * */
                       HA_OPTION_TYPE_ENUM,   /* uint */
-                      HA_OPTION_TYPE_BOOL};  /* bool */
+                      HA_OPTION_TYPE_BOOL,   /* bool */
+                      HA_OPTION_TYPE_SYSVAR};/* type of the sysval */
 
 #define HA_xOPTION_NUMBER(name, struc, field, def, min, max, blk_siz)   \
   { HA_OPTION_TYPE_ULL, name, sizeof(name)-1,                        \
-    offsetof(struc, field), def, min, max, blk_siz, 0 }
+    offsetof(struc, field), def, min, max, blk_siz, 0, 0 }
 #define HA_xOPTION_STRING(name, struc, field)                        \
   { HA_OPTION_TYPE_STRING, name, sizeof(name)-1,                     \
-    offsetof(struc, field), 0, 0, 0, 0, 0 }
+    offsetof(struc, field), 0, 0, 0, 0, 0, 0}
 #define HA_xOPTION_ENUM(name, struc, field, values, def)             \
   { HA_OPTION_TYPE_ENUM, name, sizeof(name)-1,                       \
     offsetof(struc, field), def, 0,                                  \
-    sizeof(values)-1, 0, values }
+    sizeof(values)-1, 0, values, 0 }
 #define HA_xOPTION_BOOL(name, struc, field, def)                     \
   { HA_OPTION_TYPE_BOOL, name, sizeof(name)-1,                       \
-    offsetof(struc, field), def, 0, 1, 0, 0 }
-#define HA_xOPTION_END { HA_OPTION_TYPE_ULL, 0, 0, 0, 0, 0, 0, 0, 0 }
+    offsetof(struc, field), def, 0, 1, 0, 0, 0 }
+#define HA_xOPTION_SYSVAR(name, struc, field, sysvar)                \
+  { HA_OPTION_TYPE_SYSVAR, name, sizeof(name)-1,                     \
+    offsetof(struc, field), 0, 0, 0, 0, 0, MYSQL_SYSVAR(sysvar) }
+#define HA_xOPTION_END { HA_OPTION_TYPE_ULL, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
 
 #define HA_TOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
   HA_xOPTION_NUMBER(name, ha_table_option_struct, field, def, min, max, blk_siz)
@@ -755,6 +760,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_table_option_struct, field, values, def)
 #define HA_TOPTION_BOOL(name, field, def)                            \
   HA_xOPTION_BOOL(name, ha_table_option_struct, field, def)
+#define HA_TOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_table_option_struct, field, sysvar)
 #define HA_TOPTION_END HA_xOPTION_END
 
 #define HA_FOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
@@ -765,6 +772,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_field_option_struct, field, values, def)
 #define HA_FOPTION_BOOL(name, field, def)                            \
   HA_xOPTION_BOOL(name, ha_field_option_struct, field, def)
+#define HA_FOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_field_option_struct, field, sysvar)
 #define HA_FOPTION_END HA_xOPTION_END
 
 #define HA_IOPTION_NUMBER(name, field, def, min, max, blk_siz)          \
@@ -775,6 +784,8 @@ enum ha_option_type { HA_OPTION_TYPE_ULL,    /* unsigned long long */
   HA_xOPTION_ENUM(name, ha_index_option_struct, field, values, def)
 #define HA_IOPTION_BOOL(name, field, values, def)                    \
   HA_xOPTION_BOOL(name, ha_index_option_struct, field, values, def)
+#define HA_IOPTION_SYSVAR(name, field, sysvar)                       \
+  HA_xOPTION_SYSVAR(name, ha_index_option_struct, field, sysvar)
 #define HA_IOPTION_END HA_xOPTION_END
 
 typedef struct st_ha_create_table_option {
@@ -785,6 +796,7 @@ typedef struct st_ha_create_table_option {
   ulonglong def_value;
   ulonglong min_value, max_value, block_size;
   const char *values;
+  struct st_mysql_sys_var *var;
 } ha_create_table_option;
 
 enum handler_iterator_type
@@ -1093,18 +1105,6 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
-   int (*discover)(handlerton *hton, THD* thd, const char *db, 
-                   const char *name,
-                   uchar **frmblob, 
-                   size_t *frmlen);
-   int (*find_files)(handlerton *hton, THD *thd,
-                     const char *db,
-                     const char *path,
-                     const char *wild, bool dir, List<LEX_STRING> *files);
-   int (*table_exists_in_engine)(handlerton *hton, THD* thd, const char *db,
-                                 const char *name);
-
-   uint32 license; /* Flag for Engine License */
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -1112,12 +1112,122 @@ struct handlerton
    ha_create_table_option *field_options; // these are specified per field
    ha_create_table_option *index_options; // these are specified per index
 
+   /**
+     The list of extensions of files created for a single table in the
+     database directory (datadir/db_name/).
+
+     Used by open_table_error(), by the default rename_table and delete_table
+     handler methods, and by the default discovery implementation.
+  
+     For engines that have more than one file name extentions (separate
+     metadata, index, and/or data files), the order of elements is relevant.
+     First element of engine file name extentions array should be metadata
+     file extention. This is implied by the open_table_error()
+     and the default discovery implementation.
+     
+     Second element - data file extention. This is implied
+     assumed by REPAIR TABLE ... USE_FRM implementation.
+   */
+   const char **tablefile_extensions; // by default - empty list
+
+   /*********************************************************************
+     Table discovery API.
+     It allows the server to "discover" tables that exist in the storage
+     engine, without user issuing an explicit CREATE TABLE statement.
+   **********************************************************************/
+
+   /*
+     This method is required for any engine that supports automatic table
+     discovery, there is no default implementation.
+
+     Given a TABLE_SHARE discover_table() fills it in with a correct table
+     structure using one of the TABLE_SHARE::init_from_* methods.
+
+     Returns HA_ERR_NO_SUCH_TABLE if the table did not exist in the engine,
+     zero if the table was discovered successfully, or any other
+     HA_ERR_* error code as appropriate if the table existed, but the
+     discovery failed.
+   */
+   int (*discover_table)(handlerton *hton, THD* thd, TABLE_SHARE *share);
+
+   /*
+     The discover_table_names method tells the server
+     about all tables in the specified database that the engine
+     knows about. Tables (or file names of tables) are added to
+     the provided discovered_list collector object using
+     add_table() or add_file() methods.
+   */
+   class discovered_list
+   {
+     public:
+     virtual bool add_table(const char *tname, size_t tlen) = 0;
+     virtual bool add_file(const char *fname) = 0;
+     protected: virtual ~discovered_list() {}
+   };
+
+   /*
+     By default (if not implemented by the engine, but the discovery_table() is
+     implemented) it will perform a file-based discovery:
+
+     - if tablefile_extensions[0] is not null, this will discovers all tables
+       with the tablefile_extensions[0] extension.
+
+     Returns 0 on success and 1 on error.
+   */
+   int (*discover_table_names)(handlerton *hton, LEX_STRING *db, MY_DIR *dir,
+                               discovered_list *result);
+
+   /*
+     This is a method that allows to server to check if a table exists without
+     an overhead of the complete discovery.
+
+     By default (if not implemented by the engine, but the discovery_table() is
+     implemented) it will try to perform a file-based discovery:
+
+     - if tablefile_extensions[0] is not null this will look for a file name
+       with the tablefile_extensions[0] extension.
+
+     - if tablefile_extensions[0] is null, this will resort to discover_table().
+
+     Note that resorting to discover_table() is slow and the engine
+     should probably implement its own discover_table_existence() method,
+     if its tablefile_extensions[0] is null.
+
+     Returns 1 if the table exists and 0 if it does not.
+   */
+   int (*discover_table_existence)(handlerton *hton, const char *db,
+                                   const char *table_name);
+
+   /*
+     This is the assisted table discovery method. Unlike the fully
+     automatic discovery as above, here a user is expected to issue an
+     explicit CREATE TABLE with the appropriate table attributes to
+     "assist" the discovery of a table. But this "discovering" CREATE TABLE
+     statement will not specify the table structure - the engine discovers
+     it using this method. For example, FederatedX uses it in
+
+      CREATE TABLE t1 ENGINE=FEDERATED CONNECTION="mysql://foo/bar/t1";
+
+     Given a TABLE_SHARE discover_table_structure() fills it in with a correct
+     table structure using one of the TABLE_SHARE::init_from_* methods.
+
+     Assisted discovery works independently from the automatic discover.
+     An engine is allowed to support only assisted discovery and not
+     support automatic one. Or vice versa.
+   */
+   int (*discover_table_structure)(handlerton *hton, THD* thd,
+                                   TABLE_SHARE *share, HA_CREATE_INFO *info);
 };
 
 
-inline LEX_STRING *hton_name(const handlerton *hton)
+static inline LEX_STRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);
+}
+
+static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
+{
+  return find_plugin_sysvar(hton2plugin[hton->slot], var);
 }
 
 
@@ -1315,9 +1425,10 @@ struct st_partition_iter;
 
 enum ha_choice { HA_CHOICE_UNDEF, HA_CHOICE_NO, HA_CHOICE_YES };
 
-typedef struct st_ha_create_information
+struct HA_CREATE_INFO
 {
   CHARSET_INFO *table_charset, *default_table_charset;
+  LEX_CUSTRING tabledef_version;
   LEX_STRING connect_string;
   const char *password, *tablespace;
   LEX_STRING comment;
@@ -1346,16 +1457,18 @@ typedef struct st_ha_create_information
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   enum ha_choice transactional;
-  bool frm_only;                        ///< 1 if no ha_create_table()
   bool varchar;                         ///< 1 if table has a VARCHAR
   enum ha_storage_media storage_media;  ///< DEFAULT, DISK or MEMORY
   enum ha_choice page_checksum;         ///< If we have page_checksums
   engine_option_value *option_list;     ///< list of table create options
+
   /* the following three are only for ALTER TABLE, check_if_incompatible_data() */
   ha_table_option_struct *option_struct;           ///< structure with parsed table options
   ha_field_option_struct **fields_option_struct;   ///< array of field option structures
   ha_index_option_struct **indexes_option_struct;  ///< array of index option structures
-} HA_CREATE_INFO;
+
+  bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
+};
 
 
 typedef struct st_key_create_information
@@ -2046,8 +2159,8 @@ public:
 
   int ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info);
 
-  int ha_create_handler_files(const char *name, const char *old_name,
-                              int action_flag, HA_CREATE_INFO *info);
+  int ha_create_partitioning_metadata(const char *name, const char *old_name,
+                                      int action_flag);
 
   int ha_change_partitions(HA_CREATE_INFO *create_info,
                            const char *path,
@@ -2494,18 +2607,7 @@ public:
   virtual void free_foreign_key_create_info(char* str) {}
   /** The following can be called without an open handler */
   const char *table_type() const { return hton_name(ht)->str; }
-  /**
-    If frm_error() is called then we will use this to find out what file
-    extentions exist for the storage engine. This is also used by the default
-    rename_table and delete_table method in handler.cc.
-
-    For engines that have two file name extentions (separate meta/index file
-    and data file), the order of elements is relevant. First element of engine
-    file name extentions array should be meta/index file extention. Second
-    element - data file extention. This order is assumed by
-    prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-  */
-  virtual const char **bas_ext() const =0;
+  const char **bas_ext() const { return ht->tablefile_extensions; }
 
   virtual int get_default_no_partitions(HA_CREATE_INFO *create_info)
   { return 1;}
@@ -3020,8 +3122,8 @@ private:
   virtual void drop_table(const char *name);
   virtual int create(const char *name, TABLE *form, HA_CREATE_INFO *info)=0;
 
-  virtual int create_handler_files(const char *name, const char *old_name,
-                                   int action_flag, HA_CREATE_INFO *info)
+  virtual int create_partitioning_metadata(const char *name, const char *old_name,
+                                   int action_flag)
   { return FALSE; }
 
   virtual int change_partitions(HA_CREATE_INFO *create_info,
@@ -3091,6 +3193,8 @@ static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
          (db_type->state == SHOW_OPTION_YES) : FALSE;
 }
 
+#define view_pseudo_hton ((handlerton *)1)
+
 /* basic stuff */
 int ha_init_errors(void);
 int ha_init(void);
@@ -3108,8 +3212,7 @@ void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
 int ha_create_table(THD *thd, const char *path,
                     const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info,
-		    bool update_create_info);
+                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const char *db, const char *alias, bool generate_warning);
 
@@ -3117,14 +3220,31 @@ int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
 
 /* discovery */
-int ha_create_table_from_engine(THD* thd, const char *db, const char *name);
-bool ha_check_if_table_exists(THD* thd, const char *db, const char *name,
-                             bool *exists);
-int ha_discover(THD* thd, const char* dbname, const char* name,
-                uchar** frmblob, size_t* frmlen);
-int ha_find_files(THD *thd,const char *db,const char *path,
-                  const char *wild, bool dir, List<LEX_STRING>* files);
-int ha_table_exists_in_engine(THD* thd, const char* db, const char* name);
+#ifdef MYSQL_SERVER
+class Discovered_table_list: public handlerton::discovered_list
+{
+  THD *thd;
+  const char *wild, *wend;
+public:
+  Dynamic_array<LEX_STRING*> *tables;
+
+  Discovered_table_list(THD *thd_arg, Dynamic_array<LEX_STRING*> *tables_arg,
+                        const LEX_STRING *wild_arg);
+  ~Discovered_table_list() {}
+
+  bool add_table(const char *tname, size_t tlen);
+  bool add_file(const char *fname);
+
+  void sort();
+  void remove_duplicates(); // assumes that the list is sorted
+};
+
+int ha_discover_table(THD *thd, TABLE_SHARE *share);
+int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
+                            Discovered_table_list *result);
+bool ha_table_exists(THD *thd, const char *db, const char *table_name,
+                     handlerton **hton= 0);
+#endif
 
 /* key cache */
 extern "C" int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *);

@@ -246,12 +246,12 @@ protected:
   */
   int result_for_null_param;
 public:
-  Item_in_optimizer(Item *a, Item_in_subselect *b):
-    Item_bool_func(a, reinterpret_cast<Item *>(b)), cache(0), expr_cache(0),
+  Item_in_optimizer(Item *a, Item *b):
+    Item_bool_func(a, b), cache(0), expr_cache(0),
     save_cache(0), result_for_null_param(UNKNOWN)
   { with_subselect= true; }
   bool fix_fields(THD *, Item **);
-  bool fix_left(THD *thd, Item **ref);
+  bool fix_left(THD *thd);
   table_map not_null_tables() const { return 0; }
   bool is_null();
   longlong val_int();
@@ -269,6 +269,8 @@ public:
   bool is_top_level_item();
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
+  bool invisible_mode();
+  void reset_cache() { cache= NULL; }
 };
 
 class Comp_creator
@@ -436,8 +438,11 @@ public:
 
 class Item_func_not :public Item_bool_func
 {
+  bool abort_on_null;
 public:
-  Item_func_not(Item *a) :Item_bool_func(a) {}
+  Item_func_not(Item *a) :Item_bool_func(a), abort_on_null(FALSE) {}
+  virtual void top_level_item() { abort_on_null= 1; }
+  bool is_top_level_item() { return abort_on_null; }
   longlong val_int();
   enum Functype functype() const { return NOT_FUNC; }
   const char *func_name() const { return "not"; }
@@ -495,16 +500,13 @@ class Item_func_not_all :public Item_func_not
   Item_sum_hybrid *test_sum_item;
   Item_maxmin_subselect *test_sub_item;
 
-  bool abort_on_null;
 public:
   bool show;
 
   Item_func_not_all(Item *a)
-    :Item_func_not(a), test_sum_item(0), test_sub_item(0), abort_on_null(0),
+    :Item_func_not(a), test_sum_item(0), test_sub_item(0),
      show(0)
     {}
-  virtual void top_level_item() { abort_on_null= 1; }
-  bool is_top_level_item() { return abort_on_null; }
   table_map not_null_tables() const { return 0; }
   longlong val_int();
   enum Functype functype() const { return NOT_ALL_FUNC; }
@@ -550,6 +552,7 @@ public:
     - Otherwise, UINT_MAX
   */
   uint in_equality_no;
+  virtual uint exists2in_reserved_items() { return 1; };
 };
 
 class Item_func_equal :public Item_bool_rowready_func2
@@ -1575,6 +1578,11 @@ public:
     DBUG_ASSERT(nlist->elements);
     list.prepand(nlist);
   }
+  void add_at_end(List<Item> *nlist)
+  {
+    DBUG_ASSERT(nlist->elements);
+    list.concat(nlist);
+  }
   bool fix_fields(THD *, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
 
@@ -1600,6 +1608,7 @@ public:
   bool eval_not_null_tables(uchar *opt_arg);
 };
 
+template <template<class> class LI, class T> class Item_equal_iterator;
 
 /*
   The class Item_equal is used to represent conjunctions of equality
@@ -1727,7 +1736,11 @@ class Item_equal: public Item_bool_func
     used in the original equality.
   */
   Item_field *context_field;
+
 public:
+
+  COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
+
   inline Item_equal()
     : Item_bool_func(), with_const(FALSE), eval_item(0), cond_false(0),
       context_field(NULL)
@@ -1744,6 +1757,8 @@ public:
   /** Get number of field items / references to field items in this object */   
   uint n_field_items() { return equal_items.elements-test(with_const); }
   void merge(Item_equal *item);
+  bool merge_with_check(Item_equal *equal_item);
+  void merge_into_list(List<Item_equal> *list);
   void update_const();
   enum Functype functype() const { return MULT_EQUAL_FUNC; }
   longlong val_int(); 
@@ -1759,7 +1774,8 @@ public:
   CHARSET_INFO *compare_collation();
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
-  friend class Item_equal_fields_iterator;
+  friend class Item_equal_iterator<List_iterator_fast,Item>;
+  friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
                            Item_equal *item_equal);
   friend bool setup_sj_materialization_part1(struct st_join_table *tab);
@@ -1778,43 +1794,55 @@ public:
   { 
     upper_levels= 0;
   }
+  void copy(COND_EQUAL &cond_equal)
+  {
+    max_members= cond_equal.max_members;
+    upper_levels= cond_equal.upper_levels;
+    if (cond_equal.current_level.is_empty())
+      current_level.empty();
+    else
+      current_level= cond_equal.current_level;
+  }
 };
 
 
 /* 
-  The class Item_equal_fields_iterator is used to iterate over references
-  to table/view columns from a list of equal items.
+  The template Item_equal_iterator is used to define classes
+  Item_equal_fields_iterator and Item_equal_fields_iterator_slow.
+  These are helper classes for the class Item equal
+  Both classes are used to iterate over references to table/view columns
+  from the list of equal items that included in an Item_equal object. 
+  The second class supports the operation of removal of the current member
+  from the list when performing an iteration.
 */ 
 
-class Item_equal_fields_iterator : public List_iterator_fast<Item>
+template <template<class> class LI, typename T> class Item_equal_iterator
+  : public LI<T>
 {
+protected:
   Item_equal *item_equal;
   Item *curr_item;
 public:
-  Item_equal_fields_iterator(Item_equal &item_eq) 
-    :List_iterator_fast<Item> (item_eq.equal_items)
+  Item_equal_iterator<LI,T>(Item_equal &item_eq) 
+    :LI<T> (item_eq.equal_items)
   {
     curr_item= NULL;
     item_equal= &item_eq;
     if (item_eq.with_const)
     {
-      List_iterator_fast<Item> *list_it= this;
+      LI<T> *list_it= this;
       curr_item=  (*list_it)++;
     }
   }
   Item* operator++(int)
   { 
-    List_iterator_fast<Item> *list_it= this;
+    LI<T> *list_it= this;
     curr_item= (*list_it)++;
     return curr_item;
   }
-  Item ** ref()
-  {
-    return List_iterator_fast<Item>::ref();
-  }
   void rewind(void) 
   { 
-    List_iterator_fast<Item> *list_it= this;
+    LI<T> *list_it= this;
     list_it->rewind();
     if (item_equal->with_const)
       curr_item= (*list_it)++;
@@ -1824,6 +1852,36 @@ public:
     Item_field *item= (Item_field *) (curr_item->real_item());
      return item->field;
   }  
+};
+
+typedef  Item_equal_iterator<List_iterator_fast,Item >  Item_equal_iterator_fast;
+
+class Item_equal_fields_iterator
+  :public Item_equal_iterator_fast
+{
+public:
+  Item_equal_fields_iterator(Item_equal &item_eq) 
+    :Item_equal_iterator_fast(item_eq)
+  { }
+  Item ** ref()
+  {
+    return List_iterator_fast<Item>::ref();
+  }
+};
+
+typedef Item_equal_iterator<List_iterator,Item > Item_equal_iterator_iterator_slow;
+
+class Item_equal_fields_iterator_slow
+  :public Item_equal_iterator_iterator_slow
+{
+public:
+  Item_equal_fields_iterator_slow(Item_equal &item_eq) 
+    :Item_equal_iterator_iterator_slow(item_eq)
+  { }
+  void remove()
+  {
+    List_iterator<Item>::remove();
+  }
 };
 
 
@@ -1851,6 +1909,7 @@ public:
   }
   Item *neg_transformer(THD *thd);
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
+  virtual uint exists2in_reserved_items() { return list.elements; };
 };
 
 inline bool is_cond_and(Item *item)

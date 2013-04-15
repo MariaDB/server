@@ -241,15 +241,15 @@ static uint collect_cmp_types(Item **items, uint nitems, bool skip_nulls= FALSE)
          items[i]->cmp_type() == ROW_RESULT) &&
         cmp_row_type(items[0], items[i]))
       return 0;
-    found_types|= 1<< (uint)item_cmp_type(left_result,
-                                           items[i]->cmp_type());
+    found_types|= 1U << (uint)item_cmp_type(left_result,
+                                            items[i]->cmp_type());
   }
   /*
    Even if all right-hand items are NULLs and we are skipping them all, we need
    at least one type bit in the found_type bitmask.
   */
   if (skip_nulls && !found_types)
-    found_types= 1 << (uint)left_result;
+    found_types= 1U << (uint)left_result;
   return found_types;
 }
 
@@ -906,7 +906,8 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   }
   if ((*is_null= item->null_value))
     return ~(ulonglong) 0;
-  if (cache_arg && item->const_item() && item->type() != Item::CACHE_ITEM)
+  if (cache_arg && item->const_item() &&
+      !(item->type() == Item::CACHE_ITEM && item->cmp_type() == TIME_RESULT))
   {
     Query_arena backup;
     Query_arena *save_arena= thd->switch_to_arena_for_cached_items(&backup);
@@ -1434,7 +1435,7 @@ bool Item_in_optimizer::eval_not_null_tables(uchar *opt_arg)
   return FALSE;
 }
 
-bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
+bool Item_in_optimizer::fix_left(THD *thd)
 {
   if ((!args[0]->fixed && args[0]->fix_fields(thd, args)) ||
       (!cache && !(cache= Item_cache::get_cache(args[0]))))
@@ -1482,6 +1483,13 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
     cache->store(args[0]);
     cache->cache_value();
   }
+  if (args[1]->fixed)
+  {
+    /* to avoid overriding is called to update left expression */
+    used_tables_cache|= args[1]->used_tables();
+    with_sum_func= with_sum_func || args[1]->with_sum_func;
+    const_item_cache= const_item_cache && args[1]->const_item();
+  }
   return 0;
 }
 
@@ -1489,15 +1497,17 @@ bool Item_in_optimizer::fix_left(THD *thd, Item **ref)
 bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
-  if (fix_left(thd, ref))
+  if (fix_left(thd))
     return TRUE;
   if (args[0]->maybe_null)
     maybe_null=1;
 
   if (!args[1]->fixed && args[1]->fix_fields(thd, args+1))
     return TRUE;
+
   Item_in_subselect * sub= (Item_in_subselect *)args[1];
-  if (args[0]->cols() != sub->engine->cols())
+  if (!invisible_mode() &&
+      args[0]->cols() != sub->engine->cols())
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), args[0]->cols());
     return TRUE;
@@ -1511,6 +1521,30 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   const_item_cache&= args[1]->const_item();
   fixed= 1;
   return FALSE;
+}
+
+/**
+  Check if Item_in_optimizer should work as a pass-through item for its 
+  arguments.
+
+  @note 
+   Item_in_optimizer should work as pass-through for
+    - subqueries that were processed by ALL/ANY->MIN/MAX rewrite
+    - subqueries taht were originally EXISTS subqueries (and were coverted by
+      the EXISTS->IN rewrite)
+
+   When Item_in_optimizer is not not working as a pass-through, it
+    - caches its "left argument", args[0].
+    - makes adjustments to subquery item's return value for proper NULL
+      value handling
+*/
+
+bool Item_in_optimizer::invisible_mode()
+{
+  /* MAX/MIN transformed or EXISTS->IN prepared => do nothing */
+ return (args[1]->type() != Item::SUBSELECT_ITEM ||
+         ((Item_subselect *)args[1])->substype() ==
+         Item_subselect::EXISTS_SUBS);
 }
 
 
@@ -1536,8 +1570,9 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(uchar *thd_arg)
 {
   THD *thd= (THD*) thd_arg;
   DBUG_ENTER("Item_in_optimizer::expr_cache_insert_transformer");
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
-    DBUG_RETURN(this); // MAX/MIN transformed => do nothing
+
+  if (invisible_mode())
+    DBUG_RETURN(this);
 
   if (expr_cache)
     DBUG_RETURN(expr_cache);
@@ -1560,13 +1595,16 @@ Item *Item_in_optimizer::expr_cache_insert_transformer(uchar *thd_arg)
 void Item_in_optimizer::get_cache_parameters(List<Item> &parameters)
 {
   /* Add left expression to the list of the parameters of the subquery */
-  if (args[0]->cols() == 1)
-    parameters.add_unique(args[0], &cmp_items);
-  else
+  if (!invisible_mode())
   {
-    for (uint i= 0; i < args[0]->cols(); i++)
+    if (args[0]->cols() == 1)
+      parameters.add_unique(args[0], &cmp_items);
+    else
     {
-      parameters.add_unique(args[0]->element_index(i), &cmp_items);
+      for (uint i= 0; i < args[0]->cols(); i++)
+      {
+        parameters.add_unique(args[0]->element_index(i), &cmp_items);
+      }
     }
   }
   args[1]->get_cache_parameters(parameters);
@@ -1649,17 +1687,19 @@ longlong Item_in_optimizer::val_int()
   DBUG_ASSERT(fixed == 1);
   cache->store(args[0]);
   cache->cache_value();
+  DBUG_ENTER(" Item_in_optimizer::val_int");
 
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
+  if (invisible_mode())
   {
-    /* MAX/MIN transformed => pass through */
     longlong res= args[1]->val_int();
     null_value= args[1]->null_value;
-    return (res);
+    DBUG_PRINT("info", ("pass trough"));
+    DBUG_RETURN(res);
   }
 
   if (cache->null_value)
   {
+     DBUG_PRINT("info", ("Left NULL..."));
     /*
       We're evaluating 
       "<outer_value_list> [NOT] IN (SELECT <inner_value_list>...)" 
@@ -1731,11 +1771,11 @@ longlong Item_in_optimizer::val_int()
       for (uint i= 0; i < ncols; i++)
         item_subs->set_cond_guard_var(i, TRUE);
     }
-    return 0;
+    DBUG_RETURN(0);
   }
   tmp= args[1]->val_bool_result();
   null_value= args[1]->null_value;
-  return tmp;
+  DBUG_RETURN(tmp);
 }
 
 
@@ -1786,7 +1826,8 @@ bool Item_in_optimizer::is_null()
     @retval NULL if an error occurred
 */
 
-Item *Item_in_optimizer::transform(Item_transformer transformer, uchar *argument)
+Item *Item_in_optimizer::transform(Item_transformer transformer,
+                                   uchar *argument)
 {
   Item *new_item;
 
@@ -1806,7 +1847,7 @@ Item *Item_in_optimizer::transform(Item_transformer transformer, uchar *argument
   if ((*args) != new_item)
     current_thd->change_item_tree(args, new_item);
 
-  if (args[1]->type() != Item::SUBSELECT_ITEM)
+  if (invisible_mode())
   {
     /* MAX/MIN transformed => pass through */
     new_item= args[1]->transform(transformer, argument);
@@ -2824,12 +2865,12 @@ Item *Item_func_case::find_item(String *str)
       cmp_type= item_cmp_type(left_result_type, args[i]->cmp_type());
       DBUG_ASSERT(cmp_type != ROW_RESULT);
       DBUG_ASSERT(cmp_items[(uint)cmp_type]);
-      if (!(value_added_map & (1<<(uint)cmp_type)))
+      if (!(value_added_map & (1U << (uint)cmp_type)))
       {
         cmp_items[(uint)cmp_type]->store_value(args[first_expr_num]);
         if ((null_value=args[first_expr_num]->null_value))
           return else_expr_num != -1 ? args[else_expr_num] : 0;
-        value_added_map|= 1<<(uint)cmp_type;
+        value_added_map|= 1U << (uint)cmp_type;
       }
       if (!cmp_items[(uint)cmp_type]->cmp(args[i]) && !args[i]->null_value)
         return args[i + 1];
@@ -3036,10 +3077,10 @@ void Item_func_case::fix_length_and_dec()
       return;
 
     Item *date_arg= 0;
-    if (found_types & (1 << TIME_RESULT))
+    if (found_types & (1U << TIME_RESULT))
       date_arg= find_date_time_item(args, arg_count, 0);
 
-    if (found_types & (1 << STRING_RESULT))
+    if (found_types & (1U << STRING_RESULT))
     {
       /*
         If we'll do string comparison, we also need to aggregate
@@ -3080,7 +3121,7 @@ void Item_func_case::fix_length_and_dec()
 
     for (i= 0; i <= (uint)TIME_RESULT; i++)
     {
-      if (found_types & (1 << i) && !cmp_items[i])
+      if (found_types & (1U << i) && !cmp_items[i])
       {
         DBUG_ASSERT((Item_result)i != ROW_RESULT);
 
@@ -3936,7 +3977,7 @@ void Item_func_in::fix_length_and_dec()
   }
   for (i= 0; i <= (uint)TIME_RESULT; i++)
   {
-    if (found_types & 1 << i)
+    if (found_types & (1U << i))
     {
       (type_cnt)++;
       cmp_type= (Item_result) i;
@@ -4063,14 +4104,14 @@ void Item_func_in::fix_length_and_dec()
   }
   else
   {
-    if (found_types & (1 << TIME_RESULT))
+    if (found_types & (1U << TIME_RESULT))
       date_arg= find_date_time_item(args, arg_count, 0);
-    if (found_types & (1 << STRING_RESULT) &&
+    if (found_types & (1U << STRING_RESULT) &&
         agg_arg_charsets_for_comparison(cmp_collation, args, arg_count))
       return;
     for (i= 0; i <= (uint) TIME_RESULT; i++)
     {
-      if (found_types & (1 << i) && !cmp_items[i])
+      if (found_types & (1U << i) && !cmp_items[i])
       {
         if (!cmp_items[i] && !(cmp_items[i]=
             cmp_item::get_comparator((Item_result)i, date_arg,
@@ -4156,12 +4197,12 @@ longlong Item_func_in::val_int()
     Item_result cmp_type= item_cmp_type(left_result_type, args[i]->cmp_type());
     in_item= cmp_items[(uint)cmp_type];
     DBUG_ASSERT(in_item);
-    if (!(value_added_map & (1 << (uint)cmp_type)))
+    if (!(value_added_map & (1U << (uint)cmp_type)))
     {
       in_item->store_value(args[0]);
       if ((null_value= args[0]->null_value))
         return 0;
-      value_added_map|= 1 << (uint)cmp_type;
+      value_added_map|= 1U << (uint)cmp_type;
     }
     if (!in_item->cmp(args[i]) && !args[i]->null_value)
       return (longlong) (!negated);
@@ -5350,6 +5391,7 @@ Item *Item_func_not::neg_transformer(THD *thd)	/* NOT(x)  ->  x */
 
 bool Item_func_not::fix_fields(THD *thd, Item **ref)
 {
+  args[0]->under_not(this);
   if (args[0]->type() == FIELD_ITEM)
   {
     /* replace  "NOT <field>" with "<filed> == 0" */
@@ -5533,6 +5575,7 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
   equal_items.push_back(f1);
   equal_items.push_back(f2);
   compare_as_dates= with_const_item && f2->cmp_type() == TIME_RESULT;
+  upper_levels= NULL;  
 }
 
 
@@ -5561,10 +5604,11 @@ Item_equal::Item_equal(Item_equal *item_equal)
   with_const= item_equal->with_const;
   compare_as_dates= item_equal->compare_as_dates;
   cond_false= item_equal->cond_false;
+  upper_levels= item_equal->upper_levels;
 }
 
 
-/*
+/**
   @brief
   Add a constant item to the Item_equal object
 
@@ -5617,6 +5661,7 @@ void Item_equal::add_const(Item *c, Item *f)
   if (cond_false)
     const_item_cache= 1;
 }
+
 
 /**
   @brief
@@ -5682,6 +5727,87 @@ void Item_equal::merge(Item_equal *item)
   }
   cond_false|= item->cond_false;
 } 
+
+
+/**
+  @brief
+  Merge members of another Item_equal object into this one
+  
+  @param item    multiple equality whose members are to be merged
+
+  @details
+  If the Item_equal 'item' happened to have some elements of the list
+  of equal items belonging to 'this' object then the function merges
+  the equal items from 'item' into this list.
+  If both lists contains constants and they are different then
+  the value of the cond_false flag is set to TRUE.
+
+  @retval
+    1    the lists of equal items in 'item' and 'this' contain common elements 
+  @retval
+    0    otherwise 
+
+  @notes
+  The method 'merge' just joins the list of equal items belonging to 'item'
+  to the list of equal items belonging to this object assuming that the lists
+  are disjoint. It would be more correct to call the method 'join'.
+  The method 'merge_with_check' really merges two lists of equal items if they
+  have common members.  
+*/
+  
+bool Item_equal::merge_with_check(Item_equal *item)
+{
+  bool intersected= FALSE;
+  Item_equal_fields_iterator_slow fi(*this);
+  while (fi++)
+  {
+    if (item->contains(fi.get_curr_field()))
+    {
+      fi.remove();
+      intersected= TRUE;
+    }
+  }
+  if (intersected)
+    item->merge(this);
+  return intersected;
+}
+
+
+/**
+  @brief
+  Merge this object into a list of Item_equal objects 
+  
+  @param list   the list of Item_equal objects to merge into
+
+  @details
+  If the list of equal items from 'this' object contains common members
+  with the lists of equal items belonging to Item_equal objects from 'list'
+  then all involved Item_equal objects e1,...,ek are merged into one 
+  Item equal that replaces e1,...,ek in the 'list'. Otherwise this
+  Item_equal is joined to the 'list'.
+*/
+
+void Item_equal::merge_into_list(List<Item_equal> *list)
+{
+  Item_equal *item;
+  List_iterator<Item_equal> it(*list);
+  Item_equal *merge_into= NULL;
+  while((item= it++))
+  {
+    if (!merge_into)
+    {
+      if (merge_with_check(item))
+        merge_into= item;
+    }
+    else
+    {
+      if (item->merge_with_check(merge_into))
+        it.remove();
+    }
+  }
+  if (!merge_into)
+    list->push_back(this);
+}
 
 
 /**

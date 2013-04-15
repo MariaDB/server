@@ -2239,7 +2239,10 @@ mysql_autodetect_character_set(MYSQL *mysql)
 #ifdef __WIN__
   char cpbuf[64];
   {
-    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int) GetConsoleCP());
+    UINT cp= GetConsoleCP();
+    if (cp == 0)
+      cp= GetACP();
+    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
     csname= my_os_charset_to_mysql_charset(cpbuf);
   }
 #elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
@@ -2616,8 +2619,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   DBUG_PRINT("info",("Server version = '%s'  capabilites: %lu  status: %u  client_flag: %lu",
 		     mysql->server_version, mysql->server_capabilities,
 		     mysql->server_status, mysql->client_flag));
-
-  compile_time_assert(MYSQL_USERNAME_LENGTH == USERNAME_LENGTH);
 
   /* This needs to be changed as it's not useful with big packets */
   if (mysql->user[0])
@@ -3462,6 +3463,12 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     mysql->unix_socket=0;
   strmov(mysql->server_version,(char*) net->read_pos+1);
   mysql->port=port;
+
+  /* remove the rpl hack from the version string, see RPL_VERSION_HACK comment */
+  if (mysql->server_capabilities & CLIENT_PLUGIN_AUTH &&
+      strncmp(mysql->server_version, RPL_VERSION_HACK,
+              sizeof(RPL_VERSION_HACK) - 1) == 0)
+    mysql->server_version+= sizeof(RPL_VERSION_HACK) - 1;
 
   if (pkt_end >= end + SCRAMBLE_LENGTH - SCRAMBLE_LENGTH_323 + 1)
   {

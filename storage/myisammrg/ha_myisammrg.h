@@ -82,7 +82,6 @@ public:
 
   ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisammrg();
-  const char **bas_ext() const;
   const char *index_type(uint key_number);
   ulonglong table_flags() const
   {

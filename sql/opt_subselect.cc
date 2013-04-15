@@ -666,6 +666,9 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         8. No execution method was already chosen (by a prepared statement)
         9. Parent select is not a table-less select
         10. Neither parent nor child select have STRAIGHT_JOIN option.
+        11. It is first optimisation (the subquery could be moved from ON
+        clause during first optimisation and then be considered for SJ
+        on the second when it is too late)
     */
     if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
         in_subs &&                                                    // 1
@@ -679,7 +682,8 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         select_lex->outer_select()->leaf_tables.elements &&           // 9
         !((join->select_options |                                     // 10
            select_lex->outer_select()->join->select_options)          // 10
-          & SELECT_STRAIGHT_JOIN))                                    // 10
+          & SELECT_STRAIGHT_JOIN) &&                                  // 10
+        select_lex->first_cond_optimization)                          // 11
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
@@ -1509,6 +1513,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   */
   parent_lex->leaf_tables.concat(&subq_lex->leaf_tables);
 
+  if (subq_lex->options & OPTION_SCHEMA_TABLE)
+    parent_lex->options |= OPTION_SCHEMA_TABLE;
+
   /*
     Same as above for next_local chain
     (a theory: a next_local chain always starts with ::leaf_tables
@@ -1725,6 +1732,9 @@ static bool convert_subq_to_jtbm(JOIN *parent_join,
     make_join_statistics() and co. can find it.
   */
   parent_lex->leaf_tables.push_back(jtbm);
+
+  if (subq_pred->unit->first_select()->options & OPTION_SCHEMA_TABLE)
+    parent_lex->options |= OPTION_SCHEMA_TABLE;
 
   /*
     Same as above for TABLE_LIST::next_local chain
@@ -2545,6 +2555,10 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
           /* Mark strategy as used */ 
           (*strategy)->mark_used();
           pos->sj_strategy= sj_strategy;
+          if (sj_strategy == SJ_OPT_MATERIALIZE)
+            join->sjm_lookup_tables |= handled_fanout;
+          else
+            join->sjm_lookup_tables &= ~handled_fanout;
           *current_read_time= read_time;
           *current_record_count= rec_count;
           join->cur_dups_producing_tables &= ~handled_fanout;
@@ -3069,6 +3083,13 @@ void restore_prev_sj_state(const table_map remaining_tables,
                                   const JOIN_TAB *tab, uint idx)
 {
   TABLE_LIST *emb_sj_nest;
+
+  if (tab->emb_sj_nest)
+  {
+    table_map subq_tables= tab->emb_sj_nest->sj_inner_tables;
+    tab->join->sjm_lookup_tables &= ~subq_tables;
+  }
+
   if ((emb_sj_nest= tab->emb_sj_nest))
   {
     /* If we're removing the last SJ-inner table, remove the sj-nest */
@@ -3246,6 +3267,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
   uint tablenr;
   table_map remaining_tables= 0;
   table_map handled_tabs= 0;
+  join->sjm_lookup_tables= 0;
   for (tablenr= table_count - 1 ; tablenr != join->const_tables - 1; tablenr--)
   {
     POSITION *pos= join->best_positions + tablenr;
@@ -3271,6 +3293,7 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       first= tablenr - sjm->tables + 1;
       join->best_positions[first].n_sj_tables= sjm->tables;
       join->best_positions[first].sj_strategy= SJ_OPT_MATERIALIZE;
+      join->sjm_lookup_tables|= s->table->map;
     }
     else if (pos->sj_strategy == SJ_OPT_MATERIALIZE_SCAN)
     {

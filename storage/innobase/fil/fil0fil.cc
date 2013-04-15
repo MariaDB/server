@@ -1493,7 +1493,7 @@ fil_space_get_size(
 
 	ut_ad(fil_system);
 
-	fil_mutex_enter_and_prepare_for_io(id);
+	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
 
@@ -1507,6 +1507,23 @@ fil_space_get_size(
 		ut_a(id != 0);
 
 		ut_a(1 == UT_LIST_GET_LEN(space->chain));
+
+		mutex_exit(&fil_system->mutex);
+
+		/* It is possible that the space gets evicted at this point
+		before the fil_mutex_enter_and_prepare_for_io() acquires
+		the fil_system->mutex. Check for this after completing the
+		call to fil_mutex_enter_and_prepare_for_io(). */
+		fil_mutex_enter_and_prepare_for_io(id);
+
+		/* We are still holding the fil_system->mutex. Check if
+		the space is still in memory cache. */
+		space = fil_space_get_by_id(id);
+
+		if (space == NULL) {
+			mutex_exit(&fil_system->mutex);
+			return(0);
+		}
 
 		node = UT_LIST_GET_FIRST(space->chain);
 
@@ -1545,7 +1562,7 @@ fil_space_get_flags(
 		return(0);
 	}
 
-	fil_mutex_enter_and_prepare_for_io(id);
+	mutex_enter(&fil_system->mutex);
 
 	space = fil_space_get_by_id(id);
 
@@ -1559,6 +1576,23 @@ fil_space_get_flags(
 		ut_a(id != 0);
 
 		ut_a(1 == UT_LIST_GET_LEN(space->chain));
+
+		mutex_exit(&fil_system->mutex);
+
+		/* It is possible that the space gets evicted at this point
+		before the fil_mutex_enter_and_prepare_for_io() acquires
+		the fil_system->mutex. Check for this after completing the
+		call to fil_mutex_enter_and_prepare_for_io(). */
+		fil_mutex_enter_and_prepare_for_io(id);
+
+		/* We are still holding the fil_system->mutex. Check if
+		the space is still in memory cache. */
+		space = fil_space_get_by_id(id);
+
+		if (space == NULL) {
+			mutex_exit(&fil_system->mutex);
+			return(0);
+		}
 
 		node = UT_LIST_GET_FIRST(space->chain);
 
@@ -2745,7 +2779,7 @@ retry:
 	mutex_exit(&fil_system->mutex);
 
 #ifndef UNIV_HOTBACKUP
-	if (success) {
+	if (success && !recv_recovery_on) {
 		mtr_t		mtr;
 
 		mtr_start(&mtr);
@@ -4047,6 +4081,21 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+#ifdef HAVE_POSIX_FALLOCATE
+	if (srv_use_posix_fallocate) {
+		mutex_exit(&fil_system->mutex);
+		success = os_file_set_size(node->name, node->handle,
+				size_after_extend * page_size);
+		mutex_enter(&fil_system->mutex);
+		if (success) {
+			node->size += (size_after_extend - start_page_no);
+			space->size += (size_after_extend - start_page_no);
+			os_has_said_disk_full = FALSE;
+		}
+		goto complete_io;
+	}
+#endif
+
 	/* Extend at most 64 pages at a time */
 	buf_size = ut_min(64, size_after_extend - start_page_no) * page_size;
 	buf2 = static_cast<byte*>(mem_alloc(buf_size + page_size));
@@ -4101,6 +4150,10 @@ retry:
 	space->size += pages_added;
 	node->size += pages_added;
 	node->being_extended = FALSE;
+
+#ifdef HAVE_POSIX_FALLOCATE
+complete_io:
+#endif
 
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 
@@ -5025,3 +5078,28 @@ fil_close(void)
 
 	fil_system = NULL;
 }
+
+/****************************************************************//**
+Generate redo logs for swapping two .ibd files */
+UNIV_INTERN
+void
+fil_mtr_rename_log(
+/*===============*/
+	ulint		old_space_id,	/*!< in: tablespace id of the old
+					table. */
+	const char*	old_name,	/*!< in: old table name */
+	ulint		new_space_id,	/*!< in: tablespace id of the new
+					table */
+	const char*	new_name,	/*!< in: new table name */
+	const char*	tmp_name)	/*!< in: temp table name used while
+					swapping */
+{
+	mtr_t           mtr;
+	mtr_start(&mtr);
+	fil_op_write_log(MLOG_FILE_RENAME, old_space_id,
+			 0, 0, old_name, tmp_name, &mtr);
+	fil_op_write_log(MLOG_FILE_RENAME, new_space_id,
+			 0, 0, new_name, old_name, &mtr);
+	mtr_commit(&mtr);
+}
+

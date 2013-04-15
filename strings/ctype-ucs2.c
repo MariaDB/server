@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2012, Oracle and/or its affiliates
-   Copyright (c) 2009, 2011, Monty Program Ab
+   Copyright (c) 2009, 2013, Monty Program Ab.
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -40,11 +40,11 @@
 
 #undef  ULONGLONG_MAX
 #define ULONGLONG_MAX                (~(ulonglong) 0)
-#define MAX_NEGATIVE_NUMBER        ((ulonglong) LL(0x8000000000000000))
+#define MAX_NEGATIVE_NUMBER        ((ulonglong) 0x8000000000000000LL)
 #define INIT_CNT  9
-#define LFACTOR   ULL(1000000000)
-#define LFACTOR1  ULL(10000000000)
-#define LFACTOR2  ULL(100000000000)
+#define LFACTOR   1000000000ULL
+#define LFACTOR1  10000000000ULL
+#define LFACTOR2  100000000000ULL
 
 #if defined(HAVE_CHARSET_utf32) || defined(HAVE_CHARSET_mb2)
 static unsigned long lfactor[9]=

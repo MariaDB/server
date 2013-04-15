@@ -1222,7 +1222,7 @@ static Sys_var_ulonglong Sys_max_binlog_cache_size(
        "Sets the total size of the transactional cache",
        GLOBAL_VAR(max_binlog_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((UINT_MAX/IO_SIZE)*IO_SIZE),
+       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
@@ -1230,7 +1230,7 @@ static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
        "Sets the total size of the statement cache",
        GLOBAL_VAR(max_binlog_stmt_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((UINT_MAX/IO_SIZE)*IO_SIZE),
+       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
@@ -1603,6 +1603,7 @@ export const char *optimizer_switch_names[]=
   "optimize_join_buffer_size",
   "table_elimination",
   "extended_keys",
+  "exists_to_in",
   "default", NullS
 };
 /** propagates changes to @@engine_condition_pushdown */
@@ -1644,7 +1645,8 @@ static Sys_var_flagset Sys_optimizer_switch(
         "semijoin_with_cache, "
         "subquery_cache, "
         "table_elimination, "
-        "extended_keys "
+        "extended_keys, "
+        "exists_to_in "
        "} and val is one of {on, off, default}",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
@@ -3960,9 +3962,67 @@ static Sys_var_ulong Sys_debug_binlog_fsync_sleep(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
+
 static Sys_var_harows Sys_expensive_subquery_limit(
        "expensive_subquery_limit",
        "The maximum number of rows a subquery may examine in order to be "
        "executed during optimization and used for constant optimization",
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
+
+static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
+{
+  longlong previous_val= thd->variables.pseudo_slave_mode;
+  longlong val= (longlong) var->save_result.ulonglong_value;
+  bool rli_fake= false;
+
+#ifndef EMBEDDED_LIBRARY
+  rli_fake= thd->rli_fake ? true : false;
+#endif
+
+  if (rli_fake)
+  {
+    if (!val)
+    {
+#ifndef EMBEDDED_LIBRARY
+      delete thd->rli_fake;
+      thd->rli_fake= NULL;
+#endif
+    }
+    else if (previous_val && val)
+      goto ineffective;
+    else if (!previous_val && val)
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "'pseudo_slave_mode' is already ON.");
+  }
+  else
+  {
+    if (!previous_val && !val)
+      goto ineffective;
+    else if (previous_val && !val)
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "Slave applier execution mode not active, "
+                   "statement ineffective.");
+  }
+  goto end;
+
+ineffective:
+  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+               ER_WRONG_VALUE_FOR_VAR,
+               "'pseudo_slave_mode' change was ineffective.");
+
+end:
+  return FALSE;
+}
+static Sys_var_mybool Sys_pseudo_slave_mode(
+       "pseudo_slave_mode",
+       "SET pseudo_slave_mode= 0,1 are commands that mysqlbinlog "
+       "adds to beginning and end of binary log dumps. While zero "
+       "value indeed disables, the actual enabling of the slave "
+       "applier execution mode is done implicitly when a "
+       "Format_description_event is sent through the session.",
+       SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
+

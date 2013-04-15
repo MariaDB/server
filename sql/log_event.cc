@@ -577,7 +577,7 @@ static void cleanup_load_tmpdir()
   *(p++)= '-';
   *p= 0;
 
-  for (i=0 ; i < (uint)dirp->number_off_files; i++)
+  for (i=0 ; i < (uint)dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))
@@ -1370,7 +1370,7 @@ failed my_b_read"));
   Log_event *res=  0;
 #ifndef max_allowed_packet
   THD *thd=current_thd;
-  uint max_allowed_packet= thd ? slave_max_allowed_packet:~(ulong)0;
+  uint max_allowed_packet= thd ? slave_max_allowed_packet:~(uint)0;
 #endif
 
   if (data_len > max_allowed_packet)
@@ -1808,6 +1808,7 @@ void Log_event::print_header(IO_CACHE* file,
 /**
   Prints a quoted string to io cache.
   Control characters are displayed as hex sequence, e.g. \x00
+  Single-quote and backslash characters are escaped with a \
   
   @param[in] file              IO cache
   @param[in] prt               Pointer to string
@@ -1823,6 +1824,10 @@ my_b_write_quoted(IO_CACHE *file, const uchar *ptr, uint length)
   {
     if (*s > 0x1F)
       my_b_write(file, s, 1);
+    else if (*s == '\'')
+      my_b_write(file, "\\'", 2);
+    else if (*s == '\\')
+      my_b_write(file, "\\\\", 2);
     else
     {
       uchar hex[10];
@@ -4563,109 +4568,6 @@ Format_description_log_event(const char* buf,
     checksum_alg= (uint8) BINLOG_CHECKSUM_ALG_UNDEF;
   }
 
-  /*
-    In some previous versions, the events were given other event type
-    id numbers than in the present version. When replicating from such
-    a version, we therefore set up an array that maps those id numbers
-    to the id numbers of the present server.
-
-    If post_header_len is null, it means malloc failed, and is_valid
-    will fail, so there is no need to do anything.
-
-    The trees in which events have wrong id's are:
-
-    mysql-5.1-wl1012.old mysql-5.1-wl2325-5.0-drop6p13-alpha
-    mysql-5.1-wl2325-5.0-drop6 mysql-5.1-wl2325-5.0
-    mysql-5.1-wl2325-no-dd
-
-    (this was found by grepping for two lines in sequence where the
-    first matches "FORMAT_DESCRIPTION_EVENT," and the second matches
-    "TABLE_MAP_EVENT," in log_event.h in all trees)
-
-    In these trees, the following server_versions existed since
-    TABLE_MAP_EVENT was introduced:
-
-    5.1.1-a_drop5p3   5.1.1-a_drop5p4        5.1.1-alpha
-    5.1.2-a_drop5p10  5.1.2-a_drop5p11       5.1.2-a_drop5p12
-    5.1.2-a_drop5p13  5.1.2-a_drop5p14       5.1.2-a_drop5p15
-    5.1.2-a_drop5p16  5.1.2-a_drop5p16b      5.1.2-a_drop5p16c
-    5.1.2-a_drop5p17  5.1.2-a_drop5p4        5.1.2-a_drop5p5
-    5.1.2-a_drop5p6   5.1.2-a_drop5p7        5.1.2-a_drop5p8
-    5.1.2-a_drop5p9   5.1.3-a_drop5p17       5.1.3-a_drop5p17b
-    5.1.3-a_drop5p17c 5.1.4-a_drop5p18       5.1.4-a_drop5p19
-    5.1.4-a_drop5p20  5.1.4-a_drop6p0        5.1.4-a_drop6p1
-    5.1.4-a_drop6p2   5.1.5-a_drop5p20       5.2.0-a_drop6p3
-    5.2.0-a_drop6p4   5.2.0-a_drop6p5        5.2.0-a_drop6p6
-    5.2.1-a_drop6p10  5.2.1-a_drop6p11       5.2.1-a_drop6p12
-    5.2.1-a_drop6p6   5.2.1-a_drop6p7        5.2.1-a_drop6p8
-    5.2.2-a_drop6p13  5.2.2-a_drop6p13-alpha 5.2.2-a_drop6p13b
-    5.2.2-a_drop6p13c
-
-    (this was found by grepping for "mysql," in all historical
-    versions of configure.in in the trees listed above).
-
-    There are 5.1.1-alpha versions that use the new event id's, so we
-    do not test that version string.  So replication from 5.1.1-alpha
-    with the other event id's to a new version does not work.
-    Moreover, we can safely ignore the part after drop[56].  This
-    allows us to simplify the big list above to the following regexes:
-
-    5\.1\.[1-5]-a_drop5.*
-    5\.1\.4-a_drop6.*
-    5\.2\.[0-2]-a_drop6.*
-
-    This is what we test for in the 'if' below.
-  */
-  if (post_header_len &&
-      server_version[0] == '5' && server_version[1] == '.' &&
-      server_version[3] == '.' &&
-      strncmp(server_version + 5, "-a_drop", 7) == 0 &&
-      ((server_version[2] == '1' &&
-        server_version[4] >= '1' && server_version[4] <= '5' &&
-        server_version[12] == '5') ||
-       (server_version[2] == '1' &&
-        server_version[4] == '4' &&
-        server_version[12] == '6') ||
-       (server_version[2] == '2' &&
-        server_version[4] >= '0' && server_version[4] <= '2' &&
-        server_version[12] == '6')))
-  {
-    if (number_of_event_types != 22)
-    {
-      DBUG_PRINT("info", (" number_of_event_types=%d",
-                          number_of_event_types));
-      /* this makes is_valid() return false. */
-      my_free(post_header_len);
-      post_header_len= NULL;
-      DBUG_VOID_RETURN;
-    }
-    static const uint8 perm[23]=
-      {
-        UNKNOWN_EVENT, START_EVENT_V3, QUERY_EVENT, STOP_EVENT, ROTATE_EVENT,
-        INTVAR_EVENT, LOAD_EVENT, SLAVE_EVENT, CREATE_FILE_EVENT,
-        APPEND_BLOCK_EVENT, EXEC_LOAD_EVENT, DELETE_FILE_EVENT,
-        NEW_LOAD_EVENT,
-        RAND_EVENT, USER_VAR_EVENT,
-        FORMAT_DESCRIPTION_EVENT,
-        TABLE_MAP_EVENT,
-        PRE_GA_WRITE_ROWS_EVENT,
-        PRE_GA_UPDATE_ROWS_EVENT,
-        PRE_GA_DELETE_ROWS_EVENT,
-        XID_EVENT,
-        BEGIN_LOAD_QUERY_EVENT,
-        EXECUTE_LOAD_QUERY_EVENT,
-      };
-    event_type_permutation= perm;
-    /*
-      Since we use (permuted) event id's to index the post_header_len
-      array, we need to permute the post_header_len array too.
-    */
-    uint8 post_header_len_temp[23];
-    for (int i= 1; i < 23; i++)
-      post_header_len_temp[perm[i] - 1]= post_header_len[i - 1];
-    for (int i= 0; i < 22; i++)
-      post_header_len[i] = post_header_len_temp[i];
-  }
   DBUG_VOID_RETURN;
 }
 
@@ -4828,10 +4730,21 @@ do_server_version_split(char* version,
   for (uint i= 0; i<=2; i++)
   {
     number= strtoul(p, &r, 10);
-    split_versions->ver[i]= (uchar) number;
-    DBUG_ASSERT(number < 256); // fit in uchar
+    /*
+      It is an invalid version if any version number greater than 255 or
+      first number is not followed by '.'.
+    */
+    if (number < 256 && (*r == '.' || i != 0))
+      split_versions->ver[i]= (uchar) number;
+    else
+    {
+      split_versions->ver[0]= 0;
+      split_versions->ver[1]= 0;
+      split_versions->ver[2]= 0;
+      break;
+    }
+
     p= r;
-    DBUG_ASSERT(!((i == 0) && (*r != '.'))); // should be true in practice
     if (*r == '.')
       p++; // skip the dot
   }
@@ -4849,7 +4762,6 @@ do_server_version_split(char* version,
    into 'server_version_split':
    X.Y.Zabc (X,Y,Z numbers, a not a digit) -> {X,Y,Z}
    X.Yabc -> {X,Y,0}
-   Xabc -> {X,0,0}
    'server_version_split' is then used for lookups to find if the server which
    created this event has some known bug.
 */

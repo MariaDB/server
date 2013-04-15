@@ -252,6 +252,11 @@ extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
 extern ulong	srv_checksum_algorithm;
 
+extern ibool	srv_use_atomic_writes;
+#ifdef HAVE_POSIX_FALLOCATE
+extern ibool	srv_use_posix_fallocate;
+#endif
+
 extern ulong	srv_max_buf_pool_modified_pct;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
@@ -311,6 +316,10 @@ extern	ibool	srv_print_latch_waits;
 
 extern ulint	srv_fatal_semaphore_wait_threshold;
 extern ulint	srv_dml_needed_delay;
+
+#ifdef UNIV_DEBUG
+extern my_bool	srv_purge_view_update_only_debug;
+#endif /* UNIV_DEBUG */
 
 #ifndef HAVE_ATOMIC_BUILTINS
 /** Mutex protecting some server global variables. */
@@ -379,7 +388,7 @@ extern ulint srv_buf_pool_flushed;
 reading of a disk page */
 extern ulint srv_buf_pool_reads;
 
-/* print all user-level transactions deadlocks to mysqld stderr */
+/** print all user-level transactions deadlocks to mysqld stderr */
 extern my_bool srv_print_all_deadlocks;
 
 /** Status variables to be passed to MySQL */
@@ -727,7 +736,9 @@ struct export_var_struct{
 	char  innodb_buffer_pool_load_status[512];/*!< Buf pool load status */
 	ulint innodb_buffer_pool_pages_total;	/*!< Buffer pool size */
 	ulint innodb_buffer_pool_pages_data;	/*!< Data pages */
+	ulint innodb_buffer_pool_bytes_data;	/*!< File bytes used */
 	ulint innodb_buffer_pool_pages_dirty;	/*!< Dirty data pages */
+	ulint innodb_buffer_pool_bytes_dirty;	/*!< File bytes modified */
 	ulint innodb_buffer_pool_pages_misc;	/*!< Miscellanous pages */
 	ulint innodb_buffer_pool_pages_free;	/*!< Free pages */
 #ifdef UNIV_DEBUG
@@ -771,6 +782,11 @@ struct export_var_struct{
 	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */
+#ifdef UNIV_DEBUG
+	ulint innodb_purge_trx_id_age;		/*!< max_trx_id - purged trx_id */
+	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
+						- purged view's min trx_id */
+#endif /* UNIV_DEBUG */
 };
 
 /** Thread slot in the thread table.  */

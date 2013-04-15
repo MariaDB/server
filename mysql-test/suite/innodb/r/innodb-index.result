@@ -545,7 +545,7 @@ t4	CREATE TABLE `t4` (
   CONSTRAINT `dc` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 alter table t3 add constraint dc foreign key (a) references t1(a);
-ERROR HY000: Can't create table '#sql-temporary' (errno: 121 "Duplicate key on write or update")
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 121 "Duplicate key on write or update")
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -956,7 +956,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 explain select * from t1 where b like 'adfd%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	b	NULL	NULL	NULL	15	Using where
+1	SIMPLE	t1	range	b	b	769	NULL	11	Using where
 drop table t1;
 set global innodb_file_per_table=on;
 set global innodb_file_format='Barracuda';
@@ -1146,17 +1146,17 @@ PRIMARY KEY (c1)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c1);
-ERROR HY000: Can't create table '#sql-temporary' (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Can't create table '#sql-temporary' (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1);
-ERROR HY000: Can't create table '#sql-temporary' (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t1 MODIFY COLUMN c2 BIGINT(12) NOT NULL;
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c1,c2);
-ERROR HY000: Can't create table '#sql-temporary' (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
 ALTER TABLE t2 ADD CONSTRAINT fk_t2_ca
 FOREIGN KEY (c3,c2) REFERENCES t1(c2,c1);
 SHOW CREATE TABLE t1;

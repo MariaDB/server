@@ -2290,7 +2290,7 @@ static int find_uniq_filename(char *name)
     DBUG_RETURN(1);
   }
   file_info= dir_info->dir_entry;
-  for (i= dir_info->number_off_files ; i-- ; file_info++)
+  for (i= dir_info->number_of_files ; i-- ; file_info++)
   {
     if (memcmp(file_info->name, start, length) == 0 &&
 	test_if_number(file_info->name+length, &number,0))
@@ -2301,7 +2301,7 @@ static int find_uniq_filename(char *name)
   my_dirend(dir_info);
 
   /* check if reached the maximum possible extension number */
-  if ((max_found == MAX_LOG_UNIQUE_FN_EXT))
+  if (max_found == MAX_LOG_UNIQUE_FN_EXT)
   {
     sql_print_error("Log filename extension number exhausted: %06lu. \
 Please fix this by archiving old logs and \
@@ -2965,6 +2965,19 @@ void MYSQL_BIN_LOG::cleanup()
   {
     xid_count_per_binlog *b;
 
+    /* Wait for the binlog background thread to stop. */
+    if (!is_relay_log && binlog_background_thread_started)
+    {
+      mysql_mutex_lock(&LOCK_binlog_background_thread);
+      binlog_background_thread_stop= true;
+      mysql_cond_signal(&COND_binlog_background_thread);
+      while (binlog_background_thread_stop)
+        mysql_cond_wait(&COND_binlog_background_thread_end,
+                        &LOCK_binlog_background_thread);
+      mysql_mutex_unlock(&LOCK_binlog_background_thread);
+      binlog_background_thread_started= false;
+    }
+
     inited= 0;
     close(LOG_CLOSE_INDEX|LOG_CLOSE_STOP_EVENT);
     delete description_event_for_queue;
@@ -2979,19 +2992,6 @@ void MYSQL_BIN_LOG::cleanup()
       DBUG_ASSERT(b->xid_count == 0);
       DBUG_ASSERT(!binlog_xid_count_list.head());
       my_free(b);
-    }
-
-    /* Wait for the binlog background thread to stop. */
-    if (!is_relay_log && binlog_background_thread_started)
-    {
-      mysql_mutex_lock(&LOCK_binlog_background_thread);
-      binlog_background_thread_stop= true;
-      mysql_cond_signal(&COND_binlog_background_thread);
-      while (binlog_background_thread_stop)
-        mysql_cond_wait(&COND_binlog_background_thread_end,
-                        &LOCK_binlog_background_thread);
-      mysql_mutex_unlock(&LOCK_binlog_background_thread);
-      binlog_background_thread_started= false;
     }
 
     mysql_mutex_destroy(&LOCK_log);
@@ -3715,17 +3715,10 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log)
 
     /* Now wait for all checkpoint requests and pending unlog() to complete. */
     mysql_mutex_lock(&LOCK_xid_list);
-    xid_count_per_binlog *b;
     for (;;)
     {
-      I_List_iterator<xid_count_per_binlog> it(binlog_xid_count_list);
-      while ((b= it++))
-      {
-        if (b->xid_count > 0)
-          break;
-      }
-      if (!b)
-        break;                                  /* No more pending XIDs */
+      if (is_xidlist_idle_nolock())
+        break;
       /*
         Wait until signalled that one more binlog dropped to zero, then check
         again.
@@ -4501,6 +4494,32 @@ MYSQL_BIN_LOG::can_purge_log(const char *log_file_name)
   return !log_in_use(log_file_name);
 }
 #endif /* HAVE_REPLICATION */
+
+
+bool
+MYSQL_BIN_LOG::is_xidlist_idle()
+{
+  bool res;
+  mysql_mutex_lock(&LOCK_xid_list);
+  res= is_xidlist_idle_nolock();
+  mysql_mutex_unlock(&LOCK_xid_list);
+  return res;
+}
+
+
+bool
+MYSQL_BIN_LOG::is_xidlist_idle_nolock()
+{
+  xid_count_per_binlog *b;
+
+  I_List_iterator<xid_count_per_binlog> it(binlog_xid_count_list);
+  while ((b= it++))
+  {
+    if (b->xid_count > 0)
+      return false;
+  }
+  return true;
+}
 
 
 /**
@@ -8228,6 +8247,13 @@ binlog_background_thread(void *arg __attribute__((unused)))
     {
       stop= binlog_background_thread_stop;
       queue= binlog_background_thread_queue;
+      if (stop && !mysql_bin_log.is_xidlist_idle())
+      {
+        /*
+          Delay stop until all pending binlog checkpoints have been processed.
+        */
+        stop= false;
+      }
       if (stop || queue)
         break;
       mysql_cond_wait(&mysql_bin_log.COND_binlog_background_thread,
@@ -8238,9 +8264,18 @@ binlog_background_thread(void *arg __attribute__((unused)))
     mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
 
     /* Process any incoming commit_checkpoint_notify() calls. */
+    DBUG_EXECUTE_IF("inject_binlog_background_thread_before_mark_xid_done",
+      DBUG_ASSERT(!debug_sync_set_action(
+        thd,
+        STRING_WITH_LEN("binlog_background_thread_before_mark_xid_done "
+                        "SIGNAL injected_binlog_background_thread "
+                        "WAIT_FOR something_that_will_never_happen "
+                        "TIMEOUT 2")));
+      );
     while (queue)
     {
       THD_STAGE_INFO(thd, stage_binlog_processing_checkpoint_notify);
+      DEBUG_SYNC(current_thd, "binlog_background_thread_before_mark_xid_done");
       /* Grab next pointer first, as mark_xid_done() may free the element. */
       next= queue->next_in_queue;
       mysql_bin_log.mark_xid_done(queue->binlog_id, true);
