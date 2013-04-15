@@ -1257,6 +1257,9 @@ public:
 };
 
 
+void item_func_sleep_init(void);
+void item_func_sleep_free(void);
+
 class Item_func_sleep :public Item_int_func
 {
 public:
@@ -1506,14 +1509,8 @@ public:
 
 #endif /* HAVE_DLOPEN */
 
-/*
-** User level locks
-*/
-
-class User_level_lock;
-void item_user_lock_init(void);
-void item_user_lock_release(User_level_lock *ull);
-void item_user_lock_free(void);
+void mysql_ull_cleanup(THD *thd);
+void mysql_ull_set_explicit_lock_duration(THD *thd);
 
 class Item_func_get_lock :public Item_int_func
 {

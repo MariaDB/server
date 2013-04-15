@@ -82,14 +82,15 @@ SELECT @@global.server_id;
 #           Check if variable can be access with session scope                  #
 #################################################################################
 
---Error ER_GLOBAL_VARIABLE
+SELECT @@server_id;
 SET @@server_id = 2;
+SELECT @@server_id;
 
---Error ER_GLOBAL_VARIABLE
 SET @@session.server_id = 3;
+SELECT @@server_id;
 
---Error ER_GLOBAL_VARIABLE
 SET @@local.server_id = 4;
+--Error ER_GLOBAL_VARIABLE
 
 
 
@@ -163,7 +164,6 @@ SELECT @@server_id = @@global.server_id;
 #   Check if server_id can be accessed without @@ sign and scope #
 ##################################################################################
 
---Error ER_GLOBAL_VARIABLE
 SET server_id = 2048;
 --Error ER_BAD_FIELD_ERROR
 SELECT server_id;

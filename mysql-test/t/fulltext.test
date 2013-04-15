@@ -646,3 +646,14 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+CREATE TABLE t1 (
+  id int(11)  auto_increment,
+  title varchar(100)  default '',
+  PRIMARY KEY  (id),
+  KEY ind5 (title)
+) ENGINE=MyISAM;
+
+CREATE FULLTEXT INDEX IF NOT EXISTS ft1 ON t1(title);
+CREATE FULLTEXT INDEX IF NOT EXISTS ft1 ON t1(title);
+DROP TABLE t1;

@@ -55,13 +55,16 @@ wait/synch/mutex/sql/LOCK_global_index_stats
 wait/synch/mutex/sql/LOCK_global_system_variables
 wait/synch/mutex/sql/LOCK_global_table_stats
 wait/synch/mutex/sql/LOCK_global_user_client_stats
+wait/synch/mutex/sql/LOCK_gtid_counter
 wait/synch/mutex/sql/LOCK_open
 wait/synch/mutex/sql/LOCK_plugin
 wait/synch/mutex/sql/LOCK_prepared_stmt_count
 wait/synch/mutex/sql/LOCK_prepare_ordered
+wait/synch/mutex/sql/LOCK_rpl_gtid_state
 wait/synch/mutex/sql/LOCK_rpl_status
 wait/synch/mutex/sql/LOCK_server_started
 wait/synch/mutex/sql/LOCK_slave_list
+wait/synch/mutex/sql/LOCK_slave_state
 wait/synch/mutex/sql/LOCK_stats
 wait/synch/mutex/sql/LOCK_status
 wait/synch/mutex/sql/LOCK_thread_cache

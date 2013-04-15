@@ -176,7 +176,7 @@ void delegates_destroy()
   plugins add to thd->lex will be automatically unlocked.
  */
 #define FOREACH_OBSERVER(r, f, thd, args)                               \
-  param.server_id= thd->server_id;                                      \
+  param.server_id= thd->variables.server_id;                            \
   /*
      Use a struct to make sure that they are allocated adjacent, check
      delete_dynamic().
@@ -348,7 +348,7 @@ int Binlog_transmit_delegate::reserve_header(THD *thd, ushort flags,
   ulong hlen;
   Binlog_transmit_param param;
   param.flags= flags;
-  param.server_id= thd->server_id;
+  param.server_id= thd->variables.server_id;
 
   int ret= 0;
   read_lock();

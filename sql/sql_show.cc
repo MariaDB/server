@@ -7451,20 +7451,20 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
       break;
     case MYSQL_TYPE_DATE:
       if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           MAX_DATE_WIDTH,
+                                           strlen(fields_info->field_name),
                                            fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_TIME:
       if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           MAX_TIME_FULL_WIDTH,
+                                           strlen(fields_info->field_name),
                                            fields_info->field_type)))
         DBUG_RETURN(0);
       break;
     case MYSQL_TYPE_TIMESTAMP:
     case MYSQL_TYPE_DATETIME:
       if (!(item=new Item_return_date_time(fields_info->field_name,
-                                           MAX_DATETIME_WIDTH,
+                                           strlen(fields_info->field_name),
                                            fields_info->field_type)))
         DBUG_RETURN(0);
       break;
@@ -7837,16 +7837,22 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
      We have to make non const db_name & table_name
      because of lower_case_table_names
   */
-  thd->make_lex_string(&db, INFORMATION_SCHEMA_NAME.str,
-                       INFORMATION_SCHEMA_NAME.length);
-  thd->make_lex_string(&table, schema_table->table_name,
-                       strlen(schema_table->table_name));
-  if (schema_table->old_format(thd, schema_table) ||   /* Handle old syntax */
-      !sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
-                              0, 0, TL_READ, MDL_SHARED_READ))
-  {
+  if (!thd->make_lex_string(&db, INFORMATION_SCHEMA_NAME.str,
+                            INFORMATION_SCHEMA_NAME.length))
     DBUG_RETURN(1);
-  }
+
+  if (!thd->make_lex_string(&table, schema_table->table_name,
+                            strlen(schema_table->table_name)))
+    DBUG_RETURN(1);
+
+  if (schema_table->old_format(thd, schema_table))
+
+    DBUG_RETURN(1);
+
+  if (!sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
+                              0, 0, TL_READ, MDL_SHARED_READ))
+    DBUG_RETURN(1);
+
   DBUG_RETURN(0);
 }
 

@@ -57,7 +57,6 @@ class Lex_input_stream;
 class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
-class User_level_lock;
 class user_var_entry;
 
 enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
@@ -223,8 +222,9 @@ public:
   enum drop_type {KEY, COLUMN };
   const char *name;
   enum drop_type type;
-  Alter_drop(enum drop_type par_type,const char *par_name)
-    :name(par_name), type(par_type) {}
+  bool drop_if_exists;
+  Alter_drop(enum drop_type par_type,const char *par_name, bool par_exists)
+    :name(par_name), type(par_type), drop_if_exists(par_exists) {}
   /**
     Used to make a clone of this object for ALTER/CREATE TABLE
     @sa comment for Key_part_spec::clone
@@ -258,20 +258,23 @@ public:
   LEX_STRING name;
   engine_option_value *option_list;
   bool generated;
+  bool create_if_not_exists;
 
   Key(enum Keytype type_par, const LEX_STRING &name_arg,
       KEY_CREATE_INFO *key_info_arg,
       bool generated_arg, List<Key_part_spec> &cols,
-      engine_option_value *create_opt)
+      engine_option_value *create_opt, bool if_not_exists_opt)
     :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    name(name_arg), option_list(create_opt), generated(generated_arg)
+    name(name_arg), option_list(create_opt), generated(generated_arg),
+    create_if_not_exists(if_not_exists_opt)
   {}
   Key(enum Keytype type_par, const char *name_arg, size_t name_len_arg,
       KEY_CREATE_INFO *key_info_arg, bool generated_arg,
       List<Key_part_spec> &cols,
-      engine_option_value *create_opt)
+      engine_option_value *create_opt, bool if_not_exists_opt)
     :type(type_par), key_create_info(*key_info_arg), columns(cols),
-    option_list(create_opt), generated(generated_arg)
+    option_list(create_opt), generated(generated_arg),
+    create_if_not_exists(if_not_exists_opt)
   {
     name.str= (char *)name_arg;
     name.length= name_len_arg;
@@ -302,8 +305,10 @@ public:
   uint delete_opt, update_opt, match_opt;
   Foreign_key(const LEX_STRING &name_arg, List<Key_part_spec> &cols,
 	      Table_ident *table,   List<Key_part_spec> &ref_cols,
-	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg)
-    :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL),
+	      uint delete_opt_arg, uint update_opt_arg, uint match_opt_arg,
+              bool if_not_exists_opt)
+    :Key(FOREIGN_KEY, name_arg, &default_key_create_info, 0, cols, NULL,
+         if_not_exists_opt),
     ref_table(table), ref_columns(ref_cols),
     delete_opt(delete_opt_arg), update_opt(update_opt_arg),
     match_opt(match_opt_arg)
@@ -532,11 +537,18 @@ typedef struct system_variables
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   int max_user_connections;
+  ulong server_id;
   /**
     In slave thread we need to know in behalf of which
     thread the query is being run to replicate temp tables properly
   */
   my_thread_id pseudo_thread_id;
+  /**
+     When replicating an event group with GTID, keep these values around so
+     slave binlog can receive the same GTID as the original.
+  */
+  uint32     gtid_domain_id;
+  uint64     gtid_seq_no;
   /**
      Place holders to store Multi-source variables in sys_var.cc during
      update and show of variables.
@@ -1685,11 +1697,11 @@ public:
 
   HASH		handler_tables_hash;
   /*
-    One thread can hold up to one named user-level lock. This variable
-    points to a lock object if the lock is present. See item_func.cc and
+    A thread can hold named user-level locks. This variable
+    contains granted tickets if a lock is present. See item_func.cc and
     chapter 'Miscellaneous functions', for functions GET_LOCK, RELEASE_LOCK.
   */
-  User_level_lock *ull;
+  HASH ull_hash;
 #ifndef DBUG_OFF
   uint dbug_sentry; // watch out for memory corruption
 #endif
@@ -1699,7 +1711,6 @@ public:
     first byte of the packet in do_command()
   */
   enum enum_server_command command;
-  uint32     server_id;
   uint32     file_id;			// for LOAD DATA INFILE
   /* remote (peer) port */
   uint16     peer_port;
@@ -1776,7 +1787,7 @@ public:
                         MY_BITMAP const* cols, size_t colcnt,
                         const uchar *old_data, const uchar *new_data);
 
-  void set_server_id(uint32 sid) { server_id = sid; }
+  void set_server_id(uint32 sid) { variables.server_id = sid; }
 
   /*
     Member functions to handle pending event for row-level logging.

@@ -676,6 +676,8 @@ mysql_mutex_t
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
 
+mysql_mutex_t LOCK_gtid_counter, LOCK_rpl_gtid_state;
+
 /**
   The below lock protects access to two global server variables:
   max_prepared_stmt_count and prepared_stmt_count. These variables
@@ -766,11 +768,14 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
+PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats,
   key_LOCK_wakeup_ready;
+
+PSI_mutex_key key_LOCK_gtid_counter, key_LOCK_rpl_gtid_state;
 
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 
@@ -815,6 +820,8 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_table_stats, "LOCK_global_table_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
+  { &key_LOCK_gtid_counter, "LOCK_gtid_counter", PSI_FLAG_GLOBAL},
+  { &key_LOCK_rpl_gtid_state, "LOCK_rpl_gtid_state", PSI_FLAG_GLOBAL},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
@@ -835,7 +842,9 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
-  { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0}
+  { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
+  { &key_LOCK_slave_state, "LOCK_slave_state", 0},
+  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -959,6 +968,7 @@ PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_trg, key_file_trn, key_file_init;
 PSI_file_key key_file_query_log, key_file_slow_log;
 PSI_file_key key_file_relaylog, key_file_relaylog_index;
+PSI_file_key key_file_binlog_state;
 
 static PSI_file_info all_server_files[]=
 {
@@ -989,7 +999,8 @@ static PSI_file_info all_server_files[]=
   { &key_file_tclog, "tclog", 0},
   { &key_file_trg, "trigger_name", 0},
   { &key_file_trn, "trigger", 0},
-  { &key_file_init, "init", 0}
+  { &key_file_init, "init", 0},
+  { &key_file_binlog_state, "binlog_state", 0}
 };
 
 /**
@@ -1281,6 +1292,12 @@ struct st_VioSSLFd *ssl_acceptor_fd;
   LOCK_connection_count.
 */
 uint connection_count= 0, extra_connection_count= 0;
+
+/**
+   Running counter for generating new GTIDs locally.
+*/
+uint64 global_gtid_counter= 0;
+
 
 /* Function declarations */
 
@@ -1776,6 +1793,7 @@ static void mysqld_exit(int exit_code)
     but if a kill -15 signal was sent, the signal thread did
     spawn the kill_server_thread thread, which is running concurrently.
   */
+  rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
   mysql_audit_finalize();
   clean_up_mutexes();
@@ -1824,7 +1842,7 @@ void clean_up(bool print_message)
 #endif
   query_cache_destroy();
   hostname_cache_free();
-  item_user_lock_free();
+  item_func_sleep_free();
   lex_free();				/* Free some memory */
   item_create_cleanup();
   if (!opt_noacl)
@@ -1945,6 +1963,8 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_global_user_client_stats);
   mysql_mutex_destroy(&LOCK_global_table_stats);
   mysql_mutex_destroy(&LOCK_global_index_stats);
+  mysql_mutex_destroy(&LOCK_gtid_counter);
+  mysql_mutex_destroy(&LOCK_rpl_gtid_state);
 #ifdef HAVE_OPENSSL
   mysql_mutex_destroy(&LOCK_des_key_file);
 #ifndef HAVE_YASSL
@@ -2184,8 +2204,28 @@ static my_socket activate_tcp_port(uint port)
   for (a= ai; a != NULL; a= a->ai_next)
   {
     ip_sock= socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-    if (ip_sock != INVALID_SOCKET)
+      
+    char ip_addr[INET6_ADDRSTRLEN];
+
+    if (vio_get_normalized_ip_string(a->ai_addr, a->ai_addrlen,
+                                     ip_addr, sizeof (ip_addr)))
+    {
+      ip_addr[0]= 0;
+    }
+
+    if (ip_sock == INVALID_SOCKET)
+    {
+      sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
+                      (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
+                      (const char *) ip_addr,
+                      (int) socket_errno);
+    }
+    else 
+    {
+      sql_print_information("Server socket created on IP: '%s'.",
+                          (const char *) ip_addr);
       break;
+    }
   }
 
   if (ip_sock == INVALID_SOCKET)
@@ -4017,6 +4057,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_active_mi, &LOCK_active_mi, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_system_variables,
                    &LOCK_global_system_variables, MY_MUTEX_INIT_FAST);
+  mysql_mutex_record_order(&LOCK_active_mi, &LOCK_global_system_variables);
   mysql_rwlock_init(key_rwlock_LOCK_system_variables_hash,
                     &LOCK_system_variables_hash);
   mysql_mutex_init(key_LOCK_prepared_stmt_count,
@@ -4034,6 +4075,10 @@ static int init_thread_environment()
                    &LOCK_global_table_stats, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_global_index_stats,
                    &LOCK_global_index_stats, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_gtid_counter,
+                   &LOCK_gtid_counter, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_rpl_gtid_state,
+                   &LOCK_rpl_gtid_state, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_prepare_ordered, &LOCK_prepare_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
@@ -4077,6 +4122,10 @@ static int init_thread_environment()
   (void) pthread_attr_setdetachstate(&connection_attrib,
 				     PTHREAD_CREATE_DETACHED);
   pthread_attr_setscope(&connection_attrib, PTHREAD_SCOPE_SYSTEM);
+
+#ifdef HAVE_REPLICATION
+  rpl_init_gtid_slave_state();
+#endif
 
   DBUG_RETURN(0);
 }
@@ -4951,9 +5000,9 @@ int mysqld_main(int argc, char **argv)
       set_user(mysqld_user, user_info);
   }
 
-  if (opt_bin_log && !server_id)
+  if (opt_bin_log && !global_system_variables.server_id)
   {
-    server_id= 1;
+    global_system_variables.server_id= ::server_id= 1;
 #ifdef EXTRA_DEBUG
     sql_print_warning("You have enabled the binary log, but you haven't set "
                       "server-id to a non-zero value: we force server id to 1; "
@@ -6681,19 +6730,25 @@ static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
 static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  bool tmp;
+  LINT_INIT(tmp);
+
   var->type= SHOW_MY_BOOL;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    *((my_bool *)buff)= (my_bool) (mi->slave_running ==
-                                   MYSQL_SLAVE_RUN_CONNECT &&
-                                   mi->rli.slave_running);
+    tmp= (my_bool) (mi->slave_running == MYSQL_SLAVE_RUN_CONNECT &&
+                    mi->rli.slave_running);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    *((my_bool *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -6701,17 +6756,24 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  longlong tmp;
+  LINT_INIT(tmp);
+
   var->type= SHOW_LONGLONG;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    *((longlong *)buff)= mi->received_heartbeats;
+    tmp= mi->received_heartbeats;
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    *((longlong *)buff)= tmp;
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -6719,17 +6781,24 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 {
   Master_info *mi;
+  float tmp;
+  LINT_INIT(tmp);
+
   var->type= SHOW_CHAR;
   var->value= buff;
+  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
                     MYSQL_ERROR::WARN_LEVEL_NOTE);
   if (mi)
-    sprintf(buff, "%.3f", mi->heartbeat_period);
+    tmp= mi->heartbeat_period;
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_status);
+  if (mi)
+    sprintf(buff, "%.3f", tmp);
   else
     var->type= SHOW_UNDEF;
-  mysql_mutex_unlock(&LOCK_active_mi);
   return 0;
 }
 
@@ -7801,28 +7870,6 @@ mysqld_get_one_option(int optid,
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;
     break;
-  case (int) OPT_BIND_ADDRESS:
-    {
-      struct addrinfo *res_lst, hints;    
-
-      bzero(&hints, sizeof(struct addrinfo));
-      hints.ai_socktype= SOCK_STREAM;
-      hints.ai_protocol= IPPROTO_TCP;
-
-      if (getaddrinfo(argument, NULL, &hints, &res_lst) != 0) 
-      {
-        sql_print_error("Can't start server: cannot resolve hostname!");
-        return 1;
-      }
-
-      if (res_lst->ai_next)
-      {
-        sql_print_error("Can't start server: bind-address refers to multiple interfaces!");
-        return 1;
-      }
-      freeaddrinfo(res_lst);
-    }
-    break;
   case OPT_CONSOLE:
     if (opt_console)
       opt_error_log= 0;			// Force logs to stdout
@@ -7832,6 +7879,7 @@ mysqld_get_one_option(int optid,
     break;
   case OPT_SERVER_ID:
     server_id_supplied = 1;
+    ::server_id= global_system_variables.server_id;
     break;
   case OPT_ONE_THREAD:
     thread_handling= SCHEDULER_NO_THREADS;
