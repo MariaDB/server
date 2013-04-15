@@ -903,7 +903,7 @@ void CSORT::Qstc(int *base, int *max)
 /***********************************************************************/
 void CSORT::Istc(int *base, int *hi, int *max)
   {
-  register int  c;
+  register int  c = 0;
   register int *lo;
   register int *i, *j;
 
