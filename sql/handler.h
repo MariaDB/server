@@ -36,6 +36,7 @@
 #include <my_compare.h>
 #include <ft_global.h>
 #include <keycache.h>
+#include <mysql/psi/mysql_table.h>
 
 #if MAX_KEY > 128
 #error MAX_KEY is too large.  Values up to 128 are supported.
@@ -2907,34 +2908,29 @@ protected:
 
   /**
     Acquire the instrumented table information from a table share.
-    @param share a table share
     @return an instrumented table share, or NULL.
   */
-  PSI_table_share *ha_table_share_psi(const TABLE_SHARE *share) const;
+  PSI_table_share *ha_table_share_psi() const;
 
   inline void psi_open()
   {
     DBUG_ASSERT(m_psi == NULL);
     DBUG_ASSERT(table_share != NULL);
-#ifdef HAVE_PSI_INTERFACE
     if (PSI_server)
     {
-      PSI_table_share *share_psi= ha_table_share_psi(table_share);
+      PSI_table_share *share_psi= ha_table_share_psi();
       if (share_psi)
-        m_psi= PSI_server->open_table(share_psi, this);
+        m_psi= PSI_CALL_open_table(share_psi, this);
     }
-#endif
   }
 
   inline void psi_close()
   {
-#ifdef HAVE_PSI_INTERFACE
     if (PSI_server && m_psi)
     {
-      PSI_server->close_table(m_psi);
+      PSI_CALL_close_table(m_psi);
       m_psi= NULL; /* instrumentation handle, invalid after close_table() */
     }
-#endif
     DBUG_ASSERT(m_psi == NULL);
   }
 
