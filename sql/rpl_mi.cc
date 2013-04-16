@@ -60,6 +60,13 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
            connection_name.length+1);
     my_casedn_str(system_charset_info, cmp_connection_name.str);
   }
+  /* When MySQL restarted, all Rpl_filter settings which aren't in the my.cnf
+   * will lose. So if you want a setting will not lose after restarting, you
+   * should add them into my.cnf
+   * */
+  rpl_filter= get_or_create_rpl_filter(connection_name.str, 
+                                       connection_name.length);
+  copy_filter_setting(rpl_filter, global_rpl_filter);
 
   my_init_dynamic_array(&ignore_server_ids,
                         sizeof(global_system_variables.server_id), 16, 16,
@@ -78,6 +85,8 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
 
 Master_info::~Master_info()
 {
+  rpl_filters.delete_element(connection_name.str, connection_name.length,
+                             (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(connection_name.str);
   delete_dynamic(&ignore_server_ids);
   mysql_mutex_destroy(&run_lock);
@@ -711,6 +720,65 @@ void create_logfile_name_with_suffix(char *res_file_name, size_t length,
   }
 }
 
+void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter)
+{
+  char buf[256];
+  String tmp(buf, sizeof(buf), &my_charset_bin);
+
+  dst_filter->get_do_db(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_do_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_do_db(tmp.ptr());
+  }
+
+  dst_filter->get_do_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_do_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_do_table(tmp.ptr());
+  }
+
+  dst_filter->get_ignore_db(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_ignore_db(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_ignore_db(tmp.ptr());
+  }
+
+  dst_filter->get_ignore_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_ignore_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_ignore_table(tmp.ptr());
+  }
+
+  dst_filter->get_wild_do_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_wild_do_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_wild_do_table(tmp.ptr());
+  }
+
+  dst_filter->get_wild_ignore_table(&tmp);
+  if (tmp.is_empty())
+  {
+    src_filter->get_wild_ignore_table(&tmp);
+    if (!tmp.is_empty())
+      dst_filter->set_wild_ignore_table(tmp.ptr());
+  }
+
+  if (dst_filter->rewrite_db_is_empty())
+  {
+    if (!src_filter->rewrite_db_is_empty())
+      dst_filter->copy_rewrite_db(src_filter);
+  }
+}
 
 Master_info_index::Master_info_index()
 {

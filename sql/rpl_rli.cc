@@ -61,7 +61,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    gtid_sub_id(0), tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
-   m_annotate_event(0)
+   m_annotate_event(0), mi(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 

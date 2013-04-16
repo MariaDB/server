@@ -2302,6 +2302,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     DBUG_PRINT("info",("host is set: '%s'", mi->host));
     String *packet= &thd->packet;
     Protocol *protocol= thd->protocol;
+    Rpl_filter *rpl_filter= mi->rpl_filter;
     char buf[256];
     String tmp(buf, sizeof(buf), &my_charset_bin);
 
@@ -3787,6 +3788,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
+  thd->rpl_filter = mi->rpl_filter;
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
@@ -3817,7 +3819,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   thd->init_for_queries();
   thd->rli_slave= rli;
-  if ((rli->deferred_events_collecting= rpl_filter->is_on()))
+  if ((rli->deferred_events_collecting= mi->rpl_filter->is_on()))
   {
     rli->deferred_events= new Deferred_log_events(rli);
   }
@@ -4145,7 +4147,7 @@ static int process_io_create_file(Master_info* mi, Create_file_log_event* cev)
   if (unlikely(!cev->is_valid()))
     DBUG_RETURN(1);
 
-  if (!rpl_filter->db_ok(cev->db))
+  if (!mi->rpl_filter->db_ok(cev->db))
   {
     skip_load_data_infile(net);
     DBUG_RETURN(0);
