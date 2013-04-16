@@ -3082,7 +3082,7 @@ innobase_change_buffering_inited_ok:
 #endif
 
 #ifdef HAVE_POSIX_FALLOCATE
-	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
+	srv_use_posix_fallocate = 0 && (ibool) innobase_use_fallocate;
 #endif
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
