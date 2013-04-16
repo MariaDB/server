@@ -3222,6 +3222,26 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
  * Condition selectivity module
  ****************************************************************************/
 
+
+/*
+  Build descriptors of pseudo-indexes over columns to perform range analysis
+
+  SYNOPSIS
+    create_key_parts_for_pseudo_indexes()
+      param       IN/OUT data structure for the descriptors to be built 
+      used_fields bitmap of columns for which the descriptors are to be built          
+
+  DESCRIPTION
+    For each column marked in the bitmap used_fields the function builds
+    a descriptor of a single-component pseudo-index over this column that
+    can be used for the range analysis of the predicates over this columns. 
+    The descriptors are created in the memory of param->mem_root. 
+   
+  RETURN
+    FALSE  in the case of success
+    TRUE   otherwise
+*/
+
 static
 bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
                                          MY_BITMAP *used_fields)
@@ -3275,6 +3295,31 @@ bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
 }
 
 
+/*
+  Estimate the number of rows in all ranges built for a column
+  by the range optimizer  
+
+  SYNOPSIS
+    records_in_column_ranges()
+      param      the data structure to access descriptors of pseudo indexes
+                 built over columns used in the condition of the processed query
+      idx        the index of the descriptor of interest in param
+      tree       the tree representing ranges built for the interesting column         
+
+  DESCRIPTION
+    This function retrieves the ranges represented by the SEL_ARG 'tree' and
+    for each of them r it calls the function get_column_range_cardinality()
+    that estimates the number of expected rows in r. It is assumed that param
+    is the data structure containing the descriptors of pseudo-indexes that
+    has been built to perform range analysis of the range conditions imposed
+    on the columns used in the processed query, while idx is the index of the
+    descriptor created in 'param' exactly for the column for which 'tree'
+    has been built by the range optimizer.    
+
+  RETURN
+    the number of rows in the retrieved ranges  
+*/
+
 static
 double records_in_column_ranges(PARAM *param, uint idx, 
                                 SEL_ARG *tree)
@@ -3322,6 +3367,29 @@ double records_in_column_ranges(PARAM *param, uint idx,
 } 
 
 
+/*
+  Calculate the selectivity of the condition imposed on the rows of a table
+
+  SYNOPSIS
+    calculate_cond_selectivity_for_table()
+      thd        the context handle 
+      table      the table of interest
+      cond       conditions imposed on the rows of the table        
+
+  DESCRIPTION
+    This function calculates the selectivity of range conditions cond imposed
+    on the rows of 'table' in the processed query.
+    The calculated selectivity is assigned to the field table->cond_selectivity.
+    
+  NOTE
+    Currently the selectivities of range conditions over different columns are
+    considered independent. 
+
+  RETURN
+    FALSE  on success
+    TRUE   otherwise 
+*/
+
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 {
   uint keynr;
@@ -3338,6 +3406,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
   {
+    /* 
+      Calculate the selectivity of the range conditions not supported
+      by any index
+    */
+
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;

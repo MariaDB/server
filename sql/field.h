@@ -723,9 +723,10 @@ public:
   virtual bool hash_join_is_possible() { return TRUE; }
   virtual bool eq_cmp_as_binary() { return TRUE; }
 
-  virtual double middle_point_pos(Field *min, Field *max)
+  /* Position of the field value within the interval of [min, max] */
+  virtual double pos_in_interval(Field *min, Field *max)
   {
-    return (double) 1.0; 
+    return (double) 0.5; 
   }
 
   friend int cre_myisam(char * name, register TABLE *form, uint options,
@@ -846,7 +847,7 @@ public:
   bool get_int(CHARSET_INFO *cs, const char *from, uint len, 
                longlong *rnd, ulonglong unsigned_max, 
                longlong signed_min, longlong signed_max);
-  double middle_point_pos(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max);
 };
 
 
@@ -893,7 +894,7 @@ public:
   uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return test(flags & BINARY_FLAG); }
   virtual uint length_size() { return 0; }
-  double middle_point_pos(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max);
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -2308,7 +2309,7 @@ public:
   {
     store(*((longlong *)val), TRUE);
   }
-  double middle_point_pos(Field *min, Field *max);
+  double pos_in_interval(Field *min, Field *max);
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs)
   { get_key_image(buff, length, itRAW); }   
   void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)

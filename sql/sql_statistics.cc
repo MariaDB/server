@@ -250,12 +250,13 @@ public:
   and column_name with column_name taken out of the only parameter f of the
   Field* type passed to this method. After this get_stat_values looks
   for a row by the set key value. If the row is found the values of statistical 
-  data columns min_value, max_value, nulls_ratio, avg_length, avg_frequency
-  are read into internal structures. Values of nulls_ratio, avg_length,
-  avg_frequency are read into the corresponding fields of the read_stat
-  structure from the Field object f, while values from min_value and max_value
-  are copied into the min_value and  max_value record buffers attached to the
-  TABLE structure for table t.
+  data columns min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+  hist_size, hist_type, histogram are read into internal structures. Values
+  of nulls_ratio, avg_length, avg_frequency, hist_size, hist_type, histogram
+  are read into the corresponding fields of the read_stat  structure from
+  the Field object f, while values from min_value and max_value  are copied
+  into the min_value and  max_value record buffers attached to the TABLE
+   structure for table t.
   If the value of a statistical column in the found row is null, then the
   corresponding flag in the f->read_stat.column_stat_nulls bitmap is set off.
   Otherwise the flag is set on. If no row is found for the column the all flags
@@ -868,11 +869,12 @@ public:
 
     @details
     This implementation of a purely virtual method sets the value of the
-    columns 'min_value', 'max_value', 'nulls_ratio', 'avg_length' and
-    'avg_frequency' of the stistical table columns_stat according to the
-    contents of the bitmap write_stat.column_stat_nulls and the values
-    of the fields min_value, max_value, nulls_ratio, avg_length and
-    avg_frequency of the structure write_stat from the Field structure
+    columns 'min_value', 'max_value', 'nulls_ratio', 'avg_length',
+    'avg_frequency', 'hist_size', 'hist_type' and 'histogram'  of the 
+    stistical table columns_stat according to the contents of the bitmap
+    write_stat.column_stat_nulls and the values of the fields min_value,
+    max_value, nulls_ratio, avg_length, avg_frequency, hist_size, hist_type
+    and histogram of the structure write_stat from the Field structure
     for the field 'table_field'.
     The value of the k-th column in the table columns_stat is set to NULL
     if the k-th bit in the bitmap 'column_stat_nulls' is set to 1. 
@@ -951,14 +953,15 @@ public:
 
     @details
     This implementation of a purely virtual method first looks for a record
-    the statistical table column_stats by its primary key set the record
+    in the statistical table column_stats by its primary key set in the record
     buffer with the help of Column_stat::set_key_fields. Then, if the row is
     found, the function reads the values of the columns 'min_value',
-    'max_value', 'nulls_ratio', 'avg_length' and 'avg_frequency' of the
-    table column_stat and sets accordingly the value of the bitmap 
-    read_stat.column_stat_nulls' and the values of the fields min_value,
-    max_value, nulls_ratio, avg_length and avg_frequency of the structure
-    read_stat from the Field structure for the field 'table_field'.
+    'max_value', 'nulls_ratio', 'avg_length', 'avg_frequency', 'hist_size' and
+    'hist_type" of the  table column_stat and sets accordingly the value of
+    the bitmap  read_stat.column_stat_nulls' and the values of the fields
+    min_value, max_value, nulls_ratio, avg_length, avg_frequency, hist_size and
+    hist_type of the structure read_stat from the Field structure for the field
+    'table_field'.
   */    
 
   void get_stat_values()
@@ -1021,6 +1024,22 @@ public:
       }
     }
   }
+
+
+  /** 
+    @brief
+    Read histogram from of column_stats
+
+    @details
+    This method first looks for a record in the statistical table column_stats
+    by its primary key set the record buffer with the help of
+    Column_stat::set_key_fields. Then, if the row is found, the function reads
+    the value of the column 'histogram' of the  table column_stat and sets
+    accordingly the corresponding bit in the bitmap read_stat.column_stat_nulls.
+    The method assumes that the value of histogram size and the pointer to
+    the histogram location has been already set in the fields size and values
+    of read_stats->histogram.
+  */    
 
   void get_histogram_value()
   {
@@ -1238,20 +1257,24 @@ public:
 
 };
 
+/*
+  Histogram_builder is a helper class that is used to build histograms
+  for columns
+*/
 
 class Histogram_builder
 {
-  Field *column;
-  uint col_length;
-  ha_rows records;
-  Field *min_value;
-  Field *max_value;
-  Histogram *histogram;
-  uint hist_width;
-  double bucket_capacity;  
-  uint curr_bucket;
-  ulonglong count;
-  ulonglong count_distinct;
+  Field *column;           /* table field for which the histogram is built */
+  uint col_length;         /* size of this field                           */
+  ha_rows records;         /* number of records the histogram is built for */
+  Field *min_value;        /* pointer to the minimal value for the field   */
+  Field *max_value;        /* pointer to the maximal value for the field   */
+  Histogram *histogram;    /* the histogram location                       */
+  uint hist_width;         /* the number of points in the histogram        */
+  double bucket_capacity;  /* number of rows in a bucket of the histogram  */ 
+  uint curr_bucket;        /* number of the current bucket to be built     */
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
 
 public: 
   Histogram_builder(Field *col, uint col_len, ha_rows rows)
@@ -1280,7 +1303,7 @@ public:
     {
       column->store_field_value((uchar *) elem, col_length);
       histogram->set_value(curr_bucket,
-                           column->middle_point_pos(min_value, max_value)); 
+                           column->pos_in_interval(min_value, max_value)); 
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
@@ -1389,6 +1412,10 @@ public:
     return count;
   }
 
+  /*
+    @brief
+    Build the histogram for the elements accumulated in the container of 'tree'
+  */
   ulonglong get_value_with_histogram(ha_rows rows)
   {
     Histogram_builder hist_builder(table_field, tree_key_length, rows);
@@ -1396,11 +1423,19 @@ public:
     return hist_builder.get_count_distinct();
   }
 
+  /*
+    @brief
+    Get the size of the histogram in bytes built for table_field
+  */
   uint get_hist_size()
   {
     return table_field->collected_stats->histogram.get_size();
   }
 
+  /*
+    @brief
+    Get the pointer to the histogram built for table_field
+  */
   uchar *get_histogram()
   {
     return table_field->collected_stats->histogram.get_values();
@@ -1936,7 +1971,6 @@ inline bool statistics_for_command_is_needed(THD *thd)
   @note
   Currently the function always is called with the parameter is_safe set
   to FALSE. 
-
 */      
 
 int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share, 
@@ -2050,6 +2084,36 @@ int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *table_share,
 
   DBUG_RETURN(0);
 }
+
+
+/**
+  @brief 
+  Allocate memory for the histogram used by a table share
+
+  @param
+  thd         Thread handler
+  @param
+  table_share Table share for which the memory for histogram data is allocated
+  @param
+  is_safe     TRUE <-> at any time only one thread can perform the function
+
+  @note
+  The function allocates the memory for the histogram built for a table in the
+  table's share memory with the intention to read the data there from the
+  system persistent statistical table mysql.column_stats,
+  The memory is allocated in the table_share's mem_root.
+  If the parameter is_safe is TRUE then it is guaranteed that at any given time
+  only one thread is executed the code of the function.
+
+  @retval
+  0     If the memory for all statistical data has been successfully allocated  
+  @retval
+  1     Otherwise
+
+  @note
+  Currently the function always is called with the parameter is_safe set
+  to FALSE. 
+*/      
 
 static
 int alloc_histograms_for_table_share(THD* thd, TABLE_SHARE *table_share, 
@@ -2781,6 +2845,38 @@ bool statistics_for_tables_is_needed(THD *thd, TABLE_LIST *tables)
 }
 
 
+/**
+  @brief
+  Read histogram for a table from the persistent statistical tables
+
+  @param
+  thd         The thread handle
+  @param
+  table       The table to read histograms for
+  @param
+  stat_tables The array of TABLE_LIST objects for statistical tables
+
+  @details
+  For the statistical table columns_stats the function looks for the rows
+  from this table that contain statistical data on 'table'. If such rows
+  are found the histograms from them are read into the memory allocated
+  for histograms of 'table'. Later at the query processing these histogram
+  are supposed to be used by the optimizer. 
+  The parameter stat_tables should point to an array of TABLE_LIST
+  objects for all statistical tables linked into a list. All statistical
+  tables are supposed to be opened.  
+  The function is called by read_statistics_for_tables_if_needed().
+
+  @retval
+  0         If data has been successfully read for the table  
+  @retval
+  1         Otherwise
+
+  @note
+  Objects of the helper Column_stat are employed read histogram
+  from the statistical table column_stats now.        
+*/
+
 static
 int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
@@ -3311,6 +3407,17 @@ void set_statistics_for_table(THD *thd, TABLE *table)
 }
 
 
+/**
+  @brief
+  Get the average frequency for a column 
+
+  @param
+  field       The column whose average frequency is required
+
+  @retval
+  The required average frequency
+*/
+
 double get_column_avg_frequency(Field * field)
 {
   double res;
@@ -3336,6 +3443,27 @@ double get_column_avg_frequency(Field * field)
   return res;
 } 
 
+
+/**
+  @brief
+  Estimate the number of rows in a column range using data from stat tables 
+
+  @param
+  field       The column whose range cardinality is to be estimated
+  @param
+  min_endp    The left end of the range whose cardinality is required 
+  @param
+  max_endp    The right end of the range whose cardinality is required 
+  @param
+  range_flag  The range flags
+
+  @details
+  The function gets an estimate of the number of rows in a column range
+  using the statistical data from the table column_stats.
+
+  @retval
+  The required estimate of the rows in the column range
+*/
 
 double get_column_range_cardinality(Field *field,
                                     key_range *min_endp,
@@ -3377,8 +3505,8 @@ double get_column_range_cardinality(Field *field,
         Histogram *hist= &col_stats->histogram;
         if (hist->is_available())
         {
-          double pos= field->middle_point_pos(col_stats->min_value,
-                                              col_stats->max_value);
+          double pos= field->pos_in_interval(col_stats->min_value,
+                                             col_stats->max_value);
           res= col_non_nulls * 
 	       hist->point_selectivity(pos,
                                        avg_frequency / col_non_nulls);
@@ -3396,8 +3524,8 @@ double get_column_range_cardinality(Field *field,
       {
         store_key_image_to_rec(field, (uchar *) min_endp->key,
                                min_endp->length);
-        min_mp_pos= field->middle_point_pos(col_stats->min_value,
-                                            col_stats->max_value);
+        min_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                           col_stats->max_value);
       }
       else
         min_mp_pos= 0.0;
@@ -3405,8 +3533,8 @@ double get_column_range_cardinality(Field *field,
       {
         store_key_image_to_rec(field, (uchar *) max_endp->key,
                                max_endp->length);
-        max_mp_pos= field->middle_point_pos(col_stats->min_value,
-                                            col_stats->max_value);
+        max_mp_pos= field->pos_in_interval(col_stats->min_value,
+                                           col_stats->max_value);
       }
       else
         max_mp_pos= 1.0;
