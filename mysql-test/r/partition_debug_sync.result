@@ -18,7 +18,6 @@ ENGINE = MYISAM
 PARTITION p1 VALUES LESS THAN (20),
 PARTITION p2 VALUES LESS THAN (100),
 PARTITION p3 VALUES LESS THAN MAXVALUE ) */;
-SET SESSION debug_dbug= "+d,sleep_before_create_table_no_lock";
 SET DEBUG_SYNC= 'alter_table_before_create_table_no_lock SIGNAL removing_partitioning WAIT_FOR waiting_for_alter';
 SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL partitioning_removed';
 ALTER TABLE t1 REMOVE PARTITIONING;
@@ -28,7 +27,6 @@ SET DEBUG_SYNC= 'mdl_acquire_lock_wait SIGNAL waiting_for_alter';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table WAIT_FOR partitioning_removed';
 DROP TABLE IF EXISTS t1;
 # Con 1
-SET SESSION debug_dbug= "-d,sleep_before_create_table_no_lock";
 SET DEBUG_SYNC= 'RESET';
 SET DEBUG_SYNC= 'RESET';
 #

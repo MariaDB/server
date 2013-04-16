@@ -6985,8 +6985,6 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     create_info->data_file_name=create_info->index_file_name=0;
 
   DEBUG_SYNC(thd, "alter_table_before_create_table_no_lock");
-  DBUG_EXECUTE_IF("sleep_before_create_table_no_lock",
-                  my_sleep(100000););
   /*
     Create a table with a temporary name.
     With C_ALTER_TABLE_FRM_ONLY this creates a .frm file only and
