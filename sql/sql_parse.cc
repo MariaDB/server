@@ -170,8 +170,8 @@ const char *xa_state_names[]={
 */
 inline bool all_tables_not_ok(THD *thd, TABLE_LIST *tables)
 {
-  return rpl_filter->is_on() && tables && !thd->spcont &&
-         !rpl_filter->tables_ok(thd->db, tables);
+  return thd->rpl_filter->is_on() && tables && !thd->spcont &&
+         !thd->rpl_filter->tables_ok(thd->db, tables);
 }
 #endif
 
@@ -1954,6 +1954,8 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   /* have table map for update for multi-update statement (BUG#37051) */
   bool have_table_map_for_update= FALSE;
+  /* */
+  Rpl_filter *rpl_filter= thd->rpl_filter;
 #endif
   DBUG_ENTER("mysql_execute_command");
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2437,6 +2439,11 @@ case SQLCOM_PREPARE:
         master_info_index->remove_master_info(&lex_mi->connection_name);
       else
         delete mi;
+    }
+    else
+    {
+      mi->rpl_filter= get_or_create_rpl_filter(lex_mi->connection_name.str,
+                                               lex_mi->connection_name.length);
     }
 
     mysql_mutex_unlock(&LOCK_active_mi);

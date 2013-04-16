@@ -734,6 +734,18 @@ Rpl_filter::get_rewrite_db(const char* db, size_t *new_len)
 }
 
 
+void
+Rpl_filter::copy_rewrite_db(Rpl_filter *from)
+{
+  I_List_iterator<i_string_pair> it(from->rewrite_db);
+  i_string_pair* tmp;
+  DBUG_ASSERT(rewrite_db.is_empty());
+
+  /* TODO: Add memory checking here and in all add_xxxx functions ! */
+  while ((tmp=it++))
+    add_db_rewrite(tmp->key, tmp->val);
+}
+
 I_List<i_string>*
 Rpl_filter::get_do_db()
 {

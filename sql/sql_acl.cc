@@ -1905,6 +1905,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 {
   TABLE_LIST tables;
   TABLE *table;
+  Rpl_filter *rpl_filter= thd->rpl_filter;
   /* Buffer should be extended when password length is extended. */
   char buff[512];
   ulong query_length;
@@ -3593,6 +3594,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   TABLE_LIST tables[3];
   bool create_new_users=0;
   char *db_name, *table_name;
+  Rpl_filter *rpl_filter= thd->rpl_filter;
   DBUG_ENTER("mysql_table_grant");
 
   if (!initialized)
@@ -3869,6 +3871,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   TABLE_LIST tables[2];
   bool create_new_users=0, result=0;
   char *db_name, *table_name;
+  Rpl_filter *rpl_filter= thd->rpl_filter;
   DBUG_ENTER("mysql_routine_grant");
 
   if (!initialized)
@@ -4009,6 +4012,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   char tmp_db[SAFE_NAME_LEN+1];
   bool create_new_users=0;
   TABLE_LIST tables[2];
+  Rpl_filter *rpl_filter= thd->rpl_filter;
   DBUG_ENTER("mysql_grant");
 
   if (!initialized)
@@ -5758,6 +5762,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 #define GRANT_TABLES 6
 int open_grant_tables(THD *thd, TABLE_LIST *tables)
 {
+  Rpl_filter *rpl_filter= thd->rpl_filter;
   DBUG_ENTER("open_grant_tables");
 
   if (!initialized)
