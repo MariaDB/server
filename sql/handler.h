@@ -320,6 +320,7 @@
 #define HA_LEX_CREATE_TMP_TABLE	1
 #define HA_LEX_CREATE_IF_NOT_EXISTS 2
 #define HA_LEX_CREATE_TABLE_LIKE 4
+#define HA_CREATE_TMP_ALTER	8
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */
@@ -1437,7 +1438,7 @@ struct HA_CREATE_INFO
   const char *alias;
   ulonglong max_rows,min_rows;
   ulonglong auto_increment_value;
-  ulong table_options;
+  ulong table_options;                  ///< HA_OPTION_ values
   ulong avg_row_length;
   ulong used_fields;
   ulong key_block_size;

@@ -2265,12 +2265,6 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   }
   delete file;
 
-  if (likely(error == 0))
-  {
-    PSI_CALL_drop_table_share(is_prefix(alias, tmp_file_prefix),
-                              db, strlen(db), alias, strlen(alias));
-  }
-
   DBUG_RETURN(error);
 }
 
@@ -2353,8 +2347,7 @@ void handler::rebind_psi()
     Notify the instrumentation that this table is now owned
     by this thread.
   */
-  PSI_table_share *share_psi= ha_table_share_psi();
-  m_psi= PSI_CALL_rebind_table(share_psi, this, m_psi);
+  m_psi= PSI_CALL_rebind_table(ha_table_share_psi(), this, m_psi);
 }
 
 
@@ -4316,10 +4309,11 @@ int ha_create_table(THD *thd, const char *path,
   char name_buff[FN_REFLEN];
   const char *name;
   TABLE_SHARE share;
-  bool temp_table __attribute__((unused)) = create_info->tmp_table() ||
-                                is_prefix(table_name, tmp_file_prefix);
+  bool temp_table __attribute__((unused)) =
+    create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
+                                 
   DBUG_ENTER("ha_create_table");
-  
+
   init_tmp_table_share(thd, &share, db, 0, table_name, path);
 
   if (frm)

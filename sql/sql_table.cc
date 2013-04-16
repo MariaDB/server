@@ -2374,6 +2374,13 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
 	wrong_tables.append(',');
       wrong_tables.append(String(table->table_name,system_charset_info));
     }
+    else
+    {
+      PSI_CALL_drop_table_share(table->internal_tmp_table,
+                                table->db, table->db_length,
+                                table->table_name, table->table_name_length);
+    }
+
     DBUG_PRINT("table", ("table: 0x%lx  s: 0x%lx", (long) table->table,
                          table->table ? (long) table->table->s : (long) -1));
 
@@ -2510,6 +2517,11 @@ bool quick_rm_table(handlerton *base,const char *db,
   path[path_length - reg_ext_length]= '\0'; // Remove reg_ext
   if (!(flags & FRM_ONLY))
     error|= ha_delete_table(current_thd, base, path, db, table_name, 0);
+
+  if (likely(error == 0))
+    PSI_CALL_drop_table_share(flags & FN_IS_TMP, db, strlen(db),
+                              table_name, strlen(table_name));
+
   DBUG_RETURN(error);
 }
 
@@ -4674,7 +4686,7 @@ mysql_rename_table(handlerton *base, const char *old_db,
    */
   if (likely(error == 0))
   {
-    PSI_CALL_drop_table_share(is_prefix(old_name, tmp_file_prefix),
+    PSI_CALL_drop_table_share(flags & FN_FROM_IS_TMP,
                               old_db, strlen(old_db),
                               old_name, strlen(old_name));
   }
@@ -7001,6 +7013,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                   HA_OPTION_PACK_RECORD));
   }
   tmp_disable_binlog(thd);
+  create_info->options|=HA_CREATE_TMP_ALTER;
   error= mysql_create_table_no_lock(thd, new_db, tmp_name, create_info,
                                     alter_info, NULL, create_table_mode);
   reenable_binlog(thd);
