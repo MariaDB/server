@@ -21,6 +21,8 @@
 #include "rpl_rli.h"
 #include "rpl_reporting.h"
 #include "my_sys.h"
+#include "rpl_filter.h"
+#include "keycaches.h"
 
 typedef struct st_mysql MYSQL;
 
@@ -92,6 +94,7 @@ class Master_info : public Slave_reporting_capability
   uint32 file_id;				/* for 3.23 load data infile */
   Relay_log_info rli;
   uint port;
+  Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/
   /*
     to hold checksum alg in use until IO thread has received FD.
     Initialized to novalue, then set to the queried from master
@@ -141,6 +144,7 @@ int flush_master_info(Master_info* mi,
                       bool flush_relay_log_cache, 
                       bool need_lock_relay_log);
 int change_master_server_id_cmp(ulong *id1, ulong *id2);
+void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 
 /*
   Multi master are handled trough this struct.

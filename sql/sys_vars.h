@@ -28,6 +28,7 @@
 #include "keycaches.h"
 #include "strfunc.h"
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
+#include "rpl_mi.h" // For Multi-Source Replication
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -551,6 +552,7 @@ protected:
   }
 };
 
+class Master_info;
 class Sys_var_rpl_filter: public sys_var
 {
 private:
@@ -562,7 +564,7 @@ public:
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL), opt_id(getopt_id)
   {
-    option.var_type= GET_STR;
+    option.var_type= GET_STR | GET_ASK_ADDR;
   }
 
   bool do_check(THD *thd, set_var *var)
@@ -588,7 +590,7 @@ public:
 
 protected:
   uchar *global_value_ptr(THD *thd, LEX_STRING *base);
-  bool set_filter_value(const char *value);
+  bool set_filter_value(const char *value, Master_info *mi);
 };
 
 /**

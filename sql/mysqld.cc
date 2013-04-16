@@ -621,7 +621,8 @@ MYSQL_FILE *bootstrap_file;
 int bootstrap_error;
 
 I_List<THD> threads;
-Rpl_filter* rpl_filter;
+Rpl_filter* cur_rpl_filter;
+Rpl_filter* global_rpl_filter;
 Rpl_filter* binlog_filter;
 
 THD *first_global_thread()
@@ -1882,7 +1883,7 @@ void clean_up(bool print_message)
 #endif
   my_uuid_end();
   delete binlog_filter;
-  delete rpl_filter;
+  delete global_rpl_filter;
   end_ssl();
   vio_end();
   my_regex_end();
@@ -3587,9 +3588,9 @@ static int init_common_variables()
   max_system_variables.pseudo_thread_id= (ulong)~0;
   server_start_time= flush_status_time= my_time(0);
 
-  rpl_filter= new Rpl_filter;
+  global_rpl_filter= new Rpl_filter;
   binlog_filter= new Rpl_filter;
-  if (!rpl_filter || !binlog_filter)
+  if (!global_rpl_filter || !binlog_filter)
   {
     sql_perror("Could not allocate replication and binlog filters");
     return 1;
@@ -5125,6 +5126,9 @@ int mysqld_main(int argc, char **argv)
   create_shutdown_thread();
   start_handle_manager();
 
+  /* Copy default global rpl_filter to global_rpl_filter */
+  copy_filter_setting(global_rpl_filter, get_or_create_rpl_filter("", 0));
+
   /*
     init_slave() must be called after the thread keys are created.
     Some parts of the code (e.g. SHOW STATUS LIKE 'slave_running' and other
@@ -6541,28 +6545,28 @@ struct my_option my_long_options[]=
    "while having selected a different or no database. If you need cross "
    "database updates to work, make sure you have 3.23.28 or later, and use "
    "replicate-wild-do-table=db_name.%.",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-do-table", OPT_REPLICATE_DO_TABLE,
    "Tells the slave thread to restrict replication to the specified table. "
    "To specify more than one table, use the directive multiple times, once "
    "for each table. This will work for cross-database updates, in contrast "
-   "to replicate-do-db.", 0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "to replicate-do-db.", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-ignore-db", OPT_REPLICATE_IGNORE_DB,
    "Tells the slave thread to not replicate to the specified database. To "
    "specify more than one database to ignore, use the directive multiple "
    "times, once for each database. This option will not work if you use "
    "cross database updates. If you need cross database updates to work, "
    "make sure you have 3.23.28 or later, and use replicate-wild-ignore-"
-   "table=db_name.%. ", 0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "table=db_name.%. ", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-ignore-table", OPT_REPLICATE_IGNORE_TABLE,
    "Tells the slave thread to not replicate to the specified table. To specify "
    "more than one table to ignore, use the directive multiple times, once for "
    "each table. This will work for cross-database updates, in contrast to "
-   "replicate-ignore-db.", 0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   "replicate-ignore-db.", 0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-rewrite-db", OPT_REPLICATE_REWRITE_DB,
    "Updates to a database with a different name than the original. Example: "
    "replicate-rewrite-db=master_db_name->slave_db_name.",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"replicate-same-server-id", 0,
    "In replication, if set to 1, do not skip events having our server id. "
@@ -6578,7 +6582,7 @@ struct my_option my_long_options[]=
    "database updates. Example: replicate-wild-do-table=foo%.bar% will "
    "replicate only updates to tables in all databases that start with foo "
    "and whose table names start with bar.",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"replicate-wild-ignore-table", OPT_REPLICATE_WILD_IGNORE_TABLE,
    "Tells the slave thread to not replicate to the tables that match the "
    "given wildcard pattern. To specify more than one table to ignore, use "
@@ -6586,7 +6590,7 @@ struct my_option my_long_options[]=
    "cross-database updates. Example: replicate-wild-ignore-table=foo%.bar% "
    "will not do updates to tables in databases that start with foo and whose "
    "table names start with bar.",
-   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   0, 0, 0, GET_STR | GET_ASK_ADDR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"safe-mode", OPT_SAFE, "Skip some optimize stages (for testing). Deprecated.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"safe-user-create", 0,
@@ -7752,12 +7756,12 @@ mysqld_get_one_option(int optid,
 #ifdef HAVE_REPLICATION
   case (int)OPT_REPLICATE_IGNORE_DB:
   {
-    rpl_filter->add_ignore_db(argument);
+    cur_rpl_filter->add_ignore_db(argument);
     break;
   }
   case (int)OPT_REPLICATE_DO_DB:
   {
-    rpl_filter->add_do_db(argument);
+    cur_rpl_filter->add_do_db(argument);
     break;
   }
   case (int)OPT_REPLICATE_REWRITE_DB:
@@ -7788,7 +7792,7 @@ mysqld_get_one_option(int optid,
       return 1;
     }
 
-    rpl_filter->add_db_rewrite(key, val);
+    cur_rpl_filter->add_db_rewrite(key, val);
     break;
   }
 
@@ -7804,7 +7808,7 @@ mysqld_get_one_option(int optid,
   }
   case (int)OPT_REPLICATE_DO_TABLE:
   {
-    if (rpl_filter->add_do_table(argument))
+    if (cur_rpl_filter->add_do_table(argument))
     {
       sql_print_error("Could not add do table rule '%s'!\n", argument);
       return 1;
@@ -7813,7 +7817,7 @@ mysqld_get_one_option(int optid,
   }
   case (int)OPT_REPLICATE_WILD_DO_TABLE:
   {
-    if (rpl_filter->add_wild_do_table(argument))
+    if (cur_rpl_filter->add_wild_do_table(argument))
     {
       sql_print_error("Could not add do table rule '%s'!\n", argument);
       return 1;
@@ -7822,7 +7826,7 @@ mysqld_get_one_option(int optid,
   }
   case (int)OPT_REPLICATE_WILD_IGNORE_TABLE:
   {
-    if (rpl_filter->add_wild_ignore_table(argument))
+    if (cur_rpl_filter->add_wild_ignore_table(argument))
     {
       sql_print_error("Could not add ignore table rule '%s'!\n", argument);
       return 1;
@@ -7831,7 +7835,7 @@ mysqld_get_one_option(int optid,
   }
   case (int)OPT_REPLICATE_IGNORE_TABLE:
   {
-    if (rpl_filter->add_ignore_table(argument))
+    if (cur_rpl_filter->add_ignore_table(argument))
     {
       sql_print_error("Could not add ignore table rule '%s'!\n", argument);
       return 1;
@@ -7952,7 +7956,7 @@ mysqld_get_one_option(int optid,
 C_MODE_START
 
 static void*
-mysql_getopt_value(const char *keyname, uint key_length,
+mysql_getopt_value(const char *name, uint length,
 		   const struct my_option *option, int *error)
 {
   if (error)
@@ -7965,7 +7969,7 @@ mysql_getopt_value(const char *keyname, uint key_length,
   case OPT_KEY_CACHE_PARTITIONS:
   {
     KEY_CACHE *key_cache;
-    if (!(key_cache= get_or_create_key_cache(keyname, key_length)))
+    if (!(key_cache= get_or_create_key_cache(name, length)))
     {
       if (error)
         *error= EXIT_OUT_OF_MEMORY;
@@ -7983,6 +7987,22 @@ mysql_getopt_value(const char *keyname, uint key_length,
     case OPT_KEY_CACHE_PARTITIONS:
       return (uchar**) &key_cache->param_partitions;
     }
+  }
+  case OPT_REPLICATE_DO_DB:
+  case OPT_REPLICATE_DO_TABLE:
+  case OPT_REPLICATE_IGNORE_DB:
+  case OPT_REPLICATE_IGNORE_TABLE:
+  case OPT_REPLICATE_WILD_DO_TABLE:
+  case OPT_REPLICATE_WILD_IGNORE_TABLE:
+  case OPT_REPLICATE_REWRITE_DB:
+  {
+    /* Store current filter for mysqld_get_one_option() */
+    if (!(cur_rpl_filter= get_or_create_rpl_filter(name, length)))
+    {
+      if (error)
+        *error= EXIT_OUT_OF_MEMORY;
+    }
+    return 0;
   }
   }
   return option->value;
