@@ -228,6 +228,7 @@ template <class T> bool valid_buffer_range(T jump,
 #define OPTIMIZER_SWITCH_TABLE_ELIMINATION         (1ULL << 26)
 #define OPTIMIZER_SWITCH_EXTENDED_KEYS             (1ULL << 27)
 #define OPTIMIZER_SWITCH_EXISTS_TO_IN              (1ULL << 28)
+#define OPTIMIZER_SWITCH_USE_CONDITION_SELECTIVITY (1ULL << 29)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \

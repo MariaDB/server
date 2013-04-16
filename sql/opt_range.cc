@@ -117,6 +117,7 @@
 #include "records.h"          // init_read_record, end_read_record
 #include <m_ctype.h>
 #include "sql_select.h"
+#include "sql_statistics.h"
 #include "filesort.h"         // filesort_free_buffers
 
 #ifndef EXTRA_DEBUG
@@ -3216,6 +3217,327 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   */
   DBUG_RETURN(records ? test(quick) : -1);
 }
+
+/****************************************************************************
+ * Condition selectivity module
+ ****************************************************************************/
+
+
+/*
+  Build descriptors of pseudo-indexes over columns to perform range analysis
+
+  SYNOPSIS
+    create_key_parts_for_pseudo_indexes()
+      param       IN/OUT data structure for the descriptors to be built 
+      used_fields bitmap of columns for which the descriptors are to be built          
+
+  DESCRIPTION
+    For each column marked in the bitmap used_fields the function builds
+    a descriptor of a single-component pseudo-index over this column that
+    can be used for the range analysis of the predicates over this columns. 
+    The descriptors are created in the memory of param->mem_root. 
+   
+  RETURN
+    FALSE  in the case of success
+    TRUE   otherwise
+*/
+
+static
+bool create_key_parts_for_pseudo_indexes(RANGE_OPT_PARAM *param,
+                                         MY_BITMAP *used_fields)
+{
+  Field **field_ptr;
+  TABLE *table= param->table;
+  uint parts= 0;
+
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+      parts++;
+  }
+
+  KEY_PART *key_part;
+  uint keys= 0;
+
+  if (!(key_part= (KEY_PART *)  alloc_root(param->mem_root,
+                                           sizeof(KEY_PART) * parts)))
+    return TRUE;
+
+  param->key_parts= key_part;
+
+  for (field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    if (bitmap_is_set(used_fields, (*field_ptr)->field_index))
+    {
+      Field *field= *field_ptr;
+      uint16 store_length;
+      key_part->key= keys;
+      key_part->part= 0;
+      key_part->length= (uint16) field->key_length();
+      store_length= key_part->length;
+      if (field->real_maybe_null())
+        store_length+= HA_KEY_NULL_LENGTH;
+      if (field->real_type() == MYSQL_TYPE_VARCHAR)
+        store_length+= HA_KEY_BLOB_LENGTH;
+      key_part->store_length= store_length; 
+      key_part->field= field; 
+      key_part->image_type= Field::itRAW;
+      key_part->flag= 0;
+      param->key[keys]= key_part;
+      keys++;
+      key_part++;
+    }
+  }
+  param->keys= keys;
+  param->key_parts_end= key_part;
+
+  return FALSE;
+}
+
+
+/*
+  Estimate the number of rows in all ranges built for a column
+  by the range optimizer  
+
+  SYNOPSIS
+    records_in_column_ranges()
+      param      the data structure to access descriptors of pseudo indexes
+                 built over columns used in the condition of the processed query
+      idx        the index of the descriptor of interest in param
+      tree       the tree representing ranges built for the interesting column         
+
+  DESCRIPTION
+    This function retrieves the ranges represented by the SEL_ARG 'tree' and
+    for each of them r it calls the function get_column_range_cardinality()
+    that estimates the number of expected rows in r. It is assumed that param
+    is the data structure containing the descriptors of pseudo-indexes that
+    has been built to perform range analysis of the range conditions imposed
+    on the columns used in the processed query, while idx is the index of the
+    descriptor created in 'param' exactly for the column for which 'tree'
+    has been built by the range optimizer.    
+
+  RETURN
+    the number of rows in the retrieved ranges  
+*/
+
+static
+double records_in_column_ranges(PARAM *param, uint idx, 
+                                SEL_ARG *tree)
+{
+  SEL_ARG_RANGE_SEQ seq;
+  KEY_MULTI_RANGE range;
+  range_seq_t seq_it;
+  double rows;
+  Field *field;
+  uint flags= 0;
+  double total_rows= 0;
+  RANGE_SEQ_IF seq_if = {NULL, sel_arg_range_seq_init, 
+                         sel_arg_range_seq_next, 0, 0};
+  
+  /* Handle cases when we don't have a valid non-empty list of range */
+  if (!tree)
+    return HA_POS_ERROR;
+  if (tree->type == SEL_ARG::IMPOSSIBLE)
+    return (0L);
+
+  field= tree->field;
+
+  seq.keyno= idx;
+  seq.real_keyno= MAX_KEY;
+  seq.param= param;
+  seq.start= tree;
+
+  seq_it= seq_if.init((void *) &seq, 0, flags);
+
+  while (!seq_if.next(seq_it, &range))
+  {
+    key_range *min_endp, *max_endp;
+    min_endp= range.start_key.length? &range.start_key : NULL;
+    max_endp= range.end_key.length? &range.end_key : NULL;
+    rows= get_column_range_cardinality(field, min_endp, max_endp,
+                                       range.range_flag);
+    if (HA_POS_ERROR == rows)
+    {
+      total_rows= HA_POS_ERROR;
+      break;
+    }
+    total_rows += rows;
+  }    
+  return total_rows;
+} 
+
+
+/*
+  Calculate the selectivity of the condition imposed on the rows of a table
+
+  SYNOPSIS
+    calculate_cond_selectivity_for_table()
+      thd        the context handle 
+      table      the table of interest
+      cond       conditions imposed on the rows of the table        
+
+  DESCRIPTION
+    This function calculates the selectivity of range conditions cond imposed
+    on the rows of 'table' in the processed query.
+    The calculated selectivity is assigned to the field table->cond_selectivity.
+    
+  NOTE
+    Currently the selectivities of range conditions over different columns are
+    considered independent. 
+
+  RETURN
+    FALSE  on success
+    TRUE   otherwise 
+*/
+
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
+{
+  uint keynr;
+  uint max_quick_key_parts= 0;
+  MY_BITMAP *used_fields= &table->cond_set;
+  double table_records= table->stat_records(); 
+  DBUG_ENTER("calculate_cond_selectivity_for_table");
+
+  table->cond_selectivity= 1.0;
+
+  if (table_records == 0)
+    DBUG_RETURN(FALSE);
+  
+  if (thd->variables.optimizer_use_condition_selectivity > 2 &&
+      !bitmap_is_clear_all(used_fields))
+  {
+    /* 
+      Calculate the selectivity of the range conditions not supported
+      by any index
+    */
+
+    PARAM param;
+    MEM_ROOT alloc;
+    SEL_TREE *tree;
+    SEL_ARG **key, **end;
+    double rows;
+    uint idx= 0;
+  
+    init_sql_alloc(&alloc, thd->variables.range_alloc_block_size, 0,
+                   MYF(MY_THREAD_SPECIFIC));
+    param.thd= thd;
+    param.mem_root= &alloc;
+    param.old_root= thd->mem_root;
+    param.table= table;
+    param.is_ror_scan= FALSE;
+
+    if (create_key_parts_for_pseudo_indexes(&param, used_fields))
+      goto free_alloc;
+
+    param.prev_tables= param.read_tables= 0;
+    param.current_table= table->map;
+    param.using_real_indexes= FALSE;
+    param.real_keynr[0]= 0;
+    param.alloced_sel_args= 0;
+
+    thd->no_errors=1;		    
+
+    tree= get_mm_tree(&param, cond);
+
+    if (!tree)
+      goto free_alloc;
+    
+    table->reginfo.impossible_range= 0;
+    if (tree->type == SEL_TREE::IMPOSSIBLE)
+    {
+      rows= 0;
+      table->reginfo.impossible_range= 1;
+      goto free_alloc;
+    }  
+    else if (tree->type == SEL_TREE::MAYBE)
+    {
+      rows= table_records;
+      goto free_alloc;
+    }        
+
+    for (key= tree->keys, end= key + param.keys; key != end; key++, idx++)
+    {
+      if (*key)
+      {
+        if ((*key)->type == SEL_ARG::IMPOSSIBLE)
+	{
+          rows= 0;
+          table->reginfo.impossible_range= 1;
+          goto free_alloc;
+        }          
+        else
+        {
+          rows= records_in_column_ranges(&param, idx, *key);
+          if (rows != HA_POS_ERROR)
+            (*key)->field->cond_selectivity= rows/table_records;
+        } 
+      }
+    }
+
+    for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
+    {
+      Field *table_field= *field_ptr;   
+      if (bitmap_is_set(table->read_set, table_field->field_index) &&
+          table_field->cond_selectivity < 1.0)
+        table->cond_selectivity*= table_field->cond_selectivity;
+    }
+
+  free_alloc:
+    thd->mem_root= param.old_root;
+    free_root(&alloc, MYF(0));
+
+  }
+
+  /* Calculate the selectivity of the range conditions supported by indexes */
+
+  bitmap_clear_all(used_fields);
+
+  for (keynr= 0;  keynr < table->s->keys; keynr++)
+  {
+    if (table->quick_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+  }
+
+  for (uint quick_key_parts= max_quick_key_parts;
+       quick_key_parts; quick_key_parts--)
+  {
+    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    {
+      if (table->quick_keys.is_set(keynr) &&
+          table->quick_key_parts[keynr] == quick_key_parts)
+      {
+        uint i;
+        uint used_key_parts= table->quick_key_parts[keynr];
+        double quick_cond_selectivity= table->quick_rows[keynr] / 
+	                               table_records;
+        KEY *key_info= table->key_info + keynr;
+        KEY_PART_INFO* key_part= key_info->key_part;
+        for (i= 0; i < used_key_parts; i++, key_part++)
+        {
+          if (bitmap_is_set(used_fields, key_part->fieldnr-1))
+	    break; 
+          bitmap_set_bit(used_fields, key_part->fieldnr-1);
+        }
+        if (i)
+        {
+          table->cond_selectivity*= quick_cond_selectivity;
+          if (i != used_key_parts)
+	  {
+            double f1= key_info->actual_rec_per_key(i-1);
+            double f2= key_info->actual_rec_per_key(i);
+            table->cond_selectivity*= f1 / f2;
+          }
+        }
+      } 
+    }
+  } 
+
+  DBUG_RETURN(FALSE);
+}
+
+/****************************************************************************
+ * Condition selectivity code ends
+ ****************************************************************************/
 
 /****************************************************************************
  * Partition pruning module
