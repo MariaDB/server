@@ -248,5 +248,27 @@ ENDIF(CONNECT_WITH_ODBC)
 MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   MODULE_OUTPUT_NAME "ha_connect"
+  COMPONENT connect-engine
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+
+
+#
+# Packaging definitions
+#
+
+IF (INSTALL_SYSCONFDIR)
+    INSTALL(FILES connect.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
+            COMPONENT connect-engine)
+ENDIF(INSTALL_SYSCONFDIR)
+
+IF(RPM)
+  SET(CPACK_COMPONENT_CASSANDRASELIBRARIES_GROUP "connect-engine" PARENT_SCOPE)
+  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect-engine PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+
+  # workarounds for cmake issues #13248 and #12864:
+  SET(CPACK_RPM_connect_engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+ENDIF(RPM)
