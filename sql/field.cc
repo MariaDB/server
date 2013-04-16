@@ -1273,6 +1273,37 @@ out_of_range:
   return 1;
 }
 
+
+/**
+  @brief
+  Determine the relative position of the field value in a numeric interval
+
+  @details
+  The function returns a double number between 0.0 and 1.0 as the relative
+  position of the value of the this field in the numeric interval of [min,max].
+  If the value is not in the interval the the function returns 0.0 when
+  the value is less than min, and, 1.0 when the value is greater than max.
+
+  @param  min  value of the left end of the interval
+  @param  max  value of the right end of the interval
+
+  @return
+  relative position of the field value in the numeric interval [min,max] 
+*/
+
+double Field_num::pos_in_interval(Field *min, Field *max)
+{
+  double n, d;
+  n= val_real() - min->val_real();
+  if (n < 0)
+    return 0.0;
+  d= max->val_real() - min->val_real();
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
+}
+
+
 /**
   Process decimal library return codes and issue warnings for overflow and
   truncation.
@@ -1344,6 +1375,8 @@ Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
   comment.length=0;
   field_index= 0;   
   is_stat_field= FALSE;
+  cond_selectivity= 1.0;
+  next_equal_field= NULL;
 }
 
 
@@ -6167,6 +6200,79 @@ int Field_str::store(double nr)
   return store(buff, length, &my_charset_numeric);
 }
 
+static
+inline ulonglong char_prefix_to_ulonglong(uchar *src)
+{
+  uint sz= sizeof(ulonglong);
+  for (uint i= 0; i < sz/2; i++)
+  {
+    uchar tmp= src[i];
+    src[i]= src[sz-1-i];
+    src[sz-1-i]= tmp;
+  }
+  return uint8korr(src); 
+}
+
+/**
+  @brief
+  Determine the relative position of the field value in a string interval
+
+  @details
+  The function returns a double number between 0.0 and 1.0 as the relative
+  position of the value of the this field in the string interval of [min,max].
+  If the value is not in the interval the the function returns 0.0 when
+  the value is less than min, and, 1.0 when the value is greater than max.
+
+  @note
+  To calculate the relative position of the string value v in the interval
+  [min, max] the function first converts the beginning of these three
+  strings v, min, max into the strings that are used for byte comparison.
+  For each string not more sizeof(ulonglong) first bytes are taken
+  from the result of conversion. Then these bytes are interpreted as the
+  big-endian representation of an ulonglong integer. The values of these
+  integer numbers obtained for the strings v, min, max are used to calculate
+  the position of v in [min,max] in the same way is it's done for numeric
+  fields (see Field_num::pos_in_interval).
+
+  @todo
+  Improve the procedure for the case when min and max have the same
+  beginning
+     
+  @param  min  value of the left end of the interval
+  @param  max  value of the right end of the interval
+
+  @return
+  relative position of the field value in the string interval [min,max] 
+*/
+
+double Field_str::pos_in_interval(Field *min, Field *max)
+{
+  uchar mp_prefix[sizeof(ulonglong)];
+  uchar minp_prefix[sizeof(ulonglong)];
+  uchar maxp_prefix[sizeof(ulonglong)];
+  ulonglong mp, minp, maxp;
+  my_strnxfrm(charset(), mp_prefix, sizeof(mp),
+              ptr + length_size(),
+              data_length());
+  my_strnxfrm(charset(), minp_prefix, sizeof(minp),
+              min->ptr + length_size(),
+              min->data_length());
+  my_strnxfrm(charset(), maxp_prefix, sizeof(maxp),
+              max->ptr + length_size(),
+              max->data_length());
+  mp= char_prefix_to_ulonglong(mp_prefix);
+  minp= char_prefix_to_ulonglong(minp_prefix);
+  maxp= char_prefix_to_ulonglong(maxp_prefix);
+  double n, d;
+  n= mp - minp;
+  if (n < 0)
+    return 0.0;
+  d= maxp - minp;
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
+}
+
 
 uint Field::is_equal(Create_field *new_field)
 {
@@ -8375,6 +8481,36 @@ my_decimal *Field_bit::val_decimal(my_decimal *deciaml_value)
   ASSERT_COLUMN_MARKED_FOR_READ;
   int2my_decimal(E_DEC_FATAL_ERROR, val_int(), 1, deciaml_value);
   return deciaml_value;
+}
+
+
+/**
+  @brief
+  Determine the relative position of the field value in a bit interval
+
+  @details
+  The function returns a double number between 0.0 and 1.0 as the relative
+  position of the value of the this field in the bit interval of [min,max].
+  If the value is not in the interval the the function returns 0.0 when
+  the value is less than min, and, 1.0 when the value is greater than max.
+
+  @param  min  value of the left end of the interval
+  @param  max  value of the right end of the interval
+
+  @return
+  relative position of the field value in the bit interval [min,max] 
+*/
+
+double Field_bit::pos_in_interval(Field *min, Field *max)
+{
+  double n, d;
+  n= val_real() - min->val_real();
+  if (n < 0)
+    return 0.0;
+  d= max->val_real() - min->val_real();
+  if (d <= 0)
+    return 1.0;
+  return min(n/d, 1.0);
 }
 
 

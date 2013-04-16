@@ -504,7 +504,10 @@ typedef struct system_variables
   ulong net_write_timeout;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
+  ulong optimizer_use_condition_selectivity;
   ulong use_stat_tables;
+  ulong histogram_size;
+  ulong histogram_type;
   ulong preload_buff_size;
   ulong profiling_history_size;
   ulong read_buff_size;
@@ -4017,6 +4020,7 @@ class Unique :public Sql_alloc
   uint size;
   uint full_size;
   uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
+  bool with_counters;
 
   bool merge(TABLE *table, uchar *buff, bool without_last_merge);
 

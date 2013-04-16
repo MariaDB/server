@@ -13,6 +13,9 @@ def	mysql	column_stats	avg_frequency	8	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL
 def	mysql	column_stats	avg_length	7	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
 def	mysql	column_stats	column_name	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
 def	mysql	column_stats	db_name	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_bin	varchar(64)	PRI			
+def	mysql	column_stats	histogram	11	NULL	YES	varbinary	255	255	NULL	NULL	NULL	NULL	NULL	varbinary(255)				
+def	mysql	column_stats	hist_size	9	NULL	YES	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(3) unsigned				
+def	mysql	column_stats	hist_type	10	NULL	YES	enum	14	42	NULL	NULL	NULL	utf8	utf8_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')				
 def	mysql	column_stats	max_value	5	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)				
 def	mysql	column_stats	min_value	4	NULL	YES	varchar	255	765	NULL	NULL	NULL	utf8	utf8_bin	varchar(255)				
 def	mysql	column_stats	nulls_ratio	6	NULL	YES	decimal	NULL	NULL	12	4	NULL	NULL	NULL	decimal(12,4)				
@@ -260,6 +263,7 @@ ORDER BY CHARACTER_SET_NAME, COLLATION_NAME, COL_CML;
 COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 1.0000	blob	NULL	NULL
 1.0000	longblob	NULL	NULL
+1.0000	varbinary	NULL	NULL
 1.0000	char	latin1	latin1_bin
 1.0000	char	latin1	latin1_swedish_ci
 1.0000	varchar	latin1	latin1_swedish_ci
@@ -332,6 +336,9 @@ NULL	mysql	columns_priv	Timestamp	timestamp	NULL	NULL	NULL	NULL	timestamp
 NULL	mysql	column_stats	nulls_ratio	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	avg_length	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
 NULL	mysql	column_stats	avg_frequency	decimal	NULL	NULL	NULL	NULL	decimal(12,4)
+NULL	mysql	column_stats	hist_size	tinyint	NULL	NULL	NULL	NULL	tinyint(3) unsigned
+3.0000	mysql	column_stats	hist_type	enum	14	42	utf8	utf8_bin	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')
+1.0000	mysql	column_stats	histogram	varbinary	255	255	NULL	NULL	varbinary(255)
 3.0000	mysql	db	Host	char	60	180	utf8	utf8_bin	char(60)
 3.0000	mysql	db	Db	char	64	192	utf8	utf8_bin	char(64)
 3.0000	mysql	db	User	char	16	48	utf8	utf8_bin	char(16)

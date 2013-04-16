@@ -5568,7 +5568,8 @@ Item *Item_bool_rowready_func2::negated_item()
 */
 
 Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
-  : Item_bool_func(), eval_item(0), cond_false(0), context_field(NULL)
+  : Item_bool_func(), eval_item(0), cond_false(0), context_field(NULL),
+    link_equal_fields(FALSE)
 {
   const_item_cache= 0;
   with_const= with_const_item;
@@ -5592,7 +5593,8 @@ Item_equal::Item_equal(Item *f1, Item *f2, bool with_const_item)
 */
 
 Item_equal::Item_equal(Item_equal *item_equal)
-  : Item_bool_func(), eval_item(0), cond_false(0), context_field(NULL)
+  : Item_bool_func(), eval_item(0), cond_false(0), context_field(NULL),
+    link_equal_fields(FALSE)
 {
   const_item_cache= 0;
   List_iterator_fast<Item> li(item_equal->equal_items);
@@ -5918,6 +5920,9 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(fixed == 0);
   Item_equal_fields_iterator it(*this);
   Item *item;
+  Field *first_equal_field;
+  Field *last_equal_field;
+  Field *prev_equal_field= NULL;
   not_null_tables_cache= used_tables_cache= 0;
   const_item_cache= 0;
   while ((item= it++))
@@ -5931,7 +5936,18 @@ bool Item_equal::fix_fields(THD *thd, Item **ref)
       maybe_null= 1;
     if (!item->get_item_equal())
       item->set_item_equal(this);
+    if (link_equal_fields && item->real_item()->type() == FIELD_ITEM)
+    {
+      last_equal_field= ((Item_field *) (item->real_item()))->field;
+      if (!prev_equal_field)
+        first_equal_field= last_equal_field;
+      else
+        prev_equal_field->next_equal_field= last_equal_field;
+      prev_equal_field= last_equal_field;         
+    }
   }
+  if (prev_equal_field && last_equal_field != first_equal_field)
+    last_equal_field->next_equal_field= first_equal_field;
   fix_length_and_dec();
   fixed= 1;
   return FALSE;
