@@ -3756,6 +3756,7 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
   HA_CREATE_INFO db_options;
   uint64 sub_id= 0;
   rpl_gtid gtid;
+  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   /*
@@ -5439,6 +5440,7 @@ int Load_log_event::do_apply_event(NET* net, Relay_log_info const *rli,
                                    bool use_rli_only_for_errors)
 {
   LEX_STRING new_db;
+  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Load_log_event::do_apply_event");
 
   new_db.length= db_len;
@@ -10044,8 +10046,8 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
   enum_tbl_map_status res= OK_TO_PROCESS;
 
   if (rli->sql_thd->slave_thread /* filtering is for slave only */ &&
-      (!rpl_filter->db_ok(table_list->db) ||
-       (rpl_filter->is_on() && !rpl_filter->tables_ok("", table_list))))
+      (!rli->mi->rpl_filter->db_ok(table_list->db) ||
+       (rli->mi->rpl_filter->is_on() && !rli->mi->rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;
   else
   {
@@ -10079,6 +10081,7 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
   char *db_mem, *tname_mem;
   size_t dummy_len;
   void *memory;
+  Rpl_filter *filter;
   DBUG_ENTER("Table_map_log_event::do_apply_event(Relay_log_info*)");
   DBUG_ASSERT(rli->sql_thd == thd);
 
@@ -10092,7 +10095,9 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
                                 NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  strmov(db_mem, rpl_filter->get_rewrite_db(m_dbnam, &dummy_len));
+  /* call from mysql_client_binlog_statement() will not set rli->mi */
+  filter= rli->sql_thd->slave_thread ? rli->mi->rpl_filter : global_rpl_filter;
+  strmov(db_mem, filter->get_rewrite_db(m_dbnam, &dummy_len));
   strmov(tname_mem, m_tblnam);
 
   table_list->init_one_table(db_mem, strlen(db_mem),

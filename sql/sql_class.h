@@ -47,6 +47,7 @@
 
 class Reprepare_observer;
 class Relay_log_info;
+class Rpl_filter;
 
 class Query_log_event;
 class Load_log_event;
@@ -1587,6 +1588,9 @@ public:
   Relay_log_info* rli_fake;
   /* Slave applier execution context */
   Relay_log_info* rli_slave;
+
+  /* Used to SLAVE SQL thread */
+  Rpl_filter* rpl_filter;
 
   void reset_for_next_command(bool calculate_userstat);
   /*

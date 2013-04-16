@@ -3371,19 +3371,48 @@ static Sys_var_mybool Sys_relay_log_recovery(
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
+  Master_info *mi;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!master_info_index->give_error_if_slave_running())
-    result= set_filter_value(var->save_result.string_value.str);
+  
+  if (!var->base.length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(&var->base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+
+  if (mi)
+  {
+    if (mi->rli.slave_running)
+    {
+      my_error(ER_SLAVE_MUST_STOP, MYF(0), 
+          mi->connection_name.length,
+          mi->connection_name.str);
+      result= true;
+    }
+    else
+    {
+      result= set_filter_value(var->save_result.string_value.str, mi);
+    }
+  }
+
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 
-bool Sys_var_rpl_filter::set_filter_value(const char *value)
+bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
+  Rpl_filter* rpl_filter= mi ? mi->rpl_filter : global_rpl_filter;
 
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
@@ -3413,7 +3442,32 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+  Master_info *mi;
+  Rpl_filter *rpl_filter;
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!base->length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  if (!mi)
+  {
+    mysql_mutex_unlock(&LOCK_active_mi);
+    return 0;
+  }
+  rpl_filter= mi->rpl_filter;
   tmp.length(0);
 
   switch (opt_id) {
@@ -3437,7 +3491,10 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
     break;
   }
 
-  return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  return ret;
 }
 
 static Sys_var_rpl_filter Sys_replicate_do_db(
