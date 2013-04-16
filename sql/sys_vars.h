@@ -552,6 +552,7 @@ protected:
   }
 };
 
+class Master_info;
 class Sys_var_rpl_filter: public sys_var
 {
 private:
