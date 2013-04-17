@@ -262,9 +262,9 @@ commit;
 select count(*) from t1;
 count(*)
 10
-show binlog events limit 2,10;
+show binlog events from <binlog_start> limit 10;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	286	Query	1	354	BEGIN
-master-bin.000001	354	Query	1	452	use test; insert t1 select * from seq_1_to_10
-master-bin.000001	452	Xid	1	479	COMMIT /* xid */
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use test; insert t1 select * from seq_1_to_10
+master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 drop table t1;
