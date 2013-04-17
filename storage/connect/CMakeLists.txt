@@ -117,6 +117,10 @@ ENDIF(CONNECT_WITH_LIBXML2)
 
 
 IF(WIN32)
+  # /MP option of the Microsoft compiler does not work well with COM #import
+  string(REPLACE "/MP" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  string(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     find_library(MSXML_LIBRARY
@@ -234,7 +238,7 @@ IF(CONNECT_WITH_ODBC)
     ENDIF()
   ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
-    SET(ODBC_LIBRARY "odbc32.lib odbccp32.lib")
+    SET(ODBC_LIBRARY odbc32.lib odbccp32.lib)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
@@ -248,7 +252,7 @@ ENDIF(CONNECT_WITH_ODBC)
 MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   MODULE_OUTPUT_NAME "ha_connect"
-  COMPONENT connect-engine
+  COMPONENT connect_engine
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
 
