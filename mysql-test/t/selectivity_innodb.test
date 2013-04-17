@@ -1,0 +1,12 @@
+--source include/have_innodb.inc
+
+SET SESSION STORAGE_ENGINE='InnoDB';
+
+set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
+set optimizer_switch='extended_keys=on';
+
+--source selectivity.test
+
+set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
+
+SET SESSION STORAGE_ENGINE=DEFAULT;

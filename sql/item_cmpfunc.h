@@ -1737,6 +1737,8 @@ class Item_equal: public Item_bool_func
   */
   Item_field *context_field;
 
+  bool link_equal_fields;
+
 public:
 
   COND_EQUAL *upper_levels;       /* multiple equalities of upper and levels */
@@ -1774,6 +1776,8 @@ public:
   CHARSET_INFO *compare_collation();
 
   void set_context_field(Item_field *ctx_field) { context_field= ctx_field; }
+  void set_link_equal_fields(bool flag) { link_equal_fields= flag; }
+  friend class Item_equal_fields_iterator;
   friend class Item_equal_iterator<List_iterator_fast,Item>;
   friend class Item_equal_iterator<List_iterator,Item>;
   friend Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,

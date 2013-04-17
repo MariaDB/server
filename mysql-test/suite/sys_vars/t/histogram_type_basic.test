@@ -1,0 +1,92 @@
+--source include/load_sysvars.inc
+
+#############################################################
+#                 Save initial value                        #
+#############################################################
+
+SET @start_global_value = @@global.histogram_type;
+SELECT @start_global_value;
+SET @start_session_value = @@session.histogram_type;
+SELECT @start_session_value;
+
+##############################################################
+#     Display the DEFAULT value of histogram_type            #
+##############################################################
+
+SET @@global.histogram_type = 1;
+SET @@global.histogram_type = DEFAULT;
+SELECT @@global.histogram_type;
+
+#################################################################################
+# Change the value of histogram_type to a valid value for GLOBAL Scope          #
+#################################################################################
+
+SET @@global.histogram_type = 0;
+SELECT @@global.histogram_type;
+SET @@global.histogram_type = 1;
+SELECT @@global.histogram_type;
+
+SET @@global.histogram_type = SINGLE_PREC_HB;
+SELECT @@global.histogram_type;
+SET @@global.histogram_type = DOUBLE_PREC_HB;
+SELECT @@global.histogram_type;
+
+###################################################################################
+# Change the value of histogram_type to a valid value for SESSION Scope           #
+###################################################################################
+
+SET @@session.histogram_type = 0;
+SELECT @@session.histogram_type;
+SET @@session.histogram_type = 1;
+SELECT @@session.histogram_type;
+
+SET @@session.histogram_type = SINGLE_PREC_HB;
+SELECT @@session.histogram_type;
+SET @@session.histogram_type = DOUBLE_PREC_HB;
+SELECT @@session.histogram_type;
+
+####################################################################
+# Change the value of histogram_type to an invalid value           #
+####################################################################
+
+set sql_mode=TRADITIONAL;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.histogram_type = 10;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.histogram_type = -1024;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.histogram_type = 2.4;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@global.histogram_type = OFF;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.histogram_type = 10;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.histogram_type = -2;
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@session.histogram_type = 1.2;
+--Error ER_WRONG_VALUE_FOR_VAR
+SET @@session.histogram_type = ON;
+
+###############################################################################
+#   Check if the value in GLOBAL & SESSION Tables matches value in variable   #
+###############################################################################
+
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='histogram_type';
+
+SELECT * FROM INFORMATION_SCHEMA.SESSION_VARIABLES 
+WHERE VARIABLE_NAME='histogram_type';
+
+####################################
+#     Restore initial value        #
+####################################
+
+SET @@global.histogram_type = @start_global_value;
+SELECT @@global.histogram_type;
+SET @@session.histogram_type = @start_session_value;
+SELECT @@session.histogram_type;
+set sql_mode='';
+
+#####################################################
+#         END OF histogram_type TESTS               #
+#####################################################

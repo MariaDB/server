@@ -20,6 +20,7 @@
 ****************************************************************************/
 
 NAMED_ILIST key_caches;
+NAMED_ILIST rpl_filters;
 
 /**
   ilink (intrusive list element) with a name
@@ -65,6 +66,23 @@ uchar* find_named(I_List<NAMED_ILINK> *list, const char *name, uint length,
   return 0;
 }
 
+
+bool NAMED_ILIST::delete_element(const char *name, uint length, void (*free_element)(const char *name, uchar*))
+{
+  I_List_iterator<NAMED_ILINK> it(*this);
+  NAMED_ILINK *element;
+  DBUG_ENTER("NAMED_ILIST::delete_element");
+  while ((element= it++))
+  {
+    if (element->cmp(name, length))
+    {
+      (*free_element)(element->name, element->data);
+      delete element;
+      DBUG_RETURN(0);
+    }
+  }
+  DBUG_RETURN(1);
+}
 
 void NAMED_ILIST::delete_elements(void (*free_element)(const char *name, uchar*))
 {
@@ -157,5 +175,53 @@ bool process_key_caches(process_key_cache_t func, void *param)
     res |= func(element->name, key_cache, param);
   }
   return res != 0;
+}
+
+/* Rpl_filter functions */
+
+LEX_STRING default_rpl_filter_base= {C_STRING_WITH_LEN("")};
+
+Rpl_filter *get_rpl_filter(LEX_STRING *filter_name)
+{
+  if (!filter_name->length)
+    filter_name= &default_rpl_filter_base;
+  return ((Rpl_filter*) find_named(&rpl_filters,
+                                   filter_name->str, filter_name->length, 0));
+}
+
+Rpl_filter *create_rpl_filter(const char *name, uint length)
+{
+  Rpl_filter *filter;
+  DBUG_ENTER("create_rpl_filter");
+  DBUG_PRINT("enter",("name: %.*s", length, name));
+  
+  filter= new Rpl_filter;
+  if (filter) 
+  {
+    if (!new NAMED_ILINK(&rpl_filters, name, length, (uchar*) filter))
+    {
+      delete filter;
+      filter= 0;
+    }
+  }
+  DBUG_RETURN(filter);
+}
+
+
+Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
+{
+  LEX_STRING rpl_filter_name;
+  Rpl_filter *filter;
+
+  rpl_filter_name.str= (char *) name;
+  rpl_filter_name.length= length;
+  if (!(filter= get_rpl_filter(&rpl_filter_name)))
+    filter= create_rpl_filter(name, length);
+  return filter;
+}
+
+void free_rpl_filter(const char *name, Rpl_filter *filter)
+{
+  delete filter;
 }
 

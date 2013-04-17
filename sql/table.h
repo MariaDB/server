@@ -586,7 +586,9 @@ struct TABLE_STATISTICS_CB
   Table_statistics *table_stats; /* Structure to access the statistical data */
   bool stats_can_be_read;        /* Memory for statistical data is allocated */
   bool stats_is_read;            /* Statistical data for table has been read
-                                    from statistical tables */   
+                                    from statistical tables */
+  bool histograms_can_be_read;
+  bool histograms_are_read;   
 };
 
 
@@ -1107,6 +1109,7 @@ public:
   my_bitmap_map	*bitmap_init_value;
   MY_BITMAP     def_read_set, def_write_set, def_vcol_set, tmp_set; 
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
+  MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
   MY_BITMAP     *read_set, *write_set, *vcol_set; /* Active column sets */
   /*
    The ID of the query that opened and is using this table. Has different
@@ -1158,6 +1161,8 @@ public:
     this table and constants)
   */
   ha_rows       quick_condition_rows;
+
+  double cond_selectivity;
 
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 
@@ -1278,6 +1283,7 @@ public:
 #endif
   uint max_keys; /* Size of allocated key_info array. */
   bool stats_is_read;     /* Persistent statistics is read for the table */
+  bool histograms_are_read;
   MDL_ticket *mdl_ticket;
 
   void init(THD *thd, TABLE_LIST *tl);

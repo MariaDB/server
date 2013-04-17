@@ -1410,7 +1410,6 @@ os_file_set_nocache(
 #endif
 static int os_file_set_atomic_writes(os_file_t file, const char *name) 
 {
-	static int first_time = 1;
 	int atomic_option = 1;
 
 	int ret = ioctl (file, DFS_IOCTL_ATOMIC_WRITE_SET, &atomic_option);
@@ -3092,7 +3091,7 @@ os_file_get_status(
 The function os_file_dirname returns a directory component of a
 null-terminated pathname string. In the usual case, dirname returns
 the string up to, but not including, the final '/', and basename
-is the component following the final '/'. Trailing '/' charac­
+is the component following the final '/'. Trailing '/' characÂ­
 ters are not counted as part of the pathname.
 
 If path does not contain a slash, dirname returns the string ".".

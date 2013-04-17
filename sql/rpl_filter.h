@@ -88,6 +88,7 @@ public:
 
   bool rewrite_db_is_empty();
   const char* get_rewrite_db(const char* db, size_t *new_len);
+  void copy_rewrite_db(Rpl_filter *from);
 
   I_List<i_string>* get_do_db();
   I_List<i_string>* get_ignore_db();
@@ -139,7 +140,7 @@ private:
   I_List<i_string_pair> rewrite_db;
 };
 
-extern Rpl_filter *rpl_filter;
+extern Rpl_filter *global_rpl_filter;
 extern Rpl_filter *binlog_filter;
 
 #endif // RPL_FILTER_H
