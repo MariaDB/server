@@ -87,7 +87,7 @@ rollback to savepoint s1;
 commit;
 select count(*) from t1;
 # must show Xid event
---replace_regex /xid=[0-9]+/xid/
-show binlog events limit 2,10;
+let $binlog_limit= 10; 
+--source include/show_binlog_events.inc
 drop table t1;
 

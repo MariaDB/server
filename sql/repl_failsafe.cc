@@ -87,14 +87,15 @@ void change_rpl_status(ulong from_status, ulong to_status)
 
 void unregister_slave(THD* thd, bool only_mine, bool need_mutex)
 {
-  if (thd->server_id)
+  uint32 thd_server_id= thd->variables.server_id;
+  if (thd_server_id)
   {
     if (need_mutex)
       mysql_mutex_lock(&LOCK_slave_list);
 
     SLAVE_INFO* old_si;
     if ((old_si = (SLAVE_INFO*)my_hash_search(&slave_list,
-                                              (uchar*)&thd->server_id, 4)) &&
+                                              (uchar*)&thd_server_id, 4)) &&
 	(!only_mine || old_si->thd == thd))
     my_hash_delete(&slave_list, (uchar*)old_si);
 
@@ -125,7 +126,7 @@ int register_slave(THD* thd, uchar* packet, uint packet_length)
   if (!(si = (SLAVE_INFO*)my_malloc(sizeof(SLAVE_INFO), MYF(MY_WME))))
     goto err2;
 
-  thd->server_id= si->server_id= uint4korr(p);
+  thd->variables.server_id= si->server_id= uint4korr(p);
   p+= 4;
   get_object(p,si->host, "Failed to register slave: too long 'report-host'");
   get_object(p,si->user, "Failed to register slave: too long 'report-user'");
@@ -143,7 +144,7 @@ int register_slave(THD* thd, uchar* packet, uint packet_length)
   // si->rpl_recovery_rank= uint4korr(p);
   p += 4;
   if (!(si->master_id= uint4korr(p)))
-    si->master_id= server_id;
+    si->master_id= global_system_variables.server_id;
   si->thd= thd;
 
   mysql_mutex_lock(&LOCK_slave_list);

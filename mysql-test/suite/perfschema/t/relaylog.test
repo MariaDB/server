@@ -28,6 +28,9 @@ drop table test.t1;
 # - statistics are normalized to "NONE" or "MANY"
 # - statistics on ::update_cond conditions are not collected,
 #   since this is too much dependent on execution.
+# - statistics on COND_binlog_background_thread and COND_xid_list are not
+#   collected, as they depend on exact timing for background binlog
+#   checkpointing operations.
 #
 
 connection master;
@@ -73,6 +76,8 @@ select
   from performance_schema.events_waits_summary_global_by_event_name
   where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::update_cond"
+  and event_name not like "%MYSQL_BIN_LOG::COND_binlog_background_thread%"
+  and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 
 -- echo "Expect no slave relay log"
@@ -135,6 +140,8 @@ select
   from performance_schema.events_waits_summary_global_by_event_name
   where event_name like "%MYSQL_BIN_LOG%"
   and event_name not like "%MYSQL_BIN_LOG::update_cond"
+  and event_name not like "%MYSQL_BIN_LOG::COND_binlog_background_thread%"
+  and event_name not like "%MYSQL_BIN_LOG::COND_xid_list"
   order by event_name;
 
 -- echo "Expect a slave relay log"

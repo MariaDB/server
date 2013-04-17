@@ -20,6 +20,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+rpl_slave_state
 servers
 slave_master_info
 slave_relay_log_info
@@ -62,6 +63,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+rpl_slave_state
 servers
 slave_master_info
 slave_relay_log_info
@@ -112,6 +114,7 @@ plugin
 proc
 procs_priv
 proxies_priv
+rpl_slave_state
 servers
 slave_master_info
 slave_relay_log_info

@@ -37,7 +37,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    checksum_alg_before_fd(BINLOG_CHECKSUM_ALG_UNDEF),
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
    slave_running(0), slave_run_id(0), sync_counter(0),
-   heartbeat_period(0), received_heartbeats(0), master_id(0)
+   heartbeat_period(0), received_heartbeats(0), master_id(0), using_gtid(0)
 {
   host[0] = 0; user[0] = 0; password[0] = 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
@@ -62,7 +62,9 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
     my_casedn_str(system_charset_info, cmp_connection_name.str);
   }
 
-  my_init_dynamic_array(&ignore_server_ids, sizeof(::server_id), 16, 16, MYF(0));
+  my_init_dynamic_array(&ignore_server_ids,
+                        sizeof(global_system_variables.server_id), 16, 16,
+                        MYF(0));
   bzero((char*) &file, sizeof(file));
   mysql_mutex_init(key_master_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_master_info_data_lock, &data_lock, MY_MUTEX_INIT_FAST);
@@ -142,6 +144,7 @@ void init_master_log_pos(Master_info* mi)
 
   mi->master_log_name[0] = 0;
   mi->master_log_pos = BIN_LOG_HEADER_SIZE;             // skip magic number
+  mi->using_gtid= false;
 
   /* Intentionally init ssl_verify_server_cert to 0, no option available  */
   mi->ssl_verify_server_cert= 0;
@@ -187,8 +190,13 @@ enum {
   /* line for ssl_crl */
   LINE_FOR_SSL_CRLPATH= 22,
 
-  /* Number of lines currently used when saving master info file */
-  LINES_IN_MASTER_INFO= LINE_FOR_SSL_CRLPATH
+  /* MySQL 5.6 fixed-position lines. */
+  LINE_FOR_FIRST_MYSQL_5_6=23,
+  LINE_FOR_LAST_MYSQL_5_6=23,
+  /* Reserved lines for MySQL future versions. */
+  LINE_FOR_LAST_MYSQL_FUTURE=33,
+  /* Number of (fixed-position) lines used when saving master info file */
+  LINES_IN_MASTER_INFO= LINE_FOR_LAST_MYSQL_FUTURE
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -316,7 +324,7 @@ file '%s')", fname);
     int ssl= 0, ssl_verify_server_cert= 0;
     float master_heartbeat_period= 0.0;
     char *first_non_digit;
-    char dummy_buf[HOSTNAME_LENGTH+1];
+    char buf[HOSTNAME_LENGTH+1];
 
     /*
        Starting from 4.1.x master.info has new format. Now its
@@ -410,7 +418,7 @@ file '%s')", fname);
 	(this is just a reservation to avoid future upgrade problems) 
        */
       if (lines >= LINE_FOR_MASTER_BIND &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
       /*
         Starting from 6.0 list of server_id of ignorable servers might be
@@ -425,12 +433,12 @@ file '%s')", fname);
 
       /* reserved */
       if (lines >= LINE_FOR_MASTER_UUID &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
 
       /* Starting from 5.5 the master_retry_count may be in the repository. */
       if (lines >= LINE_FOR_MASTER_RETRY_COUNT &&
-	  init_strvar_from_file(dummy_buf, sizeof(dummy_buf), &mi->file, ""))
+	  init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
 	  goto errwithmsg;
 
       if (lines >= LINE_FOR_SSL_CRLPATH &&
@@ -439,6 +447,34 @@ file '%s')", fname);
 	   init_strvar_from_file(mi->ssl_crlpath, sizeof(mi->ssl_crlpath),
                                  &mi->file, "")))
 	  goto errwithmsg;
+
+      /*
+        Starting with MariaDB 10.0, we use a key=value syntax, which is nicer
+        in several ways. But we leave a bunch of empty lines to accomodate
+        any future old-style additions in MySQL (this will make it easier for
+        users moving from MariaDB to MySQL, to not have MySQL try to
+        interpret a MariaDB key=value line.)
+      */
+      if (lines >= LINE_FOR_LAST_MYSQL_FUTURE)
+      {
+        uint i;
+        /* Skip lines used by / reserved for MySQL >= 5.6. */
+        for (i= LINE_FOR_FIRST_MYSQL_5_6; i <= LINE_FOR_LAST_MYSQL_FUTURE; ++i)
+        {
+          if (init_strvar_from_file(buf, sizeof(buf), &mi->file, ""))
+          goto errwithmsg;
+        }
+
+        /*
+          Parse any extra key=value lines.
+          Ignore unknown lines, to facilitate downgrades.
+        */
+        while (!init_strvar_from_file(buf, sizeof(buf), &mi->file, 0))
+        {
+          if (0 == strncmp(buf, STRING_WITH_LEN("using_gtid=")))
+            mi->using_gtid= (0 != atoi(buf + sizeof("using_gtid")));
+        }
+      }
     }
 
 #ifndef HAVE_OPENSSL
@@ -544,7 +580,7 @@ int flush_master_info(Master_info* mi,
   char* ignore_server_ids_buf;
   {
     ignore_server_ids_buf=
-      (char *) my_malloc((sizeof(::server_id) * 3 + 1) *
+      (char *) my_malloc((sizeof(global_system_variables.server_id) * 3 + 1) *
                          (1 + mi->ignore_server_ids.elements), MYF(MY_WME));
     if (!ignore_server_ids_buf)
       DBUG_RETURN(1);
@@ -578,7 +614,9 @@ int flush_master_info(Master_info* mi,
   sprintf(heartbeat_buf, "%.3f", mi->heartbeat_period);
   my_b_seek(file, 0L);
   my_b_printf(file,
-              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n",
+              "%u\n%s\n%s\n%s\n%s\n%s\n%d\n%d\n%d\n%s\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n%s\n%s\n%d\n%s\n%s\n"
+              "\n\n\n\n\n\n\n\n\n\n\n"
+              "using_gtid=%d\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
               mi->host, mi->user,
@@ -587,7 +625,7 @@ int flush_master_info(Master_info* mi,
               mi->ssl_cipher, mi->ssl_key, mi->ssl_verify_server_cert,
               heartbeat_buf, "", ignore_server_ids_buf,
               "", 0,
-              mi->ssl_crl, mi->ssl_crlpath);
+              mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid);
   my_free(ignore_server_ids_buf);
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err && 
@@ -675,7 +713,7 @@ bool check_master_connection_name(LEX_STRING *name)
    file names without a prefix.
 */
 
-void create_logfile_name_with_suffix(char *res_file_name, uint length,
+void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, bool append,
                              LEX_STRING *suffix)
 {

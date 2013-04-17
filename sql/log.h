@@ -396,6 +396,7 @@ private:
   ( ((ulong)(c)>>1) == BINLOG_COOKIE_DUMMY_ID )
 
 class binlog_cache_mngr;
+struct rpl_gtid;
 class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
 {
  private:
@@ -420,11 +421,10 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     bool using_stmt_cache;
     bool using_trx_cache;
     /*
-      Extra events (BEGIN, COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
+      Extra events (COMMIT/ROLLBACK/XID, and possibly INCIDENT) to be
       written during group commit. The incident_event is only valid if
       trx_data->has_incident() is true.
     */
-    Log_event *begin_event;
     Log_event *end_event;
     Log_event *incident_event;
     /* Set during group commit to record any per-thread error. */
@@ -507,6 +507,8 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   */
   uint *sync_period_ptr;
   uint sync_counter;
+  /* Protect against reading the binlog state file twice. */
+  bool state_read;
 
   inline uint get_sync_period()
   {
@@ -773,6 +775,14 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
+  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
+  int read_state_from_file();
+  int write_state_to_file();
+  int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  bool find_in_binlog_state(uint32 domain_id, uint32 server_id,
+                            rpl_gtid *out_gtid);
+  bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);
+  void bump_seq_no_counter_if_needed(uint64 seq_no);
 };
 
 class Log_event_handler

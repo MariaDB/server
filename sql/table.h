@@ -493,6 +493,8 @@ typedef struct st_table_field_def
 {
   uint count;
   const TABLE_FIELD_TYPE *field;
+  uint primary_key_parts;
+  const uint *primary_key_columns;
 } TABLE_FIELD_DEF;
 
 
