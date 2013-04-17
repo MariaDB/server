@@ -322,7 +322,7 @@ explain extended
 select a from t1 left join v_merge on (a=e) where last_value(NULL,e) not in (select last_value(NULL,e) from vm);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	tv	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Subselects: 2; Using join buffer (flat, BNL join)
+1	PRIMARY	tv	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	tv	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` left join (`test`.`tv`) on((`test`.`tv`.`e` = `test`.`t1`.`a`)) where (not(<expr_cache><last_value(NULL,`test`.`tv`.`e`)>(<in_optimizer>(last_value(NULL,`test`.`tv`.`e`),<exists>(select last_value(NULL,'1') from dual where trigcond((<cache>(last_value(NULL,`test`.`tv`.`e`)) = last_value(NULL,'1'))))))))
@@ -330,7 +330,7 @@ explain extended
 select a from t1 left join v_merge on (a=e) where e not in (select last_value(NULL,e) from vm);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	tv	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Subselects: 2; Using join buffer (flat, BNL join)
+1	PRIMARY	tv	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	tv	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` left join (`test`.`tv`) on((`test`.`tv`.`e` = `test`.`t1`.`a`)) where (not(<expr_cache><`test`.`tv`.`e`>(<in_optimizer>(`test`.`tv`.`e`,<exists>(select last_value(NULL,'1') from dual where trigcond((<cache>(`test`.`tv`.`e`) = last_value(NULL,'1'))))))))

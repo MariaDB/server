@@ -64,7 +64,7 @@ c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -77,7 +77,7 @@ c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -90,7 +90,7 @@ c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -309,7 +309,7 @@ SELECT * FROM t1 WHERE
 EXISTS ( SELECT * FROM t2 WHERE b = a )
 OR a > 0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Subqueries: 2
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -396,7 +396,7 @@ c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	8	func,func	2	100.00	Using index; Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -410,7 +410,7 @@ c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	MATERIALIZED	t3	index	NULL	bb	8	NULL	2	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -424,7 +424,7 @@ c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Subqueries: 2; Using index
 2	DEPENDENT SUBQUERY	t3	ref	bb	bb	8	test.t1.a,test.t1.a1	2	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -460,7 +460,7 @@ SELECT * FROM t1, t2
 WHERE a <= v.d AND b = v.b 
 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
@@ -538,7 +538,7 @@ WHERE a <= alias2.a AND c = alias1.b
 ) OR alias1 .a = 'foo';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
@@ -564,7 +564,7 @@ a
 explain extended
 SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2 WHERE b = a );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
@@ -603,7 +603,7 @@ explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
@@ -656,7 +656,7 @@ SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b
 ) OR a = 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Subqueries: 2; Using join buffer (flat, BNL join)
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.alias1.a' of SELECT #2 was resolved in SELECT #1

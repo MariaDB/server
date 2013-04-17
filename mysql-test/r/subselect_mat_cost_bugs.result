@@ -94,7 +94,7 @@ FROM (t1b JOIN t2 ON t2.c3 = t1b.c4) LEFT JOIN
 t1a ON (t1a.c2 = t1b.pk AND 2)
 WHERE t1.pk) ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using where; Subselects: 2
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	9	100.00	Using where; Subqueries: 2
 2	DEPENDENT SUBQUERY	t1b	ALL	NULL	NULL	NULL	NULL	9	100.00	
 2	DEPENDENT SUBQUERY	t1a	ref	c2	c2	5	test.t1b.pk	1	100.00	Using where
 2	DEPENDENT SUBQUERY	t2	index	c3	c3	9	NULL	2	100.00	Using where; Using index; Using join buffer (flat, BNL join)
