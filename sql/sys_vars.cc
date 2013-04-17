@@ -1663,6 +1663,25 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1), DEFAULT(1), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
+       "optimizer_use_condition_selectivity",
+       "Controls selectivity of which conditions the optimizer takes into "
+       "account to calculate cardinality of a partial join when it searches "
+       "for the best execution plan "
+       "Meaning: "
+       "1 - use selectivity of index backed range conditions to calculate "
+       "the cardinality of a partial join if the last joined table is "
+       "accessed by full table scan or an index scan, "
+       "2 - use selectivity of index backed range conditions to calculate "
+       "the cardinality of a partial join in any case, "
+       "3 - additionally always use selectivity of range conditions that are "
+       "not backed by any index to calculate the cardinality of a partial join, "
+       "4 - use histograms to calculate selectivity of range conditions that "
+       "are not backed by any index to calculate the cardinality of "
+       "a partial join.",
+       SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 4), DEFAULT(1), BLOCK_SIZE(1));
+
 /** Warns about deprecated value 63 */
 static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
                                        enum_var_type type)
@@ -3531,19 +3550,48 @@ static Sys_var_mybool Sys_relay_log_recovery(
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
+  Master_info *mi;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!master_info_index->give_error_if_slave_running())
-    result= set_filter_value(var->save_result.string_value.str);
+  
+  if (!var->base.length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(&var->base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+
+  if (mi)
+  {
+    if (mi->rli.slave_running)
+    {
+      my_error(ER_SLAVE_MUST_STOP, MYF(0), 
+          mi->connection_name.length,
+          mi->connection_name.str);
+      result= true;
+    }
+    else
+    {
+      result= set_filter_value(var->save_result.string_value.str, mi);
+    }
+  }
+
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 
-bool Sys_var_rpl_filter::set_filter_value(const char *value)
+bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
+  Rpl_filter* rpl_filter= mi ? mi->rpl_filter : global_rpl_filter;
 
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
@@ -3573,7 +3621,32 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+  Master_info *mi;
+  Rpl_filter *rpl_filter;
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!base->length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  if (!mi)
+  {
+    mysql_mutex_unlock(&LOCK_active_mi);
+    return 0;
+  }
+  rpl_filter= mi->rpl_filter;
   tmp.length(0);
 
   switch (opt_id) {
@@ -3597,7 +3670,10 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
     break;
   }
 
-  return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  return ret;
 }
 
 static Sys_var_rpl_filter Sys_replicate_do_db(
@@ -4054,6 +4130,24 @@ static Sys_var_enum Sys_optimizer_use_stat_tables(
        "NEVER, COMPLEMENTARY, PREVERABLY",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
+
+static Sys_var_ulong Sys_histogram_size(
+       "histogram_size",
+       "Number of bytes used for a histogram. "
+       "If set to 0, no histograms are created by ANALYZE.",
+       SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
+
+const char *histogram_types[] =
+           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+static Sys_var_enum Sys_histogram_type(
+       "histogram_type",
+       "Specifies type of the histograms created by ANALYZE. "
+       "Possible values are: "
+       "SINGLE_PREC_HB - single precision height-balanced, "
+       "DOUBLE_PREC_HB - double precision height-balanced.",
+       SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
+       histogram_types, DEFAULT(0));
 
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",

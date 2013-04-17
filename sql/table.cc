@@ -425,6 +425,8 @@ void TABLE_SHARE::destroy()
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
+  stats_cb.histograms_can_be_read= FALSE;
+  stats_cb.histograms_are_read= FALSE;
   if (tmp_table == NO_TMP_TABLE)
     mysql_mutex_unlock(&LOCK_ha_data);
 
@@ -2749,7 +2751,7 @@ partititon_err:
   /* Allocate bitmaps */
 
   bitmap_size= share->column_bitmap_size;
-  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*5)))
+  if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*6)))
     goto err;
   bitmap_init(&outparam->def_read_set,
               (my_bitmap_map*) bitmaps, share->fields, FALSE);
@@ -2761,7 +2763,11 @@ partititon_err:
               (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields, FALSE);
   bitmap_init(&outparam->eq_join_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields, FALSE);
+  bitmap_init(&outparam->cond_set,
+              (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields, FALSE);
   outparam->default_column_bitmaps();
+
+  outparam->cond_selectivity= 1.0;
 
   /* The table struct is now initialized;  Open the table */
   if (db_stat)
@@ -3884,6 +3890,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   file->ha_start_of_new_statement();
   reginfo.impossible_range= 0;
   created= TRUE;
+  cond_selectivity= 1.0;
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -3892,6 +3899,11 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   pos_in_table_list= tl;
 
   clear_column_bitmaps();
+  for (Field **f_ptr= field ; *f_ptr ; f_ptr++)
+  {
+    (*f_ptr)->next_equal_field= NULL;
+    (*f_ptr)->cond_selectivity= 1.0;
+  }
 
   DBUG_ASSERT(key_read == 0);
 
