@@ -870,6 +870,7 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+  free_all_rpl_filters();
   DBUG_VOID_RETURN;
 }
 

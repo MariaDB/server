@@ -225,3 +225,7 @@ void free_rpl_filter(const char *name, Rpl_filter *filter)
   delete filter;
 }
 
+void free_all_rpl_filters()
+{
+  rpl_filters.delete_elements((void (*)(const char*, uchar*)) free_rpl_filter);
+}

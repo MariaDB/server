@@ -171,7 +171,7 @@ TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
 };
 
 const TABLE_FIELD_DEF
-  mysql_db_table_def= {MYSQL_DB_FIELD_COUNT, mysql_db_table_fields};
+mysql_db_table_def= {MYSQL_DB_FIELD_COUNT, mysql_db_table_fields, 0, (uint*) 0 };
 
 static LEX_STRING native_password_plugin_name= {
   C_STRING_WITH_LEN("mysql_native_password")
