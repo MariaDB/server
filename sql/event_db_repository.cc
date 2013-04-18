@@ -163,7 +163,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
 };
 
 static const TABLE_FIELD_DEF
-  event_table_def= {ET_FIELD_COUNT, event_table_fields};
+event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
 
 class Event_db_intact : public Table_check_intact
 {

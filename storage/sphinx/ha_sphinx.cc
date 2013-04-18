@@ -2333,7 +2333,11 @@ int ha_sphinx::write_row ( byte * )
 		SPH_RET ( ER_OUT_OF_RESOURCES );
 
 	unsigned int uTimeout = 1;
-	mysql_options ( pConn, MYSQL_OPT_CONNECT_TIMEOUT, (const char*)&uTimeout );
+        my_bool my_true= 1;
+	mysql_options(pConn, MYSQL_OPT_CONNECT_TIMEOUT,
+                      (const char*) &uTimeout);
+        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                      (char*) &my_true);
 
 	if ( !mysql_real_connect ( pConn, m_pShare->m_sHost, "root", "", "", m_pShare->m_iPort, m_pShare->m_sSocket, 0 ) )
 		SPH_RET ( HandleMysqlError ( pConn, ER_CONNECT_TO_FOREIGN_DATA_SOURCE ) );
@@ -2392,7 +2396,11 @@ int ha_sphinx::delete_row ( const byte * )
 		SPH_RET ( ER_OUT_OF_RESOURCES );
 
 	unsigned int uTimeout = 1;
-	mysql_options ( pConn, MYSQL_OPT_CONNECT_TIMEOUT, (const char*)&uTimeout );
+        my_bool my_true= 1;
+	mysql_options(pConn, MYSQL_OPT_CONNECT_TIMEOUT,
+                      (const char*) &uTimeout);
+        mysql_options(pConn, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                      (char*) &my_true);
 
 	if ( !mysql_real_connect ( pConn, m_pShare->m_sHost, "root", "", "", m_pShare->m_iPort, m_pShare->m_sSocket, 0 ) )
 		SPH_RET ( HandleMysqlError ( pConn, ER_CONNECT_TO_FOREIGN_DATA_SOURCE ) );

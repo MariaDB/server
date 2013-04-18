@@ -83,7 +83,7 @@ enum enum_mysql_set_option
 my_bool my_net_init(NET *net, Vio* vio, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
-  void net_clear(NET *net, my_bool clear_buffer);
+void net_clear(NET *net, my_bool clear_buffer);
 my_bool net_realloc(NET *net, size_t length);
 my_bool net_flush(NET *net);
 my_bool my_net_write(NET *net,const unsigned char *packet, size_t len);
@@ -266,8 +266,9 @@ enum mysql_option
   MYSQL_OPT_SSL_KEY, MYSQL_OPT_SSL_CERT,
   MYSQL_OPT_SSL_CA, MYSQL_OPT_SSL_CAPATH, MYSQL_OPT_SSL_CIPHER,
   MYSQL_OPT_SSL_CRL, MYSQL_OPT_SSL_CRLPATH,
-  MYSQL_OPT_NONBLOCK=6000,
-  MYSQL_PROGRESS_CALLBACK
+  MYSQL_PROGRESS_CALLBACK=5999,
+  MYSQL_OPT_NONBLOCK,
+  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
 };
 struct st_mysql_options_extention;
 struct st_mysql_options {
@@ -286,7 +287,7 @@ struct st_mysql_options {
   unsigned long max_allowed_packet;
   my_bool use_ssl;
   my_bool compress,named_pipe;
-  my_bool unused1;
+  my_bool use_thread_specific_memory;
   my_bool unused2;
   my_bool unused3;
   my_bool unused4;
