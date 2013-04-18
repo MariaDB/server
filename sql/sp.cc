@@ -168,7 +168,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
 };
 
 static const TABLE_FIELD_DEF
-  proc_table_def= {MYSQL_PROC_FIELD_COUNT, proc_table_fields};
+proc_table_def= {MYSQL_PROC_FIELD_COUNT, proc_table_fields, 0, (uint*) 0 };
 
 /*************************************************************************/
 

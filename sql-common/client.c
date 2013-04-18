@@ -892,7 +892,9 @@ void free_old_query(MYSQL *mysql)
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
  /* Assume rowlength < 8192 */
-  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&mysql->field_alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   mysql->fields= 0;
   mysql->field_count= 0;			/* For API */
   mysql->warning_count= 0;
@@ -1578,7 +1580,9 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     DBUG_RETURN(0);
   }
   /* Assume rowlength < 8192 */
-  init_alloc_root(&result->alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&result->alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
   prev_ptr= &result->data;
   result->rows=0;
@@ -4205,6 +4209,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     break;
   case MYSQL_OPT_RECONNECT:
     mysql->reconnect= *(my_bool *) arg;
+    break;
+  case MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY:
+    mysql->options.use_thread_specific_memory= *(my_bool *) arg;
     break;
   case MYSQL_OPT_SSL_VERIFY_SERVER_CERT:
     if (*(my_bool*) arg)
