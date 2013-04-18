@@ -32,10 +32,16 @@ start all slaves;
 --connection master1
 SET GLOBAL gtid_domain_id= 1;
 SET SESSION gtid_domain_id= 1;
+CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(10));
 INSERT INTO t1 VALUES (1, "initial");
-CREATE TABLE t3 (a INT PRIMARY KEY, b VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t3 VALUES (101, "initial 1");
+
+# Make sure we have CREATE TABLE t3 from master1 before replicating INSERT INTO
+# t3 from master2.
+--connection slave1
+--let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.tables WHERE table_name = "t3" AND table_schema = "test"
+--source include/wait_condition.inc
 
 --connection master2
 SET GLOBAL gtid_domain_id= 2;
