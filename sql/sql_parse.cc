@@ -5074,100 +5074,6 @@ static bool execute_rename_table(THD *thd, TABLE_LIST *first_table,
 }
 
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-/**
-  Check grants for commands which work only with one table.
-
-  @param thd                    Thread handler
-  @param privilege              requested privilege
-  @param all_tables             global table list of query
-  @param no_errors              FALSE/TRUE - report/don't report error to
-                            the client (using my_error() call).
-
-  @retval
-    0   OK
-  @retval
-    1   access denied, error is sent to client
-*/
-
-bool check_single_table_access(THD *thd, ulong privilege, 
-                               TABLE_LIST *all_tables, bool no_errors)
-{
-  Security_context * backup_ctx= thd->security_ctx;
-
-  /* we need to switch to the saved context (if any) */
-  if (all_tables->security_ctx)
-    thd->security_ctx= all_tables->security_ctx;
-
-  const char *db_name;
-  if ((all_tables->view || all_tables->field_translation) &&
-      !all_tables->schema_table)
-    db_name= all_tables->view_db.str;
-  else
-    db_name= all_tables->db;
-
-  if (check_access(thd, privilege, db_name,
-                   &all_tables->grant.privilege,
-                   &all_tables->grant.m_internal,
-                   0, no_errors))
-    goto deny;
-
-  /* Show only 1 table for check_grant */
-  if (!(all_tables->belong_to_view &&
-        (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
-      check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
-    goto deny;
-
-  thd->security_ctx= backup_ctx;
-  return 0;
-
-deny:
-  thd->security_ctx= backup_ctx;
-  return 1;
-}
-
-/**
-  Check grants for commands which work only with one table and all other
-  tables belonging to subselects or implicitly opened tables.
-
-  @param thd			Thread handler
-  @param privilege		requested privilege
-  @param all_tables		global table list of query
-
-  @retval
-    0   OK
-  @retval
-    1   access denied, error is sent to client
-*/
-
-bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *all_tables)
-{
-  if (check_single_table_access (thd,privilege,all_tables, FALSE))
-    return 1;
-
-  /* Check rights on tables of subselects and implictly opened tables */
-  TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
-  if ((subselects_tables= all_tables->next_global))
-  {
-    /*
-      Access rights asked for the first table of a view should be the same
-      as for the view
-    */
-    if (view && subselects_tables->belong_to_view == view)
-    {
-      if (check_single_table_access (thd, privilege, subselects_tables, FALSE))
-        return 1;
-      subselects_tables= subselects_tables->next_global;
-    }
-    if (subselects_tables &&
-        (check_table_access(thd, SELECT_ACL, subselects_tables, FALSE,
-                            UINT_MAX, FALSE)))
-      return 1;
-  }
-  return 0;
-}
-
-
 /**
   @brief Compare requested privileges with the privileges acquired from the
     User- and Db-tables.
@@ -5200,6 +5106,11 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
              GRANT_INTERNAL_INFO *grant_internal_info,
              bool dont_check_global_grants, bool no_errors)
 {
+#ifdef NO_EMBEDDED_ACCESS_CHECKS
+  if (save_priv)
+    *save_priv= GLOBAL_ACLS;
+  return false;
+#else
   Security_context *sctx= thd->security_ctx;
   ulong db_access;
 
@@ -5378,6 +5289,101 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
                          "unknown")));
   }
   DBUG_RETURN(TRUE);
+#endif // NO_EMBEDDED_ACCESS_CHECKS
+}
+
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+/**
+  Check grants for commands which work only with one table.
+
+  @param thd                    Thread handler
+  @param privilege              requested privilege
+  @param all_tables             global table list of query
+  @param no_errors              FALSE/TRUE - report/don't report error to
+                            the client (using my_error() call).
+
+  @retval
+    0   OK
+  @retval
+    1   access denied, error is sent to client
+*/
+
+bool check_single_table_access(THD *thd, ulong privilege, 
+                               TABLE_LIST *all_tables, bool no_errors)
+{
+  Security_context * backup_ctx= thd->security_ctx;
+
+  /* we need to switch to the saved context (if any) */
+  if (all_tables->security_ctx)
+    thd->security_ctx= all_tables->security_ctx;
+
+  const char *db_name;
+  if ((all_tables->view || all_tables->field_translation) &&
+      !all_tables->schema_table)
+    db_name= all_tables->view_db.str;
+  else
+    db_name= all_tables->db;
+
+  if (check_access(thd, privilege, db_name,
+                   &all_tables->grant.privilege,
+                   &all_tables->grant.m_internal,
+                   0, no_errors))
+    goto deny;
+
+  /* Show only 1 table for check_grant */
+  if (!(all_tables->belong_to_view &&
+        (thd->lex->sql_command == SQLCOM_SHOW_FIELDS)) &&
+      check_grant(thd, privilege, all_tables, FALSE, 1, no_errors))
+    goto deny;
+
+  thd->security_ctx= backup_ctx;
+  return 0;
+
+deny:
+  thd->security_ctx= backup_ctx;
+  return 1;
+}
+
+/**
+  Check grants for commands which work only with one table and all other
+  tables belonging to subselects or implicitly opened tables.
+
+  @param thd			Thread handler
+  @param privilege		requested privilege
+  @param all_tables		global table list of query
+
+  @retval
+    0   OK
+  @retval
+    1   access denied, error is sent to client
+*/
+
+bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *all_tables)
+{
+  if (check_single_table_access (thd,privilege,all_tables, FALSE))
+    return 1;
+
+  /* Check rights on tables of subselects and implictly opened tables */
+  TABLE_LIST *subselects_tables, *view= all_tables->view ? all_tables : 0;
+  if ((subselects_tables= all_tables->next_global))
+  {
+    /*
+      Access rights asked for the first table of a view should be the same
+      as for the view
+    */
+    if (view && subselects_tables->belong_to_view == view)
+    {
+      if (check_single_table_access (thd, privilege, subselects_tables, FALSE))
+        return 1;
+      subselects_tables= subselects_tables->next_global;
+    }
+    if (subselects_tables &&
+        (check_table_access(thd, SELECT_ACL, subselects_tables, FALSE,
+                            UINT_MAX, FALSE)))
+      return 1;
+  }
+  return 0;
 }
 
 
