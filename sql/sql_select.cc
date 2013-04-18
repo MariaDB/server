@@ -6901,6 +6901,18 @@ double JOIN::get_examined_rows()
 }
 
 
+/**
+  @brief
+  Get the selectivity of equalities between columns when joining a table
+
+  @param join       The optimized join
+  @param idx        The number of tables in the evaluated partual join
+  @param s          The table to be joined for evaluation
+  @param rem_tables The bitmap of tables to be joined later
+  @param keyparts   The number of key parts to used when joining s
+  @param ref_keyuse_steps Array of references to keyuses employed to join s 
+*/
+
 static 
 double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                                        table_map rem_tables, uint keyparts,
@@ -7011,6 +7023,19 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   return sel;
 }
 
+
+/**
+  @brief
+  Get the selectivity of conditions when joining a table
+
+  @param join       The optimized join
+  @param s          The table to be joined for evaluation
+  @param rem_tables The bitmap of tables to be joined later
+
+  @retval
+  selectivity of the conditions imposed on the rows of s
+*/
+
 static
 double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
@@ -7030,7 +7055,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   {
     if (pos->key == 0 && table_records > 0)
     {
-      sel*= table->quick_rows[s->quick->index]/table_records;
+      sel/= table->quick_rows[s->quick->index]/table_records;
     }
   }
   else if (pos->key != 0)
@@ -7081,6 +7106,11 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     } while (keyuse->table == table && keyuse->key == key);
   }
     
+  /* 
+    If the field f from the table is equal to a field from one the
+    earlier joined tables then the selectivity of the range conditions
+    over the field f must be discounted.
+  */ 
   for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     if (!bitmap_is_set(read_set, field->field_index) ||
@@ -12270,9 +12300,9 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
     @endcode
     Thus, applying equalities from the where condition we basically
     can get more freedom in performing join operations.
-    Althogh we don't use this property now, it probably makes sense to use 
+    Although we don't use this property now, it probably makes sense to use 
     it in the future.    
-  @param thd		      Thread handler
+  @param thd		     Thread handler
   @param cond                condition to build the multiple equalities for
   @param inherited           path to all inherited multiple equality items
   @param join_list           list of join tables to which the condition
@@ -12281,6 +12311,7 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
                              for on expressions
   @param[out] cond_equal_ref pointer to the structure to place built
                              equalities in
+  @param link_equal_items    equal fields are to be linked
 
   @return
     pointer to the transformed condition containing multiple equalities

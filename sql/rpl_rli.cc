@@ -49,7 +49,8 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    no_storage(FALSE), replicate_same_server_id(::replicate_same_server_id),
    info_fd(-1), cur_log_fd(-1), relay_log(&sync_relaylog_period),
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
-   save_temporary_tables(0), cur_log_old_open_count(0), group_relay_log_pos(0), 
+   save_temporary_tables(0), mi(0),
+   cur_log_old_open_count(0), group_relay_log_pos(0), 
    event_relay_log_pos(0),
 #if HAVE_valgrind
    is_fake(FALSE),
@@ -62,7 +63,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    gtid_sub_id(0), tables_to_lock(0), tables_to_lock_count(0),
    last_event_start_time(0), deferred_events(NULL),m_flags(0),
    row_stmt_start_timestamp(0), long_find_row_note_printed(false),
-   m_annotate_event(0), mi(0)
+   m_annotate_event(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
 
