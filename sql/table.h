@@ -1038,6 +1038,8 @@ enum index_hint_type
   INDEX_HINT_FORCE
 };
 
+struct st_cond_statistic;
+
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
 
@@ -1163,6 +1165,7 @@ public:
   ha_rows       quick_condition_rows;
 
   double cond_selectivity;
+  List<st_cond_statistic> *cond_selectivity_sampling_explain;
 
   table_map	map;                    /* ID bit of table (1,2,4,8,16...) */
 

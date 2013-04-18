@@ -4428,6 +4428,16 @@ bool Item_cond::walk(Item_processor processor, bool walk_subquery, uchar *arg)
   return Item_func::walk(processor, walk_subquery, arg);
 }
 
+bool Item_cond_and::walk_top_and(Item_processor processor, uchar *arg)
+{
+  List_iterator_fast<Item> li(list);
+  Item *item;
+  while ((item= li++))
+    if (item->walk_top_and(processor, arg))
+      return 1;
+  return Item_cond::walk_top_and(processor, arg);
+}
+
 
 /**
   Transform an Item_cond object with a transformer callback function.
@@ -4940,6 +4950,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         turboBM_compute_bad_character_shifts();
         DBUG_PRINT("info",("done"));
       }
+      use_sampling= ((*first == wild_many || *first == wild_one) && len > 2);
     }
   }
   return FALSE;
@@ -4950,6 +4961,28 @@ void Item_func_like::cleanup()
   canDoTurboBM= FALSE;
   Item_bool_func2::cleanup();
 }
+
+
+bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
+{
+  find_selective_predicates_list_processor_data *data=
+    (find_selective_predicates_list_processor_data *) arg;
+  if (use_sampling && used_tables() == data->table->map)
+  {
+    COND_STATISTIC *stat= (COND_STATISTIC *)sql_alloc(sizeof(COND_STATISTIC));
+    if (!stat)
+      return TRUE;
+    stat->cond= this;
+    Item *arg0= args[0]->real_item();
+    if (args[1]->const_item() && arg0->type() == FIELD_ITEM)
+      stat->field_arg= ((Item_field *)arg0)->field;
+    else
+      stat->field_arg= NULL;
+    data->list.push_back(stat);
+  }
+  return FALSE;
+}
+
 
 /**
   @brief Compile regular expression.

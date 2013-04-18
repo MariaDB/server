@@ -3891,6 +3891,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   reginfo.impossible_range= 0;
   created= TRUE;
   cond_selectivity= 1.0;
+  cond_selectivity_sampling_explain= NULL;
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
