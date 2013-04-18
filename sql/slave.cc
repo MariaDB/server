@@ -870,6 +870,7 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+  free_all_rpl_filters();
   DBUG_VOID_RETURN;
 }
 
@@ -5003,6 +5004,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   int last_errno= -2;                           // impossible error
   ulong err_count=0;
   char llbuff[22];
+  my_bool my_true= 1;
   DBUG_ENTER("connect_to_master");
 
 #ifndef DBUG_OFF
@@ -5014,6 +5016,8 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
 
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
+  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                (char*) &my_true);
 
 #ifdef HAVE_OPENSSL
   if (mi->ssl)
@@ -5129,14 +5133,15 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 {
   THD *thd= current_thd;
   Master_info *mi= my_pthread_getspecific_ptr(Master_info*, RPL_MASTER_INFO);
+  bool allocated= false;
+  my_bool my_true= 1;
+
   if (!mi)
   {
     sql_print_error("'rpl_connect_master' must be called in slave I/O thread context.");
     return NULL;
   }
 
-  bool allocated= false;
-  
   if (!mysql)
   {
     if(!(mysql= mysql_init(NULL)))
@@ -5156,6 +5161,8 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
   */
   mysql_options(mysql, MYSQL_OPT_CONNECT_TIMEOUT, (char *) &slave_net_timeout);
   mysql_options(mysql, MYSQL_OPT_READ_TIMEOUT, (char *) &slave_net_timeout);
+  mysql_options(mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                (char*) &my_true);
 
 #ifdef HAVE_OPENSSL
   if (mi->ssl)
