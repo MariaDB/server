@@ -1,6 +1,6 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/funny.txt $MYSQLD_DATADIR/test/funny.txt
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/funny2.txt $MYSQLD_DATADIR/test/funny2.txt
+--copy_file $MTR_SUITE_DIR/std_data/funny.txt $MYSQLD_DATADIR/test/funny.txt
+--copy_file $MTR_SUITE_DIR/std_data/funny2.txt $MYSQLD_DATADIR/test/funny2.txt
 
 --echo #
 --echo # Testing errors

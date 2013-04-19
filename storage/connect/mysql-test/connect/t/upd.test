@@ -1,5 +1,5 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
+--copy_file $MTR_SUITE_DIR/std_data/employee.dat $MYSQLD_DATADIR/test/employee.dat
 
 CREATE TABLE employee
 (

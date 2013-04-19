@@ -1,7 +1,7 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/sexe.csv $MYSQLD_DATADIR/test/sexe.csv
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/sitmat.csv $MYSQLD_DATADIR/test/sitmat.csv
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+--copy_file $MTR_SUITE_DIR/std_data/sexe.csv $MYSQLD_DATADIR/test/sexe.csv
+--copy_file $MTR_SUITE_DIR/std_data/sitmat.csv $MYSQLD_DATADIR/test/sitmat.csv
 
 --echo #
 --echo # Testing indexing
