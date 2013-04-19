@@ -4420,6 +4420,16 @@ bool mysql_create_table_no_lock(THD *thd,
       goto err;
 
     ha_err= hton->discover_table_structure(hton, thd, &share, create_info);
+
+    /*
+      if discovery failed, the plugin will be auto-unlocked, as it
+      was locked on the THD, see above.
+      if discovery succeeded, the plugin was replaced by a globally
+      locked plugin, that will be unlocked by free_table_share()
+    */
+    if (ha_err)
+      share.db_plugin= 0; // will be auto-freed, locked above on the THD
+
     free_table_share(&share);
 
     if (ha_err)
