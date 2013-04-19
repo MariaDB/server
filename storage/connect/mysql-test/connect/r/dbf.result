@@ -111,6 +111,7 @@ ERROR HY000: Cannot open DATADIR/test/t1.dbf
 SHOW WARNINGS;
 Level	Code	Message
 Error	1105	Cannot open DATADIR/test/t1.dbf
+Error	1030	Got error 122 "Internal (unspecified) error in handler" from storage engine CONNECT
 CREATE PROCEDURE test.dbf_field(in fieldno INT, in content BLOB) DETERMINISTIC
 BEGIN
 SELECT '---';

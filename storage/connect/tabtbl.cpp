@@ -79,8 +79,6 @@
 
 extern "C" int trace;
 
-int open_table_def(THD *thd, TABLE_SHARE *share, uint db_flags);
-
 /* ---------------------------- Class TBLDEF ---------------------------- */
 
 /**************************************************************************/
@@ -220,9 +218,8 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   {
   char        *db, key[256];
-  uint         k, flags;
+  uint         k;
   PTDB         tdbp = NULL;
-  TABLE_LIST   table_list;
   TABLE_SHARE *s;
   PCATLG       cat = To_Def->GetCat();
   PHC          hc = ((MYCAT*)cat)->GetHandler();
@@ -236,29 +233,17 @@ PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
   else
     db = (char*)hc->GetDBName(NULL);
 
-  table_list.init_one_table(db, strlen(db),
-                            tblp->Name, strlen(tblp->Name),
-                            NULL, TL_IGNORE);
-	k = sprintf(key, "%s", db);
-	k += sprintf(key + ++k, "%s", tblp->Name);
+	k = sprintf(key, "%s", db) + 1;
+	k += sprintf(key + k, "%s", tblp->Name);
   key[++k] = 0;
 
-	if (!(s = alloc_table_share(&table_list, key, ++k))) {
+	if (!(s = alloc_table_share(db, tblp->Name, key, ++k))) {
     strcpy(g->Message, "Error allocating share\n");
     return NULL;
     } // endif s
 
-//        1          8                  16
-//flags = READ_ALL | DONT_OPEN_TABLES | DONT_OPEN_MASTER_REG;
-//flags = 25;
-  flags = 24;
-
-  if (!open_table_def(thd, s, flags)) {
-#ifdef DBUG_OFF
-    if (stricmp(s->db_plugin->name.str, "connect")) {
-#else
-    if (stricmp((*s->db_plugin)->name.str, "connect")) {
-#endif
+  if (!open_table_def(thd, s)) {
+    if (plugin_data(s->db_plugin, handlerton*) != connect_hton) {
 #if defined(MYSQL_SUPPORT)
       // Access sub-table via MySQL API
       if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYSQL"))) {

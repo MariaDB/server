@@ -173,23 +173,18 @@ int   xtrace= 0;
 ulong ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
+static PCONNECT GetUser(THD *thd, PCONNECT xp);
+static PGLOBAL GetPlug(THD *thd, PCONNECT lxp);
+
 static handler *connect_create_handler(handlerton *hton,
                                    TABLE_SHARE *table,
                                    MEM_ROOT *mem_root);
 
+static int connect_assisted_discovery(handlerton *hton, THD* thd,
+                                      TABLE_SHARE *table_s,
+                                      HA_CREATE_INFO *info);
+
 handlerton *connect_hton;
-
-/* Variables for connect share methods */
-
-/*
-   Hash used to track the number of open tables; variable for connect share
-   methods
-*/
-static HASH connect_open_tables;
-
-/* The mutex used to init the hash; variable for example share methods */
-mysql_mutex_t connect_mutex;
-
 
 /**
   structure for CREATE TABLE options (table options)
@@ -212,14 +207,14 @@ struct ha_table_option_struct {
   const char *catfunc;
   const char *oplist;
   const char *data_charset;
-  int lrecl;
-  int elements;
-//int estimate;
-  int multiple;
-  int header;
-  int quoted;
-  int ending;
-  int compressed;
+  ulonglong lrecl;
+  ulonglong elements;
+//ulonglong estimate;
+  ulonglong multiple;
+  ulonglong header;
+  ulonglong quoted;
+  ulonglong ending;
+  ulonglong compressed;
   bool mapped;
   bool huge;
   bool split;
@@ -227,7 +222,6 @@ struct ha_table_option_struct {
   bool sepindex;
   };
 
-#if defined(MARIADB)
 ha_create_table_option connect_table_option_list[]=
 {
   // These option are for stand alone Connect tables
@@ -261,7 +255,6 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_BOOL("SEPINDEX", sepindex, 0),
   HA_TOPTION_END
 };
-#endif   // MARIADB
 
 
 /**
@@ -272,16 +265,15 @@ ha_create_table_option connect_table_option_list[]=
 */
 struct ha_field_option_struct
 {
-  int offset;
-  int freq;      // Not used by this version
-  int opt;       // Not used by this version
-  int fldlen;
+  ulonglong offset;
+  ulonglong freq;      // Not used by this version
+  ulonglong opt;       // Not used by this version
+  ulonglong fldlen;
   const char *dateformat;
   const char *fieldformat;
   char *special;
 };
 
-#if defined(MARIADB)
 ha_create_table_option connect_field_option_list[]=
 {
   HA_FOPTION_NUMBER("FLAG", offset, -1, 0, INT_MAX32, 1),
@@ -293,7 +285,6 @@ ha_create_table_option connect_field_option_list[]=
   HA_FOPTION_STRING("SPECIAL", special),
   HA_FOPTION_END
 };
-#endif   // MARIADB
 
 /***********************************************************************/
 /*  Push G->Message as a MySQL warning.                                */
@@ -312,23 +303,11 @@ bool PushWarning(PGLOBAL g, PTDBASE tdbp)
   return false;
   } // end of PushWarning
 
-/**
-  @brief
-  Function we use in the creation of our hash to get key.
-*/
-static uchar* connect_get_key(CONNECT_SHARE *share, size_t *length,
-                          my_bool not_used __attribute__((unused)))
-{
-  *length=share->table_name_length;
-  return (uchar*) share->table_name;
-}
-
 #ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key con_key_mutex_connect, con_key_mutex_CONNECT_SHARE_mutex;
+static PSI_mutex_key con_key_mutex_CONNECT_SHARE_mutex;
 
 static PSI_mutex_info all_connect_mutexes[]=
 {
-  { &con_key_mutex_connect, "connect", PSI_FLAG_GLOBAL},
   { &con_key_mutex_CONNECT_SHARE_mutex, "CONNECT_SHARE::mutex", 0}
 };
 
@@ -343,7 +322,34 @@ static void init_connect_psi_keys()
   count= array_elements(all_connect_mutexes);
   PSI_server->register_mutex(category, all_connect_mutexes, count);
 }
+#else
+static void init_connect_psi_keys() {}
 #endif
+
+
+/**
+  @brief
+  If frm_error() is called then we will use this to determine
+  the file extensions that exist for the storage engine. This is also
+  used by the default rename_table and delete_table method in
+  handler.cc.
+
+  For engines that have two file name extentions (separate meta/index file
+  and data file), the order of elements is relevant. First element of engine
+  file name extentions array should be meta/index file extention. Second
+  element - data file extention. This order is assumed by
+  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
+
+  @see
+  rename_table method in handler.cc and
+  delete_table method in handler.cc
+*/
+static const char *ha_connect_exts[]= {
+  ".tbl", ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dos", ".fix", ".csv",
+  ".fmt", ".dbf", ".xml", ".ini", ".vec", ".odbc", ".mysql", ".dir",
+  ".mac", ".wmi", ".bin", ".oem",
+  NULL
+};
 
 
 /**
@@ -376,29 +382,16 @@ static int connect_init_func(void *p)
   } // endif xtrace
 
 
-#ifdef HAVE_PSI_INTERFACE
   init_connect_psi_keys();
-#endif
 
   connect_hton= (handlerton *)p;
-  mysql_mutex_init(con_key_mutex_connect, &connect_mutex, MY_MUTEX_INIT_FAST);
-//VOID(mysql_mutex_init(&connect_mutex, MY_MUTEX_INIT_FAST));
-  (void) my_hash_init(&connect_open_tables, system_charset_info, 32, 0, 0,
-                   (my_hash_get_key) connect_get_key, 0, 0);
-
-//connect_hton->name=    "CONNECT";
   connect_hton->state=   SHOW_OPTION_YES;
-//connect_hton->comment= "CONNECT handler";
   connect_hton->create=  connect_create_handler;
   connect_hton->flags=   HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
-#if defined(MARIADB)
-  connect_hton->db_type= DB_TYPE_AUTOASSIGN;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
-#else   // !MARIADB
-//connect_hton->system_database= connect_system_database;
-//connect_hton->is_supported_system_table= connect_is_supported_system_table;
-#endif  // !MARIADB
+  connect_hton->tablefile_extensions= ha_connect_exts;
+  connect_hton->discover_table_structure= connect_assisted_discovery;
 
   if (xtrace)
     sql_print_information("connect_init: hton=%p", p);
@@ -422,9 +415,6 @@ static int connect_done_func(void *p)
   XmlCleanupParserLib();
 #endif   // LIBXML2_SUPPORT
 
-  if (connect_open_tables.records)
-    error= 1;
-
   for (pc= user_connect::to_users; pc; pc= pn) {
     if (pc->g)
       PlugCleanup(pc->g, true);
@@ -432,9 +422,6 @@ static int connect_done_func(void *p)
     pn= pc->next;
     delete pc;
     } // endfor pc
-
-  my_hash_free(&connect_open_tables);
-  mysql_mutex_destroy(&connect_mutex);
 
   DBUG_RETURN(error);
 }
@@ -454,24 +441,17 @@ static CONNECT_SHARE *get_share(const char *table_name, TABLE *table)
   uint length;
   char *tmp_name;
 
-  mysql_mutex_lock(&connect_mutex);
   length=(uint) strlen(table_name);
 
-  if (!(share=(CONNECT_SHARE*)my_hash_search(&connect_open_tables,
-                                      (uchar*) table_name, length))) {
-    if (!(share=(CONNECT_SHARE *)my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                &share, sizeof(*share), &tmp_name, length+1, NullS))) {
-      mysql_mutex_unlock(&connect_mutex);
+  if (!(share= (CONNECT_SHARE *)table->s->ha_data)) {
+    if (!(share= (CONNECT_SHARE *)alloc_root(&table->s->mem_root, sizeof(*share) + length + 1)))
       return NULL;
-      } // endif share
+    bzero(share, sizeof(*share));
+    tmp_name= (char*)(share + 1);
 
-    share->use_count=0;
     share->table_name_length=length;
     share->table_name=tmp_name;
     strmov(share->table_name, table_name);
-
-    if (my_hash_insert(&connect_open_tables, (uchar*) share))
-      goto error;
 
     thr_lock_init(&share->lock);
     mysql_mutex_init(con_key_mutex_CONNECT_SHARE_mutex,
@@ -479,13 +459,7 @@ static CONNECT_SHARE *get_share(const char *table_name, TABLE *table)
     } // endif share
 
   share->use_count++;
-  mysql_mutex_unlock(&connect_mutex);
   return share;
-
-error:
-  mysql_mutex_destroy(&share->mutex);
-  my_free(share);
-  return NULL;
 }
 
 
@@ -497,20 +471,12 @@ error:
 
 static int free_share(CONNECT_SHARE *share)
 {
-  mysql_mutex_lock(&connect_mutex);
-
   if (!--share->use_count) {
-    my_hash_delete(&connect_open_tables, (uchar*) share);
     thr_lock_delete(&share->lock);
     mysql_mutex_destroy(&share->mutex);
-#if !defined(MARIADB)
-    my_free(share->table_options);
-    my_free(share->field_options);
-#endif   // !MARIADB
-    my_free(share);
+    TRASH(share, sizeof(*share));
     } // endif share
 
-  mysql_mutex_unlock(&connect_mutex);
   return 0;
 }
 
@@ -534,8 +500,9 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
        :handler(hton, table_arg)
 {
   hnum= ++num;
-  xp= NULL;         // Tested in next call
-  xp= (table) ? GetUser(table->in_use) : NULL;
+  xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
+  if (xp)
+    xp->SetHandler(this);
   tdbp= NULL;
   sdvalin= NULL;
   sdvalout= NULL;
@@ -554,10 +521,6 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   int_table_flags= (HA_NO_TRANSACTIONS | HA_NO_PREFIX_CHAR_KEYS);
   ref_length= sizeof(int);
   share= NULL;
-#if !defined(MARIADB)
-  table_options= NULL;
-  field_options= NULL;
-#endif   // !MARIADB
   tshp= NULL;
 } // end of ha_connect constructor
 
@@ -594,17 +557,13 @@ ha_connect::~ha_connect(void)
 
     } // endif xp
 
-#if !defined(MARIADB)
-  my_free(table_options);
-  my_free(field_options);
-#endif   // !MARIADB
 } // end of ha_connect destructor
 
 
 /****************************************************************************/
 /*  Get a pointer to the user of this handler.                              */
 /****************************************************************************/
-PCONNECT ha_connect::GetUser(THD *thd)
+static PCONNECT GetUser(THD *thd, PCONNECT xp)
 {
   const char *dbn= NULL;
 
@@ -621,7 +580,7 @@ PCONNECT ha_connect::GetUser(THD *thd)
   if (!xp) {
     xp= new user_connect(thd, dbn);
 
-    if (xp->user_init(this)) {
+    if (xp->user_init()) {
       delete xp;
       xp= NULL;
       } // endif user_init
@@ -636,9 +595,9 @@ PCONNECT ha_connect::GetUser(THD *thd)
 /****************************************************************************/
 /*  Get the global pointer of the user of this handler.                     */
 /****************************************************************************/
-PGLOBAL ha_connect::GetPlug(THD *thd)
+static PGLOBAL GetPlug(THD *thd, PCONNECT lxp)
 {
-  PCONNECT lxp= GetUser(thd);
+  lxp= GetUser(thd, lxp);
   return (lxp) ? lxp->g : NULL;
 } // end of GetPlug
 
@@ -646,9 +605,8 @@ PGLOBAL ha_connect::GetPlug(THD *thd)
 /****************************************************************************/
 /*  Return the value of an option specified in the option list.             */
 /****************************************************************************/
-char *ha_connect::GetListOption(const char *opname,
-                                const char *oplist,
-                                const char *def)
+static char *GetListOption(PGLOBAL g, const char *opname,
+                           const char *oplist, const char *def=NULL)
 {
   char  key[16], val[256];
   char *pk, *pv, *pn;
@@ -684,7 +642,7 @@ char *ha_connect::GetListOption(const char *opname,
     } // endif pv
 
     if (!stricmp(opname, key)) {
-      opval= (char*)PlugSubAlloc(xp->g, NULL, strlen(val) + 1);
+      opval= (char*)PlugSubAlloc(g, NULL, strlen(val) + 1);
       strcpy(opval, val);
       break;
     } else if (!pn)
@@ -700,97 +658,7 @@ char *ha_connect::GetListOption(const char *opname,
 /****************************************************************************/
 PTOS ha_connect::GetTableOptionStruct(TABLE *tab)
 {
-#if defined(MARIADB)
   return (tshp) ? tshp->option_struct : tab->s->option_struct;
-#else   // !MARIADB
-  if (share && share->table_options)
-    return share->table_options;
-  else if (table_options)
-    return table_options;
-
-  char  *pk, *pv, *pn, *val;
-  size_t len= sizeof(ha_table_option_struct) + tab->s->comment.length + 1;
-  PTOS   top= (PTOS)my_malloc(len, MYF(MY_FAE | MY_ZEROFILL));
-
-  top->quoted= -1;   // Default value
-  top->ending= -1;   // Default value
-  pk= (char *)top + sizeof(ha_table_option_struct);
-  memcpy(pk, tab->s->comment.str, tab->s->comment.length);
-
-  for (; pk; pk= ++pn) {
-    pn= strchr(pk, ',');
-    pv= strchr(pk, '=');
-
-    if (pn) *pn= 0;
-
-    if (pv) *pv= 0;
-
-    val= (pv && (!pn || pv < pn)) ? pv + 1 : "";
-
-    if (!stricmp(pk, "type") || !stricmp(pk, "Table_Type")) {
-      top->type= val;
-    } else if (!stricmp(pk, "fn") || !stricmp(pk, "filename")
-                                  || !stricmp(pk, "File_Name")) {
-      top->filename= val;
-    } else if (!stricmp(pk, "optfn") || !stricmp(pk, "optname")
-                                     || !stricmp(pk, "Xfile_Name")) {
-      top->optname= val;
-    } else if (!stricmp(pk, "name") || !stricmp(pk, "tabname")) {
-      top->tabname= val;
-    } else if (!stricmp(pk, "tablist") || !stricmp(pk, "tablelist")
-                                       || !stricmp(pk, "Table_list")) {
-      top->tablist= val;
-    } else if (!stricmp(pk, "sep") || !stricmp(pk, "separator")
-                                   || !stricmp(pk, "Sep_Char")) {
-      top->separator= val;
-    } else if (!stricmp(pk, "db") || !stricmp(pk, "DBName")
-                                  || !stricmp(pk, "Database") {
-      top->dbname= val;
-    } else if (!stricmp(pk, "qchar")) {
-      top->qchar= val;
-    } else if (!stricmp(pk, "module")) {
-      top->module= val;
-    } else if (!stricmp(pk, "subtype")) {
-      top->subtype= val;
-    } else if (!stricmp(pk, "lrecl")) {
-      top->lrecl= atoi(val);
-    } else if (!stricmp(pk, "elements")) {
-      top->elements= atoi(val);
-    } else if (!stricmp(pk, "multiple")) {
-      top->multiple= atoi(val);
-    } else if (!stricmp(pk, "header")) {
-      top->header= atoi(val);
-    } else if (!stricmp(pk, "quoted")) {
-      top->quoted= atoi(val);
-    } else if (!stricmp(pk, "ending")) {
-      top->ending= atoi(val);
-    } else if (!stricmp(pk, "compressed")) {
-      top->compressed= atoi(val);
-    } else if (!stricmp(pk, "mapped")) {
-      top->mapped= (!*val || *val == 'y' || *val == 'Y' || atoi(val) != 0);
-    } else if (!stricmp(pk, "huge")) {
-      top->huge= (!*val || *val == 'y' || *val == 'Y' || atoi(val) != 0);
-    } else if (!stricmp(pk, "split")) {
-      top->split= (!*val || *val == 'y' || *val == 'Y' || atoi(val) != 0);
-    } else if (!stricmp(pk, "readonly") || !stricmp(pk, "protected")) {
-      top->readonly= (!*val || *val == 'y' || *val == 'Y' || atoi(val) != 0);
-    } // endif's
-
-    if (!pn)
-      break;
-
-    } // endfor pk
-
-  // This to get all other options
-  top->oplist= tab->s->comment.str;
-
-  if (share)
-    share->table_options= top;
-  else
-    table_options= top;
-
-  return top;
-#endif  // !MARIADB
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -833,7 +701,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->data_charset;
 
   if (!opval && options && options->oplist)
-    opval= GetListOption(opname, options->oplist);
+    opval= GetListOption(xp->g, opname, options->oplist);
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
@@ -875,7 +743,7 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
   else if (!stricmp(opname, "SepIndex"))
     opval= options->sepindex;
   else if (options->oplist)
-    if ((pv= GetListOption(opname, options->oplist)))
+    if ((pv= GetListOption(xp->g, opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
 
   return opval;
@@ -932,7 +800,7 @@ int ha_connect::GetIntegerOption(char *opname)
     opval= (options->compressed);
 
   if (opval == NO_IVAL && options && options->oplist)
-    if ((pv= GetListOption(opname, options->oplist)))
+    if ((pv= GetListOption(xp->g, opname, options->oplist)))
       opval= atoi(pv);
 
   return opval;
@@ -978,71 +846,7 @@ bool ha_connect::SetIntegerOption(char *opname, int n)
 /****************************************************************************/
 PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 {
-#if defined(MARIADB)
   return fdp->option_struct;
-#else   // !MARIADB
-  if (share && share->field_options)
-    return &share->field_options[fdp->field_index];
-  else if (field_options)
-    return &field_options[fdp->field_index];
-
-  char  *pc, *pk, *pv, *pn, *val;
-  int    i, k, n= table->s->fields;
-  size_t len= n + n * sizeof(ha_field_option_struct);
-  PFOS   fp, fop;
-
-  for (i= 0; i < n; i++)
-    len+= table->s->field[i]->comment.length;
-
-  fop= (PFOS)my_malloc(len, MYF(MY_FAE | MY_ZEROFILL));
-  pc= (char*)fop + n * sizeof(ha_field_option_struct);
-
-  for (i= k= 0; i < n;  i++) {
-    fp= &fop[i];
-    fp->offset= -1;    // Default value
-
-    if (!table->s->field[i]->comment.length)
-      continue;
-
-    memcpy(pc, table->s->field[i]->comment.str,
-               table->s->field[i]->comment.length);
-
-    for (pk= pc; pk; pk= ++pn) {
-      if ((pn= strchr(pk, ','))) *pn= 0;
-      if ((pv= strchr(pk, '='))) *pv= 0;
-      val= (pv && (!pn || pv < pn)) ? pv + 1 : "";
-
-      if (!stricmp(pk, "datefmt") || !stricmp(pk, "date_format")) {
-        fp->dateformat= val;
-      } else if (!stricmp(pk, "fieldfmt") || !stricmp(pk, "field_format")) {
-        fp->fieldformat= val;
-      } else if (!stricmp(pk, "special")) {
-        fp->special= val;
-      } else if (!stricmp(pk, "offset") || !stricmp(pk, "flag")) {
-        fp->offset= atoi(val);
-      } else if (!stricmp(pk, "freq")) {
-        fp->freq= atoi(val);
-      } else if (!stricmp(pk, "opt")) {
-        fp->opt= atoi(val);
-      } else if (!stricmp(pk, "fldlen") || !stricmp(pk, "field_length")) {
-        fp->fldlen= atoi(val);
-      } // endif's
-
-      if (!pn)
-        break;
-
-      } // endfor pk
-
-    pc+= table->s->field[i]->comment.length + 1;
-    } // endfor i
-
-  if (share)
-    share->field_options= fop;
-  else
-    field_options= fop;
-
-  return &fop[fdp->field_index];
-#endif  // !MARIADB
 } // end of GetFildOptionStruct
 
 /****************************************************************************/
@@ -1144,7 +948,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
         if (pcf->Datefmt) {
           // Find the (max) length produced by the date format
           char    buf[256];
-          PGLOBAL g= GetPlug(table->in_use);
+          PGLOBAL g= GetPlug(table->in_use, xp);
 #if defined(WIN32)
           struct tm datm= {0,0,0,12,11,112,0,0,0};
 #else   // !WIN32
@@ -1172,11 +976,9 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
   if (fp->real_maybe_null())
     pcf->Flags |= U_NULLS;
 
-#if defined(MARIADB)
   // Mark virtual columns as such
   if (fp->vcol_info && !fp->stored_in_db)
     pcf->Flags |= U_VIRTUAL;
-#endif   // MARIADB
 
   pcf->Key= 0;   // Not used when called from MySQL
   pcf->Remark= fp->comment.str;
@@ -1477,16 +1279,10 @@ int ha_connect::MakeRecord(char *buf)
   DBUG_ENTER("ha_connect::MakeRecord");
 
   if (xtrace > 1)
-#if defined(MARIADB)
     printf("Maps: read=%08X write=%08X vcol=%08X defr=%08X defw=%08X\n",
             *table->read_set->bitmap, *table->write_set->bitmap,
             *table->vcol_set->bitmap,
             *table->def_read_set.bitmap, *table->def_write_set.bitmap);
-#else   // !MARIADB
-    printf("Maps: read=%p write=%p defr=%p defw=%p\n",
-            *table->read_set->bitmap, *table->write_set->bitmap,
-            *table->def_read_set.bitmap, *table->def_write_set.bitmap);
-#endif  // !MARIADB
 
   // Avoid asserts in field::store() for columns that are not updated
   org_bitmap= dbug_tmp_use_all_columns(table, table->write_set);
@@ -1501,10 +1297,8 @@ int ha_connect::MakeRecord(char *buf)
   for (field= table->field; *field && !rc; field++) {
     fp= *field;
 
-#if defined(MARIADB)
     if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
-#endif   // MARIADB
 
     if (bitmap_is_set(map, fp->field_index)) {
       // This is a used field, fill the buffer with value
@@ -1603,11 +1397,9 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
   for (Field **field=table->field ; *field ; field++) {
     fp= *field;
 
-#if defined(MARIADB)
     if ((fp->vcol_info && !fp->stored_in_db) ||
          fp->option_struct->special)
       continue;            // Is a virtual column possible here ???
-#endif   // MARIADB
 
     if (xmod == MODE_INSERT ||
         bitmap_is_set(table->write_set, fp->field_index)) {
@@ -2050,39 +1842,6 @@ bool ha_connect::get_error_message(int error, String* buf)
 
 /**
   @brief
-  If frm_error() is called then we will use this to determine
-  the file extensions that exist for the storage engine. This is also
-  used by the default rename_table and delete_table method in
-  handler.cc.
-
-  For engines that have two file name extentions (separate meta/index file
-  and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
-  element - data file extention. This order is assumed by
-  prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
-
-  @note: PlugDB will handle all file creation/deletion. When dropping
-  a CONNECT table, we don't want the PlugDB table to be dropped or erased.
-  Therefore we provide a void list of extensions.
-
-  @see
-  rename_table method in handler.cc and
-  delete_table method in handler.cc
-*/
-static const char *ha_connect_null_exts[]= {
-  NullS
-};
-
-static const char* *ha_connect_exts= ha_connect_null_exts;
-
-const char **ha_connect::bas_ext() const
-{
-  return ha_connect_exts;    // a null list, see @note above
-} // end of bas_ext
-
-
-/**
-  @brief
   Used for opening tables. The name will be the name of the file.
 
   @details
@@ -2115,14 +1874,12 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   thr_lock_data_init(&share->lock,&lock,NULL);
 
   // Try to get the user if possible
-  if (table && table->in_use) {
-    PGLOBAL g= GetPlug(table->in_use);
+  xp= GetUser(ha_thd(), xp);
+  PGLOBAL g= xp->g;
 
-    // Try to set the database environment
-    if (g)
-      rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
-
-    } // endif table
+  // Try to set the database environment
+  if (g)
+    rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
 
   DBUG_RETURN(rc);
 } // end of open
@@ -2589,7 +2346,7 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
-  PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use) :
+  PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
 
@@ -2603,11 +2360,7 @@ int ha_connect::rnd_init(bool scan)
         DBUG_RETURN(HA_ERR_INITIALIZATION);
 
       if (OpenTable(g, xmod == MODE_DELETE))
-#if defined(MARIADB)
         DBUG_RETURN(HA_ERR_INITIALIZATION);
-#else   // !MARIADB
-        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-#endif  // !MARIADB
 
     } else
       void(CntRewindTable(g, tdbp));      // Read from beginning
@@ -2662,11 +2415,6 @@ int ha_connect::rnd_next(uchar *buf)
   int rc;
   DBUG_ENTER("ha_connect::rnd_next");
 //statistic_increment(ha_read_rnd_next_count, &LOCK_status);
-
-#if !defined(MARIADB)
-  if (!tdbp)   // MySQL ignores error from rnd_init
-    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
-#endif   // !MARIADB
 
   if (tdbp->GetMode() == MODE_ANY) {
     // We will stop on next read
@@ -2813,7 +2561,7 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
 int ha_connect::info(uint flag)
 {
   bool    pure= false;
-  PGLOBAL g= GetPlug((table) ? table->in_use : NULL);
+  PGLOBAL g= GetPlug((table) ? table->in_use : NULL, xp);
 
   DBUG_ENTER("ha_connect::info");
 
@@ -2847,8 +2595,8 @@ int ha_connect::info(uint flag)
 
   if (flag & HA_STATUS_CONST) {
     // This is imported from the previous handler and must be reconsidered
-    stats.max_data_file_length= LL(4294967295);
-    stats.max_index_file_length= LL(4398046510080);
+    stats.max_data_file_length= 4294967295;
+    stats.max_index_file_length= 4398046510080;
     stats.create_time= 0;
     data_file_name= xinfo.data_file_name;
     index_file_name= NULL;
@@ -2941,8 +2689,8 @@ int ha_connect::delete_all_rows()
 
 bool ha_connect::check_privileges(THD *thd, PTOS options)
 {
-  if (!options || !options->type)
-    goto err;
+  if (!options->type)
+    options->type= "DOS";
 
   switch (GetTypeID(options->type))
   {
@@ -2953,7 +2701,9 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_DMY:
     case TAB_NIY:
     case TAB_PIVOT:
-      goto err;
+      my_printf_error(ER_UNKNOWN_ERROR,
+                      "Unsupported table type %s", MYF(0), options->type);
+      return true;
 
     case TAB_DOS:
     case TAB_FIX:
@@ -2988,9 +2738,8 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
       return false;
   }
 
-err:
-    my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
-    return true;
+  my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
+  return true;
 }
 
 // Check that two indexes are equivalent 
@@ -3046,7 +2795,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   bool    del= false, xcheck=false, cras= false;
   MODE    newmode;
   PTOS    options= GetTableOptionStruct(table);
-  PGLOBAL g= GetPlug(thd);
+  PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::external_lock");
 
   if (xtrace)
@@ -3387,8 +3136,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 #endif  // !WIN32
   char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
   int          rc;
-  uint         key_length, db_flags= 0;
-  TABLE_LIST   table_list;
+  uint         key_length;
   TABLE_SHARE *share;
   THD         *thd= current_thd;
 
@@ -3399,16 +3147,14 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   if (sscanf(name, fmt, db, tabname) != 2 || *tabname == '#')
     goto fin;
 
-  table_list.db=         (char*) db;
-  table_list.table_name= (char*) tabname;
-  key_length= create_table_def_key(thd, key, &table_list, 0);
+  key_length= create_table_def_key(key, db, tabname);
 
   // share contains the option struct that we need
-  if (!(share= alloc_table_share(&table_list, key, key_length)))
+  if (!(share= alloc_table_share(db, tabname, key, key_length)))
     goto fin;
 
   // Get the share info from the .frm file
-  if (open_table_def(thd, share, db_flags))
+  if (open_table_def(thd, share))
     goto err;
 
   // Now we can work
@@ -3421,54 +3167,11 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   }
 
   if (IsFileType(GetTypeID(pos->type)) && !pos->filename) {
-    // This is a table whose files must be erased or renamed */
-//  char ftype[8], *new_exts[2];
-    char ftype[12], *xtype, *new_exts[3];
-    int  n= 0;
-
-    if (share->keynames.count) {
-      switch (GetTypeID(pos->type)) {
-        case TAB_CSV:
-        case TAB_FMT:
-        case TAB_DOS: xtype= ".dnx"; break;
-        case TAB_FIX: xtype= ".fnx"; break;
-        case TAB_BIN: xtype= ".bnx"; break;
-        case TAB_VEC: xtype= ".vnx"; break;
-        case TAB_DBF: xtype= ".dbx"; break;
-        default:
-          xtype= NULL;
-//        return true;
-        } // endswitch Ftype
-
-      if (xtype)
-        new_exts[n++]= xtype;
-
-      } // endif keynames
-
-    // Fold type to lower case
-    ftype[0]= '.';
-
-    for (int i= 0; i < 12; i++)
-      if (!pos->type[i]) {
-        ftype[i+1]= 0;
-        break;
-      } else
-        ftype[i+1]= tolower(pos->type[i]);
-        
-    new_exts[n++]= ftype;
-    new_exts[n]= NULL;
-
-    // This will be answered by bas_ext()
-    ha_connect_exts= (const char**)new_exts;
-
     // Let the base handler do the job
     if (to)
       rc= handler::rename_table(name, to);
     else
       rc= handler::delete_table(name);
-
-    // Reset the ext list to null. 
-    ha_connect_exts= ha_connect_null_exts;
     } // endif filename
 
   // Done no more need for this
@@ -3542,11 +3245,10 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   DBUG_RETURN(rows);
 } // end of records_in_range
 
-#if defined(MARIADB)
 /**
   Convert an ISO-8859-1 column name to UTF-8
 */
-char *ha_connect::encode(PGLOBAL g, char *cnm)
+static char *encode(PGLOBAL g, char *cnm)
   {
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
@@ -3566,190 +3268,104 @@ char *ha_connect::encode(PGLOBAL g, char *cnm)
     Return 0 if ok
 */
 
-bool ha_connect::add_fields(THD *thd, void *alt_info,
-           LEX_STRING *field_name,
-           enum_field_types type,
-           char *length, char *decimals,
-           uint type_modifier,
-//         Item *default_value, Item *on_update_value,
-           LEX_STRING *comment,
-//         char *change,
-//         List<String> *interval_list,
-           CHARSET_INFO *cs,
-//         uint uint_geom_type,
-           void *vcolinfo,
-           engine_option_value *create_options)
+bool add_field(String *sql, const char *field_name, const char *type,
+               int len, int dec, uint tm, const char *rem)
 {
-  register Create_field *new_field;
-  Alter_info *alter_info= (Alter_info*)alt_info;
-  Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
+  bool error= false;
 
-  DBUG_ENTER("ha_connect::add_fields");
-
-  if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
-                               system_charset_info, 1))
-  {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), field_name->str); /* purecov: inspected */
-    DBUG_RETURN(1);       /* purecov: inspected */
-  }
-#if 0
-  if (type_modifier & PRI_KEY_FLAG)
-  {
-    Key *key;
-    lex->col_list.push_back(new Key_part_spec(*field_name, 0));
-    key= new Key(Key::PRIMARY, null_lex_str,
-                      &default_key_create_info,
-                      0, lex->col_list, NULL);
-    alter_info->key_list.push_back(key);
-    lex->col_list.empty();
-  }
-  if (type_modifier & (UNIQUE_FLAG | UNIQUE_KEY_FLAG))
-  {
-    Key *key;
-    lex->col_list.push_back(new Key_part_spec(*field_name, 0));
-    key= new Key(Key::UNIQUE, null_lex_str,
-                 &default_key_create_info, 0,
-                 lex->col_list, NULL);
-    alter_info->key_list.push_back(key);
-    lex->col_list.empty();
-  }
-
-  if (default_value)
-  {
-    /*
-      Default value should be literal => basic constants =>
-      no need fix_fields()
-
-      We allow only one function as part of default value -
-      NOW() as default for TIMESTAMP type.
-    */
-    if (default_value->type() == Item::FUNC_ITEM &&
-        !(((Item_func*)default_value)->functype() == Item_func::NOW_FUNC &&
-         type == MYSQL_TYPE_TIMESTAMP))
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-      DBUG_RETURN(1);
-    }
-    else if (default_value->type() == Item::NULL_ITEM)
-    {
-      default_value= 0;
-      if ((type_modifier & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) ==
-    NOT_NULL_FLAG)
-      {
-  my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-  DBUG_RETURN(1);
+  error|= sql->append(field_name);
+  error|= sql->append(' ');
+  error|= sql->append(type);
+  if (len) {
+    error|= sql->append('(');
+    error|= sql->append_ulonglong(len);
+    if (dec) {
+      error|= sql->append(',');
+      error|= sql->append_ulonglong(dec);
       }
+    error|= sql->append(')');
     }
-    else if (type_modifier & AUTO_INCREMENT_FLAG)
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-      DBUG_RETURN(1);
+  
+  if (tm)
+    error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
+
+  if (rem && *rem) {
+    error|= sql->append(" COMMENT='");
+    error|= sql->append_for_single_quote(rem, strlen(rem));
+    error|= sql->append("'");
     }
-  }
 
-  if (on_update_value && type != MYSQL_TYPE_TIMESTAMP)
-  {
-    my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name->str);
-    DBUG_RETURN(1);
-  }
-#endif // 0
+  sql->append(',');
 
-  if (!(new_field= new Create_field()) ||
-      new_field->init(thd, field_name->str, type, length, decimals, type_modifier,
-                      NULL, NULL, comment, NULL,
-                      NULL, cs, 0, vcol_info,
-                      create_options))
-    DBUG_RETURN(1);
-
-  alter_info->create_list.push_back(new_field);
-//lex->last_field=new_field;
-  DBUG_RETURN(0);
-} // end of add_fields
+  return error;
+} // end of add_field
 
 /**
   @brief
-  pre_create() is called when creating a table with no columns.
+  connect_assisted_discovery() is called when creating a table with no columns.
 
   @details
-  When pre_create() is called  the .frm file have not already been
+  When assisted discovery is used the .frm file have not already been
   created. You can overwrite some definitions at this point but the
   main purpose of it is to define the columns for some table types.
-
-  @note
-  Not really implemented yet.
 */
-bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
-                            void *alt_info)
+static int connect_assisted_discovery(handlerton *hton, THD* thd,
+                                      TABLE_SHARE *table_s,
+                                      HA_CREATE_INFO *create_info)
 {
   char        spc= ',', qch= 0;
-  const char *typn= "?";
   const char *fncn= "?";
-  const char *user;
-  char       *fn, *dsn, *tab, *db, *host, *pwd, *prt, *sep; // *csn;
+  const char *user, *fn, *tab, *db, *host, *pwd, *prt, *sep; // *csn;
+  char       *dsn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= MYSQL_PORT, hdr= 0, mxr= 0;
+  int         port= MYSQL_PORT, hdr= 0, mxr= 0, b= 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
-  bool        b= false, ok= false, dbf= false;
+  bool        ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
-  LEX_STRING *comment, *name, *val;
   MEM_ROOT   *mem= thd->mem_root;
   CHARSET_INFO *cs;
-  Alter_info *alter_info= (Alter_info*)alt_info;
-  engine_option_value *pov, **start= &create_info->option_list, *end= NULL;
   PQRYRES     qrp;
   PCOLRES     crp;
-  PGLOBAL     g= GetPlug(thd);
+  PGLOBAL     g= GetPlug(thd, NULL);
+  PTOS        topt= table_s->option_struct;
+
+  char        buf[1024];
+  String      sql(buf, sizeof(buf), system_charset_info);
 
   if (!g)
-    return true;
+    return HA_ERR_INTERNAL_ERROR;
 
-  fn= dsn= tab= db= host= pwd= prt= sep= NULL;
-  user= NULL;
+  sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
+
+  user= host= pwd= prt= dsn= NULL;
 
   // Get the useful create options
-  for (pov= *start; pov; pov= pov->next) {
-    if (!stricmp(pov->name.str, "table_type")) {
-      typn= pov->value.str;
-      ttp= GetTypeID(typn);
-    } else if (!stricmp(pov->name.str, "file_name")) {
-      fn= pov->value.str;
-    } else if (!stricmp(pov->name.str, "tabname")) {
-      tab= pov->value.str;
-    } else if (!stricmp(pov->name.str, "dbname")) {
-      db= pov->value.str;
-    } else if (!stricmp(pov->name.str, "catfunc")) {
-      fncn= pov->value.str;
-      fnc= GetFuncID(fncn);
-    } else if (!stricmp(pov->name.str, "sep_char")) {
-      sep= pov->value.str;
-      spc= (!strcmp(sep, "\\t")) ? '\t' : *sep;
-    } else if (!stricmp(pov->name.str, "qchar")) {
-      qch= *pov->value.str;
-    } else if (!stricmp(pov->name.str, "quoted")) {
-      if (!qch)
-        qch= '"';
-
-    } else if (!stricmp(pov->name.str, "header")) {
-      hdr= atoi(pov->value.str);
-    } else if (!stricmp(pov->name.str, "option_list")) {
-      host= GetListOption("host", pov->value.str, "localhost");
-      user= GetListOption("user", pov->value.str, "root");
+  ttp=  GetTypeID(topt->type);
+  fn=   topt->filename;
+  tab=  topt->tabname;
+  db=   topt->dbname;
+  fncn= topt->catfunc;
+  fnc= GetFuncID(fncn);
+  sep=  topt->separator;
+  spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
+  qch= topt->qchar ? *topt->qchar : topt->quoted >= 0 ? '"' : 0;
+  hdr= topt->header;
+  if (topt->oplist) {
+      host= GetListOption(g,"host", topt->oplist, "localhost");
+      user= GetListOption(g,"user", topt->oplist, "root");
       // Default value db can come from the DBNAME=xxx option.
-      db= GetListOption("database", pov->value.str, db);
-      pwd= GetListOption("password", pov->value.str);
-      prt= GetListOption("port", pov->value.str);
+      db= GetListOption(g,"database", topt->oplist, db);
+      pwd= GetListOption(g,"password", topt->oplist);
+      prt= GetListOption(g,"port", topt->oplist);
       port= (prt) ? atoi(prt) : MYSQL_PORT;
 #if defined(WIN32)
-      nsp= GetListOption("namespace", pov->value.str);
-      cls= GetListOption("class", pov->value.str);
+      nsp= GetListOption(g,"namespace", topt->oplist);
+      cls= GetListOption(g,"class", topt->oplist);
 #endif   // WIN32
-      mxr= atoi(GetListOption("maxerr", pov->value.str, "0"));
+      mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
     } // endelse option_list
-
-    end= pov;
-    } // endfor pov
 
   if (!db)
     db= thd->db;                     // Default value
@@ -3759,14 +3375,11 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     strcpy(g->Message, "No table_type. Was set to DOS");
     push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
     ttp= TAB_DOS;
-    typn= "DOS";
-    name= thd->make_lex_string(NULL, "table_type", 10, true);
-    val= thd->make_lex_string(NULL, typn, strlen(typn), true);
-    pov= new(mem) engine_option_value(*name, *val, false, start, &end);
+    topt->type= "DOS";
   } else if (ttp == TAB_NIY) {
-    sprintf(g->Message, "Unsupported table type %s", typn);
+    sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-    return true;
+    return HA_ERR_INTERNAL_ERROR;
   } // endif ttp
 
   if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
@@ -3777,7 +3390,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
     case TAB_ODBC:
       if (!(dsn= create_info->connect_string.str)
                  && !(fnc & (FNC_DSN | FNC_DRIVER)))
-        sprintf(g->Message, "Missing %s connection string", typn);
+        sprintf(g->Message, "Missing %s connection string", topt->type);
       else
         ok= true;
 
@@ -3789,7 +3402,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       // Passthru
     case TAB_CSV:
       if (!fn && fnc != FNC_NO)
-        sprintf(g->Message, "Missing %s file name", typn);
+        sprintf(g->Message, "Missing %s file name", topt->type);
       else
         ok= true;
 
@@ -3807,16 +3420,16 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
         strncpy(dsn, create_info->connect_string.str,
                      create_info->connect_string.length);
         dsn[create_info->connect_string.length] = 0;
-        mydef->Name= (char*)create_info->alias;
-        mydef->Cat= cat;
+        mydef->SetName(create_info->alias);
+        mydef->SetCat(cat);
 
         if (!mydef->ParseURL(g, dsn)) {
-          host= mydef->Hostname;
-          user= mydef->Username;
-          pwd=  mydef->Password;
-          db=   mydef->Database;
-          tab=  mydef->Tabname;
-          port= mydef->Portnumber;
+          host= mydef->GetHostname();
+          user= mydef->GetUsername();
+          pwd=  mydef->GetPassword();
+          db=   mydef->GetDatabase();
+          tab=  mydef->GetTabname();
+          port= mydef->GetPortnumber();
         } else
           ok= false;
 
@@ -3831,55 +3444,27 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
       break;
 #endif   // WIN32
     default:
-      sprintf(g->Message, "Cannot get column info for table type %s", typn);
+      sprintf(g->Message, "Cannot get column info for table type %s", topt->type);
     } // endif ttp
 
   // Check for supported catalog function
   if (ok && !(supfnc & fnc)) {
     sprintf(g->Message, "Unsupported catalog function %s for table type %s",
-                        fncn, typn);
+                        fncn, topt->type);
     ok= false;
     } // endif supfnc
 
-  // Test whether columns must be specified
-  if (alter_info->create_list.elements) {
-    if (g->Createas) {
-      // This table is created AS SELECT
-      // The sourcetable FLAG values have been passed to the created
-      // table columns but they must be removed to get default offsets.
-      List_iterator<Create_field> it(alter_info->create_list);
-      Create_field        *field;
-      engine_option_value *vop, *pop;
-
-      while ((field= it++))
-        for (pop= NULL, vop= field->option_list; vop; vop= vop->next)
-          if (!stricmp(vop->name.str, "FLAG")) {
-            if (pop)
-              pop->next= vop->next;
-            else
-              field->option_list= vop->next;
-
-            break;
-          } else
-            pop= vop;
-
-      g->Createas= 0;
-      } // endif Createas
-
-    return false;
-    } // endif elements
-
   if (ok) {
-    char *length, *decimals, *cnm, *rem;
+    char *cnm, *rem;
     int   i, len, dec, typ;
-    enum_field_types type;
+    const char *type;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
     if (cat)
       cat->SetDataPath(g, thd->db);
     else
-      return true;           // Should never happen
+      return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
     switch (ttp) {
       case TAB_DBF:
@@ -3922,38 +3507,31 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
         break;
 #endif   // WIN32
       default:
-        strcpy(g->Message, "System error in pre_create");
+        strcpy(g->Message, "System error during assisted discovery");
         break;
       } // endswitch ttp
 
     if (!qrp) {
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-      return true;
+      return HA_ERR_INTERNAL_ERROR;
       } // endif qrp
 
     if (fnc != FNC_NO) {
       // Catalog table
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
-        name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
-        type= PLGtoMYSQL(crp->Type, dbf);
+        type= PLGtoMYSQLtype(crp->Type, dbf);
         len= crp->Length;
-        length= (char*)PlugSubAlloc(g, NULL, 8);
-        sprintf(length, "%d", len);
-        decimals= NULL;
-        comment= thd->make_lex_string(NULL, "", 0, true);
      
         // Now add the field
-        b= add_fields(thd, alt_info, name, type, length, decimals,
-                      NOT_NULL_FLAG, comment, NULL, NULL, NULL);
+        if (add_field(&sql, cnm, type, len, 0, NOT_NULL_FLAG, 0))
+          b= HA_ERR_OUT_OF_MEM;
         } // endfor crp
 
     } else              // Not a catalog table
       for (i= 0; !b && i < qrp->Nblin; i++) {
-        rem= "";
+        rem= NULL;
         typ= len= dec= 0;
-        length= "";
-        decimals= NULL;
         tm= NOT_NULL_FLAG;
         cs= NULL;
 
@@ -3961,7 +3539,6 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
           switch (crp->Fld) {
             case FLD_NAME:
               cnm= encode(g, crp->Kdata->GetCharValue(i));
-              name= thd->make_lex_string(NULL, cnm, strlen(cnm), true);
               break;
             case FLD_TYPE:
               typ= crp->Kdata->GetIntValue(i);
@@ -3970,12 +3547,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
               len= crp->Kdata->GetIntValue(i);
               break;
             case FLD_SCALE:
-              if ((dec= crp->Kdata->GetIntValue(i))) {
-                decimals= (char*)PlugSubAlloc(g, NULL, 8);
-                 sprintf(decimals, "%d", dec);
-              } else
-                decimals= NULL;
-
+              dec= crp->Kdata->GetIntValue(i);
               break;
             case FLD_NULL:
               if (crp->Kdata->GetIntValue(i))
@@ -4003,7 +3575,7 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
           if (!(plgtyp= TranslateSQLType(typ, dec, len))) {
             sprintf(g->Message, "Unsupported SQL type %d", typ);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            return true;
+            return HA_ERR_INTERNAL_ERROR;
           } else
             typ= plgtyp;
 
@@ -4014,24 +3586,66 @@ bool ha_connect::pre_create(THD *thd, HA_CREATE_INFO *create_info,
           } // endif ttp
 #endif   // ODBC_SUPPORT
 
-        // Make the arguments as required by add_fields
-        type= PLGtoMYSQL(typ, true);
-        length= (char*)PlugSubAlloc(g, NULL, 8);
-        sprintf(length, "%d", len);
-        comment= thd->make_lex_string(NULL, rem, strlen(rem), true);
-     
-        // Now add the field
-        b= add_fields(thd, alt_info, name, type, length, decimals,
-                      tm, comment, cs, NULL, NULL);
+        type= PLGtoMYSQLtype(typ, true);
+        if (typ == TYPE_DATE)
+          len= 0;
+        if (add_field(&sql, cnm, type, len, dec, tm, rem))
+          b= HA_ERR_OUT_OF_MEM;
         } // endfor i
 
+    sql.length(sql.length()-1); // remove the trailing comma
+    sql.append(')');
+
+    for (ha_create_table_option *opt= connect_table_option_list;
+         opt->name; opt++) {
+      ulonglong vull;
+      const char *vstr;
+      bool oom= false;
+      switch (opt->type) {
+        case HA_OPTION_TYPE_ULL:
+          vull= *(ulonglong*)(((char*)topt) + opt->offset); 
+          if (vull != opt->def_value) {
+            oom|= sql.append(' ');
+            oom|= sql.append(opt->name);
+            oom|= sql.append('=');
+            oom|= sql.append_ulonglong(vull);
+          }
+          break;
+        case HA_OPTION_TYPE_STRING:
+          vstr= *(char**)(((char*)topt) + opt->offset); 
+          if (vstr) {
+            oom|= sql.append(' ');
+            oom|= sql.append(opt->name);
+            oom|= sql.append("='");
+            oom|= sql.append_for_single_quote(vstr, strlen(vstr));
+            oom|= sql.append('\'');
+          }
+          break;
+        case HA_OPTION_TYPE_BOOL:
+          vull= *(bool*)(((char*)topt) + opt->offset); 
+          if (vull != opt->def_value) {
+            oom|= sql.append(' ');
+            oom|= sql.append(opt->name);
+            oom|= sql.append('=');
+            oom|= sql.append(vull ? "ON" : "OFF");
+          }
+          break;
+        default: // no enums here, good :)
+          break;
+        }
+      if (oom)
+        b= HA_ERR_OUT_OF_MEM;
+      }
+
+    if (!b)
+      b= table_s->init_from_sql_statement_string(thd, true,
+                                                 sql.ptr(), sql.length());
     return b;
     } // endif ok
 
   my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-  return true;
+  return HA_ERR_INTERNAL_ERROR;
 } // end of pre_create
-#endif   // MARIADB
 
 /**
   @brief
@@ -4067,7 +3681,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   Field  *fp;
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
-  PGLOBAL g= GetPlug(table_arg->in_use);
+  xp= GetUser(ha_thd(), xp);
+  PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
   PTOS options= GetTableOptionStruct(table_arg);
@@ -4076,7 +3691,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   DBUG_ASSERT(options);
   type= GetTypeID(options->type);
 
-  if (check_privileges(current_thd, options))
+  if (check_privileges(ha_thd(), options))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {
@@ -4105,7 +3720,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   if (type == TAB_XML) {
     bool  dom;                  // True: MS-DOM, False libxml2
-    char *xsup= GetListOption("Xmlsup", options->oplist, "*");
+    char *xsup= GetListOption(g, "Xmlsup", options->oplist, "*");
 
     // Note that if no support is specified, the default is MS-DOM
     // on Windows and libxml2 otherwise
@@ -4151,10 +3766,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   for (field= table_arg->field; *field; field++) {
     fp= *field;
 
-#if defined(MARIADB)
     if (fp->vcol_info && !fp->stored_in_db)
       continue;            // This is a virtual column
-#endif   // MARIADB
 
     if (fp->flags & AUTO_INCREMENT_FLAG) {
       strcpy(g->Message, "Auto_increment is not supported yet");
@@ -4378,6 +3991,9 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
       } // endif sepindex
 #endif // 0
 
+    if (oldopt->type != newopt->type)
+      DBUG_RETURN(COMPATIBLE_DATA_NO);
+
     if (newopt->filename)
       DBUG_RETURN(COMPATIBLE_DATA_NO);
 
@@ -4390,28 +4006,6 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-struct st_mysql_daemon unusable_connect=
-{ MYSQL_DAEMON_INTERFACE_VERSION };
-
-mysql_declare_plugin(connect)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &connect_storage_engine,
-  "CONNECT",
-  "Olivier Bertrand",
-  "Direct access to external data, including many file formats",
-  PLUGIN_LICENSE_GPL,
-  connect_init_func,                                /* Plugin Init */
-  connect_done_func,                                /* Plugin Deinit */
-  0x0001 /* 0.1 */,
-  NULL,                                         /* status variables */
-  NULL,                                         /* system variables */
-  NULL,                                         /* config options */
-  0,                                            /* flags */
-}
-mysql_declare_plugin_end;
-
-#if defined(MARIADB)
 maria_declare_plugin(connect)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -4427,21 +4021,5 @@ maria_declare_plugin(connect)
   NULL,                                         /* system variables */
   "0.1",                                        /* string version */
   MariaDB_PLUGIN_MATURITY_EXPERIMENTAL          /* maturity */
-},
-{
-  MYSQL_DAEMON_PLUGIN,
-  &unusable_connect,
-  "UNUSABLE",
-  "Olivier Bertrand",
-  "Unusable Daemon",
-  PLUGIN_LICENSE_PROPRIETARY,
-  NULL,                                         /* Plugin Init */
-  NULL,                                         /* Plugin Deinit */
-  0x0101,                                       /* version number (1.1) */
-  NULL,                                         /* status variables */
-  NULL,                                         /* system variables */
-  "1.01.00.000" ,                               /* version, as a string */
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL          /* maturity */
 }
 maria_declare_plugin_end;
-#endif   // MARIADB
