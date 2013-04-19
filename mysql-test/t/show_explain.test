@@ -466,7 +466,7 @@ explain SELECT * FROM t2 WHERE a =
         WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
        );
 
-set @show_explain_probe_select_id=2;
+set @show_explain_probe_select_id=1;
 set debug_dbug='+d,show_explain_probe_do_select';
 send SELECT * FROM t2 WHERE a = 
        (SELECT MAX(a) FROM t2 

@@ -127,12 +127,10 @@ static struct st_mysql_audit audit_null_descriptor=
 
 static struct st_mysql_show_var simple_status[]=
 {
-  { "Audit_null_called", (char *) &number_of_calls, SHOW_INT },
-  { "Audit_null_general_log", (char *) &number_of_calls_general_log, SHOW_INT },
-  { "Audit_null_general_error", (char *) &number_of_calls_general_error,
-    SHOW_INT },
-  { "Audit_null_general_result", (char *) &number_of_calls_general_result,
-    SHOW_INT },
+  { "called", (char *) &number_of_calls, SHOW_INT },
+  { "general_log", (char *) &number_of_calls_general_log, SHOW_INT },
+  { "general_error", (char *) &number_of_calls_general_error, SHOW_INT },
+  { "general_result", (char *) &number_of_calls_general_result, SHOW_INT },
   { 0, 0, 0}
 };
 

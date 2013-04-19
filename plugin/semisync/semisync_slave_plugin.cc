@@ -18,7 +18,7 @@
 #include "semisync_slave.h"
 #include <mysql.h>
 
-ReplSemiSyncSlave repl_semisync;
+static ReplSemiSyncSlave repl_semisync;
 
 /*
   indicate whether or not the slave should send a reply to the master.
@@ -212,7 +212,7 @@ struct Mysql_replication semi_sync_slave_plugin= {
 /*
   Plugin library descriptor
 */
-mysql_declare_plugin(semi_sync_slave)
+maria_declare_plugin(semisync_slave)
 {
   MYSQL_REPLICATION_PLUGIN,
   &semi_sync_slave_plugin,
@@ -225,7 +225,8 @@ mysql_declare_plugin(semi_sync_slave)
   0x0100 /* 1.0 */,
   semi_sync_slave_status_vars,	/* status variables */
   semi_sync_slave_system_vars,	/* system variables */
-  NULL,                         /* config options */
-  0,                            /* flags */
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_UNKNOWN
 }
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
+

@@ -586,7 +586,7 @@ Note	1051	Unknown table 't1'
 create table t1 (a int not null) ENGINE=csv;
 --> client 2
 handler t1 open;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine CSV of the table `test`.`t1` doesn't have this option
 --> client 1
 drop table t1;
 create table t1 (a int);
@@ -1728,9 +1728,9 @@ a	b
 4	40
 5	50
 HANDLER t1 READ a FIRST;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 HANDLER t1 READ a LAST;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 HANDLER t1 READ b FIRST LIMIT 2;
 a	b
 1	10
@@ -1781,11 +1781,11 @@ create table t1 (f1 integer not null, key (f1)) engine=Memory;
 insert into t1 values (1);
 HANDLER t1 OPEN;
 HANDLER t1 READ f1 NEXT;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 HANDLER t1 READ f1 NEXT;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 HANDLER t1 READ f1 NEXT;
-ERROR HY000: Table storage engine for 't1' doesn't have this option
+ERROR HY000: Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 HANDLER t1 CLOSE;
 DROP TABLE t1;
 End of 5.3 tests

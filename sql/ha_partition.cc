@@ -78,6 +78,17 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static uint alter_table_flags(uint flags);
 
+/*
+  If frm_error() is called then we will use this to to find out what file
+  extensions exist for the storage engine. This is also used by the default
+  rename_table and delete_table method in handler.cc.
+*/
+
+static const char *ha_partition_ext[]=
+{
+  ha_par_ext, NullS
+};
+
 
 static int partition_initialize(void *p)
 {
@@ -93,6 +104,7 @@ static int partition_initialize(void *p)
   partition_hton->flags= HTON_NOT_USER_SELECTABLE |
                          HTON_HIDDEN |
                          HTON_TEMPORARY_NOT_SUPPORTED;
+  partition_hton->tablefile_extensions= ha_partition_ext;
 
   return 0;
 }
@@ -499,7 +511,7 @@ int ha_partition::rename_table(const char *from, const char *to)
   Create the handler file (.par-file)
 
   SYNOPSIS
-    create_handler_files()
+    create_partitioning_metadata()
     name                              Full path of table name
     create_info                       Create info generated for CREATE TABLE
 
@@ -508,19 +520,18 @@ int ha_partition::rename_table(const char *from, const char *to)
     0                         Success
 
   DESCRIPTION
-    create_handler_files is called to create any handler specific files
+    create_partitioning_metadata is called to create any handler specific files
     before opening the file with openfrm to later call ::create on the
     file object.
     In the partition handler this is used to store the names of partitions
     and types of engines in the partitions.
 */
 
-int ha_partition::create_handler_files(const char *path,
+int ha_partition::create_partitioning_metadata(const char *path,
                                        const char *old_path,
-                                       int action_flag,
-                                       HA_CREATE_INFO *create_info)
+                                       int action_flag)
 {
-  DBUG_ENTER("ha_partition::create_handler_files()");
+  DBUG_ENTER("ha_partition::create_partitioning_metadata()");
 
   /*
     We need to update total number of parts since we might write the handler
@@ -3830,6 +3841,7 @@ int ha_partition::truncate_partition(Alter_info *alter_info, bool *binlog_stmt)
                               part, sub_elem->partition_name));
           if ((error= m_file[part]->ha_truncate()))
             break;
+          sub_elem->part_state= PART_NORMAL;
         } while (++j < num_subparts);
       }
       else
@@ -4428,6 +4440,7 @@ bool ha_partition::init_record_priority_queue()
     {
       if (bitmap_is_set(&m_part_info->used_partitions, i))
       {
+        DBUG_PRINT("info", ("init rec-buf for part %u", i));
         int2store(ptr, i);
         ptr+= m_rec_length + PARTITION_BYTES_IN_POS;
       }
@@ -5322,11 +5335,27 @@ int ha_partition::handle_ordered_index_scan(uchar *buf, bool reverse_order)
   m_top_entry= NO_CURRENT_PART_ID;
   queue_remove_all(&m_queue);
 
-  DBUG_PRINT("info", ("m_part_spec.start_part %d", m_part_spec.start_part));
-  for (i= m_part_spec.start_part; i <= m_part_spec.end_part; i++)
+  /*
+    Position part_rec_buf_ptr to point to the first used partition >=
+    start_part. There may be partitions marked by used_partitions,
+    but is before start_part. These partitions has allocated record buffers
+    but is dynamically pruned, so those buffers must be skipped.
+  */
+  uint first_used_part= bitmap_get_first_set(&m_part_info->used_partitions);
+  for (; first_used_part < m_part_spec.start_part; first_used_part++)
+  {
+    if (bitmap_is_set(&(m_part_info->used_partitions), first_used_part))
+      part_rec_buf_ptr+= m_rec_length + PARTITION_BYTES_IN_POS;
+  }
+  DBUG_PRINT("info", ("m_part_spec.start_part %u first_used_part %u",
+                      m_part_spec.start_part, first_used_part));
+  for (i= first_used_part; i <= m_part_spec.end_part; i++)
   {
     if (!(bitmap_is_set(&(m_part_info->used_partitions), i)))
       continue;
+    DBUG_PRINT("info", ("reading from part %u (scan_type: %u)",
+                        i, m_index_scan_type));
+    DBUG_ASSERT(i == uint2korr(part_rec_buf_ptr));
     uchar *rec_buf_ptr= part_rec_buf_ptr + PARTITION_BYTES_IN_POS;
     int error;
     handler *file= m_file[i];
@@ -7320,21 +7349,6 @@ int ha_partition::final_drop_index(TABLE *table_arg)
       break;
   return ret;
 }
-
-
-/*
-  If frm_error() is called then we will use this to to find out what file
-  extensions exist for the storage engine. This is also used by the default
-  rename_table and delete_table method in handler.cc.
-*/
-
-static const char *ha_partition_ext[]=
-{
-  ha_par_ext, NullS
-};
-
-const char **ha_partition::bas_ext() const
-{ return ha_partition_ext; }
 
 
 uint ha_partition::min_of_the_max_uint(

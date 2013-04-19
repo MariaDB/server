@@ -919,7 +919,9 @@ void free_old_query(MYSQL *mysql)
   if (mysql->fields)
     free_root(&mysql->field_alloc,MYF(0));
  /* Assume rowlength < 8192 */
-  init_alloc_root(&mysql->field_alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&mysql->field_alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   mysql->fields= 0;
   mysql->field_count= 0;			/* For API */
   mysql->warning_count= 0;
@@ -1611,7 +1613,9 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
     DBUG_RETURN(0);
   }
   /* Assume rowlength < 8192 */
-  init_alloc_root(&result->alloc, 8192, 0, MYF(MY_THREAD_SPECIFIC));
+  init_alloc_root(&result->alloc, 8192, 0,
+                  MYF(mysql->options.use_thread_specific_memory ?
+                      MY_THREAD_SPECIFIC : 0));
   result->alloc.min_malloc=sizeof(MYSQL_ROWS);
   prev_ptr= &result->data;
   result->rows=0;
@@ -2239,7 +2243,10 @@ mysql_autodetect_character_set(MYSQL *mysql)
 #ifdef __WIN__
   char cpbuf[64];
   {
-    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int) GetConsoleCP());
+    UINT cp= GetConsoleCP();
+    if (cp == 0)
+      cp= GetACP();
+    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
     csname= my_os_charset_to_mysql_charset(cpbuf);
   }
 #elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
@@ -2616,8 +2623,6 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   DBUG_PRINT("info",("Server version = '%s'  capabilites: %lu  status: %u  client_flag: %lu",
 		     mysql->server_version, mysql->server_capabilities,
 		     mysql->server_status, mysql->client_flag));
-
-  compile_time_assert(MYSQL_USERNAME_LENGTH == USERNAME_LENGTH);
 
   /* This needs to be changed as it's not useful with big packets */
   if (mysql->user[0])
@@ -3463,6 +3468,12 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   strmov(mysql->server_version,(char*) net->read_pos+1);
   mysql->port=port;
 
+  /* remove the rpl hack from the version string, see RPL_VERSION_HACK comment */
+  if (mysql->server_capabilities & CLIENT_PLUGIN_AUTH &&
+      strncmp(mysql->server_version, RPL_VERSION_HACK,
+              sizeof(RPL_VERSION_HACK) - 1) == 0)
+    mysql->server_version+= sizeof(RPL_VERSION_HACK) - 1;
+
   if (pkt_end >= end + SCRAMBLE_LENGTH - SCRAMBLE_LENGTH_323 + 1)
   {
     /*
@@ -4246,6 +4257,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     break;
   case MYSQL_OPT_RECONNECT:
     mysql->reconnect= *(my_bool *) arg;
+    break;
+  case MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY:
+    mysql->options.use_thread_specific_memory= *(my_bool *) arg;
     break;
   case MYSQL_OPT_SSL_VERIFY_SERVER_CERT:
     if (*(my_bool*) arg)

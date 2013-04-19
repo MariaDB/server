@@ -50,7 +50,7 @@ static const TABLE_FIELD_TYPE mutex_field_types[]=
 
 TABLE_FIELD_DEF
 table_mutex_instances::m_field_def=
-{ 3, mutex_field_types };
+{ 3, mutex_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_mutex_instances::m_share=
@@ -219,7 +219,7 @@ static const TABLE_FIELD_TYPE rwlock_field_types[]=
 
 TABLE_FIELD_DEF
 table_rwlock_instances::m_field_def=
-{ 4, rwlock_field_types };
+{ 4, rwlock_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_rwlock_instances::m_share=
@@ -385,7 +385,7 @@ static const TABLE_FIELD_TYPE cond_field_types[]=
 
 TABLE_FIELD_DEF
 table_cond_instances::m_field_def=
-{ 2, cond_field_types };
+{ 2, cond_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_cond_instances::m_share=

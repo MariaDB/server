@@ -21,6 +21,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -57,6 +58,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -87,6 +89,7 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
+mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -121,6 +124,7 @@ mysql.plugin                                       Table is already up to date
 mysql.proc                                         Table is already up to date
 mysql.procs_priv                                   Table is already up to date
 mysql.proxies_priv                                 Table is already up to date
+mysql.rpl_slave_state                              Table is already up to date
 mysql.servers                                      Table is already up to date
 mysql.slave_master_info                            Table is already up to date
 mysql.slave_relay_log_info                         Table is already up to date
@@ -188,6 +192,7 @@ Table	Op	Msg_type	Msg_text
 test.v1	check	status	OK
 information_schema.routines	check	note	The storage engine for the table doesn't support check
 drop view v1;
+call mtr.add_suppression("Error reading file './test/t1.frm'");
 CREATE TABLE t1(a INT) engine=myisam;
 CREATE TABLE t2(a INT) engine=myisam;
 test.t1
@@ -204,15 +209,15 @@ t1
 v1
 show tables;
 Tables_in_test
-t1
 #mysql50#v-1
+t1
 v1
 test.t1                                            OK
 show tables;
 Tables_in_test
 t1
-v1
 v-1
+v1
 drop view v1, `v-1`;
 drop table t1;
 SET NAMES utf8;

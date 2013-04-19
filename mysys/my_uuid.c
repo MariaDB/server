@@ -123,7 +123,7 @@ void my_uuid_init(ulong seed1, ulong seed2)
    Create a global unique identifier (uuid)
 
    @func  my_uuid()
-   @param to   Store uuid here. Must be of size MY_uuid_SIZE (16)
+   @param to   Store uuid here. Must be of size MY_UUID_SIZE (16)
 */
 
 void my_uuid(uchar *to)

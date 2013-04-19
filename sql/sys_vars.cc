@@ -58,6 +58,7 @@
 #include "../storage/perfschema/pfs_server.h"
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 #include "threadpool.h"
+#include "sql_repl.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1222,7 +1223,7 @@ static Sys_var_ulonglong Sys_max_binlog_cache_size(
        "Sets the total size of the transactional cache",
        GLOBAL_VAR(max_binlog_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((UINT_MAX/IO_SIZE)*IO_SIZE),
+       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
@@ -1230,7 +1231,7 @@ static Sys_var_ulonglong Sys_max_binlog_stmt_cache_size(
        "Sets the total size of the statement cache",
        GLOBAL_VAR(max_binlog_stmt_cache_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, ULONGLONG_MAX),
-       DEFAULT((UINT_MAX/IO_SIZE)*IO_SIZE),
+       DEFAULT((ULONGLONG_MAX/IO_SIZE)*IO_SIZE),
        BLOCK_SIZE(IO_SIZE));
 
 static bool fix_max_binlog_size(sys_var *self, THD *thd, enum_var_type type)
@@ -1330,6 +1331,114 @@ static Sys_var_ulong Sys_pseudo_thread_id(
        NO_CMD_LINE, VALID_RANGE(0, ULONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
+
+static Sys_var_uint Sys_gtid_domain_id(
+       "gtid_domain_id",
+       "Used with global transaction ID to identify logically independent "
+       "replication streams. When events can propagate through multiple "
+       "parallel paths (for example multiple masters), each independent "
+       "source server must use a distinct domain_id. For simple tree-shaped "
+       "replication topologies, it can be left at its default, 0.",
+       SESSION_VAR(gtid_domain_id),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
+static Sys_var_ulonglong Sys_gtid_seq_no(
+       "gtid_seq_no",
+       "Internal server usage, for replication with global transaction id. "
+       "When set, next event group logged to the binary log will use this "
+       "sequence number, not generate a new one, thus allowing to preserve "
+       "master's GTID in slave's binlog.",
+       SESSION_ONLY(gtid_seq_no),
+       NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_has_super));
+
+
+#ifdef HAVE_REPLICATION
+bool
+Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
+{
+  String str, *res;
+  bool running;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+  if (!(res= var->value->val_str(&str)))
+    return true;
+  if (rpl_gtid_pos_check(&((*res)[0]), res->length()))
+    return true;
+
+  if (!(var->save_result.string_value.str=
+        thd->strmake(res->ptr(), res->length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+  var->save_result.string_value.length= res->length();
+  return false;
+}
+
+
+bool
+Sys_var_gtid_pos::global_update(THD *thd, set_var *var)
+{
+  bool err;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (master_info_index->give_error_if_slave_running())
+    err= true;
+  else
+    err= rpl_gtid_pos_update(thd, var->save_result.string_value.str,
+                             var->save_result.string_value.length);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  return err;
+}
+
+
+uchar *
+Sys_var_gtid_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  String str;
+  char *p;
+
+  str.length(0);
+  if (rpl_append_gtid_state(&str, true) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_pos_dummy;
+static Sys_var_gtid_pos Sys_gtid_pos(
+       "gtid_pos",
+       "The list of global transaction IDs that were last replicated on the "
+       "server, one for each replication domain. This defines where a slave "
+       "starts replicating from on a master when connecting with global "
+       "transaction ID.",
+       GLOBAL_VAR(opt_gtid_pos_dummy), NO_CMD_LINE);
+#endif
+
 
 static bool fix_max_join_size(sys_var *self, THD *thd, enum_var_type type)
 {
@@ -1554,6 +1663,25 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1), DEFAULT(1), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
+       "optimizer_use_condition_selectivity",
+       "Controls selectivity of which conditions the optimizer takes into "
+       "account to calculate cardinality of a partial join when it searches "
+       "for the best execution plan "
+       "Meaning: "
+       "1 - use selectivity of index backed range conditions to calculate "
+       "the cardinality of a partial join if the last joined table is "
+       "accessed by full table scan or an index scan, "
+       "2 - use selectivity of index backed range conditions to calculate "
+       "the cardinality of a partial join in any case, "
+       "3 - additionally always use selectivity of range conditions that are "
+       "not backed by any index to calculate the cardinality of a partial join, "
+       "4 - use histograms to calculate selectivity of range conditions that "
+       "are not backed by any index to calculate the cardinality of "
+       "a partial join.",
+       SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 4), DEFAULT(1), BLOCK_SIZE(1));
+
 /** Warns about deprecated value 63 */
 static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
                                        enum_var_type type)
@@ -1603,6 +1731,7 @@ export const char *optimizer_switch_names[]=
   "optimize_join_buffer_size",
   "table_elimination",
   "extended_keys",
+  "exists_to_in",
   "default", NullS
 };
 /** propagates changes to @@engine_condition_pushdown */
@@ -1644,7 +1773,8 @@ static Sys_var_flagset Sys_optimizer_switch(
         "semijoin_with_cache, "
         "subquery_cache, "
         "table_elimination, "
-        "extended_keys "
+        "extended_keys, "
+        "exists_to_in "
        "} and val is one of {on, off, default}",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
@@ -2094,17 +2224,27 @@ static Sys_var_charptr Sys_secure_file_priv(
 
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
-  server_id_supplied = 1;
-  thd->server_id= server_id;
+  if (type == OPT_GLOBAL)
+  {
+    server_id_supplied = 1;
+    thd->variables.server_id= global_system_variables.server_id;
+    /*
+      Historically, server_id was a global variable that is exported to
+      plugins. Now it is a session variable, and lives in the
+      global_system_variables struct, but we still need to export the
+      value for reading to plugins for backwards compatibility reasons.
+    */
+    ::server_id= global_system_variables.server_id;
+  }
   return false;
 }
 static Sys_var_ulong Sys_server_id(
        "server_id",
        "Uniquely identifies the server instance in the community of "
        "replication partners",
-       GLOBAL_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
+       SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(check_has_super), ON_UPDATE(fix_server_id));
 
 static Sys_var_mybool Sys_slave_compressed_protocol(
        "slave_compressed_protocol",
@@ -3410,19 +3550,48 @@ static Sys_var_mybool Sys_relay_log_recovery(
 bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
+  Master_info *mi;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!master_info_index->give_error_if_slave_running())
-    result= set_filter_value(var->save_result.string_value.str);
+  
+  if (!var->base.length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(&var->base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+
+  if (mi)
+  {
+    if (mi->rli.slave_running)
+    {
+      my_error(ER_SLAVE_MUST_STOP, MYF(0), 
+          mi->connection_name.length,
+          mi->connection_name.str);
+      result= true;
+    }
+    else
+    {
+      result= set_filter_value(var->save_result.string_value.str, mi);
+    }
+  }
+
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 
-bool Sys_var_rpl_filter::set_filter_value(const char *value)
+bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
+  Rpl_filter* rpl_filter= mi ? mi->rpl_filter : global_rpl_filter;
 
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
@@ -3452,7 +3621,32 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
+  uchar *ret;
+  Master_info *mi;
+  Rpl_filter *rpl_filter;
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  if (!base->length) // no base name
+  {
+    mi= master_info_index->
+      get_master_info(&thd->variables.default_master_connection,
+                      MYSQL_ERROR::WARN_LEVEL_ERROR);
+  }
+  else // has base name
+  {
+    mi= master_info_index->
+      get_master_info(base, 
+                      MYSQL_ERROR::WARN_LEVEL_WARN);
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  if (!mi)
+  {
+    mysql_mutex_unlock(&LOCK_active_mi);
+    return 0;
+  }
+  rpl_filter= mi->rpl_filter;
   tmp.length(0);
 
   switch (opt_id) {
@@ -3476,7 +3670,10 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
     break;
   }
 
-  return (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  ret= (uchar *) thd->strmake(tmp.ptr(), tmp.length());
+  mysql_mutex_unlock(&LOCK_active_mi);
+
+  return ret;
 }
 
 static Sys_var_rpl_filter Sys_replicate_do_db(
@@ -3544,6 +3741,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
   uint res= 0;                                  // Default value
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3555,6 +3753,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
+  mysql_mutex_lock(&LOCK_global_system_variables);
   return res;
 }
   
@@ -3566,6 +3765,8 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
   bool result= true;
   Master_info *mi;
 
+  if (type == OPT_GLOBAL)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
@@ -3579,6 +3780,8 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
     mysql_mutex_unlock(&mi->rli.run_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
+  if (type == OPT_GLOBAL)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   return result;
 }
 
@@ -3928,6 +4131,24 @@ static Sys_var_enum Sys_optimizer_use_stat_tables(
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
 
+static Sys_var_ulong Sys_histogram_size(
+       "histogram_size",
+       "Number of bytes used for a histogram. "
+       "If set to 0, no histograms are created by ANALYZE.",
+       SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
+
+const char *histogram_types[] =
+           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+static Sys_var_enum Sys_histogram_type(
+       "histogram_type",
+       "Specifies type of the histograms created by ANALYZE. "
+       "Possible values are: "
+       "SINGLE_PREC_HB - single precision height-balanced, "
+       "DOUBLE_PREC_HB - double precision height-balanced.",
+       SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
+       histogram_types, DEFAULT(0));
+
 static Sys_var_mybool Sys_no_thread_alarm(
        "debug_no_thread_alarm",
        "Disable system thread alarm calls. Disabling it may be useful "
@@ -3960,9 +4181,67 @@ static Sys_var_ulong Sys_debug_binlog_fsync_sleep(
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 #endif
+
 static Sys_var_harows Sys_expensive_subquery_limit(
        "expensive_subquery_limit",
        "The maximum number of rows a subquery may examine in order to be "
        "executed during optimization and used for constant optimization",
        SESSION_VAR(expensive_subquery_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, HA_POS_ERROR), DEFAULT(100), BLOCK_SIZE(1));
+
+static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
+{
+  longlong previous_val= thd->variables.pseudo_slave_mode;
+  longlong val= (longlong) var->save_result.ulonglong_value;
+  bool rli_fake= false;
+
+#ifndef EMBEDDED_LIBRARY
+  rli_fake= thd->rli_fake ? true : false;
+#endif
+
+  if (rli_fake)
+  {
+    if (!val)
+    {
+#ifndef EMBEDDED_LIBRARY
+      delete thd->rli_fake;
+      thd->rli_fake= NULL;
+#endif
+    }
+    else if (previous_val && val)
+      goto ineffective;
+    else if (!previous_val && val)
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "'pseudo_slave_mode' is already ON.");
+  }
+  else
+  {
+    if (!previous_val && !val)
+      goto ineffective;
+    else if (previous_val && !val)
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                   ER_WRONG_VALUE_FOR_VAR,
+                   "Slave applier execution mode not active, "
+                   "statement ineffective.");
+  }
+  goto end;
+
+ineffective:
+  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+               ER_WRONG_VALUE_FOR_VAR,
+               "'pseudo_slave_mode' change was ineffective.");
+
+end:
+  return FALSE;
+}
+static Sys_var_mybool Sys_pseudo_slave_mode(
+       "pseudo_slave_mode",
+       "SET pseudo_slave_mode= 0,1 are commands that mysqlbinlog "
+       "adds to beginning and end of binary log dumps. While zero "
+       "value indeed disables, the actual enabling of the slave "
+       "applier execution mode is done implicitly when a "
+       "Format_description_event is sent through the session.",
+       SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
+

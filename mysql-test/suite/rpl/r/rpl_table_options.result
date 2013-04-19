@@ -7,7 +7,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=12340
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ull`=12340 `VAROPT`='5'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

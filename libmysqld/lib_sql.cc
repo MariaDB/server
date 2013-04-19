@@ -440,7 +440,7 @@ static MYSQL_RES * emb_store_result(MYSQL *mysql)
 int emb_read_change_user_result(MYSQL *mysql)
 {
   mysql->net.read_pos= (uchar*)""; // fake an OK packet
-  return mysql_errno(mysql) ? packet_error : 1 /* length of the OK packet */;
+  return mysql_errno(mysql) ? (int)packet_error : 1 /* length of the OK packet */;
 }
 
 MYSQL_METHODS embedded_methods= 
@@ -604,7 +604,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
   // FIXME initialize binlog_filter and rpl_filter if not already done
   //       corresponding delete is in clean_up()
   if(!binlog_filter) binlog_filter = new Rpl_filter;
-  if(!rpl_filter) rpl_filter = new Rpl_filter;
+  if(!global_rpl_filter) global_rpl_filter = new Rpl_filter;
 
   if (opt_init_file)
   {

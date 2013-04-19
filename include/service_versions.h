@@ -1,4 +1,5 @@
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +23,6 @@
 #define VERSION_my_snprintf             0x0100
 #define VERSION_thd_alloc               0x0100
 #define VERSION_thd_wait                0x0100
-#define VERSION_my_thread_scheduler     0x0100
 #define VERSION_progress_report         0x0100
 #define VERSION_debug_sync              0x1000
 #define VERSION_kill_statement          0x1000

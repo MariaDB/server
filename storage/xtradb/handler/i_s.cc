@@ -169,7 +169,8 @@ do {									\
 	}								\
 } while (0)
 
-#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && !defined __INTEL_COMPILER
+#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && 	\
+	!defined __INTEL_COMPILER && !defined __clang__
 #define STRUCT_FLD(name, value)	name: value
 #else
 #define STRUCT_FLD(name, value)	value
@@ -1209,7 +1210,7 @@ trx_i_s_common_fill_table(
 	DBUG_ENTER("trx_i_s_common_fill_table");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -1369,7 +1370,7 @@ i_s_cmp_fill_low(
 	DBUG_ENTER("i_s_cmp_fill_low");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -1641,7 +1642,7 @@ i_s_cmpmem_fill_low(
 	DBUG_ENTER("i_s_cmpmem_fill_low");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -2274,7 +2275,7 @@ i_s_innodb_buffer_stats_fill_table(
 	DBUG_ENTER("i_s_innodb_buffer_fill_general");
 
 	/* Only allow the PROCESS privilege holder to access the stats */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -2967,7 +2968,7 @@ i_s_innodb_buffer_page_fill_table(
 	DBUG_ENTER("i_s_innodb_buffer_page_fill_table");
 
 	/* deny access to user without PROCESS privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -3512,7 +3513,7 @@ i_s_innodb_buf_page_lru_fill_table(
 	DBUG_ENTER("i_s_innodb_buf_page_lru_fill_table");
 
 	/* deny access to any users that do not hold PROCESS_ACL */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -3746,7 +3747,7 @@ i_s_sys_tables_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -4049,7 +4050,7 @@ i_s_sys_tables_fill_table_stats(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -4293,7 +4294,7 @@ i_s_sys_indexes_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -4530,7 +4531,7 @@ i_s_sys_columns_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -4732,7 +4733,7 @@ i_s_sys_fields_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -4961,7 +4962,7 @@ i_s_sys_foreign_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
                 DBUG_RETURN(0);
 	}
@@ -5172,7 +5173,7 @@ i_s_sys_foreign_cols_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
                 DBUG_RETURN(0);
 	}
 
@@ -5387,7 +5388,7 @@ i_s_sys_stats_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
                 DBUG_RETURN(0);
 	}
 
@@ -5573,7 +5574,7 @@ i_s_innodb_rseg_fill(
 	DBUG_ENTER("i_s_innodb_rseg_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -5797,7 +5798,7 @@ i_s_innodb_table_stats_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -5862,7 +5863,7 @@ i_s_innodb_index_stats_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -6054,7 +6055,7 @@ i_s_innodb_admin_command_fill(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name);
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -6431,7 +6432,7 @@ i_s_innodb_buffer_pool_pages_fill(
 	DBUG_ENTER("i_s_innodb_buffer_pool_pages_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -6536,7 +6537,7 @@ i_s_innodb_buffer_pool_pages_index_fill(
 	DBUG_ENTER("i_s_innodb_buffer_pool_pages_index_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -6605,7 +6606,7 @@ i_s_innodb_buffer_pool_pages_blob_fill(
 	DBUG_ENTER("i_s_innodb_buffer_pool_pages_blob_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -7009,7 +7010,7 @@ i_s_innodb_undo_logs_fill(
 	DBUG_ENTER("i_s_innodb_undo_logs_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 		DBUG_RETURN(0);
 	}
 
@@ -7335,7 +7336,7 @@ i_s_innodb_changed_pages_fill(
 	DBUG_ENTER("i_s_innodb_changed_pages_fill");
 
 	/* deny access to non-superusers */
-	if (check_global_access(thd, PROCESS_ACL)) {
+        if (check_global_access(thd, PROCESS_ACL, true)) {
 
 		DBUG_RETURN(0);
 	}
@@ -7356,8 +7357,8 @@ i_s_innodb_changed_pages_fill(
 	}
 
 	while(log_online_bitmap_iterator_next(&i) &&
-	      (!srv_changed_pages_limit ||
-	       output_rows_num < srv_changed_pages_limit) &&
+	      (!srv_max_changed_pages ||
+	       output_rows_num < srv_max_changed_pages) &&
 	      /*
 		There is no need to compare both start LSN and end LSN fields
 		with maximum value. It's enough to compare only start LSN.

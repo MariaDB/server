@@ -415,7 +415,7 @@ alter table t1 drop key a;
 drop table t1;
 CREATE TABLE T12207(a int) ENGINE=MYISAM;
 ALTER TABLE T12207 DISCARD TABLESPACE;
-ERROR HY000: Table storage engine for 'T12207' doesn't have this option
+ERROR HY000: Storage engine MyISAM of the table `test`.`T12207` doesn't have this option
 DROP TABLE T12207;
 create table t1 (a text) character set koi8r;
 insert into t1 values (_koi8r'тест');
@@ -978,7 +978,7 @@ SHOW CREATE TABLE `tt+2`;
 Table	Create Table
 tt+2	CREATE TEMPORARY TABLE `tt+2` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
 DROP TABLE   `tt+1`, `tt+2`;
 CREATE TABLE `#sql1` (c1 INT);
 CREATE TABLE `@0023sql2` (c1 INT);
@@ -1015,12 +1015,12 @@ SHOW CREATE TABLE `#sql2`;
 Table	Create Table
 #sql2	CREATE TEMPORARY TABLE `#sql2` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
 SHOW CREATE TABLE `@0023sql1`;
 Table	Create Table
 @0023sql1	CREATE TEMPORARY TABLE `@0023sql1` (
   `c1` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 DELAY_KEY_WRITE=1
 DROP TABLE `#sql2`, `@0023sql1`;
 DROP TABLE IF EXISTS t1;
 DROP TABLE IF EXISTS t2;
@@ -1340,3 +1340,43 @@ rename table t2 to t1;
 execute stmt1;
 deallocate prepare stmt1;
 drop table t2;
+CREATE TABLE t1 (
+id INT(11) NOT NULL,
+x_param INT(11) DEFAULT NULL,
+PRIMARY KEY (id)
+);
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS id INT,
+ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'id'
+ALTER TABLE t1 ADD COLUMN IF NOT EXISTS lol INT AFTER id;
+Warnings:
+Note	1060	Duplicate column name 'lol'
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+ALTER TABLE t1 DROP COLUMN IF EXISTS lol;
+Warnings:
+Note	1091	Can't DROP 'lol'; check that column/key exists
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+ALTER TABLE t1 ADD KEY IF NOT EXISTS x_param(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param'
+ALTER TABLE t1 MODIFY IF EXISTS lol INT;
+Warnings:
+Note	1054	Unknown column 'lol' in 't1'
+DROP INDEX IF EXISTS x_param ON t1;
+DROP INDEX IF EXISTS x_param ON t1;
+Warnings:
+Note	1091	Can't DROP 'x_param'; check that column/key exists
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+CREATE INDEX IF NOT EXISTS x_param1 ON t1(x_param);
+Warnings:
+Note	1061	Duplicate key name 'x_param1'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `x_param` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `x_param1` (`x_param`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;

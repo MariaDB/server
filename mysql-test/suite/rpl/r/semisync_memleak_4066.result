@@ -1,0 +1,4 @@
+include/master-slave.inc
+[connection master]
+CREATE TEMPORARY TABLE tmp (i INT);
+include/rpl_end.inc

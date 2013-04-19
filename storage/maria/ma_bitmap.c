@@ -1,4 +1,5 @@
 /* Copyright (C) 2007 Michael Widenius
+   Copyright (c) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,8 +136,7 @@ const char *bits_to_txt[]=
   "tail 00-40 % full", "tail 40-80 % full", "tail/blob full"
 };
 
-/*#define WRONG_BITMAP_FLUSH 1*/ /*define only for provoking bugs*/
-#undef WRONG_BITMAP_FLUSH
+#define WRONG_BITMAP_FLUSH 0 /*define to 1 only for provoking bugs*/
 
 static my_bool _ma_read_bitmap_page(MARIA_HA *info,
                                     MARIA_FILE_BITMAP *bitmap,
@@ -164,11 +164,7 @@ static inline my_bool write_changed_bitmap(MARIA_SHARE *share,
   */
   bitmap->changed_not_flushed= 1;
 
-  if ((bitmap->non_flushable == 0)
-#ifdef WRONG_BITMAP_FLUSH
-      || 1
-#endif
-      )
+  if ((bitmap->non_flushable == 0) || WRONG_BITMAP_FLUSH)
   {
     res= pagecache_write(share->pagecache,
                                  &bitmap->file, bitmap->page, 0,
@@ -495,7 +491,7 @@ my_bool _ma_bitmap_flush_all(MARIA_SHARE *share)
   {
     bitmap->flush_all_requested++;
     bitmap->waiting_for_non_flushable++;
-#ifndef WRONG_BITMAP_FLUSH
+#if !WRONG_BITMAP_FLUSH
     while (bitmap->non_flushable > 0)
     {
       DBUG_PRINT("info", ("waiting for bitmap to be flushable"));
@@ -1256,7 +1252,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
       a full page or a tail page
     */
     if ((!bits && best_data) ||
-        ((bits & LL(04444444444444444)) == LL(04444444444444444)))
+        ((bits & 04444444444444444LL) == 04444444444444444LL))
       continue;
     for (i= 0; i < 16 ; i++, bits >>= 3)
     {
@@ -1344,8 +1340,8 @@ static my_bool allocate_tail(MARIA_FILE_BITMAP *bitmap, uint size,
       quite common case if we have blobs.
     */
 
-    if ((!bits && best_data) || bits == LL(0xffffffffffff) ||
-        bits == LL(04444444444444444))
+    if ((!bits && best_data) || bits == 0xffffffffffffLL ||
+        bits == 04444444444444444LL)
       continue;
     for (i= 0; i < 16; i++, bits >>= 3)
     {
@@ -1470,14 +1466,14 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
       bits= prefix_bits= uint6korr(data_start - 6);
       DBUG_ASSERT(bits != 0);
       /* 111 000 000 000 000 000 000 000 000 000 000 000 000 000 000 000 */
-      if (!(bits & LL(07000000000000000)))
+      if (!(bits & 07000000000000000LL))
       {
         data_start-= 6;
         do
         {
           prefix_area_size++;
           bits<<= 3;
-        } while (!(bits & LL(07000000000000000)));
+        } while (!(bits & 07000000000000000LL));
         area_size+= prefix_area_size;
         /* Calculate offset to page from data_start */
         prefix_area_size= 16 - prefix_area_size;
@@ -1526,11 +1522,11 @@ static ulong allocate_full_pages(MARIA_FILE_BITMAP *bitmap,
     best_prefix_area_size= 16 - best_prefix_area_size;
     if (best_area_size < best_prefix_area_size)
     {
-      tmp= (LL(1) << best_area_size*3) - 1;
+      tmp= (1LL << best_area_size*3) - 1;
       best_area_size= best_prefix_area_size;    /* for easy end test */
     }
     else
-      tmp= (LL(1) << best_prefix_area_size*3) - 1;
+      tmp= (1LL << best_prefix_area_size*3) - 1;
     tmp<<= (16 - best_prefix_area_size) * 3;
     DBUG_ASSERT((best_prefix_bits & tmp) == 0);
     best_prefix_bits|= tmp;

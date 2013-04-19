@@ -369,6 +369,183 @@ drop table t1,tv;
 
 
 --echo #
+--echo # GET_LOCK, RELEASE_LOCK, IS_USED_LOCK functions test
+--echo #
+
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is not acquired
+--echo # Note: IS_USED_LOCK returns NULL if the lock is unused
+select is_used_lock('test');
+select is_free_lock('test');
+
+--echo # GET_LOCK returns 1 if it manages to acquire a lock
+select get_lock('test', 0);
+
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired
+select is_free_lock('test');
+select is_used_lock('test') = connection_id();
+
+connect (con1,localhost,root,,);
+--echo # -> Switching to connection 'con1'
+connection con1;
+--echo # IS_USED_LOCK, IS_FREE_LOCK: the  lock is acquired in another
+--echo # connection
+select is_used_lock('test') = connection_id();
+select is_free_lock('test');
+
+--echo # GET_LOCK returns 0 if it can't acquire a lock (wait timeout)
+select get_lock('test', 0);
+
+--echo # RELEASE_LOCK returns 0 if the lock belongs to another connection 
+select release_lock('test');
+
+--echo # -> Switching to connection 'default'
+connection default;
+
+--echo # RELEASE_LOCK returns 1 if it successfully releases a lock
+select release_lock('test');
+--echo # RELEASE_LOCK returns NULL if it doesn't release a lock and there is no such lock
+select release_lock('test');
+
+--echo # Test that get_lock() returns NULL if error.
+select get_lock('test', 0);
+--echo # -> Switching to connection 'con1'
+connection con1;
+create table t1 select connection_id() as id;
+send select get_lock('test', 7200);
+
+--echo # -> Switching to connection 'default'
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
+source include/wait_condition.inc;
+select (@id := id) - id from t1;
+kill query @id;
+
+--echo # -> Switching to connection 'con1'
+connection con1;
+reap;
+
+--echo # -> Switching to connection 'default'
+connection default;
+
+--echo # GET_LOCK() works recursively 
+select get_lock('test', 0);
+select get_lock('test', 0);
+select get_lock('test', 0);
+
+--echo # RELEASE_LOCK() needs to be called recursively then, too
+select release_lock('test');
+select release_lock('test');
+select release_lock('test');
+
+--echo # Once the last instance of the lock is released, 
+--echo # the next call returns NULL
+select release_lock('test');
+
+
+--echo # Multiple locks in the same session are OK
+select get_lock('test1', 0);
+select get_lock('test2', 0);
+select get_lock('test3', 0);
+
+select release_lock('test1');
+select release_lock('test2');
+select release_lock('test3');
+
+--echo # Deadlocks are detected e.g. in case of a mutual wait
+select get_lock('test1', 0);
+
+--echo # -> Switching to connection 'con1'
+connection con1;
+select get_lock('test2', 0);
+send select get_lock('test1', 7200);
+
+--echo # -> Switching to connection 'default'
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state='User lock';
+source include/wait_condition.inc;
+--error ER_LOCK_DEADLOCK
+select get_lock('test2', 7200);
+
+select release_lock('test1');
+
+--echo # -> Switching to connection 'con1'
+connection con1;
+reap;
+select release_lock('test2');
+select release_lock('test1');
+
+--echo # -> Switching to connection 'default'
+connection default;
+
+--echo # LOCK/UNLOCK TABLES works fine with a user lock.
+lock table t1 write;
+select get_lock('test', 0);
+unlock tables;
+commit;
+select release_lock('test');
+
+--echo # GLOBAL READ LOCK works with fine with user locks
+select get_lock('test1', 0);
+flush tables with read lock;
+select get_lock('test2', 0);
+unlock tables;
+commit;
+select release_lock('test1');
+select release_lock('test2');
+
+--echo # BEGIN/COMMIT/ROLLBACK don't unlock user locks.
+begin;
+select get_lock('test1', 0);
+select  get_lock('test2', 0);
+select count(*) from t1;
+rollback;
+select release_lock('test1');
+select release_lock('test2');
+
+--echo # Deadlocks between user locks and LOCK TABLES locks
+--echo # are detected OK.
+select get_lock('test', 0);
+
+--echo # -> Switching to connection 'con1'
+connection con1;
+lock table t1 write;
+send select get_lock('test', 7200);
+
+--echo # -> Switching to connection 'default'
+connection default;
+let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE info LIKE 'select%' AND state = 'User lock';
+source include/wait_condition.inc;
+--error ER_LOCK_DEADLOCK
+lock table t1 read;
+
+select release_lock('test');
+
+--echo # -> Switching to connection 'con1'
+connection con1;
+reap;
+select release_lock('test');
+unlock tables;
+
+--echo # cleanup
+disconnect con1;
+connection default;
+drop table t1;
+
+--echo # check too long identifier names
+select get_lock(repeat('a', 192), 0);
+select is_used_lock(repeat('a', 192)) = connection_id();
+select is_free_lock(repeat('a', 192));
+select release_lock(repeat('a', 192));
+--error ER_TOO_LONG_IDENT
+select get_lock(repeat('a', 193), 0);
+--error ER_TOO_LONG_IDENT
+select is_used_lock(repeat('a', 193));
+--error ER_TOO_LONG_IDENT
+select is_free_lock(repeat('a', 193));
+--error ER_TOO_LONG_IDENT
+select release_lock(repeat('a', 193));
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 

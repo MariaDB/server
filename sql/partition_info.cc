@@ -1582,29 +1582,21 @@ bool check_partition_dirs(partition_info *part_info)
       partition_element *subpart_elem;
       while ((subpart_elem= sub_it++))
       {
-        if (test_if_data_home_dir(subpart_elem->data_file_name))
-          goto dd_err;
-        if (test_if_data_home_dir(subpart_elem->index_file_name))
-          goto id_err;
+        if (error_if_data_home_dir(subpart_elem->data_file_name,
+                                   "DATA DIRECTORY") ||
+            error_if_data_home_dir(subpart_elem->index_file_name,
+                                   "INDEX DIRECTORY"))
+        return 1;
       }
     }
     else
     {
-      if (test_if_data_home_dir(part_elem->data_file_name))
-        goto dd_err;
-      if (test_if_data_home_dir(part_elem->index_file_name))
-        goto id_err;
+      if (error_if_data_home_dir(part_elem->data_file_name, "DATA DIRECTORY") ||
+          error_if_data_home_dir(part_elem->index_file_name, "INDEX DIRECTORY"))
+        return 1;
     }
   }
   return 0;
-
-dd_err:
-  my_error(ER_WRONG_ARGUMENTS,MYF(0),"DATA DIRECTORY");
-  return 1;
-
-id_err:
-  my_error(ER_WRONG_ARGUMENTS,MYF(0),"INDEX DIRECTORY");
-  return 1;
 }
 
 
@@ -2284,6 +2276,11 @@ int partition_info::add_max_value()
 
 void partition_info::print_debug(const char *str, uint *value)
 {
+}
+
+bool check_partition_dirs(partition_info *part_info)
+{
+  return 0;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

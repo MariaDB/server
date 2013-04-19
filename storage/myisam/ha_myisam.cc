@@ -30,6 +30,7 @@
 #include "rt_index.h"
 #include "sql_table.h"                          // tablename_to_filename
 #include "sql_class.h"                          // THD
+#include "debug_sync.h"
 
 ulonglong myisam_recover_options;
 static ulong opt_myisam_block_size;
@@ -77,7 +78,7 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
   "The buffer that is allocated when sorting the index when doing "
   "a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE", NULL, NULL,
-  8192 * 1024, (long) (MIN_SORT_BUFFER + MALLOC_OVERHEAD), SIZE_T_MAX, 1);
+  8192 * 1024, MIN_SORT_BUFFER + MALLOC_OVERHEAD, SIZE_T_MAX, 1);
 
 static MYSQL_SYSVAR_BOOL(use_mmap, opt_myisam_use_mmap, PLUGIN_VAR_NOCMDARG,
   "Use memory mapping for reading and writing MyISAM tables", NULL, NULL, FALSE);
@@ -677,12 +678,6 @@ static const char *ha_myisam_exts[] = {
   NullS
 };
 
-const char **ha_myisam::bas_ext() const
-{
-  return ha_myisam_exts;
-}
-
-
 const char *ha_myisam::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
@@ -1133,6 +1128,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
         thd_proc_info(thd, "Repair by sorting");
         error = mi_repair_by_sort(&param, file, fixed_name,
                                   test(param.testflag & T_QUICK));
+        DEBUG_SYNC(thd, "myisam_after_repair_by_sort");
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
@@ -2209,6 +2205,7 @@ static int myisam_init(void *p)
   myisam_hton->create= myisam_create_handler;
   myisam_hton->panic= myisam_panic;
   myisam_hton->flags= HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES;
+  myisam_hton->tablefile_extensions= ha_myisam_exts;
   mi_killed= mi_killed_in_mariadb;
 
   return 0;

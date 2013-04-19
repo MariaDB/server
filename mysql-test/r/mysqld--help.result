@@ -201,7 +201,20 @@ The following options may be given as the first argument:
  --group-concat-max-len=# 
  The maximum length of the result of function 
  GROUP_CONCAT()
+ --gtid-domain-id=#  Used with global transaction ID to identify logically
+ independent replication streams. When events can
+ propagate through multiple parallel paths (for example
+ multiple masters), each independent source server must
+ use a distinct domain_id. For simple tree-shaped
+ replication topologies, it can be left at its default, 0.
  -?, --help          Display this help and exit.
+ --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
+ histograms are created by ANALYZE.
+ --histogram-type=name 
+ Specifies type of the histograms created by ANALYZE.
+ Possible values are: SINGLE_PREC_HB - single precision
+ height-balanced, DOUBLE_PREC_HB - double precision
+ height-balanced.
  --ignore-builtin-innodb 
  Disable initialization of builtin InnoDB plugin
  --ignore-db-dirs=name 
@@ -496,8 +509,23 @@ The following options may be given as the first argument:
  mrr_cost_based, mrr_sort_keys, optimize_join_buffer_size,
  outer_join_with_cache, partial_match_rowid_merge,
  partial_match_table_scan, semijoin, semijoin_with_cache,
- subquery_cache, table_elimination, extended_keys } and
- val is one of {on, off, default}
+ subquery_cache, table_elimination, extended_keys,
+ exists_to_in } and val is one of {on, off, default}
+ --optimizer-use-condition-selectivity=# 
+ Controls selectivity of which conditions the optimizer
+ takes into account to calculate cardinality of a partial
+ join when it searches for the best execution plan
+ Meaning: 1 - use selectivity of index backed range
+ conditions to calculate the cardinality of a partial join
+ if the last joined table is accessed by full table scan
+ or an index scan, 2 - use selectivity of index backed
+ range conditions to calculate the cardinality of a
+ partial join in any case, 3 - additionally always use
+ selectivity of range conditions that are not backed by
+ any index to calculate the cardinality of a partial join,
+ 4 - use histograms to calculate selectivity of range
+ conditions that are not backed by any index to calculate
+ the cardinality of a partial join.
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -890,6 +918,25 @@ The following options may be given as the first argument:
  values are COMMIT or ROLLBACK.
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
+ --thread-pool-idle-timeout=# 
+ Timeout in seconds for an idle thread in the thread
+ pool.Worker thread will be shut down after timeout
+ --thread-pool-max-threads=# 
+ Maximum allowed number of worker threads in the thread
+ pool
+ --thread-pool-oversubscribe=# 
+ How many additional active worker threads in a group are
+ allowed.
+ --thread-pool-size=# 
+ Number of thread groups in the pool. This parameter is
+ roughly equivalent to maximum number of concurrently
+ executing threads (threads in a waiting state do not
+ count as executing).
+ --thread-pool-stall-limit=# 
+ Maximum query execution time in milliseconds,before an
+ executing non-yielding thread is considered stalled.If a
+ worker thread is stalled, additional worker thread may be
+ created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
  --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
@@ -989,7 +1036,10 @@ ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
+gtid-domain-id 0
 help TRUE
+histogram-size 0
+histogram-type SINGLE_PREC_HB
 ignore-builtin-innodb FALSE
 ignore-db-dirs 
 init-connect 
@@ -1080,6 +1130,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
+optimizer-use-condition-selectivity 1
 performance-schema FALSE
 performance-schema-accounts-size 100
 performance-schema-consumer-events-stages-current FALSE
@@ -1192,6 +1243,10 @@ table-definition-cache 400
 table-open-cache 400
 tc-heuristic-recover COMMIT
 thread-cache-size 0
+thread-pool-idle-timeout 60
+thread-pool-max-threads 500
+thread-pool-oversubscribe 3
+thread-pool-stall-limit 500
 thread-stack 294912
 time-format %H:%i:%s
 timed-mutexes FALSE

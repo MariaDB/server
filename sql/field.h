@@ -220,7 +220,23 @@ public:
    */
   bool is_created_from_null_item;
 
-  bool is_stat_field; /* TRUE in Field objects created for column min/max values */
+  /* TRUE in Field objects created for column min/max values */
+  bool is_stat_field; 
+
+  /* 
+    Selectivity of the range condition over this field.
+    When calculating this selectivity a range predicate
+    is taken into account only if:
+    - it is extracted from the WHERE clause
+    - it depends only on the table the field belongs to 
+  */
+  double cond_selectivity;
+
+  /* 
+    The next field in the class of equal fields at the top AND level
+    of the WHERE clause
+  */ 
+  Field *next_equal_field;
 
   /*
     This structure is used for statistical data on the column
@@ -455,6 +471,10 @@ public:
       memcpy(max_val->ptr, ptr, pack_length());
     }
     return update_fl;
+  }
+  virtual void store_field_value(uchar *val, uint len)
+  {
+     memcpy(ptr, val, len);
   }
   virtual uint decimals() const { return 0; }
   /*
@@ -703,6 +723,12 @@ public:
   virtual bool hash_join_is_possible() { return TRUE; }
   virtual bool eq_cmp_as_binary() { return TRUE; }
 
+  /* Position of the field value within the interval of [min, max] */
+  virtual double pos_in_interval(Field *min, Field *max)
+  {
+    return (double) 0.5; 
+  }
+
   friend int cre_myisam(char * name, register TABLE *form, uint options,
 			ulonglong auto_increment_value);
   friend class Copy_field;
@@ -821,6 +847,7 @@ public:
   bool get_int(CHARSET_INFO *cs, const char *from, uint len, 
                longlong *rnd, ulonglong unsigned_max, 
                longlong signed_min, longlong signed_max);
+  double pos_in_interval(Field *min, Field *max);
 };
 
 
@@ -866,6 +893,8 @@ public:
   virtual bool str_needs_quotes() { return TRUE; }
   uint is_equal(Create_field *new_field);
   bool eq_cmp_as_binary() { return test(flags & BINARY_FLAG); }
+  virtual uint length_size() { return 0; }
+  double pos_in_interval(Field *min, Field *max);
 };
 
 /* base class for Field_string, Field_varstring and Field_blob */
@@ -1894,6 +1923,7 @@ public:
                        uint new_null_bit);
   uint is_equal(Create_field *new_field);
   void hash(ulong *nr, ulong *nr2);
+  uint length_size() { return length_bytes; }
 private:
   int do_save_field_metadata(uchar *first_byte);
 };
@@ -2151,6 +2181,7 @@ public:
   bool has_charset(void) const { return TRUE; }
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
+  uint decimals() const { return 0; }
 
   virtual uchar *pack(uchar *to, const uchar *from, uint max_length);
   virtual const uchar *unpack(uchar *to, const uchar *from,
@@ -2274,6 +2305,11 @@ public:
     }
     return update_fl;
   }
+  void store_field_value(uchar *val, uint len)
+  {
+    store(*((longlong *)val), TRUE);
+  }
+  double pos_in_interval(Field *min, Field *max);
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs)
   { get_key_image(buff, length, itRAW); }   
   void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)
@@ -2382,10 +2418,11 @@ public:
   /** structure with parsed options (for comparing fields in ALTER TABLE) */
   ha_field_option_struct *option_struct;
 
-  uint8 row,col,sc_length,interval_id;	// For rea_create_table
+  uint8 interval_id;                    // For rea_create_table
   uint	offset,pack_flag;
+  bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
 
-    /* 
+  /* 
     This is additinal data provided for any computed(virtual) field.
     In particular it includes a pointer to the item by  which this field
     can be computed from other fields.
@@ -2398,7 +2435,8 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), option_list(NULL), option_struct(NULL)
+  Create_field() :after(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(FALSE)
   {}
   Create_field(Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
@@ -2416,7 +2454,7 @@ public:
             Item *on_update_value, LEX_STRING *comment, char *change,
             List<String> *interval_list, CHARSET_INFO *cs,
             uint uint_geom_type, Virtual_column_info *vcol_info,
-            engine_option_value *option_list);
+            engine_option_value *option_list, bool check_exists);
 
   bool field_flags_are_binary()
   {

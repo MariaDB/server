@@ -94,4 +94,4 @@ PARTITION p1 DATA DIRECTORY = '/not/existent/p1Data',
 PARTITION p2 DATA DIRECTORY = '/not/existent/p2Data',
 PARTITION p3 DATA DIRECTORY = '/not/existent/p3Data'
 );
-Got one of the listed errors
+ERROR HY000: Can't create/write to file '/not/existent/p0Data/example#P#p0.MYD' (Errcode: 2 "No such file or directory")

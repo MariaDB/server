@@ -5,8 +5,8 @@ Database	Create Database
 foo	CREATE DATABASE `foo` /*!40100 DEFAULT CHARACTER SET latin1 */
 show schemas;
 Database
-information_schema
 foo
+information_schema
 mtr
 mysql
 performance_schema

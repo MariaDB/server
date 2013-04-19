@@ -294,7 +294,7 @@ row_merge_buf_empty(
 /*********************************************************************//**
 Create a merge file. */
 UNIV_INTERN
-void
+int
 row_merge_file_create(
 /*==================*/
         merge_file_t*   merge_file);     /*!< out: merge file structure */

@@ -70,52 +70,34 @@ Success
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
-SELECT * FROM t1 WHERE id = 1;
-id	b
-1	initial value
+show variables like "%not_found%";
+Variable_name	Value
 SET @before_count = (SELECT SUM(TIMER_WAIT)
 FROM performance_schema.events_waits_history_long
-WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_grant'));
-SELECT * FROM t1;
-id	b
-1	initial value
-2	initial value
-3	initial value
-4	initial value
-5	initial value
-6	initial value
-7	initial value
-8	initial value
+WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_system_variables_hash'));
+show variables like "%not_found%";
+Variable_name	Value
 SET @after_count = (SELECT SUM(TIMER_WAIT)
 FROM performance_schema.events_waits_history_long
-WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_grant'));
+WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_system_variables_hash'));
 SELECT IF((@after_count - @before_count) > 0, 'Success', 'Failure') test_fm1_rw_timed;
 test_fm1_rw_timed
 Success
 UPDATE performance_schema.setup_instruments SET enabled = 'NO'
-WHERE NAME = 'wait/synch/rwlock/sql/LOCK_grant';
+WHERE NAME = 'wait/synch/rwlock/sql/LOCK_system_variables_hash';
 TRUNCATE TABLE performance_schema.events_waits_history_long;
 TRUNCATE TABLE performance_schema.events_waits_history;
 TRUNCATE TABLE performance_schema.events_waits_current;
-SELECT * FROM t1 WHERE id = 1;
-id	b
-1	initial value
+show variables like "%not_found%";
+Variable_name	Value
 SET @before_count = (SELECT SUM(TIMER_WAIT)
 FROM performance_schema.events_waits_history_long
-WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_grant'));
-SELECT * FROM t1;
-id	b
-1	initial value
-2	initial value
-3	initial value
-4	initial value
-5	initial value
-6	initial value
-7	initial value
-8	initial value
+WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_system_variables_hash'));
+show variables like "%not_found%";
+Variable_name	Value
 SET @after_count = (SELECT SUM(TIMER_WAIT)
 FROM performance_schema.events_waits_history_long
-WHERE (EVENT_NAME = 'wait/synch/rwlock/sql/LOCK_grant'));
+WHERE (EVENT_NAME = 'LOCK_system_variables_hash'));
 SELECT IF((COALESCE(@after_count, 0) - COALESCE(@before_count, 0)) = 0, 'Success', 'Failure') test_fm2_rw_timed;
 test_fm2_rw_timed
 Success

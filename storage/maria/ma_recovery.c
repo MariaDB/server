@@ -1,5 +1,5 @@
 /* Copyright (C) 2006, 2007 MySQL AB
-   Copyright (C) 2010-2011 Monty Program Ab
+   Copyright (C) 2010, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3683,7 +3683,7 @@ static void print_redo_phase_progress(TRANSLOG_ADDRESS addr)
      end_offset);
   if (initial_remainder == (ulonglong)(-1))
     initial_remainder= local_remainder;
-  percentage_done= (uint) ((initial_remainder - local_remainder) * ULL(100) /
+  percentage_done= (uint) ((initial_remainder - local_remainder) * 100ULL /
                            initial_remainder);
   if ((percentage_done - percentage_printed) >= 10)
   {

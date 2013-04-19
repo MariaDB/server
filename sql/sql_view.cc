@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011 Monty Program Ab
+   Copyright (c) 2011, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
-#include "datadict.h"   // dd_frm_type()
+#include "datadict.h"   // dd_frm_is_view()
 
 #define MD5_BUFF_LENGTH 33
 
@@ -211,16 +211,12 @@ static void make_valid_column_names(List<Item> &item_list)
 static bool
 fill_defined_view_parts (THD *thd, TABLE_LIST *view)
 {
-  char key[MAX_DBKEY_LENGTH];
-  uint key_length;
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  key_length= create_table_def_key(thd, key, view, 0);
-
-  if (tdc_open_view(thd, &decoy, decoy.alias, key, key_length,
-                    thd->mem_root, OPEN_VIEW_NO_PARSE))
+  if (tdc_open_view(thd, &decoy, decoy.alias, thd->mem_root,
+                    OPEN_VIEW_NO_PARSE))
     return TRUE;
 
   if (!lex->definer)
@@ -871,7 +867,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->source= thd->lex->create_view_select;
 
   if (!thd->make_lex_string(&view->select_stmt, view_query.ptr(),
-                            view_query.length(), false))
+                            view_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
@@ -1004,7 +1000,7 @@ loop_out:
                  view->view_creation_ctx->get_connection_cl()->name);
 
   if (!thd->make_lex_string(&view->view_body_utf8, is_query.ptr(),
-                            is_query.length(), false))
+                            is_query.length()))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
     error= -1;
@@ -1646,7 +1642,6 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
   String non_existant_views;
   char *wrong_object_db= NULL, *wrong_object_name= NULL;
   bool error= FALSE;
-  enum legacy_db_type not_used;
   bool some_views_deleted= FALSE;
   bool something_wrong= FALSE;
   DBUG_ENTER("mysql_drop_view");
@@ -1669,35 +1664,34 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
-    frm_type_enum type= FRMTYPE_ERROR;
+    bool not_exist;
     build_table_filename(path, sizeof(path) - 1,
                          view->db, view->table_name, reg_ext, 0);
 
-    if (access(path, F_OK) || 
-        FRMTYPE_VIEW != (type= dd_frm_type(thd, path, &not_used)))
+    if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {
       char name[FN_REFLEN];
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
-      if (thd->lex->drop_if_exists)
+      if (thd->lex->check_exists)
       {
 	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
 			    name);
 	continue;
       }
-      if (type == FRMTYPE_TABLE)
+      if (not_exist)
+      {
+        if (non_existant_views.length())
+          non_existant_views.append(',');
+        non_existant_views.append(String(view->table_name,system_charset_info));
+      }
+      else
       {
         if (!wrong_object_name)
         {
           wrong_object_db= view->db;
           wrong_object_name= view->table_name;
         }
-      }
-      else
-      {
-        if (non_existant_views.length())
-          non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
       }
       continue;
     }
@@ -1707,9 +1701,8 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     some_views_deleted= TRUE;
 
     /*
-      For a view, there is a TABLE_SHARE object, but its
-      ref_count never goes above 1. Remove it from the table
-      definition cache, in case the view was cached.
+      For a view, there is a TABLE_SHARE object.
+      Remove it from the table definition cache, in case the view was cached.
     */
     tdc_remove_table(thd, TDC_RT_REMOVE_ALL, view->db, view->table_name,
                      FALSE);

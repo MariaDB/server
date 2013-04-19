@@ -1,4 +1,5 @@
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,11 +61,8 @@ typedef struct st_hash {
 /* A search iterator state */
 typedef uint HASH_SEARCH_STATE;
 
-#define my_hash_init(A,B,C,D,E,F,G,H) \
-          _my_hash_init(A,0,B,C,D,E,F,G,H)
-#define my_hash_init2(A,B,C,D,E,F,G,H,I) \
-          _my_hash_init(A,B,C,D,E,F,G,H,I)
-my_bool _my_hash_init(HASH *hash, uint growth_size, CHARSET_INFO *charset,
+#define my_hash_init(A,B,C,D,E,F,G,H) my_hash_init2(A,0,B,C,D,E,F,G,H)
+my_bool my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
                       ulong default_array_elements, size_t key_offset,
                       size_t key_length, my_hash_get_key get_key,
                       void (*free_element)(void*),
@@ -98,7 +96,7 @@ my_bool my_hash_iterate(HASH *hash, my_hash_walk_action action, void *argument);
 #define my_hash_clear(H) bzero((char*) (H), sizeof(*(H)))
 #define my_hash_inited(H) ((H)->blength != 0)
 #define my_hash_init_opt(A,B,C,D,E,F,G,H) \
-          (!my_hash_inited(A) && _my_hash_init(A,0,B,C,D,E,F,G,H))
+          (!my_hash_inited(A) && my_hash_init(A,B,C,D,E,F,G,H))
 
 #ifdef	__cplusplus
 }

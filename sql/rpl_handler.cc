@@ -176,7 +176,7 @@ void delegates_destroy()
   plugins add to thd->lex will be automatically unlocked.
  */
 #define FOREACH_OBSERVER(r, f, thd, args)                               \
-  param.server_id= thd->server_id;                                      \
+  param.server_id= thd->variables.server_id;                            \
   /*
      Use a struct to make sure that they are allocated adjacent, check
      delete_dynamic().
@@ -348,7 +348,7 @@ int Binlog_transmit_delegate::reserve_header(THD *thd, ushort flags,
   ulong hlen;
   Binlog_transmit_param param;
   param.flags= flags;
-  param.server_id= thd->server_id;
+  param.server_id= thd->variables.server_id;
 
   int ret= 0;
   read_lock();
@@ -554,5 +554,25 @@ int register_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *
 int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p)
 {
   return binlog_relay_io_delegate->remove_observer(observer, (st_plugin_int *)p);
+}
+#else
+int register_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p)
+{
+  return 0;
+}
+
+int unregister_binlog_transmit_observer(Binlog_transmit_observer *observer, void *p)
+{
+  return 0;
+}
+
+int register_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p)
+{
+  return 0;
+}
+
+int unregister_binlog_relay_io_observer(Binlog_relay_IO_observer *observer, void *p)
+{
+  return 0;
 }
 #endif /* HAVE_REPLICATION */

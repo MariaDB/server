@@ -51,7 +51,6 @@ public:
     don't implement this method unless you really have indexes
   */
   const char *index_type(uint key_number);
-  const char **bas_ext() const;
   ulonglong table_flags() const
   {
     return(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |

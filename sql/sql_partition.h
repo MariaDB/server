@@ -32,7 +32,6 @@ class partition_info;
 struct TABLE;
 struct TABLE_LIST;
 typedef struct st_bitmap MY_BITMAP;
-typedef struct st_ha_create_information HA_CREATE_INFO;
 typedef struct st_key KEY;
 typedef struct st_key_range key_range;
 

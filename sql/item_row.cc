@@ -47,13 +47,13 @@ Item_row::Item_row(List<Item> &arg):
     items= (Item**) sql_alloc(sizeof(Item*)*arg_count);
   else
     items= 0;
-  List_iterator<Item> li(arg);
+  List_iterator_fast<Item> li(arg);
   uint i= 0;
   Item *item;
   while ((item= li++))
   {
     items[i]= item;
-    i++;    
+    i++;
   }
 }
 

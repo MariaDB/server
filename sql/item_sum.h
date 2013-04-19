@@ -1,7 +1,7 @@
 #ifndef ITEM_SUM_INCLUDED
 #define ITEM_SUM_INCLUDED
 /* Copyright (c) 2000, 2011 Oracle and/or its affiliates.
-   Copyright (c) 2008-2011 Monty Program Ab
+   Copyright (c) 2008, 2013 Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -642,6 +642,7 @@ public:
   virtual bool arg_is_null();
 
   bool unique_walk_function(void *element);
+  bool unique_walk_function_for_count(void *element);
   static int composite_key_cmp(void* arg, uchar* key1, uchar* key2);
 };
 
@@ -1119,7 +1120,7 @@ public:
 class Item_sum_or :public Item_sum_bit
 {
 public:
-  Item_sum_or(Item *item_par) :Item_sum_bit(item_par,LL(0)) {}
+  Item_sum_or(Item *item_par) :Item_sum_bit(item_par, 0) {}
   Item_sum_or(THD *thd, Item_sum_or *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_or("; }
@@ -1140,7 +1141,7 @@ class Item_sum_and :public Item_sum_bit
 class Item_sum_xor :public Item_sum_bit
 {
   public:
-  Item_sum_xor(Item *item_par) :Item_sum_bit(item_par,LL(0)) {}
+  Item_sum_xor(Item *item_par) :Item_sum_bit(item_par, 0) {}
   Item_sum_xor(THD *thd, Item_sum_xor *item) :Item_sum_bit(thd, item) {}
   bool add();
   const char *func_name() const { return "bit_xor("; }

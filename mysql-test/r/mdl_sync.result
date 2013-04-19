@@ -2850,7 +2850,7 @@ SET DEBUG_SYNC= 'now SIGNAL blocked';
 # Reaping: DROP DATABASE db1
 # Connection con2
 # Reaping: RENAME TABLE db1.t1 TO test.t1
-Got one of the listed errors
+ERROR 42S02: Table 'db1.t1' doesn't exist
 # Connection default
 CREATE DATABASE db1;
 CREATE TABLE test.t2 (a INT);

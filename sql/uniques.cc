@@ -86,6 +86,7 @@ Unique::Unique(qsort_cmp2 comp_func, void * comp_func_fixed_arg,
   full_size= size;
   if (min_dupl_count_arg)
     full_size+= sizeof(element_count);
+  with_counters= test(min_dupl_count_arg);
   my_b_clear(&file);
   init_tree(&tree, (ulong) (max_in_memory_size / 16), 0, size, comp_func,
             NULL, comp_func_fixed_arg, MYF(MY_THREAD_SPECIFIC));
@@ -428,6 +429,22 @@ static int buffpek_compare(void *arg, uchar *key_ptr1, uchar *key_ptr2)
 C_MODE_END
 
 
+inline
+element_count get_counter_from_merged_element(void *ptr, uint ofs)
+{
+  element_count cnt;
+  memcpy((uchar *) &cnt, (uchar *) ptr + ofs, sizeof(element_count));
+  return cnt;
+}
+
+
+inline
+void put_counter_into_merged_element(void *ptr, uint ofs, element_count cnt)
+{
+  memcpy((uchar *) ptr + ofs, (uchar *) &cnt, sizeof(element_count));
+}
+
+
 /*
   DESCRIPTION
 
@@ -457,6 +474,8 @@ C_MODE_END
     file               file with all trees dumped. Trees in the file
                        must contain sorted unique values. Cache must be
                        initialized in read mode.
+    with counters      take into account counters for equal merged
+                       elements
   RETURN VALUE
     0     ok
     <> 0  error
@@ -466,7 +485,7 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
                        uint key_length, BUFFPEK *begin, BUFFPEK *end,
                        tree_walk_action walk_action, void *walk_action_arg,
                        qsort_cmp2 compare, void *compare_arg,
-                       IO_CACHE *file)
+                       IO_CACHE *file, bool with_counters)
 {
   BUFFPEK_COMPARE_CONTEXT compare_context = { compare, compare_arg };
   QUEUE queue;
@@ -485,6 +504,8 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
   uint bytes_read;               /* to hold return value of read_to_buffer */
   BUFFPEK *top;
   int res= 1;
+  uint cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
+  element_count cnt;
   /*
     Invariant: queue must contain top element from each tree, until a tree
     is not completely walked through.
@@ -543,8 +564,16 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
     /* new top has been obtained; if old top is unique, apply the action */
     if (compare(compare_arg, old_key, top->key))
     {
-      if (walk_action(old_key, 1, walk_action_arg))
+      cnt= with_counters ?
+           get_counter_from_merged_element(old_key, cnt_ofs) : 1;
+      if (walk_action(old_key, cnt, walk_action_arg))
         goto end;
+    }
+    else if (with_counters)
+    {
+      cnt= get_counter_from_merged_element(top->key, cnt_ofs);
+      cnt+= get_counter_from_merged_element(old_key, cnt_ofs);
+      put_counter_into_merged_element(top->key, cnt_ofs, cnt);
     }
   }
   /*
@@ -556,7 +585,10 @@ static bool merge_walk(uchar *merge_buffer, ulong merge_buffer_size,
   {
     do
     {
-      if (walk_action(top->key, 1, walk_action_arg))
+      
+      cnt= with_counters ?
+           get_counter_from_merged_element(top->key, cnt_ofs) : 1;
+      if (walk_action(top->key, cnt, walk_action_arg))
         goto end;
       top->key+= key_length;
     }
@@ -620,7 +652,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
                     (BUFFPEK *) file_ptrs.buffer,
                     (BUFFPEK *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
-                    tree.compare, tree.custom_arg, &file);
+                    tree.compare, tree.custom_arg, &file, with_counters);
   }
   my_free(merge_buffer);
   return res;
