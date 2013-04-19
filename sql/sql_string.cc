@@ -1079,7 +1079,8 @@ outp:
   characters as necessary.
   Does not add the enclosing quotes, this is left up to caller.
 */
-void String::append_for_single_quote(const char *st, uint len)
+#define APPEND(X)   if (append(X)) return 1; else break
+bool String::append_for_single_quote(const char *st, uint len)
 {
   const char *end= st+len;
   for (; st < end; st++)
@@ -1087,28 +1088,16 @@ void String::append_for_single_quote(const char *st, uint len)
     uchar c= *st;
     switch (c)
     {
-    case '\\':
-      append(STRING_WITH_LEN("\\\\"));
-      break;
-    case '\0':
-      append(STRING_WITH_LEN("\\0"));
-      break;
-    case '\'':
-      append(STRING_WITH_LEN("\\'"));
-      break;
-    case '\n':
-      append(STRING_WITH_LEN("\\n"));
-      break;
-    case '\r':
-      append(STRING_WITH_LEN("\\r"));
-      break;
-    case '\032': // Ctrl-Z
-      append(STRING_WITH_LEN("\\Z"));
-      break;
-    default:
-      append(c);
+    case '\\':   APPEND(STRING_WITH_LEN("\\\\"));
+    case '\0':   APPEND(STRING_WITH_LEN("\\0"));
+    case '\'':   APPEND(STRING_WITH_LEN("\\'"));
+    case '\n':   APPEND(STRING_WITH_LEN("\\n"));
+    case '\r':   APPEND(STRING_WITH_LEN("\\r"));
+    case '\032': APPEND(STRING_WITH_LEN("\\Z"));
+    default:     APPEND(c);
     }
   }
+  return 0;
 }
 
 void String::print(String *str)
