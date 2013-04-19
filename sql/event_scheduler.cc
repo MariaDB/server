@@ -132,11 +132,11 @@ post_init_event_thread(THD *thd)
     return TRUE;
   }
 
+  thread_safe_increment32(&thread_count, &thread_count_lock);
   mysql_mutex_lock(&LOCK_thread_count);
   threads.append(thd);
-  thread_count++;
-  inc_thread_running();
   mysql_mutex_unlock(&LOCK_thread_count);
+  inc_thread_running();
   return FALSE;
 }
 
@@ -154,12 +154,8 @@ deinit_event_thread(THD *thd)
 {
   thd->proc_info= "Clearing";
   DBUG_PRINT("exit", ("Event thread finishing"));
-  mysql_mutex_lock(&LOCK_thread_count);
-  thread_count--;
-  dec_thread_running();
-  delete thd;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+
+  delete_running_thd(thd);
 }
 
 
@@ -440,12 +436,7 @@ Event_scheduler::start()
     ret= TRUE;
 
     new_thd->proc_info= "Clearing";
-    mysql_mutex_lock(&LOCK_thread_count);
-    thread_count--;
-    dec_thread_running();
-    delete new_thd;
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
+    delete_running_thd(new_thd);
   }
 end:
   UNLOCK_DATA();
@@ -574,12 +565,7 @@ error:
   if (new_thd)
   {
     new_thd->proc_info= "Clearing";
-    mysql_mutex_lock(&LOCK_thread_count);
-    thread_count--;
-    dec_thread_running();
-    delete new_thd;
-    mysql_cond_broadcast(&COND_thread_count);
-    mysql_mutex_unlock(&LOCK_thread_count);
+    delete_running_thd(new_thd);
   }
   delete event_name;
   DBUG_RETURN(TRUE);

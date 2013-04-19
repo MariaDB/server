@@ -1,13 +1,26 @@
 include/master-slave.inc
 [connection master]
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+call mtr.add_suppression("Read semi-sync reply");
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.");
+call mtr.add_suppression("Master server does not support semi-sync");
+call mtr.add_suppression("Semi-sync slave .* reply");
+call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
 #
 # Uninstall semi-sync plugins on master and slave
 #
 include/stop_slave.inc
+reset slave;
+set global rpl_semi_sync_master_enabled= 0;
+set global rpl_semi_sync_slave_enabled= 0;
+reset master;
+set global rpl_semi_sync_master_enabled= 0;
+set global rpl_semi_sync_slave_enabled= 0;
 #
 # Main test of semi-sync replication start here
 #
 [ on master ]
+set global rpl_semi_sync_master_timeout= 60000;
 [ default state of semi-sync on master should be OFF ]
 show variables like 'rpl_semi_sync_master_enabled';
 Variable_name	Value
@@ -41,9 +54,7 @@ Rpl_semi_sync_master_status	OFF
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	0
-#
-# INSTALL PLUGIN semi-sync on slave
-#
+reset master;
 [ on slave ]
 [ default state of semi-sync on slave should be OFF ]
 show variables like 'rpl_semi_sync_slave_enabled';
@@ -84,6 +95,16 @@ select CONNECTIONS_NORMAL_SLAVE - CONNECTIONS_NORMAL_SLAVE as 'Should be 0';
 Should be 0
 0
 [ insert records to table ]
+insert t1 values (10);
+insert t1 values (9);
+insert t1 values (8);
+insert t1 values (7);
+insert t1 values (6);
+insert t1 values (5);
+insert t1 values (4);
+insert t1 values (3);
+insert t1 values (2);
+insert t1 values (1);
 [ master status after inserts ]
 show status like 'Rpl_semi_sync_master_status';
 Variable_name	Value
@@ -159,6 +180,16 @@ Rpl_semi_sync_master_no_tx	1
 show status like 'Rpl_semi_sync_master_yes_tx';
 Variable_name	Value
 Rpl_semi_sync_master_yes_tx	14
+delete from t1 where a=10;
+delete from t1 where a=9;
+delete from t1 where a=8;
+delete from t1 where a=7;
+delete from t1 where a=6;
+delete from t1 where a=5;
+delete from t1 where a=4;
+delete from t1 where a=3;
+delete from t1 where a=2;
+delete from t1 where a=1;
 insert into t1 values (100);
 [ master status should be OFF ]
 show status like 'Rpl_semi_sync_master_status';
@@ -278,6 +309,7 @@ Rpl_semi_sync_master_yes_tx	0
 [ on slave ]
 include/stop_slave.inc
 reset slave;
+kill query _tid;
 include/start_slave.inc
 [ on master ]
 create table t1 (a int) engine = ENGINE_TYPE;
@@ -307,6 +339,7 @@ include/stop_slave.inc
 reset slave;
 [ on master ]
 reset master;
+kill query _tid;
 set sql_log_bin=0;
 grant replication slave on *.* to rpl@127.0.0.1 identified by 'rpl_password';
 flush privileges;
@@ -357,6 +390,7 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
 [ on master ]
+kill query _tid;
 [ Semi-sync status on master should be ON ]
 show status like 'Rpl_semi_sync_master_clients';
 Variable_name	Value
@@ -385,11 +419,7 @@ Variable_name	Value
 Rpl_semi_sync_slave_status	ON
 include/stop_slave.inc
 [ on master ]
-set sql_log_bin=0;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-set sql_log_bin=1;
-SHOW VARIABLES LIKE 'rpl_semi_sync_master_enabled';
-Variable_name	Value
+set global rpl_semi_sync_master_enabled= 0;
 [ on slave ]
 SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
 Variable_name	Value
@@ -397,18 +427,10 @@ rpl_semi_sync_slave_enabled	ON
 include/start_slave.inc
 [ on master ]
 insert into t1 values (10);
-[ on slave ]
-SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
-Variable_name	Value
-Rpl_semi_sync_slave_status	OFF
 #
 # Test non-semi-sync slave connect to semi-sync master
 #
-set sql_log_bin=0;
-INSTALL PLUGIN rpl_semi_sync_master SONAME 'SEMISYNC_MASTER_SO';
 set global rpl_semi_sync_master_timeout= 5000;
-/* 5s */
-set sql_log_bin=1;
 set global rpl_semi_sync_master_enabled= 1;
 [ on slave ]
 include/stop_slave.inc
@@ -416,16 +438,8 @@ SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
 Variable_name	Value
 Rpl_semi_sync_slave_status	OFF
 [ uninstall semi-sync slave plugin ]
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
-Variable_name	Value
-include/start_slave.inc
-SHOW STATUS LIKE 'Rpl_semi_sync_slave_status';
-Variable_name	Value
-include/stop_slave.inc
-[ reinstall semi-sync slave plugin and disable semi-sync ]
-INSTALL PLUGIN rpl_semi_sync_slave SONAME 'SEMISYNC_SLAVE_SO';
 set global rpl_semi_sync_slave_enabled= 0;
+[ reinstall semi-sync slave plugin and disable semi-sync ]
 SHOW VARIABLES LIKE 'rpl_semi_sync_slave_enabled';
 Variable_name	Value
 rpl_semi_sync_slave_enabled	OFF
@@ -440,11 +454,12 @@ Rpl_semi_sync_slave_status	OFF
 # Clean up
 #
 include/stop_slave.inc
-UNINSTALL PLUGIN rpl_semi_sync_slave;
-UNINSTALL PLUGIN rpl_semi_sync_master;
+set global rpl_semi_sync_slave_enabled= 0;
+set global rpl_semi_sync_master_enabled= 0;
 change master to master_user='root',master_password='';
 include/start_slave.inc
 drop table t1;
 drop user rpl@127.0.0.1;
 flush privileges;
+set global rpl_semi_sync_master_timeout= default;
 include/rpl_end.inc

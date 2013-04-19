@@ -1,0 +1,102 @@
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** Test normal shutdown/restart of slave server configured as a GTID slave. ***
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+--let $status_items= Master_Log_File,Using_Gtid
+--source include/show_slave_status.inc
+
+CHANGE MASTER TO master_use_gtid=1;
+
+# Now try to restart the slave mysqld server without starting the slave first
+# threads after the CHANGE MASTER.
+# When the slave restarts, it should reconnect using GTID.
+# We test that it really uses GTID by purging on the master the
+# old binlog the slave would need if connecting with old style
+# file name/offset.
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--connection server_1
+FLUSH LOGS;
+--let $purge_binlogs_to=master-bin.000002
+--source include/wait_for_purge.inc
+--source include/show_binary_logs.inc
+INSERT INTO t1 VALUES (2);
+FLUSH LOGS;
+INSERT INTO t1 VALUES (3);
+--source include/show_binary_logs.inc
+
+# Let the slave mysqld server start again.
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition= SELECT COUNT(*) = 3 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--echo *** Test normal shutdown/restart of master server, check binlog state is preserved. ***
+
+--connection server_1
+SET SESSION gtid_domain_id= 1;
+INSERT INTO t1 VALUES (4);
+--replace_column 2 # 4 # 5 #
+SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
+FLUSH LOGS;
+--replace_column 2 # 4 # 5 #
+SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--replace_column 2 # 4 # 5 #
+SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
+--source include/show_binary_logs.inc
+
+INSERT INTO t1 VALUES(5);
+
+--connection server_2
+--let $wait_condition= SELECT COUNT(*) = 5 FROM t1
+--source include/wait_condition.inc
+SELECT * FROM t1 ORDER BY a;
+
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

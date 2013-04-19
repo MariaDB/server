@@ -59,7 +59,7 @@ static const TABLE_FIELD_TYPE fs_by_event_name_field_types[]=
 
 TABLE_FIELD_DEF
 table_file_summary_by_event_name::m_field_def=
-{ 5, fs_by_event_name_field_types };
+{ 5, fs_by_event_name_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_file_summary_by_event_name::m_share=
@@ -222,7 +222,7 @@ static const TABLE_FIELD_TYPE fs_by_instance_field_types[]=
 
 TABLE_FIELD_DEF
 table_file_summary_by_instance::m_field_def=
-{ 6, fs_by_instance_field_types };
+{ 6, fs_by_instance_field_types, 0, (uint*) 0 };
 
 PFS_engine_table_share
 table_file_summary_by_instance::m_share=

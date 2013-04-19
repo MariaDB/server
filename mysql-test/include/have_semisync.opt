@@ -1,0 +1,4 @@
+--plugin-load=$SEMISYNC_MASTER_SO
+--plugin-load=$SEMISYNC_SLAVE_SO
+--loose-rpl-semi-sync-master
+--loose-rpl-semi-sync-slave

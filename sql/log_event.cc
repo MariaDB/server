@@ -537,7 +537,7 @@ static char *slave_load_file_stem(char *buf, uint file_id,
   to_unix_path(buf);
 
   buf = strend(buf);
-  buf = int10_to_str(::server_id, buf, 10);
+  buf = int10_to_str(global_system_variables.server_id, buf, 10);
   *buf++ = '-';
   buf = int10_to_str(event_server_id, buf, 10);
   *buf++ = '-';
@@ -573,11 +573,11 @@ static void cleanup_load_tmpdir()
      LOAD DATA.
   */
   p= strmake(prefbuf, STRING_WITH_LEN(PREFIX_SQL_LOAD));
-  p= int10_to_str(::server_id, p, 10);
+  p= int10_to_str(global_system_variables.server_id, p, 10);
   *(p++)= '-';
   *p= 0;
 
-  for (i=0 ; i < (uint)dirp->number_off_files; i++)
+  for (i=0 ; i < (uint)dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))
@@ -749,6 +749,8 @@ const char* Log_event::get_type_str(Log_event_type type)
   case INCIDENT_EVENT: return "Incident";
   case ANNOTATE_ROWS_EVENT: return "Annotate_rows";
   case BINLOG_CHECKPOINT_EVENT: return "Binlog_checkpoint";
+  case GTID_EVENT: return "Gtid";
+  case GTID_LIST_EVENT: return "Gtid_list";
   default: return "Unknown";				/* impossible */
   }
 }
@@ -769,7 +771,7 @@ Log_event::Log_event(THD* thd_arg, uint16 flags_arg, bool using_trans)
    crc(0), thd(thd_arg),
    checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
-  server_id=	thd->server_id;
+  server_id=	thd->variables.server_id;
   when=         thd->start_time;
   when_sec_part=thd->start_time_sec_part;
 
@@ -794,7 +796,7 @@ Log_event::Log_event()
    cache_type(Log_event::EVENT_INVALID_CACHE), crc(0),
    thd(0), checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF)
 {
-  server_id=	::server_id;
+  server_id=	global_system_variables.server_id;
   /*
     We can't call my_time() here as this would cause a call before
     my_init() is called
@@ -909,9 +911,11 @@ int Log_event::do_update_pos(Relay_log_info *rli)
                     if (debug_not_change_ts_if_art_event == 1
                         && is_artificial_event())
                       debug_not_change_ts_if_art_event= 0; );
-    rli->stmt_done(log_pos, is_artificial_event() &&
-                   IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
-                     0 : when);
+    rli->stmt_done(log_pos,
+                   (is_artificial_event() &&
+                    IF_DBUG(debug_not_change_ts_if_art_event > 0, 1) ?
+                    0 : when),
+                   thd);
     DBUG_EXECUTE_IF("let_first_flush_log_change_timestamp",
                     if (debug_not_change_ts_if_art_event == 0)
                       debug_not_change_ts_if_art_event= 2; );
@@ -926,10 +930,11 @@ Log_event::do_shall_skip(Relay_log_info *rli)
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
                       " rli->slave_skip_counter: %lu",
-                      (ulong) server_id, (ulong) ::server_id,
+                      (ulong) server_id, (ulong) global_system_variables.server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
-  if ((server_id == ::server_id && !rli->replicate_same_server_id) ||
+  if ((server_id == global_system_variables.server_id &&
+       !rli->replicate_same_server_id) ||
       (rli->slave_skip_counter == 1 && rli->is_in_group()) ||
       (flags & LOG_EVENT_SKIP_REPLICATION_F &&
        opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE))
@@ -1370,7 +1375,7 @@ failed my_b_read"));
   Log_event *res=  0;
 #ifndef max_allowed_packet
   THD *thd=current_thd;
-  uint max_allowed_packet= thd ? slave_max_allowed_packet:~(ulong)0;
+  uint max_allowed_packet= thd ? slave_max_allowed_packet:~(uint)0;
 #endif
 
   if (data_len > max_allowed_packet)
@@ -1559,6 +1564,12 @@ Log_event* Log_event::read_log_event(const char* buf, uint event_len,
       break;
     case BINLOG_CHECKPOINT_EVENT:
       ev = new Binlog_checkpoint_log_event(buf, event_len, description_event);
+      break;
+    case GTID_EVENT:
+      ev = new Gtid_log_event(buf, event_len, description_event);
+      break;
+    case GTID_LIST_EVENT:
+      ev = new Gtid_list_log_event(buf, event_len, description_event);
       break;
 #ifdef HAVE_REPLICATION
     case SLAVE_EVENT: /* can never happen (unused event) */
@@ -1808,6 +1819,7 @@ void Log_event::print_header(IO_CACHE* file,
 /**
   Prints a quoted string to io cache.
   Control characters are displayed as hex sequence, e.g. \x00
+  Single-quote and backslash characters are escaped with a \
   
   @param[in] file              IO cache
   @param[in] prt               Pointer to string
@@ -1823,6 +1835,10 @@ my_b_write_quoted(IO_CACHE *file, const uchar *ptr, uint length)
   {
     if (*s > 0x1F)
       my_b_write(file, s, 1);
+    else if (*s == '\'')
+      my_b_write(file, "\\'", 2);
+    else if (*s == '\\')
+      my_b_write(file, "\\\\", 2);
     else
     {
       uchar hex[10];
@@ -3432,6 +3448,53 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
   return 0;
 }
 
+/*
+  Replace an event (GTID event) with a BEGIN query event, to be compatible
+  with an old slave.
+*/
+int
+Query_log_event::begin_event(String *packet, ulong ev_offset,
+                             uint8 checksum_alg)
+{
+  uchar *p= (uchar *)packet->ptr() + ev_offset;
+  uchar *q= p + LOG_EVENT_HEADER_LEN;
+  size_t data_len= packet->length() - ev_offset;
+  uint16 flags;
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+    data_len-= BINLOG_CHECKSUM_LEN;
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  /* Currently we only need to replace GTID event. */
+  DBUG_ASSERT(data_len == LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN);
+  if (data_len != LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+
+  flags= uint2korr(p + FLAGS_OFFSET);
+  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+  flags|= LOG_EVENT_SUPPRESS_USE_F;
+  int2store(p + FLAGS_OFFSET, flags);
+
+  p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
+  int4store(q + Q_THREAD_ID_OFFSET, 0);
+  int4store(q + Q_EXEC_TIME_OFFSET, 0);
+  q[Q_DB_LEN_OFFSET]= 0;
+  int2store(q + Q_ERR_CODE_OFFSET, 0);
+  int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+  q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + 1;
+  memcpy(q, "BEGIN", 5);
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    ha_checksum crc= my_checksum(0L, p, data_len);
+    int4store(p + data_len, crc);
+  }
+  return 0;
+}
+
 
 #ifdef MYSQL_CLIENT
 /**
@@ -3691,6 +3754,9 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
   LEX_STRING new_db;
   int expected_error,actual_error= 0;
   HA_CREATE_INFO db_options;
+  uint64 sub_id= 0;
+  rpl_gtid gtid;
+  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
   /*
@@ -3878,6 +3944,30 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
       else
         thd->variables.collation_database= thd->db_charset;
       
+      /*
+        Record any GTID in the same transaction, so slave state is
+        transactionally consistent.
+      */
+      if (strcmp("COMMIT", query) == 0 && (sub_id= rli->gtid_sub_id))
+      {
+        /* Clear the GTID from the RLI so we don't accidentally reuse it. */
+        const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+
+        gtid= rli->current_gtid;
+        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true))
+        {
+          rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                      "Error during COMMIT: failed to update GTID state in "
+                    "%s.%s: %d: %s",
+                      "mysql", rpl_gtid_slave_state_table_name.str,
+                      thd->stmt_da->sql_errno(), thd->stmt_da->message());
+          trans_rollback(thd);
+          sub_id= 0;
+          thd->is_slave_error= 1;
+          goto end;
+        }
+      }
+
       thd->table_map_for_update= (table_map)table_map_for_update;
       thd->set_invoker(&user, &host);
       /*
@@ -4063,6 +4153,9 @@ Default database: '%s'. Query: '%s'",
   }
 
 end:
+  if (sub_id && !thd->is_slave_error)
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
+
   /*
     Probably we have set thd->query, thd->db, thd->catalog to point to places
     in the data_buf of this event. Now the event is going to be deleted
@@ -4138,6 +4231,17 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
     }
   }
   DBUG_RETURN(Log_event::do_shall_skip(rli));
+}
+
+
+bool
+Query_log_event::peek_is_commit_rollback(const char *event_start,
+                                         size_t event_len)
+{
+  if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
+    return false;
+  return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
+         !memcmp(event_start + (event_len-9), "\0ROLLBACK", 9);
 }
 
 #endif
@@ -4454,6 +4558,8 @@ Format_description_log_event(uint8 binlog_ver, const char* server_ver)
       post_header_len[ANNOTATE_ROWS_EVENT-1]= ANNOTATE_ROWS_HEADER_LEN;
       post_header_len[BINLOG_CHECKPOINT_EVENT-1]=
         BINLOG_CHECKPOINT_HEADER_LEN;
+      post_header_len[GTID_EVENT-1]= GTID_HEADER_LEN;
+      post_header_len[GTID_LIST_EVENT-1]= GTID_LIST_HEADER_LEN;
 
       // Sanity-check that all post header lengths are initialized.
       int i;
@@ -4563,109 +4669,6 @@ Format_description_log_event(const char* buf,
     checksum_alg= (uint8) BINLOG_CHECKSUM_ALG_UNDEF;
   }
 
-  /*
-    In some previous versions, the events were given other event type
-    id numbers than in the present version. When replicating from such
-    a version, we therefore set up an array that maps those id numbers
-    to the id numbers of the present server.
-
-    If post_header_len is null, it means malloc failed, and is_valid
-    will fail, so there is no need to do anything.
-
-    The trees in which events have wrong id's are:
-
-    mysql-5.1-wl1012.old mysql-5.1-wl2325-5.0-drop6p13-alpha
-    mysql-5.1-wl2325-5.0-drop6 mysql-5.1-wl2325-5.0
-    mysql-5.1-wl2325-no-dd
-
-    (this was found by grepping for two lines in sequence where the
-    first matches "FORMAT_DESCRIPTION_EVENT," and the second matches
-    "TABLE_MAP_EVENT," in log_event.h in all trees)
-
-    In these trees, the following server_versions existed since
-    TABLE_MAP_EVENT was introduced:
-
-    5.1.1-a_drop5p3   5.1.1-a_drop5p4        5.1.1-alpha
-    5.1.2-a_drop5p10  5.1.2-a_drop5p11       5.1.2-a_drop5p12
-    5.1.2-a_drop5p13  5.1.2-a_drop5p14       5.1.2-a_drop5p15
-    5.1.2-a_drop5p16  5.1.2-a_drop5p16b      5.1.2-a_drop5p16c
-    5.1.2-a_drop5p17  5.1.2-a_drop5p4        5.1.2-a_drop5p5
-    5.1.2-a_drop5p6   5.1.2-a_drop5p7        5.1.2-a_drop5p8
-    5.1.2-a_drop5p9   5.1.3-a_drop5p17       5.1.3-a_drop5p17b
-    5.1.3-a_drop5p17c 5.1.4-a_drop5p18       5.1.4-a_drop5p19
-    5.1.4-a_drop5p20  5.1.4-a_drop6p0        5.1.4-a_drop6p1
-    5.1.4-a_drop6p2   5.1.5-a_drop5p20       5.2.0-a_drop6p3
-    5.2.0-a_drop6p4   5.2.0-a_drop6p5        5.2.0-a_drop6p6
-    5.2.1-a_drop6p10  5.2.1-a_drop6p11       5.2.1-a_drop6p12
-    5.2.1-a_drop6p6   5.2.1-a_drop6p7        5.2.1-a_drop6p8
-    5.2.2-a_drop6p13  5.2.2-a_drop6p13-alpha 5.2.2-a_drop6p13b
-    5.2.2-a_drop6p13c
-
-    (this was found by grepping for "mysql," in all historical
-    versions of configure.in in the trees listed above).
-
-    There are 5.1.1-alpha versions that use the new event id's, so we
-    do not test that version string.  So replication from 5.1.1-alpha
-    with the other event id's to a new version does not work.
-    Moreover, we can safely ignore the part after drop[56].  This
-    allows us to simplify the big list above to the following regexes:
-
-    5\.1\.[1-5]-a_drop5.*
-    5\.1\.4-a_drop6.*
-    5\.2\.[0-2]-a_drop6.*
-
-    This is what we test for in the 'if' below.
-  */
-  if (post_header_len &&
-      server_version[0] == '5' && server_version[1] == '.' &&
-      server_version[3] == '.' &&
-      strncmp(server_version + 5, "-a_drop", 7) == 0 &&
-      ((server_version[2] == '1' &&
-        server_version[4] >= '1' && server_version[4] <= '5' &&
-        server_version[12] == '5') ||
-       (server_version[2] == '1' &&
-        server_version[4] == '4' &&
-        server_version[12] == '6') ||
-       (server_version[2] == '2' &&
-        server_version[4] >= '0' && server_version[4] <= '2' &&
-        server_version[12] == '6')))
-  {
-    if (number_of_event_types != 22)
-    {
-      DBUG_PRINT("info", (" number_of_event_types=%d",
-                          number_of_event_types));
-      /* this makes is_valid() return false. */
-      my_free(post_header_len);
-      post_header_len= NULL;
-      DBUG_VOID_RETURN;
-    }
-    static const uint8 perm[23]=
-      {
-        UNKNOWN_EVENT, START_EVENT_V3, QUERY_EVENT, STOP_EVENT, ROTATE_EVENT,
-        INTVAR_EVENT, LOAD_EVENT, SLAVE_EVENT, CREATE_FILE_EVENT,
-        APPEND_BLOCK_EVENT, EXEC_LOAD_EVENT, DELETE_FILE_EVENT,
-        NEW_LOAD_EVENT,
-        RAND_EVENT, USER_VAR_EVENT,
-        FORMAT_DESCRIPTION_EVENT,
-        TABLE_MAP_EVENT,
-        PRE_GA_WRITE_ROWS_EVENT,
-        PRE_GA_UPDATE_ROWS_EVENT,
-        PRE_GA_DELETE_ROWS_EVENT,
-        XID_EVENT,
-        BEGIN_LOAD_QUERY_EVENT,
-        EXECUTE_LOAD_QUERY_EVENT,
-      };
-    event_type_permutation= perm;
-    /*
-      Since we use (permuted) event id's to index the post_header_len
-      array, we need to permute the post_header_len array too.
-    */
-    uint8 post_header_len_temp[23];
-    for (int i= 1; i < 23; i++)
-      post_header_len_temp[perm[i] - 1]= post_header_len[i - 1];
-    for (int i= 0; i < 22; i++)
-      post_header_len[i] = post_header_len_temp[i];
-  }
   DBUG_VOID_RETURN;
 }
 
@@ -4761,7 +4764,7 @@ int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
     perform, we don't call Start_log_event_v3::do_apply_event()
     (this was just to update the log's description event).
   */
-  if (server_id != (uint32) ::server_id)
+  if (server_id != (uint32) global_system_variables.server_id)
   {
     /*
       If the event was not requested by the slave i.e. the master sent
@@ -4787,7 +4790,7 @@ int Format_description_log_event::do_apply_event(Relay_log_info const *rli)
 
 int Format_description_log_event::do_update_pos(Relay_log_info *rli)
 {
-  if (server_id == (uint32) ::server_id)
+  if (server_id == (uint32) global_system_variables.server_id)
   {
     /*
       We only increase the relay log position if we are skipping
@@ -4828,10 +4831,21 @@ do_server_version_split(char* version,
   for (uint i= 0; i<=2; i++)
   {
     number= strtoul(p, &r, 10);
-    split_versions->ver[i]= (uchar) number;
-    DBUG_ASSERT(number < 256); // fit in uchar
+    /*
+      It is an invalid version if any version number greater than 255 or
+      first number is not followed by '.'.
+    */
+    if (number < 256 && (*r == '.' || i != 0))
+      split_versions->ver[i]= (uchar) number;
+    else
+    {
+      split_versions->ver[0]= 0;
+      split_versions->ver[1]= 0;
+      split_versions->ver[2]= 0;
+      break;
+    }
+
     p= r;
-    DBUG_ASSERT(!((i == 0) && (*r != '.'))); // should be true in practice
     if (*r == '.')
       p++; // skip the dot
   }
@@ -4849,7 +4863,6 @@ do_server_version_split(char* version,
    into 'server_version_split':
    X.Y.Zabc (X,Y,Z numbers, a not a digit) -> {X,Y,Z}
    X.Yabc -> {X,Y,0}
-   Xabc -> {X,0,0}
    'server_version_split' is then used for lookups to find if the server which
    created this event has some known bug.
 */
@@ -5427,6 +5440,7 @@ int Load_log_event::do_apply_event(NET* net, Relay_log_info const *rli,
                                    bool use_rli_only_for_errors)
 {
   LEX_STRING new_db;
+  Rpl_filter *rpl_filter= rli->mi->rpl_filter;
   DBUG_ENTER("Load_log_event::do_apply_event");
 
   new_db.length= db_len;
@@ -5832,7 +5846,7 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
 #endif
 
   DBUG_PRINT("info", ("server_id=%lu; ::server_id=%lu",
-                      (ulong) this->server_id, (ulong) ::server_id));
+                      (ulong) this->server_id, (ulong) global_system_variables.server_id));
   DBUG_PRINT("info", ("new_log_ident: %s", this->new_log_ident));
   DBUG_PRINT("info", ("pos: %s", llstr(this->pos, buf)));
 
@@ -5852,7 +5866,8 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
     5.0.0, there also are some rotates from the slave itself, in the
     relay log, which shall not change the group positions.
   */
-  if ((server_id != ::server_id || rli->replicate_same_server_id) &&
+  if ((server_id != global_system_variables.server_id ||
+       rli->replicate_same_server_id) &&
       !is_relay_log_event() &&
       !rli->is_in_group())
   {
@@ -5869,6 +5884,7 @@ int Rotate_log_event::do_update_pos(Relay_log_info *rli)
                         rli->group_master_log_name,
                         (ulong) rli->group_master_log_pos));
     mysql_mutex_unlock(&rli->data_lock);
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
     flush_relay_log_info(rli);
     
     /*
@@ -5990,6 +6006,394 @@ bool Binlog_checkpoint_log_event::write(IO_CACHE *file)
     write_footer(file);
 }
 #endif  /* MYSQL_CLIENT */
+
+
+/**************************************************************************
+        Global transaction ID stuff
+**************************************************************************/
+
+Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
+               const Format_description_log_event *description_event)
+  : Log_event(buf, description_event), seq_no(0)
+{
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < GTID_HEADER_LEN)
+    return;
+
+  buf+= header_size;
+  seq_no= uint8korr(buf);
+  buf+= 8;
+  domain_id= uint4korr(buf);
+  buf+= 4;
+  flags2= *buf;
+}
+
+
+#ifdef MYSQL_SERVER
+
+Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
+                               uint32 domain_id_arg, bool standalone,
+                               uint16 flags_arg, bool is_transactional)
+  : Log_event(thd_arg, flags_arg, is_transactional),
+    seq_no(seq_no_arg), domain_id(domain_id_arg),
+    flags2(standalone ? FL_STANDALONE : 0)
+{
+  cache_type= Log_event::EVENT_NO_CACHE;
+}
+
+
+/*
+  Used to record GTID while sending binlog to slave, without having to
+  fully contruct every Gtid_log_event() needlessly.
+*/
+bool
+Gtid_log_event::peek(const char *event_start, size_t event_len,
+                     uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
+                     uchar *flags2)
+{
+  const char *p;
+  if (event_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return true;
+  *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
+  p= event_start + LOG_EVENT_HEADER_LEN;
+  *seq_no= uint8korr(p);
+  p+= 8;
+  *domain_id= uint4korr(p);
+  p+= 4;
+  *flags2= (uchar)*p;
+  return false;
+}
+
+
+bool
+Gtid_log_event::write(IO_CACHE *file)
+{
+  uchar buf[GTID_HEADER_LEN];
+  int8store(buf, seq_no);
+  int4store(buf+8, domain_id);
+  buf[12]= flags2;
+  bzero(buf+13, GTID_HEADER_LEN-13);
+  return write_header(file, GTID_HEADER_LEN) ||
+    wrapper_my_b_safe_write(file, buf, GTID_HEADER_LEN) ||
+    write_footer(file);
+}
+
+
+/*
+  Replace a GTID event with either a BEGIN event, dummy event, or nothing, as
+  appropriate to work with old slave that does not know global transaction id.
+
+  The need_dummy_event argument is an IN/OUT argument. It is passed as TRUE
+  if slave has capability lower than MARIA_SLAVE_CAPABILITY_TOLERATE_HOLES.
+  It is returned TRUE if we return a BEGIN (or dummy) event to be sent to the
+  slave, FALSE if event should be skipped completely.
+*/
+int
+Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
+                                      ulong ev_offset, uint8 checksum_alg)
+{
+  uchar flags2;
+  if (packet->length() - ev_offset < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
+    return 1;
+  flags2= (*packet)[ev_offset + LOG_EVENT_HEADER_LEN + 12];
+  if (flags2 & FL_STANDALONE)
+  {
+    if (need_dummy_event)
+      return Query_log_event::dummy_event(packet, ev_offset, checksum_alg);
+    else
+      return 0;
+  }
+
+  *need_dummy_event= true;
+  return Query_log_event::begin_event(packet, ev_offset, checksum_alg);
+}
+
+
+#ifdef HAVE_REPLICATION
+void
+Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
+{
+  char buf[6+5+10+1+10+1+20+1];
+  char *p;
+  p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
+  p= longlong10_to_str(domain_id, p, 10);
+  *p++= '-';
+  p= longlong10_to_str(server_id, p, 10);
+  *p++= '-';
+  p= longlong10_to_str(seq_no, p, 10);
+
+  protocol->store(buf, p-buf, &my_charset_bin);
+}
+
+static char gtid_begin_string[] = "BEGIN";
+
+int
+Gtid_log_event::do_apply_event(Relay_log_info const *rli)
+{
+  thd->variables.server_id= this->server_id;
+  thd->variables.gtid_domain_id= this->domain_id;
+  thd->variables.gtid_seq_no= this->seq_no;
+
+  if (flags2 & FL_STANDALONE)
+    return 0;
+
+  /* Execute this like a BEGIN query event. */
+  thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
+                        &my_charset_bin, next_query_id());
+  Parser_state parser_state;
+  if (!parser_state.init(thd, thd->query(), thd->query_length()))
+  {
+    mysql_parse(thd, thd->query(), thd->query_length(), &parser_state);
+    /* Finalize server status flags after executing a statement. */
+    thd->update_server_status();
+    log_slow_statement(thd);
+    if (unlikely(thd->is_fatal_error))
+      thd->is_slave_error= 1;
+    else if (likely(!thd->is_slave_error))
+      general_log_write(thd, COM_QUERY, thd->query(), thd->query_length());
+  }
+
+  thd->reset_query();
+  free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
+  return thd->is_slave_error;
+}
+
+
+int
+Gtid_log_event::do_update_pos(Relay_log_info *rli)
+{
+  rli->inc_event_relay_log_pos();
+  return 0;
+}
+
+
+Log_event::enum_skip_reason
+Gtid_log_event::do_shall_skip(Relay_log_info *rli)
+{
+  /*
+    An event skipped due to @@skip_replication must not be counted towards the
+    number of events to be skipped due to @@sql_slave_skip_counter.
+  */
+  if (flags & LOG_EVENT_SKIP_REPLICATION_F &&
+      opt_replicate_events_marked_for_skip != RPL_SKIP_REPLICATE)
+    return Log_event::EVENT_SKIP_IGNORE;
+
+  if (rli->slave_skip_counter > 0)
+  {
+    if (!(flags2 & FL_STANDALONE))
+      thd->variables.option_bits|= OPTION_BEGIN;
+    return Log_event::continue_group(rli);
+  }
+  return Log_event::do_shall_skip(rli);
+}
+
+
+#endif  /* HAVE_REPLICATION */
+
+#else  /* !MYSQL_SERVER */
+
+void
+Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+{
+  Write_on_release_cache cache(&print_event_info->head_cache, file,
+                               Write_on_release_cache::FLUSH_F);
+  char buf[21];
+
+  if (!print_event_info->short_form)
+  {
+    print_header(&cache, print_event_info, FALSE);
+    longlong10_to_str(seq_no, buf, 10);
+    my_b_printf(&cache, "\tGTID %u-%u-%s\n", domain_id, server_id, buf);
+
+    if (!print_event_info->domain_id_printed ||
+        print_event_info->domain_id != domain_id)
+    {
+      my_b_printf(&cache, "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                  domain_id, print_event_info->delimiter);
+      print_event_info->domain_id= domain_id;
+      print_event_info->domain_id_printed= true;
+    }
+
+    if (!print_event_info->server_id_printed ||
+        print_event_info->server_id != server_id)
+    {
+      my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+                  server_id, print_event_info->delimiter);
+      print_event_info->server_id= server_id;
+      print_event_info->server_id_printed= true;
+    }
+
+    my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+                buf, print_event_info->delimiter);
+  }
+  if (!(flags2 & FL_STANDALONE))
+    my_b_printf(&cache, "BEGIN\n%s\n", print_event_info->delimiter);
+}
+
+#endif  /* MYSQL_SERVER */
+
+
+/* GTID list. */
+
+Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
+               const Format_description_log_event *description_event)
+  : Log_event(buf, description_event), count(0), list(0)
+{
+  uint32 i;
+  uint8 header_size= description_event->common_header_len;
+  uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
+  if (event_len < header_size + post_header_len ||
+      post_header_len < GTID_LIST_HEADER_LEN)
+    return;
+
+  buf+= header_size;
+  count= uint4korr(buf) & ((1<<28)-1);
+  buf+= 4;
+  if (event_len - (header_size + post_header_len) < count*element_size ||
+      (!(list= (rpl_gtid *)my_malloc(count*sizeof(*list) + (count == 0),
+                                     MYF(MY_WME)))))
+    return;
+
+  for (i= 0; i < count; ++i)
+  {
+    list[i].domain_id= uint4korr(buf);
+    buf+= 4;
+    list[i].server_id= uint4korr(buf);
+    buf+= 4;
+    list[i].seq_no= uint8korr(buf);
+    buf+= 8;
+  }
+}
+
+
+#ifdef MYSQL_SERVER
+
+Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
+  : count(gtid_set->count()), list(0)
+{
+  cache_type= EVENT_NO_CACHE;
+  /* Failure to allocate memory will be caught by is_valid() returning false. */
+  if (count < (1<<28) &&
+      (list = (rpl_gtid *)my_malloc(count * sizeof(*list) + (count == 0),
+                                    MYF(MY_WME))))
+    gtid_set->get_gtid_list(list, count);
+}
+
+bool
+Gtid_list_log_event::write(IO_CACHE *file)
+{
+  uint32 i;
+  uchar buf[element_size];
+
+  DBUG_ASSERT(count < 1<<28);
+
+  if (write_header(file, get_data_size()))
+    return 1;
+  int4store(buf, count & ((1<<28)-1));
+  if (wrapper_my_b_safe_write(file, buf, GTID_LIST_HEADER_LEN))
+    return 1;
+  for (i= 0; i < count; ++i)
+  {
+    int4store(buf, list[i].domain_id);
+    int4store(buf+4, list[i].server_id);
+    int8store(buf+8, list[i].seq_no);
+    if (wrapper_my_b_safe_write(file, buf, element_size))
+      return 1;
+  }
+  return write_footer(file);
+}
+
+
+#ifdef HAVE_REPLICATION
+void
+Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
+{
+  char buf_mem[1024];
+  String buf(buf_mem, sizeof(buf_mem), system_charset_info);
+  uint32 i;
+  bool first;
+
+  buf.length(0);
+  buf.append(STRING_WITH_LEN("["));
+  first= true;
+  for (i= 0; i < count; ++i)
+    rpl_slave_state_tostring_helper(&buf, &list[i], &first);
+  buf.append(STRING_WITH_LEN("]"));
+
+  protocol->store(&buf);
+}
+#endif  /* HAVE_REPLICATION */
+
+#else  /* !MYSQL_SERVER */
+
+void
+Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
+{
+  if (!print_event_info->short_form)
+  {
+    Write_on_release_cache cache(&print_event_info->head_cache, file,
+                                 Write_on_release_cache::FLUSH_F);
+    char buf[21];
+    uint32 i;
+
+    print_header(&cache, print_event_info, FALSE);
+    my_b_printf(&cache, "\tGtid list [");
+    for (i= 0; i < count; ++i)
+    {
+      longlong10_to_str(list[i].seq_no, buf, 10);
+      my_b_printf(&cache, "%u-%u-%s", list[i].domain_id,
+                  list[i].server_id, buf);
+      if (i < count-1)
+        my_b_printf(&cache, ",\n# ");
+    }
+    my_b_printf(&cache, "]\n");
+  }
+}
+
+#endif  /* MYSQL_SERVER */
+
+
+/*
+  Used to record gtid_list event while sending binlog to slave, without having to
+  fully contruct the event object.
+*/
+bool
+Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
+                          rpl_gtid **out_gtid_list, uint32 *out_list_len)
+{
+  const char *p;
+  uint32 count_field, count;
+  rpl_gtid *gtid_list;
+
+  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN)
+    return true;
+  p= event_start + LOG_EVENT_HEADER_LEN;
+  count_field= uint4korr(p);
+  p+= 4;
+  count= count_field & ((1<<28)-1);
+  if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN +
+      16 * count)
+    return true;
+  if (!(gtid_list= (rpl_gtid *)my_malloc(sizeof(rpl_gtid)*count + (count == 0),
+                                         MYF(MY_WME))))
+    return true;
+  *out_gtid_list= gtid_list;
+  *out_list_len= count;
+  while (count--)
+  {
+    gtid_list->domain_id= uint4korr(p);
+    p+= 4;
+    gtid_list->server_id= uint4korr(p);
+    p+= 4;
+    gtid_list->seq_no= uint8korr(p);
+    p+= 8;
+    ++gtid_list;
+  }
+
+  return false;
+}
 
 
 /**************************************************************************
@@ -6345,11 +6749,42 @@ void Xid_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 int Xid_log_event::do_apply_event(Relay_log_info const *rli)
 {
   bool res;
+  int err;
+  rpl_gtid gtid;
+  uint64 sub_id;
+
+  /*
+    Record any GTID in the same transaction, so slave state is transactionally
+    consistent.
+  */
+  if ((sub_id= rli->gtid_sub_id))
+  {
+    /* Clear the GTID from the RLI so we don't accidentally reuse it. */
+    const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
+
+    gtid= rli->current_gtid;
+    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
+    if (err)
+    {
+      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                  "Error during XID COMMIT: failed to update GTID state in "
+                  "%s.%s: %d: %s",
+                  "mysql", rpl_gtid_slave_state_table_name.str,
+                  thd->stmt_da->sql_errno(), thd->stmt_da->message());
+      trans_rollback(thd);
+      thd->is_slave_error= 1;
+      return err;
+    }
+  }
+
   /* For a slave Xid_log_event is COMMIT */
   general_log_print(thd, COM_QUERY,
                     "COMMIT /* implicit, from Xid_log_event */");
   res= trans_commit(thd); /* Automatically rolls back on error. */
   thd->mdl_context.release_transactional_locks();
+
+  if (sub_id)
+    rpl_global_gtid_slave_state.update_state_hash(sub_id, &gtid);
 
   /*
     Increment the global status commit count variable
@@ -7097,6 +7532,7 @@ int Stop_log_event::do_update_pos(Relay_log_info *rli)
     rli->inc_event_relay_log_pos();
   else
   {
+    rpl_global_gtid_slave_state.record_and_update_gtid(thd, rli);
     rli->inc_group_relay_log_pos(0);
     flush_relay_log_info(rli);
   }
@@ -8894,7 +9330,7 @@ Rows_log_event::do_update_pos(Relay_log_info *rli)
       Step the group log position if we are not in a transaction,
       otherwise increase the event log position.
     */
-    rli->stmt_done(log_pos, when);
+    rli->stmt_done(log_pos, when, thd);
     /*
       Clear any errors in thd->net.last_err*. It is not known if this is
       needed or not. It is believed that any errors that may exist in
@@ -9606,8 +10042,8 @@ check_table_map(Relay_log_info const *rli, RPL_TABLE_LIST *table_list)
   enum_tbl_map_status res= OK_TO_PROCESS;
 
   if (rli->sql_thd->slave_thread /* filtering is for slave only */ &&
-      (!rpl_filter->db_ok(table_list->db) ||
-       (rpl_filter->is_on() && !rpl_filter->tables_ok("", table_list))))
+      (!rli->mi->rpl_filter->db_ok(table_list->db) ||
+       (rli->mi->rpl_filter->is_on() && !rli->mi->rpl_filter->tables_ok("", table_list))))
     res= FILTERED_OUT;
   else
   {
@@ -9641,6 +10077,7 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
   char *db_mem, *tname_mem;
   size_t dummy_len;
   void *memory;
+  Rpl_filter *filter;
   DBUG_ENTER("Table_map_log_event::do_apply_event(Relay_log_info*)");
   DBUG_ASSERT(rli->sql_thd == thd);
 
@@ -9654,7 +10091,9 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
                                 NullS)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-  strmov(db_mem, rpl_filter->get_rewrite_db(m_dbnam, &dummy_len));
+  /* call from mysql_client_binlog_statement() will not set rli->mi */
+  filter= rli->sql_thd->slave_thread ? rli->mi->rpl_filter : global_rpl_filter;
+  strmov(db_mem, filter->get_rewrite_db(m_dbnam, &dummy_len));
   strmov(tname_mem, m_tblnam);
 
   table_list->init_one_table(db_mem, strlen(db_mem),
@@ -11238,7 +11677,9 @@ st_print_event_info::st_print_event_info()
    auto_increment_increment(0),auto_increment_offset(0), charset_inited(0),
    lc_time_names_number(~0),
    charset_database_number(ILLEGAL_CHARSET_INFO_NUMBER),
-   thread_id(0), thread_id_printed(false), skip_replication(0),
+   thread_id(0), thread_id_printed(false), server_id(0),
+   server_id_printed(false), domain_id(0), domain_id_printed(false),
+   skip_replication(0),
    base64_output_mode(BASE64_OUTPUT_UNSPEC), printed_fd_event(FALSE)
 {
   /*

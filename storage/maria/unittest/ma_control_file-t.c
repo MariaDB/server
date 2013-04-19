@@ -277,7 +277,7 @@ static int test_five_logs_and_max_trid(void)
 
   RET_ERR_UNLESS(open_file() == CONTROL_FILE_OK);
   expect_logno= 100;
-  expect_max_trid= ULL(14111978111);
+  expect_max_trid= 14111978111ULL;
   for (i= 0; i<5; i++)
   {
     expect_logno*= 3;

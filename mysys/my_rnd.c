@@ -45,11 +45,20 @@ void my_rnd_init(struct my_rnd_struct *rand_st, ulong seed1, ulong seed2)
     
   RETURN VALUE
     generated pseudo random number
+
+  NOTE:
+    This is codes so that it can be called by two threads at the same time
+    with minimum impact.
+    (As the number is supposed to be random, it doesn't matter much if
+    rand->seed1 or rand->seed2 are updated with slightly wrong numbers or
+    if two threads gets the same number.
 */
 
 double my_rnd(struct my_rnd_struct *rand_st)
 {
-  rand_st->seed1=(rand_st->seed1*3+rand_st->seed2) % rand_st->max_value;
-  rand_st->seed2=(rand_st->seed1+rand_st->seed2+33) % rand_st->max_value;
-  return (((double) rand_st->seed1)/rand_st->max_value_dbl);
+  unsigned long seed1;
+  seed1= (rand_st->seed1*3+rand_st->seed2) % rand_st->max_value;
+  rand_st->seed2=(seed1+rand_st->seed2+33) % rand_st->max_value;
+  rand_st->seed1= seed1;
+  return (((double) seed1)/rand_st->max_value_dbl);
 }

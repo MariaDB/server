@@ -443,7 +443,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   if (!create)
   {
-    bool if_exists= thd->lex->drop_if_exists;
+    bool if_exists= thd->lex->check_exists;
 
     /*
       Protect the query table list from the temporary and potentially
@@ -701,10 +701,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
                      thd->security_ctx->priv_host)))
   {
     if (check_global_access(thd, SUPER_ACL))
-    {
-      my_error(ER_SPECIFIC_ACCESS_DENIED_ERROR, MYF(0), "SUPER");
       return TRUE;
-    }
   }
 
   /*

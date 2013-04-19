@@ -99,7 +99,7 @@ uint transid_store_packed(MARIA_HA *info, uchar *to, ulonglong trid)
   uchar *start;
   uint length;
   uchar buff[8];
-  DBUG_ASSERT(trid < (LL(1) << (MARIA_MAX_PACK_TRANSID_SIZE*8)));
+  DBUG_ASSERT(trid < (1LL << (MARIA_MAX_PACK_TRANSID_SIZE*8)));
   DBUG_ASSERT(trid >= info->s->state.create_trid);
 
   trid= (trid - info->s->state.create_trid) << 1;

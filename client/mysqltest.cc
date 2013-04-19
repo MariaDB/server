@@ -3633,7 +3633,6 @@ void do_remove_files_wildcard(struct st_command *command)
   fn_format(dirname, ds_directory.str, "", "", MY_UNPACK_FILENAME);
 
   DBUG_PRINT("info", ("listing directory: %s", dirname));
-  /* Note that my_dir sorts the list if not given any flags */
   if (!(dir_info= my_dir(dirname, MYF(MY_DONT_SORT | MY_WANT_STAT | MY_WME))))
   {
     error= 1;
@@ -3648,7 +3647,7 @@ void do_remove_files_wildcard(struct st_command *command)
   /* Set default wild chars for wild_compare, is changed in embedded mode */
   set_wild_chars(1);
   
-  for (i= 0; i < (uint) dir_info->number_off_files; i++)
+  for (i= 0; i < (uint) dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     /* Remove only regular files, i.e. no directories etc. */
@@ -3911,17 +3910,12 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   DBUG_ENTER("get_list_files");
 
   DBUG_PRINT("info", ("listing directory: %s", ds_dirname->str));
-  /* Note that my_dir sorts the list if not given any flags */
-  if (!(dir_info= my_dir(ds_dirname->str, MYF(0))))
+  if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
     DBUG_RETURN(1);
   set_wild_chars(1);
-  for (i= 0; i < (uint) dir_info->number_off_files; i++)
+  for (i= 0; i < (uint) dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
-    if (file->name[0] == '.' &&
-        (file->name[1] == '\0' ||
-         (file->name[1] == '.' && file->name[2] == '\0')))
-      continue;                               /* . or .. */
     if (ds_wild && ds_wild->length &&
         wild_compare(file->name, ds_wild->str, 0))
       continue;

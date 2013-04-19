@@ -29,6 +29,22 @@
   @{
 */
 
+#ifdef HAVE_PSI_TABLE_INTERFACE
+#define PSI_CALL_unbind_table           PSI_CALL(unbind_table)
+#define PSI_CALL_rebind_table           PSI_CALL(rebind_table)
+#define PSI_CALL_open_table             PSI_CALL(open_table)
+#define PSI_CALL_close_table            PSI_CALL(close_table)
+#define PSI_CALL_get_table_share        PSI_CALL(get_table_share)
+#define PSI_CALL_drop_table_share       PSI_CALL(drop_table_share)
+#else
+#define PSI_CALL_unbind_table(A1)                       /* no-op */
+#define PSI_CALL_rebind_table(A1,A2,A3)                 NULL
+#define PSI_CALL_close_table(A1)                        /* no-op */
+#define PSI_CALL_open_table(A1,A2)                      NULL
+#define PSI_CALL_get_table_share(A1,A2)                 NULL
+#define PSI_CALL_drop_table_share(A1,A2,A3,A4,A5)       /* no-op */
+#endif
+
 /**
   @def MYSQL_TABLE_WAIT_VARIABLES
   Instrumentation helper for table waits.

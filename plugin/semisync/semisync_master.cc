@@ -429,12 +429,13 @@ int ReplSemiSyncMaster::disableMaster()
   return 0;
 }
 
-ReplSemiSyncMaster::~ReplSemiSyncMaster()
+void ReplSemiSyncMaster::cleanup()
 {
   if (init_done_)
   {
     mysql_mutex_destroy(&LOCK_binlog_);
     mysql_cond_destroy(&COND_binlog_send_);
+    init_done_= 0;
   }
 
   delete active_tranxs_;

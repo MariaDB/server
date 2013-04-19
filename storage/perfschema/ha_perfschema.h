@@ -46,8 +46,6 @@ public:
 
   const char *index_type(uint) { return ""; }
 
-  const char **bas_ext(void) const;
-
   /** Capabilities of the performance schema tables. */
   ulonglong table_flags(void) const
   {

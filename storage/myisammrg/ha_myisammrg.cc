@@ -171,12 +171,6 @@ extern "C" void myrg_print_wrong_table(const char *table_name)
 }
 
 
-const char **ha_myisammrg::bas_ext() const
-{
-  return ha_myisammrg_exts;
-}
-
-
 const char *ha_myisammrg::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ? 
@@ -331,6 +325,19 @@ extern "C" int myisammrg_parent_open_callback(void *callback_param,
 CPP_UNNAMED_NS_END
 
 
+/*
+  Set external_ref for the child MyISAM tables. They need this to be set in
+  order to check for killed status.
+*/
+static void myrg_set_external_ref(MYRG_INFO *m_info, void *ext_ref_arg)
+{
+  int i;
+  for (i= 0; i < (int)m_info->tables; i++)
+  {
+    m_info->open_tables[i].table->external_ref= ext_ref_arg;
+  }
+}
+
 /**
   Open a MERGE parent table, but not its children.
 
@@ -394,6 +401,7 @@ int ha_myisammrg::open(const char *name, int mode __attribute__((unused)),
     }
 
     file->children_attached= TRUE;
+    myrg_set_external_ref(file, (void*)table);
 
     info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
   }
@@ -1697,6 +1705,7 @@ static int myisammrg_init(void *p)
   myisammrg_hton->create= myisammrg_create_handler;
   myisammrg_hton->panic= myisammrg_panic;
   myisammrg_hton->flags= HTON_NO_PARTITION;
+  myisammrg_hton->tablefile_extensions= ha_myisammrg_exts;
 
   return 0;
 }

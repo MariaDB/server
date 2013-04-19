@@ -1000,12 +1000,6 @@ static const char *ha_maria_exts[]=
 };
 
 
-const char **ha_maria::bas_ext() const
-{
-  return ha_maria_exts;
-}
-
-
 const char *ha_maria::index_type(uint key_number)
 {
   return ((table->key_info[key_number].flags & HA_FULLTEXT) ?
@@ -3491,6 +3485,7 @@ static int ha_maria_init(void *p)
   maria_hton->db_type= DB_TYPE_UNKNOWN;
   maria_hton->create= maria_create_handler;
   maria_hton->panic= maria_hton_panic;
+  maria_hton->tablefile_extensions= ha_maria_exts;
   maria_hton->commit= maria_commit;
   maria_hton->rollback= maria_rollback;
   maria_hton->checkpoint_state= maria_checkpoint_state;
@@ -3762,11 +3757,6 @@ SHOW_VAR status_variables[]= {
   {NullS, NullS, SHOW_LONG}
 };
 
-static struct st_mysql_show_var aria_status_variables[]= {
-  {"Aria", (char*) &status_variables, SHOW_ARRAY},
-  {NullS, NullS, SHOW_LONG}
-};
-
 /****************************************************************************
  * Maria MRR implementation: use DS-MRR
  ***************************************************************************/
@@ -3841,7 +3831,7 @@ maria_declare_plugin(aria)
   ha_maria_init,                /* Plugin Init      */
   NULL,                         /* Plugin Deinit    */
   0x0105,                       /* 1.5              */
-  aria_status_variables,        /* status variables */
+  status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.5",                        /* string version   */
   MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */

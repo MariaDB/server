@@ -57,6 +57,7 @@ void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0);
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
+void delete_running_thd(THD *thd);
 void unlink_thd(THD *thd);
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache);
 void flush_thread_cache();
@@ -90,7 +91,6 @@ extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern bool volatile abort_loop;
 extern bool in_bootstrap;
-extern uint volatile thread_count;
 extern uint connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
@@ -249,10 +249,13 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
+extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
 
 extern PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats, key_LOCK_wakeup_ready;
+
+extern PSI_mutex_key key_LOCK_gtid_counter, key_LOCK_rpl_gtid_state;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
@@ -295,6 +298,7 @@ extern PSI_file_key key_file_query_log, key_file_slow_log;
 extern PSI_file_key key_file_relaylog, key_file_relaylog_index;
 extern PSI_socket_key key_socket_tcpip, key_socket_unix,
   key_socket_client_connection;
+extern PSI_file_key key_file_binlog_state;
 
 void init_server_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
@@ -466,12 +470,13 @@ extern MYSQL_PLUGIN_IMPORT key_map key_map_full;          /* Should be threaded 
   Server mutex locks and condition variables.
  */
 extern mysql_mutex_t
-       LOCK_user_locks, LOCK_status,
+       LOCK_item_func_sleep, LOCK_status,
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
+extern mysql_mutex_t LOCK_gtid_counter, LOCK_rpl_gtid_state;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -483,7 +488,8 @@ extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
 extern int32 thread_running;
-extern my_atomic_rwlock_t thread_running_lock;
+extern int32 thread_count;
+extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
@@ -585,7 +591,7 @@ inline query_id_t next_query_id()
   my_atomic_rwlock_wrlock(&global_query_id_lock);
   id= my_atomic_add64(&global_query_id, 1);
   my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return (id+1);
+  return (id);
 }
 
 inline query_id_t get_query_id()
@@ -615,42 +621,30 @@ inline void table_case_convert(char * name, uint length)
                                      name, length, name, length);
 }
 
-inline ulong sql_rnd_with_mutex()
+inline void thread_safe_increment32(int32 *value, my_atomic_rwlock_t *lock)
 {
-  mysql_mutex_lock(&LOCK_thread_count);
-  ulong tmp=(ulong) (my_rnd(&sql_rand) * 0xffffffff); /* make all bits random */
-  mysql_mutex_unlock(&LOCK_thread_count);
-  return tmp;
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add32(value, 1);
+  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline int32
+inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
+{
+  my_atomic_rwlock_wrlock(lock);
+  (void) my_atomic_add32(value, -1);
+  my_atomic_rwlock_wrunlock(lock);
+}
+
+inline void
 inc_thread_running()
 {
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_add32(&thread_running, 1);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return (num_thread_running+1);
+  thread_safe_increment32(&thread_running, &thread_running_lock);
 }
 
-inline int32
+inline void
 dec_thread_running()
 {
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_add32(&thread_running, -1);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return (num_thread_running-1);
-}
-
-inline int32
-get_thread_running()
-{
-  int32 num_thread_running;
-  my_atomic_rwlock_wrlock(&thread_running_lock);
-  num_thread_running= my_atomic_load32(&thread_running);
-  my_atomic_rwlock_wrunlock(&thread_running_lock);
-  return num_thread_running;
+  thread_safe_decrement32(&thread_running, &thread_running_lock);
 }
 
 void set_server_version(void);
@@ -682,6 +676,7 @@ inline int set_current_thd(THD *thd)
 extern handlerton *maria_hton;
 
 extern uint extra_connection_count;
+extern uint64 global_gtid_counter;
 extern my_bool opt_userstat_running, debug_assert_if_crashed_table;
 extern uint mysqld_extra_port;
 extern ulong opt_progress_report_time;

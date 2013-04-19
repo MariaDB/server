@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, Monty Program Ab
+   Copyright (c) 2010, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -198,7 +198,7 @@ Hybrid_type_traits_integer::fix_length_and_dec(Item *item, Item *arg) const
 
 void item_init(void)
 {
-  item_user_lock_init();
+  item_func_sleep_init();
   uuid_short_init();
 }
 
@@ -807,10 +807,15 @@ bool Item_ident::remove_dependence_processor(uchar * arg)
 bool Item_ident::collect_outer_ref_processor(uchar *param)
 {
   Collect_deps_prm *prm= (Collect_deps_prm *)param;
-  if (depended_from && 
+  if (depended_from &&
       depended_from->nest_level_base == prm->nest_level_base &&
       depended_from->nest_level < prm->nest_level)
-    prm->parameters->add_unique(this, &cmp_items);
+  {
+    if (prm->collect)
+      prm->parameters->add_unique(this, &cmp_items);
+    else
+      prm->count++;
+  }
   return FALSE;
 }
 
@@ -1272,11 +1277,15 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
     DBUG_ASSERT(0);
   }
 
-  return 0;
+  return null_value= 0;
 
 err:
+  /*
+    if the item was not null and convertion failed, we return a zero date
+    if allowed, otherwise - null.
+  */
   bzero((char*) ltime,sizeof(*ltime));
-  return 1;
+  return null_value|= (fuzzydate & (TIME_NO_ZERO_DATE|TIME_NO_ZERO_IN_DATE));
 }
 
 bool Item::get_seconds(ulonglong *sec, ulong *sec_part)
@@ -4001,8 +4010,8 @@ double Item_copy_string::val_real()
 longlong Item_copy_string::val_int()
 {
   int err;
-  return null_value ? LL(0) : my_strntoll(str_value.charset(),str_value.ptr(),
-                                          str_value.length(),10, (char**) 0,
+  return null_value ? 0 : my_strntoll(str_value.charset(),str_value.ptr(),
+                                          str_value.length(), 10, (char**) 0,
                                           &err); 
 }
 
@@ -4172,7 +4181,7 @@ double Item_copy_decimal::val_real()
 longlong Item_copy_decimal::val_int()
 {
   if (null_value)
-    return LL(0);
+    return 0;
   else
   {
     longlong result;
@@ -6478,6 +6487,13 @@ Item* Item::cache_const_expr_transformer(uchar *arg)
   return this;
 }
 
+/**
+  Find Item by reference in the expression
+*/
+bool Item::find_item_processor(uchar *arg)
+{
+  return (this == ((Item *) arg));
+}
 
 bool Item_field::send(Protocol *protocol, String *buffer)
 {
@@ -8090,7 +8106,7 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) sql_alloc(field_arg->field->size_of())))
     goto error;
-  memcpy(def_field, field_arg->field, field_arg->field->size_of());
+  memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
   def_field->move_field_offset((my_ptrdiff_t)
                                (def_field->table->s->default_values -
                                 def_field->table->record[0]));
@@ -8226,7 +8242,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
     Field *def_field= (Field*) sql_alloc(field_arg->field->size_of());
     if (!def_field)
       return TRUE;
-    memcpy(def_field, field_arg->field, field_arg->field->size_of());
+    memcpy((void *)def_field, (void *)field_arg->field, field_arg->field->size_of());
     def_field->move_field_offset((my_ptrdiff_t)
                                  (def_field->table->insert_values -
                                   def_field->table->record[0]));
@@ -8640,7 +8656,7 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 
 Item_cache* Item_cache::get_cache(const Item *item)
 {
-  return get_cache(item, item->result_type());
+  return get_cache(item, item->cmp_type());
 }
 
 

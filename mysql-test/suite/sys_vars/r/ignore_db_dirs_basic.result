@@ -6,8 +6,8 @@ e,lost+found,.mysqlgui,ignored_db
 # with '.'
 SHOW DATABASES;
 Database
-information_schema
 #mysql50#.otherdir
+information_schema
 mtr
 mysql
 performance_schema
@@ -33,8 +33,8 @@ id
 2
 SHOW DATABASES;
 Database
-information_schema
 #mysql50#.otherdir
+information_schema
 lost+found
 mtr
 mysql

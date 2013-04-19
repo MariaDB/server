@@ -96,19 +96,19 @@ my_ulonglong net_field_length_ll(uchar **packet)
 
 uchar *net_store_length(uchar *packet, ulonglong length)
 {
-  if (length < (ulonglong) LL(251))
+  if (length < (ulonglong) 251LL)
   {
     *packet=(uchar) length;
     return packet+1;
   }
   /* 251 is reserved for NULL */
-  if (length < (ulonglong) LL(65536))
+  if (length < (ulonglong) 65536LL)
   {
     *packet++=252;
     int2store(packet,(uint) length);
     return packet+2;
   }
-  if (length < (ulonglong) LL(16777216))
+  if (length < (ulonglong) 16777216LL)
   {
     *packet++=253;
     int3store(packet,(ulong) length);

@@ -113,8 +113,33 @@ connection default;
 --source include/show_binlog_events.inc
 
 
-# Cleanup
+--echo *** MDEV-4322: Broken XID counting during binlog rotation ***
+
+# Test that binlog shutdown waits for any pending binlog checkpoints to have time to complete.
+
 connection default;
+# We will use debug_sync to setup a wait inside the background processing
+# of binlog checkpoints. The wait is newer resumed, and will eventually
+# time out. If server shutdown does not wait for checkpoint processing to
+# complete, we will get an assert.
+#
+# It is a bit tricky to inject the wait properly as it has to happen in a
+# background thread during shutdown. So we first inject a DBUG to set the
+# debug_sync wait in the correct thread, then wait to be signalled that
+# the inject happened so that we can remove it again from DBUG (else
+# check_testcase will complain).
+
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+
+FLUSH LOGS;
+INSERT INTO t1 VALUES (30, REPEAT("x", 4100));
+SET DEBUG_SYNC= "now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug= @old_dbug;
+INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
+--source include/show_binary_logs.inc
+
+
 DROP TABLE t1, t2;
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;

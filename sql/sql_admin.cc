@@ -89,6 +89,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
   const char **ext;
   MY_STAT stat_info;
   Open_table_context ot_ctx(thd, (MYSQL_OPEN_IGNORE_FLUSH |
+                                  MYSQL_OPEN_FOR_REPAIR |
                                   MYSQL_OPEN_HAS_MDL_LOCK |
                                   MYSQL_LOCK_IGNORE_TIMEOUT));
   DBUG_ENTER("prepare_for_repair");
@@ -98,8 +99,6 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (!(table= table_list->table))
   {
-    char key[MAX_DBKEY_LENGTH];
-    uint key_length;
     /*
       If the table didn't exist, we have a shared metadata lock
       on it that is left from mysql_admin_table()'s attempt to 
@@ -112,9 +111,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       Attempt to do full-blown table open in mysql_admin_table() has failed.
       Let us try to open at least a .FRM for this table.
     */
-    my_hash_value_type hash_value;
 
-    key_length= create_table_def_key(thd, key, table_list, 0);
     table_list->mdl_request.init(MDL_key::TABLE,
                                  table_list->db, table_list->table_name,
                                  MDL_EXCLUSIVE, MDL_TRANSACTION);
@@ -125,11 +122,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       DBUG_RETURN(0);
     has_mdl_lock= TRUE;
 
-    hash_value= my_calc_hash(&table_def_cache, (uchar*) key, key_length);
-    mysql_mutex_lock(&LOCK_open);
-    share= get_table_share(thd, table_list, key, key_length, 0,
-                           &error, hash_value);
-    mysql_mutex_unlock(&LOCK_open);
+    share= get_table_share(thd, table_list->db, table_list->table_name,
+                           GTS_TABLE);
     if (share == NULL)
       DBUG_RETURN(0);				// Can't open frm file
 
@@ -199,7 +193,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     */
     pos_in_locked_tables= table->pos_in_locked_tables;
     if (wait_while_table_is_used(thd, table,
-                                 HA_EXTRA_PREPARE_FOR_FORCED_CLOSE))
+                                 HA_EXTRA_PREPARE_FOR_FORCED_CLOSE,
+                                 TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
       goto end;
     /* Close table but don't remove from locked list */
     close_all_tables_for_name(thd, table_list->table->s,
@@ -593,8 +588,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     */
     if (lock_type == TL_WRITE && !table->table->s->tmp_table)
     {
+      table->table->s->protect_against_usage();
       if (wait_while_table_is_used(thd, table->table,
-                                   HA_EXTRA_PREPARE_FOR_RENAME))
+                                   HA_EXTRA_PREPARE_FOR_RENAME,
+                                   TDC_RT_REMOVE_NOT_OWN_AND_MARK_NOT_USABLE))
         goto err;
       DEBUG_SYNC(thd, "after_admin_flush");
       /* Flush entries in the query cache involving this table. */
@@ -826,6 +823,11 @@ send_result_message:
 
     case HA_ADMIN_TRY_ALTER:
     {
+      uint save_flags;
+      Alter_info *alter_info= &lex->alter_info;
+
+      /* Store the original value of alter_info->flags */
+      save_flags= alter_info->flags;
       /*
         This is currently used only by InnoDB. ha_innobase::optimize() answers
         "try with alter", so here we close the table, do an ALTER TABLE,
@@ -833,10 +835,19 @@ send_result_message:
         We have to end the row, so analyze could return more rows.
       */
       protocol->store(STRING_WITH_LEN("note"), system_charset_info);
-      protocol->store(STRING_WITH_LEN(
-          "Table does not support optimize, doing recreate + analyze instead"),
-                      system_charset_info);
-      if (protocol->write())
+      if(alter_info->flags & ALTER_ADMIN_PARTITION)
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize on partitions. All partitions "
+        "will be rebuilt and analyzed."),system_charset_info);
+      }
+      else
+      {
+        protocol->store(STRING_WITH_LEN(
+        "Table does not support optimize, doing recreate + analyze instead"),
+        system_charset_info);
+      }
+     if (protocol->write())
         goto err;
       DBUG_PRINT("info", ("HA_ADMIN_TRY_ALTER, trying analyze..."));
       TABLE_LIST *save_next_local= table->next_local,
@@ -855,6 +866,11 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
+        /*
+          Reset the ALTER_ADMIN_PARTITION bit in alter_info->flags
+          to force analyze on all partitions.
+        */
+        alter_info->flags &= ~(ALTER_ADMIN_PARTITION);
         if ((table->table= open_ltable(thd, table, lock_type, 0)))
         {
           result_code= table->table->file->ha_analyze(thd, check_opt);
@@ -865,6 +881,7 @@ send_result_message:
         }
         else
           result_code= -1; // open failed
+        alter_info->flags= save_flags;
       }
       /* Start a new row for the final status row */
       protocol->prepare_for_resend();

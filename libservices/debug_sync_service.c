@@ -15,4 +15,4 @@
 */
 
 #include <service_versions.h>
-SERVICE_VERSION *debug_sync_service= (void*)VERSION_debug_sync;
+SERVICE_VERSION debug_sync_service= (void*)VERSION_debug_sync;

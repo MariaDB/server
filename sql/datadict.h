@@ -28,14 +28,22 @@ enum frm_type_enum
   FRMTYPE_VIEW
 };
 
+/*
+  Take extra care when using dd_frm_type() - it only checks the .frm file,
+  and it won't work for any engine that supports discovery.
+
+  Prefer to use ha_table_exists() instead.
+  To check whether it's an frm of a view, use dd_frm_is_view().
+*/
 frm_type_enum dd_frm_type(THD *thd, char *path, enum legacy_db_type *dbt);
 
-bool dd_frm_storage_engine(THD *thd, const char *db, const char *table_name,
-                           handlerton **table_type);
-bool dd_check_storage_engine_flag(THD *thd,
-                                  const char *db, const char *table_name,
-                                  uint32 flag,
-                                  bool *yes_no);
-bool dd_recreate_table(THD *thd, const char *db, const char *table_name);
+static inline bool dd_frm_is_view(THD *thd, char *path)
+{
+  enum legacy_db_type not_used;
+  return dd_frm_type(thd, path, &not_used) == FRMTYPE_VIEW;
+}
+
+bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
+                       const char *path = NULL);
 
 #endif // DATADICT_INCLUDED

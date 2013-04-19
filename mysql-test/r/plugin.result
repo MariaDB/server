@@ -35,18 +35,21 @@ PLUGIN_LICENSE	GPL
 LOAD_OPTION	ON
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	3.14.15.926
-CREATE TABLE t1(a int) ENGINE=EXAMPLE;
+CREATE TABLE t1 (a int) ENGINE=EXAMPLE;
+CREATE TABLE t2 (a int) ENGINE=EXAMPLE;
+FLUSH TABLES;
 SELECT * FROM t1;
 a
 set global example_ulong_var=500;
 set global example_enum_var= e1;
 show status like 'example%';
 Variable_name	Value
-example_func_example	enum_var is 0, ulong_var is 500, really
+Example_func_example	enum_var is 0, ulong_var is 500, really
 show variables like 'example%';
 Variable_name	Value
 example_enum_var	e1
 example_ulong_var	500
+example_varopt_default	5
 UNINSTALL SONAME 'ha_example';
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown
@@ -65,6 +68,10 @@ LOAD_OPTION	ON
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	0.1
 DROP TABLE t1;
+select * from information_schema.plugins where plugin_library like 'ha_example%';
+SELECT * FROM t2;
+ERROR 42000: Unknown storage engine 'EXAMPLE'
+DROP TABLE t2;
 UNINSTALL PLUGIN EXAMPLE;
 ERROR 42000: PLUGIN EXAMPLE does not exist
 UNINSTALL PLUGIN non_exist;
@@ -113,7 +120,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,f,f,f'
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000 `STR`='dskj' `one_or_two`='one' `YESNO`=0
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000 `STR`='dskj' `one_or_two`='one' `YESNO`=0 `VAROPT`='5'
 drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE;
 SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
@@ -127,20 +134,20 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5'
 #alter table
 alter table t1 ULL=10000000;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
 alter table t1 change a a int complex='c,c,c';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL `complex`='c,c,c'
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `ULL`=10000000
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
 drop table t1;
 #illegal value error
 SET SQL_MODE='';
@@ -155,17 +162,38 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=4660
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=4660 `VAROPT`='5'
+SET example_varopt_default=33;
 select create_options from information_schema.tables where table_schema='test' and table_name='t1';
 create_options
-`ULL`=4660
+`ULL`=4660 `VAROPT`='5'
 ALTER TABLE t1 ULL=DEFAULT;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=EXAMPLE DEFAULT CHARSET=latin1
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `VAROPT`='5'
 DROP TABLE t1;
+create table t1 (a int) engine=example;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `VAROPT`='33'
+drop table t1;
+create table t1 (a int) engine=example varopt=15;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `varopt`=15
+alter table t1 varopt=default;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `VAROPT`='33'
+drop table t1;
 SET @@SQL_MODE=@OLD_SQL_MODE;
 select 1;
 1

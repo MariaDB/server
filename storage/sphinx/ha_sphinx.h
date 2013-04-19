@@ -57,7 +57,6 @@ public:
 
 	const char *	table_type () const		{ return "SPHINX"; }	///< SE name for display purposes
 	const char *	index_type ( uint )		{ return "HASH"; }		///< index type name for display purposes
-	const char **	bas_ext () const;								///< my file extensions
 
 	#if MYSQL_VERSION_ID>50100
 	ulonglong		table_flags () const	{ return HA_CAN_INDEX_BLOBS | 

@@ -1,12 +1,11 @@
-source include/have_semisync_plugin.inc;
+source include/have_semisync.inc;
 source include/not_embedded.inc;
-source include/master-slave.inc;
 source include/have_innodb.inc;
+source include/master-slave.inc;
 
 let $engine_type= InnoDB;
 
 # Suppress warnings that might be generated during the test
-disable_query_log;
 connection master;
 call mtr.add_suppression("Timeout waiting for reply of binlog");
 call mtr.add_suppression("Semi-sync master .* waiting for slave reply");
@@ -16,33 +15,13 @@ connection slave;
 call mtr.add_suppression("Master server does not support semi-sync");
 call mtr.add_suppression("Semi-sync slave .* reply");
 call mtr.add_suppression("Slave SQL.*Request to stop slave SQL Thread received while applying a group that has non-transactional changes; waiting for completion of the group");
-enable_query_log;
 
 connection master;
-disable_query_log;
-let $value = query_get_value(show variables like 'rpl_semi_sync_master_enabled', Value, 1);
-if ($value == No such row)
-{
-    set sql_log_bin=0;
-    eval INSTALL PLUGIN rpl_semi_sync_master SONAME '$SEMISYNC_MASTER_SO';
-    SET GLOBAL rpl_semi_sync_master_enabled = 1;
-    set sql_log_bin=1;
-}
-enable_query_log;
+set global rpl_semi_sync_master_enabled = 1;
 
 connection slave;
 source include/stop_slave.inc;
-
-disable_query_log;
-let $value= query_get_value(show variables like 'rpl_semi_sync_slave_enabled', Value, 1);
-if ($value == No such row)
-{
-    set sql_log_bin=0;
-    eval INSTALL PLUGIN rpl_semi_sync_slave SONAME '$SEMISYNC_SLAVE_SO';
-    SET GLOBAL rpl_semi_sync_slave_enabled = 1;
-    set sql_log_bin=1;
-}
-enable_query_log;
+set global rpl_semi_sync_slave_enabled = 1;
 
 source include/start_slave.inc;
 
@@ -93,18 +72,16 @@ while ($run)
 #
 connection slave;
 source include/stop_slave.inc;
-
-disable_warnings;
-UNINSTALL PLUGIN rpl_semi_sync_slave;
+set global rpl_semi_sync_slave_enabled = 0;
 
 connection master;
-UNINSTALL PLUGIN rpl_semi_sync_master;
-enable_warnings;
+set global rpl_semi_sync_master_enabled = 0;
 
 connection slave;
 source include/start_slave.inc;
 
 connection master;
+
 DROP EVENT ev1;
 DROP EVENT ev2;
 DROP TABLE t1;

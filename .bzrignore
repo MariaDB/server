@@ -1147,3 +1147,4 @@ storage/perfschema/gen_pfs_lex_token
 storage/perfschema/pfs_lex_token.h
 *.bak
 *.OLD
+mysql-test/collections/default.release.done

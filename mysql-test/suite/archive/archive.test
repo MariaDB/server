@@ -3,7 +3,6 @@
 # Taken FROM the select test
 #
 -- source include/have_archive.inc
--- source include/have_binlog_format_mixed_or_statement.inc
 
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
@@ -1670,17 +1669,6 @@ DROP TABLE t1;
 remove_file $MYSQLD_DATADIR/test/t1.ARM;
 
 --echo #
---echo # BUG#48757 - missing .ARZ file causes server crash
---echo #
-CREATE TABLE t1(a INT) ENGINE=ARCHIVE;
-FLUSH TABLE t1;
---remove_file $MYSQLD_DATADIR/test/t1.ARZ
---error ER_FILE_NOT_FOUND
-SELECT * FROM t1;
---error ER_BAD_TABLE_ERROR
-DROP TABLE t1;
-
---echo #
 --echo # Ensure that TRUNCATE fails for non-empty archive tables.
 --echo #
 CREATE TABLE t1 (a INT) ENGINE=ARCHIVE;
@@ -1711,34 +1699,6 @@ SELECT * FROM t1;
 REPAIR TABLE t1 EXTENDED;
 SELECT * FROM t1;
 DROP TABLE t1;
-
---echo #
---echo # Bug#45377: ARCHIVE tables aren't discoverable after OPTIMIZE
---echo #
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
-CREATE TABLE t1 (a int) ENGINE=ARCHIVE;
-SHOW CREATE TABLE t1;
-INSERT INTO t1 VALUES (1);
-OPTIMIZE TABLE t1;
-let $MYSQLD_DATADIR= `select @@datadir`;
-remove_file $MYSQLD_DATADIR/test/t1.frm;
-FLUSH TABLES;
-INSERT INTO t1 VALUES (2);
-SELECT * FROM t1 ORDER BY a;
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
-
---echo #
---echo # BUG#58205 - Valgrind failure in fn_format when called from
---echo #             archive_discover
---echo #
-CREATE TABLE `a/../`(a INT) ENGINE=ARCHIVE;
-remove_file $MYSQLD_DATADIR/test/a@002f@002e@002e@002f.frm;
-DROP TABLE `a/../`;
 
 --echo #
 --echo # BUG#57162 - valgrind errors, random data when returning
@@ -1774,9 +1734,24 @@ DROP TABLE t1;
 --echo # BUG#917689 Using wrong archive table causes crash
 --echo #
 create table t1 (a int, b char(50)) engine=archive;
+select * from t1; # open the table to create the frm
+flush tables;     # and close the table again
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ
 copy_file std_data/t917689.ARZ $MYSQLD_DATADIR/test/t1.ARZ;
---error 1194
+--error ER_CRASHED_ON_USAGE
 select * from t1;
 show warnings;
 drop table t1;
+
+#
+# temporary archive
+#
+create temporary table t1 (a int) engine=archive;
+insert t1 values (1),(2),(3);
+select * from t1;
+show create table t1;
+alter table t1 add column b varchar(10);
+select * from t1;
+show create table t1;
+drop table t1;
+

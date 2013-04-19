@@ -104,9 +104,7 @@ connection con1;
 use mysqltest_db1;
 --echo ** Connect as restricted user mysqltest_u1.
 --echo ** SELECT FROM INFORMATION_SCHEMA.STATISTICS will succeed because any privileges will do (authentication is enough).
-#
-# this result is wrong. reported as bug#34104
-#
+--echo ** but will return no rows
 SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='t5';
 #
 # Bug27145 EXTRA_ACL trouble

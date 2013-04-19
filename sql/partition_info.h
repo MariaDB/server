@@ -306,6 +306,7 @@ private:
   char *create_default_partition_names(uint part_no, uint num_parts,
                                        uint start_no);
   char *create_subpartition_name(uint subpart_no, const char *part_name);
+public:
   bool has_unique_name(partition_element *element);
 };
 

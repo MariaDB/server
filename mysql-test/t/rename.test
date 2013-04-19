@@ -21,16 +21,16 @@ rename table t3 to t4, t2 to t3, t1 to t2, t4 to t1;
 select * from t1;
 
 # The following should give errors
---error ER_TABLE_EXISTS_ERROR,ER_TABLE_EXISTS_ERROR
+--error ER_TABLE_EXISTS_ERROR
 rename table t1 to t2;
---error ER_TABLE_EXISTS_ERROR,ER_TABLE_EXISTS_ERROR
+--error ER_TABLE_EXISTS_ERROR
 rename table t1 to t1;
---error ER_TABLE_EXISTS_ERROR,ER_TABLE_EXISTS_ERROR
+--error ER_TABLE_EXISTS_ERROR
 rename table t3 to t4, t2 to t3, t1 to t2, t4 to t2;
 show tables like "t_";
---error ER_TABLE_EXISTS_ERROR,ER_TABLE_EXISTS_ERROR
+--error ER_TABLE_EXISTS_ERROR
 rename table t3 to t1, t2 to t3, t1 to t2, t4 to t1;
---error ER_FILE_NOT_FOUND,ER_FILE_NOT_FOUND
+--error ER_NO_SUCH_TABLE
 rename table t3 to t4, t5 to t3, t1 to t2, t4 to t1;
 
 select * from t1;

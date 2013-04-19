@@ -18,7 +18,7 @@ INCLUDE(CheckCCompilerFlag)
 # Setup GCC (GNU C compiler) warning options.
 MACRO(SET_MYSQL_MAINTAINER_GNU_C_OPTIONS)
   SET(MY_MAINTAINER_WARNINGS
-      "-Wall -Wextra -Wunused -Wwrite-strings -Wno-strict-aliasing -Wno-invalid-offsetof -DFORCE_INIT_OF_VARS")
+      "-Wall -Wextra -Wunused -Wwrite-strings -Wno-strict-aliasing -DFORCE_INIT_OF_VARS")
 
   CHECK_C_COMPILER_FLAG("-Wno-missing-field-initializers"
     HAVE_NO_MISSING_FIELD_INITIALIZERS)
@@ -44,7 +44,7 @@ ENDMACRO()
 # Setup G++ (GNU C++ compiler) warning options.
 MACRO(SET_MYSQL_MAINTAINER_GNU_CXX_OPTIONS)
   SET(MY_MAINTAINER_CXX_WARNINGS
-      "${MY_MAINTAINER_WARNINGS} -Wno-unused-parameter -Woverloaded-virtual"
+      "${MY_MAINTAINER_WARNINGS} -Wno-invalid-offsetof -Wno-unused-parameter -Woverloaded-virtual"
       CACHE INTERNAL "C++ warning options used in maintainer builds.")
 ENDMACRO()
 

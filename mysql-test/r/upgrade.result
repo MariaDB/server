@@ -33,26 +33,28 @@ show create database `#mysql50#mysqltest-1`;
 ERROR 42000: Unknown database '#mysql50#mysqltest-1'
 show tables in `mysqltest1`;
 Tables_in_mysqltest1
-t1
 t-1
+t1
 show tables in `mysqltest-1`;
 Tables_in_mysqltest-1
-t1
 t-1
+t1
 drop database `mysqltest1`;
 drop database `mysqltest-1`;
-drop table if exists `txu@0023p@0023p1`;
-drop table if exists `txu#p#p1`;
 create table `txu#p#p1` (s1 int);
 insert into `txu#p#p1` values (1);
 select * from `txu@0023p@0023p1`;
 ERROR 42S02: Table 'test.txu@0023p@0023p1' doesn't exist
 create table `txu@0023p@0023p1` (s1 int);
-ERROR 42S01: Table '#mysql50#txu@0023p@0023p1' already exists
+show tables;
+Tables_in_test
+txu#p#p1
+txu@0023p@0023p1
 select * from `txu#p#p1`;
 s1
 1
 drop table `txu#p#p1`;
+drop table `txu@0023p@0023p1`;
 #
 # Bug#37631 Incorrect key file for table after upgrading from 5.0 to 5.1
 #
