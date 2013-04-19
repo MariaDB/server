@@ -61,9 +61,9 @@ SELECT user();
 # As we do not do any modifications in the database, this should be OK.
 #
 let $Database=$MTR_SUITE_DIR/std_data/test.sqlite3;
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 --eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
+--replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 --connection user

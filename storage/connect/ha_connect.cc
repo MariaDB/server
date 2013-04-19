@@ -3582,6 +3582,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           // Some data sources do not count dec in length
           if (typ == TYPE_FLOAT)
             len += (dec + 2);        // To be safe
+          else
+            dec= 0;
 
           } // endif ttp
 #endif   // ODBC_SUPPORT
@@ -3635,6 +3637,24 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         }
       if (oom)
         b= HA_ERR_OUT_OF_MEM;
+      }
+
+    if (create_info->connect_string.length) {
+      bool oom= false;
+      oom|= sql.append(' ');
+      oom|= sql.append("CONNECTION='");
+      oom|= sql.append_for_single_quote(create_info->connect_string.str,
+                                        create_info->connect_string.length);
+      oom|= sql.append('\'');
+      if (oom)
+        b= HA_ERR_OUT_OF_MEM;
+      }
+
+    if (create_info->default_table_charset) {
+      bool oom= false;
+      oom|= sql.append(' ');
+      oom|= sql.append("CHARSET=");
+      oom|= sql.append(create_info->default_table_charset->csname);
       }
 
     if (!b)
