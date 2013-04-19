@@ -46,6 +46,8 @@ SELECT @@session.optimizer_use_condition_selectivity = 1;
 #############################################################################################
 
 SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 0;
+SELECT @@global.optimizer_use_condition_selectivity;
 SET @@global.optimizer_use_condition_selectivity = 1;
 SELECT @@global.optimizer_use_condition_selectivity;
 SET @@global.optimizer_use_condition_selectivity = 2;
@@ -53,6 +55,10 @@ SELECT @@global.optimizer_use_condition_selectivity;
 SET @@global.optimizer_use_condition_selectivity = 3;
 SELECT @@global.optimizer_use_condition_selectivity;
 SET @@global.optimizer_use_condition_selectivity = 4;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 5;
+SELECT @@global.optimizer_use_condition_selectivity;
+SET @@global.optimizer_use_condition_selectivity = 6;
 SELECT @@global.optimizer_use_condition_selectivity;
 
 
@@ -62,6 +68,8 @@ SELECT @@global.optimizer_use_condition_selectivity;
 #############################################################################################
  
 SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 0;
+SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 1;
 SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 2;
@@ -69,6 +77,10 @@ SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 3;
 SELECT @@session.optimizer_use_condition_selectivity;
 SET @@session.optimizer_use_condition_selectivity = 4;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 5;
+SELECT @@session.optimizer_use_condition_selectivity;
+SET @@session.optimizer_use_condition_selectivity = 6;
 SELECT @@session.optimizer_use_condition_selectivity;
 
 
