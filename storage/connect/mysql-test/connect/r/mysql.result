@@ -6,14 +6,14 @@ REVOKE FILE ON *.* FROM user@localhost;
 SELECT user();
 user()
 user@localhost
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=$PORT';
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=PORT';
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 SELECT user();
 user()
 root@localhost
 CREATE TABLE t1remote (a INT NOT NULL);
 INSERT INTO t1remote VALUES (10),(20),(30);
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL TABNAME=t1remote OPTION_LIST='host=localhost,user=root,port=$PORT';
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL TABNAME=t1remote OPTION_LIST='host=localhost,user=root,port=PORT';
 SELECT * FROM t1;
 a
 10

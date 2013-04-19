@@ -22,13 +22,15 @@ REVOKE FILE ON *.* FROM user@localhost;
 --connect(user,localhost,user,,)
 --connection user
 SELECT user();
+--replace_result $PORT PORT
 --error ER_ACCESS_DENIED_ERROR
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=$PORT';
+--eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=$PORT'
 --connection default
 SELECT user();
 CREATE TABLE t1remote (a INT NOT NULL);
 INSERT INTO t1remote VALUES (10),(20),(30);
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL TABNAME=t1remote OPTION_LIST='host=localhost,user=root,port=$PORT';
+--replace_result $PORT PORT
+--eval CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL TABNAME=t1remote OPTION_LIST='host=localhost,user=root,port=$PORT'
 SELECT * FROM t1;
 --connection user
 SELECT user();
