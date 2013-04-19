@@ -117,6 +117,10 @@ ENDIF(CONNECT_WITH_LIBXML2)
 
 
 IF(WIN32)
+  # /MP option of the Microsoft compiler does not work well with COM #import
+  string(REPLACE "/MP" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  string(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     find_library(MSXML_LIBRARY
@@ -234,7 +238,7 @@ IF(CONNECT_WITH_ODBC)
     ENDIF()
   ELSE(NOT UNIX)
     add_definitions(-DODBC_SUPPORT)
-    SET(ODBC_LIBRARY "odbc32.lib odbccp32.lib")
+    SET(ODBC_LIBRARY odbc32.lib odbccp32.lib)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES}
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
@@ -248,5 +252,27 @@ ENDIF(CONNECT_WITH_ODBC)
 MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   MODULE_OUTPUT_NAME "ha_connect"
+  COMPONENT connect_engine
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
+
+
+#
+# Packaging definitions
+#
+
+IF (INSTALL_SYSCONFDIR)
+    INSTALL(FILES connect.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
+            COMPONENT connect_engine)
+ENDIF(INSTALL_SYSCONFDIR)
+
+IF(RPM)
+  SET(CPACK_COMPONENT_CASSANDRASELIBRARIES_GROUP "connect_engine" PARENT_SCOPE)
+  SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect_engine PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+
+  # workarounds for cmake issues #13248 and #12864:
+  SET(CPACK_RPM_connect_engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+  SET(CPACK_RPM_connect_engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+ENDIF(RPM)
