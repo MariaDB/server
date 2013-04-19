@@ -4,7 +4,7 @@ let $TABLE_OPTIONS=TABLE_TYPE=BIN;
 let $FILE_EXT=BIN;
 --source grant.inc
 
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/Testbal.dat $MYSQLD_DATADIR/test/Testbal.dat
+--copy_file $MTR_SUITE_DIR/std_data/Testbal.dat $MYSQLD_DATADIR/test/Testbal.dat
 
 --echo #
 --echo # Testing errors

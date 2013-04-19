@@ -82,8 +82,8 @@ CREATE TABLE t1 (
 --replace_result $MYSQLD_DATADIR DATADIR/
 SELECT * FROM t1;
 
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/boyswin.txt $MYSQLD_DATADIR/test/boyswin.txt
 
 --mkdir $MYSQLD_DATADIR/test/subdir/
 --copy_file $MYSQLD_DATADIR/test/boys.txt  $MYSQLD_DATADIR/test/subdir/boys2.txt

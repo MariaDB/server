@@ -60,7 +60,7 @@ SELECT user();
 # the data file, we'll use directly the file in std_data.
 # As we do not do any modifications in the database, this should be OK.
 #
-let $Database=$MYSQL_TEST_DIR/suite/connect/std_data/test.sqlite3;
+let $Database=$MTR_SUITE_DIR/std_data/test.sqlite3;
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 --eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='Driver=SQLite3 ODBC Driver;Database=$Database;NoWCHAR=yes' CHARSET=utf8 DATA_CHARSET=utf8;
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR

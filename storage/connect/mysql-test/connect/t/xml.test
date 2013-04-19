@@ -25,9 +25,9 @@ SET NAMES utf8;
 
 --vertical_results
 
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample.xml
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/latin1.xml $MYSQLD_DATADIR/test/latin1.xml
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/cp1251.xml $MYSQLD_DATADIR/test/cp1251.xml
+--copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample.xml
+--copy_file $MTR_SUITE_DIR/std_data/latin1.xml $MYSQLD_DATADIR/test/latin1.xml
+--copy_file $MTR_SUITE_DIR/std_data/cp1251.xml $MYSQLD_DATADIR/test/cp1251.xml
 
 #--echo $MYSQL_TEST_DIR
 #--exec pwd
@@ -114,7 +114,8 @@ DROP TABLE t1;
 --echo #
 --echo # Testing INSERT on mixed tag and attribute values
 --echo #
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample2.xml
+--copy_file $MTR_SUITE_DIR/std_data/xsample.xml $MYSQLD_DATADIR/test/xsample2.xml
+--chmod 0644 $MYSQLD_DATADIR/test/xsample2.xml
 CREATE TABLE t1 (
   ISBN CHAR(15) FIELD_FORMAT='@',
   LANG CHAR(2)  FIELD_FORMAT='@',

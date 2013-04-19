@@ -75,7 +75,7 @@ DROP USER user@localhost;
 --echo #
 
 
---copy_file $MYSQL_TEST_DIR/suite/connect/std_data/contact.ini $MYSQLD_DATADIR/test/contact.ini
+--copy_file $MTR_SUITE_DIR/std_data/contact.ini $MYSQLD_DATADIR/test/contact.ini
 
 --echo #
 --echo # Testing errors
