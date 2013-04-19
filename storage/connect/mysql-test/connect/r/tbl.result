@@ -41,11 +41,7 @@ ta	message
 1	Testing
 2	myisam table
 3	t4
-CREATE TABLE total (
-tabname CHAR(8) NOT NULL SPECIAL='TABID',
-ta TINYINT NOT NULL FLAG=1,
-message CHAR(20))
-engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4';
+CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4' option_list='port=PORT';
 select * from total;
 tabname	ta	message
 t1	1	Testing
