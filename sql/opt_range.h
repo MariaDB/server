@@ -1052,7 +1052,7 @@ void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 extern String null_string;
 
 /* check this number of rows (default value) */
-#define SELECTIVITY_SAMPLING_LIMIT 5000
+#define SELECTIVITY_SAMPLING_LIMIT 100
 /* but no more then this part of table (10%) */
 #define SELECTIVITY_SAMPLING_SHARE 0.10
 /* do not check if we are going check less then this number of records */

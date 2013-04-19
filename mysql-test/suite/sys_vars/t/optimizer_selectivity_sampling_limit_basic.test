@@ -34,10 +34,10 @@ SELECT @@session.optimizer_selectivity_sampling_limit;
 #########################################################################
 
 SET @@global.optimizer_selectivity_sampling_limit = DEFAULT;
-SELECT @@global.optimizer_selectivity_sampling_limit = 5000;
+SELECT @@global.optimizer_selectivity_sampling_limit = 100;
 
 SET @@session.optimizer_selectivity_sampling_limit = DEFAULT;
-SELECT @@session.optimizer_selectivity_sampling_limit = 5000;
+SELECT @@session.optimizer_selectivity_sampling_limit = 100;
 
 
 --echo '#--------------------FN_DYNVARS_115_03-------------------------#'
