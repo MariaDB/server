@@ -57,15 +57,15 @@ public:
   virtual ~user_connect();
 
   // Implementation
-  bool user_init(ha_connect *hc);
+  bool user_init();
+  void SetHandler(ha_connect *hc);
   bool CheckCleanup(void);
   bool CheckQueryID(void) {return thdp->query_id > last_query_id;}
   bool CheckQuery(query_id_t vid) {return last_query_id > vid;}
 
-protected:
   // Members
-  static PCONNECT  to_users;            // To the chain of users
   THD         *thdp;                    // To the user thread
+  static PCONNECT  to_users;            // To the chain of users
   PCONNECT     next;                    // Next user in chain
   PCONNECT     previous;                // Previous user in chain
   PGLOBAL      g;                        // The common handle to CONNECT

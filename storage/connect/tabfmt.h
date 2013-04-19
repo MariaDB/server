@@ -14,7 +14,7 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q,
+PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
                    int hdr, int mxr, bool info);
 
 /***********************************************************************/

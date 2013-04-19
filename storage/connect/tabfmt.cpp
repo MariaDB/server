@@ -75,7 +75,7 @@ extern "C" int trace;
 /* of types (TYPE_STRING < TYPE_FLOAT < TYPE_INT) (1 < 2 < 7).         */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, char *fn, char sep, char q,
+PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
                    int hdr, int mxr, bool info)
   {
   static int  dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,

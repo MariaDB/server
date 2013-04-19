@@ -675,7 +675,7 @@ void *CHRBLK::GetValPtrEx(int n)
   memcpy(Valp, Chrp + n * Long, Long);
 
   if (IsNull(n))
-    return "";
+    return const_cast<char *>("");
 
   if (Blanks) {
     // The (fast) way this is done works only for blocks such
@@ -857,7 +857,7 @@ void *STRBLK::GetValPtr(int n)
 void *STRBLK::GetValPtrEx(int n)
   {
   ChkIndx(n);
-  return (Strp[n]) ? Strp[n] : "";
+  return (Strp[n]) ? Strp[n] : const_cast<char*>("");
   } // end of GetValPtrEx
 
 /***********************************************************************/

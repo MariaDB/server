@@ -92,7 +92,7 @@ user_connect::~user_connect()
 /****************************************************************************/
 /*  Initialization.                                                         */
 /****************************************************************************/
-bool user_connect::user_init(PHC hc)
+bool user_connect::user_init()
 {
   // Initialize Plug-like environment
   PACTIVITY ap= NULL;
@@ -113,7 +113,7 @@ bool user_connect::user_init(PHC hc)
     return true;
     } // endif g->
 
-  dup->Catalog= new MYCAT(hc);
+  dup->Catalog= new MYCAT(NULL);
 
   ap= new ACTIVITY;
   memset(ap, 0, sizeof(ACTIVITY));
@@ -131,6 +131,13 @@ bool user_connect::user_init(PHC hc)
   return false;
 } // end of user_init
 
+
+void user_connect::SetHandler(ha_connect *hc)
+{
+  PDBUSER dup= (PDBUSER)g->Activityp->Aptr;
+  MYCAT  *mc= (MYCAT*)dup->Catalog;
+  mc->SetHandler(hc);
+}
 
 /****************************************************************************/
 /*  Check whether we begin a new query and if so cleanup the previous one.  */

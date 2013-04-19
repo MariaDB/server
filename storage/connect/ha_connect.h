@@ -62,6 +62,8 @@ typedef class user_connect *PCONNECT;
 typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS; 
 
+extern handlerton *connect_hton;
+
 /** @brief
   CONNECT_SHARE is a structure that will be shared among all open handlers.
   This example implements the minimum of what you will probably need.
@@ -71,10 +73,6 @@ typedef struct st_connect_share {
   uint  table_name_length, use_count;
   mysql_mutex_t mutex;
   THR_LOCK lock;
-#if !defined(MARIADB)
-  PTOS table_options;
-  PFOS field_options;
-#endif   // !MARIADB
 } CONNECT_SHARE;
 
 typedef class ha_connect *PHC;
@@ -111,8 +109,6 @@ public:
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
 
-  PCONNECT GetUser(THD *thd);
-  PGLOBAL  GetPlug(THD *thd);
   PTDB     GetTDB(PGLOBAL g);
   bool     OpenTable(PGLOBAL g, bool del= false);
   bool     IsOpened(void); 
@@ -148,9 +144,7 @@ public:
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
             HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
             HA_NO_COPY_ON_ALTER |
-#if defined(MARIADB)
             HA_CAN_VIRTUAL_COLUMNS |
-#endif   // MARIADB
             HA_NULL_IN_KEY | HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
   }
 
@@ -361,9 +355,6 @@ const char *GetValStr(OPVAL vop, bool neg);
     Called by delete_table and rename_table
   */
   int delete_or_rename_table(const char *from, const char *to);
-#if defined(MARIADB)
-  bool pre_create(THD *thd, HA_CREATE_INFO *crt_info, void *alt_info);
-#endif   // MARIADB
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info);                      ///< required
   bool check_if_incompatible_data(HA_CREATE_INFO *info,
@@ -375,23 +366,6 @@ const char *GetValStr(OPVAL vop, bool neg);
 
 protected:
   bool check_privileges(THD *thd, PTOS options);
-  char *GetListOption(const char *opname, const char *oplist, const char *def= NULL);
-#if defined(MARIADB)
-  char *encode(PGLOBAL g, char *cnm);
-  bool  add_fields(THD *thd, void *alter_info, 
-           LEX_STRING *field_name,
-           enum_field_types type,
-           char *length, char *decimals,
-           uint type_modifier,
-//         Item *default_value, Item *on_update_value,
-           LEX_STRING *comment,
-//         char *change,
-//         List<String> *interval_list, 
-           CHARSET_INFO *cs,
-//         uint uint_geom_type,
-           void *vcol_info,
-           engine_option_value *create_options);
-#endif   // MARIADB
 
   // Members
   static ulong  num;                  // Tracable handler number
@@ -409,10 +383,6 @@ protected:
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   int           indexing;             // Type of indexing for CONNECT
-#if !defined(MARIADB)
-  PTOS          table_options;
-  PFOS          field_options;
-#endif   // !MARIADB
   THR_LOCK_DATA lock_data;
 
 public:

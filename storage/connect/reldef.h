@@ -34,6 +34,8 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   PCATLG  GetCat(void) {return Cat;}
   virtual const char *GetType(void) = 0;
   virtual AMT  GetDefType(void) = 0;
+  void    SetName(const char *str) { Name=(char*)str; }
+  void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
   virtual bool DeleteTableFile(PGLOBAL g) {return true;}
