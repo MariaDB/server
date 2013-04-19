@@ -1,10 +1,6 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
 
---disable_query_log
---replace_result $PORT PORT
---enable_query_log
-
 --echo #
 --echo # Checking TBL tables
 --echo #
@@ -32,11 +28,8 @@ message CHAR(20)) ENGINE=MyISAM;
 INSERT INTO t4 (message) VALUES ('Testing'),('myisam table'),('t4');
 SELECT * FROM t4;
 
-CREATE TABLE total (
-tabname CHAR(8) NOT NULL SPECIAL='TABID',
-ta TINYINT NOT NULL FLAG=1,
-message CHAR(20))
-engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4' option_list='port=$PORT';
+--replace_result $PORT PORT
+--eval CREATE TABLE total (tabname CHAR(8) NOT NULL SPECIAL='TABID', ta TINYINT NOT NULL FLAG=1, message CHAR(20)) engine=CONNECT table_type=TBL table_list='t1,t2,t3,t4' option_list='port=$PORT'
 
 select * from total;
 select * from total where tabname = 't2';
