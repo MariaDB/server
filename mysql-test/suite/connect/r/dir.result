@@ -30,11 +30,11 @@ user()
 user@localhost
 SELECT * FROM t1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-INSERT INTO t1 VALUES ('xxx');
+INSERT INTO t1 VALUES ();
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-DELETE FROM t1 WHERE a='xxx';
+DELETE FROM t1 WHERE path='xxx';
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-UPDATE t1 SET a='yyy' WHERE a='xxx';
+UPDATE t1 SET path='yyy' WHERE path='xxx';
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 TRUNCATE TABLE t1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
@@ -52,9 +52,9 @@ user()
 user@localhost
 SELECT * FROM v1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-INSERT INTO v1 VALUES (2);
+INSERT INTO v1 VALUES (1,1,1,1);
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
-UPDATE v1 SET a=123;
+UPDATE v1 SET path=123;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
 DELETE FROM v1;
 ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
