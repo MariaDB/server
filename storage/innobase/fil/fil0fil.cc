@@ -4083,7 +4083,6 @@ retry:
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		mutex_exit(&fil_system->mutex);
 		success = os_file_set_size(node->name, node->handle,
 				size_after_extend * page_size);
 		mutex_enter(&fil_system->mutex);
