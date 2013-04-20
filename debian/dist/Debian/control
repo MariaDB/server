@@ -235,3 +235,12 @@ Description: MariaDB database regression test suite (metapackage depending on th
  This is an empty package that depends on the current "best" version of
  mariadb-test (currently mariadb-test-10.0), as determined by the MariaDB
  maintainers.
+
+Package: mariadb-connect-engine-10.0
+Section: database
+Architecture: all
+Depends: mariadb-server-10.0, unixODBC-dev, libxml2-dev
+Description: Connect storage engine for MariaDB
+ Connect engine supports a number of file formats (dbf, xml, txt, bin, etc),
+ connections to ODBC tables and remote MySQL tables, as well as a number of
+ other interesting features.
