@@ -2965,7 +2965,7 @@ innobase_change_buffering_inited_ok:
 	innobase_commit_concurrency_init_default();
 
 #ifdef HAVE_POSIX_FALLOCATE
-	srv_use_posix_fallocate = 0 && (ibool) innobase_use_fallocate;
+	srv_use_posix_fallocate = (ibool) innobase_use_fallocate;
 #endif
 	srv_use_atomic_writes = (ibool) innobase_use_atomic_writes;
 	if (innobase_use_atomic_writes) {
@@ -14594,7 +14594,7 @@ static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
 static MYSQL_SYSVAR_BOOL(use_fallocate, innobase_use_fallocate,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Preallocate files fast, using operating system functionality. On POSIX systems, posix_fallocate system call is used.",
-  NULL, NULL, TRUE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_ULONG(io_capacity, srv_io_capacity,
   PLUGIN_VAR_RQCMDARG,

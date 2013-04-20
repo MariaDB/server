@@ -85,6 +85,7 @@ a	b
 5	1982-03-20 20:22:34
 6	1982-03-20 20:22:34
 DROP TABLE t1;
+SET debug_sync = 'RESET';
 #
 # Function defaults run 2. Six digits scale on seconds precision.
 #
@@ -169,3 +170,4 @@ a	b
 5	1982-03-20 20:22:34.876543
 6	1982-03-20 20:22:34.876543
 DROP TABLE t1;
+SET debug_sync = 'RESET';
