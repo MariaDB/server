@@ -108,8 +108,6 @@ The following options may be given as the first argument:
  --concurrent-insert[=name] 
  Use concurrent insert with MyISAM. Possible values are
  NEVER, AUTO, ALWAYS
- --connect-timeout=# The number of seconds the mysqld server is waiting for a
- connect packet before responding with 'Bad handshake'
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on errors.
@@ -1003,7 +1001,6 @@ chroot (No default value)
 collation-server latin1_swedish_ci
 completion-type NO_CHAIN
 concurrent-insert AUTO
-connect-timeout 10
 console FALSE
 date-format %Y-%m-%d
 datetime-format %Y-%m-%d %H:%i:%s

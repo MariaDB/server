@@ -3475,10 +3475,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         switch (fnc) {
           case FNC_NO:
           case FNC_COL:
-            qrp= ODBCColumns(g, dsn, tab, NULL, fnc == FNC_COL);
+            qrp= ODBCColumns(g, dsn, (char *) tab, NULL, fnc == FNC_COL);
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, tab, true);
+            qrp= ODBCTables(g, dsn, (char *) tab, true);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, true);
