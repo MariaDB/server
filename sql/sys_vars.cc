@@ -3970,8 +3970,7 @@ static Sys_var_ulong Sys_histogram_size(
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
-const char *histogram_types[] =
-           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(
        "histogram_type",
        "Specifies type of the histograms created by ANALYZE. "

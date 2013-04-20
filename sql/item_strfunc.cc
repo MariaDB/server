@@ -60,6 +60,7 @@ C_MODE_START
 C_MODE_END
 #include "sql_show.h"                           // append_identifier
 #include <sql_repl.h>
+#include "sql_statistics.h"
 
 /**
    @todo Remove this. It is not safe to use a shared String object.
@@ -472,6 +473,82 @@ void Item_func_aes_decrypt::fix_length_and_dec()
    set_persist_maybe_null(1);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+
+const char *histogram_types[] =
+           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+static TYPELIB hystorgam_types_typelib=
+  { array_elements(histogram_types),
+    "histogram_types",
+    histogram_types, NULL};
+const char *representation_by_type[]= {"%.3f", "%.5f"};
+
+String *Item_func_decode_histogram::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  char buff[STRING_BUFFER_USUAL_SIZE];
+  String *res, tmp(buff, sizeof(buff), &my_charset_bin);
+  int type;
+
+  tmp.length(0);
+  if (!(res= args[1]->val_str(&tmp)) ||
+      (type= find_type(res->c_ptr_safe(),
+                       &hystorgam_types_typelib, MYF(0))) <= 0)
+  {
+    null_value= 1;
+    return 0;
+  }
+  type--;
+
+  tmp.length(0);
+  if (!(res= args[0]->val_str(&tmp)))
+  {
+    null_value= 1;
+    return 0;
+  }
+  if (type == DOUBLE_PREC_HB && res->length() % 2 != 0)
+    res->length(res->length() - 1); // one byte is unused
+
+  double prev= 0.0;
+  uint i;
+  str->length(0);
+  bool first= true;
+  const uchar *p= (uchar*)res->c_ptr();
+  for (i= 0; i < res->length(); i++)
+  {
+    char numbuf[32];
+    double val;
+    switch (type)
+    {
+    case SINGLE_PREC_HB:
+      val= p[i] / ((double)((1 << 8) - 1));
+      break;
+    case DOUBLE_PREC_HB:
+      val= ((uint16 *)(p + i))[0] / ((double)((1 << 16) - 1));
+      i++;
+      break;
+    default:
+      val= 0;
+      DBUG_ASSERT(0);
+    }
+    /* show delta with previous value */
+    int size= my_snprintf(numbuf, sizeof(numbuf),
+                          representation_by_type[type], val - prev);
+    if (first)
+      first= false;
+    else
+      str->append(",");
+    str->append(numbuf, size);
+    prev= val;
+  }
+
+  null_value=0;
+  return str;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
 
 /**
   Concatenate args with the following premises:
