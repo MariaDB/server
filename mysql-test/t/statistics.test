@@ -564,6 +564,22 @@ SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
   FROM mysql.index_stats;
 
+set use_stat_tables='preferably';
+--disable_result_log
+set histogram_size=100;
+set histogram_type='SINGLE_PREC_HB';
+ANALYZE TABLE CountryLanguage;
+set histogram_size=255;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE City;
+--enable_result_log
+
+--query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='CountryLanguage' and column_name = 'Percentage';
+--query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='City' and column_name = 'Population';
+
+set histogram_type=default;
+set histogram_size=default;
+
 use test;
 
 DROP DATABASE world;
