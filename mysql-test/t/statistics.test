@@ -569,7 +569,7 @@ set use_stat_tables='preferably';
 set histogram_size=100;
 set histogram_type='SINGLE_PREC_HB';
 ANALYZE TABLE CountryLanguage;
-set histogram_size=255;
+set histogram_size=254;
 set histogram_type='DOUBLE_PREC_HB';
 ANALYZE TABLE City;
 --enable_result_log
