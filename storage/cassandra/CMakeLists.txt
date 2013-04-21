@@ -48,21 +48,20 @@ IF(CASSANDRASE_OK)
 
   LINK_DIRECTORIES(${LINK_DIR})
 
-  MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT CassandraSE)
+  MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT cassandra-engine)
   IF (INSTALL_SYSCONFDIR)
     INSTALL(FILES cassandra.cnf DESTINATION ${INSTALL_SYSCONFDIR}/my.cnf.d
-            COMPONENT CassandraSE)
+            COMPONENT cassandra-engine)
   ENDIF(INSTALL_SYSCONFDIR)
 
   IF(RPM)
-    SET(CPACK_COMPONENT_CASSANDRASELIBRARIES_GROUP "CassandraSE" PARENT_SCOPE)
-    SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} CassandraSE PARENT_SCOPE)
-    SET(CPACK_RPM_CassandraSE_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+    SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} cassandra-engine PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra_engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
 
     # workarounds for cmake issues #13248 and #12864:
-    SET(CPACK_RPM_CassandraSE_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
-    SET(CPACK_RPM_CassandraSE_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
-    SET(CPACK_RPM_CassandraSE_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra_engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra_engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra_engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
   ENDIF(RPM)
 
 ENDIF(CASSANDRASE_OK)
