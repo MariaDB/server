@@ -513,11 +513,10 @@ String *Item_func_decode_histogram::val_str(String *str)
   double prev= 0.0;
   uint i;
   str->length(0);
-  bool first= true;
+  char numbuf[32];
   const uchar *p= (uchar*)res->c_ptr();
   for (i= 0; i < res->length(); i++)
   {
-    char numbuf[32];
     double val;
     switch (type)
     {
@@ -535,13 +534,14 @@ String *Item_func_decode_histogram::val_str(String *str)
     /* show delta with previous value */
     int size= my_snprintf(numbuf, sizeof(numbuf),
                           representation_by_type[type], val - prev);
-    if (first)
-      first= false;
-    else
-      str->append(",");
     str->append(numbuf, size);
+    str->append(",");
     prev= val;
   }
+  /* show delta with max */
+  int size= my_snprintf(numbuf, sizeof(numbuf),
+                        representation_by_type[type], 1.0 - prev);
+  str->append(numbuf, size);
 
   null_value=0;
   return str;
