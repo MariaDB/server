@@ -1,7 +1,7 @@
 #ifndef _OS_H_INCLUDED
 #define _OS_H_INCLUDED
 
-#if defined __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 typedef off_t off64_t;
 #define lseek64(fd, offset, whence) lseek((fd), (offset), (whence))
 #define open64(path, flags, mode)   open((path), (flags), (mode))

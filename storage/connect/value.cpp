@@ -1243,11 +1243,11 @@ bool DTVAL::SetFormat(PGLOBAL g, PVAL valp)
 /***********************************************************************/
 void DTVAL::SetTimeShift(void)
   {
-#if defined(WIN32)
-  struct tm dtm = {0,0,0,2,0,70,0,0,0};
-#else   // !WIN32
-  struct tm dtm = {0,0,0,2,0,70,0,0,0,0,0};
-#endif  // !WIN32
+  struct tm dtm;
+  memset(&dtm, 0, sizeof(dtm));
+  dtm.tm_mday=2;
+  dtm.tm_mon=0;
+  dtm.tm_year=70;
 
   Shift = (int)mktime(&dtm) - 86400;
 
@@ -1369,11 +1369,11 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   int       i, m;
   int       n;
   bool      rc = false;
-#if defined(WIN32)
-  struct tm datm = {0,0,0,1,0,70,0,0,0};
-#else   // !WIN32
-  struct tm datm = {0,0,0,1,0,70,0,0,0,0,0};
-#endif  // !WIN32
+  struct tm datm;
+  bzero(&datm, sizeof(datm));
+  datm.tm_mday=1;
+  datm.tm_mon=0;
+  datm.tm_year=70;
 
   if (trace)
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
