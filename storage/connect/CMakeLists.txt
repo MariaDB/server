@@ -57,7 +57,7 @@ IF(UNIX)
     add_definitions(-Wno-unused-value)
     add_definitions(-Wno-unused-function)
     add_definitions(-Wno-parentheses)
-    add_definitions(-Wno-missing-declarations)
+    #add_definitions(-Wno-missing-declarations)
     # Bar: -Wno-int-to-pointer-cast commended (does not present in gcc on sol10)
     # add_definitions(-Wno-int-to-pointer-cast)
     # Bar: -Wno-narrowing commented (does not present in gcc on solaris10)
@@ -234,6 +234,22 @@ IF(CONNECT_WITH_ODBC)
     )
 
     IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
+      set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
+      CHECK_CXX_SOURCE_COMPILES(
+"
+#include <stdio.h>
+#include <sql.h>
+#include <sqlext.h>
+typedef long BOOL;   /* this fails with iODBC */
+int main() {
+  SQLULEN rowofs= 0; /* this fails on older unixODBC */
+  SQLExtendedFetch(NULL, 0, 0, &rowofs, NULL);
+  return 0;
+}
+" ODBC_OK)
+    ENDIF()
+
+    IF(ODBC_OK)
       INCLUDE_DIRECTORIES(${ODBC_INCLUDE_DIR})
       add_definitions(-DODBC_SUPPORT)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} tabodbc.cpp odbconn.cpp)
