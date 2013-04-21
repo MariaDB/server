@@ -949,13 +949,12 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
           // Find the (max) length produced by the date format
           char    buf[256];
           PGLOBAL g= GetPlug(table->in_use, xp);
-#if defined(WIN32)
-          struct tm datm= {0,0,0,12,11,112,0,0,0};
-#else   // !WIN32
-          struct tm datm= {0,0,0,12,11,112,0,0,0,0,0};
-#endif  // !WIN32
           PDTP    pdtp= MakeDateFormat(g, pcf->Datefmt, false, true, 0);
-
+          struct tm datm;
+          bzero(&datm, sizeof(datm));
+          datm.tm_mday= 12;
+          datm.tm_mon= 11;
+          datm.tm_year= 112;
           len= strftime(buf, 256, pdtp->OutFmt, &datm);
         } else
           len= 0;
