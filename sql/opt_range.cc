@@ -3530,7 +3530,74 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
         }
       } 
     }
-  } 
+  }
+
+  /* Calculate selectivity of probably highly selective predicates */
+  ulong check_rows=
+    min(thd->variables.optimizer_selectivity_sampling_limit,
+        (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));
+  if (cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
+      thd->variables.optimizer_use_condition_selectivity > 4)
+  {
+    find_selective_predicates_list_processor_data *dt=
+      (find_selective_predicates_list_processor_data *)
+      alloc_root(thd->mem_root,
+                 sizeof(find_selective_predicates_list_processor_data));
+    if (!dt)
+      DBUG_RETURN(TRUE);
+    dt->list.empty();
+    dt->table= table;
+    if (cond->walk(&Item::find_selective_predicates_list_processor, 0,
+                    (uchar*) dt))
+      DBUG_RETURN(TRUE);
+    if (dt->list.elements > 0)
+    {
+      check_rows= check_selectivity(thd, check_rows, table, &dt->list);
+      if (check_rows > SELECTIVITY_SAMPLING_THRESHOLD)
+      {
+        COND_STATISTIC *stat;
+        List_iterator_fast<COND_STATISTIC> it(dt->list);
+        double examined_rows= check_rows;
+        while ((stat= it++))
+        {
+          if (!stat->positive)
+          {
+            DBUG_PRINT("info", ("To avoid 0 assigned 1 to the counter"));
+            stat->positive= 1; // avoid 0
+          }
+          DBUG_PRINT("info", ("The predicate selectivity : %g",
+                              (double)stat->positive / examined_rows));
+          double selectivity= ((double)stat->positive) / examined_rows;
+          table->cond_selectivity*= selectivity;
+          /*
+            If a field is involved then we register its selectivity in case
+            there in an equality with the field.
+            For example in case
+            t1.a LIKE "%bla%" and t1.a = t2.b
+            the selectivity we have found could be used also for t2.
+          */
+          if (stat->field_arg)
+          {
+            stat->field_arg->cond_selectivity*= selectivity;
+
+            if (stat->field_arg->next_equal_field)
+            {
+              for (Field *next_field= stat->field_arg->next_equal_field;
+                   next_field != stat->field_arg;
+                   next_field= next_field->next_equal_field)
+              {
+                next_field->cond_selectivity*= selectivity;
+                next_field->table->cond_selectivity*= selectivity;
+              }
+            }
+          }
+        }
+
+      }
+      /* This list and its elements put to mem_root so should not be freed */
+      table->cond_selectivity_sampling_explain= &dt->list;
+    }
+  }
 
   DBUG_RETURN(FALSE);
 }

@@ -614,6 +614,19 @@ protected:
 };
 
 
+class Create_func_decode_histogram : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_decode_histogram s_singleton;
+
+protected:
+  Create_func_decode_histogram() {}
+  virtual ~Create_func_decode_histogram() {}
+};
+
+
 class Create_func_concat_ws : public Create_native_func
 {
 public:
@@ -3231,6 +3244,13 @@ Create_func_concat::create_native(THD *thd, LEX_STRING name,
   return new (thd->mem_root) Item_func_concat(*item_list);
 }
 
+Create_func_decode_histogram Create_func_decode_histogram::s_singleton;
+
+Item *
+Create_func_decode_histogram::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  return new (thd->mem_root) Item_func_decode_histogram(arg1, arg2);
+}
 
 Create_func_concat_ws Create_func_concat_ws::s_singleton;
 
@@ -5377,6 +5397,7 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("DAYOFYEAR") }, BUILDER(Create_func_dayofyear)},
   { { C_STRING_WITH_LEN("DECODE") }, BUILDER(Create_func_decode)},
   { { C_STRING_WITH_LEN("DEGREES") }, BUILDER(Create_func_degrees)},
+  { { C_STRING_WITH_LEN("DECODE_HISTOGRAM") }, BUILDER(Create_func_decode_histogram)},
   { { C_STRING_WITH_LEN("DES_DECRYPT") }, BUILDER(Create_func_des_decrypt)},
   { { C_STRING_WITH_LEN("DES_ENCRYPT") }, BUILDER(Create_func_des_encrypt)},
   { { C_STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},

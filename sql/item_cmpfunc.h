@@ -1487,8 +1487,9 @@ class Item_func_like :public Item_bool_func2
   enum { alphabet_size = 256 };
 
   Item *escape_item;
-  
+
   bool escape_used_in_parsing;
+  bool use_sampling;
 
 public:
   int escape;
@@ -1496,7 +1497,7 @@ public:
   Item_func_like(Item *a,Item *b, Item *escape_arg, bool escape_used)
     :Item_bool_func2(a,b), canDoTurboBM(FALSE), pattern(0), pattern_len(0), 
      bmGs(0), bmBc(0), escape_item(escape_arg),
-     escape_used_in_parsing(escape_used) {}
+     escape_used_in_parsing(escape_used), use_sampling(0) {}
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   optimize_type select_optimize() const;
@@ -1504,6 +1505,8 @@ public:
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void cleanup();
+
+  bool find_selective_predicates_list_processor(uchar *arg);
 };
 
 
@@ -1914,6 +1917,7 @@ public:
   Item *neg_transformer(THD *thd);
   void mark_as_condition_AND_part(TABLE_LIST *embedding);
   virtual uint exists2in_reserved_items() { return list.elements; };
+  bool walk_top_and(Item_processor processor, uchar *arg);
 };
 
 inline bool is_cond_and(Item *item)

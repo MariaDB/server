@@ -28,6 +28,12 @@ SELECT @@session.optimizer_use_condition_selectivity = 1;
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
 1
+SET @@global.optimizer_use_condition_selectivity = 0;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '0'
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+1
 SET @@global.optimizer_use_condition_selectivity = 1;
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
@@ -44,7 +50,23 @@ SET @@global.optimizer_use_condition_selectivity = 4;
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
 4
+SET @@global.optimizer_use_condition_selectivity = 5;
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+5
+SET @@global.optimizer_use_condition_selectivity = 6;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '6'
+SELECT @@global.optimizer_use_condition_selectivity;
+@@global.optimizer_use_condition_selectivity
+5
 '#--------------------FN_DYNVARS_115_04-------------------------#'
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+1
+SET @@session.optimizer_use_condition_selectivity = 0;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '0'
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
 1
@@ -64,6 +86,16 @@ SET @@session.optimizer_use_condition_selectivity = 4;
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
 4
+SET @@session.optimizer_use_condition_selectivity = 5;
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+5
+SET @@session.optimizer_use_condition_selectivity = 6;
+Warnings:
+Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '6'
+SELECT @@session.optimizer_use_condition_selectivity;
+@@session.optimizer_use_condition_selectivity
+5
 '#------------------FN_DYNVARS_115_05-----------------------#'
 SET @@global.optimizer_use_condition_selectivity = ON;
 ERROR 42000: Incorrect argument type to variable 'optimizer_use_condition_selectivity'
