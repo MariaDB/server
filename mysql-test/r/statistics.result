@@ -1424,7 +1424,7 @@ set histogram_size=254;
 set histogram_type='DOUBLE_PREC_HB';
 ANALYZE TABLE City;
 FLUSH TABLES;
-select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='CountryLanguage' and column_name = 'Percentage';;
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where column_name = 'Percentage';;
 db_name	world
 table_name	CountryLanguage
 column_name	Percentage
@@ -1449,7 +1449,19 @@ hist_size	100
 hist_type	SINGLE_PREC_HB
 hex(histogram)	0000000000000000000000000101010101010101010202020303030304040404050505050606070707080809090A0A0B0C0D0D0E0E0F10111213131415161718191B1C1E202224292A2E33373B4850575F6A76818C9AA7B9C4CFDADFE5EBF0F4F8FAFCFF
 decode_histogram(histogram,hist_type)	0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.004,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.000,0.000,0.004,0.000,0.004,0.000,0.000,0.004,0.000,0.004,0.000,0.004,0.000,0.004,0.004,0.004,0.000,0.004,0.000,0.004,0.004,0.004,0.004,0.004,0.000,0.004,0.004,0.004,0.004,0.004,0.004,0.008,0.004,0.008,0.008,0.008,0.008,0.020,0.004,0.016,0.020,0.016,0.016,0.051,0.031,0.027,0.031,0.043,0.047,0.043,0.043,0.055,0.051,0.071,0.043,0.043,0.043,0.020,0.024,0.024,0.020,0.016,0.016,0.008,0.008,0.012,0.000
-select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='City' and column_name = 'Population';;
+select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where column_name = 'Population';;
+db_name	world
+table_name	Country
+column_name	Population
+min_value	0
+max_value	1277558000
+nulls_ratio	0.0000
+avg_length	4.0000
+avg_frequency	1.0575
+hist_size	0
+hist_type	NULL
+hex(histogram)	NULL
+decode_histogram(histogram,hist_type)	NULL
 db_name	world
 table_name	City
 column_name	Population
@@ -1458,6 +1470,18 @@ max_value	10500000
 nulls_ratio	0.0000
 avg_length	4.0000
 avg_frequency	1.0467
+hist_size	0
+hist_type	NULL
+hex(histogram)	NULL
+decode_histogram(histogram,hist_type)	NULL
+db_name	world_innodb
+table_name	Country
+column_name	Population
+min_value	0
+max_value	1277558000
+nulls_ratio	0.0000
+avg_length	4.0000
+avg_frequency	1.0575
 hist_size	0
 hist_type	NULL
 hex(histogram)	NULL

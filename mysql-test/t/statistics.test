@@ -575,8 +575,8 @@ ANALYZE TABLE City;
 FLUSH TABLES;
 --enable_result_log
 
---query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='CountryLanguage' and column_name = 'Percentage';
---query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where table_name='City' and column_name = 'Population';
+--query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where column_name = 'Percentage';
+--query_vertical select db_name,table_name,column_name,min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where column_name = 'Population';
 
 set histogram_type=default;
 set histogram_size=default;
