@@ -143,6 +143,22 @@ public:
   const char *func_name() const { return "concat"; }
 };
 
+class Item_func_decode_histogram :public Item_str_func
+{
+  String tmp_value;
+public:
+  Item_func_decode_histogram(Item *a, Item *b)
+    :Item_str_func(a, b) {}
+  String *val_str(String *);
+  void fix_length_and_dec()
+  {
+    collation.set(system_charset_info);
+    max_length= MAX_BLOB_WIDTH;
+    set_persist_maybe_null(1);
+  }
+  const char *func_name() const { return "decode_histogram"; }
+};
+
 class Item_func_concat_ws :public Item_str_func
 {
   String tmp_value;

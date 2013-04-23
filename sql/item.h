@@ -548,6 +548,14 @@ typedef bool (Item::*Item_analyzer) (uchar **argp);
 typedef Item* (Item::*Item_transformer) (uchar *arg);
 typedef void (*Cond_traverser) (const Item *item, void *arg);
 
+struct st_cond_statistic;
+
+struct find_selective_predicates_list_processor_data
+{
+  TABLE *table;
+  List<st_cond_statistic> list;
+};
+
 class Item_equal;
 class COND_EQUAL;
 
@@ -1108,6 +1116,11 @@ public:
     return (this->*processor)(arg);
   }
 
+  virtual bool walk_top_and(Item_processor processor, uchar *arg)
+  {
+    return (this->*processor)(arg);
+  }
+
   virtual Item* transform(Item_transformer transformer, uchar *arg);
 
   /*
@@ -1174,6 +1187,8 @@ public:
     return FALSE;
   }
   virtual bool exists2in_processor(uchar *opt_arg) { return 0; }
+  virtual bool find_selective_predicates_list_processor(uchar *opt_arg)
+  { return 0; }
 
   /* To call bool function for all arguments */
   struct bool_func_call_args
