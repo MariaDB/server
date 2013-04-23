@@ -59,6 +59,7 @@
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 #include "threadpool.h"
 #include "sql_repl.h"
+#include "opt_range.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1663,6 +1664,14 @@ static Sys_var_ulong Sys_optimizer_prune_level(
        SESSION_VAR(optimizer_prune_level), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 1), DEFAULT(1), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
+       "optimizer_selectivity_sampling_limit",
+       "Controls number of record samples to check condition selectivity",
+       SESSION_VAR(optimizer_selectivity_sampling_limit),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(SELECTIVITY_SAMPLING_THRESHOLD, UINT_MAX),
+       DEFAULT(SELECTIVITY_SAMPLING_LIMIT), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "optimizer_use_condition_selectivity",
        "Controls selectivity of which conditions the optimizer takes into "
@@ -1678,9 +1687,11 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "not backed by any index to calculate the cardinality of a partial join, "
        "4 - use histograms to calculate selectivity of range conditions that "
        "are not backed by any index to calculate the cardinality of "
-       "a partial join.",
+       "a partial join."
+       "5 - additionally use selectivity of certain non-range predicates "
+       "calculated on record samples",
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 4), DEFAULT(1), BLOCK_SIZE(1));
+       VALID_RANGE(1, 5), DEFAULT(1), BLOCK_SIZE(1));
 
 /** Warns about deprecated value 63 */
 static bool fix_optimizer_search_depth(sys_var *self, THD *thd,
@@ -4138,8 +4149,7 @@ static Sys_var_ulong Sys_histogram_size(
        SESSION_VAR(histogram_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 255), DEFAULT(0), BLOCK_SIZE(1));
 
-const char *histogram_types[] =
-           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+extern const char *histogram_types[];
 static Sys_var_enum Sys_histogram_type(
        "histogram_type",
        "Specifies type of the histograms created by ANALYZE. "

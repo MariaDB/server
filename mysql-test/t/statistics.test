@@ -564,9 +564,27 @@ SELECT UPPER(db_name), UPPER(table_name),
        index_name, prefix_arity, avg_frequency
   FROM mysql.index_stats;
 
-use test;
+use world;
+set use_stat_tables='preferably';
+--disable_result_log
+set histogram_size=100;
+set histogram_type='SINGLE_PREC_HB';
+ANALYZE TABLE CountryLanguage;
+set histogram_size=254;
+set histogram_type='DOUBLE_PREC_HB';
+ANALYZE TABLE City;
+FLUSH TABLES;
+--enable_result_log
 
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';
+--query_vertical select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(histogram,hist_type) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';
+
+set histogram_type=default;
+set histogram_size=default;
+
+use test;
 DROP DATABASE world;
+
 SELECT UPPER(db_name), UPPER(table_name), cardinality
   FROM mysql.table_stats;
 SELECT UPPER(db_name), UPPER(table_name), 

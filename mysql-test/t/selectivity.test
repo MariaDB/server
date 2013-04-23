@@ -56,6 +56,64 @@ customer, lineitem, nation, orders, part, partsupp, region, supplier;
 --enable_result_log
 --enable_query_log
 
+--echo === Q2 ===
+
+set optimizer_use_condition_selectivity=5;
+explain extended
+select
+	s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment
+from
+	part, supplier, partsupp, nation, region
+where
+	p_partkey = ps_partkey
+	and s_suppkey = ps_suppkey
+	and p_size = 9
+	and p_type like '%TIN'
+	and s_nationkey = n_nationkey
+	and n_regionkey = r_regionkey
+	and r_name = 'ASIA'
+	and ps_supplycost = (
+		select
+			min(ps_supplycost)
+		from
+			partsupp, supplier, nation, region
+		where
+			p_partkey = ps_partkey
+			and s_suppkey = ps_suppkey
+			and s_nationkey = n_nationkey
+			and n_regionkey = r_regionkey
+			and r_name = 'ASIA'
+	)
+order by
+	s_acctbal desc, n_name, s_name, p_partkey;
+set optimizer_use_condition_selectivity=4;
+explain extended
+select
+	s_acctbal, s_name, n_name, p_partkey, p_mfgr, s_address, s_phone, s_comment
+from
+	part, supplier, partsupp, nation, region
+where
+	p_partkey = ps_partkey
+	and s_suppkey = ps_suppkey
+	and p_size = 9
+	and p_type like '%TIN'
+	and s_nationkey = n_nationkey
+	and n_regionkey = r_regionkey
+	and r_name = 'ASIA'
+	and ps_supplycost = (
+		select
+			min(ps_supplycost)
+		from
+			partsupp, supplier, nation, region
+		where
+			p_partkey = ps_partkey
+			and s_suppkey = ps_suppkey
+			and s_nationkey = n_nationkey
+			and n_regionkey = r_regionkey
+			and r_name = 'ASIA'
+	)
+order by
+	s_acctbal desc, n_name, s_name, p_partkey;
 
 --echo === Q15 ===
 
@@ -229,7 +287,6 @@ flush table nation;
 
 eval EXPLAIN EXTENDED $Q20;
 eval $Q20; 
-
 
 DROP DATABASE dbt3_s001;
 
@@ -616,6 +673,37 @@ SELECT * FROM t1, t2 AS t2a, t2 AS t2b WHERE f1 <= 'a' AND t2a.f2 = f1;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 
 DROP TABLE t1,t2;
+
+set use_stat_tables=@save_use_stat_tables;
+
+--echo #
+--echo # Bug mdev-4406: range condition for non-nullable column   
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+create table t1 (a int not null);
+insert into t1 values
+  (7), (6), (4), (9), (1), (5), (2), (1), (3), (8);
+
+set use_stat_tables='preferably';
+
+analyze table t1;
+flush table t1;
+
+set optimizer_use_condition_selectivity=3;
+
+select count(*) from t1 where a between 5 and 7;
+explain extended select * from t1 where a between 5 and 7;
+
+alter table t1 change column a a int;
+analyze table t1;
+flush table t1;
+
+explain extended select * from t1 where a between 5 and 7;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+drop table t1;
 
 set use_stat_tables=@save_use_stat_tables;
 

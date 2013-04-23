@@ -1846,4 +1846,17 @@ void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 
+struct st_cond_statistic
+{
+  Item *cond;
+  Field *field_arg;
+  ulong positive;
+};
+typedef struct st_cond_statistic COND_STATISTIC;
+
+ulong check_selectivity(THD *thd,
+                        ulong rows_to_read,
+                        TABLE *table,
+                        List<COND_STATISTIC> *conds);
+
 #endif /* SQL_SELECT_INCLUDED */

@@ -495,6 +495,9 @@ The following options may be given as the first argument:
  optimizer will switch to the original find_best search.
  NOTE: The value 63 and its associated behaviour is
  deprecated
+ --optimizer-selectivity-sampling-limit=# 
+ Controls number of record samples to check condition
+ selectivity
  --optimizer-switch=name 
  optimizer_switch=option=val[,option=val...], where option
  is one of {derived_merge, derived_with_keys, firstmatch,
@@ -523,7 +526,9 @@ The following options may be given as the first argument:
  any index to calculate the cardinality of a partial join,
  4 - use histograms to calculate selectivity of range
  conditions that are not backed by any index to calculate
- the cardinality of a partial join.
+ the cardinality of a partial join.5 - additionally use
+ selectivity of certain non-range predicates calculated on
+ record samples
  --performance-schema 
  Enable the performance schema.
  --performance-schema-accounts-size=# 
@@ -1126,6 +1131,7 @@ old-passwords FALSE
 old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
+optimizer-selectivity-sampling-limit 100
 optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
 optimizer-use-condition-selectivity 1
 performance-schema FALSE
