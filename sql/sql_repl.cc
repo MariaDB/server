@@ -1727,13 +1727,15 @@ impossible position";
   while (!net->error && net->vio != 0 && !thd->killed)
   {
     Log_event_type event_type= UNKNOWN_EVENT;
+    killed_state killed;
 
     /* reset the transmit packet for the event read from binary log
        file */
     if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg))
       goto err;
 
-    while (!(error = Log_event::read_log_event(&log, packet, log_lock,
+    while (!(killed= thd->killed) &&
+           !(error = Log_event::read_log_event(&log, packet, log_lock,
                                                current_checksum_alg)))
     {
 #ifndef DBUG_OFF
@@ -1818,6 +1820,8 @@ impossible position";
       if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg))
         goto err;
     }
+    if (killed)
+      goto end;
 
     /*
       TODO: now that we are logging the offset, check to make sure
