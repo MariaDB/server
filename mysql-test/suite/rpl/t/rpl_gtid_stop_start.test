@@ -41,8 +41,7 @@ INSERT INTO t1 VALUES (3);
 --source include/show_binary_logs.inc
 
 # Let the slave mysqld server start again.
---remove_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 restart: --skip-slave-start=0
 EOF
 
@@ -72,8 +71,7 @@ EOF
 --shutdown_server 30
 --source include/wait_until_disconnected.inc
 
---remove_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart
 EOF
 
