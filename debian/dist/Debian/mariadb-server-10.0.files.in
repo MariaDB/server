@@ -5,8 +5,6 @@ usr/lib/mysql/plugin/auth_test_plugin.so
 usr/lib/mysql/plugin/daemon_example.ini
 usr/lib/mysql/plugin/dialog_examples.so
 usr/lib/mysql/plugin/dialog.so
-usr/lib/mysql/plugin/ha_cassandra.so
-usr/lib/mysql/plugin/ha_oqgraph.so
 usr/lib/mysql/plugin/handlersocket.so
 usr/lib/mysql/plugin/libdaemon_example.so
 usr/lib/mysql/plugin/mypluglib.so
@@ -81,3 +79,5 @@ usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_performance_tables.sql
 usr/share/mysql/mysql_test_data_timezone.sql
+@CASSANDRA_DEB_FILES@
+@OQGRAPH_DEB_FILES@

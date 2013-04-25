@@ -10,6 +10,7 @@ ${Thrift_INCLUDE_DIR}     # this may be set
 )
 
 # Verify that thrift linking library is found
+SET(Thrift_LIB_PATHS ${Thrift_LIB_PATHS} /usr/local/lib /opt/local/lib /opt/lib)
 FIND_LIBRARY(Thrift_LIBS NAMES thrift PATHS ${Thrift_LIB_PATHS} ${Thrift_LIB})
 IF(EXISTS ${Thrift_LIBS})
   GET_FILENAME_COMPONENT(LINK_DIR ${Thrift_LIBS} PATH ABSOLUTE)
@@ -17,15 +18,16 @@ ELSE()
   RETURN()
 ENDIF()
 
-INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}) 
+INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}/..) 
 SET(CMAKE_REQUIRED_INCLUDES ${Thrift_INCLUDE_DIRS})
 
 STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 
+SET(CMAKE_REQUIRED_INCLUDES "${Thrift_INCLUDE_DIRS}/..")
 CHECK_CXX_SOURCE_COMPILES(
 "
-#include <Thrift.h>
+#include <thrift/Thrift.h>
 #include <boost/shared_ptr.hpp>
 int main() {
   boost::shared_ptr<char> p(new char(10));
@@ -47,6 +49,8 @@ IF(CASSANDRASE_OK)
       gen-cpp/Cassandra.h)
 
   LINK_DIRECTORIES(${LINK_DIR})
+
+  SET(CASSANDRA_DEB_FILES "usr/lib/mysql/plugin/ha_cassandra.so" PARENT_SCOPE)
 
   MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT cassandra-engine)
   IF (INSTALL_SYSCONFDIR)

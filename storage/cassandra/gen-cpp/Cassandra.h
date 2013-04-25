@@ -7,7 +7,7 @@
 #ifndef Cassandra_H
 #define Cassandra_H
 
-#include <TProcessor.h>
+#include <thrift/TProcessor.h>
 #include "cassandra_types.h"
 
 namespace org { namespace apache { namespace cassandra {
