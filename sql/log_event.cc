@@ -6100,7 +6100,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
   flags2= (*packet)[ev_offset + LOG_EVENT_HEADER_LEN + 12];
   if (flags2 & FL_STANDALONE)
   {
-    if (need_dummy_event)
+    if (*need_dummy_event)
       return Query_log_event::dummy_event(packet, ev_offset, checksum_alg);
     else
       return 0;
