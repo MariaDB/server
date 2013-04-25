@@ -32,6 +32,8 @@ IF(BOOST_OK)
     STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   ENDIF(MSVC)
 
+  SET(OQGRAPH_DEB_FILES "usr/lib/mysql/plugin/ha_oqgraph.so" PARENT_SCOPE)
+
   MYSQL_ADD_PLUGIN(oqgraph ha_oqgraph.cc graphcore.cc STORAGE_ENGINE
                    MODULE_ONLY)
 ENDIF(BOOST_OK)
