@@ -352,9 +352,14 @@ insert into t1 values (1);
 create table t2 (b int);
 insert into t2 values (2),(3);
 
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='materialization=off';
+
 explain extended 
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
+
+set optimizer_switch=@save_optimizer_switch;
 
 drop table t1,t2;
 
@@ -707,5 +712,31 @@ drop table t1;
 
 set use_stat_tables=@save_use_stat_tables;
 
+--echo #
+--echo # Bug mdev-4428: join with range condition  without statistics 
+--echo #                when optimizer_use_condition_selectivity=3
+--echo #
+
+set use_stat_tables='preferably';
+
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (1,1), (8,8);
+
+CREATE TABLE t2 (a int, b int);
+INSERT INTO t2 VALUES (1,1), (8,8);
+
+CREATE TABLE t3 (c INT);
+INSERT INTO t3 VALUES (5), (6), (4), (2);
+
+set optimizer_use_condition_selectivity=3;
+
+SELECT * FROM t1, t2, t3 WHERE t2.b = t1.a AND t1.a between 5 and 10;
+
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+
+DROP TABLE t1, t2, t3;
+
+set use_stat_tables=@save_use_stat_tables;
 
 set use_stat_tables=@save_use_stat_tables;

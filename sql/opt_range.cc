@@ -3350,6 +3350,11 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
   field= tree->field;
 
+  if (!(field->read_stats &&
+        field->read_stats->get_min_value() &&
+        field->read_stats->get_max_value()))
+    return HA_POS_ERROR;
+
   seq.keyno= idx;
   seq.real_keyno= MAX_KEY;
   seq.param= param;
@@ -3473,7 +3478,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
           table->reginfo.impossible_range= 1;
           goto free_alloc;
         }          
-        else
+        else 
         {
           rows= records_in_column_ranges(&param, idx, *key);
           if (rows != HA_POS_ERROR)
