@@ -122,6 +122,7 @@
 #include "tabmysql.h"
 #endif   // MYSQL_SUPPORT
 #include "filamdbf.h"
+#include "tabxcl.h"
 #include "tabfmt.h"
 #include "reldef.h"
 #include "tabcol.h"
@@ -156,7 +157,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0004 April 10, 2013";
+       char  version[]= "Version 1.01.0005 April 27, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -187,44 +188,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 handlerton *connect_hton;
 
 /**
-  structure for CREATE TABLE options (table options)
+  CREATE TABLE option list (table options)
 
   These can be specified in the CREATE TABLE:
   CREATE TABLE ( ... ) {...here...}
 */
-struct ha_table_option_struct {
-  const char *type;
-  const char *filename;
-  const char *optname;
-  const char *tabname;
-  const char *tablist;
-  const char *dbname;
-  const char *separator;
-//const char *connect;
-  const char *qchar;
-  const char *module;
-  const char *subtype;
-  const char *catfunc;
-  const char *oplist;
-  const char *data_charset;
-  ulonglong lrecl;
-  ulonglong elements;
-//ulonglong estimate;
-  ulonglong multiple;
-  ulonglong header;
-  ulonglong quoted;
-  ulonglong ending;
-  ulonglong compressed;
-  bool mapped;
-  bool huge;
-  bool split;
-  bool readonly;
-  bool sepindex;
-  };
-
 ha_create_table_option connect_table_option_list[]=
 {
-  // These option are for stand alone Connect tables
   HA_TOPTION_STRING("TABLE_TYPE", type),
   HA_TOPTION_STRING("FILE_NAME", filename),
   HA_TOPTION_STRING("XFILE_NAME", optname),
@@ -258,22 +228,11 @@ ha_create_table_option connect_table_option_list[]=
 
 
 /**
-  structure for CREATE TABLE options (field options)
+  CREATE TABLE option list (field options)
 
   These can be specified in the CREATE TABLE per field:
   CREATE TABLE ( field ... {...here...}, ... )
 */
-struct ha_field_option_struct
-{
-  ulonglong offset;
-  ulonglong freq;      // Not used by this version
-  ulonglong opt;       // Not used by this version
-  ulonglong fldlen;
-  const char *dateformat;
-  const char *fieldformat;
-  char *special;
-};
-
 ha_create_table_option connect_field_option_list[]=
 {
   HA_FOPTION_NUMBER("FLAG", offset, -1, 0, INT_MAX32, 1),
@@ -345,9 +304,8 @@ static void init_connect_psi_keys() {}
   delete_table method in handler.cc
 */
 static const char *ha_connect_exts[]= {
-  ".tbl", ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dos", ".fix", ".csv",
-  ".fmt", ".dbf", ".xml", ".ini", ".vec", ".odbc", ".mysql", ".dir",
-  ".mac", ".wmi", ".bin", ".oem",
+  ".dos", ".fix", ".csv",".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
+  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx",
   NULL
 };
 
@@ -708,6 +666,10 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
       // Return the handler default value
       if (!stricmp(opname, "Dbname") || !stricmp(opname, "Database"))
         opval= (char*)GetDBName(NULL);    // Current database
+      else if (!stricmp(opname, "User"))  // Connected user
+        opval= table->in_use->main_security_ctx.user;
+      else if (!stricmp(opname, "Host"))  // Connected user host
+        opval= table->in_use->main_security_ctx.host;
       else
         opval= sdef;                      // Caller default
 
@@ -773,9 +735,9 @@ bool ha_connect::SetBooleanOption(char *opname, bool b)
 /****************************************************************************/
 int ha_connect::GetIntegerOption(char *opname)
 {
-  int   opval= NO_IVAL;
-  char *pv;
-  PTOS  options= GetTableOptionStruct(table);
+  ulonglong opval= NO_IVAL;
+  char     *pv;
+  PTOS      options= GetTableOptionStruct(table);
 
   if (!options)
     ;
@@ -801,9 +763,9 @@ int ha_connect::GetIntegerOption(char *opname)
 
   if (opval == NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= atoi(pv);
+      opval= (unsigned)atoll(pv);
 
-  return opval;
+  return (int)opval;
 } // end of GetIntegerOption
 
 /****************************************************************************/
@@ -885,13 +847,13 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
     pcf->Name= (char*)fp->field_name;
 
   pcf->Prec= 0;
-  pcf->Opt= (fop) ? fop->opt : 0;
+  pcf->Opt= (fop) ? (int)fop->opt : 0;
 
   if ((pcf->Length= fp->field_length) < 0)
     pcf->Length= 256;            // BLOB?
 
   if (fop) {
-    pcf->Offset= fop->offset;
+    pcf->Offset= (int)fop->offset;
 //  pcf->Freq= fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
@@ -905,6 +867,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VAR_STRING:
       pcf->Flags |= U_VAR;
     case MYSQL_TYPE_STRING:
       pcf->Type= TYPE_STRING;
@@ -941,7 +904,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
 
       // Field_length is only used for DATE columns
       if (fop->fldlen)
-        pcf->Length= fop->fldlen;
+        pcf->Length= (int)fop->fldlen;
       else { 
         int len;
 
@@ -2688,13 +2651,18 @@ int ha_connect::delete_all_rows()
 
 bool ha_connect::check_privileges(THD *thd, PTOS options)
 {
-  if (!options->type)
-    options->type= "DOS";
+  if (!options->type) {
+    if (options->tabname)
+      options->type= "PROXY";
+    else
+      options->type= "DOS";
+
+    } // endif type
 
   switch (GetTypeID(options->type))
   {
     case TAB_UNDEF:
-    case TAB_CATLG:
+//  case TAB_CATLG:
     case TAB_PLG:
     case TAB_JCT:
     case TAB_DMY:
@@ -2733,13 +2701,17 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_OEM:
       return check_access(thd, FILE_ACL, NULL, NULL, NULL, 0, 0);
 
+    // This is temporary until a solution is found
     case TAB_TBL:
+    case TAB_XCL:
+    case TAB_PRX:
+    case TAB_OCCUR:
       return false;
   }
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
-}
+} // end of check_privileges
 
 // Check that two indexes are equivalent 
 bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
@@ -3272,8 +3244,9 @@ bool add_field(String *sql, const char *field_name, const char *type,
 {
   bool error= false;
 
+  error|= sql->append('`');
   error|= sql->append(field_name);
-  error|= sql->append(' ');
+  error|= sql->append("` ");
   error|= sql->append(type);
   if (len) {
     error|= sql->append('(');
@@ -3289,7 +3262,7 @@ bool add_field(String *sql, const char *field_name, const char *type,
     error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
 
   if (rem && *rem) {
-    error|= sql->append(" COMMENT='");
+    error|= sql->append(" COMMENT '");
     error|= sql->append_for_single_quote(rem, strlen(rem));
     error|= sql->append("'");
     }
@@ -3314,12 +3287,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 {
   char        spc= ',', qch= 0;
   const char *fncn= "?";
-  const char *user, *fn, *tab, *db, *host, *pwd, *prt, *sep; // *csn;
-  char       *dsn; 
+  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl; // *csn;
+  char       *tab, *dsn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
-  int         port= MYSQL_PORT, hdr= 0, mxr= 0, b= 0;
+  int         port= 0, hdr= 0, mxr= 0, b= 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
@@ -3338,51 +3311,101 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
 
-  user= host= pwd= prt= dsn= NULL;
+  user= host= pwd= prt= tbl= dsn= NULL;
 
   // Get the useful create options
   ttp=  GetTypeID(topt->type);
   fn=   topt->filename;
-  tab=  topt->tabname;
+  tab=  (char*)topt->tabname;
   db=   topt->dbname;
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep=  topt->separator;
   spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
   qch= topt->qchar ? *topt->qchar : topt->quoted >= 0 ? '"' : 0;
-  hdr= topt->header;
+  hdr= (int)topt->header;
+  tbl= topt->tablist;
+
   if (topt->oplist) {
-      host= GetListOption(g,"host", topt->oplist, "localhost");
-      user= GetListOption(g,"user", topt->oplist, "root");
-      // Default value db can come from the DBNAME=xxx option.
-      db= GetListOption(g,"database", topt->oplist, db);
-      pwd= GetListOption(g,"password", topt->oplist);
-      prt= GetListOption(g,"port", topt->oplist);
-      port= (prt) ? atoi(prt) : MYSQL_PORT;
+    host= GetListOption(g,"host", topt->oplist, "localhost");
+    user= GetListOption(g,"user", topt->oplist, "root");
+    // Default value db can come from the DBNAME=xxx option.
+    db= GetListOption(g,"database", topt->oplist, db);
+    pwd= GetListOption(g,"password", topt->oplist);
+    prt= GetListOption(g,"port", topt->oplist);
+    port= (prt) ? atoi(prt) : MYSQL_PORT;
 #if defined(WIN32)
-      nsp= GetListOption(g,"namespace", topt->oplist);
-      cls= GetListOption(g,"class", topt->oplist);
+    nsp= GetListOption(g,"namespace", topt->oplist);
+    cls= GetListOption(g,"class", topt->oplist);
 #endif   // WIN32
-      mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
-    } // endelse option_list
+    mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
+    } // endif option_list
 
   if (!db)
     db= thd->db;                     // Default value
 
   // Check table type
   if (ttp == TAB_UNDEF) {
-    strcpy(g->Message, "No table_type. Was set to DOS");
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-    ttp= TAB_DOS;
-    topt->type= "DOS";
+    if (!tab) {
+      strcpy(g->Message, "No table_type. Was set to DOS");
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      ttp= TAB_DOS;
+      topt->type= "DOS";
+    } else {
+      strcpy(g->Message, "No table_type. Was set to PROXY");
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      ttp= TAB_PRX;
+      topt->type= "PROXY";
+    } // endif fnc
+
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
     return HA_ERR_INTERNAL_ERROR;
   } // endif ttp
 
-  if (!tab && !(fnc & (FNC_TABLE | FNC_COL)))
-    tab= (char*)create_info->alias;
+  if (!tab) {
+    if (ttp == TAB_TBL) {
+      // Make tab the first table of the list
+      char *p;
+
+      if (!tbl) {
+        strcpy(g->Message, "Missing table list");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        return HA_ERR_INTERNAL_ERROR;
+        } // endif tbl
+
+      tab= (char*)PlugSubAlloc(g, NULL, strlen(tbl) + 1);
+      strcpy(tab, tbl);
+
+      if ((p= strchr(tab, ',')))
+        *p= 0;
+
+      if ((p=strchr(tab, '.'))) {
+        *p= 0;
+        db= tab;
+        tab= p + 1;
+        } // endif p
+
+    } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
+      tab= (char*)create_info->alias;
+
+    } // endif tab
+
+  // Check whether a table is defined on itself
+  switch (ttp) {
+    case TAB_PRX:
+    case TAB_XCL:
+    case TAB_TBL:
+    case TAB_OCCUR:
+      if (!stricmp(tab, create_info->alias) &&
+          !stricmp(db, thd->db)) {
+        sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        return HA_ERR_INTERNAL_ERROR;
+        } // endif tab
+
+    } // endswitch ttp
 
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
@@ -3433,7 +3456,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           ok= false;
 
       } else if (!user)
-        user= "root";       // Avoid crash
+        user= thd->main_security_ctx.user;
 
       break;
 #endif   // MYSQL_SUPPORT
@@ -3442,6 +3465,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       ok= true;
       break;
 #endif   // WIN32
+    case TAB_PRX:
+    case TAB_TBL:
+    case TAB_XCL:
+      ok= true;
+      break;
     default:
       sprintf(g->Message, "Cannot get column info for table type %s", topt->type);
     } // endif ttp
@@ -3452,6 +3480,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                         fncn, topt->type);
     ok= false;
     } // endif supfnc
+
+  // Here we should test the flag column options when
+  // this function is called in case of CREATE .. SELECT
 
   if (ok) {
     char *cnm, *rem;
@@ -3505,6 +3536,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
         break;
 #endif   // WIN32
+      case TAB_PRX:
+      case TAB_TBL:
+      case TAB_XCL:
+        qrp= TabColumns(g, thd, db, tab, fnc == FNC_COL);
+        break;
       default:
         strcpy(g->Message, "System error during assisted discovery");
         break;
@@ -3587,11 +3623,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           } // endif ttp
 #endif   // ODBC_SUPPORT
 
+        // Make the arguments as required by add_fields
         type= PLGtoMYSQLtype(typ, true);
+
         if (typ == TYPE_DATE)
           len= 0;
+
+        // Now add the field
         if (add_field(&sql, cnm, type, len, dec, tm, rem))
           b= HA_ERR_OUT_OF_MEM;
+
         } // endfor i
 
     sql.length(sql.length()-1); // remove the trailing comma
@@ -3602,59 +3643,76 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       ulonglong vull;
       const char *vstr;
       bool oom= false;
+
       switch (opt->type) {
         case HA_OPTION_TYPE_ULL:
-          vull= *(ulonglong*)(((char*)topt) + opt->offset); 
+          vull= *(ulonglong*)(((char*)topt) + opt->offset);
+
           if (vull != opt->def_value) {
             oom|= sql.append(' ');
             oom|= sql.append(opt->name);
             oom|= sql.append('=');
             oom|= sql.append_ulonglong(vull);
-          }
+            } // endif vull
+
           break;
         case HA_OPTION_TYPE_STRING:
-          vstr= *(char**)(((char*)topt) + opt->offset); 
+          vstr= *(char**)(((char*)topt) + opt->offset);
+
           if (vstr) {
             oom|= sql.append(' ');
             oom|= sql.append(opt->name);
             oom|= sql.append("='");
             oom|= sql.append_for_single_quote(vstr, strlen(vstr));
             oom|= sql.append('\'');
-          }
+            } // endif vstr
+
           break;
         case HA_OPTION_TYPE_BOOL:
-          vull= *(bool*)(((char*)topt) + opt->offset); 
+          vull= *(bool*)(((char*)topt) + opt->offset);
+
           if (vull != opt->def_value) {
             oom|= sql.append(' ');
             oom|= sql.append(opt->name);
             oom|= sql.append('=');
             oom|= sql.append(vull ? "ON" : "OFF");
-          }
+            } // endif vull
+
           break;
         default: // no enums here, good :)
           break;
-        }
+        } // endswitch type
+
       if (oom)
         b= HA_ERR_OUT_OF_MEM;
-      }
+
+      } // endfor opt
 
     if (create_info->connect_string.length) {
       bool oom= false;
+
       oom|= sql.append(' ');
       oom|= sql.append("CONNECTION='");
       oom|= sql.append_for_single_quote(create_info->connect_string.str,
                                         create_info->connect_string.length);
       oom|= sql.append('\'');
+
       if (oom)
         b= HA_ERR_OUT_OF_MEM;
-      }
+
+      } // endif string
 
     if (create_info->default_table_charset) {
       bool oom= false;
+
       oom|= sql.append(' ');
       oom|= sql.append("CHARSET=");
       oom|= sql.append(create_info->default_table_charset->csname);
-      }
+
+      if (oom)
+        b= HA_ERR_OUT_OF_MEM;
+
+      } // endif charset
 
     if (!b)
       b= table_s->init_from_sql_statement_string(thd, true,
@@ -3664,7 +3722,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
   return HA_ERR_INTERNAL_ERROR;
-} // end of pre_create
+} // end of connect_assisted_discovery
 
 /**
   @brief

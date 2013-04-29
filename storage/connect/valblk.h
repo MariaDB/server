@@ -64,6 +64,7 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(double fval, int n) {assert(false);}
   virtual void   SetValue(char cval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
+  virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
 #if 0
@@ -120,6 +121,7 @@ class TYPBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(short sval, int n)
                   {Typp[n] = (TYPE)sval; SetNull(n, false);}
   virtual void   SetValue(int lval, int n)
@@ -175,6 +177,7 @@ class CHRBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
 //virtual void   SetValues(PVBLK pv, int k, int n);
@@ -221,6 +224,7 @@ class STRBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
 //virtual void   SetValues(PVBLK pv, int k, int n);
