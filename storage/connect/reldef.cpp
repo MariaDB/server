@@ -304,7 +304,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
       else
         txfp = new(g) DOSFAM(defp);
 
-    } else if (rfm == RECFM_FIX || rfm == RECFM_FIX) {
+    } else if (rfm == RECFM_FIX || rfm == RECFM_BIN) {
       if (map)
         txfp = new(g) MPXFAM(defp);
       else
