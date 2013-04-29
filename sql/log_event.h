@@ -1946,7 +1946,7 @@ public:        /* !!! Public in this patch to allow old usage */
                        const char *query_arg,
                        uint32 q_len_arg);
   static bool peek_is_commit_rollback(const char *event_start,
-                                      size_t event_len);
+                                      size_t event_len, uint8 checksum_alg);
 #endif /* HAVE_REPLICATION */
   /*
     If true, the event always be applied by slave SQL thread or be printed by
@@ -3084,6 +3084,7 @@ public:
   static int make_compatible_event(String *packet, bool *need_dummy_event,
                                     ulong ev_offset, uint8 checksum_alg);
   static bool peek(const char *event_start, size_t event_len,
+                   uint8 checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                    uchar *flags2);
 #endif

@@ -4236,8 +4236,19 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
 
 bool
 Query_log_event::peek_is_commit_rollback(const char *event_start,
-                                         size_t event_len)
+                                         size_t event_len, uint8 checksum_alg)
 {
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
   if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
     return false;
   return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
@@ -6050,10 +6061,23 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 */
 bool
 Gtid_log_event::peek(const char *event_start, size_t event_len,
+                     uint8 checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                      uchar *flags2)
 {
   const char *p;
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
   if (event_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);

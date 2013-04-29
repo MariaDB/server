@@ -1160,7 +1160,8 @@ gtid_state_from_pos(const char *name, uint32 offset,
     {
       rpl_gtid gtid;
       uchar flags2;
-      if (Gtid_log_event::peek(packet.ptr(), packet.length(), &gtid.domain_id,
+      if (Gtid_log_event::peek(packet.ptr(), packet.length(),
+                               current_checksum_alg, &gtid.domain_id,
                                &gtid.server_id, &gtid.seq_no, &flags2))
       {
         errormsg= "Corrupt gtid_log_event found while scanning binlog to find "
@@ -1253,6 +1254,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
 
     if (ev_offset > len ||
         Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
+                             current_checksum_alg,
                              &domain_id, &server_id, &seq_no, &flags2))
       return "Failed to read Gtid_log_event: corrupt binlog";
     gtid= gtid_state->find(domain_id);
@@ -1287,7 +1289,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
     if (event_type == XID_EVENT ||
         (event_type == QUERY_EVENT &&
          Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
-                                                  len - ev_offset)))
+                                                  len - ev_offset,
+                                                  current_checksum_alg)))
       *gtid_skip_group= GTID_SKIP_NOT;
     return NULL;
   case GTID_SKIP_NOT:
