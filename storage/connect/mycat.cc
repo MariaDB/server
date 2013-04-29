@@ -68,7 +68,10 @@
 #include "tabmac.h"
 #include "tabwmi.h"
 #endif   // WIN32
+//#include "tabtbl.h"
+#include "tabxcl.h"
 #include "tabtbl.h"
+#include "taboccur.h"
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
@@ -124,6 +127,10 @@ TABTYPE GetTypeID(const char *type)
 	               : (!stricmp(type, "WMI"))   ? TAB_WMI
 #endif
 	               : (!stricmp(type, "TBL"))   ? TAB_TBL
+	               : (!stricmp(type, "XCOL"))  ? TAB_XCL
+	               : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
+                 : (!stricmp(type, "CATLG")) ? TAB_PRX  // Legacy
+                 : (!stricmp(type, "PROXY")) ? TAB_PRX
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -185,7 +192,6 @@ bool IsTypeNullable(TABTYPE type)
       nullable= true;
       break;
     } // endswitch type
-
 
   return nullable;
   } // end of IsTypeNullable
@@ -414,7 +420,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   // Get a unique char identifier for type
-  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_CATLG;
+  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
@@ -443,6 +449,9 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
       case TAB_INI:
       case TAB_MAC:
       case TAB_TBL:
+      case TAB_XCL:
+      case TAB_OCCUR:
+      case TAB_PRX:
       case TAB_OEM:
         poff = 0;      // Offset represents an independant flag
         break;
@@ -592,7 +601,7 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 
  	// If not specified get the type of this table
   if (!type && !(type= Hc->GetStringOption("Type")))
-		type= "DOS";
+    type= (Hc->GetStringOption("Tabname")) ? "PROXY" : "DOS";
 
   return MakeTableDesc(g, name, type);
   } // end of GetTableDesc
@@ -636,6 +645,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #endif   // WIN32
     case TAB_OEM: tdp= new(g) OEMDEF;   break;
 	  case TAB_TBL: tdp= new(g) TBLDEF;   break;
+	  case TAB_XCL: tdp= new(g) XCLDEF;   break;
+	  case TAB_PRX: tdp= new(g) PRXDEF;   break;
+		case TAB_OCCUR: tdp= new(g) OCCURDEF;	break;
 #if defined(MYSQL_SUPPORT)
 		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
 #endif   // MYSQL_SUPPORT
@@ -646,7 +658,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
 
-  // Do make the table/view definition from XDB file information
+  // Do make the table/view definition
   if (tdp && tdp->Define(g, this, name, am))
     tdp= NULL;
 

@@ -63,6 +63,7 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 #endif   // _CONSOLE
 
 extern "C" int   trace;
+extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
 /* -------------- Implementation of the MYSQLDEF class --------------- */
 
@@ -243,10 +244,13 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
 
-    Portnumber = (sport && sport[0]) ? atoi(sport) : MYSQL_PORT;
+    Portnumber = (sport && sport[0]) ? atoi(sport) : mysqld_port;
+
+    if (Username[0] == 0)
+      Username = Cat->GetStringCatInfo(g, "User", "*");
 
     if (Hostname[0] == 0)
-      Hostname = "localhost";
+      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
 
     if (!Database || !*Database)
       Database = Cat->GetStringCatInfo(g, "Database", "*");
@@ -282,9 +286,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Database = Cat->GetStringCatInfo(g, "Database", "*");
     Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
     Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-    Username = Cat->GetStringCatInfo(g, "User", "root");
+    Username = Cat->GetStringCatInfo(g, "User", "*");
     Password = Cat->GetStringCatInfo(g, "Password", NULL);
-    Portnumber = Cat->GetIntCatInfo("Port", MYSQL_PORT);
+    Portnumber = Cat->GetIntCatInfo("Port", mysqld_port);
   } else if (ParseURL(g, url))
     return TRUE;
 

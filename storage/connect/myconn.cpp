@@ -62,6 +62,7 @@ static char *server_groups[] = {
 #endif   // EMBEDDED
 
 extern "C" int   trace;
+extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
@@ -89,6 +90,9 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   PQRYRES qrp;
   PCOLRES crp;
   MYSQLC  myc;
+
+  if (!port)
+    port = mysqld_port;
 
   if (!info) {
     /********************************************************************/
