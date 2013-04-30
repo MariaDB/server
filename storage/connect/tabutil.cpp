@@ -57,6 +57,15 @@
 extern "C" int trace;
 
 /************************************************************************/
+/*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
+/*  table (PROXY, TBL, XCL, or OCCUR) when used by one of these.        */
+/************************************************************************/
+void Remove_tshp(PCATLG cat)
+{
+  ((MYCAT*)cat)->GetHandler()->tshp = NULL;
+} // end of Remove_thsp
+
+/************************************************************************/
 /*  GetTableShare: allocates and open a table share.                    */
 /************************************************************************/
 TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db, 
@@ -315,7 +324,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
   if (mysql) {
 #if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
-    if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYSQL"))) {
+    if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYPRX"))) {
       sprintf(g->Message, "Cannot access %s.%s", db, name);
       goto err;
       } // endif Define
