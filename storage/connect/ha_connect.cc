@@ -3333,7 +3333,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     db= GetListOption(g,"database", topt->oplist, db);
     pwd= GetListOption(g,"password", topt->oplist);
     prt= GetListOption(g,"port", topt->oplist);
-    port= (prt) ? atoi(prt) : MYSQL_PORT;
+    port= (prt) ? atoi(prt) : 0;
 #if defined(WIN32)
     nsp= GetListOption(g,"namespace", topt->oplist);
     cls= GetListOption(g,"class", topt->oplist);
