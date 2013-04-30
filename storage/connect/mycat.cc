@@ -120,6 +120,7 @@ TABTYPE GetTypeID(const char *type)
 #endif
 #ifdef MYSQL_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+                 : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
 #endif
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #ifdef WIN32

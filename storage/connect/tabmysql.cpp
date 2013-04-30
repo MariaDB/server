@@ -65,6 +65,9 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 extern "C" int   trace;
 extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
+// This function is located in tabutil.cpp
+void Remove_tshp(PCATLG cat);
+
 /* -------------- Implementation of the MYSQLDEF class --------------- */
 
 /***********************************************************************/
@@ -279,6 +282,11 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   char *url = Cat->GetStringCatInfo(g, "Connect", NULL);
 
   Desc = "MySQL Table";
+
+  if (!stricmp(am, "MYPRX"))
+    // MYSQL access from a PROXY table, 
+    // we must get parms from the calling table
+    Remove_tshp(Cat);
 
   if (!url || !*url) { 
     // Not using the connection URL
