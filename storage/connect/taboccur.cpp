@@ -60,7 +60,6 @@ extern "C" int trace;
 /***********************************************************************/
 bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-//Tabname = Cat->GetStringCatInfo(g, "SrcTable", "");
   Xcol = Cat->GetStringCatInfo(g, "OccurCol", "");
   Rcol = Cat->GetStringCatInfo(g, "RankCol", "");
   Colist = Cat->GetStringCatInfo(g, "Colist", "");
@@ -72,22 +71,9 @@ bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB OCCURDEF::GetTable(PGLOBAL g, MODE m)
   {
-  if (Catfunc != FNC_COL) {
-		PTDB      tdbp;
-    PTDBOCCUR tocp = new(g) TDBOCCUR(this);
-
-		// Check that the source table is available
-		if (!tocp || !(tdbp = tocp->GetSubTable(g, Tablep)))
-			return NULL;
-
-		// Set Tdbp now
-		tocp->SetTdbp((PTDBASE)tdbp);
-
-		if (tocp->MakeColumnList(g) < 0)
-      return NULL;
-
-  	return tocp;
-  } else
+  if (Catfunc != FNC_COL)
+  	return new(g) TDBOCCUR(this);
+  else
     return new(g) TDBTBC(this);
 
   } // end of GetTable
@@ -146,6 +132,24 @@ PCOL TDBOCCUR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 	} // end of MakeCol
 
 /***********************************************************************/
+/*  Initializes the table.                                             */
+/***********************************************************************/
+bool TDBOCCUR::InitTable(PGLOBAL g)
+  {
+  if (!Tdbp) {
+    // Get the table description block of this table
+    if (!(Tdbp = (PTDBASE)GetSubTable(g, ((POCCURDEF)To_Def)->Tablep)))
+      return TRUE;
+
+		if (MakeColumnList(g) < 0)
+      return TRUE;
+
+    } // endif Tdbp
+
+  return FALSE;
+  } // end of InitTable
+
+/***********************************************************************/
 /*  Allocate OCCUR column description block.                           */
 /***********************************************************************/
 int TDBOCCUR::MakeColumnList(PGLOBAL g)
@@ -199,7 +203,9 @@ int TDBOCCUR::MakeColumnList(PGLOBAL g)
 int TDBOCCUR::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-//	Mult = MakeColumnList(g);
+    if (InitTable(g))
+      return NULL;
+  
 		MaxSize = Mult * Tdbp->GetMaxSize(g);
 		} // endif MaxSize
 
@@ -233,12 +239,7 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
 		return Tdbp->OpenDB(g);
     } // endif use
 
-  /*********************************************************************/
-  /*  Do it here if not done yet.                                      */
-  /*********************************************************************/
-//	if (MakeColumnList(g) < 0)
-//    return TRUE;
-
+  
   if (Mode != MODE_READ) {
     /*******************************************************************/
     /* Currently OCCUR tables cannot be modified.                      */
@@ -247,21 +248,11 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
     return TRUE;
     } // endif Mode
 
-#if 0
   /*********************************************************************/
-  /*  Be sure OCCUR column exist.                                  		 */
+  /*  Do it here if not done yet.                                      */
   /*********************************************************************/
-  if (!Xcolp) {
-		if (!(Xcolp = (POCCURCOL)ColDB(g, Xcolumn, 0))) {
-	    sprintf(g->Message, "OCCUR column %s definition error", Xcolumn);
-	    return TRUE;
-		} else if (Xcolp->InitValue(g)) {
-	    strcpy(g->Message, "OCCUR InitValue failed");
-	    return TRUE;
-	  } // endif's Xcolp
-
-		} // endif Xcolp
-#endif // 0
+  if (InitTable(g))
+    return NULL;
 
   if (Xcolp)
 	  // Lock this column so it is evaluated by its table only

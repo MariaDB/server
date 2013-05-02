@@ -4,6 +4,9 @@
 CREATE TABLE t1 (
 a INT NOT NULL,
 message CHAR(10)) ENGINE=connect;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
 INSERT INTO t1 VALUES (1,'Testing'),(2,'dos table'),(3,'t1');
 SELECT * FROM t1;
 a	message

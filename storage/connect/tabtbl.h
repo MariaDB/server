@@ -24,8 +24,6 @@ class DllExport TBLDEF : public PRXDEF {  /* Logical table description */
 
   // Implementation
   virtual const char *GetType(void) {return "TBL";}
-//PTABLE GetTables(void) {return Tablep;}
-//int  GetNtables(void) {return Ntables;}
 
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
@@ -33,7 +31,6 @@ class DllExport TBLDEF : public PRXDEF {  /* Logical table description */
 
  protected:
   // Members
-//PTABLE  To_Tables;               /* To the list of tables            */
   bool    Accept;                  /* TRUE if bad tables are accepted  */
   int     Maxerr;                  /* Maximum number of bad tables     */
   int     Ntables;                 /* Number of tables                 */
@@ -43,7 +40,6 @@ class DllExport TBLDEF : public PRXDEF {  /* Logical table description */
 /*  This is the TBL Access Method class declaration.                   */
 /***********************************************************************/
 class DllExport TDBTBL : public TDBPRX {
-//friend class TBLCOL;
   friend class TBTBLK;
   friend class TDBPLG;
  public:
@@ -55,74 +51,31 @@ class DllExport TDBTBL : public TDBPRX {
 
   // Methods
   virtual void ResetDB(void);
-//virtual PTABLE GetTablist(void) {return (PSZ)Tablist;}
   virtual int GetRecpos(void) {return Rows;}
   virtual int GetBadLines(void) {return (int)Nbf;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g);
-//virtual int  GetProgMax(PGLOBAL g);
-//virtual int  GetProgCur(void);
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
-//virtual int  WriteDB(PGLOBAL g);
-//virtual int  DeleteDB(PGLOBAL g, int irc);
-//virtual void CloseDB(PGLOBAL g);
 
  protected:
   // Internal functions
-//PTDB  GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp);
   bool  InitTableList(PGLOBAL g);
   bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
 
   // Members
   PTABLE  Tablist;              // Points to the table list
   PTABLE  CurTable;             // Points to the current table
-//PTDBASE Tdbp;                 // Current table PTDB
   bool    Accept;               // TRUE if bad tables are accepted
   int     Maxerr;               // Maximum number of bad tables
   int     Nbf;                  // Number of bad connections
   int     Rows;                 // Used for RowID
   int     Crp;                  // Used for CurPos
   }; // end of class TDBTBL
-
-#if 0
-/***********************************************************************/
-/*  Class TBLCOL: TBL access method column descriptor.                 */
-/*  This A.M. is used for TBL tables.                                  */
-/***********************************************************************/
-class DllExport TBLCOL : public COLBLK {
-  friend class TDBTBL;
- public:
-  // Constructors
-  TBLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "TBL");
-  TBLCOL(TBLCOL *colp, PTDB tdbp); // Constructor used in copy process
-//TBLCOL(SPCBLK *colp, PTDB tdbp); // Constructor used for pseudo columns
-
-  // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_TBL;}
-
-  // Methods
-  virtual bool   IsSpecial(void) {return Pseudo;}
-  virtual void   ReadColumn(PGLOBAL g);
-//virtual void   WriteColumn(PGLOBAL g);
-//        void   Print(PGLOBAL g, FILE *, UINT);
-          bool   Init(PGLOBAL g);
-
- protected:
-  // Default constructor not to be used
-  TBLCOL(void) {}
-
-  // Members
-  PCOL     Colp;               // Points to matching table column
-  PVAL     To_Val;             // To the matching column value
-  bool     Pseudo;             // TRUE for special columns
-  int      Colnum;             // Used when retrieving columns by number
-  }; // end of class TBLCOL
-#endif // 0
 
 /***********************************************************************/
 /*  Class TBTBLK: TDBPLG TABID special column descriptor.              */

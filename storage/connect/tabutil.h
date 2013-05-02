@@ -95,6 +95,7 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   DeleteDB(PGLOBAL g, int irc);
   virtual void  CloseDB(PGLOBAL g) {if (Tdbp) Tdbp->CloseDB(g);}
           PTDB  GetSubTable(PGLOBAL g, PTABLE tabp);
+          void  RemoveNext(PTABLE tp);
 
  protected:
   // Members

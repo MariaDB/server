@@ -105,7 +105,6 @@ PTDB XCLDEF::GetTable(PGLOBAL g, MODE mode)
 /***********************************************************************/
 TDBXCL::TDBXCL(PXCLDEF tdp) : TDBPRX(tdp)
   {
-//Tdbp = NULL;                    // The physical table
 	Xcolumn = tdp->Xcol;						// CSV column name     
 	Xcolp = NULL;										// To the XCVCOL column
 	Mult = tdp->Mult;								// Multiplication factor
@@ -222,28 +221,6 @@ bool TDBXCL::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
 		return TRUE;
 
-#if 0
-  /*********************************************************************/
-  /*  Check for direct access.                                         */
-  /*********************************************************************/
-  if (To_Key_Col)
-    if (!Tdbp->GetDef()->Indexable()) {
-      strcpy(g->Message, "Object table is not indexable");
-      return TRUE;
-    } else {
-      ((PTDBX)Tdbp)->To_Key_Col = To_Key_Col;
-      ((PTDBX)Tdbp)->To_Link = To_Link;
-      ((PTDBX)Tdbp)->Knum = Knum;
-      To_Kindex = (PKXBASE)new(g) KINDEX(Tdbp);
-
-      if (To_Kindex->Init(g))
-        return TRUE;
-
-      ((PKINDEX)To_Kindex)->SetMult(Mult);
-      Tdbp->SetKindex(To_Kindex);
-    } // endif Indexable
-#endif // 0
-
 	return FALSE;
   } // end of OpenDB
 
@@ -332,45 +309,3 @@ void XCLCOL::ReadColumn(PGLOBAL g)
 		((PTDBXCL)To_Tdb)->RowFlag = 1;
 
   } // end of ReadColumn
-
-#if 0
-/* -------------- Implementation of the MULINDX class	---------------- */
-
-/***********************************************************************/
-/*  Returns FALSE if Ok, TRUE if there are no more equal values.       */
-/***********************************************************************/
-bool MULINDX::HaveSame(void)
-  {
-  return (Op == OP_SAME || Txlp->RowFlag == 1);
-  } // end of HaveSame
-
-/***********************************************************************/
-/*  Returns FALSE if Ok, TRUE if there are no more equal values.       */
-/***********************************************************************/
-bool MULINDX::NextVal(bool eq)
-  {
-  return (Pof) ? KINDEX::NextVal(eq) : TRUE;
-  } // end of NextVal
-
-/***********************************************************************/
-/*  Returns TRUE if there are more same values.                        */
-/***********************************************************************/
-bool MULINDX::MoreVal(void)
-  {
-	Op = OP_SAME;			 // There may be more equal values
-  return (Pof) ? Pof[Val_K] : Val_K;
-  } // end of MoreVal
-
-/***********************************************************************/
-/*  Change the index multiple status.                                  */
-/***********************************************************************/
-bool MULINDX::Init(PGLOBAL g)
-  {
-  if (KINDEX::Init(g))
-    return TRUE;
-
-  Mul = TRUE;
-  MaxSame *= Txlp->Mult;
-  return FALSE;
-  } // end of Init
-#endif // 0
