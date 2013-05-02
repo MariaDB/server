@@ -41,6 +41,7 @@
 #define MAX_CONNECTION_NAME NAME_LEN
 
 #define MAX_MBWIDTH		3		/* Max multibyte sequence */
+#define MAX_FILENAME_MBWIDTH    5
 #define MAX_FIELD_CHARLENGTH	255
 #define MAX_FIELD_VARCHARLENGTH	65535
 #define MAX_FIELD_BLOBLENGTH UINT_MAX32         /* cf field_blob::get_length() */
