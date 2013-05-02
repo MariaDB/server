@@ -129,7 +129,7 @@ a
 2
 3
 SET SQL_LOG_BIN=0;
-call mtr.add_suppression("Slave: Table 't1' already exists Error_code: 1050");
+call mtr.add_suppression("Slave: Table 't1' already exists error.* 1050");
 SET SQL_LOG_BIN=1;
 *** Test reconnecting slave with GTID after purge logs on master. ***
 FLUSH LOGS;
