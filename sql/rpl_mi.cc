@@ -687,10 +687,11 @@ bool check_master_connection_name(LEX_STRING *name)
 */
 
 void create_logfile_name_with_suffix(char *res_file_name, size_t length,
-                             const char *info_file, bool append,
-                             LEX_STRING *suffix)
+                                     const char *info_file, bool append,
+                                     LEX_STRING *suffix)
 {
-  char buff[MAX_CONNECTION_NAME+1], res[MAX_CONNECTION_NAME+1], *p;
+  char buff[MAX_CONNECTION_NAME+1],
+    res[MAX_CONNECTION_NAME * MAX_FILENAME_MBWIDTH+1], *p;
 
   p= strmake(res_file_name, info_file, length);
   /* If not empty suffix and there is place left for some part of the suffix */
@@ -703,8 +704,6 @@ void create_logfile_name_with_suffix(char *res_file_name, size_t length,
 
     /* Create null terminated string */
     strmake(buff, suffix->str, suffix->length);
-    /* Convert to lower case */
-    my_casedn_str(system_charset_info, buff);
     /* Convert to characters usable in a file name */
     res_length= strconvert(system_charset_info, buff,
                            &my_charset_filename, res, sizeof(res), &errors);
@@ -820,7 +819,7 @@ bool Master_info_index::init_all_master_info()
 {
   int thread_mask;
   int err_num= 0, succ_num= 0; // The number of success read Master_info
-  char sign[MAX_CONNECTION_NAME];
+  char sign[MAX_CONNECTION_NAME+1];
   File index_file_nr;
   DBUG_ENTER("init_all_master_info");
 
@@ -872,11 +871,14 @@ bool Master_info_index::init_all_master_info()
     lock_slave_threads(mi);
     init_thread_mask(&thread_mask,mi,0 /*not inverse*/);
 
-    create_logfile_name_with_suffix(buf_master_info_file, sizeof(buf_master_info_file),
-                            master_info_file, 0, &connection_name);
+    create_logfile_name_with_suffix(buf_master_info_file,
+                                    sizeof(buf_master_info_file),
+                                    master_info_file, 0,
+                                    &mi->cmp_connection_name);
     create_logfile_name_with_suffix(buf_relay_log_info_file,
-                            sizeof(buf_relay_log_info_file),
-                            relay_log_info_file, 0, &connection_name);
+                                    sizeof(buf_relay_log_info_file),
+                                    relay_log_info_file, 0,
+                                    &mi->cmp_connection_name);
     if (global_system_variables.log_warnings > 1)
       sql_print_information("Reading Master_info: '%s'  Relay_info:'%s'",
                             buf_master_info_file, buf_relay_log_info_file);

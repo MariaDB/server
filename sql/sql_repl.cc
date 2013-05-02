@@ -2128,11 +2128,12 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
   create_logfile_name_with_suffix(master_info_file_tmp,
                                   sizeof(master_info_file_tmp),
-                                  master_info_file, 0, &mi->connection_name);
+                                  master_info_file, 0,
+                                  &mi->cmp_connection_name);
   create_logfile_name_with_suffix(relay_log_info_file_tmp,
                                   sizeof(relay_log_info_file_tmp),
                                   relay_log_info_file, 0,
-                                  &mi->connection_name);
+                                  &mi->cmp_connection_name);
 
   lock_slave_threads(mi);  // this allows us to cleanly read slave_running
   // Get a mask of _stopped_ threads
@@ -2378,11 +2379,13 @@ int reset_slave(THD *thd, Master_info* mi)
 
   // and delete these two files
   create_logfile_name_with_suffix(master_info_file_tmp,
-                          sizeof(master_info_file_tmp),
-                          master_info_file, 0, &mi->connection_name);
+                                  sizeof(master_info_file_tmp),
+                                  master_info_file, 0,
+                                  &mi->cmp_connection_name);
   create_logfile_name_with_suffix(relay_log_info_file_tmp,
-                          sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, 0, &mi->connection_name);
+                                  sizeof(relay_log_info_file_tmp),
+                                  relay_log_info_file, 0,
+                                  &mi->cmp_connection_name);
 
   fn_format(fname, master_info_file_tmp, mysql_data_home, "", 4+32);
   if (mysql_file_stat(key_file_master_info, fname, &stat_area, MYF(0)) &&
@@ -2549,11 +2552,13 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   thd_proc_info(thd, "Changing master");
 
   create_logfile_name_with_suffix(master_info_file_tmp,
-                          sizeof(master_info_file_tmp),
-                          master_info_file, 0, &mi->connection_name);
+                                  sizeof(master_info_file_tmp),
+                                  master_info_file, 0,
+                                  &mi->cmp_connection_name);
   create_logfile_name_with_suffix(relay_log_info_file_tmp,
-                          sizeof(relay_log_info_file_tmp),
-                          relay_log_info_file, 0, &mi->connection_name);
+                                  sizeof(relay_log_info_file_tmp),
+                                  relay_log_info_file, 0,
+                                  &mi->cmp_connection_name);
 
   /* if new Master_info doesn't exists, add it */
   if (!master_info_index->get_master_info(&mi->connection_name,
