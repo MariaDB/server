@@ -15,7 +15,8 @@
 /***********************************************************************/
 /*  Definition of class XTAB with all its method functions.            */
 /***********************************************************************/
- class DllExport XTAB: public BLOCK { // Table Name-Owner-Correl block.
+class DllExport XTAB: public BLOCK {  // Table Name-Owner-Correl block.
+  friend class TDBPRX;
  public:
   // Constructors
   XTAB(LPCSTR name, LPCSTR correl = NULL);

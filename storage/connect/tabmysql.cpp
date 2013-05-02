@@ -283,25 +283,36 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Desc = "MySQL Table";
 
-  if (!stricmp(am, "MYPRX"))
-    // MYSQL access from a PROXY table, 
-    // we must get parms from the calling table
-    Remove_tshp(Cat);
+  if (!stricmp(am, "MYPRX")) {
+    // Normal case of specific MYSQL table
+    if (!url || !*url) { 
+      // Not using the connection URL
+      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+      Database = Cat->GetStringCatInfo(g, "Database", "*");
+      Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
+      Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
+      Username = Cat->GetStringCatInfo(g, "User", "*");
+      Password = Cat->GetStringCatInfo(g, "Password", NULL);
+      Portnumber = Cat->GetIntCatInfo("Port", mysqld_port);
+    } else if (ParseURL(g, url))
+      return TRUE;
 
-  if (!url || !*url) { 
-    // Not using the connection URL
-    Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+    Bind = !!Cat->GetIntCatInfo("Bind", 0);
+    Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
+  } else {
+    // MYSQL access from a PROXY table, not using URL 
     Database = Cat->GetStringCatInfo(g, "Database", "*");
     Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
     Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
+
+    // We must get connection parms from the calling table
+    Remove_tshp(Cat);
+    Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
     Username = Cat->GetStringCatInfo(g, "User", "*");
     Password = Cat->GetStringCatInfo(g, "Password", NULL);
     Portnumber = Cat->GetIntCatInfo("Port", mysqld_port);
-  } else if (ParseURL(g, url))
-    return TRUE;
+  } // endif am
 
-  Bind = !!Cat->GetIntCatInfo("Bind", 0);
-  Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
   return FALSE;
   } // end of DefineAM
 

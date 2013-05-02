@@ -3392,21 +3392,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
     } // endif tab
 
-  // Check whether a table is defined on itself
-  switch (ttp) {
-    case TAB_PRX:
-    case TAB_XCL:
-    case TAB_TBL:
-    case TAB_OCCUR:
-      if (!stricmp(tab, create_info->alias) &&
-          !stricmp(db, thd->db)) {
-        sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
-        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        return HA_ERR_INTERNAL_ERROR;
-        } // endif tab
-
-    } // endswitch ttp
-
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC:
@@ -3758,7 +3743,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   Field  *fp;
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
-  xp= GetUser(ha_thd(), xp);
+  THD    *thd= ha_thd(); 
+  xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
@@ -3768,7 +3754,27 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   DBUG_ASSERT(options);
   type= GetTypeID(options->type);
 
-  if (check_privileges(ha_thd(), options))
+  // Check table type
+  if (type == TAB_UNDEF) {
+    if (!options->tabname) {
+      strcpy(g->Message, "No table_type. Will be set to DOS");
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      type= TAB_DOS;
+      options->type= "DOS";
+    } else {
+      strcpy(g->Message, "No table_type. Will be set to PROXY");
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      type= TAB_PRX;
+      options->type= "PROXY";
+    } // endif fnc
+
+  } else if (type == TAB_NIY) {
+    sprintf(g->Message, "Unsupported table type %s", options->type);
+    my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+    DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+  } // endif ttp
+
+  if (check_privileges(thd, options))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
   if (options->data_charset) {
@@ -3794,6 +3800,21 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     DBUG_RETURN(rc);
   } else
     dbf= (GetTypeID(options->type) == TAB_DBF && !options->catfunc);
+
+  // Check whether a table is defined on itself
+  switch (type) {
+    case TAB_PRX:
+    case TAB_XCL:
+    case TAB_OCCUR:
+      if (!stricmp(options->tabname, create_info->alias) &&
+          (!options->dbname || !stricmp(options->dbname, thd->db))) {
+        sprintf(g->Message, "A %s table cannot refer to itself",
+                            options->type);
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        return HA_ERR_INTERNAL_ERROR;
+        } // endif tab
+
+    } // endswitch ttp
 
   if (type == TAB_XML) {
     bool  dom;                  // True: MS-DOM, False libxml2
@@ -3964,8 +3985,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         
         strcat(strcat(buf, "."), lwt);
         sprintf(g->Message, "No file name. Table will use %s", buf);
-        push_warning(table->in_use, 
-                     MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
         strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
         PlugSetPath(fn, buf, dbpath);
     
@@ -3994,7 +4014,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
       // We should be in CREATE TABLE
       if (table->in_use->lex->sql_command != SQLCOM_CREATE_TABLE)
-        push_warning(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
+        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
           "Wrong command in create, please contact CONNECT team");
 
       // Get the index definitions

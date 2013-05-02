@@ -209,65 +209,6 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
   return colp;
   } // end of InsertSpecialColumn
 
-#if 0
-/***********************************************************************/
-/*  Get the PTDB of a table of the list.                               */
-/***********************************************************************/
-PTDB TDBTBL::GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp)
-  {
-//char        *db;
-  bool         mysql;
-  PTDB         tdbp = NULL;
-  TABLE_SHARE *s;
-  PCATLG       cat = To_Def->GetCat();
-  PHC          hc = ((MYCAT*)cat)->GetHandler();
-  THD         *thd = (hc->GetTable())->in_use;
-
-  if (!thd)
-    return NULL;         // Should not happen anymore
-
-//if (tblp->DB)
-//  db = tblp->DB;
-//else
-//  db = (char*)hc->GetDBName(NULL);
-
-//if (!(s = GetTableShare(g, thd, db, tblp->Name, mysql)))
-  if (!(s = GetTableShare(g, thd, tblp->DB, tblp->Name, mysql)))
-    return NULL; 
-
-  if (mysql) {
-#if defined(MYSQL_SUPPORT)
-    // Access sub-table via MySQL API
-    if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYSQL"))) {
-      sprintf(g->Message, "Cannot access %s.%s", tblp->DB, tblp->Name);
-      goto err;
-      } // endif Define
-
-    if (tabp->GetQualifier())
-      ((PTDBMY)tdbp)->SetDatabase(tabp->GetQualifier());
-
-#else   // !MYSQL_SUPPORT
-    sprintf(g->Message, "%s.%s is not a CONNECT table",
-                        db, tblp->Name);
-    goto err;
-#endif   // MYSQL_SUPPORT
-  } else {
-    // Sub-table is a CONNECT table
-    hc->tshp = s;
-    tdbp = cat->GetTable(g, tabp);
-    hc->tshp = NULL;
-  } // endif plugin
-
-  if (trace && tdbp)
-    htrc("Subtable %s in %s\n", 
-          tblp->Name, SVP(((PTDBASE)tdbp)->GetDef()->GetDB()));
-
- err:
-  free_table_share(s);
-  return tdbp;
-  } // end of GetSubTable
-#endif // 0
-
 /***********************************************************************/
 /*  Initializes the table table list.                                  */
 /***********************************************************************/
@@ -293,7 +234,8 @@ bool TDBTBL::InitTableList(PGLOBAL g)
         else
           continue;                  // Skip this table
 
-        } // endif tdbp
+      } else
+        RemoveNext(tabp);            // To avoid looping
 
       // We must allocate subtable columns before GetMaxSize is called
       // because some (PLG, ODBC?) need to have their columns attached.
@@ -393,80 +335,18 @@ bool TDBTBL::TestFil(PGLOBAL g, PFIL filp, PTABLE tabp)
   return TRUE;                 // invalid operator
   } // end of TestFil
 
-#if 0
-/***********************************************************************/
-/*  TBL GetProgMax: get the max value for progress information.        */
-/***********************************************************************/
-int TDBTBL::GetProgMax(PGLOBAL g)
-  {
-  int n, pmx = 0;
-
-  if (!Tablist && InitTableList(g))
-    return -1;
-
-  for (PTABLE tabp = Tablist; tabp; tblp = tabp->GetNext())
-    if ((n = tabp->GetTo_Tdb()->GetProgMax(g)) > 0)
-      pmx += n;
-
-  return pmx;
-  } // end of GetProgMax
-
-/***********************************************************************/
-/*  TBL GetProgCur: get the current value for progress information.    */
-/***********************************************************************/
-int TDBTBL::GetProgCur(void)
-  {
-  return Crp + Tdbp->GetProgCur();
-  } // end of GetProgCur
-
-/***********************************************************************/
-/*  TBL Cardinality: returns table cardinality in number of rows.      */
-/*  This function can be called with a null argument to test the       */
-/*  availability of Cardinality implementation (1 yes, 0 no).          */
-/*  Can be used on Multiple FIX table only.                            */
-/***********************************************************************/
-int TDBTBL::Cardinality(PGLOBAL g)
-  {
-  if (!g)
-    return Tdbp->Cardinality(g);
-
-  if (!Tablist && InitTableList(g))
-    return -1;
-
-  int n, card = 0;
-
-  for (int i = 0; i < NumFiles; i++) {
-    Tdbp->SetFile(g, Filenames[i]);
-    Tdbp->ResetSize();
-
-    if ((n = Tdbp->Cardinality(g)) < 0) {
-//    strcpy(g->Message, MSG(BAD_CARDINALITY));
-      return -1;
-      } // endif n
-
-    card += n;
-    } // endfor i
-
-  return card;
-  } // end of Cardinality
-#endif // 0
-
 /***********************************************************************/
 /*  Sum up the sizes of all sub-tables.                                */
 /***********************************************************************/
 int TDBTBL::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    int    mxsz;
+    int mxsz;
 
     if (!Tablist && InitTableList(g))
       return 0;               // Cannot be calculated at this stage
 
-//  if (Use == USE_OPEN) {
-//    strcpy(g->Message, MSG(MAXSIZE_ERROR));
-//    return -1;
-//  } else
-      MaxSize = 0;
+    MaxSize = 0;
 
     for (PTABLE tabp = Tablist; tabp; tabp = tabp->GetNext()) {
       if ((mxsz = tabp->GetTo_Tdb()->GetMaxSize(g)) < 0) {
@@ -523,17 +403,6 @@ bool TDBTBL::OpenDB(PGLOBAL g)
     ResetDB();
     return Tdbp->OpenDB(g);  // Re-open fist table
     } // endif use
-
-#if 0
-  /*********************************************************************/
-  /*  Direct access needed for join or sorting.                        */
-  /*********************************************************************/
-  if (NeedIndexing(g)) {
-    // Direct access of TBL tables is not implemented yet
-    strcpy(g->Message, MSG(NO_MUL_DIR_ACC));
-    return TRUE;
-    } // endif NeedIndexing
-#endif // 0
 
   /*********************************************************************/
   /*  When GetMaxsize was called, To_Filter was not set yet.           */
@@ -633,144 +502,6 @@ int TDBTBL::ReadDB(PGLOBAL g)
 
   return rc;
   } // end of ReadDB
-
-#if 0
-/***********************************************************************/
-/*  Data Base write routine for MUL access method.                     */
-/***********************************************************************/
-int TDBTBL::WriteDB(PGLOBAL g)
-  {
-  strcpy(g->Message, MSG(TABMUL_READONLY));
-  return RC_FX;                    // NIY
-  } // end of WriteDB
-
-/***********************************************************************/
-/*  Data Base delete line routine for MUL access method.               */
-/***********************************************************************/
-int TDBTBL::DeleteDB(PGLOBAL g, int irc)
-  {
-  strcpy(g->Message, MSG(TABMUL_READONLY));
-  return RC_FX;                                      // NIY
-  } // end of DeleteDB
-
-/***********************************************************************/
-/*  Data Base close routine for MUL access method.                     */
-/***********************************************************************/
-void TDBTBL::CloseDB(PGLOBAL g)
-  {
-  if (Tdbp)
-    Tdbp->CloseDB(g);
-
-  } // end of CloseDB
-#endif // 0
-
-/* ---------------------------- TBLCOL ------------------------------- */
-
-#if 0
-/***********************************************************************/
-/*  TBLCOL public constructor.                                         */
-/***********************************************************************/
-TBLCOL::TBLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
-  {
-  if (cprec) {
-    Next = cprec->GetNext();
-    cprec->SetNext(this);
-  } else {
-    Next = tdbp->GetColumns();
-    tdbp->SetColumns(this);
-  } // endif cprec
-
-  // Set additional Dos access method information for column.
-  Long = cdp->GetLong();           // ???
-//strcpy(F_Date, cdp->F_Date);
-  Colp = NULL;
-  To_Val = NULL;
-  Pseudo = FALSE;
-  Colnum = cdp->GetOffset();       // If columns are retrieved by number
-
-  if (trace)
-    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
-
-  } // end of TBLCOL constructor
-
-/***********************************************************************/
-/*  TBLCOL public constructor.                                         */
-/***********************************************************************/
-TBLCOL::TBLCOL(SPCBLK *scp, PTDB tdbp) : COLBLK(scp->GetName(), tdbp, 0)
-  {
-  // Set additional TBL access method information for pseudo column.
-  Is_Key = Was_Key = scp->IsKey();
-  Long = scp->GetLength();
-  Buf_Type = scp->GetResultType();
-  *Format.Type = (Buf_Type == TYPE_INT) ? 'N' : 'C';
-  Format.Length = Long;
-  Colp = NULL;
-  To_Val = NULL;
-  Pseudo = TRUE;
-  } // end of TBLCOL constructor
-
-/***********************************************************************/
-/*  TBLCOL constructor used for copying columns.                       */
-/*  tdbp is the pointer to the new table descriptor.                   */
-/***********************************************************************/
-TBLCOL::TBLCOL(TBLCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
-  {
-  Long = col1->Long;
-  Colp = col1->Colp;
-  To_Val = col1->To_Val;
-  Pseudo = col1->Pseudo;
-  } // end of TBLCOL copy constructor
-
-/***********************************************************************/
-/*  TBLCOL initialization routine.                                     */
-/*  Look for the matching column in the current table.                 */
-/***********************************************************************/
-bool TBLCOL::Init(PGLOBAL g)
-  {
-  PTDBTBL tdbp = (PTDBTBL)To_Tdb;
-
-  To_Val = NULL;
-
-  if (!(Colp = tdbp->Tdbp->ColDB(g, Name, 0)) && Colnum)
-    Colp = tdbp->Tdbp->ColDB(g, NULL, Colnum);
-
-  if (Colp) {
-    Colp->InitValue(g);        // May not have been done elsewhere
-    To_Val = Colp->GetValue();
-  } else if (!tdbp->Accept) {
-    sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tdbp->Tdbp->GetName());
-    return TRUE;
-  } else {
-    if (Nullable)
-      Value->SetNull(true);
-
-    Value->Reset();
-  } // endif's
-
-  return FALSE;
-  } // end of Init
-
-/***********************************************************************/
-/*  ReadColumn:                                                        */
-/***********************************************************************/
-void TBLCOL::ReadColumn(PGLOBAL g)
-  {
-  if (trace)
-    htrc("TBL ReadColumn: name=%s\n", Name);
-
-  if (Colp) {
-    Colp->ReadColumn(g);
-    Value->SetValue_pval(To_Val);
-
-    // Set null when applicable
-    if (Nullable)
-      Value->SetNull(Value->IsNull());
-
-    } // endif Colp
-
-  } // end of ReadColumn
-#endif // 0
 
 /* ---------------------------- TBTBLK ------------------------------- */
 

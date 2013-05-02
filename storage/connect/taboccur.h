@@ -37,7 +37,6 @@ class OCCURDEF : public PRXDEF {          /* Logical table description */
 
  protected:
   // Members
-//char   *Tabname;					 /* The source table name                  */
 	char   *Colist;						 /* The source column list                 */
   char   *Xcol;              /* The multiple occurence column          */
   char   *Rcol;              /* The rank column                        */
@@ -59,15 +58,14 @@ class TDBOCCUR : public TDBPRX {
   				void  SetTdbp(PTDBASE tdbp) {Tdbp = tdbp;}
 
   // Methods
-//virtual int   GetRecpos(void) {return N;}
 	virtual void  ResetDB(void) {N = 0; Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
 					PTDB  GetSourceTable(PGLOBAL g);
 					int   MakeColumnList(PGLOBAL g);
 
   // Database routines
-//virtual PCOL  ColDB(PGLOBAL g, PSZ colname, int num);
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual bool  InitTable(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -94,7 +92,6 @@ class OCCURCOL : public COLBLK {
  public:
   // Constructors
   OCCURCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n);
-//OCCURCOL(OCCURCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_OCCUR;}
@@ -120,7 +117,6 @@ class RANKCOL : public COLBLK {
  public:
   // Constructors
 	 RANKCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n) : COLBLK(cdp, tdbp, n) {}
-//RANKCOL(RANKCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_OCCUR;}

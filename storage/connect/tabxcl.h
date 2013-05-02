@@ -8,7 +8,6 @@
 typedef class XCLDEF  *PXCLDEF;
 typedef class TDBXCL  *PTDBXCL;
 typedef class XCLCOL  *PXCLCOL;
-//pedef class MULINDX *PMINDX;
 
 /* -------------------------- XCOL classes --------------------------- */
 
@@ -49,7 +48,6 @@ class XCLDEF : public PRXDEF {            /* Logical table description */
 /*  This is the class declaration for the XCSV table.                  */
 /***********************************************************************/
 class TDBXCL : public TDBPRX {
-//friend class MULINDX;
   friend class XCLDEF;
   friend class PRXCOL;
   friend class XCLCOL;
@@ -63,7 +61,6 @@ class TDBXCL : public TDBPRX {
   // Methods
 	virtual void  ResetDB(void) {N = 0; Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
-//virtual bool  HaveSame(void) {return RowFlag == 1;}
 
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -106,28 +103,3 @@ class XCLCOL : public PRXCOL {
 	char   *Cp;						        // Pointer to current position
 	char    Sep;					        // The separator
   }; // end of class XCLCOL
-
-#if 0
-/* ------------------------- MULINDX classes ------------------------- */
-
-/***********************************************************************/
-/*  This represents a KINDEX class for an XCOL table.                  */
-/***********************************************************************/
-class MULINDX : public KINDEX {
- public:
-  // Constructor
-  MULINDX(PTDBXCL txlp) : KINDEX(txlp->Tdbp) {Txlp = txlp;}
-
-  // Implementation
-	virtual BOOL HaveSame(void);
-
-  // Methods
-  virtual BOOL Init(PGLOBAL g);
-  virtual BOOL NextVal(BOOL eq);
-  virtual int  MoreVal(void);
-
- protected:
-  //Member
-  PTDBXCL Txlp;
-}; // end of class MULINDX
-#endif // 0

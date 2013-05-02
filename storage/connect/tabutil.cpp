@@ -245,7 +245,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   return qrp;
   } // end of TabColumns
 
-/* -------------- Implementation of the XCOL classes	---------------- */
+/* -------------- Implementation of the PROXY classes	---------------- */
 
 /***********************************************************************/
 /*  PRXDEF constructor.                                                */
@@ -311,10 +311,22 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
   TABLE_SHARE *s;
   PCATLG       cat = To_Def->GetCat();
   PHC          hc = ((MYCAT*)cat)->GetHandler();
+  LPCSTR       cdb, curdb = hc->GetDBName(NULL);
   THD         *thd = (hc->GetTable())->in_use;
 
   db = (char*)tabp->GetQualifier();
   name = (char*)tabp->GetName();
+
+  // Check for eventual loop
+  for (PTABLE tp = To_Table; tp; tp = tp->Next) {
+    cdb = (tp->Qualifier) ? tp->Qualifier : curdb;
+
+    if (!stricmp(name, tp->Name) && !stricmp(db, cdb)) {
+      sprintf(g->Message, "Table %s.%s pointing on itself", db, name);
+      return NULL;
+      } // endif
+
+    } // endfor tp
 
   if (!(s = GetTableShare(g, thd, db, name, mysql)))
     return NULL;
@@ -337,9 +349,11 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
                           db, tblp->Name);
       goto err;
 #endif   // MYSQL_SUPPORT
-  } else
+  } else {
     // Sub-table is a CONNECT table
+    tabp->Next = To_Table;          // For loop checking
     tdbp = cat->GetTable(g, tabp);
+  } // endif mysql
 
   hc->tshp = NULL;
 
@@ -420,7 +434,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
     } // endif Mode
 
   if (InitTable(g))
-    return NULL;
+    return TRUE;
   
   /*********************************************************************/
   /*  Check and initialize the subtable columns.                       */
@@ -467,6 +481,14 @@ int TDBPRX::DeleteDB(PGLOBAL g, int irc)
                       To_Def->GetType());
   return RC_FX;
   } // end of DeleteDB
+
+/***********************************************************************/
+/*  Used by the TBL tables.                                            */
+/***********************************************************************/
+void TDBPRX::RemoveNext(PTABLE tp)
+  {
+  tp->Next = NULL;
+  } // end of RemoveNext
 
 /* ---------------------------- PRXCOL ------------------------------- */
 
