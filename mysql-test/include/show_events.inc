@@ -18,7 +18,19 @@ if ($is_relay_log)
 
 if ($binlog_file)
 {
-  --let $_statement= $_statement in '$binlog_file'
+  --let $_binlog_file= $binlog_file
+  if ($_binlog_file == 'LAST')
+  {
+    if ($is_relay_log)
+    {
+      --let $_binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1)
+    }
+    if (!$is_relay_log)
+    {
+      --let $_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+    }
+  }
+  --let $_statement= $_statement in '$_binlog_file'
 }
 
 if (!$binlog_start)

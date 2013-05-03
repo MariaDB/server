@@ -703,7 +703,12 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   to build an in-memory hash or stuff like that.
 
   We need to check that slave did not request GTID D-S-N1, when the
-  Gtid_list_log_event for this binlog file has D-S-N2 with N2 > N1.
+  Gtid_list_log_event for this binlog file has D-S-N2 with N2 >= N1.
+  (Because this means that requested GTID is in an earlier binlog).
+  However, if the Gtid_list_log_event indicates that D-S-N1 is the very last
+  GTID for domain D in prior binlog files, then it is ok to start from the
+  very start of this binlog file. This special case is important, as it
+  allows to purge old logs even if some domain is unused for long.
 
   In addition, we need to check that we do not have a GTID D-S-N3 in the
   Gtid_list_log_event where D is not present in the requested slave state at
@@ -717,7 +722,8 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 
   for (i= 0; i < glev->count; ++i)
   {
-    const rpl_gtid *gtid= st->find(glev->list[i].domain_id);
+    uint32 gl_domain_id= glev->list[i].domain_id;
+    const rpl_gtid *gtid= st->find(gl_domain_id);
     if (!gtid)
     {
       /*
@@ -727,13 +733,28 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
       return false;
     }
     if (gtid->server_id == glev->list[i].server_id &&
-        gtid->seq_no < glev->list[i].seq_no)
+        gtid->seq_no <= glev->list[i].seq_no)
     {
       /*
-        The slave needs to receive gtid, but it is contained in an earlier
-        binlog file. So we need to search back further.
+        The slave needs to start after gtid, but it is contained in an earlier
+        binlog file. So we need to search back further, unless it was the very
+        last gtid logged for the domain in earlier binlog files.
       */
-      return false;
+      if (gtid->seq_no < glev->list[i].seq_no)
+        return false;
+
+      /*
+        The slave requested D-S-N1, which happens to be the last GTID logged
+        in prior binlog files with same domain id D and server id S.
+
+        The Gtid_list is kept sorted on domain_id, with the last GTID in each
+        domain_id group being the last one logged. So if this is the last GTID
+        within the domain_id group, then it is ok to start from the very
+        beginning of this group, per the special case explained in comment at
+        the start of this function. If not, then we need to search back further.
+      */
+      if (i+1 < glev->count && gl_domain_id == glev->list[i+1].domain_id)
+        return false;
     }
   }
 
@@ -997,7 +1018,15 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name)
         const rpl_gtid *gtid= state->find(glev->list[i].domain_id);
         if (!gtid)
         {
-          /* contains_all_slave_gtid() would have returned false if so. */
+          /*
+            contains_all_slave_gtid() returns false if there is any domain in
+            Gtid_list_event which is not in the requested slave position.
+
+            We may delete a domain from the slave state inside this loop, but
+            we only do this when it is the very last GTID logged for that
+            domain in earlier binlogs, and then we can not encounter it in any
+            further GTIDs in the Gtid_list.
+          */
           DBUG_ASSERT(0);
           continue;
         }
