@@ -3734,7 +3734,6 @@ int check_temp_dir(char* tmp_file)
   MY_DIR *dirp;
   char tmp_dir[FN_REFLEN];
   size_t tmp_dir_size;
-
   DBUG_ENTER("check_temp_dir");
 
   mysql_mutex_lock(&LOCK_thread_count);

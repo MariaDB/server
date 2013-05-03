@@ -214,17 +214,18 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     char buf_relay_logname[FN_REFLEN], buf_relaylog_index_name_buff[FN_REFLEN];
     char *buf_relaylog_index_name= opt_relaylog_index_name;
 
-    create_logfile_name_with_suffix(buf_relay_logname, sizeof(buf_relay_logname),
-                            ln, 1, &mi->connection_name);
+    create_logfile_name_with_suffix(buf_relay_logname,
+                                    sizeof(buf_relay_logname),
+                                    ln, 1, &mi->cmp_connection_name);
     ln= buf_relay_logname;
 
     if (opt_relaylog_index_name)
     {
       buf_relaylog_index_name= buf_relaylog_index_name_buff; 
       create_logfile_name_with_suffix(buf_relaylog_index_name_buff,
-                              sizeof(buf_relaylog_index_name_buff),
-                              opt_relaylog_index_name, 0,
-                              &mi->connection_name);
+                                      sizeof(buf_relaylog_index_name_buff),
+                                      opt_relaylog_index_name, 0,
+                                      &mi->cmp_connection_name);
     }
 
     /*
