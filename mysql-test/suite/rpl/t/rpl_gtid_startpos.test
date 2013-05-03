@@ -208,7 +208,7 @@ INSERT INTO t1 VALUES(3);
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY a;
 SET SQL_LOG_BIN=0;
-call mtr.add_suppression("Slave: Table 't1' already exists Error_code: 1050");
+call mtr.add_suppression("Slave: Table 't1' already exists error.* 1050");
 SET SQL_LOG_BIN=1;
 
 

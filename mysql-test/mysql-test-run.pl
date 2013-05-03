@@ -537,7 +537,7 @@ sub main {
     }
   }
 
-  if ( not defined @$completed ) {
+  if ( not @$completed ) {
     mtr_error("Test suite aborted");
   }
 
@@ -4743,8 +4743,8 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Error: table `test`.`t[12]` .*does not exist in the InnoDB internal/,
      qr/InnoDB: Warning: Setting innodb_use_sys_malloc/,
      qr/InnoDB: Warning: a long semaphore wait:/,
-     qr/Slave: Unknown table 't1' Error_code: 1051/,
-     qr/Slave SQL:.*(Error_code: [[:digit:]]+|Query:.*)/,
+     qr/Slave: Unknown table 't1' .* 1051/,
+     qr/Slave SQL:.*(Internal MariaDB error code: [[:digit:]]+|Query:.*)/,
      qr/slave SQL thread aborted/,
      qr/unknown option '--loose[-_]/,
      qr/unknown variable 'loose[-_]/,
