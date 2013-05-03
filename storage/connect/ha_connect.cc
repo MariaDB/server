@@ -3801,20 +3801,22 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   } else
     dbf= (GetTypeID(options->type) == TAB_DBF && !options->catfunc);
 
-  // Check whether a table is defined on itself
-  switch (type) {
-    case TAB_PRX:
-    case TAB_XCL:
-    case TAB_OCCUR:
-      if (!stricmp(options->tabname, create_info->alias) &&
-          (!options->dbname || !stricmp(options->dbname, thd->db))) {
-        sprintf(g->Message, "A %s table cannot refer to itself",
-                            options->type);
-        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        return HA_ERR_INTERNAL_ERROR;
-        } // endif tab
+  // Can be null in ALTER TABLE
+  if (create_info->alias)
+    // Check whether a table is defined on itself
+    switch (type) {
+      case TAB_PRX:
+      case TAB_XCL:
+      case TAB_OCCUR:
+        if (!stricmp(options->tabname, create_info->alias) &&
+            (!options->dbname || !stricmp(options->dbname, thd->db))) {
+          sprintf(g->Message, "A %s table cannot refer to itself",
+                              options->type);
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          return HA_ERR_INTERNAL_ERROR;
+          } // endif tab
 
-    } // endswitch ttp
+      } // endswitch ttp
 
   if (type == TAB_XML) {
     bool  dom;                  // True: MS-DOM, False libxml2
