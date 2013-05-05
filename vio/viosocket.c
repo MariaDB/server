@@ -322,7 +322,9 @@ int vio_fastsend(Vio * vio __attribute__((unused)))
   }
   if (r)
   {
-    DBUG_PRINT("warning", ("Couldn't set socket option for fast send"));
+    DBUG_PRINT("warning",
+               ("Couldn't set socket option for fast send, error %d",
+                socket_errno));
     r= -1;
   }
   DBUG_PRINT("exit", ("%d", r));
@@ -819,7 +821,7 @@ void vio_timeout(Vio *vio, uint which, uint timeout)
 #if defined(SO_SNDTIMEO) && defined(SO_RCVTIMEO)
   int r;
   DBUG_ENTER("vio_timeout");
-
+  DBUG_PRINT("enter", ("which: %u  timeout: %u", which, timeout));
   {
 #ifdef __WIN__
   /* Windows expects time in milliseconds as int */
@@ -846,6 +848,7 @@ void vio_timeout(Vio *vio, uint which, uint timeout)
   Platforms not suporting setting of socket timeout should either use
   thr_alarm or just run without read/write timeout(s)
 */
+  DBUG_PRINT("warning", ("timeout ignored"));
 #endif
   /* Make timeout values available for async operations. */
   if (which)

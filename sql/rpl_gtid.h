@@ -135,11 +135,13 @@ struct rpl_binlog_state
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_binlog_state;
+  my_bool initialized;
 
   rpl_binlog_state();
   ~rpl_binlog_state();
 
   void reset();
+  void free();
   int update(const struct rpl_gtid *gtid);
   uint64 seq_no_from_state();
   int write_to_iocache(IO_CACHE *dest);

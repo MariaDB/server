@@ -5977,8 +5977,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           KEY *key=show_table->key_info+i;
           if (key->rec_per_key[j])
           {
-            ha_rows records=((double) show_table->stat_records() /
-                             key->actual_rec_per_key(j));
+            ha_rows records= (ha_rows) ((double) show_table->stat_records() /
+                                        key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }
