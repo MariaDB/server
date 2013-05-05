@@ -45,7 +45,7 @@ class XCLDEF : public PRXDEF {            /* Logical table description */
   }; // end of XCLDEF
 
 /***********************************************************************/
-/*  This is the class declaration for the XCSV table.                  */
+/*  This is the class declaration for the XCOL table.                  */
 /***********************************************************************/
 class TDBXCL : public TDBPRX {
   friend class XCLDEF;
@@ -64,7 +64,6 @@ class TDBXCL : public TDBPRX {
 
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual bool  InitTable(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -77,7 +76,7 @@ class TDBXCL : public TDBPRX {
 	int     N;											// The current table index
 	int			M;                      // The occurence rank
 	BYTE    RowFlag;								// 0: Ok, 1: Same, 2: Skip
-	BOOL    New;						        // TRUE for new line
+	bool    New;						        // TRUE for new line
 	char    Sep;										// The Xcol separator
   }; // end of class TDBXCL
 

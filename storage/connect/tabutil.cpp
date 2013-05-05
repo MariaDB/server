@@ -1,9 +1,9 @@
-/************* Tabutil cpp Declares Source Code File (.H) **************/
+/************* Tabutil cpp Declares Source Code File (.CPP) ************/
 /*  Name: TABUTIL.CPP   Version 1.0                                    */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2013         */
 /*                                                                     */
-/*  Utility function used by TBL and PRX tables.                       */
+/*  Utility function used by the PROXY, XCOL, OCCUR, and TBL tables.   */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -117,7 +117,6 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 /************************************************************************/
 /*  TabColumns: constructs the result blocks containing all the columns */
 /*  of the object table that will be retrieved by GetData commands.     */
-/*  key = TRUE when called from Create Table to get key informations.   */
 /************************************************************************/
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool info)
@@ -264,7 +263,11 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   char *pn, *db, *tab;
 
   db = Cat->GetStringCatInfo(g, "Dbname", "*");
-  tab = Cat->GetStringCatInfo(g, "Tabname", NULL);
+
+  if (!(tab = Cat->GetStringCatInfo(g, "Tabname", NULL))) {
+    strcpy(g->Message, "Missing object table name");
+    return TRUE;
+    } // endif tab
 
   // Analyze the table name, it may have the format: [dbname.]tabname
   if ((pn = strchr(tab, '.'))) {
@@ -414,7 +417,7 @@ int TDBPRX::RowNumber(PGLOBAL g, bool b)
 	} // end of RowNumber
  
 /***********************************************************************/
-/*  XCV Access Method opening routine.                                 */
+/*  PROXY Access Method opening routine.                               */
 /***********************************************************************/
 bool TDBPRX::OpenDB(PGLOBAL g)
   {
@@ -453,7 +456,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
   } // end of OpenDB
 
 /***********************************************************************/
-/*  Data Base read routine for XCV access method.                      */
+/*  Data Base read routine for PROY access method.                     */
 /***********************************************************************/
 int TDBPRX::ReadDB(PGLOBAL g)
   {
@@ -464,7 +467,7 @@ int TDBPRX::ReadDB(PGLOBAL g)
   } // end of ReadDB
 
 /***********************************************************************/
-/*  WriteDB: Data Base write routine for XCV access methods.           */
+/*  WriteDB: Data Base write routine for PROXY access methods.         */
 /***********************************************************************/
 int TDBPRX::WriteDB(PGLOBAL g)
   {
@@ -473,7 +476,7 @@ int TDBPRX::WriteDB(PGLOBAL g)
   } // end of WriteDB
 
 /***********************************************************************/
-/*  Data Base delete line routine for XCV access methods.              */
+/*  Data Base delete line routine for PROXY access methods.            */
 /***********************************************************************/
 int TDBPRX::DeleteDB(PGLOBAL g, int irc)
   {
@@ -496,7 +499,7 @@ void TDBPRX::RemoveNext(PTABLE tp)
 /*  PRXCOL public constructor.                                         */
 /***********************************************************************/
 PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
-  : COLBLK(cdp, tdbp, i)
+      : COLBLK(cdp, tdbp, i)
   {
   if (cprec) {
     Next = cprec->GetNext();
@@ -561,29 +564,6 @@ void PRXCOL::ReadColumn(PGLOBAL g)
 
   } // end of ReadColumn
 
-#if 0
-/* ---------------------------TBCDEF class --------------------------- */
-
-/***********************************************************************/
-/*  DefineAM: define specific AM block values from CATLG table.        */
-/***********************************************************************/
-bool TBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
-  {
-  Desc = "Catalog Table";
-  Database = Cat->GetStringCatInfo(g, "Database", "*");
-  Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-  return FALSE;
-  } // end of DefineAM
-
-/***********************************************************************/
-/*  GetTable: makes a new TDB of the proper type.                      */
-/***********************************************************************/
-PTDB TBCDEF::GetTable(PGLOBAL g, MODE m)
-  {
-  return new(g) TDBTBC(this);
-  } // end of GetTable
-#endif // 0
-
 /* ---------------------------TDBTBC class --------------------------- */
 
 /***********************************************************************/
@@ -591,31 +571,9 @@ PTDB TBCDEF::GetTable(PGLOBAL g, MODE m)
 /***********************************************************************/
 TDBTBC::TDBTBC(PPRXDEF tdp) : TDBCAT(tdp)
   {
-//  Db  = tdp->Database;    
-//  Tab = tdp->Tabname;    
   Db  = (PSZ)tdp->Tablep->GetQualifier();    
   Tab = (PSZ)tdp->Tablep->GetName();    
   } // end of TDBTBC constructor
-
-#if 0
-/***********************************************************************/
-/*  TDBTBC class constructor from TBL table.                           */
-/***********************************************************************/
-TDBTBC::TDBTBC(PTBLDEF tdp) : TDBCAT(tdp)
-  {
-  Db  = tdp->To_Tables->DB;
-  Tab = tdp->To_Tables->Name;
-  } // end of TDBTBC constructor
-
-/***********************************************************************/
-/*  TDBTBC class constructor from PRX table.                           */
-/***********************************************************************/
-TDBTBC::TDBTBC(PXCLDEF tdp) : TDBCAT(tdp)
-  {
-  Db  = (PSZ)tdp->Tablep->GetQualifier();    
-  Tab = (PSZ)tdp->Tablep->GetName();    
-  } // end of TDBTBC constructor
-#endif // 0
 
 /***********************************************************************/
 /*  GetResult: Get the list the MYSQL table columns.                   */
