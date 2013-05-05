@@ -132,34 +132,6 @@ class DllExport PRXCOL : public COLBLK {
   int      Colnum;             // Used when retrieving columns by number
   }; // end of class PRXCOL
 
-#if 0
-/***********************************************************************/
-/*  TBC table.                                                         */
-/***********************************************************************/
-class TBCDEF : public TABDEF           {/* Logical table description */
-  friend class TDBTBC;
-  friend class ha_connect;
- public:
-  // Constructor
-  TBCDEF(void) {Database = NULL; Tabname = NULL;}
-
-
-  // Implementation
-  virtual const char *GetType(void) {return "TBC";}
-  inline  PSZ  GetDatabase(void) {return Database;};
-  inline  PSZ  GetTabname(void) {return Tabname;}
-
-  // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
-
- protected:
-  // Members
-  PSZ     Database;           /* Database to be used by server         */
-  PSZ     Tabname;            /* External table name                   */
-  }; // end of TBCDEF
-#endif // 0
-
 /***********************************************************************/
 /*  This is the class declaration for the TBC column catalog table.    */
 /***********************************************************************/

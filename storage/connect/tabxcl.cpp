@@ -73,7 +73,7 @@ XCLDEF::XCLDEF(void)
 } // end of XCLDEF constructor
 
 /***********************************************************************/
-/*  DefineAM: define specific AM block values from XCOL file.          */
+/*  DefineAM: define specific AM block values from XCOL table.         */
 /***********************************************************************/
 bool XCLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
@@ -106,7 +106,7 @@ PTDB XCLDEF::GetTable(PGLOBAL g, MODE mode)
 TDBXCL::TDBXCL(PXCLDEF tdp) : TDBPRX(tdp)
   {
 	Xcolumn = tdp->Xcol;						// CSV column name     
-	Xcolp = NULL;										// To the XCVCOL column
+	Xcolp = NULL;										// To the XCLCOL column
 	Mult = tdp->Mult;								// Multiplication factor
 	N = 0;													// The current table index
 	M = 0;                          // The occurence rank
@@ -114,33 +114,6 @@ TDBXCL::TDBXCL(PXCLDEF tdp) : TDBPRX(tdp)
 	New = TRUE;						          // TRUE for new line
 	Sep = tdp->Sep;                 // The Xcol separator
   } // end of TDBXCL constructor
-
-/***********************************************************************/
-/*  Initializes the table.                                             */
-/***********************************************************************/
-bool TDBXCL::InitTable(PGLOBAL g)
-  {
-  if (!Tdbp) {
-    PCOLDEF cdp;
-
-    // Get the table description block of this table
-    if (!(Tdbp = (PTDBASE)GetSubTable(g, ((PXCLDEF)To_Def)->Tablep)))
-      return TRUE;
-
-    for (cdp = Tdbp->GetDef()->GetCols(); cdp; cdp = cdp->GetNext())
-      if (!stricmp(cdp->GetName(), Xcolumn))
-        break;
-
-    if (!cdp) {
-      sprintf(g->Message, "%s is not a %s column",
-                          Xcolumn, Tdbp->GetName());
-      return TRUE;
-      } // endif cdp
-
-    } // endif Tdbp
-
-  return FALSE;
-  } // end of InitTable
 
 /***********************************************************************/
 /*  Allocate XCL column description block.                             */
@@ -165,7 +138,7 @@ int TDBXCL::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     if (InitTable(g))
-      return NULL;
+      return 0;
   
   	MaxSize = Mult * Tdbp->GetMaxSize(g);
     } // endif MaxSize
@@ -174,8 +147,8 @@ int TDBXCL::GetMaxSize(PGLOBAL g)
   } // end of GetMaxSize
 
 /***********************************************************************/
-/*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurence rank in the multiple column.    */
+/*  For this table type, ROWID is the (virtual) row number,            */
+/*  while ROWNUM is be the occurence rank in the multiple column.      */
 /***********************************************************************/
 int TDBXCL::RowNumber(PGLOBAL g, bool b)
 	{
@@ -183,7 +156,7 @@ int TDBXCL::RowNumber(PGLOBAL g, bool b)
 	} // end of RowNumber
  
 /***********************************************************************/
-/*  XCV Access Method opening routine.                                 */
+/*  XCL Access Method opening routine.                                 */
 /***********************************************************************/
 bool TDBXCL::OpenDB(PGLOBAL g)
   {
@@ -206,7 +179,7 @@ bool TDBXCL::OpenDB(PGLOBAL g)
     } // endif Mode
 
   if (InitTable(g))
-    return NULL;
+    return TRUE;
   
   /*********************************************************************/
   /*  Check and initialize the subtable columns.                       */
@@ -225,7 +198,7 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   } // end of OpenDB
 
 /***********************************************************************/
-/*  Data Base read routine for XCV access method.                      */
+/*  Data Base read routine for XCL access method.                      */
 /***********************************************************************/
 int TDBXCL::ReadDB(PGLOBAL g)
   {

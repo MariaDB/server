@@ -253,7 +253,7 @@ uint GetFuncID(const char *func)
 /***********************************************************************/
 CATALOG::CATALOG(void)
   {
-  To_Desc= NULL;
+//To_Desc= NULL;
 //*DescFile= '\0';
 #if defined(WIN32)
   DataPath= ".\\";
@@ -276,7 +276,7 @@ CATALOG::CATALOG(void)
 MYCAT::MYCAT(PHC hc) : CATALOG()
   {
 	Hc= hc;
-  To_Desc= NULL;
+//To_Desc= NULL;
   DefHuge= false;
 //SepIndex= true;			// Temporay until we can store offet and size
   } // end of MYCAT constructor
@@ -286,7 +286,7 @@ MYCAT::MYCAT(PHC hc) : CATALOG()
 /***********************************************************************/
 void MYCAT::Reset(void)
   {
-  To_Desc= NULL;
+//To_Desc= NULL;
   } // end of Reset
 
 /***********************************************************************/
@@ -586,9 +586,7 @@ bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
 
 /***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */
-/*  Look for a table descriptor matching the name and type. If found   */
-/*  in storage, return a pointer to it, else look in the XDB file. If  */
-/*  found, make and add the descriptor and return a pointer to it.     */
+/*  Look for a table descriptor matching the name and type.            */
 /***********************************************************************/
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
                                        LPCSTR type, PRELDEF *prp)
@@ -597,8 +595,8 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
   // Firstly check whether this table descriptor is in memory
-  if (To_Desc)
-		return  To_Desc;
+//if (To_Desc)
+//  return  To_Desc;
 
  	// If not specified get the type of this table
   if (!type && !(type= Hc->GetStringOption("Type")))
@@ -707,7 +705,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 /***********************************************************************/
 void MYCAT::ClearDB(PGLOBAL g)
   {
-  To_Desc= NULL;
+//To_Desc= NULL;
   } // end of ClearDB
 
 /* ------------------------ End of MYCAT --------------------------- */

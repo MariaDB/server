@@ -63,7 +63,7 @@ class DllExport CATALOG {
 
   // Implementation
   void   *GetDescp(void) {return Descp;}
-  PRELDEF GetTo_Desc(void) {return To_Desc;}
+//PRELDEF GetTo_Desc(void) {return To_Desc;}
 //PSZ     GetDescFile(void) {return DescFile;}
   int     GetCblen(void) {return Cblen;}
   bool    GetDefHuge(void) {return DefHuge;}
@@ -115,7 +115,7 @@ class DllExport CATALOG {
   virtual PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
 
   // Members
-  PRELDEF To_Desc;                     /* To chain of relation desc.   */
+//PRELDEF To_Desc;                     /* To chain of relation desc.   */
   void   *Descp;                       /* To DB description area       */
 //AREADEF DescArea;                    /* Table desc. area size        */
   char   *Cbuf;                        /* Buffer used for col section  */

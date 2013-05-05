@@ -161,7 +161,7 @@ int TDBOCCUR::MakeColumnList(PGLOBAL g)
 
 		// Count the number of columns and change separator into null char
 		for (pn = Colist; ; pn += (strlen(pn) + 1))
-			if ((p = strchr(pn, ';'))) {
+			if ((p = strchr(pn, ',')) || (p = strchr(pn, ';'))) {
 				*p++ = '\0';
 				n++;
 			} else {

@@ -9,12 +9,11 @@ typedef class OCCURDEF *POCCURDEF;
 typedef class TDBOCCUR *PTDBOCCUR;
 typedef class OCCURCOL *POCCURCOL;
 typedef class RANKCOL *PRANKCOL;
-typedef class SRTCOL *PSRTCOL;
 
 /* -------------------------- OCCUR classes -------------------------- */
 
 /***********************************************************************/
-/*  OCCUR: OEM table that provides a view of a source table where the  */
+/*  OCCUR: Table that provides a view of a source table where the      */
 /*  contain of several columns of the source table is placed in only   */
 /*  one column, the OCCUR column, this resulting into several rows.    */
 /***********************************************************************/
@@ -48,7 +47,6 @@ class OCCURDEF : public PRXDEF {          /* Logical table description */
 class TDBOCCUR : public TDBPRX {
   friend class OCCURCOL;
   friend class RANKCOL;
-	friend class SRTCOL;
  public:
   // Constructor
   TDBOCCUR(POCCURDEF tdp);
@@ -116,7 +114,7 @@ class OCCURCOL : public COLBLK {
 class RANKCOL : public COLBLK {
  public:
   // Constructors
-	 RANKCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n) : COLBLK(cdp, tdbp, n) {}
+	RANKCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n) : COLBLK(cdp, tdbp, n) {}
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_OCCUR;}
