@@ -686,6 +686,7 @@ rpl_binlog_state::rpl_binlog_state()
                sizeof(uint32), NULL, my_free, HASH_UNIQUE);
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
+  initialized= 1;
 }
 
 
@@ -699,11 +700,20 @@ rpl_binlog_state::reset()
   my_hash_reset(&hash);
 }
 
+void rpl_binlog_state::free()
+{
+  if (initialized)
+  {
+    initialized= 0;
+    reset();
+    my_hash_free(&hash);
+    mysql_mutex_destroy(&LOCK_binlog_state);
+  }
+}
+
 rpl_binlog_state::~rpl_binlog_state()
 {
-  reset();
-  my_hash_free(&hash);
-  mysql_mutex_destroy(&LOCK_binlog_state);
+  free();
 }
 
 

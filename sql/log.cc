@@ -119,7 +119,6 @@ static MYSQL_BIN_LOG::xid_count_per_binlog *
 
 static bool start_binlog_background_thread();
 
-
 static rpl_binlog_state rpl_global_gtid_binlog_state;
 
 /**
@@ -2994,6 +2993,13 @@ void MYSQL_BIN_LOG::cleanup()
     mysql_cond_destroy(&COND_binlog_background_thread);
     mysql_cond_destroy(&COND_binlog_background_thread_end);
   }
+
+  /*
+    Free data for global binlog state.
+    We can't do that automaticly as we need to do this before
+    safemalloc is shut down
+  */
+  rpl_global_gtid_binlog_state.free();
   DBUG_VOID_RETURN;
 }
 

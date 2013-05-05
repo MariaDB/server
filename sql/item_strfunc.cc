@@ -3866,7 +3866,10 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
     vals= (DYNAMIC_COLUMN_VALUE *) alloc_root(thd->mem_root,
                                               sizeof(DYNAMIC_COLUMN_VALUE) *
                                               (arg_count / 2));
-    for (i= 0; i + 1 < arg_count && args[i]->result_type() == INT_RESULT; i+= 2);
+    for (i= 0;
+         i + 1 < arg_count && args[i]->result_type() == INT_RESULT;
+         i+= 2)
+      ;
     if (i + 1 < arg_count)
     {
       names= TRUE;
