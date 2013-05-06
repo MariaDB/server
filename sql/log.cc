@@ -2999,7 +2999,8 @@ void MYSQL_BIN_LOG::cleanup()
     We can't do that automaticly as we need to do this before
     safemalloc is shut down
   */
-  rpl_global_gtid_binlog_state.free();
+  if (!is_relay_log)
+    rpl_global_gtid_binlog_state.free();
   DBUG_VOID_RETURN;
 }
 
