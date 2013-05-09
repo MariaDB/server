@@ -283,7 +283,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Desc = "MySQL Table";
 
-  if (!stricmp(am, "MYPRX")) {
+  if (stricmp(am, "MYPRX")) {
     // Normal case of specific MYSQL table
     if (!url || !*url) { 
       // Not using the connection URL
