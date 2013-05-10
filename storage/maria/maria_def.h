@@ -94,9 +94,10 @@ typedef struct st_maria_sort_param
   */
   ulonglong unique[HA_MAX_KEY_SEG+1];
   ulonglong notnull[HA_MAX_KEY_SEG+1];
+  ulonglong sortbuff_size;
 
   MARIA_RECORD_POS pos,max_pos,filepos,start_recpos, current_filepos;
-  uint key, key_length,real_key_length,sortbuff_size;
+  uint key, key_length,real_key_length;
   uint maxbuffers, keys, find_length, sort_keys_length;
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
@@ -107,10 +108,10 @@ typedef struct st_maria_sort_param
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);
   int (*write_keys)(struct st_maria_sort_param *, register uchar **,
-                         uint , struct st_buffpek *, IO_CACHE *);
-  uint (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
+                         ulonglong , struct st_buffpek *, IO_CACHE *);
+  my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_maria_sort_param *, IO_CACHE *,uchar *,
-                   uint, uint);
+                   uint, ulonglong);
 } MARIA_SORT_PARAM;
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile);
@@ -1223,10 +1224,11 @@ typedef struct st_maria_block_info
 #define UPDATE_AUTO_INC		8
 #define UPDATE_OPEN_COUNT	16
 
-#define USE_BUFFER_INIT		(((1024L*1024L*128-MALLOC_OVERHEAD)/8192)*8192)
-#define READ_BUFFER_INIT	(1024L*256L-MALLOC_OVERHEAD)
-#define SORT_BUFFER_INIT	(1024L*1024L*256-MALLOC_OVERHEAD)
-#define MIN_SORT_BUFFER		(4096-MALLOC_OVERHEAD)
+/* We use MY_ALIGN_DOWN here mainly to ensure that we get stable values for mysqld --help ) */
+#define PAGE_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 8192)
+#define READ_BUFFER_INIT	MY_ALIGN_DOWN(1024L*256L-MALLOC_OVERHEAD, 1024)
+#define SORT_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 1024)
+#define MIN_SORT_BUFFER		4096
 
 #define fast_ma_writeinfo(INFO) if (!(INFO)->s->tot_locks) (void) _ma_writeinfo((INFO),0)
 #define fast_ma_readinfo(INFO) ((INFO)->lock_type == F_UNLCK) && _ma_readinfo((INFO),F_RDLCK,1)

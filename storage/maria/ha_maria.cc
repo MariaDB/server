@@ -260,10 +260,10 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
        "disables parallel repair.",
        0, 0, 1, 1, 128, 1);
 
-static MYSQL_THDVAR_ULONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
        "The buffer that is allocated when sorting the index when doing a "
-       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.",
-       0, 0, 128L*1024L*1024L, 4, UINT_MAX32, 1);
+       "REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE.", NULL, NULL,
+       SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, 1);
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
        "Specifies how Aria index statistics collection code should treat "
@@ -1455,6 +1455,8 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
     if ((param.testflag & T_REP_BY_SORT))
     {
       param.testflag= (param.testflag & ~T_REP_BY_SORT) | T_REP;
+      if (thd->vio_ok())
+        _ma_check_print_info(&param, "Retrying repair with keycache");
       sql_print_information("Retrying repair of: '%s' with keycache",
                             table->s->path.str);
       continue;

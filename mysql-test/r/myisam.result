@@ -2355,7 +2355,7 @@ Warnings:
 Warning	1292	Truncated incorrect myisam_sort_buffer_size value: '4'
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	myisam_sort_buffer_size is too small
+test.t1	repair	error	myisam_sort_buffer_size is too small. X
 test.t1	repair	warning	Number of rows changed from 0 to 7168
 test.t1	repair	status	OK
 SET myisam_repair_threads=2;
@@ -2424,7 +2424,7 @@ INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0');
 Warnings:
-Error	1034	myisam_sort_buffer_size is too small
+Error	1034	myisam_sort_buffer_size is too small. X
 Error	1034	Number of rows changed from 0 to 157
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
 INSERT INTO t1 VALUES('1');
