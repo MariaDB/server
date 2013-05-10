@@ -155,46 +155,6 @@ int GetTypeSize(int type, int len)
   } // end of GetTypeSize
 
 /***********************************************************************/
-/*  GetPLGType: returns the PlugDB type corresponding to a DB type.    */
-/***********************************************************************/
-int GetPLGType(int type)
-  {
-  int tp;
-
-  switch (type) {
-    case DB_CHAR:
-    case DB_STRING: tp = TYPE_STRING; break;
-    case DB_SHORT:  tp = TYPE_SHORT;  break;
-    case DB_INT:    tp = TYPE_INT;   break;
-    case DB_DOUBLE: tp = TYPE_FLOAT;  break;
-    case DB_DATE:   tp = TYPE_DATE;   break;
-    default:        tp = TYPE_ERROR;
-    } // endswitch type
-
-  return tp;
-  } // end of GetPLGType
-
-/***********************************************************************/
-/*  GetDBType: returns the DB type corresponding to a PlugDB type.     */
-/***********************************************************************/
-int GetDBType(int type)
-  {
-  int tp;
-
-  switch (type) {
-    case TYPE_STRING: tp = DB_CHAR;   break;
-    case TYPE_SHORT:  tp = DB_SHORT;  break;
-    case TYPE_INT:    tp = DB_INT;    break;
-    case TYPE_BIGINT:
-    case TYPE_FLOAT:  tp = DB_DOUBLE; break;
-    case TYPE_DATE:   tp = DB_DATE;   break;
-    default:          tp = DB_ERROR;
-    } // endswitch type
-
-  return tp;
-  } // end of GetPLGType
-
-/***********************************************************************/
 /*  GetFormatType: returns the FORMAT character(s) according to type.  */
 /***********************************************************************/
 char *GetFormatType(int type)
@@ -1143,10 +1103,13 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
     return false;
   else if (Null || vp->IsNull())
     return false;
-  else if (Ci || vp->IsCi())
-    return !stricmp(Strp, vp->GetCharValue());
+
+  char buf[32];
+
+  if (Ci || vp->IsCi())
+    return !stricmp(Strp, vp->GetCharString(buf));
   else // (!Ci)
-    return !strcmp(Strp, vp->GetCharValue());
+    return !strcmp(Strp, vp->GetCharString(buf));
 
   } // end of IsEqual
 

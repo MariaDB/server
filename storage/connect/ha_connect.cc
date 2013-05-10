@@ -207,6 +207,8 @@ ha_create_table_option connect_table_option_list[]=
   HA_TOPTION_STRING("MODULE", module),
   HA_TOPTION_STRING("SUBTYPE", subtype),
   HA_TOPTION_STRING("CATFUNC", catfunc),
+  HA_TOPTION_STRING("SRCDEF", srcdef),
+  HA_TOPTION_STRING("COLIST", colist),
   HA_TOPTION_STRING("OPTION_LIST", oplist),
   HA_TOPTION_STRING("DATA_CHARSET", data_charset),
   HA_TOPTION_NUMBER("LRECL", lrecl, 0, 0, INT_MAX32, 1),
@@ -590,7 +592,7 @@ static char *GetListOption(PGLOBAL g, const char *opname,
 
     } else {
       if (pn) {
-        n= pn - pk;
+        n= min(pn - pk, 15);
         memcpy(key, pk, n);
         key[n]= 0;
       } else
@@ -655,6 +657,10 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->subtype;
   else if (!stricmp(opname, "Catfunc"))
     opval= (char*)options->catfunc;
+  else if (!stricmp(opname, "Srcdef"))
+    opval= (char*)options->srcdef;
+  else if (!stricmp(opname, "Colist"))
+    opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
 
@@ -2667,7 +2673,6 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_JCT:
     case TAB_DMY:
     case TAB_NIY:
-    case TAB_PIVOT:
       my_printf_error(ER_UNKNOWN_ERROR,
                       "Unsupported table type %s", MYF(0), options->type);
       return true;
@@ -2706,6 +2711,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options)
     case TAB_XCL:
     case TAB_PRX:
     case TAB_OCCUR:
+    case TAB_PIVOT:
       return false;
   }
 

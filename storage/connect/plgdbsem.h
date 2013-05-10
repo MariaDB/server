@@ -513,7 +513,6 @@ typedef  struct _colres {
   PVBLK   Kdata;                   /* Column block of values           */
   char   *Nulls;                   /* Column null value array          */
   int     Type;                    /* Internal type                    */
-  int     DBtype;                  /* Data type                        */
   int     Datasize;                /* Overall data size                */
   int     Ncol;                    /* Column number                    */
   int     Clen;                    /* Data individual internal size    */
@@ -545,7 +544,7 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, XFLD *fldtyp, 
+                       int *buftyp, XFLD *fldtyp, 
                        unsigned int *length, bool blank, bool nonull);
 
 /***********************************************************************/

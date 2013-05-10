@@ -38,7 +38,6 @@ typedef struct _datpar *PDTP;         // For DTVAL
 /***********************************************************************/
 /*  Utilities used to test types and to allocated values.              */
 /***********************************************************************/
-int   GetPLGType(int);
 PVAL  AllocateValue(PGLOBAL, void *, short);
 
 // Exported functions
@@ -50,7 +49,6 @@ DllExport int   TranslateSQLType(int stp, int prec, int& len);
 #endif
 DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
-DllExport int   GetDBType(int);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
 DllExport int   ConvertType(int, int, CONV, bool match = false);
@@ -82,12 +80,12 @@ class DllExport VALUE : public BLOCK {
   virtual longlong GetBigintValue(void) = 0;
   virtual double GetFloatValue(void) = 0;
   virtual void  *GetTo_Val(void) = 0;
+  virtual void   SetPrec(int prec) {Prec = prec;}
           bool   IsNull(void) {return Null;}
           void   SetNull(bool b) {Null = b;}
           void   SetNullable(bool b) {Nullable = b;}
           int    GetType(void) {return Type;}
           int    GetClen(void) {return Clen;}
-          void   SetPrec(int prec) {Prec = prec;}
           void   SetGlobal(PGLOBAL g) {Global = g;}
 
   // Methods
@@ -217,6 +215,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual longlong GetBigintValue(void) {return atoll(Strp);}
   virtual double GetFloatValue(void) {return atof(Strp);}
   virtual void  *GetTo_Val(void) {return Strp;}
+  virtual void   SetPrec(int prec) {Ci = prec != 0;}
 
   // Methods
   virtual bool   SetValue_pval(PVAL valp, bool chktype);

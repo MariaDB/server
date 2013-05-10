@@ -74,10 +74,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *table, const char *colpat,
                   int port, bool key, bool info)
   {
-  static int dbtype[]  = {DB_CHAR, DB_SHORT, DB_CHAR,  DB_INT,
-                          DB_CHAR, DB_SHORT, DB_SHORT, DB_SHORT,
-                          DB_CHAR, DB_CHAR,  DB_CHAR};
-  static int buftyp[]  = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
                           TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
                           TYPE_STRING, TYPE_STRING, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
@@ -85,7 +82,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                           FLD_REM,  FLD_NO,    FLD_CHARSET};
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char   *fld, *fmt, cmd[128];
-  int     i, n, nf, ncol = sizeof(dbtype) / sizeof(int);
+  int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int    len, type, prec, rc, k = 0;
   PQRYRES qrp;
   PCOLRES crp;
@@ -134,7 +131,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, true, true);
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
@@ -665,7 +662,6 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Prec = fld->decimals;
     crp->Length = fld->max_length;
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
-    crp->DBtype = GetDBType((int)crp->Type);
 
     if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
                                      crp->Clen, 0, FALSE, TRUE))) {

@@ -78,8 +78,6 @@ extern "C" int trace;
 PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
                    int hdr, int mxr, bool info)
   {
-  static int  dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
-                          DB_INT,  DB_INT,  DB_SHORT};
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
@@ -87,7 +85,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   static unsigned int length[] = {6, 6, 8, 10, 10, 6};
   char   *p, *colname[MAXCOL], dechar, filename[_MAX_PATH], buf[4096];
   int     i, imax, hmax, n, nerr, phase, blank, digit, dec, type;
-  int     ncol = sizeof(dbtype) / sizeof(int);
+  int     ncol = sizeof(buftyp) / sizeof(int);
   int     num_read = 0, num_max = 10000000;     // Statistics
   int     len[MAXCOL], typ[MAXCOL], prc[MAXCOL];
   FILE   *infile;
@@ -341,7 +339,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, imax, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, false);
+                          buftyp, fldtyp, length, true, false);
   qrp->Nblin = imax;
 
   if (info)

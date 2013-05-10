@@ -121,10 +121,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool info)
   {
-  static int dbtype[]  = {DB_CHAR, DB_SHORT, DB_CHAR,  DB_INT,
-                          DB_INT,  DB_SHORT, DB_SHORT, DB_SHORT,
-                          DB_CHAR, DB_CHAR,  DB_CHAR};
-  static int buftyp[]  = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
                           TYPE_INT,    TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
                           TYPE_STRING, TYPE_STRING, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME,   FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
@@ -132,7 +129,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
                           FLD_REM,    FLD_NO,    FLD_CHARSET};
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char        *fld, *fmt;
-  int          i, n, ncol = sizeof(dbtype) / sizeof(int);
+  int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          len, type, prec;
   bool         mysql;
   TABLE_SHARE *s;
@@ -156,7 +153,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, true, true);
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
