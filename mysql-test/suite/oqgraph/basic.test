@@ -1,6 +1,8 @@
+--disable_warnings
 DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
 DROP TABLE IF EXISTS graph2;
+--enable_warnings
 
 CREATE TABLE graph_base (
     from_id INT UNSIGNED NOT NULL,
@@ -93,5 +95,4 @@ DELETE FROM graph_base;
 FLUSH TABLES;
 TRUNCATE TABLE graph_base;
 
-DROP TABLE graph;
-DROP TABLE graph_base;
+DROP TABLE graph, graph_base;
