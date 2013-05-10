@@ -270,7 +270,7 @@ void ptrc(char const *fmt, ...)
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, XFLD *fldtyp, 
+                       int *buftyp, XFLD *fldtyp, 
                        unsigned int *length, bool blank, bool nonull)
   {
   char     cname[NAM_LEN+1];
@@ -304,7 +304,6 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     crp->Length = length[i];
     crp->Clen = GetTypeSize(crp->Type, length[i]);
     crp->Prec = 0;
-    crp->DBtype = dbtype[i];
 
     if (ids > 0) {
 #if defined(XMSG)

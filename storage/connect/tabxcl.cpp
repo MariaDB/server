@@ -66,7 +66,6 @@ extern "C" int trace;
 /***********************************************************************/
 XCLDEF::XCLDEF(void)
   {
-  Pseudo = 3;
   Xcol = NULL;
   Sep = ',';
   Mult = 10;

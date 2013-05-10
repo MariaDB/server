@@ -178,15 +178,13 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /****************************************************************************/
 PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
   {
-  static int  dbtype[] = {DB_CHAR, DB_SHORT, DB_CHAR,
-                          DB_INT,  DB_INT,   DB_SHORT};
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,    TYPE_INT,   TYPE_SHORT};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
                           FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int length[] = {11, 6, 8, 10, 10, 6};
   char       buf[2], filename[_MAX_PATH];
-  int        ncol = sizeof(dbtype) / sizeof(int);
+  int        ncol = sizeof(buftyp) / sizeof(int);
   int        rc, type, len, field, fields;
   BOOL       bad;
   DBFHEADER  mainhead;
@@ -228,8 +226,7 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
     fields = 0;
 
   qrp = PlgAllocResult(g, ncol, fields, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, false);
-//qrp->Info = info || (rc == RC_INFO);
+                          buftyp, fldtyp, length, true, false);
 
   if (info)
     return qrp;

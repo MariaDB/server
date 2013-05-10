@@ -22,13 +22,12 @@ typedef class QRSCOL   *PQRSCOL;
 /***********************************************************************/
 /*  PIVOT table.                                                       */
 /***********************************************************************/
-//ass DllExport PIVOTDEF : public TABDEF {/* Logical table description */
-class PIVOTDEF : public TABDEF {          /* Logical table description */
+//ass DllExport PIVOTDEF : public PRXDEF {/* Logical table description */
+class PIVOTDEF : public PRXDEF {          /* Logical table description */
   friend class TDBPIVOT;
  public:
   // Constructor
-  PIVOTDEF(void) {Pseudo = 3;
-                  Tabname = Tabsrc = Picol = Fncol = Function = NULL;}
+  PIVOTDEF(void);
 
   // Implementation
   virtual const char *GetType(void) {return "PIVOT";}
@@ -39,26 +38,27 @@ class PIVOTDEF : public TABDEF {          /* Logical table description */
 
  protected:
   // Members
-  char  *Host;               /* Host machine to use                     */
-  char  *User;               /* User logon info                         */
-  char  *Pwd;                /* Password logon info                     */
-  char  *DB;                 /* Database to be used by server           */
-  char  *Tabname;             /* Name of source table                   */
+  char  *Host;               /* Host machine to use                    */
+  char  *User;               /* User logon info                        */
+  char  *Pwd;                /* Password logon info                    */
+  char  *DB;                 /* Database to be used by server          */
+  char  *Tabname;            /* Name of source table                   */
   char  *Tabsrc;             /* The source table SQL description       */
-  char  *Picol;               /* The pivot column                       */
+  char  *Picol;              /* The pivot column                       */
   char  *Fncol;              /* The function column                    */
   char  *Function;           /* The function applying to group by      */
   bool   GBdone;             /* True if tabname as group by format     */
-  int    Port;               /* MySQL port number                       */
+  bool   Accept;             /* TRUE if no match is accepted           */
+  int    Port;               /* MySQL port number                      */
   }; // end of PIVOTDEF
 
 /***********************************************************************/
 /*  This is the class declaration for the PIVOT table.                 */
 /***********************************************************************/
 //ass DllExport TDBPIVOT : public TDBASE, public CSORT {
-class TDBPIVOT : public TDBASE, public CSORT {
+class TDBPIVOT : public TDBPRX {
   friend class FNCCOL;
-  friend class SRCCOL;
+//friend class SRCCOL;
  public:
   // Constructor
   TDBPIVOT(PPIVOTDEF tdp);
@@ -85,39 +85,41 @@ class TDBPIVOT : public TDBASE, public CSORT {
   virtual void CloseDB(PGLOBAL g);
 
   // The sorting function
-  virtual int  Qcompare(int *, int *);
+//virtual int  Qcompare(int *, int *);
 
  protected:
-  PQRYRES GetSourceTable(PGLOBAL g);
-  int      MakePivotColumns(PGLOBAL g);
-  bool    UpdateTableFields(PGLOBAL g, int n);
+  bool    GetSourceTable(PGLOBAL g);
+//int     MakePivotColumns(PGLOBAL g);
+//bool    UpdateTableFields(PGLOBAL g, int n);
 
   // Members
-  MYSQLC  Myc;                      // MySQL connection class
-  PTDBQRS Tqrp;                      // To the source table result
-  char   *Host;                     // Host machine to use
-  char   *User;                     // User logon info
-  char   *Pwd;                      // Password logon info
-  char   *Database;                 // Database to be used by server
-  PQRYRES Qryp;                     // Points to Query result block
-  char   *Tabname;                  // Name of source table
-  char   *Tabsrc;                    // SQL of source table
-  char   *Picol;                    // Pivot column  name
-  char   *Fncol;                    // Function column name
-  char   *Function;                 // The function applying to group by
-  PQRSCOL Fcolp;                    // To the function column in source
-  PQRSCOL Xcolp;                    // To the pivot column in source
-  PCOLRES Xresp;                    // To the pivot result column
-//PCOLRES To_Sort;                  // Saved Qryp To_Sort pointer
-  PVBLK   Rblkp;                    // The value block of the pivot column
-  bool    GBdone;                    // True when subtable is "Group by"
-  int     Mult;                      // Multiplication factor
-  int     Ncol;                     // The number of generated columns
-  int     N;                        // The current table index
-  int      M;                         // The occurence rank
-  int     Port;                      // MySQL port number 
-  BYTE    FileStatus;                // 0: First 1: Rows 2: End-of-File
-  BYTE    RowFlag;                  // 0: Ok, 1: Same, 2: Skip
+//MYSQLC  Myc;                    // MySQL connection class
+//PTDBQRS Tqrp;                   // To the source table result
+  char   *Host;                   // Host machine to use
+  char   *User;                   // User logon info
+  char   *Pwd;                    // Password logon info
+  char   *Database;               // Database to be used by server
+//PQRYRES Qryp;                   // Points to Query result block
+  char   *Tabname;                // Name of source table
+  char   *Tabsrc;                 // SQL of source table
+  char   *Picol;                  // Pivot column  name
+  char   *Fncol;                  // Function column name
+  char   *Function;               // The function applying to group by
+  PCOL    Fcolp;                  // To the function column in source
+  PCOL    Xcolp;                  // To the pivot column in source
+  PCOL    Dcolp;                  // To the dump column
+//PCOLRES Xresp;                  // To the pivot result column
+//PCOLRES To_Sort;                // Saved Qryp To_Sort pointer
+//PVBLK   Rblkp;                  // The value block of the pivot column
+  bool    GBdone;                 // True when subtable is "Group by"
+  bool    Accept;                 // TRUE if no match is accepted
+  int     Mult;                   // Multiplication factor
+  int     Ncol;                   // The number of generated columns
+  int     N;                      // The current table index
+  int     M;                      // The occurence rank
+  int     Port;                   // MySQL port number 
+  BYTE    FileStatus;             // 0: First 1: Rows 2: End-of-File
+  BYTE    RowFlag;                // 0: Ok, 1: Same, 2: Skip
   }; // end of class TDBPIVOT
 
 /***********************************************************************/
@@ -127,30 +129,30 @@ class FNCCOL : public COLBLK {
   friend class TDBPIVOT;
  public:
   // Constructor
-  FNCCOL(PCOL colp, PTDBPIVOT tdbp);
+  FNCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i);
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_FNC;}
 
   // Methods
   virtual void Reset(void) {}
-          bool InitColumn(PGLOBAL g, PVAL valp);
+          bool InitColumn(PGLOBAL g);
+          bool CompareColumn(void);
 
  protected:
   // Member
-  PVAL Hval;      // The original value used to generate the header
+  PVAL Hval;      // The value containing the header
+  PCOL Xcolp;
   }; // end of class FNCCOL
 
 /***********************************************************************/
 /*  Class SRCCOL: for other source columns.                            */
 /***********************************************************************/
-class SRCCOL : public COLBLK {
+class SRCCOL : public PRXCOL {
   friend class TDBPIVOT;
  public:
   // Constructors
-//SRCCOL(PCOLDEF cdp, PTDBPIVOT tdbp, int n);
-  SRCCOL(PCOL cp, PTDBPIVOT tdbp, int n);
-//SRCCOL(SRCCOL *colp, PTDB tdbp); // Constructor used in copy process
+  SRCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int n);
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_SRC;}
@@ -158,16 +160,15 @@ class SRCCOL : public COLBLK {
   // Methods
   virtual void Reset(void) {}
           void SetColumn(void);
-          bool Init(PGLOBAL g, PTDBPIVOT tdbp);
-          bool CompareColumn(void);
+          bool Init(PGLOBAL g);
+          bool CompareLast(void);
 
  protected:
   // Default constructor not to be used
   SRCCOL(void) {}
 
   // Members
-  PQRSCOL Colp;
-  PVAL    Cnval;
+//PVAL    Cnval;
   }; // end of class SRCCOL
 
 /***********************************************************************/

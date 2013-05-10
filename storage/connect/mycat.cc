@@ -132,6 +132,9 @@ TABTYPE GetTypeID(const char *type)
 	               : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
                  : (!stricmp(type, "CATLG")) ? TAB_PRX  // Legacy
                  : (!stricmp(type, "PROXY")) ? TAB_PRX
+#ifdef PIVOT_SUPPORT
+                 : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
+#endif
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -650,9 +653,9 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #if defined(MYSQL_SUPPORT)
 		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
 #endif   // MYSQL_SUPPORT
-//#if defined(PIVOT_SUPPORT)
-//  case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
-//#endif   // PIVOT_SUPPORT
+#if defined(PIVOT_SUPPORT)
+    case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
+#endif   // PIVOT_SUPPORT
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
