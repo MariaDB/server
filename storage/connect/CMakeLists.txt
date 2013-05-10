@@ -25,20 +25,20 @@ filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
 tabdos.cpp tabfix.cpp tabfmt.cpp tabmul.cpp tabsys.cpp tabvct.cpp
 valblk.cpp value.cpp xindex.cpp xobject.cpp
 filamzip.cpp tabtbl.cpp myutil.cpp
-tabutil.cpp tabxcl.cpp taboccur.cpp
+tabutil.cpp tabxcl.cpp taboccur.cpp tabpivot.cpp
 block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
 filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
 global.h ha_connect.h maputil.h msgid.h mycat.h myutil.h os.h
 osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
 tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h
 user_connect.h valblk.h value.h xindex.h xobject.h xtable.h
-tabutil.h tabxcl.h taboccur.h)
+tabutil.h tabxcl.h taboccur.h tabpivot.h)
 
 #
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS )
-add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 
 
 #
