@@ -1045,7 +1045,7 @@ myisam-max-sort-file-size 9223372036853727232
 myisam-mmap-size 18446744073709551615
 myisam-recover-options DEFAULT
 myisam-repair-threads 1
-myisam-sort-buffer-size 8388608
+myisam-sort-buffer-size 134216704
 myisam-stats-method nulls_unequal
 myisam-use-mmap FALSE
 net-buffer-length 16384

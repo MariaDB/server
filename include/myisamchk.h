@@ -62,9 +62,10 @@
 #define T_ZEROFILL              ((ulonglong) 1L << 32)
 #define T_ZEROFILL_KEEP_LSN     ((ulonglong) 1L << 33)
 /** If repair should not bump create_rename_lsn */
-#define T_NO_CREATE_RENAME_LSN  ((ulonglong) 1L << 33)
-#define T_CREATE_UNIQUE_BY_SORT ((ulonglong) 1L << 34)
-#define T_SUPPRESS_ERR_HANDLING ((ulonglong) 1L << 35)
+#define T_NO_CREATE_RENAME_LSN  ((ulonglong) 1L << 34)
+#define T_CREATE_UNIQUE_BY_SORT ((ulonglong) 1L << 35)
+#define T_SUPPRESS_ERR_HANDLING ((ulonglong) 1L << 36)
+#define T_FORCE_SORT_MEMORY     ((ulonglong) 1L << 37)
 
 #define T_REP_ANY               (T_REP | T_REP_BY_SORT | T_REP_PARALLEL)
 
@@ -180,8 +181,8 @@ typedef struct st_buffpek {
   my_off_t file_pos;                    /* Where we are in the sort file */
   uchar *base, *key;                    /* Key pointers */
   ha_rows count;                        /* Number of rows in table */
-  ulong mem_count;                      /* numbers of keys in memory */
-  ulong max_keys;                       /* Max keys in buffert */
+  ha_rows mem_count;                    /* Numbers of keys in memory */
+  ha_rows max_keys;                     /* Max keys in buffert */
 } BUFFPEK;
 
 #endif /* _myisamchk_h */
