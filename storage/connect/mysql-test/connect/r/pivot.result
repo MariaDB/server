@@ -6,7 +6,7 @@ Who  CHAR(10) NOT NULL,
 Week INT(2) NOT NULL,
 What CHAR(12) NOT NULL,
 Amount DOUBLE(8,2))
-ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt';
+ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='expenses.txt' ENDING=2;
 SELECT * FROM expenses;
 Who	Week	What	Amount
 Joe	3	Beer	18.00

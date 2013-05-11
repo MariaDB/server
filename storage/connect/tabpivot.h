@@ -231,7 +231,7 @@ class DllExport QRSCOL : public COLBLK {
 
   // Methods
   virtual void    ReadColumn(PGLOBAL g);
-  virtual void    Print(PGLOBAL g, FILE *, UINT);
+  virtual void    Print(PGLOBAL g, FILE *, uint);
 
  protected:
   QRSCOL(void) {}    // Default constructor not to be used
