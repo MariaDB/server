@@ -876,7 +876,7 @@ int TDBPIVOT::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBPIVOT::CloseDB(PGLOBAL g)
   {
-//Tdbp->CloseDB(g);
+  Tdbp->CloseDB(g);
   } // end of CloseDB
 
 #if 0
@@ -1242,8 +1242,8 @@ QRSCOL::QRSCOL(PGLOBAL g, PCOLRES crp, PTDB tdbp, PCOL cprec, int i)
   Long = Crp->Clen;
   Buf_Type = crp->Type;
   strcpy(Format.Type, GetFormatType(Buf_Type));
-  Format.Length = (SHORT)Long;
-  Format.Prec = (SHORT)Crp->Prec;
+  Format.Length = (short)Long;
+  Format.Prec = (short)Crp->Prec;
 
   if (trace) {
     htrc("Making new QRSCOL C%d %s at %p\n", Index, Name, this);
@@ -1284,7 +1284,7 @@ void QRSCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of a Dos column descriptor block.                 */
 /***********************************************************************/
-void QRSCOL::Print(PGLOBAL g, FILE *f, UINT n)
+void QRSCOL::Print(PGLOBAL g, FILE *f, uint n)
   {
   COLBLK::Print(g, f, n);
 
