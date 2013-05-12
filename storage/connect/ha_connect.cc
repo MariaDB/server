@@ -3014,8 +3014,10 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   // This can NOT be called without open called first, but
   // the table can have been closed since then
   } else if (!tdbp || xp->CheckQuery(valid_query_id) || xmod != newmode) {
-    if (tdbp)
-      CloseTable(g);
+    // If this is called by a later query, the table may have
+    // been already closed and the tdbp is not valid anymore.
+    if (tdbp && xp->last_query_id == valid_query_id)
+      rc= CloseTable(g);
 
     xmod= newmode;
 
