@@ -214,8 +214,7 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 /***********************************************************************/
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
-  char   *colname;
-  int     n, colpos;
+  int     n;
   PTABLE  tp, tabp;
   PTDB    tdbp;
   PCOL    colp;
@@ -242,23 +241,9 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       // Real initialization will be done later.
       for (PCOL cp = Columns; cp; cp = cp->GetNext())
         if (!cp->IsSpecial()) {
-          colname = cp->GetName();
-          colpos = ((PPRXCOL)cp)->Colnum;
-
-          // We try first to get the column by name
-          if (!(colp = tdbp->ColDB(g, colname, 0)) && colpos)
-            // When unsuccessful, if a column number was specified
-            // try to get the column by its position in the table
-            colp = tdbp->ColDB(g, NULL, colpos);
-
-          if (!colp) {
-            if (!Accept) {
-              sprintf(g->Message, MSG(NO_MATCHING_COL),
-                      colname, tdbp->GetName());
-              return TRUE;               // Error return
-              } // endif !Accept
-
-          } else // this is needed by some tables (which?)
+          if (((PPRXCOL)cp)->Init(g) && !Accept)
+            return TRUE;
+          else // this is needed by some tables (which?)
             colp->SetColUse(cp->GetColUse());
 
           } // endif !special
@@ -428,7 +413,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
     for (PCOL cp = Columns; cp; cp = cp->GetNext())
       if (cp->GetAmType() == TYPE_AM_TABID)
         cp->COLBLK::Reset();
-      else if (((PPRXCOL)cp)->Init(g))
+      else if (((PPRXCOL)cp)->Init(g) && !Accept)
         return TRUE;
         
     if (trace)
@@ -482,7 +467,7 @@ int TDBTBL::ReadDB(PGLOBAL g)
         for (PCOL cp = Columns; cp; cp = cp->GetNext())
           if (cp->GetAmType() == TYPE_AM_TABID)
             cp->COLBLK::Reset();
-          else if (((PPRXCOL)cp)->Init(g))
+          else if (((PPRXCOL)cp)->Init(g) && !Accept)
             return RC_FX;
 
         if (trace)

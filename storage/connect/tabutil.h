@@ -14,27 +14,11 @@ typedef class XXLCOL *PXXLCOL;
 typedef class PRXCOL *PPRXCOL;
 typedef class TBCDEF *PTBCDEF;
 typedef class TDBTBC *PTDBTBC;
-typedef class XTDBASE *PTDBX;
-typedef class XCOLBLK *PCOLX;
 
 TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db, 
                                       const char *name, bool& mysql);
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
                                         const char *name, bool info);
-
-/***********************************************************************/
-/*  This class is used to access protected members of TDBASE.  				 */
-/***********************************************************************/
-class XTDBASE : public TDBASE {
-  friend class TDBXCL;
-  }; // end of class XCOLBLK 
-
-/***********************************************************************/
-/*  This class is used to access protected members of COLBLK.  				 */
-/***********************************************************************/
-class XCOLBLK : public COLBLK {
-  friend class TDBXCL;
-  }; // end of class XCOLBLK 
 
 /* -------------------------- PROXY classes -------------------------- */
 

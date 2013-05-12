@@ -657,11 +657,6 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
     cdp= tdbp->Key(k)->GetCdp();
     valp= AllocateValue(g, cdp->GetType(), cdp->GetLength()); 
     tdbp->To_Link[k]= new(g) CONSTANT(valp);
-
-//if (kdp->Klen && tdbp->To_Link[k]->GetResultType() == TYPE_STRING)
-//  ((XCOLBLK*)tdbp->To_Link[k])->SetLength(kdp->Klen);
-
-//((PCOL)tdbp->To_Link[k])->InitValue(g);
     } // endfor k
 
   // Make the index on xdp

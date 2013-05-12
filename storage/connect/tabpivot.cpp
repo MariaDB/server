@@ -876,7 +876,9 @@ int TDBPIVOT::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBPIVOT::CloseDB(PGLOBAL g)
   {
-  Tdbp->CloseDB(g);
+  if (Tdbp)
+    Tdbp->CloseDB(g);
+
   } // end of CloseDB
 
 #if 0
