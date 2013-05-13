@@ -137,6 +137,7 @@
 #include "mycat.h"
 #include "myutil.h"
 #include "preparse.h"
+#include "inihandl.h"
 
 #define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
@@ -3252,8 +3253,8 @@ static char *encode(PGLOBAL g, char *cnm)
     Return 0 if ok
 */
 
-bool add_field(String *sql, const char *field_name, const char *type,
-               int len, int dec, uint tm, const char *rem)
+static bool add_field(String *sql, const char *field_name, const char *type,
+                      int len, int dec, uint tm, const char *rem)
 {
   bool error= false;
 
