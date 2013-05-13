@@ -29,9 +29,8 @@
 //#include <sys/types.h>
 //#include <memory.h>
 #include "my_global.h"
-//#include "osutil.h"
 #include "global.h"
-
+#include "inihandl.h"
 
 // The types and variables used locally
 //typedef int bool;
@@ -672,7 +671,7 @@ static BOOL PROFILE_DeleteKey(PROFILESECTION* *section,
  *
  * Delete all keys from a profile tree.
  ***********************************************************************/
-void PROFILE_DeleteAllKeys(LPCSTR section_name)
+static void PROFILE_DeleteAllKeys(LPCSTR section_name)
 {
   PROFILESECTION* *section= &CurProfile->section;
 
@@ -1038,6 +1037,7 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
  *  Convenience function that turns a string 'xxx, yyy, zzz' into
  *  the 'xxx\0 yyy, zzz' and returns a pointer to the 'yyy, zzz'.
  ***********************************************************************/
+#if 0
 char *PROFILE_GetStringItem(char* start)
 {
   char *lpchX, *lpch;
@@ -1065,6 +1065,7 @@ char *PROFILE_GetStringItem(char* start)
 
   return NULL;
 }  // end of PROFILE_GetStringItem
+#endif
 
 /**********************************************************************
  * if allow_section_name_copy is TRUE, allow the copying :
@@ -1132,7 +1133,7 @@ static int PROFILE_GetPrivateProfileString(LPCSTR section, LPCSTR entry,
  *           GetPrivateProfileStringA   (KERNEL32.@)
  ***********************************************************************/
 int GetPrivateProfileString(LPCSTR section, LPCSTR entry, LPCSTR def_val,
-                            LPSTR buffer, uint len, LPCSTR filename)
+                            LPSTR buffer, DWORD len, LPCSTR filename)
 {
   return PROFILE_GetPrivateProfileString(section, entry, def_val,
                                          buffer, len, filename, TRUE);
@@ -1308,7 +1309,8 @@ BOOL WritePrivateProfileSection(LPCSTR section,
  * Note that when the buffer is big enough then the return value may be any
  * value between 1 and len-1 (or len in Win95), including len-2.
  */
-DWORD GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
+static DWORD
+GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
 {
   DWORD ret = 0;
   

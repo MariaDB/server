@@ -28,7 +28,7 @@ filamzip.cpp tabtbl.cpp myutil.cpp
 tabutil.cpp tabxcl.cpp taboccur.cpp tabpivot.cpp
 block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
 filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
-global.h ha_connect.h maputil.h msgid.h mycat.h myutil.h os.h
+global.h ha_connect.h inihandl.h maputil.h msgid.h mycat.h myutil.h os.h
 osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
 tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h
 user_connect.h valblk.h value.h xindex.h xobject.h xtable.h
