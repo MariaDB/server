@@ -42,7 +42,8 @@ INSERT INTO ta_l (a, b, c) VALUES
 direct_updating test
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	0
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -54,7 +55,8 @@ update all rows with function
 UPDATE ta_l SET c = ADDDATE(c, 1);
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	1
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -66,7 +68,8 @@ update by primary key
 UPDATE ta_l SET b = 'x' WHERE a = 3;
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	2
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -78,7 +81,8 @@ update by a column without index
 UPDATE ta_l SET c = '2011-10-17' WHERE b = 'x';
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	3
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -90,7 +94,8 @@ update by primary key with order and limit
 UPDATE ta_l SET c = ADDDATE(c, 1) WHERE a < 4 ORDER BY b DESC LIMIT 1;
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	4
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -102,7 +107,8 @@ delete by primary key with order and limit
 DELETE FROM ta_l WHERE a < 4 ORDER BY c LIMIT 1;
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	1
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -113,7 +119,8 @@ delete by a column without index
 DELETE FROM ta_l WHERE b = 'c';
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	2
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -123,13 +130,14 @@ delete by primary key
 DELETE FROM ta_l WHERE a = 3;
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	3
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
 4	d	2003-12-01 05:01:03
 
-handler with partition test
+with partition test
 CREATE TABLE ta_l2 (
 a INT,
 b CHAR(1),
@@ -138,7 +146,8 @@ PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	4
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -150,7 +159,8 @@ update all rows with function
 UPDATE ta_l2 SET c = ADDDATE(c, 1);
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	6
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -162,7 +172,8 @@ update by primary key
 UPDATE ta_l2 SET b = 'x' WHERE a = 3;
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	7
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -174,7 +185,8 @@ update by a column without index
 UPDATE ta_l2 SET c = '2011-10-17' WHERE b = 'x';
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	9
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -186,7 +198,8 @@ update by primary key with order and limit
 UPDATE ta_l2 SET c = ADDDATE(c, 1) WHERE a < 4 ORDER BY b DESC LIMIT 1;
 SHOW STATUS LIKE 'Spider_direct_update';
 Variable_name	Value
-Spider_direct_update	10
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -198,7 +211,8 @@ delete by primary key with order and limit
 DELETE FROM ta_l2 WHERE a < 4 ORDER BY c LIMIT 1;
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	4
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -209,7 +223,8 @@ delete by a column without index
 DELETE FROM ta_l2 WHERE b = 'c';
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	6
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39
@@ -219,7 +234,8 @@ delete by primary key
 DELETE FROM ta_l2 WHERE a = 3;
 SHOW STATUS LIKE 'Spider_direct_delete';
 Variable_name	Value
-Spider_direct_delete	7
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l2 ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-02 10:21:39

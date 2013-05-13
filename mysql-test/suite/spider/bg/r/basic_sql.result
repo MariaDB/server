@@ -70,6 +70,12 @@ CREATE TABLE ta_l (
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
 IGNORE SELECT a, b, c FROM tb_l
+Warnings:
+Warning	1062	Duplicate entry '1' for key 'PRIMARY'
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+Warning	1062	Duplicate entry '3' for key 'PRIMARY'
+Warning	1062	Duplicate entry '4' for key 'PRIMARY'
+Warning	1062	Duplicate entry '5' for key 'PRIMARY'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2008-08-01 10:21:39
@@ -331,6 +337,8 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 
 insert ignore
 INSERT IGNORE INTO ta_l (a, b, c) VALUES (2, 'd', '2009-02-02 01:01:01');
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_l ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 2	e	2008-01-01 23:59:59

@@ -43,38 +43,44 @@ direct_aggregating test
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 SELECT COUNT(*) FROM ta_l;
 COUNT(*)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
 Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l;
 MAX(a)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	2
+Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l;
 MIN(a)
 1
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	3
+Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l WHERE a < 5;
 MAX(a)
 4
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	4
+Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l WHERE a > 1;
 MIN(a)
 2
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	5
+Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 
-handler with partition test
+with partition test
 CREATE TABLE ta_l2 (
 a INT,
 b CHAR(1),
@@ -83,37 +89,43 @@ PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_COMMENT2_P_2_1
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	5
+Spider_direct_aggregate	1
+Spider_direct_order_limit	0
 SELECT COUNT(*) FROM ta_l2;
 COUNT(*)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	7
+Spider_direct_aggregate	3
+Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l2;
 MAX(a)
 5
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	9
+Spider_direct_aggregate	3
+Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l2;
 MIN(a)
 1
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	11
+Spider_direct_aggregate	3
+Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l2 WHERE a < 5;
 MAX(a)
 4
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	13
+Spider_direct_aggregate	3
+Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l2 WHERE a > 1;
 MIN(a)
 2
 SHOW STATUS LIKE 'Spider_direct_aggregate';
 Variable_name	Value
-Spider_direct_aggregate	15
+Spider_direct_aggregate	3
+Spider_direct_order_limit	0
 
 deinit
 DROP DATABASE IF EXISTS auto_test_local;

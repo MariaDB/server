@@ -72,6 +72,8 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 fail-over test
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	0
 Spider_mon_table_cache_version_req	1
 INSERT INTO ta_l (a, b, c) VALUES
@@ -87,6 +89,8 @@ db_name	table_name	link_id
 auto_test_local	ta_l	1
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	1
 Spider_mon_table_cache_version_req	1
 INSERT INTO ta_l (a, b, c) VALUES
@@ -165,6 +169,8 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 fail-over test
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	1
 Spider_mon_table_cache_version_req	2
 INSERT INTO ta_l2 (a, b, c) VALUES
@@ -183,6 +189,8 @@ auto_test_local	ta_l	1
 auto_test_local	ta_l2#P#pt2	1
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	2
 Spider_mon_table_cache_version_req	2
 INSERT INTO ta_l2 (a, b, c) VALUES
@@ -271,6 +279,8 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 fail-over test
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	2
 Spider_mon_table_cache_version_req	2
 INSERT INTO ta_l (a, b, c) VALUES
@@ -288,6 +298,8 @@ auto_test_local	ta_l2#P#pt2	1
 auto_test_local	ta_l	0
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	2
 Spider_mon_table_cache_version_req	2
 INSERT INTO ta_l (a, b, c) VALUES
@@ -343,6 +355,8 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 fail-over test
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	2
 Spider_mon_table_cache_version_req	3
 INSERT INTO ta_l2 (a, b, c) VALUES
@@ -363,6 +377,8 @@ auto_test_local	ta_l	0
 auto_test_local	ta_l2#P#pt2	0
 SHOW STATUS LIKE 'Spider_mon_table_cache_version%';
 Variable_name	Value
+Spider_direct_aggregate	0
+Spider_direct_order_limit	0
 Spider_mon_table_cache_version	3
 Spider_mon_table_cache_version_req	3
 INSERT INTO ta_l2 (a, b, c) VALUES
