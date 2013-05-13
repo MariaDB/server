@@ -93,7 +93,7 @@ PSZ strlwr(PSZ s);
 /*  met when returning from TestValue for a given operator.            */
 /*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
 /***********************************************************************/
-BYTE OpBmp(PGLOBAL g, OPVAL opc)
+static BYTE OpBmp(PGLOBAL g, OPVAL opc)
   {
   BYTE bt;
 
