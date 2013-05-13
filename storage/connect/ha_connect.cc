@@ -3311,7 +3311,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   bool        ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
   MEM_ROOT   *mem= thd->mem_root;
-  CHARSET_INFO *cs;
   PQRYRES     qrp;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd, NULL);
@@ -3567,7 +3566,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rem= NULL;
         typ= len= dec= 0;
         tm= NOT_NULL_FLAG;
-        cs= NULL;
 
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
