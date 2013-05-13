@@ -48,9 +48,7 @@
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#else  // !WIN32
-extern "C" int GetRcString(int id, char *buf, int bufsize);
-#endif // !WIN32
+#endif // WIN32
 
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */

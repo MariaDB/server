@@ -14,6 +14,7 @@
 /***********************************************************************/
 #include <stdio.h>
 #include "resource.h"
+#include "rcmsg.h"
 
 char *GetMsgid(int id)
   {
