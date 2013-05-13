@@ -531,8 +531,12 @@ bool PRXCOL::Init(PGLOBAL g)
     Colp = tdbp->Tdbp->ColDB(g, NULL, Colnum);
 
   if (Colp) {
-    Colp->InitValue(g);        // May not have been done elsewhere
+    // May not have been done elsewhere
+    Colp->InitValue(g);        
     To_Val = Colp->GetValue();
+
+    // this may be needed by some tables (which?)
+    Colp->SetColUse(ColUse);
   } else {
     sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tdbp->Tdbp->GetName());
     return TRUE;

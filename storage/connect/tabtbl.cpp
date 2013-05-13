@@ -239,14 +239,10 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       // We must allocate subtable columns before GetMaxSize is called
       // because some (PLG, ODBC?) need to have their columns attached.
       // Real initialization will be done later.
-      for (PCOL cp = Columns; cp; cp = cp->GetNext())
-        if (!cp->IsSpecial()) {
-          if (((PPRXCOL)cp)->Init(g) && !Accept)
+      for (colp = Columns; colp; colp = colp->GetNext())
+        if (!colp->IsSpecial())
+          if (((PPRXCOL)colp)->Init(g) && !Accept)
             return TRUE;
-          else // this is needed by some tables (which?)
-            colp->SetColUse(cp->GetColUse());
-
-          } // endif !special
 
       if (Tablist)
         Tablist->Link(tabp);
