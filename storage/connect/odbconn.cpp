@@ -36,6 +36,7 @@
 //#include "kindex.h"
 #include "xtable.h"
 #include "tabodbc.h"
+#include "odbccat.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
@@ -203,7 +204,7 @@ CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
 /***********************************************************************/
 /*  Check for nulls and reset them to Null (?) values.                 */
 /***********************************************************************/
-void ResetNullValues(CATPARM *cap)
+static void ResetNullValues(CATPARM *cap)
   {
   int      i, n, ncol;
   PCOLRES  crp;

@@ -3829,7 +3829,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
           return HA_ERR_INTERNAL_ERROR;
           } // endif tab
-
+      default: /* do nothing */;
       } // endswitch ttp
 
   if (type == TAB_XML) {
