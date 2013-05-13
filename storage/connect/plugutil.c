@@ -107,7 +107,7 @@ ACTIVITY defActivity = {            /* Describes activity and language */
 #endif   // XMSG  ||         NEWMSG
 
 #if defined(UNIX) || defined(UNIV_LINUX)
-int GetRcString(int id, char *buf, int bufsize);
+#include "rcmsg.h"
 #endif   // UNIX
 
 /**************************************************************************/

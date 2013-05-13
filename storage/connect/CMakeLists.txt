@@ -18,7 +18,7 @@ SET(CONNECT_PLUGIN_DYNAMIC "connect")
 
 SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
-fmdlex.c osutil.c plugutil.c rcmsg.c
+fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 csort.cpp maputil.cpp plgdbutl.cpp
 colblk.cpp reldef.cpp tabcol.cpp table.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
@@ -48,7 +48,6 @@ IF(UNIX)
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
-    add_definitions(-Wno-non-virtual-dtor)
     message(STATUS "CONNECT: GCC: All warnings enabled")
   else()
     add_definitions(-Wall -Wmissing-declarations)
@@ -64,13 +63,11 @@ IF(UNIX)
     # add_definitions(-Wno-int-to-pointer-cast)
     # Bar: -Wno-narrowing commented (does not present in gcc on solaris10)
     # add_definitions(-Wno-narrowing)
-    add_definitions(-Wno-non-virtual-dtor)
 
 # This switch is for pure C only:
 #   add_definitions(-Wno-implicit-function-declaration)
 # These switches are for C++ only
 #   add_definitions(-Wno-reorder)
-#   add_definitions(-Wno-delete-non-virtual-dtor)
 
     message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)

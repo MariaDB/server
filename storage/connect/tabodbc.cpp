@@ -75,7 +75,6 @@
 
 #include "sql_string.h"
 
-extern "C" char *GetMsgid(int id);
 extern "C" int   trace;
 
 /***********************************************************************/

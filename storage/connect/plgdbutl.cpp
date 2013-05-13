@@ -67,6 +67,7 @@
 #include "xtable.h"    // header of TBX, TDB and TDBASE classes
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
+#include "rcmsg.h"
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -129,7 +130,6 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 void CloseXML2File(PGLOBAL, PFBLOCK, bool);
 #endif   // LIBXML2_SUPPORT
 
-extern "C" int GetRcString(int id, char *buf, int bufsize);
 
 /***********************************************************************/
 /* Routines for file IO with error reporting to g->Message             */
