@@ -160,19 +160,6 @@ bool COLBLK::CheckSort(PTDB tdbp)
   } // end of CheckSort
 
 /***********************************************************************/
-/*  MarkCol: see PlugMarkCol for column references to mark.            */
-/***********************************************************************/
-void COLBLK::MarkCol(ushort bits)
-  {
-  ColUse |= bits;
-
-#ifdef DEBTRACE
- htrc(" column R%d.%s marked as %04X\n",
-  To_Tdb->GetTdb_No(), Name, ColUse);
-#endif
-  } // end of MarkCol
-
-/***********************************************************************/
 /*  InitValue: prepare a column block for read operation.              */
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
