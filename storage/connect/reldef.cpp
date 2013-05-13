@@ -90,11 +90,9 @@ TABDEF::TABDEF(void)
 /***********************************************************************/
 bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   {
-//char  buf[8];
   int   poff = 0;
-  void *memp = cat->Descp;
 
-  Name = (PSZ)PlugSubAlloc(g, memp, strlen(name) + 1);
+  Name = (PSZ)PlugSubAlloc(g, NULL, strlen(name) + 1);
   strcpy(Name, name);
   Cat = cat;
   Catfunc = GetFuncID(Cat->GetStringCatInfo(g, "Catfunc", NULL));
@@ -127,7 +125,6 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   PTABDEF xdefp;
   XGETDEF getdef = NULL;
   PCATLG  cat = Cat;
-  void   *memp = cat->Descp;
 
 #if defined(WIN32)
   // Is the DLL already loaded?
@@ -189,7 +186,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
   sprintf(g->Message, MSG(DEF_ALLOC_ERROR), Subtype);
 
   // Get the table definition block
-  if (!(xdefp = getdef(g, memp)))
+  if (!(xdefp = getdef(g, NULL)))
     return NULL;
 
   // Have the external class do its complete definition
@@ -223,15 +220,13 @@ bool OEMDEF::DeleteTableFile(PGLOBAL g)
 /***********************************************************************/
 bool OEMDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  void *memp = Cat->Descp;
-
   Module = Cat->GetStringCatInfo(g, "Module", "");
   Subtype = Cat->GetStringCatInfo(g, "Subtype", Module);
 
   if (!*Module)
     Module = Subtype;
 
-  Desc = (char*)PlugSubAlloc(g, memp, strlen(Module)
+  Desc = (char*)PlugSubAlloc(g, NULL, strlen(Module)
                                     + strlen(Subtype) + 3);
   sprintf(Desc, "%s(%s)", Module, Subtype);
   return false;

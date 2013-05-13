@@ -71,7 +71,6 @@ class DllExport XOBJECT : public BLOCK {
   virtual bool   VerifyColumn(PTBX txp) {return false;}
   virtual bool   VerifyTdb(PTDB& tdbp) {return false;}
   virtual bool   IsColInside(PCOL colp) {return false;}
-  virtual void   MarkCol(ushort) {}
 
  protected:
   PVAL Value;    // The current value of the object.

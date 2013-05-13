@@ -62,14 +62,9 @@ class DllExport CATALOG {
   virtual ~CATALOG() { }               // Make -Wdelete-non-virtual-dtor happy
 
   // Implementation
-  void   *GetDescp(void) {return Descp;}
-//PRELDEF GetTo_Desc(void) {return To_Desc;}
-//PSZ     GetDescFile(void) {return DescFile;}
   int     GetCblen(void) {return Cblen;}
   bool    GetDefHuge(void) {return DefHuge;}
   void    SetDefHuge(bool b) {DefHuge = b;}
-//bool    GetSepIndex(void) {return SepIndex;}
-//void    SetSepIndex(bool b) {SepIndex = b;}
   char   *GetCbuf(void) {return Cbuf;}
   char   *GetDataPath(void) {return (char*)DataPath;}
 
@@ -115,15 +110,10 @@ class DllExport CATALOG {
   virtual PRELDEF MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
 
   // Members
-//PRELDEF To_Desc;                     /* To chain of relation desc.   */
-  void   *Descp;                       /* To DB description area       */
-//AREADEF DescArea;                    /* Table desc. area size        */
   char   *Cbuf;                        /* Buffer used for col section  */
   int     Cblen;                       /* Length of suballoc. buffer   */
   CURTAB  Ctb;                         /* Used to enumerate tables     */
   bool    DefHuge;                     /* true: tables default to huge */
-//bool    SepIndex;                    /* true: separate index files   */
-//char    DescFile[_MAX_PATH];         /* DB description filename      */
   LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
   }; // end of class CATALOG
 

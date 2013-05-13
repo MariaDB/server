@@ -64,7 +64,6 @@ class DllExport COLBLK : public XOBJECT {
   virtual bool    IsSpecial(void) {return false;}
   virtual int      CheckSpcCol(PTDB tdbp, int n) {return 2;}
   virtual bool    CheckSort(PTDB tdbp);
-  virtual void    MarkCol(ushort bits);
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void    SetTo_Val(PVAL valp) {}
