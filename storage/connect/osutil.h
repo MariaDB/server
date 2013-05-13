@@ -52,4 +52,14 @@ typedef __int64 FILEPOS;
 
 #define XSTR(x) ((x)?(x):"<null>")
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+my_bool CloseFileHandle(HANDLE h);
+#ifdef __cplusplus
+}
+#endif
+
+
 #endif /* __OSUTIL_H__ */

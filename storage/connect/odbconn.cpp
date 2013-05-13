@@ -175,7 +175,7 @@ int TranslateSQLType(int stp, int prec, int& len)
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
   {
   size_t   i, m, n;
   CATPARM *cap;

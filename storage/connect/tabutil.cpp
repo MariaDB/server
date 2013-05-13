@@ -396,7 +396,7 @@ int TDBPRX::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     if (InitTable(g))
-      return NULL;
+      return 0;
   
   	MaxSize = Tdbp->GetMaxSize(g);
     } // endif MaxSize
