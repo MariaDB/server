@@ -3280,7 +3280,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           there had been an entry (domain_id, server_id, 0).
         */
 
-        Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state);
+        Gtid_list_log_event gl_ev(&rpl_global_gtid_binlog_state, 0);
         if (gl_ev.write(&log_file))
           goto err;
 
@@ -8718,16 +8718,11 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       case GTID_LIST_EVENT:
         if (first_round)
         {
-          uint32 i;
           Gtid_list_log_event *glev= (Gtid_list_log_event *)ev;
 
           /* Initialise the binlog state from the Gtid_list event. */
-          rpl_global_gtid_binlog_state.reset();
-          for (i= 0; i < glev->count; ++i)
-          {
-            if (rpl_global_gtid_binlog_state.update(&(glev->list[i])))
-              goto err2;
-          }
+          if (rpl_global_gtid_binlog_state.load(glev->list, glev->count))
+            goto err2;
         }
         break;
 

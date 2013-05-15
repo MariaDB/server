@@ -178,6 +178,7 @@ while ($_rpl_server)
   {
     RESET MASTER;
     RESET SLAVE;
+    SET GLOBAL gtid_pos= "";
   }
   eval SET auto_increment_increment= $rpl_server_count;
   eval SET auto_increment_offset= $_rpl_server;
