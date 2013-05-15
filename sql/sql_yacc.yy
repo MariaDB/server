@@ -1095,7 +1095,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LOW_PRIORITY
 %token  LT                            /* OPERATOR */
 %token  MASTER_CONNECT_RETRY_SYM
-%token  MASTER_USE_GTID_SYM
+%token  MASTER_GTID_POS_SYM
 %token  MASTER_HOST_SYM
 %token  MASTER_LOG_FILE_SYM
 %token  MASTER_LOG_POS_SYM
@@ -1111,6 +1111,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MASTER_SSL_VERIFY_SERVER_CERT_SYM
 %token  MASTER_SYM
 %token  MASTER_USER_SYM
+%token  MASTER_USE_GTID_SYM
 %token  MASTER_HEARTBEAT_PERIOD_SYM
 %token  MATCH                         /* SQL-2003-R */
 %token  MAX_CONNECTIONS_PER_HOUR
@@ -7214,6 +7215,10 @@ slave_until:
                           ER(ER_BAD_SLAVE_UNTIL_COND), MYF(0));
                MYSQL_YYABORT;
             }
+          }
+        | UNTIL_SYM MASTER_GTID_POS_SYM EQ TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
           }
         ;
 
@@ -13326,12 +13331,13 @@ keyword_sp:
         | MAX_ROWS                 {}
         | MASTER_SYM               {}
         | MASTER_HEARTBEAT_PERIOD_SYM {}
-        | MASTER_USE_GTID_SYM      {}
+        | MASTER_GTID_POS_SYM      {}
         | MASTER_HOST_SYM          {}
         | MASTER_PORT_SYM          {}
         | MASTER_LOG_FILE_SYM      {}
         | MASTER_LOG_POS_SYM       {}
         | MASTER_USER_SYM          {}
+        | MASTER_USE_GTID_SYM      {}
         | MASTER_PASSWORD_SYM      {}
         | MASTER_SERVER_ID_SYM     {}
         | MASTER_CONNECT_RETRY_SYM {}

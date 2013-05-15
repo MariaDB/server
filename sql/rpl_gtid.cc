@@ -711,6 +711,22 @@ void rpl_binlog_state::free()
   }
 }
 
+
+bool
+rpl_binlog_state::load(struct rpl_gtid *list, uint32 count)
+{
+  uint32 i;
+
+  reset();
+  for (i= 0; i < count; ++i)
+  {
+    if (update(&(list[i])))
+      return true;
+  }
+  return false;
+}
+
+
 rpl_binlog_state::~rpl_binlog_state()
 {
   free();
@@ -1117,10 +1133,17 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 int
 slave_connection_state::to_string(String *out_str)
 {
+  out_str->length(0);
+  return append_to_string(out_str);
+}
+
+
+int
+slave_connection_state::append_to_string(String *out_str)
+{
   uint32 i;
   bool first;
 
-  out_str->length(0);
   first= true;
   for (i= 0; i < hash.records; ++i)
   {

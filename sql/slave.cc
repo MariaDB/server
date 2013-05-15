@@ -1879,6 +1879,43 @@ after_set_capability:
         goto err;
       }
     }
+
+    if (mi->rli.until_condition == Relay_log_info::UNTIL_GTID)
+    {
+      connect_state.length(0);
+      connect_state.append(STRING_WITH_LEN("SET @slave_until_gtid='"),
+                           system_charset_info);
+      if (mi->rli.until_gtid_pos.append_to_string(&connect_state))
+      {
+        err_code= ER_OUTOFMEMORY;
+        errmsg= "The slave I/O thread stops because a fatal out-of-memory "
+          "error is encountered when it tries to compute @slave_until_gtid.";
+        sprintf(err_buff, "%s Error: Out of memory", errmsg);
+        goto err;
+      }
+      connect_state.append(STRING_WITH_LEN("'"), system_charset_info);
+
+      rc= mysql_real_query(mysql, connect_state.ptr(), connect_state.length());
+      if (rc)
+      {
+        err_code= mysql_errno(mysql);
+        if (is_network_error(err_code))
+        {
+          mi->report(ERROR_LEVEL, err_code,
+                     "Setting @slave_until_gtid failed with error: %s",
+                     mysql_error(mysql));
+          goto network_err;
+        }
+        else
+        {
+          /* Fatal error */
+          errmsg= "The slave I/O thread stops because a fatal error is "
+            "encountered when it tries to set @slave_until_gtid.";
+          sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+          goto err;
+        }
+      }
+    }
   }
   if (!mi->using_gtid)
   {
@@ -2363,7 +2400,8 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(
       mi->rli.until_condition==Relay_log_info::UNTIL_NONE ? "None":
         ( mi->rli.until_condition==Relay_log_info::UNTIL_MASTER_POS? "Master":
-          "Relay"), &my_charset_bin);
+          ( mi->rli.until_condition==Relay_log_info::UNTIL_RELAY_POS? "Relay":
+            "Gtid")), &my_charset_bin);
     protocol->store(mi->rli.until_log_name, &my_charset_bin);
     protocol->store((ulonglong) mi->rli.until_log_pos);
 
@@ -3057,7 +3095,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
       This tests if the position of the beginning of the current event
       hits the UNTIL barrier.
     */
-    if (rli->until_condition != Relay_log_info::UNTIL_NONE &&
+    if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
+         rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
         rli->is_until_satisfied(thd, ev))
     {
       char buf[22];
@@ -3954,7 +3993,8 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
     saved_master_log_pos= rli->group_master_log_pos;
     saved_skip= rli->slave_skip_counter;
   }
-  if (rli->until_condition != Relay_log_info::UNTIL_NONE &&
+  if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
+       rli->until_condition == Relay_log_info::UNTIL_RELAY_POS) &&
       rli->is_until_satisfied(thd, NULL))
   {
     char buf[22];
@@ -4793,7 +4833,43 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   break;
 
+  case GTID_LIST_EVENT:
+  {
+    const char *errmsg;
+    Gtid_list_log_event *glev;
+    Log_event *tmp;
+
+    if (mi->rli.until_condition != Relay_log_info::UNTIL_GTID)
+      goto default_action;
+    if (!(tmp= Log_event::read_log_event(buf, event_len, &errmsg,
+           mi->rli.relay_log.description_event_for_queue,
+           opt_slave_sql_verify_checksum)))
+    {
+      error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+      goto err;
+    }
+    glev= static_cast<Gtid_list_log_event *>(tmp);
+    if (glev->gl_flags & Gtid_list_log_event::FLAG_UNTIL_REACHED)
+    {
+      char str_buf[128];
+      String str(str_buf, sizeof(str_buf), system_charset_info);
+      mi->rli.until_gtid_pos.to_string(&str);
+      sql_print_information("Slave IO thread stops because it reached its"
+                            " UNTIL master_gtid_pos %s", str.c_ptr_safe());
+      mi->abort_slave= true;
+    }
+    delete glev;
+
+    /*
+      Do not update position for fake Gtid_list event (which has a zero
+      end_log_pos).
+    */
+    inc_pos= uint4korr(buf+LOG_POS_OFFSET) ? event_len : 0;
+  }
+  break;
+
   default:
+  default_action:
     inc_pos= event_len;
     break;
   }

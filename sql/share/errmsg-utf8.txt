@@ -6543,3 +6543,5 @@ ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
 	eng "Requested GTID_POS %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
 ER_MASTER_GTID_POS_MISSING_DOMAIN
 	eng "Requested GTID_POS contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. To use the requested GTID_POS, the old binlog must be removed with RESET MASTER to avoid out-of-order binlog"
+ER_UNTIL_REQUIRES_USING_GTID
+	eng "START SLAVE UNTIL master_gtid_pos requires that slave is using GTID"

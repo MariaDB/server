@@ -289,6 +289,8 @@ struct LEX_MASTER_INFO
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *relay_log_name;
   LEX_STRING connection_name;
+  /* Value in START SLAVE UNTIL master_gtid_pos=xxx */
+  LEX_STRING gtid_pos_str;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
@@ -317,6 +319,8 @@ struct LEX_MASTER_INFO
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= use_gtid_opt= LEX_MI_UNCHANGED;
+    gtid_pos_str.length= 0;
+    gtid_pos_str.str= NULL;
   }
 };
 

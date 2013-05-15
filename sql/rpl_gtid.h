@@ -142,6 +142,7 @@ struct rpl_binlog_state
 
   void reset();
   void free();
+  bool load(struct rpl_gtid *list, uint32 count);
   int update(const struct rpl_gtid *gtid);
   uint64 seq_no_from_state();
   int write_to_iocache(IO_CACHE *dest);
@@ -172,6 +173,7 @@ struct slave_connection_state
   void remove(const rpl_gtid *gtid);
   ulong count() const { return hash.records; }
   int to_string(String *out_str);
+  int append_to_string(String *out_str);
 };
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,

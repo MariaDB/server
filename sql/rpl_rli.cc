@@ -1096,7 +1096,8 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
   ulonglong log_pos;
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
-  DBUG_ASSERT(until_condition != UNTIL_NONE);
+  DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+              until_condition == UNTIL_RELAY_POS);
 
   if (until_condition == UNTIL_MASTER_POS)
   {
