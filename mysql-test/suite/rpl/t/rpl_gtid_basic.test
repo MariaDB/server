@@ -95,12 +95,16 @@ SELECT * FROM t2 ORDER BY a;
 --echo *** Now change everything back to what it was, to make rpl_end.inc happy
 # Also check that MASTER_USE_GTID=1 is still enabled.
 connection server_2;
+# We need to sync up server_2 before switching. If it happened to have reached
+# the point 'UPDATE t2 SET b="j1a" WHERE a=5' it will fail to connect to
+# server_1, which is (deliberately) missing that transaction.
+--let $wait_condition= SELECT COUNT(*) = 7 FROM t2
+--source include/wait_condition.inc
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT;
 --source include/start_slave.inc
---let $wait_condition= SELECT COUNT(*) = 7 FROM t2
---source include/wait_condition.inc
+--source include/wait_for_slave_to_start.inc
 
 connection server_3;
 --source include/stop_slave.inc
