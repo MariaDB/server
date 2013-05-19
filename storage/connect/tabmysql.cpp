@@ -57,6 +57,7 @@
 #include "reldef.h"
 #include "tabmysql.h"
 #include "valblk.h"
+#include "tabutil.h"
 
 #if defined(_CONSOLE)
 void PrintResult(PGLOBAL, PSEM, PQRYRES);
@@ -64,9 +65,6 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 
 extern "C" int   trace;
 extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
-
-// This function is located in tabutil.cpp
-void Remove_tshp(PCATLG cat);
 
 /* -------------- Implementation of the MYSQLDEF class --------------- */
 

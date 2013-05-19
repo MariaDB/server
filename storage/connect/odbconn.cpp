@@ -36,6 +36,7 @@
 //#include "kindex.h"
 #include "xtable.h"
 #include "tabodbc.h"
+#include "odbccat.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
@@ -47,9 +48,7 @@
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#else  // !WIN32
-extern "C" int GetRcString(int id, char *buf, int bufsize);
-#endif // !WIN32
+#endif // WIN32
 
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */
@@ -176,7 +175,7 @@ int TranslateSQLType(int stp, int prec, int& len)
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
-CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
+static CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
   {
   size_t   i, m, n;
   CATPARM *cap;
@@ -203,7 +202,7 @@ CATPARM *AllocCatInfo(PGLOBAL g, CATINFO fid, char *tab, PQRYRES qrp)
 /***********************************************************************/
 /*  Check for nulls and reset them to Null (?) values.                 */
 /***********************************************************************/
-void ResetNullValues(CATPARM *cap)
+static void ResetNullValues(CATPARM *cap)
   {
   int      i, n, ncol;
   PCOLRES  crp;

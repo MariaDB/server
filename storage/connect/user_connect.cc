@@ -43,6 +43,7 @@
 #include "osutil.h"
 #include "global.h"
 #include "plgdbsem.h"
+#include "connect.h"
 #include "user_connect.h"
 #include "mycat.h"
 
@@ -53,11 +54,6 @@ extern int xtrace;
 /*  Initialize the user_connect static member.                              */
 /****************************************************************************/
 PCONNECT user_connect::to_users= NULL;
-
-/****************************************************************************/
-/*  CONNECT functions called externally.                                    */
-/****************************************************************************/
-PGLOBAL CntExit(PGLOBAL g);
 
 /* -------------------------- class user_connect -------------------------- */
 

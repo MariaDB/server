@@ -107,7 +107,7 @@ ACTIVITY defActivity = {            /* Describes activity and language */
 #endif   // XMSG  ||         NEWMSG
 
 #if defined(UNIX) || defined(UNIV_LINUX)
-int GetRcString(int id, char *buf, int bufsize);
+#include "rcmsg.h"
 #endif   // UNIX
 
 /**************************************************************************/
@@ -494,9 +494,10 @@ void *MakePtr(void *memp, OFFSET offset)
 /***********************************************************************/
 /* This routine makes an offset from a pointer new format.             */
 /***********************************************************************/
+#if 0
 OFFSET MakeOff(void *memp, void *ptr)
   {
   return ((!ptr) ? 0 : (OFFSET)((char *)ptr - (char *)memp));
   } /* end of MakeOff */
-
+#endif
 /*--------------------- End of PLUGUTIL program -----------------------*/
