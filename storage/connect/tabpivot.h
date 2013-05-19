@@ -1,15 +1,14 @@
 /************** TabPivot H Declares Source Code File (.H) **************/
-/*  Name: TABPIVOT.H    Version 1.3                                    */
+/*  Name: TABPIVOT.H    Version 1.4                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
 /*  This file contains the PIVOT classes declares.                     */
 /***********************************************************************/
+typedef class PIVOTDEF *PPIVOTDEF;
 typedef class TDBPIVOT *PTDBPIVOT;
 typedef class FNCCOL   *PFNCCOL;
 typedef class SRCCOL   *PSRCCOL;
-typedef class TDBQRS   *PTDBQRS;
-typedef class QRSCOL   *PQRSCOL;
 
 /* -------------------------- PIVOT classes -------------------------- */
 
@@ -22,7 +21,6 @@ typedef class QRSCOL   *PQRSCOL;
 /***********************************************************************/
 /*  PIVOT table.                                                       */
 /***********************************************************************/
-//ass DllExport PIVOTDEF : public PRXDEF {/* Logical table description */
 class PIVOTDEF : public PRXDEF {          /* Logical table description */
   friend class TDBPIVOT;
  public:
@@ -55,22 +53,16 @@ class PIVOTDEF : public PRXDEF {          /* Logical table description */
 /***********************************************************************/
 /*  This is the class declaration for the PIVOT table.                 */
 /***********************************************************************/
-//ass DllExport TDBPIVOT : public TDBASE, public CSORT {
 class TDBPIVOT : public TDBPRX {
   friend class FNCCOL;
-//friend class SRCCOL;
  public:
   // Constructor
   TDBPIVOT(PPIVOTDEF tdp);
-//TDBPIVOT(PTDBPIVOT tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_PIVOT;}
-//virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBPIVOT(this);}
-//        void SetTdbp(PTDB tdbp) {Tdbp = tdbp;}
 
   // Methods
-//virtual PTDB CopyOne(PTABS t);
   virtual int  GetRecpos(void) {return N;}
   virtual void ResetDB(void) {N = 0;}
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
@@ -84,22 +76,17 @@ class TDBPIVOT : public TDBPRX {
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
 
-  // The sorting function
-//virtual int  Qcompare(int *, int *);
-
  protected:
-  bool    GetSourceTable(PGLOBAL g);
-//int     MakePivotColumns(PGLOBAL g);
-//bool    UpdateTableFields(PGLOBAL g, int n);
+  // Internal routines
+          bool GetSourceTable(PGLOBAL g);
+          bool MakePivotColumns(PGLOBAL g);
+          bool MakeViewColumns(PGLOBAL g);
 
   // Members
-//MYSQLC  Myc;                    // MySQL connection class
-//PTDBQRS Tqrp;                   // To the source table result
   char   *Host;                   // Host machine to use
   char   *User;                   // User logon info
   char   *Pwd;                    // Password logon info
   char   *Database;               // Database to be used by server
-//PQRYRES Qryp;                   // Points to Query result block
   char   *Tabname;                // Name of source table
   char   *Tabsrc;                 // SQL of source table
   char   *Picol;                  // Pivot column  name
@@ -108,9 +95,6 @@ class TDBPIVOT : public TDBPRX {
   PCOL    Fcolp;                  // To the function column in source
   PCOL    Xcolp;                  // To the pivot column in source
   PCOL    Dcolp;                  // To the dump column
-//PCOLRES Xresp;                  // To the pivot result column
-//PCOLRES To_Sort;                // Saved Qryp To_Sort pointer
-//PVBLK   Rblkp;                  // The value block of the pivot column
   bool    GBdone;                 // True when subtable is "Group by"
   bool    Accept;                 // TRUE if no match is accepted
   int     Mult;                   // Multiplication factor
@@ -168,75 +152,4 @@ class SRCCOL : public PRXCOL {
   SRCCOL(void) {}
 
   // Members
-//PVAL    Cnval;
   }; // end of class SRCCOL
-
-/***********************************************************************/
-/*  TDBQRS: This is the Access Method class declaration for the Query  */
-/*  Result stored in memory in the current work area (volatil).        */
-/***********************************************************************/
-class DllExport TDBQRS : public TDBASE {
-  friend class QRSCOL;
- public:
-  // Constructor
-  TDBQRS(PQRYRES qrp) : TDBASE() {Qrp = qrp; CurPos = 0;}
-  TDBQRS(PTDBQRS tdbp);
-
-  // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_QRS;}
-  virtual PTDB Duplicate(PGLOBAL g)
-    {return (PTDB)new(g) TDBQRS(this);}
-          PQRYRES GetQrp(void) {return Qrp;}
-
-  // Methods
-  virtual PTDB   CopyOne(PTABS t);
-  virtual int    RowNumber(PGLOBAL g, BOOL b = FALSE);
-  virtual int    GetRecpos(void);
-//virtual PCATLG GetCat(void);
-//virtual PSZ    GetPath(void);
-  virtual int    GetBadLines(void) {return Qrp->BadLines;}
-
-  // Database routines
-  virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
-
- private:
-  TDBQRS(void) : TDBASE() {}   // Standard constructor not to be used
-
- protected:
-  // Members
-  PQRYRES Qrp;                 // Points to Query Result block
-  int     CurPos;              // Current line position
-  }; // end of class TDBQRS
-
-/***********************************************************************/
-/*  Class QRSCOL: QRS access method column descriptor.                 */
-/***********************************************************************/
-class DllExport QRSCOL : public COLBLK {
-  friend class TDBQRS;
- public:
-  // Constructors
-  QRSCOL(PGLOBAL g, PCOLRES crp, PTDB tdbp, PCOL cprec, int i);
-  QRSCOL(QRSCOL *colp, PTDB tdbp);  // Constructor used in copy process
-
-  // Implementation
-  virtual int     GetAmType(void) {return TYPE_AM_QRS;}
-          PCOLRES GetCrp(void) {return Crp;}
-          void   *GetQrsData(void) {return Crp->Kdata;}
-
-  // Methods
-  virtual void    ReadColumn(PGLOBAL g);
-  virtual void    Print(PGLOBAL g, FILE *, uint);
-
- protected:
-  QRSCOL(void) {}    // Default constructor not to be used
-
-  // Members
-  PCOLRES Crp;
-  }; // end of class QRSCOL
-

@@ -90,20 +90,21 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 //        1           2          4            8 
 //flags = GTS_TABLE | GTS_VIEW | GTS_NOLOCK | GTS_FORCE_DISCOVERY;
 
-  if (!open_table_def(thd, s, GTS_TABLE)) {
-#ifdef DBUG_OFF
-    if (stricmp(s->db_plugin->name.str, "connect")) {
-#else
-    if (stricmp((*s->db_plugin)->name.str, "connect")) {
-#endif
+  if (!open_table_def(thd, s, GTS_TABLE | GTS_VIEW)) {
+    if (!s->is_view) {
+      if (stricmp(plugin_name(s->db_plugin)->str, "connect")) {
 #if defined(MYSQL_SUPPORT)
-      mysql = true;
+        mysql = true;
 #else   // !MYSQL_SUPPORT
-      sprintf(g->Message, "%s.%s is not a CONNECT table", db, name);
-      return NULL;
+        sprintf(g->Message, "%s.%s is not a CONNECT table", db, name);
+        return NULL;
 #endif   // MYSQL_SUPPORT
-    } else
-      mysql = false;
+      } else
+        mysql = false;
+
+    } else {
+      mysql = true;
+    } // endif is_view
 
   } else {
     sprintf(g->Message, "Error %d opening share\n", s->error);
@@ -139,9 +140,12 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   PCOLRES      crp;
 
   if (!info) {
-    if (!(s = GetTableShare(g, thd, db, name, mysql)))
+    if (!(s = GetTableShare(g, thd, db, name, mysql))) {
       return NULL;
-    else
+    } else if (s->is_view) {
+      strcpy(g->Message, "Cannot retreive Proxy columns from a view");
+      return NULL;
+    } else
       n = s->fieldnames.count;
 
   } else {
@@ -257,23 +261,27 @@ PRXDEF::PRXDEF(void)
 /***********************************************************************/
 bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char *pn, *db, *tab;
+  char *pn, *db, *tab, *def = NULL;
 
   db = Cat->GetStringCatInfo(g, "Dbname", "*");
+  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
 
   if (!(tab = Cat->GetStringCatInfo(g, "Tabname", NULL))) {
-    strcpy(g->Message, "Missing object table name");
-    return TRUE;
-    } // endif tab
+    if (!def) {
+      strcpy(g->Message, "Missing object table definition");
+      return TRUE;
+    } else
+      tab = "Noname";
 
-  // Analyze the table name, it may have the format: [dbname.]tabname
-  if ((pn = strchr(tab, '.'))) {
-    *pn++ = 0;
-    db = tab;
-    tab = pn;
-    } // endif pn
+  } else
+    // Analyze the table name, it may have the format: [dbname.]tabname
+    if ((pn = strchr(tab, '.'))) {
+      *pn++ = 0;
+      db = tab;
+      tab = pn;
+      } // endif pn
 
-  Tablep = new(g) XTAB(tab);
+  Tablep = new(g) XTAB(tab, def);
   Tablep->SetQualifier(db);
   return FALSE;
   } // end of DefineAM
@@ -303,12 +311,13 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
 /***********************************************************************/
 /*  Get the PTDB of the sub-table.                                     */
 /***********************************************************************/
-PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
+PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   {
   char        *db, *name;
-  bool         mysql;
+  bool         mysql = true;
   PTDB         tdbp = NULL;
-  TABLE_SHARE *s;
+  TABLE_SHARE *s = NULL;
+  Field*      *fp;
   PCATLG       cat = To_Def->GetCat();
   PHC          hc = ((MYCAT*)cat)->GetHandler();
   LPCSTR       cdb, curdb = hc->GetDBName(NULL);
@@ -328,10 +337,20 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
 
     } // endfor tp
 
-  if (!(s = GetTableShare(g, thd, db, name, mysql)))
-    return NULL;
+  if (!tabp->GetSrc()) {
+    if (!(s = GetTableShare(g, thd, db, name, mysql)))
+      return NULL;
 
-  hc->tshp = s;
+    if (s->is_view && !b)
+      s->field = hc->get_table()->s->field;
+
+    hc->tshp = s;
+  } else if (b) {
+    // Don't use caller's columns
+    fp = hc->get_table()->field;
+    hc->get_table()->field = NULL;
+    hc->get_table()->s->option_struct->srcdef = tabp->GetSrc();
+  } // endif srcdef
 
   if (mysql) {
 #if defined(MYSQL_SUPPORT)
@@ -355,15 +374,23 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp)
     tdbp = cat->GetTable(g, tabp);
   } // endif mysql
 
-  hc->tshp = NULL;
+  if (s) {
+    if (s->is_view && !b)
+      s->field = NULL;
+
+    hc->tshp = NULL;
+  } else if (b)
+    hc->get_table()->field = fp;
 
   if (trace && tdbp)
     htrc("Subtable %s in %s\n", 
           name, SVP(((PTDBASE)tdbp)->GetDef()->GetDB()));
  
  err:
-  free_table_share(s);
-  return tdbp;
+  if (s)
+    free_table_share(s);
+
+  return (PTDBASE)tdbp;
   } // end of GetSubTable
 
 /***********************************************************************/
@@ -373,7 +400,7 @@ bool TDBPRX::InitTable(PGLOBAL g)
   {
   if (!Tdbp) {
     // Get the table description block of this table
-    if (!(Tdbp = (PTDBASE)GetSubTable(g, ((PPRXDEF)To_Def)->Tablep)))
+    if (!(Tdbp = GetSubTable(g, ((PPRXDEF)To_Def)->Tablep)))
       return TRUE;
 
     } // endif Tdbp

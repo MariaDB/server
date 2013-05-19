@@ -78,7 +78,7 @@ class DllExport TDBPRX : public TDBASE {
   virtual int   WriteDB(PGLOBAL g);
   virtual int   DeleteDB(PGLOBAL g, int irc);
   virtual void  CloseDB(PGLOBAL g) {if (Tdbp) Tdbp->CloseDB(g);}
-          PTDB  GetSubTable(PGLOBAL g, PTABLE tabp);
+        PTDBASE GetSubTable(PGLOBAL g, PTABLE tabp, bool b = false);
           void  RemoveNext(PTABLE tp);
 
  protected:
@@ -93,6 +93,7 @@ class DllExport TDBPRX : public TDBASE {
 class DllExport PRXCOL : public COLBLK {
   friend class TDBPRX;
   friend class TDBTBL;
+  friend class TDBOCCUR;
  public:
   // Constructors
   PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "PRX");
