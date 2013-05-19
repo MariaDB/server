@@ -1,7 +1,7 @@
 /************* TabCol C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABCOL.CPP  Version 2.6                                      */
+/*  Name: TABCOL.CPP  Version 2.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
 /*  This file contains the PlugDB++ XTAB, COLUMN and XORDER methods.   */
 /***********************************************************************/
@@ -23,18 +23,18 @@
 #include "tabcol.h"
 
 /***********************************************************************/
-/*  XTAB public constructor (in which Correl defaults to Name).        */
+/*  XTAB public constructor.                                           */
 /***********************************************************************/
-XTAB::XTAB(LPCSTR name, LPCSTR correl) : Name(name)
+XTAB::XTAB(LPCSTR name, LPCSTR srcdef) : Name(name)
   {
   Next = NULL;
   To_Tdb = NULL;
-  Correl = (correl) ? correl : name;
+  Srcdef = srcdef;
   Creator = NULL;
   Qualifier = NULL;
 
 #ifdef DEBTRACE
- htrc(" making new TABLE %s %s\n", Name, Correl);
+ htrc(" making new TABLE %s %s\n", Name, Srcdef);
 #endif
   } // end of XTAB constructor
 
@@ -45,12 +45,12 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   {
   Next = NULL;
   To_Tdb = NULL;
-  Correl = tp->Correl;
+  Srcdef = tp->Srcdef;
   Creator = tp->Creator;
   Qualifier = tp->Qualifier;
 
 #ifdef DEBTRACE
- htrc(" making copy TABLE %s %s\n", Name, Correl);
+ htrc(" making copy TABLE %s %s\n", Name, Srcdef);
 #endif
   } // end of XTAB constructor
 
@@ -83,7 +83,7 @@ void XTAB::Print(PGLOBAL g, FILE *f, uint n)
 
   for (PTABLE tp = this; tp; tp = tp->Next) {
     fprintf(f, "%sTABLE: %s.%s %s\n",
-            m, SVP(tp->Creator), tp->Name, SVP(tp->Correl));
+            m, SVP(tp->Creator), tp->Name, SVP(tp->Srcdef));
     PlugPutOut(g, f, TYPE_TDB, tp->To_Tdb, n + 2);
     } /* endfor tp */
 
@@ -101,7 +101,7 @@ void XTAB::Print(PGLOBAL g, char *ps, uint z)
 
   for (PTABLE tp = this; tp && n > 0; tp = tp->Next) {
     i = sprintf(buf, "TABLE: %s.%s %s To_Tdb=%p ",
-                SVP(tp->Creator), tp->Name, SVP(tp->Correl), tp->To_Tdb);
+                SVP(tp->Creator), tp->Name, SVP(tp->Srcdef), tp->To_Tdb);
     strncat(ps, buf, n);
     n -= i;
     } // endif tp

@@ -66,13 +66,13 @@ extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
-/*  of a MySQL table that will be retrieved by GetData commands.        */
-/*  key = TRUE when called from Create Table to get key informations.   */
+/*  of a MySQL table or view.                                           */
+/*  info = TRUE to get catalog column informations.                     */
 /************************************************************************/
 PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
-                  int port, bool key, bool info)
+                  int port, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
                           TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
@@ -123,9 +123,6 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     n = 0;
     length[0] = 128;
   } // endif info
-
-//if (!key)                       // We are not called from Create table
-//  ncol--;                       // No date format column yet
 
   /**********************************************************************/
   /*  Allocate the structures used to refer to the result set.          */
@@ -219,6 +216,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
     } // endfor i
 
+#if 0
   if (k > 1) {
     // Multicolumn primary key
     PVBLK vbp = qrp->Colresp->Next->Next->Next->Next->Kdata;
@@ -228,6 +226,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
         vbp->SetValue(k, i);
 
     } // endif k
+#endif // 0
 
   /**********************************************************************/
   /*  Close MySQL connection.                                           */
@@ -239,6 +238,33 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /**********************************************************************/
   return qrp;
   } // end of MyColumns
+
+/************************************************************************/
+/*  SrcColumns: constructs the result blocks containing all columns     */
+/*  resulting from an SQL source definition query execution.            */
+/************************************************************************/
+PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
+                   const char *user, const char *pwd,
+                   const char *srcdef, int port)
+  {
+  int     w;
+  MYSQLC  myc;
+  PQRYRES qrp = NULL;
+
+  if (!port)
+    port = mysqld_port;
+
+  // Open a MySQL connection for this table
+  if (myc.Open(g, host, db, user, pwd, port))
+    return NULL;
+
+  // Send the source command to MySQL
+  if (myc.ExecSQL(g, srcdef, &w) == RC_OK)
+    qrp = myc.GetResult(g);
+
+  myc.Close();
+  return qrp;
+  } // end of SrcColumns
 
 /* -------------------------- Class MYSQLC --------------------------- */
 

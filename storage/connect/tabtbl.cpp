@@ -216,7 +216,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
   PTABLE  tp, tabp;
-  PTDB    tdbp;
+  PTDBASE tdbp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;
 
@@ -252,7 +252,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       n++;
       } // endif filp
 
-    } // endfor tblp
+    } // endfor tp
 
 //NumTables = n;
   To_Filter = NULL;        // To avoid doing it several times

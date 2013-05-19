@@ -24,8 +24,8 @@
 #define DOS_BUFF_LEN    100   /* Number of lines in binary file buffer */
 #undef  DOMAIN                /* For Unix version                      */
 
-enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Correl Block       */
-             TYPE_COLUMN     = 51,    /* Column Name/Correl Block      */
+enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
+             TYPE_COLUMN     = 51,    /* Column Name/Qualifier Block   */
 //           TYPE_OPVAL      = 52,    /* Operator value (OPVAL)        */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */

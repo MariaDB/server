@@ -173,6 +173,7 @@ class DllExport TDBASE : public TDB {
   virtual int    GetRecpos(void) = 0;
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
+  virtual bool   IsView(void) {return FALSE;}
   virtual CHARSET_INFO *data_charset()
   {
     /*

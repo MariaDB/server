@@ -178,7 +178,7 @@ OPTION(CONNECT_WITH_MYSQL
 
 IF(CONNECT_WITH_MYSQL)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-  myconn.cpp myconn.h tabmysql.cpp tabxml.h)
+  myconn.cpp myconn.h tabmysql.cpp tabmysql.h)
   add_definitions(-DMYSQL_SUPPORT)
   IF(NOT UNIX)
     #

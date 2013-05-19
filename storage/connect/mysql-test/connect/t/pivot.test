@@ -1,6 +1,7 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
 --copy_file $MTR_SUITE_DIR/std_data/expenses.txt $MYSQLD_DATADIR/test/expenses.txt
+--copy_file $MTR_SUITE_DIR/std_data/connect.ini $MYSQLD_DATADIR/test/connect.ini
 
 --echo #
 --echo # Testing the PIVOT table type
@@ -44,9 +45,9 @@ Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT
-SRCDEF='select who, week, what, sum(amount) from expenses where week in (4,5) group by who, week, what';
+SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
 --replace_result $PORT PORT
---eval ALTER TABLE pivex OPTION_LIST='port=$PORT'
+--eval ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=$PORT'
 SELECT * FROM pivex;
 
 --echo #
@@ -77,7 +78,7 @@ Last   DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT
 SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
 --replace_result $PORT PORT
---eval ALTER TABLE pivex OPTION_LIST='PivotCol=wk,port=$PORT'
+--eval ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=$PORT'
 SELECT * FROM pivex;
 DROP TABLE pivex;
 DROP TABLE expenses;

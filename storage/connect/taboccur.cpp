@@ -85,18 +85,42 @@ PTDB OCCURDEF::GetTable(PGLOBAL g, MODE m)
 /***********************************************************************/
 TDBOCCUR::TDBOCCUR(POCCURDEF tdp) : TDBPRX(tdp)
   {
-//Tdbp = NULL;      			// Source table
+//Tdbp = NULL;      			           // Source table (in TDBPRX)
   Tabname = tdp->Tablep->GetName();	 // Name of source table
-	Colist = tdp->Colist;		// List of source columns
-	Xcolumn = tdp->Xcol;		// Occur column name     
-	Rcolumn = tdp->Rcol;		// Rank column name     
-	Xcolp = NULL;						// To the OCCURCOL column
-	Col = NULL;             // To source column blocks array
-	Mult = -1;      				// Multiplication factor
-	N = 0;									// The current table index
-	M = 0;                  // The occurence rank
-	RowFlag = 0;    				// 0: Ok, 1: Same, 2: Skip
+	Colist = tdp->Colist;							 // List of source columns
+	Xcolumn = tdp->Xcol;							 // Occur column name     
+	Rcolumn = tdp->Rcol;							 // Rank column name     
+	Xcolp = NULL;											 // To the OCCURCOL column
+	Col = NULL;                        // To source column blocks array
+	Mult = PrepareColist();      			 // Multiplication factor
+	N = 0;									           // The current table index
+	M = 0;                             // The occurence rank
+	RowFlag = 0;    				           // 0: Ok, 1: Same, 2: Skip
   } // end of TDBOCCUR constructor
+
+/***********************************************************************/
+/*  Prepare and count columns in the column list.                      */
+/***********************************************************************/
+int TDBOCCUR::PrepareColist(void)
+	{
+	char *p, *pn;
+	int   n = 0;
+
+	// Count the number of columns and change separator into null char
+	for (pn = Colist; ; pn += (strlen(pn) + 1))
+    // Separator can be ; if colist was specified in the option_list
+		if ((p = strchr(pn, ',')) || (p = strchr(pn, ';'))) {
+			*p++ = '\0';
+			n++;
+		} else {
+			if (*pn)
+				n++;
+
+			break;
+		} // endif p
+
+	return n;
+	} // end of PrepareColist
 
 /***********************************************************************/
 /*  Allocate OCCUR/SRC column description block.                       */
@@ -111,14 +135,8 @@ PCOL TDBOCCUR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 	} else if (!stricmp(cdp->GetName(), Xcolumn)) {
 		// Allocate the OCCUR column
 		colp = Xcolp = new(g) OCCURCOL(cdp, this, n);
-	} else {
-		colp = new(g) PRXCOL(cdp, this, cprec, n);
-
-		if (((PPRXCOL)colp)->Init(g))
-			return NULL;
-
-    return colp;
-	} //endif name
+	} else
+		return new(g) PRXCOL(cdp, this, cprec, n);
 
 	if (cprec) {
 		colp->SetNext(cprec->GetNext());
@@ -136,15 +154,14 @@ PCOL TDBOCCUR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBOCCUR::InitTable(PGLOBAL g)
   {
-  if (!Tdbp) {
+  if (!Tdbp)
     // Get the table description block of this table
-    if (!(Tdbp = (PTDBASE)GetSubTable(g, ((POCCURDEF)To_Def)->Tablep)))
+    if (!(Tdbp = GetSubTable(g, ((POCCURDEF)To_Def)->Tablep, TRUE)))
       return TRUE;
 
-		if (MakeColumnList(g) < 0)
+  if (!Tdbp->IsView())
+  	if (MakeColumnList(g))
       return TRUE;
-
-    } // endif Tdbp
 
   return FALSE;
   } // end of InitTable
@@ -152,50 +169,76 @@ bool TDBOCCUR::InitTable(PGLOBAL g)
 /***********************************************************************/
 /*  Allocate OCCUR column description block.                           */
 /***********************************************************************/
-int TDBOCCUR::MakeColumnList(PGLOBAL g)
+bool TDBOCCUR::MakeColumnList(PGLOBAL g)
 	{
-	if (Mult < 0) {
-		char   *p, *pn;
-		int     i;
-		int    n = 0;
+	char *pn;
+	int   i;
+  PCOL  colp;
 
-		// Count the number of columns and change separator into null char
-		for (pn = Colist; ; pn += (strlen(pn) + 1))
-			if ((p = strchr(pn, ',')) || (p = strchr(pn, ';'))) {
-				*p++ = '\0';
-				n++;
-			} else {
-				if (*pn)
-					n++;
+  for (colp = Columns; colp; colp = colp->GetNext())
+    if (colp->GetAmType() == TYPE_AM_PRX)
+		  if (((PPRXCOL)colp)->Init(g))
+  			return true;
 
-				break;
-			} // endif p
+	Col = (PCOL*)PlugSubAlloc(g, NULL, Mult * sizeof(PCOL));
 
-		Col = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
+	for (i = 0, pn = Colist; i < Mult; i++, pn += (strlen(pn) + 1)) {
+		if (!(Col[i] = Tdbp->ColDB(g, pn, 0))) {
+		  // Column not found in table                                       
+		  sprintf(g->Message, MSG(COL_ISNOT_TABLE), pn, Tabname);
+			return true;
+			} // endif Col
 
-		for (i = 0, pn = Colist; i < n; i++, pn += (strlen(pn) + 1)) {
-			if (!(Col[i] = Tdbp->ColDB(g, pn, 0))) {
-			  // Column not found in table                                       
-			  sprintf(g->Message, MSG(COL_ISNOT_TABLE), pn, Tabname);
-				return -1;
-				} // endif Col
+		if (Col[i]->InitValue(g)) {
+	    strcpy(g->Message, "OCCUR InitValue failed");
+			return true;
+	    } // endif InitValue
 
-			if (Col[i]->InitValue(g)) {
-		    strcpy(g->Message, "OCCUR InitValue failed");
-				return -1;
-		    } // endif InitValue
+		} // endfor i
 
-			} // endfor i
-
-    // OCCUR column name defaults to the name of the list first column 
-    if (!Xcolumn)
-      Xcolumn = Colist;
-
-		Mult = n;
-		} // endif Mult
-
-	return Mult;
+	return false;
 	} // end of MakeColumnList
+
+/***********************************************************************/
+/*  Allocate OCCUR column description block for a view.                */
+/***********************************************************************/
+bool TDBOCCUR::ViewColumnList(PGLOBAL g)
+	{
+	char *pn;
+	int   i;
+  PCOL  colp, cp;
+  PTDBMY tdbp;
+
+  if (!Tdbp->IsView())
+    return false;
+
+  if (Tdbp->GetAmType() != TYPE_AM_MYSQL) {
+    strcpy(g->Message, "View is not MySQL");
+    return true;
+  } else
+    tdbp = (PTDBMY)Tdbp;
+
+  for (cp = Columns; cp; cp = cp->GetNext())
+    if (cp->GetAmType() == TYPE_AM_PRX) {
+      if ((colp = tdbp->MakeFieldColumn(g, cp->GetName()))) {
+        ((PPRXCOL)cp)->Colp = colp;        
+        ((PPRXCOL)cp)->To_Val = colp->GetValue();
+      } else
+  			return true;
+
+      } // endif Type
+
+	Col = (PCOL*)PlugSubAlloc(g, NULL, Mult * sizeof(PCOL));
+
+	for (i = 0, pn = Colist; i < Mult; i++, pn += (strlen(pn) + 1))
+		if (!(Col[i] = tdbp->MakeFieldColumn(g, pn))) {
+		  // Column not found in table                                       
+		  sprintf(g->Message, MSG(COL_ISNOT_TABLE), pn, Tabname);
+			return true;
+			} // endif Col
+
+	return false;
+	} // end of ViewColumnList
 
 /***********************************************************************/
 /*  OCCUR GetMaxSize: returns the maximum number of rows in the table. */
@@ -203,8 +246,8 @@ int TDBOCCUR::MakeColumnList(PGLOBAL g)
 int TDBOCCUR::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    if (InitTable(g))
-      return NULL;
+    if (!(Tdbp = GetSubTable(g, ((POCCURDEF)To_Def)->Tablep, TRUE)))
+      return 0;
   
 		MaxSize = Mult * Tdbp->GetMaxSize(g);
 		} // endif MaxSize
@@ -252,7 +295,7 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
   /*  Do it here if not done yet.                                      */
   /*********************************************************************/
   if (InitTable(g))
-    return NULL;
+    return TRUE;
 
   if (Xcolp)
 	  // Lock this column so it is evaluated by its table only
@@ -269,7 +312,10 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Do open the source table.                                        */
   /*********************************************************************/
-	return Tdbp->OpenDB(g);
+	if (Tdbp->OpenDB(g))
+    return TRUE;
+
+  return ViewColumnList(g);
   } // end of OpenDB
 
 /***********************************************************************/

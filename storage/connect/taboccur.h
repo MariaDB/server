@@ -52,21 +52,22 @@ class TDBOCCUR : public TDBPRX {
   TDBOCCUR(POCCURDEF tdp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_OCCUR;}
-  				void  SetTdbp(PTDBASE tdbp) {Tdbp = tdbp;}
+  virtual AMT  GetAmType(void) {return TYPE_AM_OCCUR;}
+  				void SetTdbp(PTDBASE tdbp) {Tdbp = tdbp;}
 
   // Methods
-	virtual void  ResetDB(void) {N = 0; Tdbp->ResetDB();}
-	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
-					PTDB  GetSourceTable(PGLOBAL g);
-					int   MakeColumnList(PGLOBAL g);
+	virtual void ResetDB(void) {N = 0; Tdbp->ResetDB();}
+	virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+					int  PrepareColist(void);
+					bool MakeColumnList(PGLOBAL g);
+          bool ViewColumnList(PGLOBAL g);
 
   // Database routines
-	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual bool  InitTable(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
+	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual bool InitTable(PGLOBAL g);
+  virtual int  GetMaxSize(PGLOBAL g);
+  virtual bool OpenDB(PGLOBAL g);
+  virtual int  ReadDB(PGLOBAL g);
 
  protected:
   // Members

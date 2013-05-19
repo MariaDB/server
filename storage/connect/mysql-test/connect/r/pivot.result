@@ -77,8 +77,8 @@ Beer DOUBLE(8,2) FLAG=1,
 Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT
-SRCDEF='select who, week, what, sum(amount) from expenses where week in (4,5) group by who, week, what';
-ALTER TABLE pivex OPTION_LIST='port=PORT';
+SRCDEF='select who, week, what, sum(amount) as amount from expenses where week in (4,5) group by who, week, what';
+ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=PORT';
 Warnings:
 Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;
@@ -125,7 +125,7 @@ Middle DOUBLE(8,2) FLAG=1,
 Last   DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT
 SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Last'' else ''Middle'' end as wk, sum(amount) * 6.56 as amnt from expenses group by who, what, wk';
-ALTER TABLE pivex OPTION_LIST='PivotCol=wk,port=PORT';
+ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=PORT';
 Warnings:
 Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;

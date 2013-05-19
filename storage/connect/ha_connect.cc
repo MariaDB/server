@@ -696,7 +696,9 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
   char *pv;
   PTOS  options= GetTableOptionStruct(table);
 
-  if (!options)
+  if (!stricmp(opname, "View"))
+    opval= (tshp) ? tshp->is_view : table->s->is_view;
+  else if (!options)
     ;
   else if (!stricmp(opname, "Mapped"))
     opval= options->mapped;
@@ -838,7 +840,7 @@ void *ha_connect::GetColumnOption(void *field, PCOLINFO pcf)
   } else
     fldp= (tshp) ? tshp->field : table->field;
 
-  if (!(fp= *fldp))
+  if (!fldp || !(fp= *fldp))
     return NULL;
 
   // Get the CONNECT field options structure
@@ -1843,11 +1845,13 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 
   // Try to get the user if possible
   xp= GetUser(ha_thd(), xp);
-  PGLOBAL g= xp->g;
+  PGLOBAL g= (xp) ? xp->g : NULL;
 
   // Try to set the database environment
   if (g)
     rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
+  else
+    rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
 } // end of open
@@ -2809,6 +2813,10 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         bool    oldsep= ((PCHK)g->Xchk)->oldsep;
         bool    newsep= ((PCHK)g->Xchk)->newsep;
         PTDBDOS tdp= (PTDBDOS)(tdbp ? tdbp : GetTDB(g));
+
+        if (!tdp)
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
         PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
         PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
         PIXDEF  oldpix= ((PCHK)g->Xchk)->oldpix;
@@ -3300,7 +3308,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 {
   char        spc= ',', qch= 0;
   const char *fncn= "?";
-  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl; // *csn;
+  const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src;
   char       *tab, *dsn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
@@ -3324,16 +3332,17 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
 
-  user= host= pwd= prt= tbl= dsn= NULL;
+  user= host= pwd= prt= tbl= src= dsn= NULL;
 
   // Get the useful create options
-  ttp=  GetTypeID(topt->type);
-  fn=   topt->filename;
-  tab=  (char*)topt->tabname;
-  db=   topt->dbname;
+  ttp= GetTypeID(topt->type);
+  fn=  topt->filename;
+  tab= (char*)topt->tabname;
+  src= topt->srcdef;
+  db=  topt->dbname;
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
-  sep=  topt->separator;
+  sep= topt->separator;
   spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
   qch= topt->qchar ? *topt->qchar : topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
@@ -3352,25 +3361,20 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g,"class", topt->oplist);
 #endif   // WIN32
     mxr= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
-    } // endif option_list
+  } else {
+    host= "localhost";
+    user= "root";
+  } // endif option_list
 
   if (!db)
     db= thd->db;                     // Default value
 
   // Check table type
   if (ttp == TAB_UNDEF) {
-    if (!tab) {
-      strcpy(g->Message, "No table_type. Was set to DOS");
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      ttp= TAB_DOS;
-      topt->type= "DOS";
-    } else {
-      strcpy(g->Message, "No table_type. Was set to PROXY");
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      ttp= TAB_PRX;
-      topt->type= "PROXY";
-    } // endif fnc
-
+    topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
+    ttp= GetTypeID(topt->type);
+    sprintf(g->Message, "No table_type. Was set to %s", topt->type);
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -3494,7 +3498,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     else
       return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    switch (ttp) {
+    if (src && fnc == FNC_NO)
+      qrp= SrcColumns(g, host, db, user, pwd, src, port);
+    else switch (ttp) {
       case TAB_DBF:
         qrp= DBFColumns(g, fn, fnc == FNC_COL);
         break;
@@ -3523,7 +3529,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #if defined(MYSQL_SUPPORT)
       case TAB_MYSQL:
         qrp= MyColumns(g, host, db, user, pwd, tab, 
-                       NULL, port, false, fnc == FNC_COL);
+                       NULL, port, fnc == FNC_COL);
         break;
 #endif   // MYSQL_SUPPORT
       case TAB_CSV:
@@ -3549,7 +3555,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       return HA_ERR_INTERNAL_ERROR;
       } // endif qrp
 
-    if (fnc != FNC_NO) {
+    if (fnc != FNC_NO || src) {
       // Catalog table
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
@@ -3821,13 +3827,23 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       case TAB_PRX:
       case TAB_XCL:
       case TAB_OCCUR:
-        if (!stricmp(options->tabname, create_info->alias) &&
-            (!options->dbname || !stricmp(options->dbname, thd->db))) {
-          sprintf(g->Message, "A %s table cannot refer to itself",
-                              options->type);
+        if (options->srcdef) {
+          strcpy(g->Message, "Cannot check looping reference");
+          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+        } else if (options->tabname) {
+          if (!stricmp(options->tabname, create_info->alias) &&
+             (!options->dbname || !stricmp(options->dbname, thd->db))) {
+            sprintf(g->Message, "A %s table cannot refer to itself",
+                                options->type);
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+            DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+            } // endif tab
+
+        } else {
+          strcpy(g->Message, "Missing object table name or definition");
           my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-          return HA_ERR_INTERNAL_ERROR;
-          } // endif tab
+          DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+        } // endif tabname
 
       } // endswitch ttp
 

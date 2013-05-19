@@ -147,6 +147,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 
   if (!(g = malloc(sizeof(GLOBAL)))) {
     fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+    return NULL;
   } else {
     g->Sarea_Size = worksize;
     g->Trace = 0;
@@ -180,7 +181,9 @@ int PlugExit(PGLOBAL g)
   if (!g)
     return rc;
 
-  free(g->Sarea);
+  if (g->Sarea)
+    free(g->Sarea);
+
   free(g);
   return rc;
   } /* end of PlugExit */

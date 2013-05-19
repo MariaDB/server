@@ -1088,7 +1088,12 @@ bool TDBFMT::OpenDB(PGLOBAL g)
   {
   Linenum = 0;
 
-  if (Use != USE_OPEN && (Columns || Mode == MODE_UPDATE)) {
+  if (Mode == MODE_INSERT || Mode == MODE_UPDATE) {
+    sprintf(g->Message, MSG(FMT_WRITE_NIY), "FMT");
+    return true;                    // NIY
+    } // endif Mode
+
+  if (Use != USE_OPEN && Columns) {
     // Make the formats used to read records
     PSZ     pfm;
     int     i, n;
@@ -1096,17 +1101,12 @@ bool TDBFMT::OpenDB(PGLOBAL g)
     PCOLDEF cdp;
     PDOSDEF tdp = (PDOSDEF)To_Def;
 
-//  if (Mode != MODE_UPDATE) {
-      for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-        if (!colp->IsSpecial())  // Not a pseudo column
-          Fields = max(Fields, (int)colp->Fldnum);
+    for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
+      if (!colp->IsSpecial())  // Not a pseudo column
+        Fields = max(Fields, (int)colp->Fldnum);
 
-      if (Columns)
-        Fields++;                // Fldnum was 0 based
-
-//  } else
-//    for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-//      Fields++;
+    if (Columns)
+      Fields++;                // Fldnum was 0 based
 
     To_Fld = PlugSubAlloc(g, NULL, Lrecl + 1);
     FldFormat = (PSZ*)PlugSubAlloc(g, NULL, sizeof(PSZ) * Fields);
