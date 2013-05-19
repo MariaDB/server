@@ -77,8 +77,6 @@ static MYSQL_SYSVAR_BOOL(allow_create_integer_latch, g_allow_create_integer_latc
   "so the upgrade logic can be tested", NULL, NULL, FALSE);
 #endif
 
-#define MIN_VARCHAR_LATCH_LEN 32
-
 // Table of varchar latch operations.
 // In the future this needs to be refactactored to live somewhere else
 struct oqgraph_latch_op_table { const char *key; int latch; };
@@ -88,6 +86,17 @@ static const oqgraph_latch_op_table latch_ops_table[] = {
   { "breadth_first", oqgraph::BREADTH_FIRST } , 
   { NULL, -1 }  
 };
+
+static uint32 findLongestLatch() {
+  int len = 0;
+  for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
+    int s = strlen(k->key);
+    if (s > len) {
+      len = s;
+    }
+  }
+  return len;
+}
 
 static const char *latchToCode(int latch) {
   for (const oqgraph_latch_op_table* k=latch_ops_table; k && k->key; k++) {
@@ -313,9 +322,15 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
       badColumn = true;
       push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is wrong type.", i);
     }
-
-    // TODO: check latch size >= MIN_VARCHAR_LATCH_LEN
     
+    // Make sure latch column is large enough for all possible latch values
+    if (isLatchColumn) {
+      if ((*field)->char_length() < findLongestLatch()) {
+        badColumn = true;
+        push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is too short.", i);
+      }
+    }
+
     if (!badColumn) if (skel[i].coltype != MYSQL_TYPE_DOUBLE && (!isLatchColumn || !isStringLatch)) {
       /* Check Is UNSIGNED */
       if ( (!((*field)->flags & UNSIGNED_FLAG ))) {
@@ -1133,7 +1148,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
   }
 
   if (stats.records <= 1) {
-    DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (stats)", stats.records));
+    DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u (stats)", (unsigned)stats.records));
     return stats.records;
   }
 
@@ -1141,7 +1156,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
   //DBUG_ASSERT(key_stat_version == share->key_stat_version);
   //ha_rows result= key->rec_per_key[key->key_parts-1];
   ha_rows result= 10;
-  DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", result));
+  DBUG_PRINT( "oq-debug", ("records_in_range ::>> N=%u", (unsigned)result));
 
   return result;
 }
@@ -1183,6 +1198,10 @@ static struct st_mysql_show_var oqgraph_status[]=
   { 0, 0, SHOW_UNDEF }
 };
 
+static struct st_mysql_sys_var* oqgraph_sysvars[]= {
+  MYSQL_SYSVAR(allow_create_integer_latch),
+  0
+};
 maria_declare_plugin(oqgraph)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -1195,7 +1214,7 @@ maria_declare_plugin(oqgraph)
   oqgraph_fini,               /* Plugin Deinit                   */
   0x0300,                     /* Version: 3s.0                    */
   oqgraph_status,             /* status variables                */
-  NULL,                       /* system variables                */
+  oqgraph_sysvars,                       /* system variables                */
   "3.0",
   MariaDB_PLUGIN_MATURITY_BETA
 }
