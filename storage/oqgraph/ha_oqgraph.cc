@@ -44,11 +44,11 @@
 #include "my_dbug.h"
 
 // Uncomment this for extra debug, but expect a performance hit in large queries
-#define VERBOSE_DEBUG
+// #define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
-#define DBUG_PRINT(x)
+#define DBUG_PRINT(x ...)
 #endif
 
 #define OQGRAPH_STATS_UPDATE_THRESHOLD 10
@@ -169,7 +169,6 @@ statistic_increment(table->in_use->status_var.X, &LOCK_status)
 
 static bool oqgraph_init_done= 0;
 
-
 static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
                                        MEM_ROOT *mem_root)
 {
@@ -245,9 +244,8 @@ static int error_code(int res)
  *    =================================
  *
  
-  The latch may be a varchar of any length, however if it is too short,
-  then some of the OQGRAPH graph operations will not be able to be executed.
-  A size of 32 seems reasonable at this point in time.
+  The latch may be a varchar of any length, however if it is too short to
+  hold the longest latch value, table creation is aborted.
  
   CREATE TABLE foo (
     latch   VARCHAR(32)   NULL,
@@ -1198,10 +1196,13 @@ static struct st_mysql_show_var oqgraph_status[]=
   { 0, 0, SHOW_UNDEF }
 };
 
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
 static struct st_mysql_sys_var* oqgraph_sysvars[]= {
   MYSQL_SYSVAR(allow_create_integer_latch),
   0
 };
+#endif
+
 maria_declare_plugin(oqgraph)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -1214,7 +1215,11 @@ maria_declare_plugin(oqgraph)
   oqgraph_fini,               /* Plugin Deinit                   */
   0x0300,                     /* Version: 3s.0                    */
   oqgraph_status,             /* status variables                */
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
   oqgraph_sysvars,                       /* system variables                */
+#else
+  NULL,
+#endif	  
   "3.0",
   MariaDB_PLUGIN_MATURITY_BETA
 }
