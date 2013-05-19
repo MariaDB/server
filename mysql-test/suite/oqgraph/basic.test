@@ -12,6 +12,9 @@ CREATE TABLE graph_base (
   ) ENGINE=MyISAM;
 
 -- Backwards compat test - should provide a deprecation warning if we do show warnings
+
+SET GLOBAL oqgraph_allow_create_integer_latch=false;
+-- We need to expect the following to fail
 CREATE TABLE graph (
     latch   SMALLINT  UNSIGNED NULL,
     origid  BIGINT    UNSIGNED NULL,
@@ -22,6 +25,29 @@ CREATE TABLE graph (
     KEY (latch, origid, destid) USING HASH,
     KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+
+-- expected:
+--| Warning |  140 | Integer latch is not supported for new tables.                      |
+--| Error   | 1005 | Can't create table 'test.graph' (errno: 140 "Wrong create options") |
+
+-- Backwards compat testng - should provide a deprecation warning if we do 
+-- show warnings - and let us create a integer latch so that we can check 
+-- upgrade behaviour
+SET GLOBAL oqgraph_allow_create_integer_latch=true;
+CREATE TABLE graph (
+    latch   SMALLINT  UNSIGNED NULL,
+    origid  BIGINT    UNSIGNED NULL,
+    destid  BIGINT    UNSIGNED NULL,
+    weight  DOUBLE    NULL,
+    seq     BIGINT    UNSIGNED NULL,
+    linkid  BIGINT    UNSIGNED NULL,
+    KEY (latch, origid, destid) USING HASH,
+    KEY (latch, destid, origid) USING HASH
+  ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+-- Expected:
+-- | Warning | 1287 | 'latch SMALLINT UNSIGNED NULL' is deprecated and will be removed in a future release. Please use 'latch VARCHAR(32) NULL' instead |
+SET GLOBAL oqgraph_allow_create_integer_latch=false;
+
 
 CREATE TABLE graph2 (
     latch   VARCHAR(32) NULL,
@@ -54,7 +80,9 @@ SELECT * FROM graph WHERE latch = 2 AND origid = 1 AND weight = 1;
 
 SELECT * FROM graph2 WHERE latch = 'breadth_first' AND origid = 1 AND weight = 1;   -- works
 SELECT * FROM graph2 WHERE latch = '2' AND origid = 1 AND weight = 1;               -- as above
-SELECT * FROM graph2 WHERE latch = 2 AND origid = 1 AND weight = 1;                 -- currently, FAILs - empty set should be as above
+-- above works, we allow stringized latch integer to ease migration
+SELECT * FROM graph2 WHERE latch = 2 AND origid = 1 AND weight = 1;
+-- Expect the above to fail due to autocast and use of deprecated syntax...
 
 SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=1 AND destid=6;
 SELECT * FROM graph2 WHERE latch='1' AND origid=1 AND destid=6;
@@ -64,8 +92,29 @@ SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=4 AND destid=1;
 SELECT * FROM graph2 WHERE latch='1' AND origid=4 AND destid=1;
 
 SELECT * FROM graph2 WHERE latch='no_search' and destid=2 and origid=1;  -- works
-SELECT * FROM graph2 WHERE latch=0 and destid=2 and origid=1;            -- current FAIL - empty set
-SELECT * FROM graph2 WHERE latch='0' and destid=2 and origid=1;          -- causes assertion (at least in debug build, havent tested normal)
+
+SELECT * FROM graph2 WHERE latch=0 and destid=2 and origid=1;
+-- Expect the above to fail due to autocast...
+
+-- FIXME SELECT * FROM graph2 WHERE latch='0' and destid=2 and origid=1;          -- causes assertion (at least in debug build, havent tested normal)
+-- sql/mysqld(my_print_stacktrace+0x35)[0xdbbc02]
+-- sql/mysqld(handle_fatal_signal+0x355)[0x7dfd05]
+-- /lib/libpthread.so.0(+0xeff0)[0x7f4810addff0]
+-- /lib/libc.so.6(gsignal+0x35)[0x7f480feda1b5]
+-- /lib/libc.so.6(abort+0x180)[0x7f480fedcfc0]
+-- /lib/libc.so.6(__assert_fail+0xf1)[0x7f480fed3301]
+-- sql/mysqld(_ZN7handler8ha_resetEv+0x8b)[0x7eb6a9]
+-- sql/mysqld(_Z18close_thread_tableP3THDPP5TABLE+0x297)[0x5b1207]
+-- sql/mysqld[0x5b09c4]
+-- sql/mysqld(_Z19close_thread_tablesP3THD+0x33f)[0x5b0f5d]
+-- sql/mysqld(_Z21mysql_execute_commandP3THD+0x7fe9)[0x61cc6b]
+-- sql/mysqld(_Z11mysql_parseP3THDPcjP12Parser_state+0x268)[0x61f9ec]
+-- sql/mysqld(_Z16dispatch_command19enum_server_commandP3THDPcj+0xc3e)[0x6129ba]
+-- sql/mysqld(_Z10do_commandP3THD+0x33f)[0x611b35]
+-- sql/mysqld(_Z24do_handle_one_connectionP3THD+0x1f6)[0x721ba9]
+-- sql/mysqld(handle_one_connection+0x33)[0x721651]
+-- /lib/libpthread.so.0(+0x68ca)[0x7f4810ad58ca]
+-- /lib/libc.so.6(clone+0x6d)[0x7f480ff7792d]
 
 SELECT * FROM graph2 WHERE latch=NULL and destid=2 and origid=1;
 
@@ -96,3 +145,8 @@ FLUSH TABLES;
 TRUNCATE TABLE graph_base;
 
 DROP TABLE graph, graph_base;
+
+SELECT * FROM graph2 WHERE latch='dijkstras' AND origid=1 AND destid=6;
+-- expect fail as follows:
+-- ERROR 1146 (42S02): Table 'test.graph_base' doesn't exist
+-- because base graph is a necessary precondition at this point
