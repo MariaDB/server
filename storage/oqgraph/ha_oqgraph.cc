@@ -55,9 +55,27 @@
 
 using namespace open_query;
 
-
-// Allow int latch for now
+/* For the moment, include code to deal with integer latches.
+ * I have wrapped it with this #ifdef to make it easier to find and remove
+ * in the future.
+ */
 #define RETAIN_INT_LATCH_COMPATIBILITY
+
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+/* In normal operation, no new tables using an integer latch can be created,
+ * but they can still be used if they already exist, to allow for upgrades.
+ * 
+ * However to ensure the legacy function is properly tested, we add a 
+ * server variable "oggraph_allow_create_integer_latch" which if set to TRUE
+ * allows new engine tables to be created with integer latches.
+ */
+
+static my_bool g_allow_create_integer_latch = FALSE;
+
+static MYSQL_SYSVAR_BOOL(allow_create_integer_latch, g_allow_create_integer_latch,
+  PLUGIN_VAR_RQCMDARG, "Allow creation of integer latches "
+  "so the upgrade logic can be tested", NULL, NULL, FALSE);
+#endif
 
 #define MIN_VARCHAR_LATCH_LEN 32
 
@@ -236,6 +254,23 @@ static int error_code(int res)
     ORIGID=src_id
     DESTID=tgt_id
 
+ Previously latch could be an integer.
+ We no longer allow new integer tables to be created, but we need to support
+ them if in use and this module is upgraded.
+ So when the table is opened we need to see whether latch is a varchar or
+ integer and change behaviour accordingly.
+ Note that if a table was constructed with varchar and an attempt is made to
+ select with latch=(some integer number) then MYSQL will autocast
+ and no data will be returned... so retaining compatibility does not and cannot 
+ extend to making old queries work with new style tables.
+
+  This method is only called on table creation, so here we ensure new tables
+  can only be created with varchar.
+  
+  This does present a small problem with regression testing;
+  so we work around that by using an system variable to allow
+  integer latch tables to be created.
+
  */
 int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 {
@@ -254,10 +289,6 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 
   DBUG_ENTER("oqgraph_check_table_structure");
 
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-  DBUG_PRINT( "oq-debug", ("With integer latch compatibility mode."));
-#endif
-
   DBUG_PRINT( "oq-debug", ("Checking structure."));
 
   Field **field= table_arg->field;
@@ -266,8 +297,9 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
     bool badColumn = false;
     bool isLatchColumn = strcmp(skel[i].colname, "latch")==0;
     bool isStringLatch = true;
+
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
-    if (isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
+    if (g_allow_create_integer_latch && isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
     {
       isStringLatch = false;
       /* Make a warning */
@@ -275,7 +307,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
             ER_WARN_DEPRECATED_SYNTAX, ER(ER_WARN_DEPRECATED_SYNTAX),
             "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
     } else
-#endif
+#endif      
     /* Check Column Type */
     if ((*field)->type() != skel[i].coltype) {
       badColumn = true;
