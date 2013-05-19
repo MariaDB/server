@@ -32,44 +32,6 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength);
 BOOL  MessageBeep(uint);
 unsigned long _filelength(int fd);
 
-void PROFILE_Close(LPCSTR filename);
-
-int GetPrivateProfileString(
-  LPCTSTR lpAppName,        // section name
-  LPCTSTR lpKeyName,        // key name
-  LPCTSTR lpDefault,        // default string
-  LPTSTR lpReturnedString,  // destination buffer
-  int nSize,                // size of destination buffer
-  LPCTSTR lpFileName        // initialization file name
-  );
-
-uint GetPrivateProfileInt(
-  LPCTSTR lpAppName,        // section name
-  LPCTSTR lpKeyName,        // key name
-  INT nDefault,             // return value if key name not found
-  LPCTSTR lpFileName        // initialization file name
-  );
-
-BOOL WritePrivateProfileString(
-  LPCTSTR lpAppName,        // section name
-  LPCTSTR lpKeyName,        // key name
-  LPCTSTR lpString,         // string to add
-  LPCTSTR lpFileName        // initialization file
-  );
-
-int GetPrivateProfileSection(
-  LPCTSTR lpAppName,        // section name
-  LPTSTR lpReturnedString,  // return buffer
-  int nSize,                // size of return buffer
-  LPCTSTR lpFileName        // initialization file name
-  );
-
-BOOL WritePrivateProfileSection(
-  LPCTSTR lpAppName,        // section name
-  LPCTSTR lpString,         // data
-  LPCTSTR lpFileName        // file name
-  );
-
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 
@@ -90,12 +52,14 @@ typedef __int64 FILEPOS;
 
 #define XSTR(x) ((x)?(x):"<null>")
 
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+my_bool CloseFileHandle(HANDLE h);
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif /* __OSUTIL_H__ */

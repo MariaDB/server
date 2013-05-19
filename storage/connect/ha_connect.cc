@@ -137,6 +137,7 @@
 #include "mycat.h"
 #include "myutil.h"
 #include "preparse.h"
+#include "inihandl.h"
 
 #define PLGXINI     "plgcnx.ini"       /* Configuration settings file  */
 #define my_strupr(p)    my_caseup_str(default_charset_info, (p));
@@ -3260,8 +3261,8 @@ static char *encode(PGLOBAL g, char *cnm)
     Return 0 if ok
 */
 
-bool add_field(String *sql, const char *field_name, const char *type,
-               int len, int dec, uint tm, const char *rem)
+static bool add_field(String *sql, const char *field_name, const char *type,
+                      int len, int dec, uint tm, const char *rem)
 {
   bool error= false;
 
@@ -3318,7 +3319,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   bool        ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
   MEM_ROOT   *mem= thd->mem_root;
-  CHARSET_INFO *cs;
   PQRYRES     qrp;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd, NULL);
@@ -3572,7 +3572,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rem= NULL;
         typ= len= dec= 0;
         tm= NOT_NULL_FLAG;
-        cs= NULL;
 
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
@@ -3845,6 +3844,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
         } // endif tabname
 
+      default: /* do nothing */;
       } // endswitch ttp
 
   if (type == TAB_XML) {

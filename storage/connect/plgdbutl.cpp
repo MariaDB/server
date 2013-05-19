@@ -67,6 +67,7 @@
 #include "xtable.h"    // header of TBX, TDB and TDBASE classes
 #include "tabcol.h"    // header of XTAB and COLUMN classes
 #include "valblk.h"
+#include "rcmsg.h"
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -129,7 +130,6 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 void CloseXML2File(PGLOBAL, PFBLOCK, bool);
 #endif   // LIBXML2_SUPPORT
 
-extern "C" int GetRcString(int id, char *buf, int bufsize);
 
 /***********************************************************************/
 /* Routines for file IO with error reporting to g->Message             */
@@ -519,6 +519,7 @@ bool PlgSetXdbPath(PGLOBAL g, PSZ dbname, PSZ dbpath,
 /*  Extract from a path name the required component.                   */
 /*  This function assumes there is enough space in the buffer.         */
 /***********************************************************************/
+#if 0
 char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   {
   char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
@@ -539,13 +540,14 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   _splitpath(FileName, drive, direc, fname, ftype);
   return pBuff;
   } // end of PlgExtractFromPath
+#endif
 
 /***********************************************************************/
 /*  Check the occurence and matching of a pattern against a string.    */
 /*  Because this function is only used for catalog name checking,      */
 /*  it must be case insensitive.                                       */
 /***********************************************************************/
-bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
+static bool PlugCheckPattern(PGLOBAL g, LPCSTR string, LPCSTR pat)
   {
   if (pat && strlen(pat)) {
     // This leaves 512 bytes (MAX_STR / 2) for each components

@@ -41,9 +41,7 @@
 #include "tabdos.h"
 #include "tabsys.h"
 #include "tabmul.h"
-#if defined(UNIX)
-#include "osutil.h"
-#endif   // UNIX
+#include "inihandl.h"
 
 #define CSZ      36                       // Column section name length
 #define CDZ      256                      // Column definition length
