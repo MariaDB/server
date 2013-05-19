@@ -44,7 +44,7 @@
 #include "my_dbug.h"
 
 // Uncomment this for extra debug, but expect a performance hit in large queries
-// #define VERBOSE_DEBUG
+#define VERBOSE_DEBUG
 #ifdef VERBOSE_DEBUG
 #else
 #undef DBUG_PRINT
@@ -308,6 +308,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
     if (g_allow_create_integer_latch && isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
     {
+      DBUG_PRINT( "oq-debug", ("Allowing integer latch anyway!"));
       isStringLatch = false;
       /* Make a warning */
       push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, 
@@ -315,6 +316,12 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
             "latch SMALLINT UNSIGNED NULL", "'latch VARCHAR(32) NULL'");
     } else
 #endif      
+    if (isLatchColumn && ((*field)->type() == MYSQL_TYPE_SHORT))
+    {
+      DBUG_PRINT( "oq-debug", ("Allowing integer no more!"));
+      badColumn = true;
+      push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Integer latch is not supported for new tables.", i);
+    } else
     /* Check Column Type */
     if ((*field)->type() != skel[i].coltype) {
       badColumn = true;
@@ -322,7 +329,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
     }
     
     // Make sure latch column is large enough for all possible latch values
-    if (isLatchColumn) {
+    if (isLatchColumn && isStringLatch) {
       if ((*field)->char_length() < findLongestLatch()) {
         badColumn = true;
         push_warning_printf( current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "Column %d is too short.", i);
