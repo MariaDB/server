@@ -1148,6 +1148,23 @@ srv_general_init(void)
 /* Maximum allowable purge history length.  <=0 means 'infinite'. */
 UNIV_INTERN ulong	srv_max_purge_lag		= 0;
 
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx)	/*!< in: transaction object associated with the
+			thread */
+{
+	os_fast_mutex_lock(&srv_conc_mutex);
+	if (trx->wsrep_event) {
+		if (wsrep_debug) 
+			fprintf(stderr, "WSREP: conc slot cancel\n");
+		os_event_set(trx->wsrep_event);
+	}
+	os_fast_mutex_unlock(&srv_conc_mutex);
+}
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 Puts an OS thread to wait if there are too many concurrent threads
 (>= srv_thread_concurrency) inside InnoDB. The threads wait in a FIFO queue. */
@@ -1299,6 +1316,19 @@ retry:
 
 	srv_conc_n_waiting_threads++;
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_trx_is_aborting(trx->mysql_thd)) {
+		srv_conc_n_waiting_threads--;
+		os_fast_mutex_unlock(&srv_conc_mutex);
+		if (wsrep_debug)
+			fprintf(stderr, "srv_conc_enter due to MUST_ABORT");
+		trx->declared_to_be_inside_innodb = TRUE;
+		trx->n_tickets_to_enter_innodb = SRV_FREE_TICKETS_TO_ENTER;
+		return;
+	}
+	trx->wsrep_event = slot->event;
+#endif /* WITH_WSREP */
 	os_fast_mutex_unlock(&srv_conc_mutex);
 
 	/* Go to wait for the event; when a thread leaves InnoDB it will
@@ -1313,6 +1343,9 @@ retry:
 	thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 	os_event_wait(slot->event);
 	thd_wait_end(trx->mysql_thd);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 
 	trx->op_info = "";
 

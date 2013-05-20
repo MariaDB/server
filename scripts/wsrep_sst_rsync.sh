@@ -89,14 +89,14 @@ then
         #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
         # New filter - exclude everything except dirs (schemas) and innodb files
-        FILTER=(-f '+ /ibdata*' -f '+ /ib_logfile*' -f '+ */' -f '-! */*')
+        FILTER=(-f '- lost+found' -f '+ /ibdata*' -f '+ /ib_logfile*' -f '+ */' -f '-! */*')
 
         RC=0
         rsync --archive --no-times --ignore-times --inplace --delete --quiet \
               $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA" \
               rsync://$WSREP_SST_OPT_ADDR || RC=$?
 
-        [ $RC -ne 0 ] && echo "rsync returned code $RC:" >> /dev/stderr
+        [ $RC -ne 0 ] && wsrep_log_error "rsync returned code $RC:"
 
         case $RC in
         0)  RC=0   # Success
@@ -136,7 +136,7 @@ then
 
     if check_pid $RSYNC_PID
     then
-        echo "rsync daemon already running."
+        wsrep_log_error "rsync daemon already running."
         exit 114 # EALREADY
     fi
     rm -rf "$RSYNC_PID"
@@ -189,7 +189,8 @@ EOF
 
     if ! ps -p $MYSQLD_PID >/dev/null
     then
-        echo "Parent mysqld process (PID:$MYSQLD_PID) terminated unexpectedly." >&2
+        wsrep_log_error \
+        "Parent mysqld process (PID:$MYSQLD_PID) terminated unexpectedly."
         exit 32
     fi
 
@@ -203,7 +204,7 @@ EOF
 
 #    cleanup_joiner
 else
-    echo "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
+    wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL
 fi
 

@@ -13752,6 +13752,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		int rcode = wsrep_innobase_kill_one_trx(bf_trx, victim_trx,
 							signal);
 		mutex_exit(&kernel_mutex);
+		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_RETURN(rcode);
 	} else {
 		WSREP_DEBUG("victim does not have transaction");

@@ -729,6 +729,9 @@ struct trx_struct{
 	/*------------------------------*/
 	char detailed_error[256];	/*!< detailed error message for last
 					error, or empty. */
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 };
 
 #define TRX_MAX_N_THREADS	32	/* maximum number of

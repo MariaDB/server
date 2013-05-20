@@ -193,6 +193,9 @@ trx_create(
 	/* Remember to free the vector explicitly. */
 	trx->autoinc_locks = ib_vector_create(
 		mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 4), 4);
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 
 	return(trx);
 }

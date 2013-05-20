@@ -566,6 +566,14 @@ srv_conc_enter_innodb(
 /*==================*/
 	trx_t*	trx);	/*!< in: transaction object associated with the
 			thread */
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx);	/*!< in: transaction object associated with the
+			thread */
+#endif /* WITH_WSREP */
 /*********************************************************************//**
 This lets a thread enter InnoDB regardless of the number of threads inside
 InnoDB. This must be called when a thread ends a lock wait. */

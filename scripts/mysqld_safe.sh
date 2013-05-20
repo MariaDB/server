@@ -214,29 +214,39 @@ wsrep_pick_url() {
 
 # Run mysqld with --wsrep-recover and parse recovered position from log.
 # Position will be stored in wsrep_start_position_opt global.
-wsrep_recovery() {
+wsrep_start_position_opt=""
+wsrep_recover_position() {
   local mysqld_cmd="$@"
-  wr_logfile=$(mktemp)
-  [ "$EUID" = "0" ] && chown $user $wr_logfile
+  local wr_logfile=$(mktemp)
+  local euid=$(id -u)
+  local ret=0
+
+  [ "$euid" = "0" ] && chown $user $wr_logfile
   chmod 600 $wr_logfile
+
   log_notice "WSREP: Running position recovery with --log_error=$wr_logfile"
+
   $mysqld_cmd --log_error=$wr_logfile --wsrep-recover
-  rp=$(grep "WSREP: Recovered position:" $wr_logfile)
+
+  local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
-    skipped=$(grep WSREP $wr_logfile | grep "skipping position recovery")
+    local skipped="$(grep WSREP $wr_logfile | grep 'skipping position recovery')"
     if [ -z "$skipped" ]; then
-      log_error "WSREP: Failed to recover position: " \
-          `cat $wr_logfile`;
+      log_error "WSREP: Failed to recover position: " `cat $wr_logfile`;
+      ret=1
     else
       log_notice "WSREP: Position recovery skipped"
     fi
   else
-    start_pos=$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
-        | sed 's/^[ \t]*//')
-    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
+    local start_pos="$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
+        | sed 's/^[ \t]*//')"
     log_notice "WSREP: Recovered position $start_pos"
+    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
   fi
+
   rm $wr_logfile
+
+  return $ret
 }
 
 parse_arguments() {
@@ -303,9 +313,9 @@ parse_arguments() {
       --wsrep[-_]provider=*)
         if test -n "$val" && test "$val" != "none"
         then
-    	  wsrep_restart=1
-    	fi
-	;;
+          wsrep_restart=1
+        fi
+        ;;
       --help) usage ;;
 
       *)
@@ -864,20 +874,26 @@ have_sleep=1
 # maximum number of wsrep restarts
 max_wsrep_restarts=0
 
+# maximum number of wsrep restarts
+max_wsrep_restarts=0
+
 while true
 do
   rm -f $safe_mysql_unix_port "$pid_file"	# Some extra safety
 
-  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
-
   start_time=`date +%M%S`
+
+  # this sets wsrep_start_position_opt
+  wsrep_recover_position "$cmd"
+
+  [ $? -ne 0 ] && exit 1 #
+
+  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
 
   if [ -z "$url" ]
   then
-    wsrep_recovery "$cmd"
     eval_log_error "$cmd $wsrep_start_position_opt $nohup_redir"
   else
-    wsrep_recovery "$cmd"
     eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url $nohup_redir"
   fi
 
