@@ -313,6 +313,7 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
 /***********************************************************************/
 PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   {
+  const char  *sp;
   char        *db, *name;
   bool         mysql = true;
   PTDB         tdbp = NULL;
@@ -349,6 +350,9 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     // Don't use caller's columns
     fp = hc->get_table()->field;
     hc->get_table()->field = NULL;
+
+    // Make caller use the source definition
+    sp = hc->get_table()->s->option_struct->srcdef;
     hc->get_table()->s->option_struct->srcdef = tabp->GetSrc();
   } // endif srcdef
 
@@ -379,8 +383,11 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
       s->field = NULL;
 
     hc->tshp = NULL;
-  } else if (b)
+  } else if (b) {
+    // Restore s structure that can be in cache
     hc->get_table()->field = fp;
+    hc->get_table()->s->option_struct->srcdef = sp;
+  } // endif s
 
   if (trace && tdbp)
     htrc("Subtable %s in %s\n", 
