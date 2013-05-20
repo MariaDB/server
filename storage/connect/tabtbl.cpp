@@ -216,7 +216,6 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
   PTABLE  tp, tabp;
-  PTDBASE tdbp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;
 
@@ -227,7 +226,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       tabp = new(g) XTAB(tp);
 
       // Get the table description block of this table
-      if (!(tdbp = GetSubTable(g, tabp))) {
+      if (!(Tdbp = GetSubTable(g, tabp))) {
         if (++Nbf > Maxerr)
           return TRUE;               // Error return
         else
