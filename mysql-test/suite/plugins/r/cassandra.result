@@ -591,3 +591,14 @@ col_int int,
 dyncol blob DYNAMIC_COLUMN_STORAGE=yes
 ) ENGINE=cassandra keyspace='bug' thrift_host = '127.0.0.1' column_family='cf1';
 drop table t1;
+#
+# MDEV-4000: Mapping between Cassandra blob (BytesType) and MySQL BLOB does not work
+#
+create table t1 (rowkey int primary key, b blob ) ENGINE=CASSANDRA thrift_host = '127.0.0.1' `keyspace`='mariadbtest2' `column_family`='cf13';
+insert into t1 values (1, 'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar');
+insert into t1 values (2, 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz');
+select * from t1;
+rowkey	b
+1	fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar
+2	qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz
+drop table t1;

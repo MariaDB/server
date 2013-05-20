@@ -83,6 +83,8 @@ insert into cf11 (rowkey, decimal_col) values ('val_1234', 1234);
 
 create columnfamily cf12 (rowkey varchar primary key, decimal_col decimal);
 
+create columnfamily cf13 (rowkey int primary key, b blob);
+
 EOF
 --error 0,1,2
 --system cqlsh -3 -f $MYSQLTEST_VARDIR/cassandra_test_init.cql
@@ -704,6 +706,19 @@ CREATE TABLE t1 (
 
 drop table t1;
 
+
+--echo #
+--echo # MDEV-4000: Mapping between Cassandra blob (BytesType) and MySQL BLOB does not work
+--echo #
+
+create table t1 (rowkey int primary key, b blob ) ENGINE=CASSANDRA thrift_host = '127.0.0.1' `keyspace`='mariadbtest2' `column_family`='cf13';
+
+insert into t1 values (1, 'fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar');
+insert into t1 values (2, 'qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz');
+
+select * from t1;
+drop table t1;
+
 ############################################################################
 ## Cassandra cleanup
 ############################################################################
@@ -715,6 +730,8 @@ drop columnfamily cf4;
 drop columnfamily cf5;
 drop columnfamily cf6;
 drop columnfamily cf7;
+
+drop columnfamily cf13;
 --enable_parsing
 ############################################################################
 ## Cassandra cleanup ends
