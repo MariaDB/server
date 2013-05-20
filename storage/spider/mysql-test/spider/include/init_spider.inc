@@ -1,39 +1,33 @@
---error 0,1
---mkdir $MYSQL_TEST_DIR/lib/plugin
 let $VERSION_COMPILE_OS_WIN=
   `SELECT IF(@@version_compile_os like 'Win%', 1, 0)`;
 if ($VERSION_COMPILE_OS_WIN)
 {
-  --error 0,1
-  --remove_file $MYSQL_TEST_DIR/lib/plugin/ha_spider.dll
-  --error 0,1
-  --copy_file $MYSQL_TEST_DIR/../storage/spider/$MTS_VS_CONFIG/ha_spider.dll $MYSQL_TEST_DIR/lib/plugin/ha_spider.dll
   INSTALL PLUGIN spider SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.dll';
   CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.dll';
-  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote',
+    USER 'root',
+    PASSWORD '',
+    PORT $CHILD2_1_MYPORT
   );
-  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote2',
+    USER 'root',
+    PASSWORD '',
+    PORT $CHILD2_2_MYPORT
   );
-  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote3',
+    USER 'root',
+    PASSWORD '',
+    PORT $CHILD2_3_MYPORT
   );
   eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
     HOST 'localhost',
@@ -59,38 +53,32 @@ if ($VERSION_COMPILE_OS_WIN)
 }
 if (!$VERSION_COMPILE_OS_WIN)
 {
-  --error 0,1
-  --remove_file $MYSQL_TEST_DIR/lib/plugin/ha_spider.so
-  --error 0,1
-  --copy_file $MYSQL_TEST_DIR/../storage/spider/.libs/ha_spider.so $MYSQL_TEST_DIR/lib/plugin/ha_spider.so
-  --error 0,1
-  --copy_file $MYSQL_TEST_DIR/../storage/spider/ha_spider.so $MYSQL_TEST_DIR/lib/plugin/ha_spider.so
   INSTALL PLUGIN spider SONAME 'ha_spider.so';
   CREATE FUNCTION spider_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE AGGREGATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_ping_table RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_copy_tables RETURNS INT SONAME 'ha_spider.so';
   CREATE FUNCTION spider_flush_table_mon_cache RETURNS INT SONAME 'ha_spider.so';
-  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote',
+    USER 'root',
+    PASSWORD '',
+    SOCKET '$CHILD2_1_MYSOCK'
   );
-  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_2 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote2',
+    USER 'root',
+    PASSWORD '',
+    SOCKET '$CHILD2_2_MYSOCK'
   );
-  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER oracle OPTIONS (
-    HOST '$ORACLE_HOST',
-    DATABASE '$ORACLE_DATABASE',
-    USER '$ORACLE_USER',
-    PASSWORD '$ORACLE_PASSWORD',
-    PORT $ORACLE_PORT
+  eval CREATE SERVER s_2_3 FOREIGN DATA WRAPPER mysql OPTIONS (
+    HOST 'localhost',
+    DATABASE 'auto_test_remote3',
+    USER 'root',
+    PASSWORD '',
+    SOCKET '$CHILD2_3_MYSOCK'
   );
   eval CREATE SERVER s_3_1 FOREIGN DATA WRAPPER mysql OPTIONS (
     HOST 'localhost',
