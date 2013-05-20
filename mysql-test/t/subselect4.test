@@ -1878,5 +1878,44 @@ SELECT x FROM t1 WHERE id > (SELECT MAX(id) - 1000 FROM t1) ORDER BY x LIMIT 1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-4408 SQ pushdown: Assertion `cache != __null' fails in sub_select_cache
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9),(3),(4),(2),(5),(3),(1),(3),(6),(7),(5),(1),(2),(4),(9),(5);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (9);
+
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (4),(6);
+
+EXPLAIN EXTENDED
+SELECT  COUNT(*) AS cnt FROM t1, ( SELECT b FROM t2 ) AS t2_sq
+WHERE b < ANY ( SELECT a FROM t1, t2 ) 
+OR EXISTS ( SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c = t3_1.c AND t3_2.c <> b )  
+ORDER BY cnt;
+
+SELECT  COUNT(*) AS cnt FROM t1, ( SELECT b FROM t2 ) AS t2_sq
+WHERE b < ANY ( SELECT a FROM t1, t2 ) 
+OR EXISTS ( SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c = t3_1.c AND t3_2.c <> b )  
+ORDER BY cnt;
+
+EXPLAIN EXTENDED
+SELECT COUNT(b)
+FROM t1, (SELECT b FROM t2) AS t2_sq
+WHERE b < ANY (SELECT a FROM t1)
+   OR EXISTS (SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c <> b)
+GROUP BY a;
+
+SELECT COUNT(b)
+FROM t1, (SELECT b FROM t2) AS t2_sq
+WHERE b < ANY (SELECT a FROM t1)
+   OR EXISTS (SELECT 1 FROM t3 t3_1, t3 t3_2 WHERE t3_2.c <> b)
+GROUP BY a;
+
+drop table t1, t2, t3;
+
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;

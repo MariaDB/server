@@ -8771,6 +8771,17 @@ void Item_cache::set_null()
 }
 
 
+void Item_cache::update_used_tables()
+{
+  example->update_used_tables();
+  if (example->const_item())
+  {
+    used_table_map= 0;
+    maybe_null= example->maybe_null;
+  }
+}
+
+
 bool  Item_cache_int::cache_value()
 {
   if (!example)

@@ -1130,10 +1130,7 @@ skip-slave-start FALSE
 slave-compressed-protocol FALSE
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
-slave-net-timeout Warning:    8 bytes lost, allocated by T@0 at mysys/my_malloc.c:250, sql/keycaches.cc:39, sql/keycaches.cc:201, sql/keycaches.cc:219, sql/mysqld.cc:8000, mysys/my_getopt.c:1251, mysys/my_getopt.c:182, sql/mysqld.cc:8058
-Warning: 48 bytes lost, allocated by T@0 at sql/sql_list.h:625, sql/keycaches.cc:201, sql/keycaches.cc:219, sql/mysqld.cc:8000, mysys/my_getopt.c:1251, mysys/my_getopt.c:182, sql/mysqld.cc:8058, sql/mysqld.cc:3733
-Memory lost: 56 bytes in 2 chunks
- 3600
+slave-net-timeout 3600
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10

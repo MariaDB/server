@@ -4083,6 +4083,7 @@ public:
   }
 
   void set_used_tables(table_map map) { used_table_map= map; }
+  void update_used_tables();
 
   virtual bool allocate(uint i) { return 0; }
   virtual bool setup(Item *item)

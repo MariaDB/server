@@ -6142,7 +6142,7 @@ WHERE (c_sq1_alias1.col_int_nokey != @var2
 OR c_sq1_alias1.pk != @var3));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DEPENDENT SUBQUERY	c_sq1_alias1	system	PRIMARY	NULL	NULL	NULL	1	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT sq4_alias1.*
 FROM t1 AS sq4_alias1
 WHERE (sq4_alias1.col_varchar_key , sq4_alias1.col_varchar_nokey)

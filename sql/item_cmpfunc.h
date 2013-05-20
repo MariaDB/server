@@ -496,7 +496,14 @@ public:
   const char *func_name() const { return "trigcond"; };
   bool const_item() const { return FALSE; }
   bool *get_trig_var() { return trig_var; }
+  void update_used_tables()
+  {
+    Item_bool_func::update_used_tables();
+    const_item_cache= false;
+    used_tables_cache|= OUTER_REF_TABLE_BIT;
+  }
 };
+
 
 class Item_func_not_all :public Item_func_not
 {

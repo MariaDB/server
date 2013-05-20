@@ -66,6 +66,7 @@ the other NULLs are in the inner columns.
 create table t1 (a1 char(1), a2 char(1), a3 char(1));
 create table t2 (b1 char(1), b2 char(1), b3 char(1));
 insert into t1 values ('c',  NULL, 'a');
+insert into t1 values ('z',  'z', 'z');
 insert into t2 values (NULL,  'x', NULL);
 insert into t2 values (NULL,  'y', NULL);
 insert into t2 values ('o',   'z', 'p');
@@ -74,104 +75,111 @@ set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=of
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
 drop table t1, t2;
 create table t1 (a1 char(1), a2 char(1) not null, a3 char(1));
 create table t2 (b1 char(1), b2 char(1),          b3 char(1));
 insert into t1 values (NULL,  'y', NULL);
+insert into t1 values ('z',  'z', 'z');
 insert into t2 values ('v', 'x', NULL);
 insert into t2 values (NULL, 'y', 'w');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
 set @@expensive_subquery_limit=default;
@@ -183,6 +191,7 @@ outer reference. It is a NULL column, so a match is guaranteed.
 create table t1 (a1 char(1), a2 char(1), a3 char(1));
 create table t2 (b1 char(1), b2 char(1), b3 char(1));
 insert into t1 values (NULL,  'g', NULL);
+insert into t1 values ('z',  'z', 'z');
 insert into t2 values ('z',  NULL, 'y');
 insert into t2 values (NULL, 'z', 'y');
 set @@expensive_subquery_limit=0;
@@ -190,49 +199,52 @@ set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=of
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
 set @@expensive_subquery_limit=default;
@@ -244,6 +256,7 @@ of NULL bits do not overlap.
 create table t1 (a1 char(1), a2 char(1), a3 char(1));
 create table t2 (b1 char(1), b2 char(1), b3 char(1));
 insert into t1 values ('b',  'g', NULL);
+insert into t1 values ('z',  'z', 'z');
 insert into t2 values ('z',  NULL, 'y');
 insert into t2 values (NULL, 'z', 'y');
 set @@expensive_subquery_limit=0;
@@ -251,51 +264,54 @@ set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=of
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 b	g	NULL
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 b	g	NULL
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
+z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3
 b	g	NULL
 set @@expensive_subquery_limit=default;
@@ -307,6 +323,7 @@ non-NULL column.
 create table t1 (a1 char(1), a2 char(1), a3 char(1) not null, a4 char(10));
 create table t2 (b1 char(1), b2 char(1), b3 char(1),          b4 char(1));
 insert into t1 values ('a',  'g', 'x', NULL);
+insert into t1 values ('z',  'z', 'z', 'z');
 insert into t2 values ('z',  NULL, 'y', 'x');
 insert into t2 values (NULL, NULL, 'x', 'y');
 insert into t2 values ('x',  'w', 'z', NULL);
@@ -315,50 +332,56 @@ set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=of
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
+z	z	z	z	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
+z	z	z	z
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
+z	z	z	z	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
+z	z	z	z
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
+z	z	z	z	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
+z	z	z	z
 set @@expensive_subquery_limit=default;
 drop table t1, t2;
 -------------------------------------------------------------------------
@@ -368,6 +391,7 @@ The result must be false.
 create table t1 (a1 char(2), a2 char(1), a3 char(1) not null, a4 char(10));
 create table t2 (b1 char(2), b2 char(1), b3 char(1),          b4 char(1));
 insert into t1 values ('99',  NULL, 'j', 'f');
+insert into t1 values ('z',  'z', 'z', 'z');
 insert into t2 values ('01',  NULL, 'y', NULL);
 insert into t2 values ('02',  NULL, 'x', 'y');
 insert into t2 values ('03',  'q', 'y', 'x');
@@ -380,51 +404,54 @@ set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=of
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
+z	z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3	a4
 99	NULL	j	f
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
+z	z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3	a4
 99	NULL	j	f
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
+z	z	z	z	0
 EXPLAIN
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
 2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	8	Using where
-SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
+SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2) and a1 <> 'z';
 a1	a2	a3	a4
 99	NULL	j	f
 drop table t1, t2;
@@ -846,8 +873,8 @@ SELECT t3.d , t2.c
 FROM t3 LEFT JOIN t2 ON t3.a = t2.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t3	system	NULL	NULL	NULL	NULL	1	
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
 SELECT *
 FROM t1
 WHERE (t1.d , t1.d) NOT IN (

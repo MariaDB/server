@@ -3256,8 +3256,13 @@ void Item_in_subselect::update_used_tables()
 {
   Item_subselect::update_used_tables();
   left_expr->update_used_tables();
-  //used_tables_cache |= left_expr->used_tables();
   used_tables_cache= Item_subselect::used_tables() | left_expr->used_tables();
+  /*
+    Constant optimization of the outer query may transform the left IN operand
+    into a constant. The subquery is no longer uncacheable.
+  */
+  if (!used_tables_cache)
+    engine->make_cacheable();
 }
 
 
@@ -4210,9 +4215,21 @@ uint8 subselect_single_select_engine::uncacheable()
 }
 
 
+void subselect_single_select_engine::make_cacheable()
+{
+  select_lex->uncacheable= 0;
+}
+
+
 uint8 subselect_union_engine::uncacheable()
 {
   return unit->uncacheable;
+}
+
+
+void subselect_union_engine::make_cacheable()
+{
+  unit->uncacheable= 0;
 }
 
 
