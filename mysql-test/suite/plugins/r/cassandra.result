@@ -74,8 +74,8 @@ Variable_name	Value
 cassandra_insert_batch_size	100
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	7
 Cassandra_row_inserts	8
+Cassandra_row_insert_batches	7
 CREATE TABLE t1 (rowkey BIGINT PRIMARY KEY, a BIGINT) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf2';
 delete from t1;
@@ -84,14 +84,14 @@ DELETE FROM t1 ORDER BY a LIMIT 1;
 DROP TABLE t1;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	8
 Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
 # FLUSH STATUS doesn't work for our variables, just like with InnoDB.
 flush status;
 show status like 'cassandra_row_insert%';
 Variable_name	Value
-Cassandra_row_insert_batches	0
-Cassandra_row_inserts	0
+Cassandra_row_inserts	10
+Cassandra_row_insert_batches	8
 #
 # Batched Key Access
 #
