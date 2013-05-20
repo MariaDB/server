@@ -1094,9 +1094,9 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
 
   table_name= GetTableName();
 
-  if (!xp->CheckQuery(valid_query_id && tdbp
+  if (!xp->CheckQuery(valid_query_id) && tdbp
                       && !stricmp(tdbp->GetName(), table_name)
-                      && tdbp->GetMode() == xmod)) {
+                      && tdbp->GetMode() == xmod) {
     tp= tdbp;
     tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this)))
