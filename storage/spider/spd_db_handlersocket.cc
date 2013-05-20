@@ -39,6 +39,7 @@
 extern handlerton *spider_hton_ptr;
 extern HASH spider_open_connections;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
+extern const char spider_dig_upper[];
 
 #define SPIDER_SQL_INTERVAL_STR " + interval "
 #define SPIDER_SQL_INTERVAL_LEN (sizeof(SPIDER_SQL_INTERVAL_STR) - 1)
@@ -2534,8 +2535,8 @@ int spider_db_handlersocket_util::append_column_value(
     str_ptr = (char *) str->ptr() + str->length();
     for (end_ptr = hex_ptr + ptr->length(); hex_ptr < end_ptr; hex_ptr++)
     {
-      *str_ptr++ = _dig_vec_upper[(*hex_ptr) >> 4];
-      *str_ptr++ = _dig_vec_upper[(*hex_ptr) & 0x0F];
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) >> 4];
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) & 0x0F];
     }
     str->length(str->length() + ptr->length() * 2);
   } else 

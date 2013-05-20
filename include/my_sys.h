@@ -262,7 +262,7 @@ extern ulong	my_default_record_cache_size;
 extern my_bool  my_disable_locking, my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync;
-extern MYSQL_PLUGIN_IMPORT char	wild_many,wild_one,wild_prefix;
+extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
 /* from default.c */
 extern MYSQL_PLUGIN_IMPORT const char *my_defaults_extra_file;

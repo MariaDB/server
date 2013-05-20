@@ -267,6 +267,9 @@ extern longlong   spider_current_alloc_mem[SPIDER_MEM_CALC_LIST_NUM];
 extern ulonglong  spider_alloc_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 extern ulonglong  spider_free_mem_count[SPIDER_MEM_CALC_LIST_NUM];
 
+static char spider_wild_many = '%', spider_wild_one = '_',
+  spider_wild_prefix='\\';
+
 // for spider_open_tables
 uchar *spider_tbl_get_key(
   SPIDER_SHARE *share,
@@ -7515,9 +7518,9 @@ ulong spider_calc_for_sort(
       wild_pos = 128;
       for (; *str; str++)
       {
-        if (*str == wild_prefix && str[1])
+        if (*str == spider_wild_prefix && str[1])
           str++;
-        else if (*str == wild_many || *str == wild_one)
+        else if (*str == spider_wild_many || *str == spider_wild_one)
         {
           wild_pos = (uint) (str - start) + 1;
           if (wild_pos > 127)

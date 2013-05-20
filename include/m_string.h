@@ -86,7 +86,7 @@ extern void (*my_str_free)(void *);
 #endif
 
 /* Declared in int2str() */
-extern MYSQL_PLUGIN_IMPORT const char _dig_vec_upper[];
+extern const char _dig_vec_upper[];
 extern const char _dig_vec_lower[];
 
 extern char *strmov_overlapp(char *dest, const char *src);

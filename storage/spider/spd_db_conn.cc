@@ -68,6 +68,7 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern HASH spider_open_connections;
 #endif
 pthread_mutex_t spider_open_conn_mutex;
+const char spider_dig_upper[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 int spider_db_connect(
   const SPIDER_SHARE *share,
@@ -1141,8 +1142,8 @@ int spider_db_append_hex_string(
     str_ptr = (char *) str->ptr() + str->length();
     for (end_ptr = hex_ptr + hex_ptr_length; hex_ptr < end_ptr; hex_ptr++)
     {
-      *str_ptr++ = _dig_vec_upper[(*hex_ptr) >> 4];
-      *str_ptr++ = _dig_vec_upper[(*hex_ptr) & 0x0F];
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) >> 4];
+      *str_ptr++ = spider_dig_upper[(*hex_ptr) & 0x0F];
     }
     str->length(str->length() + hex_ptr_length * 2);
   } else {
