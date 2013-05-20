@@ -110,6 +110,8 @@ public:
   void fprint_error(const char* fmt, ...);
 
 private:
+  int oqgraph_check_table_structure (TABLE *table_arg);
+
   void update_key_stats();
   String error_message;
 };
