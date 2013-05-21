@@ -2888,7 +2888,8 @@ int spider_parse_connect_info(
       DBUG_PRINT("info",
         ("spider tgt_sockets_lengths[%d] = %u", roop_count,
         share->tgt_sockets_lengths[roop_count]));
-      if (share->tgt_sockets_lengths[roop_count] > SPIDER_CONNECT_INFO_MAX_LEN)
+      if (share->tgt_sockets_lengths[roop_count] >
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
@@ -2912,7 +2913,7 @@ int spider_parse_connect_info(
         ("spider tgt_ssl_cas_lengths[%d] = %u", roop_count,
         share->tgt_ssl_cas_lengths[roop_count]));
       if (share->tgt_ssl_cas_lengths[roop_count] >
-        SPIDER_CONNECT_INFO_MAX_LEN)
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
@@ -2924,7 +2925,7 @@ int spider_parse_connect_info(
         ("spider tgt_ssl_capaths_lengths[%d] = %u", roop_count,
         share->tgt_ssl_capaths_lengths[roop_count]));
       if (share->tgt_ssl_capaths_lengths[roop_count] >
-        SPIDER_CONNECT_INFO_MAX_LEN)
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
@@ -2936,7 +2937,7 @@ int spider_parse_connect_info(
         ("spider tgt_ssl_certs_lengths[%d] = %u", roop_count,
         share->tgt_ssl_certs_lengths[roop_count]));
       if (share->tgt_ssl_certs_lengths[roop_count] >
-        SPIDER_CONNECT_INFO_MAX_LEN)
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
@@ -2960,7 +2961,7 @@ int spider_parse_connect_info(
         ("spider tgt_ssl_keys_lengths[%d] = %u", roop_count,
         share->tgt_ssl_keys_lengths[roop_count]));
       if (share->tgt_ssl_keys_lengths[roop_count] >
-        SPIDER_CONNECT_INFO_MAX_LEN)
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
@@ -2972,7 +2973,7 @@ int spider_parse_connect_info(
         ("spider tgt_default_files_lengths[%d] = %u", roop_count,
         share->tgt_default_files_lengths[roop_count]));
       if (share->tgt_default_files_lengths[roop_count] >
-        SPIDER_CONNECT_INFO_MAX_LEN)
+        SPIDER_CONNECT_INFO_PATH_MAX_LEN)
       {
         error_num = ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_TOO_LONG_STR,
