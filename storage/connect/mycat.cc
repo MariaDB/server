@@ -293,6 +293,13 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 	if (path) {
 		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
 		char  *buf= (char*)PlugSubAlloc(g, NULL, len);
+		
+		if (PlugIsAbsolutePath(path))
+		{
+		  strcpy(buf, path);
+		  *datapath= buf;
+		  return;
+		}
 
 		if (*path != '.') {
 #if defined(WIN32)

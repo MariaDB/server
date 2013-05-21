@@ -1,9 +1,5 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $TABLE_OPTIONS=TABLE_TYPE=CSV;
-let $FILE_EXT=CSV;
---source grant.inc
-
 --copy_file $MTR_SUITE_DIR/std_data/people.csv $MYSQLD_DATADIR/test/people.csv
 
 SET NAMES utf8;

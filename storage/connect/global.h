@@ -239,7 +239,8 @@ DllExport short   GetLineLength(PGLOBAL);  // Console line length
 DllExport PGLOBAL PlugInit(LPCSTR, uint);  // Plug global initialization
 DllExport int     PlugExit(PGLOBAL);       // Plug global termination
 DllExport LPSTR   PlugRemoveType(LPSTR, LPCSTR);
-DllExport LPCSTR  PlugSetPath(LPSTR, LPCSTR, LPCSTR);
+DllExport LPCSTR  PlugSetPath(LPSTR to, LPCSTR prefix, LPCSTR name, LPCSTR dir);
+DllExport BOOL    PlugIsAbsolutePath(LPCSTR path);
 DllExport void   *PlugAllocMem(PGLOBAL, uint);
 DllExport BOOL    PlugSubSet(PGLOBAL, void *, uint);
 DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
