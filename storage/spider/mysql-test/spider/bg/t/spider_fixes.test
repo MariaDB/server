@@ -1372,6 +1372,16 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+if ($USE_REPLICATION)
+{
+  save_master_pos;
+  --connection slave1_1
+  sync_with_master;
+  --connection master_1
+  --disable_query_log
+  SET SESSION sql_log_bin= 0;
+  --enable_query_log
+}
 --disable_warnings
 DROP TABLE IF EXISTS t1;
 --enable_warnings
@@ -1539,6 +1549,16 @@ if ($HAVE_PARTITION)
     }
   }
   --connection master_1
+  if ($USE_REPLICATION)
+  {
+    save_master_pos;
+    --connection slave1_1
+    sync_with_master;
+    --connection master_1
+    --disable_query_log
+    SET SESSION sql_log_bin= 0;
+    --enable_query_log
+  }
   --disable_warnings
   DROP TABLE IF EXISTS t1;
   --enable_warnings

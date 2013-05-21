@@ -97,6 +97,8 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SELECT_WRAPPER_TAIL_LEN sizeof(SPIDER_SQL_SELECT_WRAPPER_TAIL_STR) - 1
 #define SPIDER_SQL_ROW_NUM_STR "row_num"
 #define SPIDER_SQL_ROW_NUM_LEN sizeof(SPIDER_SQL_ROW_NUM_STR) - 1
+#define SPIDER_SQL_ROWNUM_STR "rownum"
+#define SPIDER_SQL_ROWNUM_LEN sizeof(SPIDER_SQL_ROWNUM_STR) - 1
 #define SPIDER_SQL_NEXTVAL_STR ".nextval"
 #define SPIDER_SQL_NEXTVAL_LEN sizeof(SPIDER_SQL_NEXTVAL_STR) - 1
 #define SPIDER_SQL_CURRVAL_STR ".currval"
@@ -1145,7 +1147,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider create error handler error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_PRINT("info",("spider OCI init errhp=%p", errhp));
@@ -1155,7 +1157,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider create server handler error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_PRINT("info",("spider OCI init srvhp=%p", srvhp));
@@ -1166,7 +1168,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider attach server error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
 
@@ -1175,7 +1177,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider create service context error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_PRINT("info",("spider OCI init svchp=%p", svchp));
@@ -1185,7 +1187,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider set server attr error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
 
@@ -1194,7 +1196,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider create session handler error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_PRINT("info",("spider OCI init usrhp=%p", usrhp));
@@ -1205,7 +1207,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider set username attr error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
 
@@ -1215,7 +1217,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider set password attr error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
 
@@ -1224,7 +1226,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider session begin error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_PRINT("info",("spider OCISessionBegin"));
@@ -1235,7 +1237,7 @@ void spider_db_oracle::bg_connect()
   {
     DBUG_PRINT("info",("spider set session attr error"));
     stored_error_num = set_error(res, errhp, 0, NULL, NULL);
-    disconnect();
+    bg_disconnect();
     goto error;
   }
 
@@ -1248,7 +1250,7 @@ void spider_db_oracle::bg_connect()
       SPIDER_SQL_SET_NLS_TIMESTAMP_FORMAT_LEN, -1))
   ) {
     DBUG_PRINT("info",("spider init connection error"));
-    disconnect();
+    bg_disconnect();
     goto error;
   }
   DBUG_VOID_RETURN;
@@ -6506,6 +6508,7 @@ int spider_oracle_handler::append_condition_part(
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
     case SPIDER_SQL_TYPE_TMP_SQL:
+      DBUG_PRINT("info",("spider case1 sql_type=%lu", sql_type));
       if (test_flg)
       {
         str = NULL;
@@ -6518,6 +6521,7 @@ int spider_oracle_handler::append_condition_part(
     case SPIDER_SQL_TYPE_UPDATE_SQL:
     case SPIDER_SQL_TYPE_DELETE_SQL:
     case SPIDER_SQL_TYPE_BULK_UPDATE_SQL:
+      DBUG_PRINT("info",("spider case2 sql_type=%lu", sql_type));
       if (test_flg)
       {
         str = NULL;
@@ -6527,6 +6531,7 @@ int spider_oracle_handler::append_condition_part(
       }
       break;
     case SPIDER_SQL_TYPE_HANDLER:
+      DBUG_PRINT("info",("spider case3 sql_type=%lu", sql_type));
       if (test_flg)
       {
         str = NULL;
@@ -6553,10 +6558,13 @@ int spider_oracle_handler::append_condition_part(
       }
       break;
     default:
+      DBUG_PRINT("info",("spider default sql_type=%lu", sql_type));
       DBUG_RETURN(0);
   }
   error_num = append_condition(str, alias, alias_length, start_where,
     sql_type);
+  DBUG_PRINT("info",("spider str=%s", str ? str->c_ptr_safe() : "NULL"));
+  DBUG_PRINT("info",("spider length=%u", str ? str->length() : 0));
   DBUG_RETURN(error_num);
 }
 
@@ -6570,6 +6578,11 @@ int spider_oracle_handler::append_condition(
   int error_num, restart_pos = 0, start_where_pos;
   SPIDER_CONDITION *tmp_cond = spider->condition;
   DBUG_ENTER("spider_oracle_handler::append_condition");
+  DBUG_PRINT("info",("spider str=%p", str));
+  DBUG_PRINT("info",("spider alias=%p", alias));
+  DBUG_PRINT("info",("spider alias_length=%u", alias_length));
+  DBUG_PRINT("info",("spider start_where=%s", start_where ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
   if (str && start_where)
   {
     start_where_pos = str->length();
@@ -7151,6 +7164,8 @@ int spider_oracle_handler::append_key_order_for_direct_order_limit_with_alias(
           sql_part.q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
         }
       }
+    } else {
+      all_desc = FALSE;
     }
     uint pos_diff;
     if (str == &update_sql)
@@ -7642,6 +7657,8 @@ int spider_oracle_handler::append_limit_part(
       DBUG_RETURN(0);
   }
   error_num = append_limit(str, offset, limit);
+  DBUG_PRINT("info",("spider str=%s", str->c_ptr_safe()));
+  DBUG_PRINT("info",("spider length=%u", str->length()));
   DBUG_RETURN(error_num);
 }
 
@@ -7695,6 +7712,21 @@ int spider_oracle_handler::append_limit(
   DBUG_PRINT("info", ("spider limit=%lld", limit));
   if (offset || limit < 9223372036854775807LL)
   {
+    if ((int) str->length() == where_pos)
+    {
+      if (offset)
+      {
+        int error_num;
+        if ((error_num = append_key_order_for_direct_order_limit_with_alias(
+          str, NULL, 0)))
+          DBUG_RETURN(error_num);
+      } else {
+        if (str->reserve(SPIDER_SQL_WHERE_LEN + SPIDER_SQL_ROWNUM_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_WHERE_STR, SPIDER_SQL_WHERE_LEN);
+        str->q_append(SPIDER_SQL_ROWNUM_STR, SPIDER_SQL_ROWNUM_LEN);
+      }
+    }
     if (offset)
     {
       if (str->reserve(SPIDER_SQL_BETWEEN_LEN + SPIDER_SQL_AND_LEN +
@@ -7702,11 +7734,11 @@ int spider_oracle_handler::append_limit(
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_BETWEEN_STR, SPIDER_SQL_BETWEEN_LEN);
       length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset);
+        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, offset + 1);
       str->q_append(buf, length);
       str->q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
       length = (uint32) (my_charset_bin.cset->longlong10_to_str)(
-        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit);
+        &my_charset_bin, buf, SPIDER_LONGLONG_LEN + 1, -10, limit + offset);
       str->q_append(buf, length);
     } else {
       if (str->reserve(SPIDER_SQL_HS_LTEQUAL_LEN +
@@ -7743,6 +7775,8 @@ int spider_oracle_handler::append_select_lock_part(
       DBUG_RETURN(0);
   }
   error_num = append_select_lock(str);
+  DBUG_PRINT("info",("spider str=%s", str->c_ptr_safe()));
+  DBUG_PRINT("info",("spider length=%u", str->length()));
   DBUG_RETURN(error_num);
 }
 

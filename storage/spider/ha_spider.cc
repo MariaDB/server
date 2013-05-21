@@ -1174,6 +1174,9 @@ int ha_spider::external_lock(
 #if MYSQL_VERSION_ID < 50500
   DBUG_PRINT("info",("spider thd->options=%x", (int) thd->options));
 #endif
+#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
+  info_auto_called = FALSE;
+#endif
 
   sql_command = thd_sql_command(thd);
   if (sql_command == SQLCOM_BEGIN)
@@ -7721,6 +7724,15 @@ int ha_spider::info(
       ("spider difftime=%f", difftime(tmp_time, share->sts_get_time)));
     DBUG_PRINT("info",
       ("spider sts_interval=%f", sts_interval));
+    int tmp_auto_increment_mode = 0;
+    if (flag & HA_STATUS_AUTO)
+    {
+      tmp_auto_increment_mode = spider_param_auto_increment_mode(thd,
+        share->auto_increment_mode);
+#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
+      info_auto_called = TRUE;
+#endif
+    }
     if (!share->sts_init)
     {
       pthread_mutex_lock(&share->sts_mutex);
@@ -7746,10 +7758,21 @@ int ha_spider::info(
         pthread_mutex_unlock(&share->sts_mutex);
         sts_interval = 0;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        int tmp_auto_increment_mode = spider_param_auto_increment_mode(thd,
-          share->auto_increment_mode);
         if (tmp_auto_increment_mode == 1)
           sts_sync = 0;
+#endif
+      }
+    }
+    if (flag & HA_STATUS_AUTO)
+    {
+      if (
+        share->partition_share &&
+        tmp_auto_increment_mode == 1 &&
+        !share->auto_increment_init
+      ) {
+        sts_interval = 0;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        sts_sync = 0;
 #endif
       }
     }
@@ -7881,7 +7904,41 @@ int ha_spider::info(
         stats.records = 2;
     }
     if (flag & HA_STATUS_AUTO)
-      stats.auto_increment_value = share->auto_increment_value;
+    {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (share->partition_share && table->next_number_field)
+      {
+        ulonglong first_value, nb_reserved_values;
+        if (
+          tmp_auto_increment_mode == 0 &&
+          !(
+            table->next_number_field->val_int() != 0 ||
+            (table->auto_increment_field_not_null &&
+              thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO)
+          )
+        ) {
+          get_auto_increment(0, 0, 0, &first_value, &nb_reserved_values);
+          share->auto_increment_value = first_value;
+          share->auto_increment_lclval = first_value;
+          share->auto_increment_init = TRUE;
+          DBUG_PRINT("info",("spider init auto_increment_lclval=%llu",
+            share->auto_increment_lclval));
+          stats.auto_increment_value = first_value;
+        } else if (tmp_auto_increment_mode == 1 && !share->auto_increment_init)
+        {
+          share->auto_increment_lclval = share->auto_increment_value;
+          share->auto_increment_init = TRUE;
+          stats.auto_increment_value = share->auto_increment_value;
+        } else {
+          stats.auto_increment_value = share->auto_increment_value;
+        }
+      } else {
+#endif
+        stats.auto_increment_value = share->auto_increment_value;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      }
+#endif
+    }
   }
   if (flag & HA_STATUS_ERRKEY)
     errkey = dup_key_idx;
@@ -8422,6 +8479,24 @@ uint8 ha_spider::table_cache_type()
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(HA_CACHE_TBL_NOCACHE);
 }
+
+#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
+bool ha_spider::need_info_for_auto_inc()
+{
+  THD *thd = ha_thd();
+  DBUG_ENTER("ha_spider::need_info_for_auto_inc");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider return=%s", (
+    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+    !info_auto_called
+  ) ? "TRUE" : "FALSE"));
+  DBUG_RETURN((
+    !spider_param_auto_increment_mode(thd, share->auto_increment_mode) &&
+    !info_auto_called
+  ));
+}
+#endif
+
 
 int ha_spider::update_auto_increment()
 {
@@ -9375,7 +9450,7 @@ int ha_spider::delete_all_rows()
     DBUG_PRINT("info",("spider reset auto increment"));
     pthread_mutex_lock(&share->auto_increment_mutex);
     share->auto_increment_lclval = 1;
-    share->auto_increment_init = TRUE;
+    share->auto_increment_init = FALSE;
     share->auto_increment_value = 1;
     DBUG_PRINT("info",("spider init auto_increment_lclval=%llu",
       share->auto_increment_lclval));
@@ -9415,7 +9490,7 @@ int ha_spider::truncate()
     DBUG_PRINT("info",("spider reset auto increment"));
     pthread_mutex_lock(&share->auto_increment_mutex);
     share->auto_increment_lclval = 1;
-    share->auto_increment_init = TRUE;
+    share->auto_increment_init = FALSE;
     share->auto_increment_value = 1;
     DBUG_PRINT("info",("spider init auto_increment_lclval=%llu",
       share->auto_increment_lclval));
@@ -11096,9 +11171,7 @@ int ha_spider::index_handler_init()
           tmp_conn_kind1 = SPIDER_CONN_KIND_HS_WRITE;
         } else {
 #endif
-#endif
           tmp_conn_kind1 = conn_kind[roop_count];
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
         }
 #endif

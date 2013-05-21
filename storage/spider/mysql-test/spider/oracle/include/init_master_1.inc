@@ -1,4 +1,4 @@
---source ../../include/init_spider.inc
+--source ../include/init_spider.inc
 SET spider_direct_order_limit= 10000;
 SET spider_init_sql_alloc_size= 1;
 SET spider_conn_recycle_mode= 2;
@@ -143,3 +143,7 @@ let $MASTER_1_AUTO_INCREMENT_OFFSET2=
   SELECT spider_direct_sql('begin execute immediate \'DROP SEQUENCE "seq_t1_2"\'$STR_SEMICOLON exception when others then null$STR_SEMICOLON end$STR_SEMICOLON', '', 'srv "s_2_2"')
   $STR_SEMICOLON
   SELECT spider_direct_sql('CREATE SEQUENCE "seq_t1_2" START WITH 3 INCREMENT BY 4', '', 'srv "s_2_2"');
+let $MASTER_1_AUTO_INCREMENT_OFFSET3=
+  SET SESSION AUTO_INCREMENT_OFFSET = 1;
+let $MASTER_1_AUTO_INCREMENT_OFFSET4=
+  SET SESSION AUTO_INCREMENT_OFFSET = 777;

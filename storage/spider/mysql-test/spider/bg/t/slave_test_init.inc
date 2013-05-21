@@ -9,12 +9,16 @@ SET SESSION sql_log_bin= 0;
 --source have_trigger.inc
 --source ../include/init_slave1_1.inc
 --source have_engine.inc
-eval CHANGE MASTER TO
-  MASTER_HOST = '127.0.0.1',
-  MASTER_USER = 'root',
-  MASTER_PASSWORD = '',
-  MASTER_PORT = $MASTER_1_MYPORT
-;
+--let $SLAVE1_1_SLAVE_STATUS=`SHOW SLAVE STATUS`
+if (!$SLAVE1_1_SLAVE_STATUS)
+{
+  eval CHANGE MASTER TO
+    MASTER_HOST = '127.0.0.1',
+    MASTER_USER = 'root',
+    MASTER_PASSWORD = '',
+    MASTER_PORT = $MASTER_1_MYPORT
+  ;
+}
 START SLAVE;
 --connection master_1
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");

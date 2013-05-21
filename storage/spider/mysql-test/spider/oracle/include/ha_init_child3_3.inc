@@ -1,6 +1,6 @@
 --let $CHILD3_3_ENGINE_TYPE=Spider
 --let $CHILD3_3_ENGINE=ENGINE=Spider
---source ../../include/init_spider.inc
+--source ../include/init_spider.inc
 eval INSERT INTO mysql.spider_link_mon_servers
 (db_name, table_name, link_id, sid, server, scheme, host, port, socket,
  username, password, ssl_ca, ssl_capath, ssl_cert, ssl_cipher, ssl_key,
