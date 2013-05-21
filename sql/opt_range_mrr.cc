@@ -268,7 +268,7 @@ walk_up_n_right:
     range->end_key.keypart_map= make_prev_keypart_map(cur->max_key_parts);
 
     if (!(cur->min_key_flag & ~NULL_RANGE) && !cur->max_key_flag &&
-        (uint)key_tree->part+1 == seq->param->table->key_info[seq->real_keyno].key_parts &&
+        (uint)key_tree->part+1 == seq->param->table->key_info[seq->real_keyno].user_defined_key_parts &&
         (seq->param->table->key_info[seq->real_keyno].flags & HA_NOSAME) &&
         range->start_key.length == range->end_key.length &&
         !memcmp(seq->param->min_key,seq->param->max_key,range->start_key.length))

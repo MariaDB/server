@@ -117,7 +117,7 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
         return FALSE;
       KEY *key_info= tbl->key_info + keyno;
       KEY_PART_INFO *key_part= key_info->key_part;
-      KEY_PART_INFO *key_part_end= key_part + key_info->key_parts;
+      KEY_PART_INFO *key_part_end= key_part + key_info->user_defined_key_parts;
       for ( ; key_part < key_part_end; key_part++)
       {
         if (field->eq(key_part->field))
@@ -129,7 +129,7 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
       {
         key_info= tbl->key_info + tbl->s->primary_key;
         key_part= key_info->key_part;
-        key_part_end= key_part + key_info->key_parts;
+        key_part_end= key_part + key_info->user_defined_key_parts;
         for ( ; key_part < key_part_end; key_part++)
         {
           /* 

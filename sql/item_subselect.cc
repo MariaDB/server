@@ -3753,7 +3753,7 @@ void subselect_uniquesubquery_engine::print(String *str)
 {
   KEY *key_info= tab->table->key_info + tab->ref.key;
   str->append(STRING_WITH_LEN("<primary_index_lookup>("));
-  for (uint i= 0; i < key_info->key_parts; i++)
+  for (uint i= 0; i < key_info->user_defined_key_parts; i++)
     tab->ref.items[i]->print(str);
   str->append(STRING_WITH_LEN(" in "));
   str->append(tab->table->s->table_name.str, tab->table->s->table_name.length);
@@ -4310,7 +4310,8 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_ASSERT(
       tmp_table->s->uniques ||
       tmp_table->key_info->key_length >= tmp_table->file->max_key_length() ||
-      tmp_table->key_info->key_parts > tmp_table->file->max_key_parts());
+      tmp_table->key_info->user_defined_key_parts >
+      tmp_table->file->max_key_parts());
     free_tmp_table(thd, tmp_table);
     tmp_table= NULL;
     delete result;
@@ -4324,7 +4325,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
   */
   DBUG_ASSERT(tmp_table->s->keys == 1 &&
               ((Item_in_subselect *) item)->left_expr->cols() ==
-              tmp_table->key_info->key_parts);
+              tmp_table->key_info->user_defined_key_parts);
 
   if (make_semi_join_conds() ||
       /* A unique_engine is used both for complete and partial matching. */

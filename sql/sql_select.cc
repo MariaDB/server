@@ -12105,7 +12105,7 @@ static int compare_fields_by_table_order(Item *field1,
       if (!cmp)
       {
         KEY *key_info= tab->table->key_info + keyno;
-        for (uint i= 0; i < key_info->key_parts; i++)
+        for (uint i= 0; i < key_info->user_defined_key_parts; i++)
 	{
           Field *fld= key_info->key_part[i].field;
           if (fld->eq(f2->field))

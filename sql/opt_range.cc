@@ -2849,7 +2849,7 @@ static int fill_used_fields_bitmap(PARAM *param)
     /* The table uses clustered PK and it is not internally generated */
     KEY_PART_INFO *key_part= param->table->key_info[pk].key_part;
     KEY_PART_INFO *key_part_end= key_part +
-                                 param->table->key_info[pk].key_parts;
+                                 param->table->key_info[pk].user_defined_key_parts;
     for (;key_part != key_part_end; ++key_part)
       bitmap_clear_bit(&param->needed_fields, key_part->fieldnr-1);
   }
@@ -5900,7 +5900,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
 
   KEY_PART_INFO *key_part= param->table->key_info[keynr].key_part;
   KEY_PART_INFO *key_part_end= key_part +
-                               param->table->key_info[keynr].key_parts;
+                               param->table->key_info[keynr].user_defined_key_parts;
   for (;key_part != key_part_end; ++key_part)
   {
     if (bitmap_is_set(&param->needed_fields, key_part->fieldnr-1))
@@ -6573,7 +6573,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
 
   for (ROR_SCAN_INFO **scan= tree->ror_scans; scan != ror_scans_end; ++scan)
     (*scan)->key_components=
-      param->table->key_info[(*scan)->keynr].key_parts;
+      param->table->key_info[(*scan)->keynr].user_defined_key_parts;
 
   /*
     Run covering-ROR-search algorithm.
@@ -10119,7 +10119,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
   KEY *table_key= param->table->key_info + keynr;
   KEY_PART_INFO *key_part= table_key->key_part + nparts;
   KEY_PART_INFO *key_part_end= (table_key->key_part +
-                                table_key->key_parts);
+                                table_key->user_defined_key_parts);
   uint pk_number;
   
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
@@ -10140,7 +10140,7 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
 
   KEY_PART_INFO *pk_part= param->table->key_info[pk_number].key_part;
   KEY_PART_INFO *pk_part_end= pk_part +
-                              param->table->key_info[pk_number].key_parts;
+                              param->table->key_info[pk_number].user_defined_key_parts;
   for (;(key_part!=key_part_end) && (pk_part != pk_part_end);
        ++key_part, ++pk_part)
   {
@@ -10301,7 +10301,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
     {
       KEY *table_key=quick->head->key_info+quick->index;
       flag=EQ_RANGE;
-      if ((table_key->flags & HA_NOSAME) && key->part == table_key->key_parts-1)
+      if ((table_key->flags & HA_NOSAME) && key->part == table_key->user_defined_key_parts-1)
       {
 	if (!(table_key->flags & HA_NULL_PART_KEY) ||
 	    !null_part_in_key(key,
@@ -11328,7 +11328,7 @@ int QUICK_SELECT_DESC::get_next()
     if (last_range)
     {						// Already read through key
       result = ((last_range->flag & EQ_RANGE && 
-                 used_key_parts <= head->key_info[index].key_parts) ? 
+                 used_key_parts <= head->key_info[index].user_defined_key_parts) ? 
                 file->ha_index_next_same(record, last_range->min_key,
                                       last_range->min_length) :
                 file->ha_index_prev(record));
@@ -11356,7 +11356,7 @@ int QUICK_SELECT_DESC::get_next()
     }
 
     if (last_range->flag & EQ_RANGE &&
-        used_key_parts <= head->key_info[index].key_parts)
+        used_key_parts <= head->key_info[index].user_defined_key_parts)
 
     {
       result= file->ha_index_read_map(record, last_range->max_key,
@@ -11367,7 +11367,7 @@ int QUICK_SELECT_DESC::get_next()
     {
       DBUG_ASSERT(last_range->flag & NEAR_MAX ||
                   (last_range->flag & EQ_RANGE && 
-                   used_key_parts > head->key_info[index].key_parts) ||
+                   used_key_parts > head->key_info[index].user_defined_key_parts) ||
                   range_reads_after_key(last_range));
       result= file->ha_index_read_map(record, last_range->max_key,
                                       last_range->max_keypart_map,
@@ -11981,7 +11981,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       does not qualify as covering in our case. If this is the case, below
       we check that all query fields are indeed covered by 'cur_index'.
     */
-    if (cur_index_info->key_parts == table->actual_n_key_parts(cur_index_info)
+    if (cur_index_info->user_defined_key_parts == table->actual_n_key_parts(cur_index_info)
         && pk < MAX_KEY && cur_index != pk &&
         (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX))
     {

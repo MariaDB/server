@@ -885,7 +885,7 @@ write_eof_packet(THD *thd, uint server_status, uint statement_warn_count)
     is cleared between substatements, and mysqltest gets confused
   */
   thd->cur_data->embedded_info->warning_count=
-    (thd->spcont ? 0 : min(statement_warn_count, 65535));
+    (thd->spcont ? 0 : MY_MIN(statement_warn_count, 65535));
   return FALSE;
 }
 

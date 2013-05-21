@@ -3265,8 +3265,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->type == Key::FOREIGN_KEY)
     {
       fk_key_count++;
-      if (((Foreign_key *)key)->validate(alter_info->create_list))
-        DBUG_RETURN(TRUE);
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->ref_columns.elements &&
 	  fk_key->ref_columns.elements != fk_key->columns.elements)
@@ -3392,7 +3390,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->generated)
       key_info->flags|= HA_GENERATED_KEY;
 
-    key_info->key_parts=(uint8) key->columns.elements;
+    key_info->user_defined_key_parts=(uint8) key->columns.elements;
     key_info->key_part=key_part_info;
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
@@ -3429,7 +3427,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                    MYF(0));
         DBUG_RETURN(TRUE);
       }
-      if (key_info->key_parts != 1)
+      if (key_info->user_defined_key_parts != 1)
       {
 	my_error(ER_WRONG_ARGUMENTS, MYF(0), "SPATIAL INDEX");
 	DBUG_RETURN(TRUE);
@@ -3438,7 +3436,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     else if (key_info->algorithm == HA_KEY_ALG_RTREE)
     {
 #ifdef HAVE_RTREE_KEYS
-      if ((key_info->key_parts & 1) == 1)
+      if ((key_info->user_defined_key_parts & 1) == 1)
       {
 	my_error(ER_WRONG_ARGUMENTS, MYF(0), "RTREE INDEX");
 	DBUG_RETURN(TRUE);
@@ -4739,8 +4737,8 @@ mysql_rename_table(handlerton *base, const char *old_db,
   if (likely(error == 0))
   {
     my_bool temp_table= (my_bool)is_prefix(old_name, tmp_file_prefix);
-    PSI_CALL(drop_table_share)(temp_table, old_db, strlen(old_db),
-                               old_name, strlen(old_name));
+    PSI_TABLE_CALL(drop_table_share)(temp_table, old_db, strlen(old_db),
+                                     old_name, strlen(old_name));
   }
 #endif
 
@@ -5287,7 +5285,7 @@ mysql_compare_tables(TABLE *table,
               if (key_info->key_part[j].fieldnr-1 == field->field_index)
 	      {
                 (void) delete_statistics_for_index(thd, table, key_info,
-                                                   j >= key_info->key_parts);
+                                                   j >= key_info->user_defined_key_parts);
                 break;
 	      }
             }           
@@ -5321,7 +5319,8 @@ mysql_compare_tables(TABLE *table,
   for (table_key= table->key_info; table_key < table_key_end; table_key++)
   {
     KEY_PART_INFO *table_part;
-    KEY_PART_INFO *table_part_end= table_key->key_part + table_key->key_parts;
+    KEY_PART_INFO *table_part_end= (table_key->key_part +
+                                    table_key->user_defined_key_parts);
     KEY_PART_INFO *new_part;
 
    /*
@@ -5358,7 +5357,7 @@ mysql_compare_tables(TABLE *table,
     if ((table_key->algorithm != new_key->algorithm) ||
 	((table_key->flags & HA_KEYFLAG_MASK) !=
          (new_key->flags & HA_KEYFLAG_MASK)) ||
-        (table_key->key_parts != new_key->key_parts))
+        (table_key->user_defined_key_parts != new_key->user_defined_key_parts))
       goto index_changed;
 
     /*
@@ -5385,7 +5384,7 @@ mysql_compare_tables(TABLE *table,
     (*index_drop_buffer)[(*index_drop_count)++]= table_key - table->key_info;
     (*index_add_buffer)[(*index_add_count)++]= new_key - *key_info_buffer;
     key_part= new_key->key_part;
-    end= key_part + new_key->key_parts;
+    end= key_part + new_key->user_defined_key_parts;
     for(; key_part != end; key_part++)
     {
       // Mark field to be part of new key 
@@ -5400,7 +5399,7 @@ mysql_compare_tables(TABLE *table,
         KEY *tab_key_info= table->key_info;
 	for (uint j=0; j < table->s->keys; j++, tab_key_info++)
 	{
-          if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+          if (tab_key_info->user_defined_key_parts != tab_key_info->ext_key_parts)
 	    (void) delete_statistics_for_index(thd, table, tab_key_info,
                                                TRUE);
 	}
@@ -5429,7 +5428,7 @@ mysql_compare_tables(TABLE *table,
       /* Key not found. Add the offset of the key to the add buffer. */
       (*index_add_buffer)[(*index_add_count)++]= new_key - *key_info_buffer;
       key_part= new_key->key_part;
-      end= key_part + new_key->key_parts;
+      end= key_part + new_key->user_defined_key_parts;
       for(; key_part != end; key_part++)
       {
         // Mark field to be part of new key 
@@ -5827,7 +5826,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           KEY *tab_key_info= table->key_info;
 	  for (uint j=0; j < table->s->keys; j++, tab_key_info++)
 	  {
-            if (tab_key_info->key_parts != tab_key_info->ext_key_parts)
+            if (tab_key_info->user_defined_key_parts != tab_key_info->ext_key_parts)
 	      (void) delete_statistics_for_index(thd, table, tab_key_info,
                                                  TRUE);
 	  }
@@ -5840,7 +5839,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     KEY_PART_INFO *key_part= key_info->key_part;
     key_parts.empty();
     bool delete_index_stat= FALSE;
-    for (uint j=0 ; j < key_info->key_parts ; j++,key_part++)
+    for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
     {
       if (!key_part->field)
 	continue;				// Wrong field (from UNIREG)
@@ -5914,7 +5913,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (delete_index_stat) 
         (void) delete_statistics_for_index(thd, table, key_info, FALSE);
       else if (modified_primary_key &&
-               key_info->key_parts != key_info->ext_key_parts)
+               key_info->user_defined_key_parts != key_info->ext_key_parts)
         (void) delete_statistics_for_index(thd, table, key_info, TRUE);
     }
 
@@ -6584,7 +6583,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         }
         else
         {
-          KEY_PART_INFO *part_end= key->key_part + key->key_parts;
+          KEY_PART_INFO *part_end= key->key_part + key->user_defined_key_parts;
           bool is_candidate_key= true;
 
           /* Non-primary unique key. */
@@ -6627,7 +6626,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
       {
         /* Unique key */
 
-        KEY_PART_INFO *part_end= key->key_part + key->key_parts;    
+        KEY_PART_INFO *part_end= key->key_part + key->user_defined_key_parts;    
         bool is_candidate_key= true;
 
         /*
@@ -6950,7 +6949,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
         /* Copy the KEY struct. */
         *key= key_info_buffer[*idx_p];
         /* Fix the key parts. */
-        part_end= key->key_part + key->key_parts;
+        part_end= key->key_part + key->user_defined_key_parts;
         for (key_part= key->key_part; key_part < part_end; key_part++)
           key_part->field= table->field[key_part->fieldnr];
       }
@@ -7657,7 +7656,8 @@ copy_data_between_tables(THD *thd, TABLE *from,TABLE *to,
                  (to->key_info[0].key_part[0].field->flags &
                   AUTO_INCREMENT_FLAG))
                err_msg= ER(ER_DUP_ENTRY_AUTOINCREMENT_CASE);
-             to->file->print_keydup_error(key_nr, err_msg, MYF(0));
+             to->file->print_keydup_error(table, &table->key_info[key_nr],
+                                          err_msg, MYF(0));
              break;
            }
          }

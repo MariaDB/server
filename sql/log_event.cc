@@ -10440,7 +10440,7 @@ int Rows_log_event::find_key()
       We can only use a non-unique key if it allows range scans (ie. skip
       FULLTEXT indexes and such).
     */
-    last_part= key->key_parts - 1;
+    last_part= key->user_defined_key_parts - 1;
     DBUG_PRINT("info", ("Index %s rec_per_key[%u]= %lu",
                         key->name, last_part, key->rec_per_key[last_part]));
     if (!(m_table->file->index_flags(i, last_part, 1) & HA_READ_NEXT))
@@ -10718,7 +10718,7 @@ int Rows_log_event::find_row(const Relay_log_info *rli)
           field in the BI image that is null and part of UNNI.
         */
         bool null_found= FALSE;
-        for (uint i=0; i < keyinfo->key_parts && !null_found; i++)
+        for (uint i=0; i < keyinfo->user_defined_key_parts && !null_found; i++)
         {
           uint fieldnr= keyinfo->key_part[i].fieldnr - 1;
           Field **f= table->field+fieldnr;

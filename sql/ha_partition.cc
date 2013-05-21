@@ -1154,7 +1154,7 @@ int ha_partition::handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt,
       when ALTER TABLE <CMD> PARTITION ...
       it should only do named partitions, otherwise all partitions
     */
-    if (!(thd->lex->alter_info.flags & ALTER_ADMIN_PARTITION) ||
+    if (!(thd->lex->alter_info.flags & Alter_info::ALTER_ADMIN_PARTITION) ||
         part_elem->part_state == PART_ADMIN)
     {
       if (m_is_sub_partitioned)
@@ -4536,7 +4536,7 @@ int ha_partition::index_init(uint inx, bool sorted)
     KEY **key_info= m_curr_key_info;
     do
     {
-      for (i= 0; i < (*key_info)->key_parts; i++)
+      for (i= 0; i < (*key_info)->user_defined_key_parts; i++)
         bitmap_set_bit(table->read_set,
                        (*key_info)->key_part[i].field->field_index);
     } while (*(++key_info));
@@ -6990,7 +6990,7 @@ void ha_partition::print_error(int error, myf errflag)
   DBUG_PRINT("enter", ("error: %d", error));
 
   if ((error == HA_ERR_NO_PARTITION_FOUND) &&
-      ! (thd->lex->alter_info.flags & ALTER_TRUNCATE_PARTITION))
+      ! (thd->lex->alter_info.flags & Alter_info::ALTER_TRUNCATE_PARTITION))
     m_part_info->print_no_partition_found(table);
   else
   {
