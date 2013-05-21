@@ -6629,7 +6629,7 @@ int spider_get_sts(
       partition_handler_share->handlers &&
       partition_handler_share->handlers[0] == spider
     ) {
-      int roop_count, error_num;
+      int roop_count;
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
       double tmp_sts_interval;
@@ -6752,7 +6752,7 @@ int spider_get_crd(
       partition_handler_share->handlers &&
       partition_handler_share->handlers[0] == spider
     ) {
-      int roop_count, error_num;
+      int roop_count;
       ha_spider *tmp_spider;
       SPIDER_SHARE *tmp_share;
       double tmp_crd_interval;
