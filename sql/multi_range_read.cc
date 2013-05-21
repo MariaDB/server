@@ -550,7 +550,7 @@ int Mrr_ordered_index_reader::init(handler *h_arg, RANGE_SEQ_IF *seq_funcs,
 
   KEY *key_info= &file->get_table()->key_info[file->active_index];
   keypar.index_ranges_unique= test(key_info->flags & HA_NOSAME && 
-                                   key_info->key_parts == 
+                                   key_info->user_defined_key_parts == 
                                    my_count_bits(keypar.key_tuple_map));
 
   mrr_iter= seq_funcs->init(seq_init_param, n_ranges, mode);

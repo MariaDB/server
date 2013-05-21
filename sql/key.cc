@@ -78,7 +78,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
     KEY_PART_INFO *key_part;
     *key_length=0;
     for (j=0, key_part=key_info->key_part ;
-	 j < key_info->key_parts ;
+	 j < key_info->user_defined_key_parts ;
 	 j++, key_part++)
     {
       if (key_part->offset == fieldpos)
@@ -349,7 +349,7 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
      idx	Key number
 */
 
-void key_unpack(String *to,TABLE *table,uint idx)
+void key_unpack(String *to,TABLE *table, KEY *key)
 {
   KEY_PART_INFO *key_part,*key_part_end;
   Field *field;
@@ -358,8 +358,8 @@ void key_unpack(String *to,TABLE *table,uint idx)
   DBUG_ENTER("key_unpack");
 
   to->length(0);
-  for (key_part=table->key_info[idx].key_part,key_part_end=key_part+
-	 table->key_info[idx].key_parts ;
+  for (key_part=key->key_part,key_part_end=key_part+
+	 key->user_defined_key_parts ;
        key_part < key_part_end;
        key_part++)
   {
@@ -546,7 +546,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
   /* loop over all given keys */
   do
   {
-    key_parts= key_info->key_parts;
+    key_parts= key_info->user_defined_key_parts;
     key_part= key_info->key_part;
     key_part_num= 0;
 

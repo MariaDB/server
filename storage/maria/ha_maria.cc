@@ -511,7 +511,7 @@ static int table2maria(TABLE *table_arg, data_file_type row_type,
       pos->algorithm;
     keydef[i].block_length= pos->block_size;
     keydef[i].seg= keyseg;
-    keydef[i].keysegs= pos->key_parts;
+    keydef[i].keysegs= pos->user_defined_key_parts;
     for (j= 0; j < pos->user_defined_key_parts; j++)
     {
       Field *field= pos->key_part[j].field;
@@ -1642,8 +1642,8 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
-          print_keydup_error(share->state.dupp_key, 
-                             ER(ER_DUP_ENTRY_WITH_KEY_NAME), MYF(0));
+        print_keydup_error(table, &table->key_info[share->state.dupp_key], 
+                           MYF(0));
     }
     else
     {
@@ -2471,11 +2471,11 @@ int ha_maria::info(uint flag)
     share->keys_in_use.intersect_extended(maria_info.key_map);
     share->keys_for_keyread.intersect(share->keys_in_use);
     share->db_record_offset= maria_info.record_offset;
-    if (share->user_defined_key_parts)
+    if (share->key_parts)
     {
       ulong *to= table->key_info[0].rec_per_key, *end;
       double *from= maria_info.rec_per_key;
-      for (end= to+ share->user_defined_key_parts ; to < end ; to++, from++)
+      for (end= to+ share->key_parts ; to < end ; to++, from++)
         *to= (ulong) (*from + 0.5);
     }
 

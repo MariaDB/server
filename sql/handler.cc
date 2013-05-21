@@ -61,7 +61,7 @@ static handlerton *installed_htons[128];
 #define BITMAP_STACKBUF_SIZE (128/8)
 
 KEY_CREATE_INFO default_key_create_info=
-  { HA_KEY_ALG_UNDEF, 0, {NullS, 0}, {NullS, 0} };
+{ HA_KEY_ALG_UNDEF, 0, {NullS, 0}, {NullS, 0}, 0 };
 
 /* number of entries in handlertons[] */
 ulong total_ha= 0;
@@ -2222,8 +2222,8 @@ int ha_delete_table(THD *thd, handlerton *table_type, const char *path,
   if (likely(error == 0))
   {
     my_bool temp_table= (my_bool)is_prefix(alias, tmp_file_prefix);
-    PSI_CALL(drop_table_share)(temp_table, db, strlen(db),
-                               alias, strlen(alias));
+    PSI_TABLE_CALL(drop_table_share)(temp_table, db, strlen(db),
+                                     alias, strlen(alias));
   }
 #endif
 
@@ -2301,7 +2301,7 @@ void handler::unbind_psi()
     Notify the instrumentation that this table is not owned
     by this thread any more.
   */
-  PSI_CALL(unbind_table)(m_psi);
+  PSI_TABLE_CALL(unbind_table)(m_psi);
 #endif
 }
 
@@ -2313,7 +2313,7 @@ void handler::rebind_psi()
     by this thread.
   */
   PSI_table_share *share_psi= ha_table_share_psi(table_share);
-  m_psi= PSI_CALL(rebind_table)(share_psi, this, m_psi);
+  m_psi= PSI_TABLE_CALL(rebind_table)(share_psi, this, m_psi);
 #endif
 }
 
@@ -2364,7 +2364,7 @@ int handler::ha_open(TABLE *table_arg, const char *name, int mode,
     DBUG_ASSERT(table_share != NULL);
 #ifdef HAVE_PSI_TABLE_INTERFACE
     PSI_table_share *share_psi= ha_table_share_psi(table_share);
-    m_psi= PSI_CALL(open_table)(share_psi, this);
+    m_psi= PSI_TABLE_CALL(open_table)(share_psi, this);
 #endif
 
     if (table->s->db_options_in_use & HA_OPTION_READ_ONLY_DATA)
@@ -2397,7 +2397,7 @@ int handler::ha_close(void)
   if (table->in_use)
     status_var_add(table->in_use->status_var.rows_tmp_read, rows_tmp_read);
 #ifdef HAVE_PSI_TABLE_INTERFACE
-  PSI_CALL(close_table)(m_psi);
+  PSI_TABLE_CALL(close_table)(m_psi);
   m_psi= NULL; /* instrumentation handle, invalid after close_table() */
 #endif
   
@@ -3190,7 +3190,7 @@ void handler::print_error(int error, myf errflag)
       uint key_nr=get_dup_key(error);
       if ((int) key_nr >= 0)
       {
-        print_keydup_error(key_nr, ER(ER_DUP_ENTRY_WITH_KEY_NAME), errflag);
+        print_keydup_error(table, &table->key_info[key_nr], errflag);
         DBUG_VOID_RETURN;
       }
     }
@@ -3434,7 +3434,7 @@ int handler::check_collation_compatibility()
     for (; key < key_end; key++)
     {
       KEY_PART_INFO *key_part= key->key_part;
-      KEY_PART_INFO *key_part_end= key_part + key->key_parts;
+      KEY_PART_INFO *key_part_end= key_part + key->user_defined_key_parts;
       for (; key_part < key_part_end; key_part++)
       {
         if (!key_part->fieldnr)
@@ -3475,7 +3475,7 @@ int handler::ha_check_for_upgrade(HA_CHECK_OPT *check_opt)
     for (; keyinfo < keyend; keyinfo++)
     {
       keypart= keyinfo->key_part;
-      keypartend= keypart + keyinfo->key_parts;
+      keypartend= keypart + keyinfo->user_defined_key_parts;
       for (; keypart < keypartend; keypart++)
       {
         if (!keypart->fieldnr)
@@ -4100,7 +4100,7 @@ int handler::index_next_same(uchar *buf, const uchar *key, uint keylen)
       table->record[0]= buf;
       key_info= table->key_info + active_index;
       key_part= key_info->key_part;
-      key_part_end= key_part + key_info->key_parts;
+      key_part_end= key_part + key_info->user_defined_key_parts;
       for (; key_part < key_part_end; key_part++)
       {
         DBUG_ASSERT(key_part->field);
@@ -4298,7 +4298,7 @@ int ha_create_table(THD *thd, const char *path,
     goto err;
 
 #ifdef HAVE_PSI_TABLE_INTERFACE
-  share.m_psi= PSI_CALL(get_table_share)(temp_table, &share);
+  share.m_psi= PSI_TABLE_CALL(get_table_share)(temp_table, &share);
 #endif
   if (open_table_from_share(thd, &share, "", 0, (uint) READ_ALL, 0, &table,
                             TRUE))
@@ -4316,8 +4316,8 @@ int ha_create_table(THD *thd, const char *path,
     strxmov(name_buff, db, ".", table_name, NullS);
     my_error(ER_CANT_CREATE_TABLE, MYF(ME_BELL+ME_WAITTANG), name_buff, error);
 #ifdef HAVE_PSI_TABLE_INTERFACE
-    PSI_CALL(drop_table_share)(temp_table, db, strlen(db), table_name,
-                               strlen(table_name));
+    PSI_TABLE_CALL(drop_table_share)(temp_table, db, strlen(db), table_name,
+                                     strlen(table_name));
 #endif
   }
 err:

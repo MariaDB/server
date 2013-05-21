@@ -3375,7 +3375,7 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 		// check index
 		if (
 			table->s->keys!=1 ||
-			table->key_info[0].key_parts!=1 ||
+			table->key_info[0].user_defined_key_parts != 1 ||
 			strcasecmp ( table->key_info[0].key_part[0].field->field_name, table->field[2]->field_name ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: there must be an index on '%s' column",
@@ -3409,7 +3409,7 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 		// check index
 		if (
 			table->s->keys!=1 ||
-			table->key_info[0].key_parts!=1 ||
+			table->key_info[0].user_defined_key_parts!=1 ||
 			strcasecmp ( table->key_info[0].key_part[0].field->field_name, "id" ) )
 		{
 			my_snprintf ( sError, sizeof(sError), "%s: 'id' column must be indexed", name );

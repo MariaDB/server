@@ -1431,7 +1431,7 @@ int ha_ndbcluster_cond::generate_scan_filter_from_key(NdbScanOperation *op,
                                                       uchar *buf)
 {
   KEY_PART_INFO* key_part= key_info->key_part;
-  KEY_PART_INFO* end= key_part+key_info->key_parts;
+  KEY_PART_INFO* end= key_part+key_info->user_defined_key_parts;
   NdbScanFilter filter(op, true); // abort on too large
   int res;
   DBUG_ENTER("generate_scan_filter_from_key");

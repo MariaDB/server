@@ -2455,12 +2455,12 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     }
    
     key_part_map ext_key_part_map= key_info->ext_key_part_map;
-    if (key_info->key_parts != key_info->ext_key_parts &&
-        key_info->read_stats->get_avg_frequency(key_info->key_parts) == 0)
+    if (key_info->user_defined_key_parts != key_info->ext_key_parts &&
+        key_info->read_stats->get_avg_frequency(key_info->user_defined_key_parts) == 0)
     {
       KEY *pk_key_info= table_share->key_info + table_share->primary_key;
-      uint k= key_info->key_parts;
-      uint pk_parts= pk_key_info->key_parts;
+      uint k= key_info->user_defined_key_parts;
+      uint pk_parts= pk_key_info->user_defined_key_parts;
       ha_rows n_rows= read_stats->cardinality;
       double k_dist= n_rows / key_info->read_stats->get_avg_frequency(k-1);
       uint m= 0;
@@ -2842,7 +2842,7 @@ int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
   }
   else
   {
-    for (uint i= key_info->key_parts; i < key_info->ext_key_parts; i++)
+    for (uint i= key_info->user_defined_key_parts; i < key_info->ext_key_parts; i++)
     {
       index_stat.set_key_fields(key_info, i+1);
       if (index_stat.find_next_stat_for_prefix(4))

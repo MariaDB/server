@@ -1237,12 +1237,12 @@ bool ha_federatedx::create_where_from_key(String *to,
         tmp.append(STRING_WITH_LEN(" ("));
     }
 
-    for (key_part= key_info->key_part,
-         remainder= key_info->key_parts,
-         length= ranges[i]->length,
-         ptr= ranges[i]->key; ;
+    for (key_part=  key_info->key_part,
+           remainder= key_info->user_defined_key_parts,
+           length= ranges[i]->length,
+           ptr= ranges[i]->key; ;
          remainder--,
-         key_part++)
+           key_part++)
     {
       Field *field= key_part->field;
       uint store_length= key_part->store_length;

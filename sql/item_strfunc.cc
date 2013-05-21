@@ -102,23 +102,6 @@ String *Item_str_func::val_str_from_val_str_ascii(String *str, String *str2)
 }
 
 
-
-/*
-  Convert an array of bytes to a hexadecimal representation.
-
-  Used to generate a hexadecimal representation of a message digest.
-*/
-static void array_to_hex(char *to, const unsigned char *str, uint len)
-{
-  const unsigned char *str_end= str + len;
-  for (; str != str_end; ++str)
-  {
-    *to++= _dig_vec_lower[((uchar) *str) >> 4];
-    *to++= _dig_vec_lower[((uchar) *str) & 0x0F];
-  }
-}
-
-
 bool Item_str_func::fix_fields(THD *thd, Item **ref)
 {
   bool res= Item_func::fix_fields(thd, ref);
@@ -217,17 +200,11 @@ String *Item_func_sha::val_str_ascii(String *str)
   String * sptr= args[0]->val_str(str);
   if (sptr)  /* If we got value different from NULL */
   {
-    SHA1_CONTEXT context;  /* Context used to generate SHA1 hash */
     /* Temporary buffer to store 160bit digest */
     uint8 digest[SHA1_HASH_SIZE];
-    mysql_sha1_reset(&context);  /* We do not have to check for error here */
-    /* No need to check error as the only case would be too long message */
-    mysql_sha1_input(&context,
-                     (const uchar *) sptr->ptr(), sptr->length());
-
+    compute_sha1_hash(digest, (const char *) sptr->ptr(), sptr->length());
     /* Ensure that memory is free and we got result */
-    if (!( str->alloc(SHA1_HASH_SIZE*2) ||
-           (mysql_sha1_result(&context,digest))))
+    if (!str->alloc(SHA1_HASH_SIZE*2))
     {
       array_to_hex((char *) str->ptr(), digest, SHA1_HASH_SIZE);
       str->set_charset(&my_charset_numeric);

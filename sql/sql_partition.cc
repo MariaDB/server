@@ -739,7 +739,7 @@ end:
 static void clear_indicator_in_key_fields(KEY *key_info)
 {
   KEY_PART_INFO *key_part;
-  uint key_parts= key_info->key_parts, i;
+  uint key_parts= key_info->user_defined_key_parts, i;
   for (i= 0, key_part=key_info->key_part; i < key_parts; i++, key_part++)
     key_part->field->flags&= (~GET_FIXED_FIELDS_FLAG);
 }
@@ -759,7 +759,7 @@ static void clear_indicator_in_key_fields(KEY *key_info)
 static void set_indicator_in_key_fields(KEY *key_info)
 {
   KEY_PART_INFO *key_part;
-  uint key_parts= key_info->key_parts, i;
+  uint key_parts= key_info->user_defined_key_parts, i;
   for (i= 0, key_part=key_info->key_part; i < key_parts; i++, key_part++)
     key_part->field->flags|= GET_FIXED_FIELDS_FLAG;
 }
@@ -6941,7 +6941,7 @@ void set_key_field_ptr(KEY *key_info, const uchar *new_buf,
                        const uchar *old_buf)
 {
   KEY_PART_INFO *key_part= key_info->key_part;
-  uint key_parts= key_info->key_parts;
+  uint key_parts= key_info->user_defined_key_parts;
   uint i= 0;
   my_ptrdiff_t diff= (new_buf - old_buf);
   DBUG_ENTER("set_key_field_ptr");
