@@ -1,9 +1,5 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $TABLE_OPTIONS=TABLE_TYPE=VEC MAX_ROWS=100;
-let $FILE_EXT=VEC;
---source grant.inc
-
 CREATE TABLE dir1 (
   spath VARCHAR(256) NOT NULL flag=1,
   fname VARCHAR(256) NOT NULL,

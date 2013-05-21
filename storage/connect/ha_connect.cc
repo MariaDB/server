@@ -289,6 +289,13 @@ static void init_connect_psi_keys() {}
 #endif
 
 
+DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
+{
+  const char *res= PlugSetPath(to, mysql_data_home, name, dir);
+  return res;
+}
+
+
 /**
   @brief
   If frm_error() is called then we will use this to determine
@@ -3098,6 +3105,63 @@ THR_LOCK_DATA **ha_connect::store_lock(THD *thd,
 
 
 /**
+  Searches for a pointer to the last occurrence of  the
+  character c in the string src.
+  Returns true on failure, false on success.
+*/
+static bool
+strnrchr(LEX_CSTRING *ls, const char *src, size_t length, int c)
+{
+  const char *srcend, *s;
+  for (s= srcend= src + length; s > src; s--)
+  {
+    if (s[-1] == c)
+    {
+      ls->str= s;
+      ls->length= srcend - s;
+      return false;
+    }
+  }
+  return true;
+}
+
+
+/**
+  Split filename into database and table name.
+*/
+static bool
+filename_to_dbname_and_tablename(const char *filename,
+                                 char *database, size_t database_size,
+                                 char *table, size_t table_size)
+{
+#if defined(WIN32)
+  char slash= '\\';
+#else   // !WIN32
+  char slash= '/';
+#endif  // !WIN32
+  LEX_CSTRING d, t;
+  size_t length= strlen(filename);
+
+  /* Find filename - the rightmost directory part */
+  if (strnrchr(&t, filename, length, slash) || t.length + 1 > table_size)
+    return true;
+  memcpy(table, t.str, t.length);
+  table[t.length]= '\0';
+  if (!(length-= t.length))
+    return true;
+
+  length--; /* Skip slash */
+
+  /* Find database name - the second rightmost directory part */
+  if (strnrchr(&d, filename, length, slash) || d.length + 1 > database_size)
+    return true;
+  memcpy(database, d.str, d.length);
+  database[d.length]= '\0';
+  return false;
+}
+
+
+/**
   @brief
   Used to delete or rename a table. By the time delete_table() has been
   called all opened references to this table will have been closed 
@@ -3123,22 +3187,20 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   DBUG_ENTER("ha_connect::delete_or_rename_table");
   /* We have to retrieve the information about this table options. */
   ha_table_option_struct *pos;
-#if defined(WIN32)
-  const char  *fmt= ".\\%[^\\]\\%s";
-#else   // !WIN32
-  const char  *fmt= "./%[^/]/%s";
-#endif  // !WIN32
   char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
   int          rc;
   uint         key_length;
   TABLE_SHARE *share;
   THD         *thd= current_thd;
 
-  if (to)
-    if (sscanf(to, fmt, db, tabname) != 2 || *tabname == '#')
-      goto fin;
+  if (to && (filename_to_dbname_and_tablename(to, db, sizeof(db),
+                                             tabname, sizeof(tabname)) ||
+             *tabname == '#'))
+    goto fin;
 
-  if (sscanf(name, fmt, db, tabname) != 2 || *tabname == '#')
+  if (filename_to_dbname_and_tablename(name, db, sizeof(db),
+                                       tabname, sizeof(tabname)) ||
+      *tabname == '#')
     goto fin;
 
   key_length= create_table_def_key(key, db, tabname);
