@@ -1,4 +1,3 @@
---source ../include/init_handlersocket.inc
 let $CHILD2_1_HS_DROP_TABLES=
   DROP TABLE IF EXISTS hs_r;
 let $CHILD2_1_HS_CREATE_TABLES=

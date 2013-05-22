@@ -1,4 +1,3 @@
---source ../include/init_handlersocket.inc
 let $MASTER_1_HS_COMMENT_TMP=
   COMMENT='';
 let $MASTER_1_HS_COMMENT_2_1=
