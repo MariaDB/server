@@ -90,6 +90,7 @@ class TDBMYSQL : public TDBASE {
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);
           PCOL MakeFieldColumn(PGLOBAL g, char *name);
+          PSZ  FindFieldColumn(char *name);
 
  protected:
   // Internal functions

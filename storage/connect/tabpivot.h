@@ -78,6 +78,7 @@ class TDBPIVOT : public TDBPRX {
 
  protected:
   // Internal routines
+          bool FindDefaultColumns(PGLOBAL g);
           bool GetSourceTable(PGLOBAL g);
           bool MakePivotColumns(PGLOBAL g);
           bool MakeViewColumns(PGLOBAL g);

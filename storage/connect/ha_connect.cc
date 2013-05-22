@@ -158,7 +158,7 @@ extern "C" char  nmfile[];
 extern "C" char  pdebug[];
 
 extern "C" {
-       char  version[]= "Version 1.01.0005 April 27, 2013";
+       char  version[]= "Version 1.01.0006 Mai 21, 2013";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language

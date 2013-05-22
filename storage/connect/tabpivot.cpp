@@ -162,6 +162,42 @@ PCOL TDBPIVOT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   } // end of MakeCol
 
 /***********************************************************************/
+/*  Find default fonction and pivot columns.                           */
+/***********************************************************************/
+bool TDBPIVOT::FindDefaultColumns(PGLOBAL g)
+  {
+  PCOLDEF cdp;
+  PTABDEF defp = Tdbp->GetDef();
+
+  if (!Fncol) {
+    for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext())
+      if (!Picol || stricmp(Picol, cdp->GetName()))
+        Fncol = cdp->GetName();
+  
+    if (!Fncol) {
+      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+      return true;
+      } // endif Fncol
+  
+    } // endif Fncol
+  
+  if (!Picol) {
+    // Find default Picol as the last one not equal to Fncol
+    for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext())
+      if (stricmp(Fncol, cdp->GetName()))
+        Picol = cdp->GetName();
+  
+    if (!Picol) {
+      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+      return true;
+      } // endif Picol
+  
+    } // endif Picol
+  
+  return false;
+  } // end of FindDefaultColumns
+
+/***********************************************************************/
 /*  Prepare the source table Query.                                    */
 /***********************************************************************/
 bool TDBPIVOT::GetSourceTable(PGLOBAL g)
@@ -174,69 +210,45 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
     if (!(Tdbp = GetSubTable(g, ((PPIVOTDEF)To_Def)->Tablep, true)))
       return true;
 
-    if (!Tdbp->IsView()) {
+    if (!GBdone) {
+      char   *colist;
       PCOLDEF cdp;
-      PTABDEF defp = Tdbp->GetDef();
 
-      if (!Fncol) {
-        for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!Picol || stricmp(Picol, cdp->GetName()))
-            Fncol = cdp->GetName();
+      if (FindDefaultColumns(g))
+        return true;
   
-        if (!Fncol) {
-          strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-          return true;
-          } // endif Fncol
+      // Locate the suballocated colist (size is not known yet)
+      *(colist = (char*)PlugSubAlloc(g, NULL, 0)) = 0;
   
-        } // endif Fncol
+      // Make the column list
+      for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
+        if (!cdp->GetOffset())
+          strcat(strcat(colist, cdp->GetName()), ", ");
   
-      if (!Picol) {
-        // Find default Picol as the last one not equal to Fncol
-        for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!Fncol || stricmp(Fncol, cdp->GetName()))
-            Picol = cdp->GetName();
+      // Add the Pivot column at the end of the list
+      strcat(colist, Picol);
   
-        if (!Picol) {
-          strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-          return true;
-          } // endif Picol
+      // Now we know how much was suballocated
+      PlugSubAlloc(g, NULL, strlen(colist));
   
-        } // endif Picol
+      // Locate the source string (size is not known yet)
+      Tabsrc = (char*)PlugSubAlloc(g, NULL, 0);
   
-      if (!GBdone) {
-        char  *colist;
+      // Start making the definition
+      strcat(strcat(strcpy(Tabsrc, "SELECT "), colist), ", ");
   
-        // Locate the suballocated colist (size is not known yet)
-        *(colist = (char*)PlugSubAlloc(g, NULL, 0)) = 0;
+      // Make it suitable for Pivot by doing the group by
+      strcat(strcat(Tabsrc, Function), "(");
+      strcat(strcat(strcat(Tabsrc, Fncol), ") "), Fncol);
+      strcat(strcat(Tabsrc, " FROM "), Tabname);
+      strcat(strcat(Tabsrc, " GROUP BY "), colist);
   
-        // Make the column list
-        for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!cdp->GetOffset())
-            strcat(strcat(colist, cdp->GetName()), ", ");
-  
-        // Add the Pivot column at the end of the list
-        strcat(colist, Picol);
-  
-        // Now we know how much was suballocated
-        PlugSubAlloc(g, NULL, strlen(colist));
-  
-        // Locate the source string (size is not known yet)
-        Tabsrc = (char*)PlugSubAlloc(g, NULL, 0);
-  
-        // Start making the definition
-        strcat(strcat(strcpy(Tabsrc, "SELECT "), colist), ", ");
-  
-        // Make it suitable for Pivot by doing the group by
-        strcat(strcat(Tabsrc, Function), "(");
-        strcat(strcat(strcat(Tabsrc, Fncol), ") "), Fncol);
-        strcat(strcat(Tabsrc, " FROM "), Tabname);
-        strcat(strcat(Tabsrc, " GROUP BY "), colist);
-  
-        // Now we know how much was suballocated
-        PlugSubAlloc(g, NULL, strlen(Tabsrc));
-        } // endif !GBdone
+      if (Tdbp->IsView())     // Until MariaDB bug is fixed
+        strcat(strcat(Tabsrc, " ORDER BY "), colist);
 
-    } // endif IsView
+      // Now we know how much was suballocated
+      PlugSubAlloc(g, NULL, strlen(Tabsrc));
+      } // endif !GBdone
 
   } else if (!Tabsrc) {
     strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
@@ -263,6 +275,10 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
 bool TDBPIVOT::MakePivotColumns(PGLOBAL g)
   {
   if (!Tdbp->IsView()) {
+    // This was not done yet if GBdone is true
+    if (FindDefaultColumns(g))
+      return true;
+  
     // Now it is time to allocate the pivot and function columns
     if (!(Fcolp = Tdbp->ColDB(g, Fncol, 0))) {
       // Function column not found in table                                       
@@ -309,36 +325,15 @@ bool TDBPIVOT::MakeViewColumns(PGLOBAL g)
     } else
       tdbp = (PTDBMY)Tdbp;
 
-    if (!Fncol || !Picol) {
-      strcpy(g->Message, "Missing Function or Pivot column");
+    if (!Fncol && !(Fncol = tdbp->FindFieldColumn(Picol))) {
+      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
       return true;
-      } // endif
-#if 0
-    if (!Fncol) {
-      for (crp = qryp->Colresp; crp; crp = crp->Next)
-        if (!Picol || stricmp(Picol, crp->Name))
-          Fncol = crp->Name;
-
-      if (!Fncol) {
-        strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-        return true;
-        } // endif Fncol
-
       } // endif Fncol
 
-    if (!Picol) {
-      // Find default Picol as the last one not equal to Fncol
-      for (crp = qryp->Colresp; crp; crp = crp->Next)
-        if (!Fncol || stricmp(Fncol, crp->Name))
-          Picol = crp->Name;
-
-      if (!Picol) {
-        strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-        return true;
-        } // endif Picol
-
+    if (!Picol && !(Picol = tdbp->FindFieldColumn(Fncol))) {
+      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+      return true;
       } // endif Picol
-#endif // 0
 
     // Now it is time to allocate the pivot and function columns
     if (!(Fcolp = tdbp->MakeFieldColumn(g, Fncol)))

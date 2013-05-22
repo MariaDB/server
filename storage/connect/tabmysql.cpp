@@ -901,6 +901,29 @@ PCOL TDBMYSQL::MakeFieldColumn(PGLOBAL g, char *name)
   } // end of MakeFieldColumn
 
 /***********************************************************************/
+/*  Called by Pivot tables to find default column names in a View      */
+/*  as the name of last field not equal to the passed name.            */
+/***********************************************************************/
+char *TDBMYSQL::FindFieldColumn(char *name)
+  {
+  int          n;
+  MYSQL_FIELD *fld;
+  char        *cp = NULL;
+
+  for (n = Myc.m_Fields - 1; n >= 0; n--) {
+    fld = &Myc.m_Res->fields[n];
+
+    if (!name || stricmp(name, fld->name)) {
+      cp = fld->name;
+      break;
+      } // endif name
+
+    } // endfor n
+
+  return cp;
+  } // end of FindFieldColumn
+
+/***********************************************************************/
 /*  Data Base read routine for MYSQL access method.                    */
 /***********************************************************************/
 int TDBMYSQL::ReadDB(PGLOBAL g)
