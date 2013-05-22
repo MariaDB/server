@@ -916,6 +916,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CUBE_SYM                      /* SQL-2003-R */
 %token  CURDATE                       /* MYSQL-FUNC */
 %token  CURRENT_USER                  /* SQL-2003-R */
+%token  CURRENT_POS_SYM
 %token  CURSOR_SYM                    /* SQL-2003-R */
 %token  CURSOR_NAME_SYM               /* SQL-2003-N */
 %token  CURTIME                       /* MYSQL-FUNC */
@@ -1295,6 +1296,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SIMPLE_SYM                    /* SQL-2003-N */
 %token  SLAVE
 %token  SLAVES
+%token  SLAVE_POS_SYM
 %token  SLOW
 %token  SMALLINT                      /* SQL-2003-R */
 %token  SNAPSHOT_SYM
@@ -2065,15 +2067,34 @@ master_file_def:
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
-        | MASTER_USE_GTID_SYM EQ ulong_num
+        | MASTER_USE_GTID_SYM EQ CURRENT_POS_SYM
           {
-            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
             {
               my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
               MYSQL_YYABORT;
             }
-            Lex->mi.use_gtid_opt= $3 ?
-              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_CURRENT_POS;
+          }
+        ;
+        | MASTER_USE_GTID_SYM EQ SLAVE_POS_SYM
+          {
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
+            {
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
+              MYSQL_YYABORT;
+            }
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_SLAVE_POS;
+          }
+        ;
+        | MASTER_USE_GTID_SYM EQ NO_SYM
+          {
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
+            {
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
+              MYSQL_YYABORT;
+            }
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
           }
         ;
 
@@ -13254,6 +13275,7 @@ keyword_sp:
         | CONSTRAINT_NAME_SYM      {}
         | CONTEXT_SYM              {}
         | CONTRIBUTORS_SYM         {}
+        | CURRENT_POS_SYM          {}
         | CPU_SYM                  {}
         | CUBE_SYM                 {}
         | CURSOR_NAME_SYM          {}
@@ -13440,6 +13462,7 @@ keyword_sp:
         | SIMPLE_SYM               {}
         | SHARE_SYM                {}
         | SHUTDOWN                 {}
+        | SLAVE_POS_SYM            {}
         | SLOW                     {}
         | SNAPSHOT_SYM             {}
         | SOFT_SYM                 {}

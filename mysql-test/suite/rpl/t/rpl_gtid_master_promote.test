@@ -11,7 +11,7 @@
 # using START SLAVE UNTIL master_gtid_pos.
 
 --connection server_1
-ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t4 (a INT, b INT, PRIMARY KEY (a,b)) Engine=InnoDB;
 
 # Function to extract one GTID from a list.
@@ -31,22 +31,22 @@ delimiter ;|
 --connection server_2
 --sync_with_master
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 --connection server_3
 --sync_with_master
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 --connection server_4
 --sync_with_master
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 --connection server_5
 --sync_with_master
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 
 # Create three separate replication streams on master server_1.
@@ -59,39 +59,39 @@ CHANGE MASTER TO master_use_gtid=1;
 
 SET gtid_domain_id= 1;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
---let $d1_begin= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
+--let $d1_begin= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t1 VALUES (1);
 INSERT INTO t1 VALUES (2);
 INSERT INTO t4 VALUES (1, 1);
---let $d1_mid= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
+--let $d1_mid= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t1 VALUES (3);
 INSERT INTO t1 VALUES (4);
 INSERT INTO t4 VALUES (1, 3);
---let $d1_end= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
+--let $d1_end= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
 
 SET gtid_domain_id= 2;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
---let $d2_begin= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d2_begin= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t2 VALUES (1);
 INSERT INTO t2 VALUES (2);
 INSERT INTO t4 VALUES (2, 1);
---let $d2_mid= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d2_mid= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t2 VALUES (3);
 INSERT INTO t2 VALUES (4);
 INSERT INTO t4 VALUES (2, 3);
---let $d2_end= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d2_end= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 
 SET gtid_domain_id= 3;
 CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=InnoDB;
---let $d3_begin= `SELECT extract_gtid("3", @@GLOBAL.gtid_pos)`
+--let $d3_begin= `SELECT extract_gtid("3", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t3 VALUES (1);
 INSERT INTO t3 VALUES (2);
 INSERT INTO t4 VALUES (3, 1);
---let $d3_mid= `SELECT extract_gtid("3", @@GLOBAL.gtid_pos)`
+--let $d3_mid= `SELECT extract_gtid("3", @@GLOBAL.gtid_binlog_pos)`
 INSERT INTO t3 VALUES (3);
 INSERT INTO t3 VALUES (4);
 INSERT INTO t4 VALUES (3, 3);
---let $d3_end= `SELECT extract_gtid("3", @@GLOBAL.gtid_pos)`
+--let $d3_end= `SELECT extract_gtid("3", @@GLOBAL.gtid_binlog_pos)`
 
 
 # Slave server_2 (that will be promoted to master) is in the middle
@@ -135,7 +135,7 @@ SELECT * FROM t4 ORDER BY a,b;
 --echo *** Now replicate all extra changes from 3,4,5 to 2, in preparation for making 2 the new master. ***
 
 --connection server_3
---let $server3_pos= `SELECT @@GLOBAL.gtid_pos`
+--let $server3_pos= `SELECT @@GLOBAL.gtid_slave_pos`
 --connection server_2
 --replace_result $SERVER_MYPORT_3 SERVER_MYPORT_3
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_3;
@@ -147,7 +147,7 @@ SELECT * FROM t3 ORDER BY a;
 SELECT * FROM t4 ORDER BY a,b;
 
 --connection server_4
---let $server4_pos= `SELECT @@GLOBAL.gtid_pos`
+--let $server4_pos= `SELECT @@GLOBAL.gtid_slave_pos`
 --connection server_2
 --replace_result $SERVER_MYPORT_4 SERVER_MYPORT_4
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_4;
@@ -159,7 +159,7 @@ SELECT * FROM t3 ORDER BY a;
 SELECT * FROM t4 ORDER BY a,b;
 
 --connection server_5
---let $server5_pos= `SELECT @@GLOBAL.gtid_pos`
+--let $server5_pos= `SELECT @@GLOBAL.gtid_slave_pos`
 --connection server_2
 --replace_result $SERVER_MYPORT_5 SERVER_MYPORT_5
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_5;
@@ -222,7 +222,7 @@ SELECT * FROM t4 ORDER BY a,b;
 --connection server_1
 --replace_result $SERVER_MYPORT_2 SERVER_MYPORT_2
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_2,
-     master_user = "root", master_use_gtid = 1;
+     master_user = "root", master_use_gtid = current_pos;
 --source include/start_slave.inc
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;

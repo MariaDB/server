@@ -1,5 +1,5 @@
 include/rpl_init.inc [topology=1->2]
-ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
 RETURNS VARCHAR(100) DETERMINISTIC
 BEGIN
@@ -21,7 +21,7 @@ ERROR HY000: Slave is already running
 include/stop_slave_io.inc
 START SLAVE UNTIL master_gtid_pos = "";
 ERROR HY000: START SLAVE UNTIL master_gtid_pos requires that slave is using GTID
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 INSERT INTO t1 VALUES(2);
@@ -46,7 +46,7 @@ a
 include/stop_slave.inc
 START SLAVE UNTIL master_gtid_pos = "1-10-100,2-20-200";
 include/wait_for_slave_to_start.inc
-Using_Gtid = '1'
+Using_Gtid = 'Current_Pos'
 Until_Condition = 'Gtid'
 include/stop_slave.inc
 include/start_slave.inc
@@ -168,7 +168,7 @@ a
 include/stop_slave.inc
 CREATE TABLE t3 (a INT);
 DROP TABLE t3;
-START SLAVE UNTIL master_gtid_pos='1-1-15,0-1-16,2-1-14';
+START SLAVE UNTIL master_gtid_pos='1-1-15,2-1-14,0-1-16';
 include/wait_for_slave_to_stop.inc
 SHOW CREATE TABLE t3;
 Table	Create Table
@@ -180,7 +180,7 @@ include/start_slave.inc
 include/stop_slave.inc
 RESET SLAVE ALL;
 RESET MASTER;
-SET GLOBAL gtid_pos='';
+SET GLOBAL gtid_slave_pos='';
 RESET MASTER;
 INSERT INTO t1 VALUES (10);
 INSERT INTO t1 VALUES (11);
@@ -189,7 +189,7 @@ DELETE FROM t1 WHERE a >= 10;
 RESET MASTER;
 INSERT INTO t1 VALUES (10);
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
-master_user = "root", master_use_gtid = 1;
+master_user = "root", master_use_gtid = current_pos;
 START SLAVE UNTIL master_gtid_pos = '0-1-2';
 include/wait_for_slave_to_start.inc
 INSERT INTO t1 VALUES (11);

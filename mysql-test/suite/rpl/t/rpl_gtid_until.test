@@ -3,7 +3,7 @@
 --source include/rpl_init.inc
 
 --connection server_1
-ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 # Function to extract one GTID from a list.
 delimiter |;
 CREATE FUNCTION extract_gtid(d VARCHAR(100), s VARCHAR(100))
@@ -37,12 +37,12 @@ START SLAVE UNTIL master_gtid_pos = "";
 --error ER_UNTIL_REQUIRES_USING_GTID
 START SLAVE UNTIL master_gtid_pos = "";
 
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 --connection server_1
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
---let $gtid_pos=`SELECT @@GLOBAL.gtid_pos`
+--let $gtid_pos=`SELECT @@GLOBAL.gtid_binlog_pos`
 INSERT INTO t1 VALUES(2);
 
 --connection server_2
@@ -93,8 +93,8 @@ INSERT INTO t1 VALUES (3);
 SET gtid_domain_id = 2;
 CREATE TABLE t2 (a INT);
 INSERT INTO t2 VALUES (3);
---let $d1_point1= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
---let $d2_point1= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d1_point1= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
+--let $d2_point1= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 FLUSH LOGS;
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (4);
@@ -103,15 +103,15 @@ INSERT INTO t2 VALUES (4);
 FLUSH LOGS;
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (5);
---let $d1_point2= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
---let $d2_point2= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d1_point2= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
+--let $d2_point2= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 SET gtid_domain_id = 2;
 INSERT INTO t2 VALUES (5);
 FLUSH LOGS;
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (6);
---let $d1_point3= `SELECT extract_gtid("1", @@GLOBAL.gtid_pos)`
---let $d2_point3= `SELECT extract_gtid("2", @@GLOBAL.gtid_pos)`
+--let $d1_point3= `SELECT extract_gtid("1", @@GLOBAL.gtid_binlog_pos)`
+--let $d2_point3= `SELECT extract_gtid("2", @@GLOBAL.gtid_binlog_pos)`
 SET gtid_domain_id = 2;
 INSERT INTO t2 VALUES (6);
 SET gtid_domain_id = 0;
@@ -170,7 +170,7 @@ SELECT * FROM t1 ORDER BY a;
 
 --connection server_1
 CREATE TABLE t3 (a INT);
---let $until_condition=`SELECT @@GLOBAL.gtid_pos`
+--let $until_condition=`SELECT @@GLOBAL.gtid_binlog_pos`
 DROP TABLE t3;
 --save_master_pos
 
@@ -187,7 +187,7 @@ SHOW CREATE TABLE t3;
 --source include/stop_slave.inc
 RESET SLAVE ALL;
 RESET MASTER;
-SET GLOBAL gtid_pos='';
+SET GLOBAL gtid_slave_pos='';
 
 --connection server_1
 # Do it once to compute the right GTID, then throw it away and do it again
@@ -195,7 +195,7 @@ SET GLOBAL gtid_pos='';
 RESET MASTER;
 INSERT INTO t1 VALUES (10);
 INSERT INTO t1 VALUES (11);
---let $until_condition=`SELECT @@GLOBAL.gtid_pos`
+--let $until_condition=`SELECT @@GLOBAL.gtid_binlog_pos`
 INSERT INTO t1 VALUES (12);
 DELETE FROM t1 WHERE a >= 10;
 
@@ -205,7 +205,7 @@ INSERT INTO t1 VALUES (10);
 --connection server_2
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SERVER_MYPORT_1,
-     master_user = "root", master_use_gtid = 1;
+     master_user = "root", master_use_gtid = current_pos;
 eval START SLAVE UNTIL master_gtid_pos = '$until_condition';
 --source include/wait_for_slave_to_start.inc
 

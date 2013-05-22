@@ -177,7 +177,7 @@ while ($_rpl_server)
   if (!$rpl_skip_reset_master_and_slave)
   {
     RESET MASTER;
-    SET GLOBAL gtid_pos= "";
+    SET GLOBAL gtid_slave_pos= "";
     RESET SLAVE;
   }
   eval SET auto_increment_increment= $rpl_server_count;

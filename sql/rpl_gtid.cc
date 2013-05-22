@@ -29,7 +29,7 @@
 
 
 const LEX_STRING rpl_gtid_slave_state_table_name=
-  { C_STRING_WITH_LEN("rpl_slave_state") };
+  { C_STRING_WITH_LEN("gtid_slave_pos") };
 
 
 void
@@ -73,7 +73,7 @@ rpl_slave_state::record_and_update_gtid(THD *thd, Relay_log_info *rli)
   if ((sub_id= rli->gtid_sub_id))
   {
     rli->gtid_sub_id= 0;
-    if (record_gtid(thd, &rli->current_gtid, sub_id, false))
+    if (record_gtid(thd, &rli->current_gtid, sub_id, false, false))
       return 1;
     update_state_hash(sub_id, &rli->current_gtid);
   }
@@ -186,8 +186,6 @@ rpl_slave_state::truncate_state_table(THD *thd)
   int err= 0;
   TABLE *table;
 
-  mysql_reset_thd_for_next_command(thd, 0);
-
   tlist.init_one_table(STRING_WITH_LEN("mysql"),
                        rpl_gtid_slave_state_table_name.str,
                        rpl_gtid_slave_state_table_name.length,
@@ -234,7 +232,7 @@ static const TABLE_FIELD_TYPE mysql_rpl_slave_state_coltypes[4]= {
 
 static const uint mysql_rpl_slave_state_pk_parts[]= {0, 1};
 
-static const TABLE_FIELD_DEF mysql_rpl_slave_state_tabledef= {
+static const TABLE_FIELD_DEF mysql_gtid_slave_pos_tabledef= {
   array_elements(mysql_rpl_slave_state_coltypes),
   mysql_rpl_slave_state_coltypes,
   array_elements(mysql_rpl_slave_state_pk_parts),
@@ -256,14 +254,14 @@ protected:
 static Gtid_db_intact gtid_table_intact;
 
 /*
-  Check that the mysql.rpl_slave_state table has the correct definition.
+  Check that the mysql.gtid_slave_pos table has the correct definition.
 */
 int
 gtid_check_rpl_slave_state_table(TABLE *table)
 {
   int err;
 
-  if ((err= gtid_table_intact.check(table, &mysql_rpl_slave_state_tabledef)))
+  if ((err= gtid_table_intact.check(table, &mysql_gtid_slave_pos_tabledef)))
     my_error(ER_GTID_OPEN_TABLE_FAILED, MYF(0), "mysql",
              rpl_gtid_slave_state_table_name.str);
   return err;
@@ -286,7 +284,7 @@ gtid_check_rpl_slave_state_table(TABLE *table)
 */
 int
 rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                             bool in_transaction)
+                             bool in_transaction, bool in_statement)
 {
   TABLE_LIST tlist;
   int err= 0;
@@ -297,7 +295,8 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
 
-  mysql_reset_thd_for_next_command(thd, 0);
+  if (!in_statement)
+    mysql_reset_thd_for_next_command(thd, 0);
 
   DBUG_EXECUTE_IF("gtid_inject_record_gtid",
                   {
@@ -626,7 +625,7 @@ gtid_parser_helper(char **ptr, char *end, rpl_gtid *out_gtid)
 */
 int
 rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
-                      bool reset)
+                      bool reset, bool in_statement)
 {
   char *end= state_from_master + len;
 
@@ -645,7 +644,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
         !(sub_id= next_subid(gtid.domain_id)) ||
-        record_gtid(thd, &gtid, sub_id, false) ||
+        record_gtid(thd, &gtid, sub_id, false, in_statement) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
       return 1;
     if (state_from_master == end)
@@ -977,6 +976,23 @@ rpl_binlog_state::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
   }
 
   return 0;
+}
+
+
+bool
+rpl_binlog_state::append_pos(String *str)
+{
+  uint32 i;
+  bool first= true;
+
+  for (i= 0; i < hash.records; ++i)
+  {
+    element *e= (element *)my_hash_element(&hash, i);
+    if (rpl_slave_state_tostring_helper(str, e->last_gtid, &first))
+      return true;
+  }
+
+  return false;
 }
 
 

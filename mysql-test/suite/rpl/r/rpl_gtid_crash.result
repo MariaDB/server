@@ -3,12 +3,12 @@ include/rpl_init.inc [topology=1->2]
 call mtr.add_suppression("Checking table:");
 call mtr.add_suppression("client is using or hasn't closed the table properly");
 call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
-ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 0);
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 INSERT INTO t1 VALUES (2,1);
 INSERT INTO t1 VALUES (3,1);
 include/start_slave.inc
@@ -20,7 +20,7 @@ DROP TABLE t1;
 *** Test crashing the master mysqld and check that binlog state is recovered. ***
 include/stop_slave.inc
 RESET MASTER;
-SET GLOBAL gtid_pos='';
+SET GLOBAL gtid_slave_pos='';
 RESET MASTER;
 SHOW BINLOG EVENTS IN 'master-bin.000001' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

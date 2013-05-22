@@ -49,7 +49,7 @@ include/stop_slave.inc
 INSERT INTO t1 VALUES (5, "m1a");
 INSERT INTO t2 VALUES (5, "i1a");
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -68,7 +68,7 @@ a	b
 *** Now move B to D (C is still replicating from B) ***
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 UPDATE t2 SET b="j1a" WHERE a=5;
 SELECT * FROM t1 ORDER BY a;
@@ -92,7 +92,7 @@ INSERT INTO t2 VALUES (6, "i6b");
 INSERT INTO t2 VALUES (7, "i7b");
 COMMIT;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 SELECT * FROM t2 ORDER BY a;
 a	b
