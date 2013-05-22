@@ -3,6 +3,5 @@ if (!`SELECT count(*) FROM information_schema.engines WHERE
       engine = '$TEST_ENGINE_TYPE'`)
 {
   SELECT engine, support FROM information_schema.engines;
-  --echo Need $TEST_ENGINE_TYPE engine
-  skip Need $TEST_ENGINE_TYPE engine;
+  --let $SKIP_REASON= "Need $TEST_ENGINE_TYPE engine"
 }
