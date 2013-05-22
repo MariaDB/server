@@ -91,11 +91,12 @@ struct rpl_slave_state
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id, uint64 seq_no);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                      bool in_transaction);
+                  bool in_transaction, bool in_statement);
   uint64 next_subid(uint32 domain_id);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
-  int load(THD *thd, char *state_from_master, size_t len, bool reset);
+  int load(THD *thd, char *state_from_master, size_t len, bool reset,
+           bool in_statement);
   bool is_empty();
 
   void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
@@ -150,6 +151,7 @@ struct rpl_binlog_state
   uint32 count();
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  bool append_pos(String *str);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
 };
 

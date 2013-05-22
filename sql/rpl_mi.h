@@ -130,10 +130,14 @@ class Master_info : public Slave_reporting_capability
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
   /*
-    True if slave position is set using GTID state rather than old-style
-    file/offset binlog position.
+    Which kind of GTID position (if any) is used when connecting to master.
+
+    Note that you can not change the numeric values of these, they are used
+    in master.info.
   */
-  bool using_gtid;
+  enum {
+    USE_GTID_NO= 0, USE_GTID_CURRENT_POS= 1, USE_GTID_SLAVE_POS= 2
+  } using_gtid;
 };
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,

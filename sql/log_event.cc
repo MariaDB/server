@@ -4004,7 +4004,7 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
         const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
 
         gtid= rli->current_gtid;
-        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true))
+        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
           rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
                       "Error during COMMIT: failed to update GTID state in "
@@ -6895,7 +6895,7 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
     const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
 
     gtid= rli->current_gtid;
-    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
+    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
       rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,

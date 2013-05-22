@@ -24,7 +24,7 @@ set sql_mode='';
 -- We want this to be created with the default storage engine.
 -- This way, if InnoDB is used we get crash safety, and if MyISAM is used
 -- we avoid mixed-engine transactions.
-CREATE TABLE IF NOT EXISTS rpl_slave_state (domain_id INT UNSIGNED NOT NULL, sub_id BIGINT UNSIGNED NOT NULL, server_id INT UNSIGNED NOT NULL, seq_no BIGINT UNSIGNED NOT NULL, PRIMARY KEY (domain_id, sub_id)) comment='Replication slave GTID state';
+CREATE TABLE IF NOT EXISTS gtid_slave_pos (domain_id INT UNSIGNED NOT NULL, sub_id BIGINT UNSIGNED NOT NULL, server_id INT UNSIGNED NOT NULL, seq_no BIGINT UNSIGNED NOT NULL, PRIMARY KEY (domain_id, sub_id)) comment='Replication slave GTID state';
 
 set storage_engine=myisam;
 flush tables;

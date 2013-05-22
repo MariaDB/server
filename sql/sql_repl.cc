@@ -2511,7 +2511,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
       slave_errno= ER_BAD_SLAVE_UNTIL_COND;
       goto err;
     }
-    if (!mi->using_gtid)
+    if (mi->using_gtid == Master_info::USE_GTID_NO)
     {
       slave_errno= ER_UNTIL_REQUIRES_USING_GTID;
       goto err;
@@ -3112,12 +3112,14 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->rli.group_relay_log_pos= mi->rli.event_relay_log_pos= lex_mi->relay_log_pos;
   }
 
-  if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_MI_ENABLE)
-    mi->using_gtid= true;
-  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_MI_DISABLE ||
+  if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_SLAVE_POS)
+    mi->using_gtid= Master_info::USE_GTID_SLAVE_POS;
+  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_CURRENT_POS)
+    mi->using_gtid= Master_info::USE_GTID_CURRENT_POS;
+  else if (lex_mi->use_gtid_opt == LEX_MASTER_INFO::LEX_GTID_NO ||
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
-    mi->using_gtid= false;
+    mi->using_gtid= Master_info::USE_GTID_NO;
 
   /*
     If user did specify neither host nor port nor any log name nor any log
@@ -3173,7 +3175,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       goto err;
     }
 
-    if (mi->using_gtid)
+    if (mi->using_gtid != Master_info::USE_GTID_NO)
     {
       /*
         Clear the position in the master binlogs, so that we request the
@@ -3657,7 +3659,7 @@ int log_loaded_block(IO_CACHE* file)
 
 
 /**
-   Initialise the slave replication state from the mysql.rpl_slave_state table.
+   Initialise the slave replication state from the mysql.gtid_slave_pos table.
 
    This is called each time an SQL thread starts, but the data is only actually
    loaded on the first call.
@@ -3669,7 +3671,7 @@ int log_loaded_block(IO_CACHE* file)
    The one containing the current slave state is the one with the maximal
    sub_id value, within each domain_id.
 
-    CREATE TABLE mysql.rpl_slave_state (
+    CREATE TABLE mysql.gtid_slave_pos (
       domain_id INT UNSIGNED NOT NULL,
       sub_id BIGINT UNSIGNED NOT NULL,
       server_id INT UNSIGNED NOT NULL,
@@ -3705,7 +3707,7 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
   rpl_gtid *gtid_list= NULL;
   uint32 num_gtids= 0;
 
-  if (opt_bin_log &&
+  if (use_binlog && opt_bin_log &&
       (err= mysql_bin_log.get_most_recent_gtid_list(&gtid_list, &num_gtids)))
     return err;
 
@@ -3717,9 +3719,12 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
 
 
 bool
-rpl_gtid_pos_check(char *str, size_t len)
+rpl_gtid_pos_check(THD *thd, char *str, size_t len)
 {
+  /* ToDo: Use gtid_strict_mode sysvar, when implemented. */
+  static const bool gtid_strict_mode= false;
   slave_connection_state tmp_slave_state;
+  bool gave_conflict_warning= false, gave_missing_warning= false;
 
   /* Check that we can parse the supplied string. */
   if (tmp_slave_state.load(str, len))
@@ -3754,18 +3759,43 @@ rpl_gtid_pos_check(char *str, size_t len)
         continue;
       if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
       {
-        my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
-                 binlog_gtid->domain_id, binlog_gtid->domain_id,
-                 binlog_gtid->server_id, binlog_gtid->seq_no);
-        break;
+        if (gtid_strict_mode)
+        {
+          my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
+                   binlog_gtid->domain_id, binlog_gtid->domain_id,
+                   binlog_gtid->server_id, binlog_gtid->seq_no);
+          break;
+        }
+        else if (!gave_missing_warning)
+        {
+          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                              ER_MASTER_GTID_POS_MISSING_DOMAIN,
+                              ER(ER_MASTER_GTID_POS_MISSING_DOMAIN),
+                              binlog_gtid->domain_id, binlog_gtid->domain_id,
+                              binlog_gtid->server_id, binlog_gtid->seq_no);
+          gave_missing_warning= true;
+        }
       }
-      if (slave_gtid->seq_no < binlog_gtid->seq_no)
+      else if (slave_gtid->seq_no < binlog_gtid->seq_no)
       {
-        my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
-                 slave_gtid->domain_id, slave_gtid->server_id,
-                 slave_gtid->seq_no, binlog_gtid->domain_id,
-                 binlog_gtid->server_id, binlog_gtid->seq_no);
-        break;
+        if (gtid_strict_mode)
+        {
+          my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
+                   slave_gtid->domain_id, slave_gtid->server_id,
+                   slave_gtid->seq_no, binlog_gtid->domain_id,
+                   binlog_gtid->server_id, binlog_gtid->seq_no);
+          break;
+        }
+        else if (!gave_conflict_warning)
+        {
+          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                              ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG,
+                              ER(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG),
+                              slave_gtid->domain_id, slave_gtid->server_id,
+                              slave_gtid->seq_no, binlog_gtid->domain_id,
+                              binlog_gtid->server_id, binlog_gtid->seq_no);
+          gave_conflict_warning= true;
+        }
       }
     }
     my_free(binlog_gtid_list);
@@ -3780,7 +3810,7 @@ rpl_gtid_pos_check(char *str, size_t len)
 bool
 rpl_gtid_pos_update(THD *thd, char *str, size_t len)
 {
-  if (rpl_global_gtid_slave_state.load(thd, str, len, true))
+  if (rpl_global_gtid_slave_state.load(thd, str, len, true, true))
   {
     my_error(ER_FAILED_GTID_STATE_INIT, MYF(0));
     return true;

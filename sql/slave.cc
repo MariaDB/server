@@ -810,7 +810,8 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
     while one of the threads is running, they are in use and cannot be
     removed.
   */
-  if (mi->using_gtid && !mi->slave_running && !mi->rli.slave_running)
+  if (mi->using_gtid != Master_info::USE_GTID_NO &&
+      !mi->slave_running && !mi->rli.slave_running)
   {
     purge_relay_logs(&mi->rli, NULL, 0, &errmsg);
     mi->master_log_name[0]= 0;
@@ -1819,7 +1820,7 @@ after_set_capability:
     restart or reconnect, we might end up re-fetching and hence re-applying
     the same event(s) again.
   */
-  if (mi->using_gtid && !mi->master_log_name[0])
+  if (mi->using_gtid != Master_info::USE_GTID_NO && !mi->master_log_name[0])
   {
     int rc;
     char str_buf[256];
@@ -1849,7 +1850,9 @@ after_set_capability:
 
     connect_state.append(STRING_WITH_LEN("SET @slave_connect_state='"),
                          system_charset_info);
-    if (rpl_append_gtid_state(&connect_state, true))
+    if (rpl_append_gtid_state(&connect_state,
+                              mi->using_gtid ==
+                                  Master_info::USE_GTID_CURRENT_POS))
     {
       err_code= ER_OUTOFMEMORY;
       errmsg= "The slave I/O thread stops because a fatal out-of-memory "
@@ -1917,7 +1920,7 @@ after_set_capability:
       }
     }
   }
-  if (!mi->using_gtid)
+  if (mi->using_gtid == Master_info::USE_GTID_NO)
   {
     /*
       If we are not using GTID to connect this time, then instead request
@@ -1943,7 +1946,7 @@ after_set_capability:
         (master_row[0] != NULL))
     {
       rpl_global_gtid_slave_state.load(mi->io_thd, master_row[0],
-                                       strlen(master_row[0]), false);
+                                       strlen(master_row[0]), false, false);
     }
     else if (check_io_slave_killed(mi->io_thd, mi, NULL))
       goto slave_killed_err;
@@ -2307,8 +2310,8 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                              FN_REFLEN));
   field_list.push_back(new Item_return_int("Master_Server_Id", sizeof(ulong),
                                            MYSQL_TYPE_LONG));
-  field_list.push_back(new Item_return_int("Using_Gtid", sizeof(ulong),
-                                           MYSQL_TYPE_LONG));
+  field_list.push_back(new Item_empty_string("Using_Gtid",
+                                             sizeof("Current_Pos")-1));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2321,7 +2324,8 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                              10, MYSQL_TYPE_LONG));
     field_list.push_back(new Item_float("Slave_heartbeat_period",
                                         0.0, 3, 10));
-    field_list.push_back(new Item_empty_string("Gtid_Pos", gtid_pos_length));
+    field_list.push_back(new Item_empty_string("Gtid_Slave_Pos",
+                                               gtid_pos_length));
   }
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -2488,7 +2492,10 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     }
     // Master_Server_id
     protocol->store((uint32) mi->master_id);
-    protocol->store((uint32) (mi->using_gtid != 0));
+    protocol->store((mi->using_gtid==Master_info::USE_GTID_NO ? "No" :
+                     (mi->using_gtid==Master_info::USE_GTID_SLAVE_POS ?
+                      "Slave_Pos" : "Current_Pos")),
+                    &my_charset_bin);
     if (full)
     {
       protocol->store((uint32)    mi->rli.retried_trans);

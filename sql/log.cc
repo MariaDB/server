@@ -5521,6 +5521,18 @@ MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 
 
 bool
+MYSQL_BIN_LOG::append_state_pos(String *str)
+{
+  bool err;
+
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  err= rpl_global_gtid_binlog_state.append_pos(str);
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return err;
+}
+
+
+bool
 MYSQL_BIN_LOG::find_in_binlog_state(uint32 domain_id, uint32 server_id,
                                     rpl_gtid *out_gtid)
 {
@@ -8508,7 +8520,7 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->store_globals();
 
   /*
-    Load the slave replication GTID state from the mysql.rpl_slave_state
+    Load the slave replication GTID state from the mysql.gtid_slave_pos
     table.
 
     This is mostly so that we can start our seq_no counter from the highest
