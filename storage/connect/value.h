@@ -288,7 +288,7 @@ class DllExport DTVAL : public TYPVAL<int> {
           bool   MakeDate(PGLOBAL g, int *val, int nval);
           bool   WeekNum(PGLOBAL g, int& nval);
 
-  struct  tm    *GetGmTime(void);
+  struct  tm    *GetGmTime(struct tm *);
 
  protected:
   // Default constructor not to be used

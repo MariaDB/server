@@ -1251,9 +1251,8 @@ static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
 }
 
 
-struct tm *DTVAL::GetGmTime(void)
+struct tm *DTVAL::GetGmTime(struct tm *tm_buffer)
   {
-  static struct tm tm_static; /* TODO: Move as a parameter to GetGmTime() */
   struct tm *datm;
   time_t t = (time_t)Tval;
 
@@ -1263,13 +1262,13 @@ struct tm *DTVAL::GetGmTime(void)
     for (n = 0; t < 0; n += 4)
       t += FOURYEARS;
 
-    datm = gmtime_mysql(&t, &tm_static);
+    datm = gmtime_mysql(&t, tm_buffer);
 
     if (datm)
       datm->tm_year -= n;
 
   } else
-    datm = gmtime_mysql(&t, &tm_static);
+    datm = gmtime_mysql(&t, tm_buffer);
 
   return datm;
   } // end of GetGmTime
@@ -1519,7 +1518,7 @@ char *DTVAL::GetCharString(char *p)
   {
   if (Pdtp) {
     size_t n = 0;
-    struct tm *ptm = GetGmTime();
+    struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
       n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
@@ -1545,7 +1544,7 @@ char *DTVAL::ShowValue(char *buf, int len)
   if (Pdtp) {
     char  *p;
     size_t m, n = 0;
-    struct tm *ptm = GetGmTime();
+    struct tm tm, *ptm = GetGmTime(&tm);
 
     if (Len < len) {
       p = buf;
@@ -1575,7 +1574,7 @@ char *DTVAL::ShowValue(char *buf, int len)
 bool DTVAL::GetTmMember(OPVAL op, int& mval)
   {
   bool       rc = false;
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   switch (op) {
     case OP_MDAY:  mval = ptm->tm_mday;        break;
@@ -1603,7 +1602,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
   {
   // w is the start of the week SUN=0, MON=1, etc.
   int        m, n, w = nval % 7;
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   // Which day is January 4th of this year?
   m = (367 + ptm->tm_wday - ptm->tm_yday) % 7;
@@ -1627,7 +1626,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
 bool DTVAL::FormatValue(PVAL vp, char *fmt)
   {
   char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
-  struct tm *ptm = GetGmTime();
+  struct tm tm, *ptm = GetGmTime(&tm);
 
   if (trace)
     htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
