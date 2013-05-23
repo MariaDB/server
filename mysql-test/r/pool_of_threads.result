@@ -2157,10 +2157,10 @@ Warnings:
 Warning	1052	Column 'kundentyp' in group statement is ambiguous
 drop table t1;
 SET optimizer_switch=@save_optimizer_switch;
-SELECT sleep(5);
+SELECT sleep(5.5);
 SELECT sleep(5);
 # -- Success: more than --thread_pool_max_threads normal connections not possible
-sleep(5)
+sleep(5.5)
 0
 sleep(5)
 0
