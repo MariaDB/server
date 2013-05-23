@@ -18,7 +18,7 @@ typedef class TDBTBC *PTDBTBC;
 TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db, 
                                       const char *name, bool& mysql);
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
-                                        const char *name, bool info);
+                                        const char *name, bool& info);
 
 void Remove_tshp(PCATLG cat);
 

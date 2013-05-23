@@ -790,7 +790,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif m_Res
 #endif // 0
 
-    if (Srcdef)
+    if (!m_Rc && Srcdef)
       if (SetColumnRanks(g))
         return true;
 

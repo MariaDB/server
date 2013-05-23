@@ -390,20 +390,23 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 		strcpy(sval, s);
   } else if (!stricmp(what, "filename")) {
     // Return default file name
-    char *ftype= Hc->GetStringOption("Type", "dos");
+    char *ftype= Hc->GetStringOption("Type", "*");
     int   i, n;
 
-    sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
-    strcat(strcpy(sval, Hc->GetTableName()), ".");
-    n= strlen(sval);
+    if (IsFileType(GetTypeID(ftype))) {
+      sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
+      strcat(strcpy(sval, Hc->GetTableName()), ".");
+      n= strlen(sval);
+  
+      // Fold ftype to lower case
+      for (i= 0; i < 12; i++)
+        if (!ftype[i]) {
+          sval[n+i]= 0;
+          break;
+        } else
+          sval[n+i]= tolower(ftype[i]);
 
-    // Fold ftype to lower case
-    for (i= 0; i < 12; i++)
-      if (!ftype[i]) {
-        sval[n+i]= 0;
-        break;
-      } else
-        sval[n+i]= tolower(ftype[i]);
+      } // endif FileType
 
   } else
 		sval = NULL;
@@ -416,7 +419,7 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 /***********************************************************************/
 int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	{
-	char		*type= GetStringCatInfo(g, "Type", "DOS");
+	char		*type= GetStringCatInfo(g, "Type", "*");
 	int      i, loff, poff, nof, nlg;
 	void    *field= NULL;
   TABTYPE  tc;
@@ -598,8 +601,8 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
  	// If not specified get the type of this table
-  if (!type && !(type= Hc->GetStringOption("Type")))
-    type= (Hc->GetStringOption("Tabname")) ? "PROXY" : "DOS";
+  if (!type)
+    type= Hc->GetStringOption("Type","*");
 
   return MakeTableDesc(g, name, type);
   } // end of GetTableDesc
