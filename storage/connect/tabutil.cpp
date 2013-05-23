@@ -120,7 +120,7 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 /*  of the object table that will be retrieved by GetData commands.     */
 /************************************************************************/
 PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db, 
-                                        const char *name, bool info)
+                                        const char *name, bool& info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
                           TYPE_INT,    TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
@@ -143,7 +143,9 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     if (!(s = GetTableShare(g, thd, db, name, mysql))) {
       return NULL;
     } else if (s->is_view) {
-      strcpy(g->Message, "Cannot retreive Proxy columns from a view");
+      strcpy(g->Message, "Use MYSQL type to see columns from a view");
+      info = true;       // To tell caller name is a view
+      free_table_share(s);
       return NULL;
     } else
       n = s->fieldnames.count;
@@ -615,6 +617,8 @@ TDBTBC::TDBTBC(PPRXDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBTBC::GetResult(PGLOBAL g)
   {
-  return TabColumns(g, current_thd, Db, Tab, false);
+  bool b = false;
+
+  return TabColumns(g, current_thd, Db, Tab, b);
 	} // end of GetResult
 

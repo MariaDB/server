@@ -680,6 +680,10 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
       // Return the handler default value
       if (!stricmp(opname, "Dbname") || !stricmp(opname, "Database"))
         opval= (char*)GetDBName(NULL);    // Current database
+      else if (!stricmp(opname, "Type"))  // Default type
+        opval= (!options) ? NULL : 
+               (options->srcdef)  ? "MYSQL" :
+               (options->tabname) ? "PROXY" : "DOS";
       else if (!stricmp(opname, "User"))  // Connected user
         opval= table->in_use->main_security_ctx.user;
       else if (!stricmp(opname, "Host"))  // Connected user host
@@ -2671,7 +2675,9 @@ int ha_connect::delete_all_rows()
 bool ha_connect::check_privileges(THD *thd, PTOS options)
 {
   if (!options->type) {
-    if (options->tabname)
+    if (options->srcdef)
+      options->type= "MYSQL";
+    else if (options->tabname)
       options->type= "PROXY";
     else
       options->type= "DOS";
@@ -3336,7 +3342,7 @@ static bool add_field(String *sql, const char *field_name, const char *type,
   if (len) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
-    if (dec) {
+    if (dec || !strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
       error|= sql->append_ulonglong(dec);
       }
@@ -3379,7 +3385,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // WIN32
   int         port= 0, hdr= 0, mxr= 0, b= 0;
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
-  bool        ok= false, dbf= false;
+  bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
   MEM_ROOT   *mem= thd->mem_root;
   PQRYRES     qrp;
@@ -3546,6 +3552,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     ok= false;
     } // endif supfnc
 
+  if (src && fnc != FNC_NO) {
+    strcpy(g->Message, "Cannot make catalog table from srcdef");
+    ok= false;
+    } // endif src
+
   // Here we should test the flag column options when
   // this function is called in case of CREATE .. SELECT
 
@@ -3561,7 +3572,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     else
       return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    if (src && fnc == FNC_NO)
+    if (src)
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
     else switch (ttp) {
       case TAB_DBF:
@@ -3606,7 +3617,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       case TAB_PRX:
       case TAB_TBL:
       case TAB_XCL:
-        qrp= TabColumns(g, thd, db, tab, fnc == FNC_COL);
+        bif= fnc == FNC_COL;
+        qrp= TabColumns(g, thd, db, tab, bif);
+
+        if (!qrp && bif && fnc != FNC_COL)         // tab is a view
+          qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
+
         break;
       default:
         strcpy(g->Message, "System error during assisted discovery");
@@ -3624,9 +3640,10 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         cnm= encode(g, crp->Name);
         type= PLGtoMYSQLtype(crp->Type, dbf);
         len= crp->Length;
+        dec= crp->Prec;
      
         // Now add the field
-        if (add_field(&sql, cnm, type, len, 0, NOT_NULL_FLAG, 0))
+        if (add_field(&sql, cnm, type, len, dec, NOT_NULL_FLAG, 0))
           b= HA_ERR_OUT_OF_MEM;
         } // endfor crp
 
@@ -3780,6 +3797,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
       } // endif charset
 
+    if (xtrace)
+      printf("s_init: %.*s\n", sql.length(), sql.ptr());
+
     if (!b)
       b= table_s->init_from_sql_statement_string(thd, true,
                                                  sql.ptr(), sql.length());
@@ -3837,18 +3857,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   // Check table type
   if (type == TAB_UNDEF) {
-    if (!options->tabname) {
-      strcpy(g->Message, "No table_type. Will be set to DOS");
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      type= TAB_DOS;
-      options->type= "DOS";
-    } else {
-      strcpy(g->Message, "No table_type. Will be set to PROXY");
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
-      type= TAB_PRX;
-      options->type= "PROXY";
-    } // endif fnc
-
+    options->type= (options->srcdef)  ? "MYSQL" : 
+                   (options->tabname) ? "PROXY" : "DOS";
+    type= GetTypeID(options->type);
+    sprintf(g->Message, "No table_type. Will be set to %s", options->type);
+    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
   } else if (type == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", options->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
