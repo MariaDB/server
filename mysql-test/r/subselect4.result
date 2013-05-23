@@ -2393,5 +2393,31 @@ COUNT(b)
 1
 2
 drop table t1, t2, t3;
+#
+# MDEV-4407 SQ pushdown: Wrong result (extra rows) with IN and EXISTS subqueries, optimizer_use_condition_selectivity>1
+#
+SET optimizer_switch='expensive_pred_static_pushdown=on';
+SET optimizer_use_condition_selectivity=3;
+SET use_stat_tables=PREFERABLY;
+CREATE TABLE t1 (a INT, b INT, KEY(b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,1),(2,2),(1,1),(0,0);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+FLUSH TABLES;
+EXPLAIN
+SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EXISTS ( SELECT 1 FROM t1 WHERE b < outer_t1.a );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	outer_t1	ALL	b	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	Using where
+2	MATERIALIZED	t1	ALL	b	NULL	NULL	NULL	4	Using where
+3	DEPENDENT SUBQUERY	t1	index	b	b	5	NULL	4	Using where; Using index
+SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EXISTS ( SELECT 1 FROM t1 WHERE b < outer_t1.a );
+a	b
+2	2
+drop table t1;
+SET optimizer_switch=@@global.optimizer_switch;
+SET optimizer_use_condition_selectivity=default;
+SET use_stat_tables=default;
 SET optimizer_switch= @@global.optimizer_switch;
 set @@tmp_table_size= @@global.tmp_table_size;

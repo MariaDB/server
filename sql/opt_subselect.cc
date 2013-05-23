@@ -3620,7 +3620,10 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
                                                       emb_sj_nest->sj_subq_pred)))
       DBUG_RETURN(TRUE); /* purecov: inspected */
     sjm_tab->type= JT_EQ_REF;
-    sjm_tab->select_cond= sjm->in_equality;
+    remove_sj_conds(&sjm_tab->select_cond);
+    sjm_tab->select_cond= and_items(sjm_tab->select_cond, sjm->in_equality);
+    if (!sjm_tab->select_cond->fixed)
+      sjm_tab->select_cond->fix_fields(thd, &sjm_tab->select_cond);
   }
   else
   {
