@@ -1224,9 +1224,6 @@ void DTVAL::SetTimeShift(void)
 /*  though the gmtime C function. The purpose of this function is to   */
 /*  extend the range of valid dates by accepting negative time values. */
 /***********************************************************************/
-#define MYSQL_SERVER 1
-#include "tztime.h"
-#include "sql_priv.h"
 #include "sql_class.h"
 #include "sql_time.h"
 
@@ -1245,7 +1242,7 @@ static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
 static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
 {
   MYSQL_TIME ltime;
-  current_thd->variables.time_zone->gmt_sec_to_TIME(&ltime, (my_time_t) *timep);
+  thd_gmt_sec_to_TIME(current_thd, &ltime, (my_time_t) *timep);
   TIME_to_localtime(tm, &ltime);
   return tm;
 }
