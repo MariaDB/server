@@ -1,6 +1,5 @@
-#ifndef MYSQL_SERVICES_INCLUDED
-/* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Program Ab
+/* Copyright (C) 2013 MariaDB Foundation
+   Use is subject to license terms.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,22 +14,5 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <mysql/service_my_snprintf.h>
-#include <mysql/service_thd_alloc.h>
-#include <mysql/service_thd_wait.h>
-#include <mysql/service_progress_report.h>
-#include <mysql/service_debug_sync.h>
-#include <mysql/service_kill_statement.h>
-#include <mysql/service_thd_timezone.h>
-
-#ifdef __cplusplus
-}
-#endif
-
-#define MYSQL_SERVICES_INCLUDED
-#endif
-
+#include <service_versions.h>
+SERVICE_VERSION thd_timezone_service= (void *) VERSION_thd_timezone;

@@ -35,6 +35,7 @@
 #include "sql_cache.h"                          // query_cache_abort
 #include "sql_base.h"                           // close_thread_tables
 #include "sql_time.h"                         // date_time_format_copy
+#include "tztime.h"                           // MYSQL_TIME <-> my_time_t
 #include "sql_acl.h"                          // NO_ACCESS,
                                               // acl_getroot_no_password
 #include "sql_base.h"                         // close_temporary_tables
@@ -1260,6 +1261,26 @@ void thd_get_xid(const MYSQL_THD thd, MYSQL_XID *xid)
 {
   *xid = *(MYSQL_XID *) &thd->transaction.xid_state.xid;
 }
+
+
+extern "C"
+my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime,
+                              unsigned int *errcode)
+{
+  Time_zone *tz= thd ? thd->variables.time_zone :
+                       global_system_variables.time_zone;
+  return tz->TIME_to_gmt_sec(ltime, errcode);
+}
+
+
+extern "C"
+void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t)
+{
+  Time_zone *tz= thd ? thd->variables.time_zone :
+                       global_system_variables.time_zone;
+  tz->gmt_sec_to_TIME(ltime, t);
+}
+
 
 #ifdef _WIN32
 extern "C"   THD *_current_thd_noinline(void)
