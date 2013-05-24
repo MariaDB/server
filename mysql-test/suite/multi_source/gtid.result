@@ -35,9 +35,9 @@ Master_User	root
 Master_Port	MYPORT_3
 Connect_Retry	60
 Master_Log_File	server3-bin.000001
-Read_Master_Log_Pos	1499
+Read_Master_Log_Pos	1501
 Relay_Log_File	mysqld-relay-bin.000002
-Relay_Log_Pos	1788
+Relay_Log_Pos	1790
 Relay_Master_Log_File	server3-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
@@ -50,8 +50,8 @@ Replicate_Wild_Ignore_Table
 Last_Errno	0
 Last_Error	
 Skip_Counter	0
-Exec_Master_Log_Pos	1499
-Relay_Log_Space	2086
+Exec_Master_Log_Pos	1501
+Relay_Log_Space	2088
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0

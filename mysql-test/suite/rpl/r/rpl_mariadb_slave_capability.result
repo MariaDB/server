@@ -2,65 +2,66 @@ include/master-slave.inc
 [connection master]
 set @old_master_binlog_checksum= @@global.binlog_checksum;
 set @old_slave_dbug= @@global.debug_dbug;
-CREATE TABLE t1 (a INT PRIMARY KEY);
-INSERT INTO t1 VALUES (0);
-# Test slave with no capability gets dummy event, which is ignored.
 include/stop_slave.inc
+# Test slave with no capability gets dummy event, which is ignored.
 SET @@global.debug_dbug='+d,simulate_slave_capability_none';
 include/start_slave.inc
+FLUSH LOGS;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (0);
 ALTER TABLE t1 ORDER BY a;
 SET SESSION binlog_annotate_row_events = ON;
 DELETE FROM t1;
 INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1);
-show binlog events in 'master-bin.000001' from <binlog_start> limit 0, 10;
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000001	#	Delete_rows	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Query	#	#	COMMIT
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1)
-master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000001	#	Write_rows	#	#	table_id: # flags: STMT_END_F
-master-bin.000001	#	Query	#	#	COMMIT
-SELECT * FROM t1;
-a
-1
-show relaylog events in 'slave-relay-bin.000003' from <binlog_start> limit 0,10;
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-slave-relay-bin.000003	#	Query	#	#	BEGIN
-slave-relay-bin.000003	#	User var	#	#	@`!dummyvar`=NULL
-slave-relay-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
-slave-relay-bin.000003	#	Delete_rows	#	#	table_id: # flags: STMT_END_F
-slave-relay-bin.000003	#	Query	#	#	COMMIT
-slave-relay-bin.000003	#	Query	#	#	BEGIN
-slave-relay-bin.000003	#	Query	#	#	# Dummy event replacing event type 160 that slave cannot handle.                                                                                                         
-slave-relay-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
-slave-relay-bin.000003	#	Write_rows	#	#	table_id: # flags: STMT_END_F
-slave-relay-bin.000003	#	Query	#	#	COMMIT
-set @@global.debug_dbug= @old_slave_dbug;
-# Test dummy event is checksummed correctly.
-set @@global.binlog_checksum = CRC32;
-TRUNCATE t1;
-INSERT INTO t1 VALUES(2);
-show binlog events in 'master-bin.000002' from <binlog_start> limit 0, 5;
+show binlog events in 'master-bin.000002' from <binlog_start> limit 0, 10;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
+master-bin.000002	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000002	#	Delete_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000002	#	Annotate_rows	#	#	INSERT INTO t1 /* A comment just to make the annotate event sufficiently long that the dummy event will need to get padded with spaces so that we can test that this works */ VALUES(1)
 master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
 master-bin.000002	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 master-bin.000002	#	Query	#	#	COMMIT
 SELECT * FROM t1;
 a
-2
-show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 7,5;
+1
+show relaylog events in 'slave-relay-bin.000005' from <binlog_start> limit 0,10;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 slave-relay-bin.000005	#	Query	#	#	BEGIN
-slave-relay-bin.000005	#	Query	#	#	# Dummy ev
+slave-relay-bin.000005	#	User var	#	#	@`!dummyvar`=NULL
+slave-relay-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000005	#	Delete_rows	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000005	#	Query	#	#	COMMIT
+slave-relay-bin.000005	#	Query	#	#	BEGIN
+slave-relay-bin.000005	#	Query	#	#	# Dummy event replacing event type 160 that slave cannot handle.                                                                                                         
 slave-relay-bin.000005	#	Table_map	#	#	table_id: # (test.t1)
 slave-relay-bin.000005	#	Write_rows	#	#	table_id: # flags: STMT_END_F
 slave-relay-bin.000005	#	Query	#	#	COMMIT
+set @@global.debug_dbug= @old_slave_dbug;
+# Test dummy event is checksummed correctly.
+set @@global.binlog_checksum = CRC32;
+TRUNCATE t1;
+INSERT INTO t1 VALUES(2);
+show binlog events in 'master-bin.000003' from <binlog_start> limit 0, 5;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2)
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Query	#	#	COMMIT
+SELECT * FROM t1;
+a
+2
+show relaylog events in 'slave-relay-bin.000007' from <binlog_start> limit 7,5;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-relay-bin.000007	#	Query	#	#	BEGIN
+slave-relay-bin.000007	#	Query	#	#	# Dummy ev
+slave-relay-bin.000007	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000007	#	Write_rows	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000007	#	Query	#	#	COMMIT
 # Test that slave which cannot tolerate holes in binlog stream but
 # knows the event does not get dummy event
 include/stop_slave.inc
@@ -68,23 +69,23 @@ SET @@global.debug_dbug='+d,simulate_slave_capability_old_53';
 include/start_slave.inc
 ALTER TABLE t1 ORDER BY a;
 UPDATE t1 SET a = 3;
-show binlog events in 'master-bin.000002' from <binlog_start> limit 0, 5;
+show binlog events in 'master-bin.000003' from <binlog_start> limit 0, 5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
-master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000002	#	Update_rows	#	#	table_id: # flags: STMT_END_F
-master-bin.000002	#	Query	#	#	COMMIT
+master-bin.000003	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000003	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
+master-bin.000003	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000003	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+master-bin.000003	#	Query	#	#	COMMIT
 SELECT * FROM t1;
 a
 3
-show relaylog events in 'slave-relay-bin.000006' from <binlog_start> limit 0,5;
+show relaylog events in 'slave-relay-bin.000008' from <binlog_start> limit 0,5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-slave-relay-bin.000006	#	Query	#	#	BEGIN
-slave-relay-bin.000006	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
-slave-relay-bin.000006	#	Table_map	#	#	table_id: # (test.t1)
-slave-relay-bin.000006	#	Update_rows	#	#	table_id: # flags: STMT_END_F
-slave-relay-bin.000006	#	Query	#	#	COMMIT
+slave-relay-bin.000008	#	Query	#	#	BEGIN
+slave-relay-bin.000008	#	Annotate_rows	#	#	UPDATE t1 SET a = 3
+slave-relay-bin.000008	#	Table_map	#	#	table_id: # (test.t1)
+slave-relay-bin.000008	#	Update_rows	#	#	table_id: # flags: STMT_END_F
+slave-relay-bin.000008	#	Query	#	#	COMMIT
 select @@global.log_slave_updates;
 @@global.log_slave_updates
 1

@@ -11,13 +11,13 @@ set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
 show slave 'master1' status;
 Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Using_Gtid
-Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	311	mysqld-relay-bin-master1.000002	599	master-bin.000001	Yes	Yes							0		0	311	905	None		0	No						0	No	0		0			1	No
+Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	313	mysqld-relay-bin-master1.000002	601	master-bin.000001	Yes	Yes							0		0	313	907	None		0	No						0	No	0		0			1	No
 show slave status;
 Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Using_Gtid
-Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	311	mysqld-relay-bin-master1.000002	599	master-bin.000001	Yes	Yes							0		0	311	905	None		0	No						0	No	0		0			1	No
+Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	313	mysqld-relay-bin-master1.000002	601	master-bin.000001	Yes	Yes							0		0	313	907	None		0	No						0	No	0		0			1	No
 show all slaves status;
 Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Using_Gtid	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
-master1	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	311	mysqld-relay-bin-master1.000002	599	master-bin.000001	Yes	Yes							0		0	311	905	None		0	No						0	No	0		0			1	No	0	1073741824	7	0	60.000	
+master1	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	313	mysqld-relay-bin-master1.000002	601	master-bin.000001	Yes	Yes							0		0	313	907	None		0	No						0	No	0		0			1	No	0	1073741824	7	0	60.000	
 drop database if exists db1;
 create database db1;
 use db1;
@@ -40,18 +40,18 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin-master1.000002	4	Format_desc	3	248	Server version
 mysqld-relay-bin-master1.000002	248	Rotate	1	0	master-bin.000001;pos=4
 mysqld-relay-bin-master1.000002	292	Format_desc	1	248	Server version
-mysqld-relay-bin-master1.000002	536	Gtid_list	1	271	[]
-mysqld-relay-bin-master1.000002	559	Binlog_checkpoint	1	311	master-bin.000001
-mysqld-relay-bin-master1.000002	599	Gtid	1	349	GTID 0-1-1
-mysqld-relay-bin-master1.000002	637	Query	1	438	drop database if exists db1
-mysqld-relay-bin-master1.000002	726	Gtid	1	476	GTID 0-1-2
-mysqld-relay-bin-master1.000002	764	Query	1	557	create database db1
-mysqld-relay-bin-master1.000002	845	Gtid	1	595	GTID 0-1-3
-mysqld-relay-bin-master1.000002	883	Query	1	748	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
-mysqld-relay-bin-master1.000002	1036	Gtid	1	786	BEGIN GTID 0-1-4
-mysqld-relay-bin-master1.000002	1074	Intvar	1	814	INSERT_ID=1
-mysqld-relay-bin-master1.000002	1102	Query	1	918	use `db1`; insert into t1 (f1) values ('one'),('two')
-mysqld-relay-bin-master1.000002	1206	Query	1	986	COMMIT
+mysqld-relay-bin-master1.000002	536	Gtid_list	1	273	[]
+mysqld-relay-bin-master1.000002	561	Binlog_checkpoint	1	313	master-bin.000001
+mysqld-relay-bin-master1.000002	601	Gtid	1	351	GTID 0-1-1
+mysqld-relay-bin-master1.000002	639	Query	1	440	drop database if exists db1
+mysqld-relay-bin-master1.000002	728	Gtid	1	478	GTID 0-1-2
+mysqld-relay-bin-master1.000002	766	Query	1	559	create database db1
+mysqld-relay-bin-master1.000002	847	Gtid	1	597	GTID 0-1-3
+mysqld-relay-bin-master1.000002	885	Query	1	750	use `db1`; create table t1 (i int auto_increment, f1 varchar(16), primary key pk (i,f1)) engine=MyISAM
+mysqld-relay-bin-master1.000002	1038	Gtid	1	788	BEGIN GTID 0-1-4
+mysqld-relay-bin-master1.000002	1076	Intvar	1	816	INSERT_ID=1
+mysqld-relay-bin-master1.000002	1104	Query	1	920	use `db1`; insert into t1 (f1) values ('one'),('two')
+mysqld-relay-bin-master1.000002	1208	Query	1	988	COMMIT
 change master 'master1' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
@@ -76,8 +76,8 @@ start slave;
 include/wait_for_slave_to_start.inc
 show all slaves status;
 Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Using_Gtid	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
-	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	311	mysqld-relay-bin.000002	599	master-bin.000001	Yes	Yes							0		0	311	897	None		0	No						0	No	0		0			2	No	0	1073741824	7	0	60.000	0-1-4
-master1	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	986	mysqld-relay-bin-master1.000002	1274	master-bin.000001	Yes	Yes							0		0	986	1580	None		0	No						0	No	0		0			1	No	0	1073741824	17	0	60.000	0-1-4
+	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	313	mysqld-relay-bin.000002	601	master-bin.000001	Yes	Yes							0		0	313	899	None		0	No						0	No	0		0			2	No	0	1073741824	7	0	60.000	0-1-4
+master1	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000001	988	mysqld-relay-bin-master1.000002	1276	master-bin.000001	Yes	Yes							0		0	988	1582	None		0	No						0	No	0		0			1	No	0	1073741824	17	0	60.000	0-1-4
 insert into t1 (f1) values ('three');
 drop database if exists db2;
 create database db2;
@@ -106,7 +106,7 @@ insert into t1 (f1) values ('four');
 create table db1.t3 (f1 int) engine=InnoDB;
 show all slaves status;
 Connection_name	Slave_SQL_State	Slave_IO_State	Master_Host	Master_User	Master_Port	Connect_Retry	Master_Log_File	Read_Master_Log_Pos	Relay_Log_File	Relay_Log_Pos	Relay_Master_Log_File	Slave_IO_Running	Slave_SQL_Running	Replicate_Do_DB	Replicate_Ignore_DB	Replicate_Do_Table	Replicate_Ignore_Table	Replicate_Wild_Do_Table	Replicate_Wild_Ignore_Table	Last_Errno	Last_Error	Skip_Counter	Exec_Master_Log_Pos	Relay_Log_Space	Until_Condition	Until_Log_File	Until_Log_Pos	Master_SSL_Allowed	Master_SSL_CA_File	Master_SSL_CA_Path	Master_SSL_Cert	Master_SSL_Cipher	Master_SSL_Key	Seconds_Behind_Master	Master_SSL_Verify_Server_Cert	Last_IO_Errno	Last_IO_Error	Last_SQL_Errno	Last_SQL_Error	Replicate_Ignore_Server_Ids	Master_Server_Id	Using_Gtid	Retried_transactions	Max_relay_log_size	Executed_log_entries	Slave_received_heartbeats	Slave_heartbeat_period	Gtid_Slave_Pos
-	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	919	mysqld-relay-bin.000002	1207	master-bin.000001	Yes	Yes							0		0	919	1505	None		0	No						0	No	0		0			2	No	0	1073741824	17	0	60.000	0-1-7
+	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_2	60	master-bin.000001	921	mysqld-relay-bin.000002	1209	master-bin.000001	Yes	Yes							0		0	921	1507	None		0	No						0	No	0		0			2	No	0	1073741824	17	0	60.000	0-1-7
 master1	Slave has read all relay log; waiting for the slave I/O thread to update it	Waiting for master to send event	127.0.0.1	root	MYPORT_1	60	master-bin.000002	740	mysqld-relay-bin-master1.000004	1028	master-bin.000002	Yes	Yes							0		0	740	1378	None		0	No						0	No	0		0			1	No	0	1073741824	37	0	60.000	0-1-7
 select * from db1.t1;
 i	f1
@@ -123,18 +123,18 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 mysqld-relay-bin.000002	4	Format_desc	3	248	Server version
 mysqld-relay-bin.000002	248	Rotate	2	0	master-bin.000001;pos=4
 mysqld-relay-bin.000002	292	Format_desc	2	248	Server version
-mysqld-relay-bin.000002	536	Gtid_list	2	271	[]
-mysqld-relay-bin.000002	559	Binlog_checkpoint	2	311	master-bin.000001
-mysqld-relay-bin.000002	599	Gtid	2	349	GTID 0-2-1
-mysqld-relay-bin.000002	637	Query	2	438	drop database if exists db2
-mysqld-relay-bin.000002	726	Gtid	2	476	GTID 0-2-2
-mysqld-relay-bin.000002	764	Query	2	557	create database db2
-mysqld-relay-bin.000002	845	Gtid	2	595	GTID 0-2-3
-mysqld-relay-bin.000002	883	Query	2	730	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
-mysqld-relay-bin.000002	1018	Gtid	2	768	BEGIN GTID 0-2-4
-mysqld-relay-bin.000002	1056	Intvar	2	796	INSERT_ID=1
-mysqld-relay-bin.000002	1084	Query	2	892	use `db2`; insert into t1 (f1) values (1),(2)
-mysqld-relay-bin.000002	1180	Xid	2	919	COMMIT /* xid=<num> */
+mysqld-relay-bin.000002	536	Gtid_list	2	273	[]
+mysqld-relay-bin.000002	561	Binlog_checkpoint	2	313	master-bin.000001
+mysqld-relay-bin.000002	601	Gtid	2	351	GTID 0-2-1
+mysqld-relay-bin.000002	639	Query	2	440	drop database if exists db2
+mysqld-relay-bin.000002	728	Gtid	2	478	GTID 0-2-2
+mysqld-relay-bin.000002	766	Query	2	559	create database db2
+mysqld-relay-bin.000002	847	Gtid	2	597	GTID 0-2-3
+mysqld-relay-bin.000002	885	Query	2	732	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
+mysqld-relay-bin.000002	1020	Gtid	2	770	BEGIN GTID 0-2-4
+mysqld-relay-bin.000002	1058	Intvar	2	798	INSERT_ID=1
+mysqld-relay-bin.000002	1086	Query	2	894	use `db2`; insert into t1 (f1) values (1),(2)
+mysqld-relay-bin.000002	1182	Xid	2	921	COMMIT /* xid=<num> */
 stop slave io_thread;
 show status like 'Slave_running';
 Variable_name	Value

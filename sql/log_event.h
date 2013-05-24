@@ -3181,7 +3181,14 @@ public:
                       const Format_description_log_event *description_event);
   ~Gtid_list_log_event() { my_free(list); }
   Log_event_type get_type_code() { return GTID_LIST_EVENT; }
-  int get_data_size() { return GTID_LIST_HEADER_LEN + count*element_size; }
+  int get_data_size() {
+    /*
+      Replacing with dummy event, needed for older slaves, requires a minimum
+      of 6 bytes in the body.
+    */
+    return (count==0 ?
+            GTID_LIST_HEADER_LEN+2 : GTID_LIST_HEADER_LEN+count*element_size);
+  }
   bool is_valid() const { return list != NULL; }
 #if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
   bool to_packet(String *packet);

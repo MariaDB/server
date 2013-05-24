@@ -6374,7 +6374,7 @@ Gtid_list_log_event::to_packet(String *packet)
 
   DBUG_ASSERT(count < 1<<28);
 
-  needed_length= packet->length() + 4 + count*element_size;
+  needed_length= packet->length() + get_data_size();
   if (packet->reserve(needed_length))
     return true;
   p= (uchar *)packet->ptr() + packet->length();;
