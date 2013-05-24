@@ -1,3 +1,10 @@
+-- source include/not_embedded.inc
+
+#
+# TODO: consider a possibility to run this test
+# against some remote MySQL server
+#
+
 let $PORT= `select @@port`;
 
 --disable_query_log
