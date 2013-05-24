@@ -49,13 +49,10 @@ Created 1/20/1994 Heikki Tuuri
 #define _IB_TO_STR(s)	#s
 #define IB_TO_STR(s)	_IB_TO_STR(s)
 
-#define INNODB_VERSION_MAJOR	1
-#define INNODB_VERSION_MINOR	1
-#define INNODB_VERSION_BUGFIX	8
+#include <mysql_version.h>
 
-#ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 29.3
-#endif
+#define INNODB_VERSION_MAJOR	MYSQL_MAJOR_VERSION
+#define INNODB_VERSION_MINOR	MYSQL_MINOR_VERSION
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -66,11 +63,11 @@ component, i.e. we show M.N.P as M.N */
 #define INNODB_VERSION_SHORT	\
 	(INNODB_VERSION_MAJOR << 8 | INNODB_VERSION_MINOR)
 
-#define INNODB_VERSION_STR			\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."	\
-	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
-	IB_TO_STR(INNODB_VERSION_BUGFIX) "-"	\
-	IB_TO_STR(PERCONA_INNODB_VERSION)
+#ifndef PERCONA_INNODB_VERSION
+#define PERCONA_INNODB_VERSION 30.1
+#endif
+
+#define INNODB_VERSION_STR	MYSQL_SERVER_VERSION "-" IB_TO_STR(PERCONA_INNODB_VERSION)
 
 #define REFMAN "http://dev.mysql.com/doc/refman/"	\
 	IB_TO_STR(MYSQL_MAJOR_VERSION) "."		\
@@ -299,6 +296,24 @@ management to ensure correct alignment for doubles etc. */
 			DATABASE VERSION CONTROL
 			========================
 */
+
+/** There are currently two InnoDB file formats which are used to group
+features with similar restrictions and dependencies. Using an enum allows
+switch statements to give a compiler warning when a new one is introduced. */
+enum innodb_file_formats_enum {
+	/** Antelope File Format: InnoDB/MySQL up to 5.1.
+	This format includes REDUNDANT and COMPACT row formats */
+	UNIV_FORMAT_A		= 0,
+
+	/** Barracuda File Format: Introduced in InnoDB plugin for 5.1:
+	This format includes COMPRESSED and DYNAMIC row formats.  It
+	includes the ability to create secondary indexes from data that
+	is not on the clustered index page and the ability to store more
+	data off the clustered index page. */
+	UNIV_FORMAT_B		= 1
+};
+
+typedef enum innodb_file_formats_enum innodb_file_formats_t;
 
 /* The 2-logarithm of UNIV_PAGE_SIZE: */
 /* #define UNIV_PAGE_SIZE_SHIFT	14 */

@@ -1503,6 +1503,13 @@ os_file_create_func(
 	DWORD		create_flag;
 	DWORD		attributes;
 	ibool		retry;
+
+	DBUG_EXECUTE_IF(
+		"ib_create_table_fail_disk_full",
+		*success = FALSE;
+		SetLastError(ERROR_DISK_FULL);
+		return((os_file_t) -1);
+	);
 try_again:
 	ut_a(name);
 
@@ -1633,6 +1640,12 @@ try_again:
 	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW)
 		WAIT_ALLOW_WRITES();
 
+	DBUG_EXECUTE_IF(
+		"ib_create_table_fail_disk_full",
+		*success = FALSE;
+		errno = ENOSPC;
+		return((os_file_t) -1);
+	);
 try_again:
 	ut_a(name);
 
@@ -2397,7 +2410,7 @@ os_file_pread(
 
 	os_n_file_reads++;
 
-	if (innobase_get_slow_log() && trx && trx->take_stats)
+	if (UNIV_UNLIKELY(trx && trx->take_stats))
 	{
 	        trx->io_reads++;
 		trx->io_read += n;
@@ -2430,7 +2443,7 @@ os_file_pread(
 	os_n_pending_reads--;
 	os_mutex_exit(os_file_count_mutex);
 
-	if (innobase_get_slow_log() && trx && trx->take_stats && start_time)
+	if (UNIV_UNLIKELY(start_time != 0))
 	{
 		ut_usectime(&sec, &ms);
 		finish_time = (ib_uint64_t)sec * 1000000 + ms;
@@ -2484,7 +2497,7 @@ os_file_pread(
 		os_n_pending_reads--;
 		os_mutex_exit(os_file_count_mutex);
 
-		if (innobase_get_slow_log() && trx && trx->take_stats && start_time)
+		if (UNIV_UNLIKELY(start_time != 0)
 		{
 			ut_usectime(&sec, &ms);
 			finish_time = (ib_uint64_t)sec * 1000000 + ms;
@@ -4266,8 +4279,8 @@ os_aio_func(
 	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
-	ut_ad(n % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
+	ut_ad(n % OS_MIN_LOG_BLOCK_SIZE == 0);
+	ut_ad(offset % OS_MIN_LOG_BLOCK_SIZE == 0);
 	ut_ad(os_aio_validate_skip());
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);
