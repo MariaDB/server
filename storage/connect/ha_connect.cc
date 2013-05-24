@@ -2794,6 +2794,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::external_lock");
 
+  DBUG_ASSERT(thd == current_thd);
+
   if (xtrace)
     printf("%p external_lock: lock_type=%d\n", this, lock_type);
 
@@ -2914,16 +2916,16 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     } // endif MODE_ANY
 
   if (xtrace) {
-    printf("%p external_lock: cmdtype=%d\n", this, thd->lex->sql_command);
-    printf("Cmd=%.*s\n", (int) thd->query_string.length(),
-                         thd->query_string.str());
+    LEX_STRING *query_string= thd_query_string(thd);
+    printf("%p external_lock: cmdtype=%d\n", this, thd_sql_command(thd));
+    printf("Cmd=%.*s\n", (int) query_string->length, query_string->str);
     } // endif xtrace
 
   // Next code is temporarily replaced until sql_command is set
   stop= false;
 
   if (newmode == MODE_WRITE) {
-    switch (thd->lex->sql_command) {
+    switch (thd_sql_command(thd)) {
       case SQLCOM_CREATE_TABLE:
       case SQLCOM_INSERT:
       case SQLCOM_LOAD:
@@ -2963,13 +2965,13 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         newmode= MODE_ANY;
         break;
       default:
-        printf("Unsupported sql_command=%d", thd->lex->sql_command);
-        sprintf(g->Message, "Unsupported sql_command=%d", thd->lex->sql_command);
+        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endswitch newmode
 
   } else if (newmode == MODE_READ) {
-    switch (thd->lex->sql_command) {
+    switch (thd_sql_command(thd)) {
       case SQLCOM_CREATE_TABLE:
         xcheck= true;
         cras= true;
@@ -3000,8 +3002,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
         newmode= MODE_ANY;
         break;
       default:
-        printf("Unsupported sql_command=%d", thd->lex->sql_command);
-        sprintf(g->Message, "Unsupported sql_command=%d", thd->lex->sql_command);
+        printf("Unsupported sql_command=%d", thd_sql_command(thd));
+        sprintf(g->Message, "Unsupported sql_command=%d", thd_sql_command(thd));
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endswitch newmode
 
@@ -3387,7 +3389,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
-  MEM_ROOT   *mem= thd->mem_root;
   PQRYRES     qrp;
   PCOLRES     crp;
   PGLOBAL     g= GetPlug(thd, NULL);
@@ -3436,7 +3437,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   } // endif option_list
 
   if (!db)
-    db= thd->db;                     // Default value
+    db= table_s->db.str;                     // Default value
 
   // Check table type
   if (ttp == TAB_UNDEF) {
@@ -3568,7 +3569,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
     if (cat)
-      cat->SetDataPath(g, thd->db);
+      cat->SetDataPath(g, table_s->db.str);
     else
       return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
@@ -3907,7 +3908,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
         } else if (options->tabname) {
           if (!stricmp(options->tabname, create_info->alias) &&
-             (!options->dbname || !stricmp(options->dbname, thd->db))) {
+             (!options->dbname || !stricmp(options->dbname, table_arg->s->db.str))) {
             sprintf(g->Message, "A %s table cannot refer to itself",
                                 options->type);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
