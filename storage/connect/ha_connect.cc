@@ -685,9 +685,9 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                (options->srcdef)  ? "MYSQL" :
                (options->tabname) ? "PROXY" : "DOS";
       else if (!stricmp(opname, "User"))  // Connected user
-        opval= table->in_use->main_security_ctx.user;
+        opval= (char *) "root";
       else if (!stricmp(opname, "Host"))  // Connected user host
-        opval= table->in_use->main_security_ctx.host;
+        opval= (char *) "localhost";
       else
         opval= sdef;                      // Caller default
 
@@ -3528,7 +3528,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           ok= false;
 
       } else if (!user)
-        user= thd->main_security_ctx.user;
+        user= "root";
 
       break;
 #endif   // MYSQL_SUPPORT
@@ -4121,7 +4121,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       PIXDEF xdp;
 
       // We should be in CREATE TABLE
-      if (table->in_use->lex->sql_command != SQLCOM_CREATE_TABLE)
+      if (thd_sql_command(table->in_use) != SQLCOM_CREATE_TABLE)
         push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0,
           "Wrong command in create, please contact CONNECT team");
 
@@ -4131,7 +4131,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
         if (cat) {
-          cat->SetDataPath(g, table_arg->in_use->db);
+          cat->SetDataPath(g, table_arg->s->db.str);
 
           if ((rc= optimize(table->in_use, NULL))) {
             printf("Create rc=%d %s\n", rc, g->Message);
