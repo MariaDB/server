@@ -32,7 +32,7 @@ cleanup_joiner()
     rm -rf "$RSYNC_CONF"
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
-    echo " done." >&2
+    wsrep_log_info "Joiner cleanup done."
 }
 
 check_pid()

@@ -38,12 +38,12 @@ local_ip()
     return 1
 }
 
-if test -z "$WSREP_SST_OPT_USER";  then err "USER cannot be nil";  exit $EINVAL; fi
-if test -z "$WSREP_SST_OPT_HOST";  then err "HOST cannot be nil";  exit $EINVAL; fi
-if test -z "$WSREP_SST_OPT_PORT";  then err "PORT cannot be nil";  exit $EINVAL; fi
-if test -z "$WSREP_SST_OPT_LPORT"; then err "LPORT cannot be nil"; exit $EINVAL; fi
-if test -z "$WSREP_SST_OPT_SOCKET";then err "SOCKET cannot be nil";exit $EINVAL; fi
-if test -z "$WSREP_SST_OPT_GTID";  then err "GTID cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_USER";  then wsrep_log_error "USER cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_HOST";  then wsrep_log_error "HOST cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_PORT";  then wsrep_log_error "PORT cannot be nil";  exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_LPORT"; then wsrep_log_error "LPORT cannot be nil"; exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_SOCKET";then wsrep_log_error "SOCKET cannot be nil";exit $EINVAL; fi
+if test -z "$WSREP_SST_OPT_GTID";  then wsrep_log_error "GTID cannot be nil";  exit $EINVAL; fi
 
 if local_ip $WSREP_SST_OPT_HOST && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
@@ -57,7 +57,7 @@ fi
 if ! mysql --version | grep 'Distrib 5.5' >/dev/null
 then
     mysql --version >&2
-    err "this operation requires MySQL client version 5.5.x"
+    wsrep_log_error "this operation requires MySQL client version 5.5.x"
     exit $EINVAL
 fi
 

@@ -3658,7 +3658,8 @@ bool select_insert::send_eof()
                        trans_table, table->file->table_type()));
 
 #ifdef WITH_WSREP
-  error= (thd->wsrep_conflict_state == MUST_ABORT) ? -1 :
+  error= (thd->wsrep_conflict_state == MUST_ABORT ||
+          thd->wsrep_conflict_state == CERT_FAILURE) ? -1 :
     (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
           table->file->ha_end_bulk_insert() : 0);
 #else
@@ -4249,6 +4250,18 @@ bool select_create::send_eof()
     {
       trans_commit_stmt(thd);
       trans_commit_implicit(thd);
+#ifdef WITH_WSREP
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      {
+        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s", 
+                    thd->thread_id, thd->wsrep_conflict_state, thd->query());
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        abort_result_set();
+	return TRUE;
+      }
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
     }
 
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);

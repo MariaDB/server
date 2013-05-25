@@ -321,6 +321,7 @@ wsrep_run_wsrep_commit(
     {
       WSREP_DEBUG("empty rbr buffer, query: %s", thd->query());
     }
+    thd->wsrep_query_state= QUERY_EXEC;
     DBUG_RETURN(WSREP_TRX_OK);
   }
   if (WSREP_UNDEFINED_TRX_ID == thd->wsrep_trx_handle.trx_id)
