@@ -6381,6 +6381,9 @@ Gtid_list_log_event::to_packet(String *packet)
   packet->length(needed_length);
   int4store(p, (count & ((1<<28)-1)) | gl_flags);
   p += 4;
+  /* Initialise the padding for empty Gtid_list. */
+  if (count == 0)
+    int2store(p, 0);
   for (i= 0; i < count; ++i)
   {
     int4store(p, list[i].domain_id);
