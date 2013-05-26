@@ -61,7 +61,7 @@ extern struct thd_timezone_service_st {
 
 #else
 
-my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime, uint *errcode);
+my_time_t thd_TIME_to_gmt_sec(MYSQL_THD thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(MYSQL_THD thd, MYSQL_TIME *ltime, my_time_t t);
 
 #endif
