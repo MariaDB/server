@@ -1920,11 +1920,12 @@ my_tosort_unicode(MY_UNICASE_INFO * const* uni_plane, my_wc_t *wc)
 **	 1 if matched with wildcard
 */
 
-int my_wildcmp_unicode(CHARSET_INFO *cs,
-		       const char *str,const char *str_end,
-		       const char *wildstr,const char *wildend,
-		       int escape, int w_one, int w_many,
-		       MY_UNICASE_INFO *const *weights)
+static
+int my_wildcmp_unicode_impl(CHARSET_INFO *cs,
+                            const char *str,const char *str_end,
+                            const char *wildstr,const char *wildend,
+                            int escape, int w_one, int w_many,
+                            MY_UNICASE_INFO *const *weights, int recurse_level)
 {
   int result= -1;                             /* Not found, using wildcards */
   my_wc_t s_wc, w_wc;
@@ -1933,6 +1934,8 @@ int my_wildcmp_unicode(CHARSET_INFO *cs,
                const uchar *, const uchar *);
   mb_wc= cs->cset->mb_wc;
 
+  if (my_string_stack_guard && my_string_stack_guard(recurse_level))
+    return 1;
   while (wildstr != wildend)
   {
     while (1)
@@ -2054,9 +2057,9 @@ int my_wildcmp_unicode(CHARSET_INFO *cs,
           return -1;
         
         str+= scan;
-        result= my_wildcmp_unicode(cs, str, str_end, wildstr, wildend,
-                                   escape, w_one, w_many,
-                                   weights);
+        result= my_wildcmp_unicode_impl(cs, str, str_end, wildstr, wildend,
+                                        escape, w_one, w_many,
+                                        weights, recurse_level+1);
         if (result <= 0)
           return result;
       } 
@@ -2066,6 +2069,17 @@ int my_wildcmp_unicode(CHARSET_INFO *cs,
 }
 
 
+int
+my_wildcmp_unicode(CHARSET_INFO *cs,
+                   const char *str,const char *str_end,
+                   const char *wildstr,const char *wildend,
+                   int escape, int w_one, int w_many,
+                   MY_UNICASE_INFO *const *weights)
+{
+  return my_wildcmp_unicode_impl(cs, str, str_end,
+                                 wildstr, wildend,
+                                 escape, w_one, w_many, weights, 1);
+}
 /*
   Store sorting weights using 2 bytes per character.
 
@@ -4353,6 +4367,10 @@ static const char filename_safe_char[128]=
 
 #define MY_FILENAME_ESCAPE '@'
 
+/*
+  note, that we cannot trust 'e' here, it's may be fake,
+  see strconvert()
+*/
 static int
 my_mb_wc_filename(CHARSET_INFO *cs __attribute__((unused)),
                   my_wc_t *pwc, const uchar *s, const uchar *e)
@@ -4374,7 +4392,7 @@ my_mb_wc_filename(CHARSET_INFO *cs __attribute__((unused)),
     return MY_CS_TOOSMALL3;
   
   byte1= s[1];
-  byte2= s[2];
+  byte2= byte1 ? s[2] : 0;
   
   if (byte1 >= 0x30 && byte1 <= 0x7F &&
       byte2 >= 0x30 && byte2 <= 0x7F)
@@ -4399,7 +4417,7 @@ my_mb_wc_filename(CHARSET_INFO *cs __attribute__((unused)),
       (byte2= hexlo(byte2)) >= 0)
   {
     int byte3= hexlo(s[3]);
-    int byte4= hexlo(s[4]);
+    int byte4= hexlo(s[3] ? s[4] : 0);
     if (byte3 >=0 && byte4 >=0)
     {
       *pwc= (byte1 << 12) + (byte2 << 8) + (byte3 << 4) + byte4;

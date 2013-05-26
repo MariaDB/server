@@ -65,7 +65,15 @@ ulonglong Item_sum::ram_limitation(THD *thd)
  
 bool Item_sum::init_sum_func_check(THD *thd)
 {
-  if (!thd->lex->allow_sum_func)
+  SELECT_LEX *curr_sel= thd->lex->current_select;
+  if (!curr_sel->name_visibility_map)
+  {
+    for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
+    {
+      curr_sel->name_visibility_map|= (1 << sl-> nest_level);
+    }
+  }
+  if (!(thd->lex->allow_sum_func & curr_sel->name_visibility_map))
   {
     my_message(ER_INVALID_GROUP_FUNC_USE, ER(ER_INVALID_GROUP_FUNC_USE),
                MYF(0));
@@ -136,8 +144,11 @@ bool Item_sum::init_sum_func_check(THD *thd)
  
 bool Item_sum::check_sum_func(THD *thd, Item **ref)
 {
+  SELECT_LEX *curr_sel= thd->lex->current_select;
+  nesting_map allow_sum_func= (thd->lex->allow_sum_func &
+                               curr_sel->name_visibility_map);
   bool invalid= FALSE;
-  nesting_map allow_sum_func= thd->lex->allow_sum_func;
+  DBUG_ASSERT(curr_sel->name_visibility_map); // should be set already
   /*  
     The value of max_arg_level is updated if an argument of the set function
     contains a column reference resolved  against a subquery whose level is
@@ -172,7 +183,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   if (!invalid && aggr_level < 0)
   {
     aggr_level= nest_level;
-    aggr_sel= thd->lex->current_select;
+    aggr_sel= curr_sel;
   }
   /*
     By this moment we either found a subquery where the set function is
@@ -309,9 +320,9 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
 {
   SELECT_LEX *sl;
   nesting_map allow_sum_func= thd->lex->allow_sum_func;
-  for (sl= thd->lex->current_select->master_unit()->outer_select() ;
+  for (sl= thd->lex->current_select->context.outer_select() ;
        sl && sl->nest_level > max_arg_level;
-       sl= sl->master_unit()->outer_select() )
+       sl= sl->context.outer_select())
   {
     if (aggr_level < 0 &&
         (allow_sum_func & ((nesting_map)1 << sl->nest_level)))
@@ -719,6 +730,14 @@ static int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 }
 
 
+static int item_sum_distinct_walk_for_count(void *element, 
+                                            element_count num_of_dups,
+                                            void *item)
+{
+  return ((Aggregator_distinct*) (item))->unique_walk_function_for_count(element);
+}
+ 
+
 static int item_sum_distinct_walk(void *element, element_count num_of_dups,
                                   void *item)
 {
@@ -1089,7 +1108,12 @@ void Aggregator_distinct::endup()
   {
     /* go over the tree of distinct keys and calculate the aggregate value */
     use_distinct_values= TRUE;
-    tree->walk(table, item_sum_distinct_walk, (void*) this);
+    tree_walk_action func;
+    if (item_sum->sum_func() == Item_sum::COUNT_DISTINCT_FUNC)
+      func= item_sum_distinct_walk_for_count;
+    else
+      func= item_sum_distinct_walk;
+    tree->walk(table, func, (void*) this);
     use_distinct_values= FALSE;
   }
   /* prevent consecutive recalculations */
@@ -1466,6 +1490,22 @@ bool Aggregator_distinct::unique_walk_function(void *element)
 }
 
 
+/*
+  A variant of unique_walk_function() that is to be used with Item_sum_count.
+
+  COUNT is a special aggregate function: it doesn't need the values, it only
+  needs to count them. COUNT needs to know the values are not NULLs, but NULL
+  values are not put into the Unique, so we don't need to check for NULLs here.
+*/
+
+bool Aggregator_distinct::unique_walk_function_for_count(void *element)
+{
+  Item_sum_count *sum= (Item_sum_count *)item_sum;
+  sum->count++;
+  return 0;
+}
+
+
 Aggregator_distinct::~Aggregator_distinct()
 {
   if (tree)
@@ -1581,9 +1621,10 @@ void Item_sum_avg::fix_length_and_dec()
     f_scale=  args[0]->decimals;
     dec_bin_size= my_decimal_get_binary_size(f_precision, f_scale);
   }
-  else {
+  else
+  {
     decimals= min(args[0]->decimals + prec_increment, NOT_FIXED_DEC);
-    max_length= args[0]->max_length + prec_increment;
+    max_length= min(args[0]->max_length + prec_increment, float_length(decimals));
   }
 }
 
@@ -3287,8 +3328,12 @@ bool Item_func_group_concat::add()
   TREE_ELEMENT *el= 0;                          // Only for safety
   if (row_eligible && tree)
   {
+    DBUG_EXECUTE_IF("trigger_OOM_in_gconcat_add",
+                     DBUG_SET("+d,simulate_persistent_out_of_memory"););
     el= tree_insert(tree, table->record[0] + table->s->null_bytes, 0,
                     tree->custom_arg);
+    DBUG_EXECUTE_IF("trigger_OOM_in_gconcat_add",
+                    DBUG_SET("-d,simulate_persistent_out_of_memory"););
     /* check if there was enough memory to insert the row */
     if (!el)
       return 1;

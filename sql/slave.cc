@@ -362,16 +362,13 @@ int init_recovery(Master_info* mi, const char** errmsg)
   {
     mi->master_log_pos= max(BIN_LOG_HEADER_SIZE,
                              rli->group_master_log_pos);
-    strmake(mi->master_log_name, rli->group_master_log_name,
-            sizeof(mi->master_log_name)-1);
+    strmake_buf(mi->master_log_name, rli->group_master_log_name);
  
     sql_print_warning("Recovery from master pos %ld and file %s.",
                       (ulong) mi->master_log_pos, mi->master_log_name);
  
-    strmake(rli->group_relay_log_name, rli->relay_log.get_log_fname(),
-            sizeof(rli->group_relay_log_name)-1);
-    strmake(rli->event_relay_log_name, rli->relay_log.get_log_fname(),
-            sizeof(mi->rli.event_relay_log_name)-1);
+    strmake_buf(rli->group_relay_log_name, rli->relay_log.get_log_fname());
+    strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
  
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
   }
@@ -1219,6 +1216,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   int err_code= 0;
   MYSQL_RES *master_res= 0;
   MYSQL_ROW master_row;
+  uint version= mysql_get_server_version(mysql) / 10000;
   DBUG_ENTER("get_master_version_and_clock");
 
   /*
@@ -1239,20 +1237,20 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
     /*
       Note the following switch will bug when we have MySQL branch 30 ;)
     */
-    switch (*mysql->server_version)
+    switch (version)
     {
-    case '0':
-    case '1':
-    case '2':
+    case 0:
+    case 1:
+    case 2:
       errmsg = "Master reported unrecognized MySQL version";
       err_code= ER_SLAVE_FATAL_ERROR;
       sprintf(err_buff, ER(err_code), errmsg);
       break;
-    case '3':
+    case 3:
       mi->rli.relay_log.description_event_for_queue= new
         Format_description_log_event(1, mysql->server_version);
       break;
-    case '4':
+    case 4:
       mi->rli.relay_log.description_event_for_queue= new
         Format_description_log_event(3, mysql->server_version);
       break;
@@ -1473,10 +1471,10 @@ maybe it is a *VERY OLD MASTER*.");
   */
 
   /* redundant with rest of code but safer against later additions */
-  if (*mysql->server_version == '3')
+  if (version == 3)
     goto err;
 
-  if (*mysql->server_version == '4')
+  if (version == 4)
   {
     master_res= NULL;
     if (!mysql_real_query(mysql,
@@ -1539,7 +1537,7 @@ inconsistency if replicated data deals with collation.");
     This check is only necessary for 4.x masters (and < 5.0.4 masters but
     those were alpha).
   */
-  if (*mysql->server_version == '4')
+  if (version == 4)
   {
     master_res= NULL;
     if (!mysql_real_query(mysql, STRING_WITH_LEN("SELECT @@GLOBAL.TIME_ZONE")) &&
@@ -3612,8 +3610,8 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
   mysql_mutex_lock(&rli->data_lock);
   if (rli->slave_skip_counter)
   {
-    strmake(saved_log_name, rli->group_relay_log_name, FN_REFLEN - 1);
-    strmake(saved_master_log_name, rli->group_master_log_name, FN_REFLEN - 1);
+    strmake_buf(saved_log_name, rli->group_relay_log_name);
+    strmake_buf(saved_master_log_name, rli->group_master_log_name);
     saved_log_pos= rli->group_relay_log_pos;
     saved_master_log_pos= rli->group_master_log_pos;
     saved_skip= rli->slave_skip_counter;
@@ -5247,8 +5245,7 @@ static Log_event* next_event(Relay_log_info* rli)
           goto err;
         }
         rli->event_relay_log_pos = BIN_LOG_HEADER_SIZE;
-        strmake(rli->event_relay_log_name,rli->linfo.log_file_name,
-                sizeof(rli->event_relay_log_name)-1);
+        strmake_buf(rli->event_relay_log_name,rli->linfo.log_file_name);
         flush_relay_log_info(rli);
       }
 

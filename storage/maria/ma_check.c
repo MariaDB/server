@@ -140,13 +140,22 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
     Set up transaction handler so that we can see all rows. When rows is read
     we will check the found id against param->max_tried
   */
-  if (param->max_trid == 0)
+  if (!info->s->base.born_transactional)
+  {
+    /*
+      There are no trids. Howver we want to set max_trid to make test of
+      create_trid simpler.
+    */
+    param->max_trid= ~(TrID) 0;
+  }
+  else if (param->max_trid == 0)
   {
     if (!ma_control_file_inited())
       param->max_trid= 0;      /* Give warning for first trid found */
     else
       param->max_trid= max_trid_in_system();
   }
+
   maria_ignore_trids(info);
 }
 
@@ -178,6 +187,13 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
     /* If this will be fixed by the check, forget the warning */
     if (param->testflag & T_UPDATE_STATE)
       param->warning_printed=save;
+  }
+  if (share->state.create_trid > param->max_trid)
+  {
+    _ma_check_print_warning(param,
+                            "Table create_trd (%llu) > current max_transaction id (%llu).  Table needs to be repaired or zerofilled to be usable",
+                            share->state.create_trid, param->max_trid);
+    return 1;
   }
   return 0;
 }
@@ -1246,16 +1262,12 @@ static int check_dynamic_record(HA_CHECK *param, MARIA_HA *info, int extend,
 {
   MARIA_BLOCK_INFO block_info;
   MARIA_SHARE *share= info->s;
-  my_off_t start_recpos, start_block, pos;
-  uchar *to;
-  ulong left_length;
+  my_off_t UNINIT_VAR(start_recpos), start_block, pos;
+  uchar *UNINIT_VAR(to);
+  ulong UNINIT_VAR(left_length);
   uint	b_type;
   char llbuff[22],llbuff2[22],llbuff3[22];
   DBUG_ENTER("check_dynamic_record");
-
-  LINT_INIT(left_length);
-  LINT_INIT(start_recpos);
-  LINT_INIT(to);
 
   pos= 0;
   while (pos < share->state.state.data_file_length)
@@ -1847,10 +1859,8 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
        pos < share->state.state.data_file_length;
        pos+= block_size, page++)
   {
-    uint row_count, real_row_count, empty_space, page_type, bitmap_pattern;
+    uint UNINIT_VAR(row_count), real_row_count, empty_space, page_type, bitmap_pattern;
     uint bitmap_for_page;
-    LINT_INIT(row_count);
-    LINT_INIT(empty_space);
 
     if (_ma_killed_ptr(param))
     {
@@ -2430,9 +2440,8 @@ static void restore_table_state_after_repair(MARIA_HA *info,
 {
   maria_versioning(info, info->s->have_versioning);
   info->s->lock_key_trees= org_share->lock_key_trees;
+  DBUG_ASSERT(!info->s->have_versioning || info->s->lock_key_trees);
 }
-
-
 
 
 /**
@@ -3559,7 +3568,10 @@ int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name)
     /* Ensure state is later flushed to disk, if within maria_chk */
     info->update= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
-    /* Reset create_trid to make file comparable */
+    /*
+      Reset create_trid to make file comparable and to ensure that new
+      trid's in the file starts from 0.
+    */
     share->state.create_trid= 0;
   }
   if (reenable_logging)

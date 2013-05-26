@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2012, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -631,6 +631,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
+
 #ifndef DBUG_OFF
   int left_events = max_binlog_dump_events;
 #endif
@@ -878,8 +879,11 @@ impossible position";
     if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg))
       goto err;
 
-    while (!(error = Log_event::read_log_event(&log, packet, log_lock,
-                                               current_checksum_alg)))
+    bool is_active_binlog= false;
+    while (!(error= Log_event::read_log_event(&log, packet, log_lock,
+                                              current_checksum_alg,
+                                              log_file_name,
+                                              &is_active_binlog)))
     {
 #ifndef DBUG_OFF
       if (max_binlog_dump_events && !left_events--)
@@ -961,6 +965,13 @@ impossible position";
         goto err;
     }
 
+    DBUG_EXECUTE_IF("wait_after_binlog_EOF",
+                    {
+                      const char act[]= "now wait_for signal.rotate_finished";
+                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                         STRING_WITH_LEN(act)));
+                    };);
+
     /*
       TODO: now that we are logging the offset, check to make sure
       the recorded offset and the actual match.
@@ -971,8 +982,11 @@ impossible position";
     if (test_for_non_eof_log_read_errors(error, &errmsg))
       goto err;
 
-    if (!(flags & BINLOG_DUMP_NON_BLOCK) &&
-        mysql_bin_log.is_active(log_file_name))
+    /*
+      We should only move to the next binlog when the last read event
+      came from a already deactivated binlog.
+     */
+    if (!(flags & BINLOG_DUMP_NON_BLOCK) && is_active_binlog)
     {
       /*
 	Block until there is more data in the log
@@ -1026,7 +1040,8 @@ impossible position";
           mysql_mutex_unlock(log_lock);
 	  read_packet = 1;
           p_coord->pos= uint4korr(packet->ptr() + ev_offset + LOG_POS_OFFSET);
-          event_type= (Log_event_type)((*packet)[LOG_EVENT_OFFSET+ev_offset]);
+          event_type=
+            (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
 	  break;
 
 	case LOG_READ_EOF:
@@ -1272,8 +1287,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
              We don't check thd->lex->mi.log_file_name for NULL here
              since it is checked in sql_yacc.yy
           */
-          strmake(mi->rli.until_log_name, thd->lex->mi.log_file_name,
-                  sizeof(mi->rli.until_log_name)-1);
+          strmake_buf(mi->rli.until_log_name, thd->lex->mi.log_file_name);
         }
         else if (thd->lex->mi.relay_log_pos)
         {
@@ -1281,8 +1295,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
             slave_errno=ER_BAD_SLAVE_UNTIL_COND;
           mi->rli.until_condition= Relay_log_info::UNTIL_RELAY_POS;
           mi->rli.until_log_pos= thd->lex->mi.relay_log_pos;
-          strmake(mi->rli.until_log_name, thd->lex->mi.relay_log_name,
-                  sizeof(mi->rli.until_log_name)-1);
+          strmake_buf(mi->rli.until_log_name, thd->lex->mi.relay_log_name);
         }
         else
           mi->rli.clear_until_condition();
@@ -1564,14 +1577,15 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
 */
 
 static bool get_string_parameter(char *to, const char *from, size_t length,
-                                 const char *name)
+                                 const char *name, CHARSET_INFO *cs)
 {
   if (from)                                     // Empty paramaters allowed
   {
-    size_t from_length;
-    if ((from_length= strlen(from)) > length)
+    size_t from_length= strlen(from);
+    uint from_numchars= cs->cset->numchars(cs, from, from + from_length);
+    if (from_numchars > length / cs->mbmaxlen)
     {
-      my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name, (int) length);
+      my_error(ER_WRONG_STRING_LENGTH, MYF(0), from, name, length / cs->mbmaxlen);
       return 1;
     }
     memcpy(to, from, from_length+1);
@@ -1646,9 +1660,9 @@ bool change_master(THD* thd, Master_info* mi)
   /*
     Before processing the command, save the previous state.
   */
-  strmake(saved_host, mi->host, HOSTNAME_LENGTH);
+  strmake_buf(saved_host, mi->host);
   saved_port= mi->port;
-  strmake(saved_log_name, mi->master_log_name, FN_REFLEN - 1);
+  strmake_buf(saved_log_name, mi->master_log_name);
   saved_log_pos= mi->master_log_pos;
 
   /*
@@ -1663,8 +1677,7 @@ bool change_master(THD* thd, Master_info* mi)
   }
 
   if (lex_mi->log_file_name)
-    strmake(mi->master_log_name, lex_mi->log_file_name,
-	    sizeof(mi->master_log_name)-1);
+    strmake_buf(mi->master_log_name, lex_mi->log_file_name);
   if (lex_mi->pos)
   {
     mi->master_log_pos= lex_mi->pos;
@@ -1672,11 +1685,12 @@ bool change_master(THD* thd, Master_info* mi)
   DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));
 
   if (get_string_parameter(mi->host, lex_mi->host, sizeof(mi->host)-1,
-                           "MASTER_HOST") ||
+                           "MASTER_HOST", system_charset_info) ||
       get_string_parameter(mi->user, lex_mi->user, sizeof(mi->user)-1,
-                           "MASTER_USER") ||
+                           "MASTER_USER", system_charset_info) ||
       get_string_parameter(mi->password, lex_mi->password,
-                           sizeof(mi->password)-1, "MASTER_PASSWORD"))
+                           sizeof(mi->password)-1, "MASTER_PASSWORD",
+                           &my_charset_bin))
   {
     ret= TRUE;
     goto err;
@@ -1728,15 +1742,15 @@ bool change_master(THD* thd, Master_info* mi)
       (lex_mi->ssl_verify_server_cert == LEX_MASTER_INFO::LEX_MI_ENABLE);
 
   if (lex_mi->ssl_ca)
-    strmake(mi->ssl_ca, lex_mi->ssl_ca, sizeof(mi->ssl_ca)-1);
+    strmake_buf(mi->ssl_ca, lex_mi->ssl_ca);
   if (lex_mi->ssl_capath)
-    strmake(mi->ssl_capath, lex_mi->ssl_capath, sizeof(mi->ssl_capath)-1);
+    strmake_buf(mi->ssl_capath, lex_mi->ssl_capath);
   if (lex_mi->ssl_cert)
-    strmake(mi->ssl_cert, lex_mi->ssl_cert, sizeof(mi->ssl_cert)-1);
+    strmake_buf(mi->ssl_cert, lex_mi->ssl_cert);
   if (lex_mi->ssl_cipher)
-    strmake(mi->ssl_cipher, lex_mi->ssl_cipher, sizeof(mi->ssl_cipher)-1);
+    strmake_buf(mi->ssl_cipher, lex_mi->ssl_cipher);
   if (lex_mi->ssl_key)
-    strmake(mi->ssl_key, lex_mi->ssl_key, sizeof(mi->ssl_key)-1);
+    strmake_buf(mi->ssl_key, lex_mi->ssl_key);
 #ifndef HAVE_OPENSSL
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
       lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
@@ -1750,10 +1764,8 @@ bool change_master(THD* thd, Master_info* mi)
     need_relay_log_purge= 0;
     char relay_log_name[FN_REFLEN];
     mi->rli.relay_log.make_log_name(relay_log_name, lex_mi->relay_log_name);
-    strmake(mi->rli.group_relay_log_name, relay_log_name,
-	    sizeof(mi->rli.group_relay_log_name)-1);
-    strmake(mi->rli.event_relay_log_name, relay_log_name,
-	    sizeof(mi->rli.event_relay_log_name)-1);
+    strmake_buf(mi->rli.group_relay_log_name, relay_log_name);
+    strmake_buf(mi->rli.event_relay_log_name, relay_log_name);
   }
 
   if (lex_mi->relay_log_pos)
@@ -1789,8 +1801,7 @@ bool change_master(THD* thd, Master_info* mi)
       */
      mi->master_log_pos = max(BIN_LOG_HEADER_SIZE,
 			      mi->rli.group_master_log_pos);
-     strmake(mi->master_log_name, mi->rli.group_master_log_name,
-             sizeof(mi->master_log_name)-1);
+     strmake_buf(mi->master_log_name, mi->rli.group_master_log_name);
   }
   /*
     Relay log's IO_CACHE may not be inited, if rli->inited==0 (server was never
@@ -1843,8 +1854,7 @@ bool change_master(THD* thd, Master_info* mi)
   */
   mi->rli.group_master_log_pos= mi->master_log_pos;
   DBUG_PRINT("info", ("master_log_pos: %lu", (ulong) mi->master_log_pos));
-  strmake(mi->rli.group_master_log_name,mi->master_log_name,
-	  sizeof(mi->rli.group_master_log_name)-1);
+  strmake_buf(mi->rli.group_master_log_name,mi->master_log_name);
 
   if (!mi->rli.group_master_log_name[0]) // uninitialized case
     mi->rli.group_master_log_pos=0;

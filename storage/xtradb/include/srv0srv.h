@@ -253,6 +253,11 @@ extern ulong	srv_sys_stats_root_page;
 #endif
 
 extern ibool	srv_use_doublewrite_buf;
+extern ibool	srv_use_atomic_writes;
+#ifdef HAVE_POSIX_FALLOCATE
+extern ibool	srv_use_posix_fallocate;
+#endif
+
 extern ibool	srv_use_checksums;
 extern ibool	srv_fast_checksum;
 
@@ -273,9 +278,22 @@ extern ulong	srv_adaptive_flushing_method;
 extern ulong	srv_expand_import;
 extern ulong	srv_pass_corrupt_table;
 
-extern ulint	srv_dict_size_limit;
+/* Helper macro to support srv_pass_corrupt_table checks. If 'cond' is FALSE,
+execute 'code' if srv_pass_corrupt_table is non-zero, or trigger a fatal error
+otherwise. The break statement in 'code' will obviously not work as expected. */
 
-extern ulint	srv_lazy_drop_table;
+#define SRV_CORRUPT_TABLE_CHECK(cond,code)		\
+	do {						\
+		if (UNIV_UNLIKELY(!(cond))) {		\
+			if (srv_pass_corrupt_table) {	\
+				code			\
+			} else {			\
+				ut_error;		\
+			}				\
+		}					\
+	} while(0)
+
+extern ulint	srv_dict_size_limit;
 /*-------------------------------------------*/
 
 extern ulint	srv_n_rows_inserted;

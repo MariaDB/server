@@ -525,7 +525,7 @@ static int parse_url_error(FEDERATEDX_SHARE *share, TABLE *table, int error_num)
   buf_len= min(table->s->connect_string.length,
                FEDERATEDX_QUERY_BUFFER_SIZE-1);
   strmake(buf, table->s->connect_string.str, buf_len);
-  my_error(error_num, MYF(0), buf);
+  my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
 
@@ -585,9 +585,8 @@ int get_connection(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share)
   DBUG_RETURN(0);
 
 error:
-  sprintf(error_buffer, "server name: '%s' doesn't exist!",
-          share->connection_string);
-  my_error(error_num, MYF(0), error_buffer);
+  my_printf_error(error_num, "server name: '%s' doesn't exist!",
+                  MYF(0), share->connection_string);
   DBUG_RETURN(error_num);
 }
 
@@ -764,7 +763,7 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share, TABLE *table,
         user:@hostname:port/db/table
         Then password is a null string, so set to NULL
       */
-      if ((share->password[0] == '\0'))
+      if (share->password[0] == '\0')
         share->password= NULL;
     }
 
@@ -3439,7 +3438,7 @@ int ha_federatedx::stash_remote_error()
   if (!io)
     DBUG_RETURN(remote_error_number);
   remote_error_number= io->error_code();
-  strmake(remote_error_buf, io->error_str(), sizeof(remote_error_buf)-1);
+  strmake_buf(remote_error_buf, io->error_str());
   if (remote_error_number == ER_DUP_ENTRY ||
       remote_error_number == ER_DUP_KEY)
     DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);

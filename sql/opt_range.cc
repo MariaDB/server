@@ -132,7 +132,12 @@
 
 static int sel_cmp(Field *f,uchar *a,uchar *b,uint8 a_flag,uint8 b_flag);
 
-static uchar is_null_string[2]= {1,0};
+/*
+  this should be long enough so that any memcmp with a string that
+  starts from '\0' won't cross is_null_string boundaries, even
+  if the memcmp is optimized to compare 4- 8- or 16- bytes at once
+*/
+static uchar is_null_string[20]= {1,0};
 
 class RANGE_OPT_PARAM;
 /*
@@ -1996,7 +2001,7 @@ int QUICK_ROR_INTERSECT_SELECT::init()
     1  error
 */
 
-int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler)
+int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler, MEM_ROOT *alloc)
 {
   handler *save_file= file, *org_file;
   my_bool org_key_read;
@@ -2024,7 +2029,7 @@ int QUICK_RANGE_SELECT::init_ror_merged_scan(bool reuse_handler)
     DBUG_RETURN(0);
   }
 
-  if (!(file= head->file->clone(head->s->normalized_path.str, thd->mem_root)))
+  if (!(file= head->file->clone(head->s->normalized_path.str, alloc)))
   {
     /* 
       Manually set the error flag. Note: there seems to be quite a few
@@ -2125,7 +2130,8 @@ failure:
     0     OK
     other error code
 */
-int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler)
+int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler, 
+                                                     MEM_ROOT *alloc)
 {
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> quick_it(quick_selects);
   QUICK_SELECT_WITH_RECORD *cur;
@@ -2142,7 +2148,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler)
       There is no use of this->file. Use it for the first of merged range
       selects.
     */
-    int error= quick->init_ror_merged_scan(TRUE);
+    int error= quick->init_ror_merged_scan(TRUE, alloc);
     if (error)
       DBUG_RETURN(error);
     quick->file->extra(HA_EXTRA_KEYREAD_PRESERVE_FIELDS);
@@ -2154,7 +2160,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler)
     const MY_BITMAP * const save_read_set= quick->head->read_set;
     const MY_BITMAP * const save_write_set= quick->head->write_set;
 #endif
-    if (quick->init_ror_merged_scan(FALSE))
+    if (quick->init_ror_merged_scan(FALSE, alloc))
       DBUG_RETURN(1);
     quick->file->extra(HA_EXTRA_KEYREAD_PRESERVE_FIELDS);
 
@@ -2188,7 +2194,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler)
 int QUICK_ROR_INTERSECT_SELECT::reset()
 {
   DBUG_ENTER("QUICK_ROR_INTERSECT_SELECT::reset");
-  if (!scans_inited && init_ror_merged_scan(TRUE))
+  if (!scans_inited && init_ror_merged_scan(TRUE, &alloc))
     DBUG_RETURN(1);
   scans_inited= TRUE;
   List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
@@ -2324,7 +2330,7 @@ int QUICK_ROR_UNION_SELECT::reset()
     List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
     while ((quick= it++))
     {
-      if (quick->init_ror_merged_scan(FALSE))
+      if (quick->init_ror_merged_scan(FALSE, &alloc))
         DBUG_RETURN(1);
     }
     scans_inited= TRUE;
@@ -7288,6 +7294,14 @@ static SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
 		          param->current_table);
   DBUG_ENTER("get_full_func_mm_tree");
 
+#ifdef HAVE_SPATIAL
+  if (field_item->field->type() == MYSQL_TYPE_GEOMETRY)
+  {
+    /* We have to be able to store all sorts of spatial features here */
+    ((Field_geom*) field_item->field)->geom_type= Field::GEOM_GEOMETRY;
+  }
+#endif /*HAVE_SPATIAL*/
+
   for (uint i= 0; i < cond_func->arg_count; i++)
   {
     Item *arg= cond_func->arguments()[i]->real_item();
@@ -7367,8 +7381,10 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
     DBUG_RETURN(tree);
   }
   /* Here when simple cond */
-  if (cond->const_item() && !cond->is_expensive())
+  if (cond->const_item())
   {
+    if (cond->is_expensive())
+      DBUG_RETURN(0);
     /*
       During the cond->val_int() evaluation we can come across a subselect 
       item which may allocate memory on the thd->mem_root and assumes 
@@ -10845,9 +10861,13 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
 
       do
       {
+        DBUG_EXECUTE_IF("innodb_quick_report_deadlock",
+                        DBUG_SET("+d,innodb_report_deadlock"););
         if ((error= quick->get_next()))
         {
-          quick_with_last_rowid->file->unlock_row();
+          /* On certain errors like deadlock, trx might be rolled back.*/
+          if (!current_thd->transaction_rollback_request)
+            quick_with_last_rowid->file->unlock_row();
           DBUG_RETURN(error);
         }
         quick->file->position(quick->record);
@@ -10873,7 +10893,9 @@ int QUICK_ROR_INTERSECT_SELECT::get_next()
             quick->file->unlock_row(); /* row not in range; unlock */
             if ((error= quick->get_next()))
             {
-              quick_with_last_rowid->file->unlock_row();
+              /* On certain errors like deadlock, trx might be rolled back.*/
+              if (!current_thd->transaction_rollback_request)
+                quick_with_last_rowid->file->unlock_row();
               DBUG_RETURN(error);
             }
           }
@@ -11758,13 +11780,15 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
     NGA1.If in the index I there is a gap between the last GROUP attribute G_k,
          and the MIN/MAX attribute C, then NGA must consist of exactly the
          index attributes that constitute the gap. As a result there is a
-         permutation of NGA that coincides with the gap in the index
-         <B_1, ..., B_m>.
+         permutation of NGA, BA=<B_1,...,B_m>, that coincides with the gap
+         in the index.
     NGA2.If BA <> {}, then the WHERE clause must contain a conjunction EQ of
          equality conditions for all NG_i of the form (NG_i = const) or
          (const = NG_i), such that each NG_i is referenced in exactly one
          conjunct. Informally, the predicates provide constants to fill the
          gap in the index.
+    NGA3.If BA <> {}, there can only be one range. TODO: This is a code
+         limitation and is not strictly needed. See BUG#15947433
     WA1. There are no other attributes in the WHERE clause except the ones
          referenced in predicates RNG, PA, PC, EQ defined above. Therefore
          WA is subset of (GA union NGA union C) for GA,NGA,C that pass the
@@ -12507,6 +12531,74 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
 
 
 /*
+  Get SEL_ARG tree, if any, for the keypart covering non grouping
+  attribute (NGA) field 'nga_field'.
+
+  This function enforces the NGA3 test: If 'keypart_tree' contains a
+  condition for 'nga_field', there can only be one range. In the
+  opposite case, this function returns with error and 'cur_range'
+  should not be used.
+
+  Note that the NGA1 and NGA2 requirements, like whether or not the
+  range predicate for 'nga_field' is equality, is not tested by this
+  function.
+
+  @param[in]   nga_field      The NGA field we want the SEL_ARG tree for
+  @param[in]   keypart_tree   Root node of the SEL_ARG* tree for the index
+  @param[out]  cur_range      The SEL_ARG tree, if any, for the keypart
+                              covering field 'keypart_field'
+  @retval true   'keypart_tree' contained a predicate for 'nga_field' but
+                  multiple ranges exists. 'cur_range' should not be used.
+  @retval false  otherwise
+*/
+
+static bool
+get_sel_arg_for_keypart(Field *nga_field,
+                        SEL_ARG *keypart_tree,
+                        SEL_ARG **cur_range)
+{
+  if(keypart_tree == NULL)
+    return false;
+  if(keypart_tree->field->eq(nga_field))
+  {
+    /*
+      Enforce NGA3: If a condition for nga_field has been found, only
+      a single range is allowed.
+    */
+  if (keypart_tree->prev || keypart_tree->next)
+      return true; // There are multiple ranges
+
+    *cur_range= keypart_tree;
+    return false;
+  }
+
+  SEL_ARG *found_tree= NULL;
+  SEL_ARG *first_kp=  keypart_tree->first();
+
+  for (SEL_ARG *cur_kp= first_kp; cur_kp && !found_tree;
+       cur_kp= cur_kp->next)
+  {
+    if (cur_kp->next_key_part)
+    {
+      if (get_sel_arg_for_keypart(nga_field,
+                                  cur_kp->next_key_part,
+                                  &found_tree))
+        return true;
+
+    }
+    /*
+       Enforce NGA3: If a condition for nga_field has been found,only
+       a single range is allowed.
+    */
+    if (found_tree && first_kp->next)
+      return true; // There are multiple ranges
+  }
+  *cur_range= found_tree;
+  return false;
+}
+
+
+/*
   Extract a sequence of constants from a conjunction of equality predicates.
 
   SYNOPSIS
@@ -12520,12 +12612,13 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
     key_infix              [out] Infix of constants to be used for index lookup
     key_infix_len          [out] Lenghth of the infix
     first_non_infix_part   [out] The first keypart after the infix (if any)
-    
+
   DESCRIPTION
-    Test conditions (NGA1, NGA2) from get_best_group_min_max(). Namely,
-    for each keypart field NGF_i not in GROUP-BY, check that there is a
-    constant equality predicate among conds with the form (NGF_i = const_ci) or
-    (const_ci = NGF_i).
+    Test conditions (NGA1, NGA2, NGA3) from get_best_group_min_max(). Namely,
+    for each keypart field NG_i not in GROUP-BY, check that there is exactly one
+    constant equality predicate among conds with the form (NG_i = const_ci) or
+    (const_ci = NG_i).. In addition, there can only be one range when there is
+    such a gap.
     Thus all the NGF_i attributes must fill the 'gap' between the last group-by
     attribute and the MIN/MAX attribute in the index (if present). If these
     conditions hold, copy each constant from its corresponding predicate into
@@ -12554,17 +12647,14 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
   uchar *key_ptr= key_infix;
   for (cur_part= first_non_group_part; cur_part != end_part; cur_part++)
   {
+    cur_range= NULL;
     /*
       Find the range tree for the current keypart. We assume that
-      index_range_tree points to the leftmost keypart in the index.
+      index_range_tree points to the first keypart in the index.
     */
-    for (cur_range= index_range_tree; 
-         cur_range && cur_range->type == SEL_ARG::KEY_RANGE;
-         cur_range= cur_range->next_key_part)
-    {
-      if (cur_range->field->eq(cur_part->field))
-        break;
-    }
+    if(get_sel_arg_for_keypart(cur_part->field, index_range_tree, &cur_range))
+      return false;
+
     if (!cur_range || cur_range->type != SEL_ARG::KEY_RANGE)
     {
       if (min_max_arg_part)
@@ -12576,9 +12666,6 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
       }
     }
 
-    /* Check that the current range tree is a single point interval. */
-    if (cur_range->prev || cur_range->next)
-      return FALSE; /* This is not the only range predicate for the field. */
     if ((cur_range->min_flag & NO_MIN_RANGE) ||
         (cur_range->max_flag & NO_MAX_RANGE) ||
         (cur_range->min_flag & NEAR_MIN) || (cur_range->max_flag & NEAR_MAX))

@@ -420,6 +420,10 @@ UNIV_INTERN ulong	srv_sys_stats_root_page = 0;
 #endif
 
 UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
+UNIV_INTERN ibool	srv_use_atomic_writes = FALSE;
+#ifdef HAVE_POSIX_FALLOCATE
+UNIV_INTERN ibool	srv_use_posix_fallocate = TRUE;
+#endif
 UNIV_INTERN ibool	srv_use_checksums = TRUE;
 UNIV_INTERN ibool	srv_fast_checksum = FALSE;
 
@@ -441,8 +445,6 @@ UNIV_INTERN ulong	srv_expand_import = 0; /* 0:disable 1:enable */
 UNIV_INTERN ulong	srv_pass_corrupt_table = 0; /* 0:disable 1:enable */
 
 UNIV_INTERN ulint	srv_dict_size_limit = 0;
-
-UNIV_INTERN ulint	srv_lazy_drop_table = 0;
 /*-------------------------------------------*/
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
 UNIV_INTERN ulong	srv_n_free_tickets_to_enter = 500;
@@ -3071,7 +3073,7 @@ rescan_idle:
 		mutex_enter(&kernel_mutex);
 		trx = UT_LIST_GET_FIRST(trx_sys->mysql_trx_list);
 		while (trx) {
-			if (trx->conc_state == TRX_ACTIVE
+			if (trx->state == TRX_ACTIVE
 			    && trx->mysql_thd
 			    && innobase_thd_is_idle(trx->mysql_thd)) {
 				ib_int64_t	start_time = innobase_thd_get_start_time(trx->mysql_thd);

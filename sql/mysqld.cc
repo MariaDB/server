@@ -2288,8 +2288,28 @@ static my_socket activate_tcp_port(uint port)
   for (a= ai; a != NULL; a= a->ai_next)
   {
     ip_sock= socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-    if (ip_sock != INVALID_SOCKET)
+      
+    char ip_addr[INET6_ADDRSTRLEN];
+
+    if (vio_get_normalized_ip_string(a->ai_addr, a->ai_addrlen,
+                                     ip_addr, sizeof (ip_addr)))
+    {
+      ip_addr[0]= 0;
+    }
+
+    if (ip_sock == INVALID_SOCKET)
+    {
+      sql_print_error("Failed to create a socket for %s '%s': errno: %d.",
+                      (a->ai_family == AF_INET) ? "IPv4" : "IPv6",
+                      (const char *) ip_addr,
+                      (int) socket_errno);
+    }
+    else 
+    {
+      sql_print_information("Server socket created on IP: '%s'.",
+                          (const char *) ip_addr);
       break;
+    }
   }
 
   if (ip_sock == INVALID_SOCKET)
@@ -3346,14 +3366,25 @@ sizeof(load_default_groups)/sizeof(load_default_groups[0]);
 
 
 #ifndef EMBEDDED_LIBRARY
-static
-int
-check_enough_stack_size()
+/**
+  This function is used to check for stack overrun for pathological
+  cases of  regular expressions and 'like' expressions.
+  The call to current_thd is  quite expensive, so we try to avoid it
+  for the normal cases.
+  The size of  each stack frame for the wildcmp() routines is ~128 bytes,
+  so checking  *every* recursive call is not necessary.
+ */
+extern "C" int
+check_enough_stack_size(int recurse_level)
 {
   uchar stack_top;
+  if (recurse_level % 16 != 0)
+    return 0;
 
-  return check_stack_overrun(current_thd, STACK_MIN_SIZE,
-                             &stack_top);
+  THD *my_thd= current_thd;
+  if (my_thd != NULL)
+    return check_stack_overrun(my_thd, STACK_MIN_SIZE * 2, &stack_top);
+  return 0;
 }
 #endif
 
@@ -3582,7 +3613,7 @@ static int init_common_variables()
   WideCharToMultiByte(CP_UTF8,0, wtz_name, -1, system_time_zone, 
     sizeof(system_time_zone) - 1, NULL, NULL);
 #else
-  strmake(system_time_zone, tz_name,  sizeof(system_time_zone)-1);
+  strmake_buf(system_time_zone, tz_name);
 #endif /* _WIN32 */
 #endif /* HAVE_TZNAME */
 
@@ -3857,6 +3888,7 @@ static int init_common_variables()
   item_init();
 #ifndef EMBEDDED_LIBRARY
   my_regex_init(&my_charset_latin1, check_enough_stack_size);
+  my_string_stack_guard= check_enough_stack_size;
 #else
   my_regex_init(&my_charset_latin1, NULL);
 #endif
@@ -4425,11 +4457,13 @@ will be ignored as the --log-bin option is not defined.");
     }
   }
 #endif /* WITH_WSREP */
+  DBUG_ASSERT(!opt_bin_log || opt_bin_logname);
+
   if (opt_bin_log)
   {
     /* Reports an error and aborts, if the --log-bin's path 
        is a directory.*/
-    if (opt_bin_logname && 
+    if (opt_bin_logname[0] && 
         opt_bin_logname[strlen(opt_bin_logname) - 1] == FN_LIBCHAR)
     {
       sql_print_error("Path '%s' is a directory name, please specify \
@@ -4451,7 +4485,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     char buf[FN_REFLEN];
     const char *ln;
     ln= mysql_bin_log.generate_name(opt_bin_logname, "-bin", 1, buf);
-    if (!opt_bin_logname && !opt_binlog_index_name)
+    if (!opt_bin_logname[0] && !opt_binlog_index_name)
     {
       /*
         User didn't give us info to name the binlog index file.
@@ -8102,8 +8136,8 @@ static int mysql_init_variables(void)
 
   /* Set directory paths */
   mysql_real_data_home_len=
-    strmake(mysql_real_data_home, get_relative_path(MYSQL_DATADIR),
-            sizeof(mysql_real_data_home)-1) - mysql_real_data_home;
+    strmake_buf(mysql_real_data_home,
+                get_relative_path(MYSQL_DATADIR)) - mysql_real_data_home;
   /* Replication parameters */
   master_info_file= (char*) "master.info",
     relay_log_info_file= (char*) "relay-log.info";
@@ -8206,7 +8240,7 @@ static int mysql_init_variables(void)
   const char *tmpenv;
   if (!(tmpenv = getenv("MY_BASEDIR_VERSION")))
     tmpenv = DEFAULT_MYSQL_HOME;
-  (void) strmake(mysql_home, tmpenv, sizeof(mysql_home)-1);
+  strmake_buf(mysql_home, tmpenv);
 #endif
 #ifdef WITH_WSREP
   if (WSREP_ON && wsrep_init_vars())
@@ -8249,7 +8283,7 @@ mysqld_get_one_option(int optid,
     global_system_variables.tx_isolation= ISO_SERIALIZABLE;
     break;
   case 'b':
-    strmake(mysql_home,argument,sizeof(mysql_home)-1);
+    strmake_buf(mysql_home, argument);
     break;
   case 'C':
     if (default_collation_name == compiled_default_collation_name)
@@ -8260,7 +8294,7 @@ mysqld_get_one_option(int optid,
     opt_log=1;
     break;
   case 'h':
-    strmake(mysql_real_data_home,argument, sizeof(mysql_real_data_home)-1);
+    strmake_buf(mysql_real_data_home, argument);
     /* Correct pointer set by my_getopt (for embedded library) */
     mysql_real_data_home_ptr= mysql_real_data_home;
     break;
@@ -8271,7 +8305,7 @@ mysqld_get_one_option(int optid,
       sql_print_warning("Ignoring user change to '%s' because the user was set to '%s' earlier on the command line\n", argument, mysqld_user);
     break;
   case 'L':
-    strmake(lc_messages_dir, argument, sizeof(lc_messages_dir)-1);
+    strmake_buf(lc_messages_dir, argument);
     break;
   case OPT_BINLOG_FORMAT:
     binlog_format_used= true;
@@ -8450,28 +8484,6 @@ mysqld_get_one_option(int optid,
     break;
   case (int) OPT_WANT_CORE:
     test_flags |= TEST_CORE_ON_SIGNAL;
-    break;
-  case (int) OPT_BIND_ADDRESS:
-    {
-      struct addrinfo *res_lst, hints;    
-
-      bzero(&hints, sizeof(struct addrinfo));
-      hints.ai_socktype= SOCK_STREAM;
-      hints.ai_protocol= IPPROTO_TCP;
-
-      if (getaddrinfo(argument, NULL, &hints, &res_lst) != 0) 
-      {
-        sql_print_error("Can't start server: cannot resolve hostname!");
-        return 1;
-      }
-
-      if (res_lst->ai_next)
-      {
-        sql_print_error("Can't start server: bind-address refers to multiple interfaces!");
-        return 1;
-      }
-      freeaddrinfo(res_lst);
-    }
     break;
   case OPT_CONSOLE:
     if (opt_console)
@@ -8986,7 +8998,7 @@ static int fix_paths(void)
 
   char *sharedir=get_relative_path(SHAREDIR);
   if (test_if_hard_path(sharedir))
-    strmake(buff,sharedir,sizeof(buff)-1);		/* purecov: tested */
+    strmake_buf(buff, sharedir);		/* purecov: tested */
   else
     strxnmov(buff,sizeof(buff)-1,mysql_home,sharedir,NullS);
   convert_dirname(buff,buff,NullS);
@@ -8994,7 +9006,7 @@ static int fix_paths(void)
 
   /* If --character-sets-dir isn't given, use shared library dir */
   if (charsets_dir)
-    strmake(mysql_charsets_dir, charsets_dir, sizeof(mysql_charsets_dir)-1);
+    strmake_buf(mysql_charsets_dir, charsets_dir);
   else
     strxnmov(mysql_charsets_dir, sizeof(mysql_charsets_dir)-1, buff,
 	     CHARSET_DIR, NullS);

@@ -1,5 +1,5 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2011, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -669,7 +669,7 @@ int decimal_shift(decimal_t *dec, int shift)
     if (do_left)
     {
       do_mini_left_shift(dec, l_mini_shift, beg, end);
-      mini_shift=- l_mini_shift;
+      mini_shift= -l_mini_shift;
     }
     else
     {
