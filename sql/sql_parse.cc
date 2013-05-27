@@ -807,7 +807,9 @@ bool do_command(THD *thd)
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
 
   DBUG_ASSERT(packet_length);
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
   return_value= dispatch_command(command, thd, packet+1, (uint) (packet_length-1));
+  DBUG_ASSERT(!thd->apc_target.is_enabled());
 
 out:
   DBUG_RETURN(return_value);
@@ -1109,6 +1111,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       ulong length= (ulong)(packet_end - beginning_of_next_stmt);
 
       log_slow_statement(thd);
+      DBUG_ASSERT(!thd->apc_target.is_enabled());
 
       /* Remove garbage at start of query */
       while (length > 0 && my_isspace(thd->charset(), *beginning_of_next_stmt))
