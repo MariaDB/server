@@ -2354,6 +2354,63 @@ protected:
   LEX *m_lex;
 };
 
+class Delete_plan;
+class SQL_SELECT;
+
+/* 
+  Query plan of a single-table UPDATE.
+  (This is actually a plan for single-table DELETE also)
+*/
+class Update_plan
+{
+protected:
+  bool impossible_where;
+public:
+  TABLE *table;
+  SQL_SELECT *select;
+  uint index;
+  ha_rows table_rows; /* Use if select==NULL */
+  /* 
+    Top-level select_lex. Most of its fields are not used, we need it only to
+    get to the subqueries. 
+  */
+  SELECT_LEX *select_lex;
+  
+  key_map possible_keys;
+  bool using_filesort;
+  
+  /* Set this plan to be a plan to do nothing because of impossible WHRE*/
+  void set_impossible_where() { impossible_where= true; }
+
+  virtual int print_explain(select_result_sink *output, uint8 explain_flags, 
+                            bool *printed_anything);
+  virtual ~Update_plan() {}
+
+  Update_plan() : impossible_where(false), using_filesort(false) {}
+};
+
+
+/* Query plan of a single-table DELETE */
+class Delete_plan : public Update_plan
+{
+  bool deleting_all_rows;
+public:
+
+  /* Construction functions */
+  Delete_plan() : 
+    deleting_all_rows(false)  {}
+
+  /* Set this query plan to be a plan to make a call to h->delete_all_rows() */
+  void set_delete_all_rows(ha_rows rows_arg) 
+  { 
+    deleting_all_rows= true;
+    table_rows= rows_arg;
+  }
+  int print_explain(select_result_sink *output, uint8 explain_flags, 
+                    bool *printed_anything);
+};
+
+
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2364,6 +2421,9 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
+
+  /* For single-table DELETE: its query plan */
+  Update_plan *upd_del_plan;
 
   char *length,*dec,*change;
   LEX_STRING name;
@@ -2780,6 +2840,9 @@ struct LEX: public Query_tables_list
     }
     return FALSE;
   }
+
+  int print_explain(select_result_sink *output, uint8 explain_flags,
+                    bool *printed_anything);
 };
 
 
