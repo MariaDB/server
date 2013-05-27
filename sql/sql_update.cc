@@ -279,6 +279,7 @@ int mysql_update(THD *thd,
   Update_plan query_plan;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
+  bool apc_target_enabled= false; // means was enabled *by code this function*
   DBUG_ENTER("mysql_update");
 
   if (open_tables(thd, &table_list, &table_count, 0))
@@ -497,6 +498,7 @@ int mysql_update(THD *thd,
     goto exit_without_my_ok;
 
   thd->apc_target.enable();
+  apc_target_enabled= true;
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
 
@@ -923,6 +925,7 @@ int mysql_update(THD *thd,
     thd->transaction.stmt.modified_non_trans_table= TRUE;
 
   thd->apc_target.disable(); //psergey-todo.
+  apc_target_enabled= false;
   end_read_record(&info);
   delete select;
   thd_proc_info(thd, "end");
@@ -996,6 +999,9 @@ int mysql_update(THD *thd,
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
+  if (apc_target_enabled)
+    thd->apc_target.disable();
+
   delete select;
   free_underlaid_joins(thd, select_lex);
   table->disable_keyread();
@@ -1003,6 +1009,7 @@ err:
   DBUG_RETURN(1);
 
 exit_without_my_ok:
+  DBUG_ASSERT(!apc_target_enabled);
   thd->lex->upd_del_plan= &query_plan;
   
   select_send *result;
