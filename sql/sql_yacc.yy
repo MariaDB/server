@@ -11913,11 +11913,19 @@ describe:
           opt_describe_column {}
         | describe_command opt_extended_describe
           { Lex->describe|= DESCRIBE_NORMAL; }
-          select
+          explanable_command
           {
             LEX *lex=Lex;
             lex->select_lex.options|= SELECT_DESCRIBE;
           }
+        ;
+
+explanable_command:
+          select
+        | insert
+        | replace
+        | update
+        | delete
         ;
 
 describe_command:

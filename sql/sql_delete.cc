@@ -40,6 +40,147 @@
 #include "records.h"                            // init_read_record,
 #include "sql_derived.h"                        // mysql_handle_list_of_derived
                                                 // end_read_record
+
+
+/*
+  @brief
+    Print query plan of a single-table DELETE command
+  
+  @detail
+    This function is used by EXPLAIN DELETE and by SHOW EXPLAIN when it is
+    invoked on a running DELETE statement.
+*/
+
+int Delete_plan::print_explain(select_result_sink *output, uint8 explain_flags, 
+                               bool *printed_anything)
+{
+  if (deleting_all_rows)
+  {
+    const char *msg= "Deleting all rows";
+    if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
+                                   "SIMPLE", msg))
+    {
+      return 1;
+    }
+    *printed_anything= true;
+    return 0;
+  }
+  return Update_plan::print_explain(output, explain_flags, printed_anything);
+}
+
+
+int Update_plan::print_explain(select_result_sink *output, uint8 explain_flags, 
+                               bool *printed_anything)
+{
+  if (impossible_where)
+  {
+    const char *msg= "Impossible where";
+    if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
+                                   "SIMPLE", msg))
+    {
+      return 1;
+    }
+    *printed_anything= true;
+    return 0;
+  }
+
+  select_lex->set_explain_type(FALSE);
+  /* 
+    Print an EXPLAIN line. We dont have join, so we can't directly use
+    JOIN::print_explain.
+    We do have a SELECT_LEX (TODO but how is it useful? it has select_type..
+                             and that's it?)
+  */
+
+  enum join_type jtype;
+  if (select && select->quick)
+  {
+    int quick_type= select->quick->get_type();
+    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+      jtype= JT_INDEX_MERGE;
+    else
+      jtype= JT_RANGE;
+  }
+  else
+  {
+    if (index == MAX_KEY)
+      jtype= JT_ALL;
+    else
+      jtype= JT_NEXT;
+  }
+
+  StringBuffer<128> possible_keys_line;
+  make_possible_keys_line(table, possible_keys, &possible_keys_line);
+
+  const char *key_name;
+  const char *key_len;
+
+  StringBuffer<128> key_str;
+  StringBuffer<128> key_len_str;
+  StringBuffer<128> extra_str;
+
+  /* Calculate key_len */
+  if (select && select->quick)
+  {
+    select->quick->add_keys_and_lengths(&key_str, &key_len_str);
+    key_name= key_str.c_ptr();
+    key_len= key_len_str.c_ptr();
+  }
+  else
+  {
+    key_name= (index == MAX_KEY)? NULL : table->key_info[index].name;
+    key_len= NULL;
+  }
+ 
+  if (select && select->cond)
+    extra_str.append(STRING_WITH_LEN("Using where"));
+  if (select && select->quick && 
+      select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
+  {
+    explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, &extra_str);
+  }
+
+  if (using_filesort)
+  {
+    if (extra_str.length() !=0)
+      extra_str.append(STRING_WITH_LEN("; "));
+    extra_str.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  /* 
+    Single-table DELETE commands do not do "Using temporary".
+    "Using index condition" is also not possible (which is an unjustified limitation)
+  */
+
+  print_explain_row(output, explain_flags, 
+                    1, /* id */
+                    select_lex->type,
+                    table->pos_in_table_list->alias, 
+                    // partitions,
+                    jtype,
+                    possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
+                    key_name,
+                    key_len,
+                    NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
+                    select ? select->records : table_rows,
+                    extra_str.c_ptr());
+
+  *printed_anything= true;
+ 
+  for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    if (unit->print_explain(output, explain_flags, printed_anything))
+      return 1;
+  }
+  return 0;
+}
+
+
 /**
   Implement DELETE SQL word.
 
@@ -61,12 +202,16 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   bool          const_cond_result;
   ha_rows	deleted= 0;
   bool          reverse= FALSE;
+  bool          err= true;
   ORDER *order= (ORDER *) ((order_list && order_list->elements) ?
                            order_list->first : NULL);
-  uint usable_index= MAX_KEY;
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
+
+  Delete_plan query_plan;
+  query_plan.index= MAX_KEY;
+  query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_delete");
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -90,6 +235,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
   thd_proc_info(thd, "init");
   table->map=1;
+  query_plan.select_lex= &thd->lex->select_lex;
+  query_plan.table= table;
 
   if (mysql_prepare_delete(thd, table_list, &conds))
     DBUG_RETURN(TRUE);
@@ -163,6 +310,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
     ha_rows const maybe_deleted= table->file->stats.records;
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
+
+    query_plan.set_delete_all_rows(maybe_deleted);
+    if (thd->lex->describe)
+      goto exit_without_my_ok;
+
     if (!(error=table->file->ha_delete_all_rows()))
     {
       /*
@@ -187,7 +339,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     Item::cond_result result;
     conds= remove_eq_conds(thd, conds, &result);
     if (result == Item::COND_FALSE)             // Impossible where
+    {
       limit= 0;
+      query_plan.set_impossible_where();
+      if (thd->lex->describe)
+        goto exit_without_my_ok;
+    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -195,6 +352,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     free_underlaid_joins(thd, select_lex);
     // No matching record
+    //psergey-explain-todo: No-partitions used EXPLAIN here..
     my_ok(thd, 0);
     DBUG_RETURN(0);
   }
@@ -211,6 +369,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
   if ((select && select->check_quick(thd, safe_update, limit)) || !limit)
   {
+    query_plan.set_impossible_where();
+    if (thd->lex->describe)
+      goto exit_without_my_ok;
+
     delete select;
     free_underlaid_joins(thd, select_lex);
     /* 
@@ -243,26 +405,46 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
   if (order)
   {
-    uint         length= 0;
-    SORT_FIELD  *sortorder;
-    ha_rows examined_rows;
-    ha_rows found_rows;
-    
     table->update_const_key_parts(conds);
     order= simple_remove_const(order, conds);
 
-    bool need_sort;
     if (select && select->quick && select->quick->unique_key_range())
     { // Single row select (always "ordered")
-      need_sort= FALSE;
-      usable_index= MAX_KEY;
+      query_plan.using_filesort= FALSE;
+      query_plan.index= MAX_KEY;
     }
     else
-      usable_index= get_index_for_order(order, table, select, limit,
-                                        &need_sort, &reverse);
-    if (need_sort)
+      query_plan.index= get_index_for_order(order, table, select, limit,
+                                            &query_plan.using_filesort, 
+                                            &reverse);
+  }
+
+  query_plan.select= select;
+  query_plan.possible_keys= table->quick_keys;
+  query_plan.table_rows= table->file->stats.records;
+  thd->lex->upd_del_plan= &query_plan;
+  
+  /*
+    Ok, we have generated a query plan for the DELETE.
+     - if we're running EXPLAIN DELETE, goto produce explain output 
+     - otherwise, execute the query plan
+  */
+  if (thd->lex->describe)
+    goto exit_without_my_ok;
+
+  thd->apc_target.enable();
+  DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
+                  dbug_serve_apcs(thd, 1););
+
+  if (query_plan.using_filesort)
+  {
+    ha_rows examined_rows;
+    ha_rows found_rows;
+    uint         length= 0;
+    SORT_FIELD  *sortorder;
+
     {
-      DBUG_ASSERT(usable_index == MAX_KEY);
+      DBUG_ASSERT(query_plan.index == MAX_KEY);
       table->sort.io_cache= (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
                                                    MYF(MY_FAE | MY_ZEROFILL |
                                                        MY_THREAD_SPECIFIC));
@@ -276,6 +458,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       {
         delete select;
         free_underlaid_joins(thd, &thd->lex->select_lex);
+        thd->apc_target.disable();
         DBUG_RETURN(TRUE);
       }
       thd->examined_row_count+= examined_rows;
@@ -294,19 +477,21 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   {
     delete select;
     free_underlaid_joins(thd, select_lex);
+    thd->apc_target.disable();
     DBUG_RETURN(TRUE);
   }
-  if (usable_index == MAX_KEY || (select && select->quick))
+  if (query_plan.index == MAX_KEY || (select && select->quick))
   {
     if (init_read_record(&info, thd, table, select, 1, 1, FALSE))
     {
       delete select;
       free_underlaid_joins(thd, select_lex);
+      thd->apc_target.disable();
       DBUG_RETURN(TRUE);
     }
   }
   else
-    init_read_record_idx(&info, thd, table, 1, usable_index, reverse);
+    init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
 
   init_ftfuncs(thd, select_lex, 1);
   thd_proc_info(thd, "updating");
@@ -398,6 +583,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (options & OPTION_QUICK)
     (void) table->file->extra(HA_EXTRA_NORMAL);
 
+  thd->apc_target.disable();
 cleanup:
   /*
     Invalidate the table in the query cache if something changed. This must
@@ -458,6 +644,29 @@ cleanup:
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
   DBUG_RETURN(error >= 0 || thd->is_error());
+  
+  /* Special exits */
+exit_without_my_ok:
+  thd->lex->upd_del_plan= &query_plan;
+  
+  select_send *result;
+  bool printed_anything;
+  if (!(result= new select_send()))
+    return 1;                               /* purecov: inspected */
+  List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
+  result->prepare(dummy, &thd->lex->unit);
+  thd->send_explain_fields(result);
+  int err2= thd->lex->print_explain(result, 0 /* explain flags*/, &printed_anything);
+
+  if (err2)
+    result->abort_result_set();
+  else
+    result->send_eof();
+
+  delete select;
+  free_underlaid_joins(thd, select_lex);
+  //table->set_keyread(false);
+  DBUG_RETURN((err || thd->is_error() || thd->killed) ? 1 : 0);
 }
 
 
