@@ -11098,7 +11098,8 @@ void JOIN::cleanup(bool full)
   DBUG_ENTER("JOIN::cleanup");
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
-  have_query_plan= QEP_DELETED;
+  if (full)
+    have_query_plan= QEP_DELETED; //psergey: this is a problem!
 
   if (table)
   {
@@ -22087,23 +22088,20 @@ void JOIN::clear()
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
 */
+
 int print_explain_message_line(select_result_sink *result, 
-                               SELECT_LEX *select_lex,
-                               bool on_the_fly,
                                uint8 options,
+                               uint select_number,
+                               const char *select_type,
                                const char *message)
 {
   const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
   List<Item> item_list;
 
-  if (on_the_fly)
-    select_lex->set_explain_type(on_the_fly);
-
-  item_list.push_back(new Item_int((int32)
-                                   select_lex->select_number));
-  item_list.push_back(new Item_string(select_lex->type,
-                                      strlen(select_lex->type), cs));
+  item_list.push_back(new Item_int((int32) select_number));
+  item_list.push_back(new Item_string(select_type,
+                                      strlen(select_type), cs));
   for (uint i=0 ; i < 7; i++)
     item_list.push_back(item_null);
   if (options & DESCRIBE_PARTITIONS)
@@ -22112,6 +22110,104 @@ int print_explain_message_line(select_result_sink *result,
     item_list.push_back(item_null);
 
   item_list.push_back(new Item_string(message,strlen(message),cs));
+
+  if (result->send_data(item_list))
+    return 1;
+  return 0;
+}
+
+
+/*
+  Make a comma-separated list of possible_keys names and add it into the string
+*/ 
+
+void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
+{
+  if (!possible_keys.is_clear_all())
+  {
+    uint j;
+    for (j=0 ; j < table->s->keys ; j++)
+    {
+      if (possible_keys.is_set(j))
+      {
+        if (line->length())
+          line->append(',');
+        line->append(table->key_info[j].name, 
+                     strlen(table->key_info[j].name),
+                     system_charset_info);
+      }
+    }
+  }
+}
+
+/*
+  Print an EXPLAIN output row, based on information provided in the parameters
+
+  @note
+    Parameters that may have NULL value in EXPLAIN output, should be passed
+    (char*)NULL.
+
+  @return 
+    0  - OK
+    1  - OOM Error
+*/
+
+int print_explain_row(select_result_sink *result,
+                      uint8 options,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      //const char *partitions, (todo)
+                      enum join_type jtype,
+                      const char *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows rows,
+                      const char *extra)
+{
+  const CHARSET_INFO *cs= system_charset_info;
+  Item *item_null= new Item_null();
+  List<Item> item_list;
+  Item *item;
+
+  item_list.push_back(new Item_int((int32) select_number));
+  item_list.push_back(new Item_string(select_type,
+                                      strlen(select_type), cs));
+  item_list.push_back(new Item_string(table_name,
+                                      strlen(table_name), cs));
+  if (options & DESCRIBE_PARTITIONS)
+    item_list.push_back(item_null); // psergey-todo: produce proper value
+  
+  const char *jtype_str= join_type_str[jtype];
+  item_list.push_back(new Item_string(jtype_str,
+                                      strlen(jtype_str), cs));
+  
+  item= possible_keys? new Item_string(possible_keys, strlen(possible_keys),
+                                      cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'index */
+  item= index ? new Item_string(index, strlen(index), cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'key_len */
+  item= key_len ? new Item_string(key_len, strlen(key_len), cs) : item_null;
+  item_list.push_back(item);
+  
+  /* 'ref' */
+  item= ref ? new Item_string(ref, strlen(ref), cs) : item_null;
+  item_list.push_back(item);
+
+  /* 'rows' */
+  item_list.push_back(new Item_int(rows, 
+                                   MY_INT64_NUM_DECIMAL_DIGITS));
+  /* 'filtered' */
+  if (options & DESCRIBE_EXTENDED)
+    item_list.push_back(item_null);
+  
+  /* 'Extra' */
+  item_list.push_back(new Item_string(extra, strlen(extra), cs));
 
   if (result->send_data(item_list))
     return 1;
@@ -22198,6 +22294,26 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
 }
 
 
+/*
+  Append MRR information from quick select to the given string
+*/
+
+void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
+{
+  char mrr_str_buf[128];
+  mrr_str_buf[0]=0;
+  int len;
+  handler *h= quick->head->file;
+  len= h->multi_range_read_explain_info(quick->mrr_flags, mrr_str_buf,
+                                        sizeof(mrr_str_buf));
+  if (len > 0)
+  {
+    res->append(STRING_WITH_LEN("; "));
+    res->append(mrr_str_buf, len);
+  }
+}
+
+
 /**
   EXPLAIN handling.
 
@@ -22239,8 +22355,12 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
   */
   if (message)
   {
-    if (print_explain_message_line(result, join->select_lex, on_the_fly, 
-                                   explain_flags, message))
+    if (on_the_fly)
+      join->select_lex->set_explain_type(on_the_fly);
+
+    if (print_explain_message_line(result, explain_flags,
+                                   join->select_lex->select_number,
+                                   join->select_lex->type, message))
       error= 1;
 
   }
@@ -22255,7 +22375,7 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
     table_map used_tables=0;
-    //if (!join->select_lex->type)
+
     if (on_the_fly)
       join->select_lex->set_explain_type(on_the_fly);
 
@@ -22670,19 +22790,8 @@ int JOIN::print_explain(select_result_sink *result, uint8 explain_flags,
         */
         if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
         {
-          char mrr_str_buf[128];
-          mrr_str_buf[0]=0;
-          int len;
-          uint mrr_flags= 
-            ((QUICK_RANGE_SELECT*)(tab->select->quick))->mrr_flags;
-          len= table->file->multi_range_read_explain_info(mrr_flags,
-                                                          mrr_str_buf,
-                                                          sizeof(mrr_str_buf));
-          if (len > 0)
-          {
-            extra.append(STRING_WITH_LEN("; "));
-            extra.append(mrr_str_buf, len);
-          }
+          explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
+                                  &extra);
         }
 
 	if (need_tmp_table)
