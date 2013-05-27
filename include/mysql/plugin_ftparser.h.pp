@@ -105,7 +105,7 @@ extern struct thd_timezone_service_st {
   my_time_t (*thd_TIME_to_gmt_sec)(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
   void (*thd_gmt_sec_to_TIME)(void* thd, MYSQL_TIME *ltime, my_time_t t);
 } *thd_timezone_service;
-my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, uint *errcode);
+my_time_t thd_TIME_to_gmt_sec(void* thd, const MYSQL_TIME *ltime, unsigned int *errcode);
 void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
 struct st_mysql_xid {
   long formatID;
