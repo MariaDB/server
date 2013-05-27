@@ -448,6 +448,7 @@ void lex_start(THD *thd)
 
   lex->thd= lex->unit.thd= thd;
 
+  lex->upd_del_plan= NULL;
   lex->context_stack.empty();
   lex->unit.init_query();
   lex->unit.init_select();
@@ -2560,6 +2561,7 @@ LEX::LEX()
                          INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
+  upd_del_plan= NULL;
 }
 
 
@@ -4170,12 +4172,17 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   return all_merged;
 }
 
-
-int print_explain_message_line(select_result_sink *result, 
-                               SELECT_LEX *select_lex,
-                               bool on_the_fly,
-                               uint8 options,
-                               const char *message);
+int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
+                       bool *printed_anything)
+{
+  if (upd_del_plan)
+  {
+    upd_del_plan->print_explain(output, explain_flags, printed_anything);
+    return 0;
+  }
+  int res= unit.print_explain(output, explain_flags, printed_anything);
+  return res;
+}
 
 
 int st_select_lex::print_explain(select_result_sink *output, 
@@ -4239,8 +4246,9 @@ int st_select_lex::print_explain(select_result_sink *output,
       DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
       msg= "Query plan already deleted";
     }
-    res= print_explain_message_line(output, this, TRUE /* on_the_fly */,
-                                    0, msg);
+    set_explain_type(TRUE/* on_the_fly */);
+    res= print_explain_message_line(output, 0/*options*/, select_number, type,
+                                    msg);
   }
 err:
   return res;
@@ -4260,9 +4268,10 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
       EXPLAIN state" error.
     */
     const char *msg="Query plan already deleted";
-    res= print_explain_message_line(output, first, TRUE /* on_the_fly */,
-                                    0, msg);
-    return 0;
+    first->set_explain_type(TRUE/* on_the_fly */);
+    res= print_explain_message_line(output, 0/*options*/, first->select_number,
+                                    first->type, msg);
+    return res;
   }
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())

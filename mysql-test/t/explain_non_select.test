@@ -1,0 +1,86 @@
+#
+# MariaDB tests for EXPLAIN UPDATE/DELETE.
+#
+--disable_warnings
+drop table if exists t0;
+--enable_warnings
+
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+
+--echo #
+--echo #  Tests for single-table DELETE
+--echo # 
+
+explain select * from t0 where a=3;
+explain delete from t0 where a=3;
+
+--echo # DELETE without WHERE is a special case:
+explain delete from t0;
+
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+
+--echo # This should use an index,  possible_keys=NULL because there is no WHERE
+explain delete from t1 order by a limit 2;
+
+--echo # This should use range, possible_keys={a,b}
+explain delete from t1 where a<20 and b < 10;
+
+--echo # This should use ALL + filesort
+explain delete from t1 order by a+1 limit 2;
+
+--echo # This should use range + using filesort
+explain delete from t1 where a<20 order by b limit 2;
+
+--echo # Try some subqueries:
+explain delete from t1 where a < (select max(a) from t0);
+explain delete from t1 where a < (select max(a) from t0 where a < t1.b);
+
+--echo #
+--echo #  Tests for multi-table DELETE
+--echo # 
+explain delete t1 from t0, t1 where t0.a = t1.a;
+drop table t0, t1;
+
+--echo # ###################################################################
+--echo # ## EXPLAIN UPDATE tests
+--echo # ###################################################################
+create table t0 (a int) engine=myisam;
+insert into t0 values (1),(2),(3),(4),(5),(6),(7),(8);
+
+explain update t0 set a=3 where a=4;
+
+create table t1 (a int, b int, filler char(100), key(a), key(b));
+insert into t1 
+select A.a+10*B.a + 10*C.a, A.a+10*B.a + 10*C.a, 'filler' 
+from t0 A, t0 B, t0 C;
+
+explain update t1 set a=a+1 where 3>4;
+explain update t1 set a=a+1 where a=3 and a=4;
+
+--echo # This should use an index,  possible_keys=NULL because there is no WHERE
+explain update t1 set a=a+1 order by a limit 2;
+
+--echo # This should use range, possible_keys={a,b}
+explain update t1 set filler='fooo' where a<20 and b < 10;
+
+--echo # This should use ALL + filesort
+explain update t1 set filler='fooo' order by a+1 limit 2;
+
+--echo # This should use range + using filesort
+explain update t1 set filler='fooo' where a<20 order by b limit 2;
+
+--echo # Try some subqueries:
+explain update t1 set filler='fooo' where a < (select max(a) from t0);
+explain update t1 set filler='fooo' where a < (select max(a) from t0 where a < t1.b);
+
+--echo #
+--echo #  Tests for multi-table UPDATE
+--echo # 
+explain update t0, t1 set t1.a=t1.a+1 where t0.a = t1.a;
+
+
+drop table t0, t1;
