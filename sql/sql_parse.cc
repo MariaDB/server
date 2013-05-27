@@ -7205,8 +7205,14 @@ uint kill_one_thread(THD *thd, ulong id, killed_state kill_signal)
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
+#ifdef WITH_WSREP
+    if (((thd->security_ctx->master_access & SUPER_ACL) ||
+        thd->security_ctx->user_matches(tmp->security_ctx)) &&
+	!wsrep_thd_is_brute_force((void *)tmp))
+#else
     if ((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx))
+#endif /* WITH_WSREP */
     {
       tmp->awake(kill_signal);
       error=0;
