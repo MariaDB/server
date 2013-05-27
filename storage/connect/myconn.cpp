@@ -316,6 +316,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   // This is critical, because the server will not accept the
   // client's options, and vice versa.
   mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "PlugDB_CLIENT");
+  mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {

@@ -1,3 +1,5 @@
+-- source include/not_embedded.inc
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 let $PORT= `select @@port`;
 
