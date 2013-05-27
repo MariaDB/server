@@ -1373,6 +1373,7 @@ ColumnDataConverter *map_field_to_validator(Field *field, const char *validator_
       /* fall through: */
     case MYSQL_TYPE_VAR_STRING:
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_BLOB:
     {
       /*
         Cassandra's "varint" type is a binary-encoded arbitary-length
