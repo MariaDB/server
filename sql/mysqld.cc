@@ -1595,8 +1595,21 @@ static void close_connections(void)
   Events::deinit();
   end_slave();
 
-  /* Give threads time to die. */
-  for (int i= 0; *(volatile int32*) &thread_count && i < 100; i++)
+  /*
+    Give threads time to die.
+
+    In 5.5, this was waiting 100 rounds @ 20 milliseconds/round, so as little
+    as 2 seconds, depending on thread scheduling.
+
+    From 10.0, we increase this to 1000 rounds / 20 seconds. The rationale is
+    that on a server with heavy I/O load, it is quite possible for eg. an
+    fsync() of the binlog or whatever to cause something like LOCK_log to be
+    held for more than 2 seconds. We do not want to force kill threads in
+    such cases, if it can be avoided. Note that normally, the wait will be
+    much smaller than even 2 seconds, this is only a safety fallback against
+    stuck threads so server shutdown is not held up forever.
+  */
+  for (int i= 0; *(volatile int32*) &thread_count && i < 1000; i++)
     my_sleep(20000);
 
   /*

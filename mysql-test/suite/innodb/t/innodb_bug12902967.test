@@ -24,7 +24,7 @@ alter table t1 add constraint c1 foreign key (f1) references t1(f1);
 perl;
 $file = $ENV{error_log};
 open (FILE, '<', $file) or die "can't open(< $file): $!\n";
-print ((grep { /^InnoDB:/ and not /aio/i } <FILE>)[-2..-1]);
+print ((grep { /^InnoDB:/ and not /aio/i and not /io_setup\(\) attempt [0-9]+ failed/ } <FILE>)[-2..-1]);
 EOF
 
 drop table t1;

@@ -47,6 +47,7 @@
 #include "transaction.h"
 #include <my_dir.h>
 #include "sql_show.h"    // append_identifier
+#include <strfunc.h>
 
 #endif /* MYSQL_CLIENT */
 
@@ -518,11 +519,59 @@ pretty_print_str(String *packet, const char *str, int len)
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 
 /**
-  Creates a temporary name for load data infile:.
+  Create a prefix for the temporary files that is to be used for
+  load data file name for this master
+
+  @param name	           Store prefix of name here
+  @param connection_name   Connection name
+ 
+  @return pointer to end of name
+
+  @description
+  We assume that FN_REFLEN is big enough to hold
+  MAX_CONNECTION_NAME * MAX_FILENAME_MBWIDTH characters + 2 numbers +
+  a short extension.
+
+  The resulting file name has the following parts, each separated with a '-'
+  - PREFIX_SQL_LOAD (SQL_LOAD-)
+  - If a connection name is given (multi-master setup):
+    - Add an extra '-' to mark that this is a multi-master file
+    - connection name in lower case, converted to safe file characters.
+    (see create_logfile_name_with_suffix()).
+  - server_id
+  - A last '-' (after server_id).
+*/
+
+static char *load_data_tmp_prefix(char *name,
+                                  LEX_STRING *connection_name)
+{
+  name= strmov(name, PREFIX_SQL_LOAD);
+  if (connection_name->length)
+  {
+    uint buf_length;
+    uint errors;
+    /* Add marker that this is a multi-master-file */
+    *name++='-';
+    /* Convert connection_name to a safe filename */
+    buf_length= strconvert(system_charset_info, connection_name->str,
+                           &my_charset_filename, name, FN_REFLEN,
+                           &errors);
+    name+= buf_length;
+    *name++= '-';
+  }
+  name= int10_to_str(global_system_variables.server_id, name, 10);
+  *name++ = '-';
+  *name= '\0';                                  // For testing prefixes
+  return name;
+}
+
+
+/**
+  Creates a temporary name for LOAD DATA INFILE
 
   @param buf		      Store new filename here
   @param file_id	      File_id (part of file name)
-  @param event_server_id     Event_id (part of file name)
+  @param event_server_id      Event_id (part of file name)
   @param ext		      Extension for file name
 
   @return
@@ -530,16 +579,14 @@ pretty_print_str(String *packet, const char *str, int len)
 */
 
 static char *slave_load_file_stem(char *buf, uint file_id,
-                                  int event_server_id, const char *ext)
+                                  int event_server_id, const char *ext,
+                                  LEX_STRING *connection_name)
 {
   char *res;
-  fn_format(buf,PREFIX_SQL_LOAD,slave_load_tmpdir, "", MY_UNPACK_FILENAME);
+  res= buf+ unpack_dirname(buf, slave_load_tmpdir);
   to_unix_path(buf);
-
-  buf = strend(buf);
-  buf = int10_to_str(global_system_variables.server_id, buf, 10);
-  *buf++ = '-';
-  buf = int10_to_str(event_server_id, buf, 10);
+  buf= load_data_tmp_prefix(res, connection_name);
+  buf= int10_to_str(event_server_id, buf, 10);
   *buf++ = '-';
   res= int10_to_str(file_id, buf, 10);
   strmov(res, ext);                             // Add extension last
@@ -554,14 +601,17 @@ static char *slave_load_file_stem(char *buf, uint file_id,
   Delete all temporary files used for SQL_LOAD.
 */
 
-static void cleanup_load_tmpdir()
+static void cleanup_load_tmpdir(LEX_STRING *connection_name)
 {
   MY_DIR *dirp;
   FILEINFO *file;
   uint i;
-  char fname[FN_REFLEN], prefbuf[31], *p;
+  char dir[FN_REFLEN], fname[FN_REFLEN];
+  char prefbuf[31 + MAX_CONNECTION_NAME* MAX_FILENAME_MBWIDTH + 1];
+  DBUG_ENTER("cleanup_load_tmpdir");
 
-  if (!(dirp=my_dir(slave_load_tmpdir,MYF(0))))
+  unpack_dirname(dir, slave_load_tmpdir);
+  if (!(dirp=my_dir(dir, MYF(MY_WME))))
     return;
 
   /* 
@@ -572,10 +622,9 @@ static void cleanup_load_tmpdir()
      we cannot meet Start_log event in the middle of events from one 
      LOAD DATA.
   */
-  p= strmake(prefbuf, STRING_WITH_LEN(PREFIX_SQL_LOAD));
-  p= int10_to_str(global_system_variables.server_id, p, 10);
-  *(p++)= '-';
-  *p= 0;
+
+  load_data_tmp_prefix(prefbuf, connection_name);
+  DBUG_PRINT("enter", ("dir: '%s'  prefix: '%s'", dir, prefbuf));
 
   for (i=0 ; i < (uint)dirp->number_of_files; i++)
   {
@@ -588,6 +637,7 @@ static void cleanup_load_tmpdir()
   }
 
   my_dirend(dirp);
+  DBUG_VOID_RETURN;
 }
 #endif
 
@@ -4236,8 +4286,19 @@ Query_log_event::do_shall_skip(Relay_log_info *rli)
 
 bool
 Query_log_event::peek_is_commit_rollback(const char *event_start,
-                                         size_t event_len)
+                                         size_t event_len, uint8 checksum_alg)
 {
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
   if (event_len < LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN || event_len < 9)
     return false;
   return !memcmp(event_start + (event_len-7), "\0COMMIT", 7) ||
@@ -4406,7 +4467,11 @@ int Start_log_event_v3::do_apply_event(Relay_log_info const *rli)
     if (created)
     {
       error= close_temporary_tables(thd);
-      cleanup_load_tmpdir();
+      /*
+        The following is only false if we get here with a BINLOG statement
+      */
+      if (rli->mi)
+        cleanup_load_tmpdir(&rli->mi->cmp_connection_name);
     }
     else
     {
@@ -6050,10 +6115,23 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 */
 bool
 Gtid_log_event::peek(const char *event_start, size_t event_len,
+                     uint8 checksum_alg,
                      uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                      uchar *flags2)
 {
   const char *p;
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
   if (event_len < LOG_EVENT_HEADER_LEN + GTID_HEADER_LEN)
     return true;
   *server_id= uint4korr(event_start + SERVER_ID_OFFSET);
@@ -6100,7 +6178,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
   flags2= (*packet)[ev_offset + LOG_EVENT_HEADER_LEN + 12];
   if (flags2 & FL_STANDALONE)
   {
-    if (need_dummy_event)
+    if (*need_dummy_event)
       return Query_log_event::dummy_event(packet, ev_offset, checksum_alg);
     else
       return 0;
@@ -7760,7 +7838,8 @@ int Create_file_log_event::do_apply_event(Relay_log_info const *rli)
 
   THD_STAGE_INFO(thd, stage_making_temp_file_create_before_load_data);
   bzero((char*)&file, sizeof(file));
-  ext= slave_load_file_stem(fname_buf, file_id, server_id, ".info");
+  ext= slave_load_file_stem(fname_buf, file_id, server_id, ".info",
+                            &rli->mi->connection_name);
   /* old copy may exist already */
   mysql_file_delete(key_file_log_event_info, fname_buf, MYF(0));
   if ((fd= mysql_file_create(key_file_log_event_info,
@@ -7936,7 +8015,8 @@ int Append_block_log_event::do_apply_event(Relay_log_info const *rli)
   DBUG_ENTER("Append_block_log_event::do_apply_event");
 
   THD_STAGE_INFO(thd, stage_making_temp_file_append_before_load_data);
-  slave_load_file_stem(fname, file_id, server_id, ".data");
+  slave_load_file_stem(fname, file_id, server_id, ".data",
+                       &rli->mi->cmp_connection_name);
   if (get_create_or_append())
   {
     /*
@@ -8078,7 +8158,8 @@ void Delete_file_log_event::pack_info(THD *thd, Protocol *protocol)
 int Delete_file_log_event::do_apply_event(Relay_log_info const *rli)
 {
   char fname[FN_REFLEN+10];
-  char *ext= slave_load_file_stem(fname, file_id, server_id, ".data");
+  char *ext= slave_load_file_stem(fname, file_id, server_id, ".data",
+                                  &rli->mi->cmp_connection_name);
   mysql_file_delete(key_file_log_event_data, fname, MYF(MY_WME));
   strmov(ext, ".info");
   mysql_file_delete(key_file_log_event_info, fname, MYF(MY_WME));
@@ -8182,7 +8263,8 @@ int Execute_load_log_event::do_apply_event(Relay_log_info const *rli)
   IO_CACHE file;
   Load_log_event *lev= 0;
 
-  ext= slave_load_file_stem(fname, file_id, server_id, ".info");
+  ext= slave_load_file_stem(fname, file_id, server_id, ".info",
+                            &rli->mi->cmp_connection_name);
   if ((fd= mysql_file_open(key_file_log_event_info,
                            fname, O_RDONLY | O_BINARY | O_NOFOLLOW,
                            MYF(MY_WME))) < 0 ||
@@ -8469,7 +8551,8 @@ Execute_load_query_log_event::do_apply_event(Relay_log_info const *rli)
   memcpy(p, query, fn_pos_start);
   p+= fn_pos_start;
   fname= (p= strmake(p, STRING_WITH_LEN(" INFILE \'")));
-  p= slave_load_file_stem(p, file_id, server_id, ".data");
+  p= slave_load_file_stem(p, file_id, server_id, ".data",
+                          &rli->mi->cmp_connection_name);
   fname_end= p= strend(p);                      // Safer than p=p+5
   *(p++)='\'';
   switch (dup_handling) {
