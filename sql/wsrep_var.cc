@@ -286,6 +286,7 @@ bool wsrep_provider_options_update(sys_var *self, THD* thd, enum_var_type type)
   if (ret != WSREP_OK)
   {
     WSREP_ERROR("Set options returned %d", ret);
+    refresh_provider_options();
     return true;
   }
   return refresh_provider_options();
