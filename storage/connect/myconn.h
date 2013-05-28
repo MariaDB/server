@@ -44,6 +44,8 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
                    const char *user, const char *pwd,
                    const char *srcdef, int port);
 
+uint GetDefaultPort(void);
+
 /* -------------------------- MYCONN class --------------------------- */
 
 /***********************************************************************/

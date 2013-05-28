@@ -36,6 +36,7 @@ class VALBLK : public BLOCK {
           void  *GetValPointer(void) {return Blkp;}
           void   SetValPointer(void *mp) {Blkp = mp;}
           int    GetType(void) {return Type;}
+          int    GetPrec(void) {return Prec;}
           void   SetCheck(bool b) {Check = b;}
           void   MoveNull(int i, int j)
                   {if (To_Nulls) To_Nulls[j] = To_Nulls[j];}
@@ -110,7 +111,7 @@ class TYPBLK : public VALBLK {
 
   // Implementation
   virtual void   Init(PGLOBAL g, bool check);
-  virtual int    GetVlen(void) {return sizeof(int);}
+  virtual int    GetVlen(void) {return sizeof(TYPE);}
 //virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) {return (short)Typp[n];}
   virtual int    GetIntValue(int n) {return (int)Typp[n];}

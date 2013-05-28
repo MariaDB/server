@@ -27,11 +27,12 @@
   ha_connect will let you create/open/delete tables, the created table can be
   done specifying an already existing file, the drop table command will just
   suppress the table definition but not the eventual data file.
-  Indexes are not yet supported but data can be inserted, updated or deleted.
+  Indexes are not supported for all table types but data can be inserted, 
+  updated or deleted.
 
   You can enable the CONNECT storage engine in your build by doing the
   following during your build process:<br> ./configure
-  --with-connect-storage-engine (not implemented yet)
+  --with-connect-storage-engine
 
   You can install the CONNECT handler as all other storage handlers.
 
@@ -165,6 +166,16 @@ extern "C" {
 #endif
        int  trace= 0;              // The general trace value
 } // extern "C"
+
+bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank);
+bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank);
+PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
+                                const char *picol, const char *fncol,
+                                const char *host,  const char *db,
+                                const char *user,  const char *pwd,
+                                int port);
 
 /****************************************************************************/
 /*  Initialize the ha_connect static members.                               */
@@ -3333,7 +3344,7 @@ static char *encode(PGLOBAL g, char *cnm)
 */
 
 static bool add_field(String *sql, const char *field_name, const char *type,
-                      int len, int dec, uint tm, const char *rem)
+                      int len, int dec, uint tm, const char *rem, int flag)
 {
   bool error= false;
 
@@ -3341,15 +3352,18 @@ static bool add_field(String *sql, const char *field_name, const char *type,
   error|= sql->append(field_name);
   error|= sql->append("` ");
   error|= sql->append(type);
+
   if (len) {
     error|= sql->append('(');
     error|= sql->append_ulonglong(len);
+
     if (dec || !strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
       error|= sql->append_ulonglong(dec);
-      }
+      } // endif dec
+
     error|= sql->append(')');
-    }
+    } // endif len
   
   if (tm)
     error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
@@ -3358,10 +3372,14 @@ static bool add_field(String *sql, const char *field_name, const char *type,
     error|= sql->append(" COMMENT '");
     error|= sql->append_for_single_quote(rem, strlen(rem));
     error|= sql->append("'");
-    }
+    } // endif rem
+
+  if (flag) {
+    error|= sql->append(" FLAG=");
+    error|= sql->append_ulonglong(flag);
+    } // endif flag
 
   sql->append(',');
-
   return error;
 } // end of add_field
 
@@ -3381,6 +3399,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   char        spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *prt, *sep, *tbl, *src;
+  const char *col, *ocl, *rnk, *pic, *fcl;
   char       *tab, *dsn; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
@@ -3402,7 +3421,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
 
-  user= host= pwd= prt= tbl= src= dsn= NULL;
+  user= host= pwd= prt= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -3417,12 +3436,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   qch= topt->qchar ? *topt->qchar : topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
+  col= topt->colist;
 
   if (topt->oplist) {
     host= GetListOption(g,"host", topt->oplist, "localhost");
     user= GetListOption(g,"user", topt->oplist, "root");
     // Default value db can come from the DBNAME=xxx option.
     db= GetListOption(g,"database", topt->oplist, db);
+    col= GetListOption(g,"colist", topt->oplist, col);
+    ocl= GetListOption(g,"occurcol", topt->oplist, NULL);
+    pic= GetListOption(g,"pivotcol", topt->oplist, NULL);
+    fcl= GetListOption(g,"fnccol", topt->oplist, NULL);
+    rnk= GetListOption(g,"rankcol", topt->oplist, NULL);
     pwd= GetListOption(g,"password", topt->oplist);
     prt= GetListOption(g,"port", topt->oplist);
     port= (prt) ? atoi(prt) : 0;
@@ -3537,9 +3562,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       ok= true;
       break;
 #endif   // WIN32
+    case TAB_PIVOT:
+      supfnc = FNC_NO;
     case TAB_PRX:
     case TAB_TBL:
     case TAB_XCL:
+    case TAB_OCCUR:
       ok= true;
       break;
     default:
@@ -3563,7 +3591,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   if (ok) {
     char *cnm, *rem;
-    int   i, len, dec, typ;
+    int   i, len, dec, typ, flg;
     const char *type;
     PDBUSER dup= PlgGetUser(g);
     PCATLG  cat= (dup) ? dup->Catalog : NULL;
@@ -3573,9 +3601,16 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     else
       return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    if (src)
+    if (src && ttp != TAB_PIVOT) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
-    else switch (ttp) {
+
+      if (ttp == TAB_OCCUR)
+        if (OcrSrcCols(g, qrp, col, ocl, rnk)) {
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          return HA_ERR_INTERNAL_ERROR;
+          } // endif OcrSrcCols
+
+    } else switch (ttp) {
       case TAB_DBF:
         qrp= DBFColumns(g, fn, fnc == FNC_COL);
         break;
@@ -3618,12 +3653,22 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       case TAB_PRX:
       case TAB_TBL:
       case TAB_XCL:
+      case TAB_OCCUR:
         bif= fnc == FNC_COL;
         qrp= TabColumns(g, thd, db, tab, bif);
 
         if (!qrp && bif && fnc != FNC_COL)         // tab is a view
           qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
 
+        if (ttp == TAB_OCCUR && fnc != FNC_COL)
+          if (OcrColumns(g, qrp, col, ocl, rnk)) {
+            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+            return HA_ERR_INTERNAL_ERROR;
+            } // endif OcrColumns
+
+        break;
+      case TAB_PIVOT:
+        qrp= PivotColumns(g, tab, src, pic, fcl, host, db, user, pwd, port);
         break;
       default:
         strcpy(g->Message, "System error during assisted discovery");
@@ -3635,16 +3680,17 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       return HA_ERR_INTERNAL_ERROR;
       } // endif qrp
 
-    if (fnc != FNC_NO || src) {
-      // Catalog table
+    if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
+      // Catalog like table
       for (crp=qrp->Colresp; !b && crp; crp= crp->Next) {
         cnm= encode(g, crp->Name);
         type= PLGtoMYSQLtype(crp->Type, dbf);
         len= crp->Length;
         dec= crp->Prec;
+        flg= crp->Flag;
      
         // Now add the field
-        if (add_field(&sql, cnm, type, len, dec, NOT_NULL_FLAG, 0))
+        if (add_field(&sql, cnm, type, len, dec, NOT_NULL_FLAG, 0, flg))
           b= HA_ERR_OUT_OF_MEM;
         } // endfor crp
 
@@ -3714,7 +3760,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           len= 0;
 
         // Now add the field
-        if (add_field(&sql, cnm, type, len, dec, tm, rem))
+        if (add_field(&sql, cnm, type, len, dec, tm, rem, 0))
           b= HA_ERR_OUT_OF_MEM;
 
         } // endfor i

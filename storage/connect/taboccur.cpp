@@ -1,5 +1,5 @@
 /************ TabOccur CPP Declares Source Code File (.CPP) ************/
-/*  Name: TABOCCUR.CPP   Version 1.0                                   */
+/*  Name: TABOCCUR.CPP   Version 1.1                                   */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2013         */
 /*                                                                     */
@@ -53,6 +53,210 @@
 
 extern "C" int trace;
 
+/***********************************************************************/
+/*  Prepare and count columns in the column list.                      */
+/***********************************************************************/
+int PrepareColist(char *colist)
+	{
+	char *p, *pn;
+	int   n = 0;
+
+	// Count the number of columns and change separator into null char
+	for (pn = colist; ; pn += (strlen(pn) + 1))
+    // Separator can be ; if colist was specified in the option_list
+		if ((p = strchr(pn, ',')) || (p = strchr(pn, ';'))) {
+			*p++ = '\0';
+			n++;
+		} else {
+			if (*pn)
+				n++;
+
+			break;
+		} // endif p
+
+	return n;
+	} // end of PrepareColist
+
+/************************************************************************/
+/*  OcrColumns: constructs the result blocks containing all the columns */
+/*  of the object table that will be retrieved by GetData commands.     */
+/************************************************************************/
+bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank)
+  {
+  char   *pn, *colist;
+  int     i, k, m, n = 0, c = 0, j = qrp->Nblin;
+  bool    rk, b = false;
+  PCOLRES crp;
+
+  if (!col || !*col) {
+    strcpy(g->Message, "Missing colist");
+    return true;
+    } // endif col
+
+  // Prepare the column list
+  colist = (char*)PlugSubAlloc(g, NULL, strlen(col) + 1);
+  strcpy(colist, col);
+  m = PrepareColist(colist);
+
+  if ((rk = (rank && *rank))) {
+    if (m == 1) {
+      strcpy(g->Message, "Cannot handle one column colist and rank");
+      return true;
+      } // endif m
+
+    for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
+      n = max(n, (signed)strlen(pn));
+
+    } // endif k
+             
+  // Default occur column name is the 1st colist column name
+  if (!ocr || !*ocr)
+    ocr = colist;
+
+  /**********************************************************************/
+  /*  Replace the columns of the colist by the rank and occur columns.  */
+  /**********************************************************************/
+  for (i = 0; i < qrp->Nblin; i++) {
+    for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
+      if (!stricmp(pn, qrp->Colresp->Kdata->GetCharValue(i)))
+        break;
+
+    if (k < m) {
+      // This column belongs to colist
+      if (rk) {
+        // Place the rank column here
+        for (crp = qrp->Colresp; crp; crp = crp->Next)
+          switch (crp->Fld) {
+            case FLD_NAME:  crp->Kdata->SetValue((char*)rank, i); break;
+            case FLD_TYPE:  crp->Kdata->SetValue(TYPE_STRING, i); break;
+            case FLD_PREC:  crp->Kdata->SetValue(n, i);           break;
+            case FLD_SCALE: crp->Kdata->SetValue(0, i);           break;
+            case FLD_NULL:  crp->Kdata->SetValue(0, i);           break;
+            case FLD_REM:   crp->Kdata->Reset(i);                 break;
+            default: ;   // Ignored by CONNECT
+            } // endswich Fld
+    
+        rk = false;
+      } else if (!b) {
+        // First remaining listed column, will be the occur column
+        for (crp = qrp->Colresp; crp; crp = crp->Next)
+          switch (crp->Fld) {
+            case FLD_NAME: crp->Kdata->SetValue((char*)ocr, i); break;
+            case FLD_REM:  crp->Kdata->Reset(i);                break;
+            default: ;   // Nothing to do
+            } // endswich Fld
+    
+        b = true;
+      } else if (j == qrp->Nblin)
+        j = i;     // Column to remove
+
+      c++;
+    } else if (j < i) {
+      // Move this column in empty spot
+      for (crp = qrp->Colresp; crp; crp = crp->Next)
+        crp->Kdata->Move(i, j);
+
+      j++;
+    } // endif k
+
+    } // endfor i
+
+  // Check whether all columns of the list where found
+  if (c < m) {
+    strcpy(g->Message, "Some colist columns are not in the source table");
+    return true;
+    } // endif crp
+
+  /**********************************************************************/
+  /*  Set the number of columns of the table.                           */
+  /**********************************************************************/
+  qrp->Nblin = j;
+  return false;
+  } // end of OcrColumns
+
+/************************************************************************/
+/*  OcrSrcCols: constructs the result blocks containing all the columns */
+/*  of the object table that will be retrieved by GetData commands.     */
+/************************************************************************/
+bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col, 
+                       const char *ocr, const char *rank)
+  {
+  char   *pn, *colist;
+  int     i, k, m, n = 0, c = 0;
+  bool    rk, b = false;
+  PCOLRES crp, rcrp, *pcrp;
+
+  if (!col || !*col) {
+    strcpy(g->Message, "Missing colist");
+    return true;
+    } // endif col
+
+  // Prepare the column list
+  colist = (char*)PlugSubAlloc(g, NULL, strlen(col) + 1);
+  strcpy(colist, col);
+  m = PrepareColist(colist);
+
+  if ((rk = (rank && *rank)))
+    for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
+      n = max(n, (signed)strlen(pn));
+             
+  // Default occur column name is the 1st colist column name
+  if (!ocr || !*ocr)
+    ocr = colist;
+
+  /**********************************************************************/
+  /*  Replace the columns of the colist by the rank and occur columns.  */
+  /**********************************************************************/
+  for (i = 0, pcrp = &qrp->Colresp; crp = *pcrp; ) {
+    for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
+      if (!stricmp(pn, crp->Name))
+        break;
+
+    if (k < m) {
+      // This column belongs to colist
+      c++;
+
+      if (!b) {
+        if (rk) {
+          // Add the rank column here
+          rcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+          memset(rcrp, 0, sizeof(COLRES));
+          rcrp->Next = crp;
+          rcrp->Name = (char*)rank;
+          rcrp->Type = TYPE_STRING;
+          rcrp->Length = n;
+          rcrp->Ncol = ++i;
+          *pcrp = rcrp;
+        } // endif rk
+
+        // First remaining listed column, will be the occur column
+        crp->Name = (char*)ocr;
+        b = true;
+      } else {
+        *pcrp = crp->Next;     // Remove this column
+        continue;
+      } // endif b
+
+      } // endif k
+
+    crp->Ncol = ++i;
+    pcrp = &crp->Next;
+    } // endfor pcrp
+
+  // Check whether all columns of the list where found
+  if (c < m) {
+    strcpy(g->Message, "Some colist columns are not in the source table");
+    return true;
+    } // endif crp
+
+  /**********************************************************************/
+  /*  Set the number of columns of the table.                           */
+  /**********************************************************************/
+  qrp->Nblin = i;
+  return false;
+  } // end of OcrSrcCols
+
 /* -------------- Implementation of the OCCUR classes	---------------- */
 
 /***********************************************************************/
@@ -60,9 +264,9 @@ extern "C" int trace;
 /***********************************************************************/
 bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  Xcol = Cat->GetStringCatInfo(g, "OccurCol", "");
   Rcol = Cat->GetStringCatInfo(g, "RankCol", "");
   Colist = Cat->GetStringCatInfo(g, "Colist", "");
+  Xcol = Cat->GetStringCatInfo(g, "OccurCol", Colist);
   return PRXDEF::DefineAM(g, am, poff);
   } // end of DefineAM
 
@@ -92,35 +296,11 @@ TDBOCCUR::TDBOCCUR(POCCURDEF tdp) : TDBPRX(tdp)
 	Rcolumn = tdp->Rcol;							 // Rank column name     
 	Xcolp = NULL;											 // To the OCCURCOL column
 	Col = NULL;                        // To source column blocks array
-	Mult = PrepareColist();      			 // Multiplication factor
+	Mult = PrepareColist(Colist);      // Multiplication factor
 	N = 0;									           // The current table index
 	M = 0;                             // The occurence rank
 	RowFlag = 0;    				           // 0: Ok, 1: Same, 2: Skip
   } // end of TDBOCCUR constructor
-
-/***********************************************************************/
-/*  Prepare and count columns in the column list.                      */
-/***********************************************************************/
-int TDBOCCUR::PrepareColist(void)
-	{
-	char *p, *pn;
-	int   n = 0;
-
-	// Count the number of columns and change separator into null char
-	for (pn = Colist; ; pn += (strlen(pn) + 1))
-    // Separator can be ; if colist was specified in the option_list
-		if ((p = strchr(pn, ',')) || (p = strchr(pn, ';'))) {
-			*p++ = '\0';
-			n++;
-		} else {
-			if (*pn)
-				n++;
-
-			break;
-		} // endif p
-
-	return n;
-	} // end of PrepareColist
 
 /***********************************************************************/
 /*  Allocate OCCUR/SRC column description block.                       */
