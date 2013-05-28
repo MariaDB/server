@@ -1,0 +1,29 @@
+select @@global.gtid_strict_mode;
+@@global.gtid_strict_mode
+0
+select @@session.gtid_strict_mode;
+ERROR HY000: Variable 'gtid_strict_mode' is a GLOBAL variable
+show global variables like 'gtid_strict_mode';
+Variable_name	Value
+gtid_strict_mode	OFF
+show session variables like 'gtid_strict_mode';
+Variable_name	Value
+gtid_strict_mode	OFF
+select * from information_schema.global_variables where variable_name='gtid_strict_mode';
+VARIABLE_NAME	VARIABLE_VALUE
+GTID_STRICT_MODE	OFF
+select * from information_schema.session_variables where variable_name='gtid_strict_mode';
+VARIABLE_NAME	VARIABLE_VALUE
+GTID_STRICT_MODE	OFF
+SET @old= @@GLOBAL.gtid_strict_mode;
+set global gtid_strict_mode=1;
+select @@global.gtid_strict_mode;
+@@global.gtid_strict_mode
+1
+set global gtid_strict_mode=0;
+select @@global.gtid_strict_mode;
+@@global.gtid_strict_mode
+0
+set global gtid_strict_mode=@old;
+set session gtid_strict_mode=1;
+ERROR HY000: Variable 'gtid_strict_mode' is a GLOBAL variable and should be set with SET GLOBAL

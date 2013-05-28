@@ -1600,6 +1600,7 @@ INSERT INTO t1 SELECT a+1280,b FROM t1;
 INSERT INTO t1 SELECT a+2560,b FROM t1;
 INSERT INTO t1 SELECT a+5120,b FROM t1;
 SET myisam_sort_buffer_size=4;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 REPAIR TABLE t1;
 
 SET myisam_repair_threads=2;
@@ -1648,6 +1649,7 @@ DROP TABLE t1, t2, t3;
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 SET myisam_sort_buffer_size=4;
+--replace_regex /Current myisam_sort_buffer_size.*/X/
 INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),

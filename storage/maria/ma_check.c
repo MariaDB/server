@@ -114,7 +114,7 @@ void maria_chk_init(HA_CHECK *param)
   param->keys_in_use= ~(ulonglong) 0;
   param->search_after_block=HA_OFFSET_ERROR;
   param->auto_increment_value= 0;
-  param->use_buffers=USE_BUFFER_INIT;
+  param->use_buffers= PAGE_BUFFER_INIT;
   param->read_buffer_length=READ_BUFFER_INIT;
   param->write_buffer_length=READ_BUFFER_INIT;
   param->sort_buffer_length=SORT_BUFFER_INIT;

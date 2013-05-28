@@ -337,7 +337,7 @@ protected:
 
   void store_record_for_lookup()
   {
-    store_record(stat_table, record[0]);
+    DBUG_ASSERT(record[0] == stat_table->record[0]);
   }
 
   bool update_record()

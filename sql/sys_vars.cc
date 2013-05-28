@@ -1345,6 +1345,26 @@ static Sys_var_uint Sys_gtid_domain_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 
+
+static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
+{
+  uint32 domain_id, server_id;
+  uint64_t seq_no;
+
+  if (check_has_super(self, thd, var))
+    return true;
+  domain_id= thd->variables.gtid_domain_id;
+  server_id= thd->variables.server_id;
+  seq_no= (uint64)var->value->val_uint();
+  DBUG_EXECUTE_IF("ignore_set_gtid_seq_no_check", return 0;);
+  if (opt_gtid_strict_mode && opt_bin_log &&
+      mysql_bin_log.check_strict_gtid_sequence(domain_id, server_id, seq_no))
+    return true;
+
+  return false;
+}
+
+
 static Sys_var_ulonglong Sys_gtid_seq_no(
        "gtid_seq_no",
        "Internal server usage, for replication with global transaction id. "
@@ -1354,12 +1374,65 @@ static Sys_var_ulonglong Sys_gtid_seq_no(
        SESSION_ONLY(gtid_seq_no),
        NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super));
+       ON_CHECK(check_gtid_seq_no));
 
 
 #ifdef HAVE_REPLICATION
+static unsigned char opt_gtid_binlog_pos_dummy;
+static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
+       "gtid_binlog_pos", "Last GTID logged to the binary log, per replication"
+       "domain",
+       READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
+
+
+uchar *
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[128];
+  String str(buf, sizeof(buf), system_charset_info);
+  char *p;
+
+  str.length(0);
+  if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
+static unsigned char opt_gtid_current_pos_dummy;
+static Sys_var_gtid_current_pos Sys_gtid_current_pos(
+       "gtid_current_pos", "Current GTID position of the server. Per "
+       "replication domain, this is either the last GTID replicated by a "
+       "slave thread, or the GTID logged to the binary log, whichever is "
+       "most recent.",
+       READ_ONLY GLOBAL_VAR(opt_gtid_current_pos_dummy), NO_CMD_LINE);
+
+
+uchar *
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+{
+  String str;
+  char *p;
+
+  str.length(0);
+  if (rpl_append_gtid_state(&str, true) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
 bool
-Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
+Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
 {
   String str, *res;
   bool running;
@@ -1372,7 +1445,12 @@ Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
     return true;
   if (!(res= var->value->val_str(&str)))
     return true;
-  if (rpl_gtid_pos_check(&((*res)[0]), res->length()))
+  if (thd->in_active_multi_stmt_transaction())
+  {
+    my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+    return true;
+  }
+  if (rpl_gtid_pos_check(thd, &((*res)[0]), res->length()))
     return true;
 
   if (!(var->save_result.string_value.str=
@@ -1387,7 +1465,7 @@ Sys_var_gtid_pos::do_check(THD *thd, set_var *var)
 
 
 bool
-Sys_var_gtid_pos::global_update(THD *thd, set_var *var)
+Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 {
   bool err;
 
@@ -1413,13 +1491,13 @@ Sys_var_gtid_pos::global_update(THD *thd, set_var *var)
 
 
 uchar *
-Sys_var_gtid_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
 {
   String str;
   char *p;
 
   str.length(0);
-  if (rpl_append_gtid_state(&str, true) ||
+  if (rpl_append_gtid_state(&str, false) ||
       !(p= thd->strmake(str.ptr(), str.length())))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1430,14 +1508,21 @@ Sys_var_gtid_pos::global_value_ptr(THD *thd, LEX_STRING *base)
 }
 
 
-static unsigned char opt_gtid_pos_dummy;
-static Sys_var_gtid_pos Sys_gtid_pos(
-       "gtid_pos",
+static unsigned char opt_gtid_slave_pos_dummy;
+static Sys_var_gtid_slave_pos Sys_gtid_slave_pos(
+       "gtid_slave_pos",
        "The list of global transaction IDs that were last replicated on the "
-       "server, one for each replication domain. This defines where a slave "
-       "starts replicating from on a master when connecting with global "
-       "transaction ID.",
-       GLOBAL_VAR(opt_gtid_pos_dummy), NO_CMD_LINE);
+       "server, one for each replication domain.",
+       GLOBAL_VAR(opt_gtid_slave_pos_dummy), NO_CMD_LINE);
+
+
+static Sys_var_mybool Sys_gtid_strict_mode(
+       "gtid_strict_mode",
+       "Enforce strict seq_no ordering of events in the binary log. Slave "
+       "stops with an error if it encounters an event that would cause it to "
+       "generate an out-of-order binlog if executed.",
+       GLOBAL_VAR(opt_gtid_strict_mode),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 #endif
 
 

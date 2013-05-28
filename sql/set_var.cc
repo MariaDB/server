@@ -311,7 +311,7 @@ longlong sys_var::val_int(bool *is_null,
   {
     case_get_string_as_lex_string;
     case_for_integers(return val);
-    case_for_double(return val);
+    case_for_double(return (longlong) val);
     default:            
       my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str); 
       return 0;
