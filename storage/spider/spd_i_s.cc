@@ -141,5 +141,8 @@ struct st_mysql_plugin spider_i_s_alloc_mem =
   0x0001,
   NULL,
   NULL,
-  NULL
+  NULL,
+#if MYSQL_VERSION_ID >= 50600
+  0,
+#endif
 };

@@ -10494,6 +10494,8 @@ int ha_spider::info_push(
       bulk_access_started = FALSE;
       break;
 #endif
+    default:
+      break;
   }
   DBUG_RETURN(error_num);
 }

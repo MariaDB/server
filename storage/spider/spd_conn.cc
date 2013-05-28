@@ -2714,7 +2714,7 @@ void *spider_bg_sts_action(
   if (roop_count == SPIDER_DBTON_SIZE)
   {
     DBUG_PRINT("info",("spider handler init error"));
-    for (; roop_count >= 0; roop_count--)
+    for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; --roop_count)
     {
       if (
         spider_bit_is_set(share->dbton_bitmap, roop_count) &&
@@ -2750,7 +2750,7 @@ void *spider_bg_sts_action(
     if (share->bg_sts_kill)
     {
       DBUG_PRINT("info",("spider bg sts kill start"));
-      for (roop_count = SPIDER_DBTON_SIZE; roop_count >= 0; roop_count--)
+      for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; --roop_count)
       {
         if (
           spider_bit_is_set(share->dbton_bitmap, roop_count) &&
@@ -3096,7 +3096,7 @@ void *spider_bg_crd_action(
   if (roop_count == SPIDER_DBTON_SIZE)
   {
     DBUG_PRINT("info",("spider handler init error"));
-    for (; roop_count >= 0; roop_count--)
+    for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; --roop_count)
     {
       if (
         spider_bit_is_set(share->dbton_bitmap, roop_count) &&
@@ -3132,7 +3132,7 @@ void *spider_bg_crd_action(
     if (share->bg_crd_kill)
     {
       DBUG_PRINT("info",("spider bg crd kill start"));
-      for (roop_count = SPIDER_DBTON_SIZE; roop_count >= 0; roop_count--)
+      for (roop_count = SPIDER_DBTON_SIZE - 1; roop_count >= 0; --roop_count)
       {
         if (
           spider_bit_is_set(share->dbton_bitmap, roop_count) &&

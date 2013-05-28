@@ -2474,6 +2474,7 @@ int spider_db_mysql_util::append_column_value(
       }
       tmp_str.length(SIZEOF_STORED_DOUBLE * lcnt);
 */
+#ifndef DBUG_OFF
       double xmin, xmax, ymin, ymax;
 /*
       float8store(buf,xmin);
@@ -2519,6 +2520,7 @@ int spider_db_mysql_util::append_column_value(
       DBUG_PRINT("info", ("spider geo is %f %f %f %f",
         xmin, xmax, ymin, ymax));
 */
+#endif
 /*
       tmp_str.set_quick((char *) new_ptr, SIZEOF_STORED_DOUBLE * 4,
         &my_charset_bin);

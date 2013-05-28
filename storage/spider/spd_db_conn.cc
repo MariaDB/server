@@ -8163,9 +8163,9 @@ int spider_db_udf_direct_sql(
                 set_off = table->s->fields;
               }
               for (roop_count2 = 0; roop_count2 < set_on; roop_count2++)
-                bitmap_set_bit(table->write_set, roop_count2);
+                bitmap_set_bit(table->write_set, (uint) roop_count2);
               for (; roop_count2 < set_off; roop_count2++)
-                bitmap_clear_bit(table->write_set, roop_count2);
+                bitmap_clear_bit(table->write_set, (uint) roop_count2);
 
 #if MYSQL_VERSION_ID < 50500
               if (table->file->has_transactions())

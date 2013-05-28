@@ -2908,7 +2908,10 @@ mysql_declare_plugin(spider)
   0x0300,
   spider_status_variables,
   spider_system_variables,
-  NULL
+  NULL,
+#if MYSQL_VERSION_ID >= 50600
+  0,
+#endif
 },
 spider_i_s_alloc_mem
 mysql_declare_plugin_end;
