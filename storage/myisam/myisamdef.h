@@ -629,10 +629,11 @@ typedef struct st_mi_block_info         /* Parameter to _mi_get_block_info */
 #define UPDATE_AUTO_INC         8
 #define UPDATE_OPEN_COUNT       16
 
-#define USE_BUFFER_INIT         (((1024L*512L-MALLOC_OVERHEAD)/IO_SIZE)*IO_SIZE)
-#define READ_BUFFER_INIT        (1024L*256L-MALLOC_OVERHEAD)
-#define SORT_BUFFER_INIT        (2048L*1024L-MALLOC_OVERHEAD)
-#define MIN_SORT_BUFFER         (4096-MALLOC_OVERHEAD)
+/* We use MY_ALIGN_DOWN here mainly to ensure that we get stable values for mysqld --help ) */
+#define KEY_BUFFER_INIT	        MY_ALIGN_DOWN(1024L*1024L-MALLOC_OVERHEAD, IO_SIZE)
+#define READ_BUFFER_INIT	MY_ALIGN_DOWN(1024L*256L-MALLOC_OVERHEAD, 1024)
+#define SORT_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*128L-MALLOC_OVERHEAD, 1024)
+#define MIN_SORT_BUFFER		4096
 
 enum myisam_log_commands
 {

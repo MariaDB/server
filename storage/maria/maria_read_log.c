@@ -32,7 +32,8 @@ const char *default_dbug_option= "d:t:o,/tmp/aria_read_log.trace";
 static my_bool opt_display_only, opt_apply, opt_apply_undo, opt_silent;
 static my_bool opt_check;
 static const char *opt_tmpdir;
-static ulong opt_page_buffer_size, opt_translog_buffer_size;
+static ulong opt_translog_buffer_size;
+static ulonglong opt_page_buffer_size;
 static ulonglong opt_start_from_lsn, opt_end_lsn, opt_start_from_checkpoint;
 static MY_TMPDIR maria_chk_tmpdir;
 
@@ -204,9 +205,8 @@ static struct my_option my_long_options[] =
   { "page-buffer-size", 'P',
     "The size of the buffer used for index blocks for Aria tables",
     &opt_page_buffer_size, &opt_page_buffer_size, 0,
-    GET_ULONG, REQUIRED_ARG, (long) USE_BUFFER_INIT,
-    1024L*1024L, (long) ~(ulong) 0, (long) MALLOC_OVERHEAD,
-    (long) IO_SIZE, 0},
+    GET_ULL, REQUIRED_ARG, PAGE_BUFFER_INIT,
+    PAGE_BUFFER_INIT, SIZE_T_MAX, MALLOC_OVERHEAD, (long) IO_SIZE, 0},
   { "start-from-lsn", 'o', "Start reading log from this lsn",
     &opt_start_from_lsn, &opt_start_from_lsn,
     0, GET_ULL, REQUIRED_ARG, 0, 0, ~(longlong) 0, 0, 0, 0 },

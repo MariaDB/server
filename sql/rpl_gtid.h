@@ -91,11 +91,12 @@ struct rpl_slave_state
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id, uint64 seq_no);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
-                      bool in_transaction);
+                  bool in_transaction, bool in_statement);
   uint64 next_subid(uint32 domain_id);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
-  int load(THD *thd, char *state_from_master, size_t len, bool reset);
+  int load(THD *thd, char *state_from_master, size_t len, bool reset,
+           bool in_statement);
   bool is_empty();
 
   void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
@@ -130,24 +131,37 @@ struct rpl_binlog_state
     HASH hash;                /* Containing all server_id for one domain_id */
     /* The most recent entry in the hash. */
     rpl_gtid *last_gtid;
+    /* Counter to allocate next seq_no for this domain. */
+    uint64 seq_no_counter;
+
+    int update_element(const rpl_gtid *gtid);
   };
   /* Mapping from domain_id to collection of elements. */
   HASH hash;
   /* Mutex protecting access to the state. */
   mysql_mutex_t LOCK_binlog_state;
+  my_bool initialized;
 
   rpl_binlog_state();
   ~rpl_binlog_state();
 
   void reset();
-  int update(const struct rpl_gtid *gtid);
-  uint64 seq_no_from_state();
+  void free();
+  bool load(struct rpl_gtid *list, uint32 count);
+  int update(const struct rpl_gtid *gtid, bool strict);
+  int update_with_next_gtid(uint32 domain_id, uint32 server_id,
+                             rpl_gtid *gtid);
+  int alloc_element(const rpl_gtid *gtid);
+  bool check_strict_sequence(uint32 domain_id, uint32 server_id, uint64 seq_no);
+  int bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no);
   int write_to_iocache(IO_CACHE *dest);
   int read_from_iocache(IO_CACHE *src);
   uint32 count();
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
+  bool append_pos(String *str);
   rpl_gtid *find(uint32 domain_id, uint32 server_id);
+  rpl_gtid *find_most_recent(uint32 domain_id);
 };
 
 
@@ -170,6 +184,7 @@ struct slave_connection_state
   void remove(const rpl_gtid *gtid);
   ulong count() const { return hash.records; }
   int to_string(String *out_str);
+  int append_to_string(String *out_str);
 };
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,

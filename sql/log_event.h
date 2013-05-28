@@ -3116,7 +3116,7 @@ public:
     <td>count</td>
     <td>4 byte unsigned integer</td>
     <td>The lower 28 bits are the number of GTIDs. The upper 4 bits are
-        reserved for flags bits for future expansion</td>
+        flags bits.</td>
   </tr>
   </table>
 
@@ -3149,18 +3149,28 @@ public:
   </table>
 
   The three elements in the body repeat COUNT times to form the GTID list.
+
+  At the time of writing, only one flag bit is in use.
+
+  Bit 28 of `count' is used for flag FLAG_UNTIL_REACHED, which is sent in a
+  Gtid_list event from the master to the slave to indicate that the START
+  SLAVE UNTIL master_gtid_pos=xxx condition has been reached. (This flag is
+  only sent in "fake" events generated on the fly, it is not written into
+  the binlog).
 */
 
 class Gtid_list_log_event: public Log_event
 {
 public:
   uint32 count;
+  uint32 gl_flags;
   struct rpl_gtid *list;
 
   static const uint element_size= 4+4+8;
+  static const uint32 FLAG_UNTIL_REACHED= (1<<28);
 
 #ifdef MYSQL_SERVER
-  Gtid_list_log_event(rpl_binlog_state *gtid_set);
+  Gtid_list_log_event(rpl_binlog_state *gtid_set, uint32 gl_flags);
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
 #endif
@@ -3171,12 +3181,22 @@ public:
                       const Format_description_log_event *description_event);
   ~Gtid_list_log_event() { my_free(list); }
   Log_event_type get_type_code() { return GTID_LIST_EVENT; }
-  int get_data_size() { return GTID_LIST_HEADER_LEN + count*element_size; }
+  int get_data_size() {
+    /*
+      Replacing with dummy event, needed for older slaves, requires a minimum
+      of 6 bytes in the body.
+    */
+    return (count==0 ?
+            GTID_LIST_HEADER_LEN+2 : GTID_LIST_HEADER_LEN+count*element_size);
+  }
   bool is_valid() const { return list != NULL; }
-#ifdef MYSQL_SERVER
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+  bool to_packet(String *packet);
   bool write(IO_CACHE *file);
+  virtual int do_apply_event(Relay_log_info const *rli);
 #endif
   static bool peek(const char *event_start, uint32 event_len,
+                   uint8 checksum_alg,
                    rpl_gtid **out_gtid_list, uint32 *out_list_len);
 };
 

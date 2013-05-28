@@ -658,7 +658,7 @@ dbcontext::cmd_insert_internal(dbcallback_i& cb, const prep_stmt& pst,
   empty_record(table);
   memset(buf, 0, table->s->null_bytes); /* clear null flags */
   const prep_stmt::fields_type& rf = pst.get_ret_fields();
-  const size_t n = rf.size();
+  const size_t n = std::min(rf.size(), fvalslen);
   for (size_t i = 0; i < n; ++i) {
     uint32_t fn = rf[i];
     Field *const fld = table->field[fn];

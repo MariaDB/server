@@ -840,7 +840,8 @@ typedef long		my_ptrdiff_t;
 typedef long long	my_ptrdiff_t;
 #endif
 
-#define MY_ALIGN(A,L)	(((A) + (L) - 1) & ~((L) - 1))
+#define MY_ALIGN(A,L)	   (((A) + (L) - 1) & ~((L) - 1))
+#define MY_ALIGN_DOWN(A,L) ((A) & ~((L) - 1))
 #define ALIGN_SIZE(A)	MY_ALIGN((A),sizeof(double))
 #define ALIGN_MAX_UNIT  (sizeof(double))
 /* Size to make adressable obj. */
