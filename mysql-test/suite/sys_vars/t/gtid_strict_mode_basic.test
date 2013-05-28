@@ -1,0 +1,21 @@
+--source include/not_embedded.inc
+#
+# only global
+#
+select @@global.gtid_strict_mode;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.gtid_strict_mode;
+show global variables like 'gtid_strict_mode';
+show session variables like 'gtid_strict_mode';
+select * from information_schema.global_variables where variable_name='gtid_strict_mode';
+select * from information_schema.session_variables where variable_name='gtid_strict_mode';
+
+SET @old= @@GLOBAL.gtid_strict_mode;
+set global gtid_strict_mode=1;
+select @@global.gtid_strict_mode;
+set global gtid_strict_mode=0;
+select @@global.gtid_strict_mode;
+set global gtid_strict_mode=@old;
+
+--error ER_GLOBAL_VARIABLE
+set session gtid_strict_mode=1;

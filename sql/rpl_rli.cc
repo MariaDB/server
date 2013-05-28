@@ -1097,7 +1097,8 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
   ulonglong log_pos;
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
-  DBUG_ASSERT(until_condition != UNTIL_NONE);
+  DBUG_ASSERT(until_condition == UNTIL_MASTER_POS ||
+              until_condition == UNTIL_RELAY_POS);
 
   if (until_condition == UNTIL_MASTER_POS)
   {
@@ -1397,7 +1398,6 @@ rpl_load_gtid_slave_state(THD *thd)
   HASH hash;
   int err= 0;
   uint32 i;
-  uint64 highest_seq_no= 0;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
   rpl_global_gtid_slave_state.lock();
@@ -1450,8 +1450,6 @@ rpl_load_gtid_slave_state(THD *thd)
     DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
-    if (seq_no > highest_seq_no)
-      highest_seq_no= seq_no;
 
     if ((rec= my_hash_search(&hash, (const uchar *)&domain_id, 0)))
     {
@@ -1495,6 +1493,14 @@ rpl_load_gtid_slave_state(THD *thd)
       rpl_global_gtid_slave_state.unlock();
       goto end;
     }
+    if (opt_bin_log &&
+        mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
+                                                    entry->gtid.seq_no))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      rpl_global_gtid_slave_state.unlock();
+      goto end;
+    }
   }
   rpl_global_gtid_slave_state.loaded= true;
   rpl_global_gtid_slave_state.unlock();
@@ -1514,7 +1520,6 @@ end:
     thd->mdl_context.release_transactional_locks();
   }
   my_hash_free(&hash);
-  mysql_bin_log.bump_seq_no_counter_if_needed(highest_seq_no);
   DBUG_RETURN(err);
 }
 

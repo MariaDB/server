@@ -525,7 +525,9 @@ int vio_fastsend(Vio * vio __attribute__((unused)))
   }
   if (r)
   {
-    DBUG_PRINT("warning", ("Couldn't set socket option for fast send"));
+    DBUG_PRINT("warning",
+               ("Couldn't set socket option for fast send, error %d",
+                socket_errno));
     r= -1;
   }
   DBUG_PRINT("exit", ("%d", r));

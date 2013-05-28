@@ -2,47 +2,47 @@
 --source include/have_debug.inc
 --source include/master-slave.inc
 
---echo *** Test that we check against incorrect table definition for mysql.rpl_slave_state ***
+--echo *** Test that we check against incorrect table definition for mysql.gtid_slave_pos ***
 --connection master
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 --sync_slave_with_master
 
 --connection slave
 --source include/stop_slave.inc
-ALTER TABLE mysql.rpl_slave_state CHANGE seq_no seq_no VARCHAR(20);
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no VARCHAR(20);
 START SLAVE;
 
 --connection master
 INSERT INTO t1 VALUES (1);
 
 --connection slave
-CALL mtr.add_suppression("Slave: Failed to open mysql.rpl_slave_state");
+CALL mtr.add_suppression("Slave: Failed to open mysql.gtid_slave_pos");
 --let $slave_sql_errno=1942
 --source include/wait_for_slave_sql_error.inc
 
 --source include/stop_slave.inc
-ALTER TABLE mysql.rpl_slave_state CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
-ALTER TABLE mysql.rpl_slave_state DROP PRIMARY KEY;
-ALTER TABLE mysql.rpl_slave_state ADD PRIMARY KEY (sub_id, domain_id);
+ALTER TABLE mysql.gtid_slave_pos CHANGE seq_no seq_no BIGINT UNSIGNED NOT NULL;
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id, domain_id);
 START SLAVE;
 --let $slave_sql_errno=1942
 --source include/wait_for_slave_sql_error.inc
 
 --source include/stop_slave.inc
-ALTER TABLE mysql.rpl_slave_state DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
 START SLAVE;
 --let $slave_sql_errno=1942
 --source include/wait_for_slave_sql_error.inc
 
 --source include/stop_slave.inc
-ALTER TABLE mysql.rpl_slave_state ADD PRIMARY KEY (sub_id);
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (sub_id);
 START SLAVE;
 --let $slave_sql_errno=1942
 --source include/wait_for_slave_sql_error.inc
 
 --source include/stop_slave.inc
-ALTER TABLE mysql.rpl_slave_state DROP PRIMARY KEY;
-ALTER TABLE mysql.rpl_slave_state ADD PRIMARY KEY (domain_id, sub_id);
+ALTER TABLE mysql.gtid_slave_pos DROP PRIMARY KEY;
+ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
 --source include/start_slave.inc
 
 --connection master
@@ -69,13 +69,28 @@ INSERT INTO t1 VALUES (2);
 SET sql_log_bin = 1;
 INSERT INTO t1 VALUES (3);
 
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
+# Most not change @@GLOBAL.gtid_slave_pos in the middle of a transaction.
+BEGIN;
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL gtid_slave_pos = "100-100-100";
+INSERT INTO t1 VALUES (100);
+--error ER_CANT_DO_THIS_DURING_AN_TRANSACTION
+SET GLOBAL gtid_slave_pos = "100-100-100";
+ROLLBACK;
+
+# In gtid non-strict mode, we get warnings for setting @@gtid_slave_pos back
+# to earlier than what is in the binlog. In strict mode, we get an error.
+SET GLOBAL gtid_strict_mode= 1;
 --error ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
-SET GLOBAL gtid_pos = "0-1-1";
+SET GLOBAL gtid_slave_pos = "0-1-1";
 --error ER_MASTER_GTID_POS_MISSING_DOMAIN
-SET GLOBAL gtid_pos = "";
+SET GLOBAL gtid_slave_pos = "";
+SET GLOBAL gtid_strict_mode= 0;
+SET GLOBAL gtid_slave_pos = "0-1-1";
+SET GLOBAL gtid_slave_pos = "";
 RESET MASTER;
-SET GLOBAL gtid_pos = "0-1-1";
+SET GLOBAL gtid_slave_pos = "0-1-1";
 
 START SLAVE;
 --let $wait_condition= SELECT COUNT(*) = 4 FROM t1
@@ -85,7 +100,7 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo *** Test slave requesting a GTID that is not present in the master's binlog ***
 --source include/stop_slave.inc
-SET GLOBAL gtid_pos = "0-1-3";
+SET GLOBAL gtid_slave_pos = "0-1-3";
 START SLAVE;
 
 SET sql_log_bin=0;
@@ -98,7 +113,7 @@ SET sql_log_bin=1;
 
 --let $rpl_only_running_threads= 1
 --source include/stop_slave.inc
-SET GLOBAL gtid_pos = "0-1-2";
+SET GLOBAL gtid_slave_pos = "0-1-2";
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
 

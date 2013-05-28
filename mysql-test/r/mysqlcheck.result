@@ -8,6 +8,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -21,7 +22,6 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
-mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -41,6 +41,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -58,7 +59,6 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
-mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -76,6 +76,7 @@ mysql.columns_priv                                 OK
 mysql.db                                           OK
 mysql.event                                        OK
 mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
 mysql.help_category                                OK
 mysql.help_keyword                                 OK
 mysql.help_relation                                OK
@@ -89,7 +90,6 @@ mysql.plugin                                       OK
 mysql.proc                                         OK
 mysql.procs_priv                                   OK
 mysql.proxies_priv                                 OK
-mysql.rpl_slave_state                              OK
 mysql.servers                                      OK
 mysql.slave_master_info                            OK
 mysql.slave_relay_log_info                         OK
@@ -107,6 +107,7 @@ mysql.columns_priv                                 Table is already up to date
 mysql.db                                           Table is already up to date
 mysql.event                                        Table is already up to date
 mysql.func                                         Table is already up to date
+mysql.gtid_slave_pos                               Table is already up to date
 mysql.help_category                                Table is already up to date
 mysql.help_keyword                                 Table is already up to date
 mysql.help_relation                                Table is already up to date
@@ -124,7 +125,6 @@ mysql.plugin                                       Table is already up to date
 mysql.proc                                         Table is already up to date
 mysql.procs_priv                                   Table is already up to date
 mysql.proxies_priv                                 Table is already up to date
-mysql.rpl_slave_state                              Table is already up to date
 mysql.servers                                      Table is already up to date
 mysql.slave_master_info                            Table is already up to date
 mysql.slave_relay_log_info                         Table is already up to date

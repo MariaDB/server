@@ -35,9 +35,9 @@ Master_User	root
 Master_Port	MYPORT_3
 Connect_Retry	60
 Master_Log_File	server3-bin.000001
-Read_Master_Log_Pos	1499
+Read_Master_Log_Pos	1501
 Relay_Log_File	mysqld-relay-bin.000002
-Relay_Log_Pos	1788
+Relay_Log_Pos	1790
 Relay_Master_Log_File	server3-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
@@ -50,8 +50,8 @@ Replicate_Wild_Ignore_Table
 Last_Errno	0
 Last_Error	
 Skip_Counter	0
-Exec_Master_Log_Pos	1499
-Relay_Log_Space	2086
+Exec_Master_Log_Pos	1501
+Relay_Log_Space	2088
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
@@ -71,13 +71,13 @@ Replicate_Ignore_Server_Ids
 Master_Server_Id	3
 Master_SSL_Crl	
 Master_SSL_Crlpath	
-Using_Gtid	0
+Using_Gtid	No
 Retried_transactions	0
 Max_relay_log_size	1073741824
 Executed_log_entries	25
 Slave_received_heartbeats	0
 Slave_heartbeat_period	60.000
-Gtid_Pos	1-1-4,2-2-3
+Gtid_Slave_Pos	1-1-4,2-2-3
 *** Now move slave2 to replicate from both master1 and master2 instead of just slave1 ***
 STOP ALL SLAVES;
 Warnings:
@@ -86,8 +86,8 @@ INSERT INTO t1 VALUES (2, "switch1");
 INSERT INTO t3 VALUES (102, "switch1 a");
 INSERT INTO t2 VALUES (2, "switch1");
 INSERT INTO t3 VALUES (202, "switch1 b");
-CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=1;
-CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=1;
+CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
+CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
 SET default_master_connection = 'slave1';
 START SLAVE;
 include/wait_for_slave_to_start.inc
@@ -104,7 +104,7 @@ INSERT INTO t3 VALUES (203, "switch 2 b");
 STOP SLAVE 'slave2';
 INSERT INTO t2 VALUES (4, "switch 3");
 INSERT INTO t3 VALUES (204, "switch 3 b");
-CHANGE MASTER TO master_port=MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=1;
+CHANGE MASTER TO master_port=MYPORT_4, master_host='127.0.0.1', master_user='root', master_use_gtid=current_pos;
 START SLAVE;
 SELECT * FROM t1 ORDER BY a;
 a	b

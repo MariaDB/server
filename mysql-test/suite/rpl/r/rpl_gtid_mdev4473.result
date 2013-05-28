@@ -8,7 +8,7 @@ include/stop_slave.inc
 include/wait_for_slave_to_stop.inc
 reset slave all;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
-master_user='root', MASTER_USE_GTID=1;
+master_user='root', MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 include/wait_for_slave_to_start.inc
 flush logs;
@@ -16,7 +16,7 @@ insert into t1 values (3);
 insert into t1 values (4);
 flush logs;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_2,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 select * from t1 order by n;
 n
@@ -47,11 +47,11 @@ include/stop_slave.inc
 include/wait_for_slave_to_stop.inc
 reset slave all;
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
-master_user = 'root', MASTER_USE_GTID=1;
+master_user = 'root', MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 include/stop_slave.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_1,
-MASTER_USE_GTID=1;
+MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 drop table t1;
 include/rpl_end.inc

@@ -191,7 +191,7 @@ end:
 
 enum options_mc {
   OPT_CHARSETS_DIR=256, OPT_SET_COLLATION,OPT_START_CHECK_POS,
-  OPT_CORRECT_CHECKSUM, OPT_PAGE_BUFFER_SIZE,
+  OPT_CORRECT_CHECKSUM, OPT_CREATE_MISSING_KEYS, OPT_PAGE_BUFFER_SIZE,
   OPT_KEY_CACHE_BLOCK_SIZE, OPT_MARIA_BLOCK_SIZE,
   OPT_READ_BUFFER_SIZE, OPT_WRITE_BUFFER_SIZE, OPT_SORT_BUFFER_SIZE,
   OPT_SORT_KEY_BLOCKS, OPT_DECODE_BITS, OPT_FT_MIN_WORD_LEN,
@@ -228,6 +228,11 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"correct-checksum", OPT_CORRECT_CHECKSUM,
    "Correct checksum information for table.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"create-missing-keys", OPT_CREATE_MISSING_KEYS,
+   "Create missing keys. This assumes that the data file is correct and that "
+   "the the number of rows stored in the index file is correct. Enables "
+   "--quick",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #ifndef DBUG_OFF
   {"debug", '#',
@@ -362,8 +367,8 @@ static struct my_option my_long_options[] =
   { "page_buffer_size", OPT_PAGE_BUFFER_SIZE,
     "Size of page buffer. Used by --safe-repair",
     &check_param.use_buffers, &check_param.use_buffers, 0,
-    GET_ULONG, REQUIRED_ARG, (long) USE_BUFFER_INIT, 1024L*1024L,
-    (long) ~0L, (long) MALLOC_OVERHEAD, (long) IO_SIZE, 0},
+    GET_ULONG, REQUIRED_ARG, PAGE_BUFFER_INIT, 1024L*1024L,
+    SIZE_T_MAX, (long) MALLOC_OVERHEAD, (long) IO_SIZE, 0},
   { "read_buffer_size", OPT_READ_BUFFER_SIZE,
     "Read buffer size for sequential reads during scanning",
     &check_param.read_buffer_length,
@@ -379,9 +384,8 @@ static struct my_option my_long_options[] =
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Size of sort buffer. Used by --recover",
     &check_param.sort_buffer_length,
-    &check_param.sort_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
-    (long) SORT_BUFFER_INIT, (long) (MIN_SORT_BUFFER + MALLOC_OVERHEAD),
-    (long) ~0L, (long) MALLOC_OVERHEAD, (long) 1L, 0},
+    &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
+    SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS,
     "Internal buffer for sorting keys; Don't touch :)",
     &check_param.sort_key_blocks,
@@ -497,10 +501,18 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
   --correct-checksum  Correct checksum information for table.\n\
   -D, --data-file-length=#  Max length of data file (when recreating data\n\
                       file when it's full).\n\
+ --create-missing-keys\n\
+                      Create missing keys. This assumes that the data\n\
+                      file is correct and that the the number of rows stored\n\
+                      in the index file is correct. Enables --quick.\n\
   -e, --extend-check  Try to recover every possible row from the data file\n\
 		      Normally this will also find a lot of garbage rows;\n\
 		      Don't use this option if you are not totally desperate.\n\
-  -f, --force         Overwrite old temporary files.\n\
+  -f, --force         Overwrite old temporary files. Add another --force to\n\
+                      avoid 'sort_buffer_size is too small' errors.\n\
+                      In this case we will attempt to do the repair with the\n\
+                      given sort_buffer_size and dynamically allocate\n\
+                      as many management buffers as needed.\n\
   -k, --keys-used=#   Tell Aria to update only some specific keys. # is a\n\
 	              bit mask of which keys to use. This can be used to\n\
 		      get faster inserts.\n\
@@ -664,10 +676,13 @@ get_one_option(int optid,
     if (argument == disabled_my_option)
     {
       check_param.tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
-      check_param.testflag&= ~(T_FORCE_CREATE | T_UPDATE_STATE);
+     check_param.testflag&= ~(T_FORCE_CREATE | T_UPDATE_STATE |
+                              T_FORCE_SORT_MEMORY);
     }
     else
     {
+     if (check_param.testflag & T_FORCE_CREATE)
+       check_param.testflag= T_FORCE_SORT_MEMORY;
       check_param.tmpfile_createflag= O_RDWR | O_TRUNC;
       check_param.testflag|= T_FORCE_CREATE | T_UPDATE_STATE;
     }
@@ -720,8 +735,26 @@ get_one_option(int optid,
     if (argument == disabled_my_option)
       check_param.testflag&= ~(T_QUICK | T_FORCE_UNIQUENESS);
     else
+    {
+      /*
+        If T_QUICK was specified before, but not OPT_CREATE_MISSING_KEYS,
+        then add T_FORCE_UNIQUENESS.
+      */
       check_param.testflag|=
-        (check_param.testflag & T_QUICK) ? T_FORCE_UNIQUENESS : T_QUICK;
+        ((check_param.testflag & (T_QUICK | T_CREATE_MISSING_KEYS)) ==
+         T_QUICK ? T_FORCE_UNIQUENESS : T_QUICK);
+    }
+    break;
+  case OPT_CREATE_MISSING_KEYS:
+    if (argument == disabled_my_option)
+      check_param.testflag&= ~(T_QUICK | T_CREATE_MISSING_KEYS);
+    else
+    {
+      check_param.testflag|= T_QUICK | T_CREATE_MISSING_KEYS;
+      /* Use repair by sort by default */
+      if (!(check_param.testflag & T_REP_ANY))
+        check_param.testflag|= T_REP_BY_SORT;
+    }
     break;
   case 'u':
     if (argument == disabled_my_option)
