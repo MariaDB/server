@@ -84,6 +84,9 @@ SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=6;
 SELECT * FROM graph WHERE latch=1 AND origid=1 AND destid=4;
 SELECT * FROM graph WHERE latch=1 AND origid=4 AND destid=1;
 
+SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
+
+
 --echo # Adding new row to base table
 INSERT INTO graph_base (from_id,to_id) VALUES (4,6);
 
