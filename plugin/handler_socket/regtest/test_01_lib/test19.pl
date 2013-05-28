@@ -113,7 +113,7 @@ sub test_one {
     "(k1 int not null, k2 int not null, " .
     "v1 int not null, v2 $typ default null, " .
     "primary key (k1, k2) ) engine = innodb");
-  my $sth = $dbh->prepare("insert into $table values (?,?,?,?)");
+  my $sth = $dbh->prepare("insert ignore into $table values (?,?,?,?)");
   for (my $i = 0; $i < $tablesize; ++$i) {
     my $j = 0;
     for my $v (@$values) {

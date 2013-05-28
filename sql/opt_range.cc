@@ -5919,8 +5919,8 @@ ha_rows records_in_index_intersect_extension(PARTIAL_INDEX_INTERSECT_INFO *curr,
     ha_rows ext_records= ext_index_scan->records;
     if (i < used_key_parts)
     {
-      ulong f1= key_info->actual_rec_per_key(i-1);
-      ulong f2= key_info->actual_rec_per_key(i);
+      double f1= key_info->actual_rec_per_key(i-1);
+      double f2= key_info->actual_rec_per_key(i);
       ext_records= (ha_rows) ((double) ext_records / f2 * f1);
     }
     if (ext_records < table_cardinality)
@@ -13157,11 +13157,11 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
                         double *read_cost, ha_rows *records)
 {
   ha_rows table_records;
-  uint num_groups;
-  uint num_blocks;
-  uint keys_per_block;
-  uint keys_per_group;
-  uint keys_per_subgroup; /* Average number of keys in sub-groups */
+  ha_rows num_groups;
+  ha_rows num_blocks;
+  uint    keys_per_block;
+  ha_rows keys_per_group;
+  ha_rows keys_per_subgroup; /* Average number of keys in sub-groups */
                           /* formed by a key infix. */
   double p_overlap; /* Probability that a sub-group overlaps two blocks. */
   double quick_prefix_selectivity;
@@ -13170,24 +13170,24 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   DBUG_ENTER("cost_group_min_max");
 
   table_records= table->stat_records();
-  keys_per_block= (table->file->stats.block_size / 2 /
-                   (index_info->key_length + table->file->ref_length)
-                        + 1);
-  num_blocks= (uint)(table_records / keys_per_block) + 1;
+  keys_per_block= (uint) (table->file->stats.block_size / 2 /
+                          (index_info->key_length + table->file->ref_length)
+                          + 1);
+  num_blocks= (ha_rows)(table_records / keys_per_block) + 1;
 
   /* Compute the number of keys in a group. */
-  keys_per_group= index_info->actual_rec_per_key(group_key_parts - 1);
+  keys_per_group= (ha_rows) index_info->actual_rec_per_key(group_key_parts - 1);
   if (keys_per_group == 0) /* If there is no statistics try to guess */
     /* each group contains 10% of all records */
-    keys_per_group= (uint)(table_records / 10) + 1;
-  num_groups= (uint)(table_records / keys_per_group) + 1;
+    keys_per_group= (table_records / 10) + 1;
+  num_groups= (table_records / keys_per_group) + 1;
 
   /* Apply the selectivity of the quick select for group prefixes. */
   if (range_tree && (quick_prefix_records != HA_POS_ERROR))
   {
     quick_prefix_selectivity= (double) quick_prefix_records /
                               (double) table_records;
-    num_groups= (uint) rint(num_groups * quick_prefix_selectivity);
+    num_groups= (ha_rows) rint(num_groups * quick_prefix_selectivity);
     set_if_bigger(num_groups, 1);
   }
 
@@ -13196,7 +13196,7 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
       Compute the probability that two ends of a subgroup are inside
       different blocks.
     */
-    keys_per_subgroup= index_info->actual_rec_per_key(used_key_parts - 1);
+    keys_per_subgroup= (ha_rows) index_info->actual_rec_per_key(used_key_parts - 1);
     if (keys_per_subgroup >= keys_per_block) /* If a subgroup is bigger than */
       p_overlap= 1.0;       /* a block, it will overlap at least two blocks. */
     else
@@ -13224,9 +13224,9 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   *records= num_groups;
 
   DBUG_PRINT("info",
-             ("table rows: %lu  keys/block: %u  keys/group: %u  result rows: %lu  blocks: %u",
-              (ulong)table_records, keys_per_block, keys_per_group, 
-              (ulong) *records, num_blocks));
+             ("table rows: %lu  keys/block: %u  keys/group: %lu  result rows: %lu  blocks: %lu",
+              (ulong)table_records, keys_per_block, (ulong) keys_per_group, 
+              (ulong) *records, (ulong) num_blocks));
   DBUG_VOID_RETURN;
 }
 

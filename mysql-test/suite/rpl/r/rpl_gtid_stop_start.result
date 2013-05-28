@@ -4,8 +4,8 @@ CREATE TABLE t1 (a INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1);
 include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
-Using_Gtid = '0'
-CHANGE MASTER TO master_use_gtid=1;
+Using_Gtid = 'No'
+CHANGE MASTER TO master_use_gtid=current_pos;
 FLUSH LOGS;
 include/wait_for_purge.inc "master-bin.000002"
 show binary logs;
@@ -32,10 +32,10 @@ master-bin.000003	#	Gtid_list	#	#	[0-1-3]
 FLUSH LOGS;
 SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000004	#	Gtid_list	#	#	[1-1-5,0-1-4]
+master-bin.000004	#	Gtid_list	#	#	[1-1-1,0-1-4]
 SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000005	#	Gtid_list	#	#	[1-1-5,0-1-4]
+master-bin.000005	#	Gtid_list	#	#	[1-1-1,0-1-4]
 show binary logs;
 Log_name	File_size
 master-bin.000002	#
