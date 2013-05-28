@@ -10,7 +10,15 @@ if (`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.ENGINES WHERE engine = 'cassand
 drop table if exists t0, t1;
 --enable_warnings
 
-# Test various errors on table creation.
+--echo #
+--echo # Check variables and status counters
+--echo #
+show status like 'cassandra%';
+show variables like 'cassandra%';
+
+--echo #
+--echo # Test various errors on table creation.
+--echo #
 --error ER_REQUIRES_PRIMARY_KEY
 create table t1 (a int) engine=cassandra 
  thrift_host='localhost' keyspace='foo' column_family='colfam';

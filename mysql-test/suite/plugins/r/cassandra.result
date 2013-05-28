@@ -1,4 +1,29 @@
 drop table if exists t0, t1;
+#
+# Check variables and status counters
+#
+show status like 'cassandra%';
+Variable_name	Value
+Cassandra_row_inserts	0
+Cassandra_row_insert_batches	0
+Cassandra_multiget_keys_scanned	0
+Cassandra_multiget_reads	0
+Cassandra_multiget_rows_read	0
+Cassandra_network_exceptions	0
+Cassandra_timeout_exceptions	0
+Cassandra_unavailable_exceptions	0
+show variables like 'cassandra%';
+Variable_name	Value
+cassandra_default_thrift_host	
+cassandra_failure_retries	3
+cassandra_insert_batch_size	100
+cassandra_multiget_batch_size	100
+cassandra_read_consistency	ONE
+cassandra_rnd_batch_size	10000
+cassandra_write_consistency	ONE
+#
+# Test various errors on table creation.
+#
 create table t1 (a int) engine=cassandra 
 thrift_host='localhost' keyspace='foo' column_family='colfam';
 ERROR 42000: This table type requires a primary key
