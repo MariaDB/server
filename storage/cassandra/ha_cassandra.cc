@@ -2041,6 +2041,12 @@ void ha_cassandra::start_bulk_insert(ha_rows rows, uint flags)
 int ha_cassandra::end_bulk_insert()
 {
   DBUG_ENTER("ha_cassandra::end_bulk_insert");
+  
+  if (!doing_insert_batch)
+  {
+    /* SQL layer can make end_bulk_insert call without start_bulk_insert call */
+    DBUG_RETURN(0);
+  }
 
   /* Flush out the insert buffer */
   doing_insert_batch= false;

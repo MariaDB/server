@@ -627,3 +627,10 @@ rowkey	b
 1	fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo-bar
 2	qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq-baz
 drop table t1;
+#
+# MDEV-4001: Cassandra: server crashes in ha_cassandra::end_bulk_insert on INSERT .. SELECT with a non-existing column
+#
+create table t1 (rowkey int primary key, a int)  ENGINE=cassandra thrift_host='127.0.0.1' keyspace='mariadbtest2' column_family='cf14';
+insert into t1 (a) select b from t1;
+ERROR 42S22: Unknown column 'b' in 'field list'
+drop table t1;
