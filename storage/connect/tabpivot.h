@@ -1,5 +1,5 @@
 /************** TabPivot H Declares Source Code File (.H) **************/
-/*  Name: TABPIVOT.H    Version 1.4                                    */
+/*  Name: TABPIVOT.H    Version 1.5                                    */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
 /*                                                                     */
@@ -9,6 +9,40 @@ typedef class PIVOTDEF *PPIVOTDEF;
 typedef class TDBPIVOT *PTDBPIVOT;
 typedef class FNCCOL   *PFNCCOL;
 typedef class SRCCOL   *PSRCCOL;
+
+/***********************************************************************/
+/*  This class is used to generate PIVOT table column definitions.     */
+/***********************************************************************/
+class PIVAID : public CSORT {
+  friend class FNCCOL;
+  friend class SRCCOL;
+ public:
+  // Constructor
+  PIVAID(const char *tab,   const char *src,  const char *picol,
+         const char *fncol, const char *host, const char *db,
+         const char *user,  const char *pwd,  int port);
+
+  // Methods
+  PQRYRES MakePivotColumns(PGLOBAL g);
+
+  // The sorting function
+  virtual int  Qcompare(int *, int *);
+
+ protected:
+  // Members
+  MYSQLC  Myc;                      // MySQL connection class
+  char   *Host;                     // Host machine to use
+  char   *User;                     // User logon info
+  char   *Pwd;                      // Password logon info
+  char   *Database;                 // Database to be used by server
+  PQRYRES Qryp;                     // Points to Query result block
+  char   *Tabname;                  // Name of source table
+  char   *Tabsrc;                   // SQL of source table
+  char   *Picol;                    // Pivot column name
+  char   *Fncol;                    // Function column name
+  PVBLK   Rblkp;                    // The value block of the pivot column
+  int     Port;                     // MySQL port number
+  }; // end of class PIVAID
 
 /* -------------------------- PIVOT classes -------------------------- */
 

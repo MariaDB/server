@@ -64,6 +64,12 @@ static char *server_groups[] = {
 extern "C" int   trace;
 extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
+// Returns the current used port
+uint GetDefaultPort(void)
+{
+  return mysqld_port;
+} // end of GetDefaultPort
+
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
@@ -673,6 +679,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
     crp = *pcrp;
     pcrp = &crp->Next;
+    memset(crp, 0, sizeof(COLRES));
     crp->Ncol = ++qrp->Nbcol;
 
     crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
@@ -686,7 +693,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
 
-    crp->Prec = fld->decimals;
+    crp->Prec = (crp->Type == TYPE_FLOAT) ? fld->decimals : 0;
     crp->Length = fld->max_length;
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
 

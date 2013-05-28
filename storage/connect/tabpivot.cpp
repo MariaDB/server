@@ -1,7 +1,7 @@
 /************ TabPivot C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABPIVOT                                              */
 /* -------------                                                       */
-/*  Version 1.5                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -52,6 +52,182 @@
 #include "mycat.h"       // For GetHandler
 
 extern "C" int trace;
+
+/***********************************************************************/
+/*  Make the Pivot table column list.                                  */
+/***********************************************************************/
+PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
+                                const char *picol, const char *fncol,
+                                const char *host,  const char *db,
+                                const char *user,  const char *pwd,
+                                int port)
+  {
+  PIVAID pvd(tab, src, picol, fncol, host, db, user, pwd, port);
+
+  return pvd.MakePivotColumns(g);
+  } // end of PivotColumns
+
+/* --------------- Implementation of the PIVAID classe --------------- */
+
+/***********************************************************************/
+/*  PIVAID constructor.                                                */
+/***********************************************************************/
+PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
+               const char *fncol, const char *host, const char *db,
+               const char *user,  const char *pwd,  int port)
+      : CSORT(false)
+  {
+  Host = (char*)host;
+  User = (char*)user;
+  Pwd = (char*)pwd;
+  Qryp = NULL;
+  Database = (char*)db;
+  Tabname = (char*)tab;
+  Tabsrc = (char*)src;
+  Picol = (char*)picol;
+  Fncol = (char*)fncol;
+  Rblkp = NULL;
+  Port = (port) ? port : GetDefaultPort();
+  } // end of PIVAID constructor
+
+/***********************************************************************/
+/*  Make the Pivot table column list.                                  */
+/***********************************************************************/
+PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
+  {
+  char    *query, *colname, buf[32];
+  int      ndif, nblin, w = 0;
+  PVAL     valp;
+  PCOLRES *pcrp, crp, fncrp = NULL;
+
+  if (!Tabsrc && Tabname) {
+    // Locate the  query
+    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 16);
+    sprintf(query, "SELECT * FROM %s", Tabname);
+  } else if (!Tabsrc) {
+    strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
+    return NULL;
+  } else
+    query = Tabsrc;
+
+  // Open a MySQL connection for this table
+  if (Myc.Open(g, Host, Database, User, Pwd, Port))
+    return NULL;
+
+  // Send the source command to MySQL
+  if (Myc.ExecSQL(g, query, &w) == RC_FX) {
+    Myc.Close();
+    return NULL;
+    } // endif Exec
+
+  // We must have a storage query to get pivot column values
+  Qryp = Myc.GetResult(g);
+  Myc.Close();
+
+  if (!Fncol) {
+    for (crp = Qryp->Colresp; crp; crp = crp->Next)
+      if (!Picol || stricmp(Picol, crp->Name))
+        Fncol = crp->Name;
+  
+    if (!Fncol) {
+      strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+      return NULL;
+      } // endif Fncol
+  
+    } // endif Fncol
+  
+  if (!Picol) {
+    // Find default Picol as the last one not equal to Fncol
+    for (crp = Qryp->Colresp; crp; crp = crp->Next)
+      if (stricmp(Fncol, crp->Name))
+        Picol = crp->Name;
+  
+    if (!Picol) {
+      strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+      return NULL;
+      } // endif Picol
+  
+    } // endif picol
+  
+  // Prepare the column list
+  for (pcrp = &Qryp->Colresp; crp = *pcrp; )
+    if (!stricmp(Picol, crp->Name)) {
+      Rblkp = crp->Kdata;
+      *pcrp = crp->Next;
+    } else if (!stricmp(Fncol, crp->Name)) {
+      fncrp = crp;
+      *pcrp = crp->Next;
+    } else
+      pcrp = &crp->Next;
+
+  if (!Rblkp) {
+    strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+    return NULL;
+  } else if (!fncrp) {
+    strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+    return NULL;
+  } // endif
+
+  // Before calling sort, initialize all
+  nblin = Qryp->Nblin;
+
+  Index.Size = nblin * sizeof(int);
+  Index.Sub = TRUE;                  // Should be small enough
+
+  if (!PlgDBalloc(g, NULL, Index))
+    return NULL;
+
+  Offset.Size = (nblin + 1) * sizeof(int);
+  Offset.Sub = TRUE;                 // Should be small enough
+
+  if (!PlgDBalloc(g, NULL, Offset))
+    return NULL;
+
+  ndif = Qsort(g, nblin);
+
+  if (ndif < 0)           // error
+    return NULL;
+
+  // Allocate the Value used to retieve column names
+  if (!(valp = AllocateValue(g, Rblkp->GetType(),
+                                Rblkp->GetVlen(),
+                                Rblkp->GetPrec())))
+    return NULL;
+
+  // Now make the functional columns
+  for (int i = 0; i < ndif; i++) {
+    if (i) {
+      crp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+      memcpy(crp, fncrp, sizeof(COLRES));
+    } else
+      crp = fncrp;
+
+    // Get the value that will be the generated column name
+    valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+    colname = valp->GetCharString(buf);
+    crp->Name = (char*)PlugSubAlloc(g, NULL, strlen(colname) + 1);
+    strcpy(crp->Name, colname);
+    crp->Flag = 1;
+
+    // Add this column
+    *pcrp = crp;
+    crp->Next = NULL;
+    pcrp = &crp->Next;
+    } // endfor i
+
+  // We added ndif columns and removed 2 (picol and fncol)
+  Qryp->Nbcol += (ndif - 2);
+  return Qryp;
+  } // end of MakePivotColumns
+
+/***********************************************************************/
+/*  PIVAID: Compare routine for sorting pivot column values.           */
+/***********************************************************************/
+int PIVAID::Qcompare(int *i1, int *i2)
+  {
+  // TODO: the actual comparison between pivot column result values.
+  return Rblkp->CompVal(*i1, *i2);
+  } // end of Qcompare
 
 /* --------------- Implementation of the PIVOT classes --------------- */
 

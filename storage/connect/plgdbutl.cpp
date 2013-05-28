@@ -298,6 +298,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
     *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
     crp = *pcrp;
     pcrp = &crp->Next;
+    memset(crp, 0, sizeof(COLRES));
     crp->Colp = NULL;
     crp->Ncol = ++qrp->Nbcol;
     crp->Type = buftyp[i];

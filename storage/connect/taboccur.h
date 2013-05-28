@@ -58,7 +58,6 @@ class TDBOCCUR : public TDBPRX {
   // Methods
 	virtual void ResetDB(void) {N = 0; Tdbp->ResetDB();}
 	virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
-					int  PrepareColist(void);
 					bool MakeColumnList(PGLOBAL g);
           bool ViewColumnList(PGLOBAL g);
 

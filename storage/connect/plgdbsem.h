@@ -518,6 +518,7 @@ typedef  struct _colres {
   int     Clen;                    /* Data individual internal size    */
   int     Length;                  /* Data individual print length     */
   int     Prec;                    /* Precision                        */
+  int     Flag;                    /* Flag option value                */
   XFLD    Fld;                     /* Type of field info               */
   } COLRES;
 
