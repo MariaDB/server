@@ -6214,6 +6214,15 @@ Gtid_log_event::do_apply_event(Relay_log_info const *rli)
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
 
+  if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
+  {
+    /* Need to reset prior "ok" status to give an error. */
+    thd->clear_error();
+    thd->stmt_da->reset_diagnostics_area();
+    if (mysql_bin_log.check_strict_gtid_sequence(this->domain_id,
+                                                 this->server_id, this->seq_no))
+      return 1;
+  }
   if (flags2 & FL_STANDALONE)
     return 0;
 

@@ -6545,3 +6545,7 @@ ER_MASTER_GTID_POS_MISSING_DOMAIN
 	eng "Specified value for @@gtid_slave_pos contains no value for replication domain %u. This conflicts with the binary log which contains GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos."
 ER_UNTIL_REQUIRES_USING_GTID
 	eng "START SLAVE UNTIL master_gtid_pos requires that slave is using GTID"
+ER_GTID_STRICT_OUT_OF_ORDER
+	eng "An attempt was made to binlog GTID %u-%u-%llu which would create an out-of-order sequence number with existing GTID %u-%u-%llu, and gtid strict mode is enabled."
+ER_GTID_START_FROM_BINLOG_HOLE
+	eng "The binlog on the master is missing the GTID %u-%u-%llu requested by the slave (even though both a prior and a subsequent sequence number does exist), and GTID strict mode is enabled"

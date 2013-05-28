@@ -41,10 +41,10 @@ INSERT INTO t4 VALUES (3, 1);
 INSERT INTO t3 VALUES (3);
 INSERT INTO t3 VALUES (4);
 INSERT INTO t4 VALUES (3, 3);
-START SLAVE UNTIL master_gtid_pos= "1-1-7,2-1-14,3-1-21";
-START SLAVE UNTIL master_gtid_pos= "1-1-4,2-1-14,3-1-24";
-START SLAVE UNTIL master_gtid_pos= "2-1-11,3-1-21,1-1-10";
-START SLAVE UNTIL master_gtid_pos= "3-1-18,1-1-7,2-1-17";
+START SLAVE UNTIL master_gtid_pos= "1-1-4,2-1-4,3-1-4";
+START SLAVE UNTIL master_gtid_pos= "1-1-1,2-1-4,3-1-7";
+START SLAVE UNTIL master_gtid_pos= "2-1-1,3-1-4,1-1-7";
+START SLAVE UNTIL master_gtid_pos= "3-1-1,1-1-4,2-1-7";
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -119,7 +119,7 @@ a	b
 2	3
 *** Now replicate all extra changes from 3,4,5 to 2, in preparation for making 2 the new master. ***
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_3;
-START SLAVE UNTIL master_gtid_pos = "1-1-4,0-1-3,3-1-24,2-1-14";
+START SLAVE UNTIL master_gtid_pos = "1-1-1,0-1-3,3-1-7,2-1-4";
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -142,7 +142,7 @@ a	b
 3	1
 3	3
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_4;
-START SLAVE UNTIL master_gtid_pos = "1-1-10,0-1-3,3-1-21,2-1-11";
+START SLAVE UNTIL master_gtid_pos = "1-1-7,0-1-3,3-1-4,2-1-1";
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -168,7 +168,7 @@ a	b
 3	1
 3	3
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = SERVER_MYPORT_5;
-START SLAVE UNTIL master_gtid_pos = "1-1-7,0-1-3,3-1-18,2-1-17";
+START SLAVE UNTIL master_gtid_pos = "1-1-4,0-1-3,3-1-1,2-1-7";
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a

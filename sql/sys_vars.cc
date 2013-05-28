@@ -1215,6 +1215,26 @@ static Sys_var_uint Sys_gtid_domain_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_has_super));
 
+
+static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
+{
+  uint32 domain_id, server_id;
+  uint64_t seq_no;
+
+  if (check_has_super(self, thd, var))
+    return true;
+  domain_id= thd->variables.gtid_domain_id;
+  server_id= thd->variables.server_id;
+  seq_no= (uint64)var->value->val_uint();
+  DBUG_EXECUTE_IF("ignore_set_gtid_seq_no_check", return 0;);
+  if (opt_gtid_strict_mode && opt_bin_log &&
+      mysql_bin_log.check_strict_gtid_sequence(domain_id, server_id, seq_no))
+    return true;
+
+  return false;
+}
+
+
 static Sys_var_ulonglong Sys_gtid_seq_no(
        "gtid_seq_no",
        "Internal server usage, for replication with global transaction id. "
@@ -1224,7 +1244,7 @@ static Sys_var_ulonglong Sys_gtid_seq_no(
        SESSION_ONLY(gtid_seq_no),
        NO_CMD_LINE, VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super));
+       ON_CHECK(check_gtid_seq_no));
 
 
 #ifdef HAVE_REPLICATION
@@ -1364,6 +1384,15 @@ static Sys_var_gtid_slave_pos Sys_gtid_slave_pos(
        "The list of global transaction IDs that were last replicated on the "
        "server, one for each replication domain.",
        GLOBAL_VAR(opt_gtid_slave_pos_dummy), NO_CMD_LINE);
+
+
+static Sys_var_mybool Sys_gtid_strict_mode(
+       "gtid_strict_mode",
+       "Enforce strict seq_no ordering of events in the binary log. Slave "
+       "stops with an error if it encounters an event that would cause it to "
+       "generate an out-of-order binlog if executed.",
+       GLOBAL_VAR(opt_gtid_strict_mode),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 #endif
 
 

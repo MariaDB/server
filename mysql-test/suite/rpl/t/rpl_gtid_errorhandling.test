@@ -80,7 +80,13 @@ SET GLOBAL gtid_slave_pos = "100-100-100";
 ROLLBACK;
 
 # In gtid non-strict mode, we get warnings for setting @@gtid_slave_pos back
-# to earlier than what is in the binlog.
+# to earlier than what is in the binlog. In strict mode, we get an error.
+SET GLOBAL gtid_strict_mode= 1;
+--error ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
+SET GLOBAL gtid_slave_pos = "0-1-1";
+--error ER_MASTER_GTID_POS_MISSING_DOMAIN
+SET GLOBAL gtid_slave_pos = "";
+SET GLOBAL gtid_strict_mode= 0;
 SET GLOBAL gtid_slave_pos = "0-1-1";
 SET GLOBAL gtid_slave_pos = "";
 RESET MASTER;

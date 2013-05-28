@@ -32,10 +32,10 @@ master-bin.000003	#	Gtid_list	#	#	[0-1-3]
 FLUSH LOGS;
 SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000004	#	Gtid_list	#	#	[1-1-5,0-1-4]
+master-bin.000004	#	Gtid_list	#	#	[1-1-1,0-1-4]
 SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000005	#	Gtid_list	#	#	[1-1-5,0-1-4]
+master-bin.000005	#	Gtid_list	#	#	[1-1-1,0-1-4]
 show binary logs;
 Log_name	File_size
 master-bin.000002	#
