@@ -110,7 +110,7 @@ static MYSQL_THDVAR_ULONG(rnd_batch_size, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONG(failure_retries, PLUGIN_VAR_RQCMDARG,
   "Number of times to retry Cassandra calls that failed due to timeouts or "
   "network communication problems. The default, 0, means not to retry.",
-  NULL, NULL, /*default*/ 0, /*min*/ 0, /*max*/ 1024*1024*1024, 0);
+  NULL, NULL, /*default*/ 3, /*min*/ 1, /*max*/ 1024*1024*1024, 0);
 
 /* These match values in enum_cassandra_consistency_level */
 const char *cassandra_consistency_level[] =
@@ -2210,6 +2210,7 @@ int ha_cassandra::reset()
   {
     se->set_consistency_levels(THDVAR(table->in_use, read_consistency),
                                THDVAR(table->in_use, write_consistency));
+    se->set_n_retries(THDVAR(table->in_use, failure_retries));
   }
   return 0;
 }
@@ -2581,6 +2582,8 @@ static SHOW_VAR cassandra_status_variables[]= {
   {"multiget_rows_read",
     (char*) &cassandra_counters.multiget_rows_read,  SHOW_LONG},
 
+  {"network_exceptions",
+    (char*) &cassandra_counters.network_exceptions, SHOW_LONG},
   {"timeout_exceptions",
     (char*) &cassandra_counters.timeout_exceptions, SHOW_LONG},
   {"unavailable_exceptions",
