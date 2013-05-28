@@ -1824,8 +1824,8 @@ after_set_capability:
   {
     int rc;
     char str_buf[256];
-    String connect_state(str_buf, sizeof(str_buf), system_charset_info);
-    connect_state.length(0);
+    String query_str(str_buf, sizeof(str_buf), system_charset_info);
+    query_str.length(0);
 
     /*
       Read the master @@GLOBAL.gtid_domain_id variable.
@@ -1848,9 +1848,9 @@ after_set_capability:
     mysql_free_result(master_res);
     master_res= NULL;
 
-    connect_state.append(STRING_WITH_LEN("SET @slave_connect_state='"),
-                         system_charset_info);
-    if (rpl_append_gtid_state(&connect_state,
+    query_str.append(STRING_WITH_LEN("SET @slave_connect_state='"),
+                     system_charset_info);
+    if (rpl_append_gtid_state(&query_str,
                               mi->using_gtid ==
                                   Master_info::USE_GTID_CURRENT_POS))
     {
@@ -1860,9 +1860,9 @@ after_set_capability:
       sprintf(err_buff, "%s Error: Out of memory", errmsg);
       goto err;
     }
-    connect_state.append(STRING_WITH_LEN("'"), system_charset_info);
+    query_str.append(STRING_WITH_LEN("'"), system_charset_info);
 
-    rc= mysql_real_query(mysql, connect_state.ptr(), connect_state.length());
+    rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (rc)
     {
       err_code= mysql_errno(mysql);
@@ -1883,12 +1883,45 @@ after_set_capability:
       }
     }
 
+    query_str.length(0);
+    if (query_str.append(STRING_WITH_LEN("SET @slave_gtid_strict_mode="),
+                         system_charset_info) ||
+        query_str.append_ulonglong(opt_gtid_strict_mode != false))
+    {
+      err_code= ER_OUTOFMEMORY;
+      errmsg= "The slave I/O thread stops because a fatal out-of-memory "
+        "error is encountered when it tries to set @slave_gtid_strict_mode.";
+      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      goto err;
+    }
+
+    rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+    if (rc)
+    {
+      err_code= mysql_errno(mysql);
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code,
+                   "Setting @slave_gtid_strict_mode failed with error: %s",
+                   mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is "
+          "encountered when it tries to set @slave_gtid_strict_mode.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
+    }
+
     if (mi->rli.until_condition == Relay_log_info::UNTIL_GTID)
     {
-      connect_state.length(0);
-      connect_state.append(STRING_WITH_LEN("SET @slave_until_gtid='"),
-                           system_charset_info);
-      if (mi->rli.until_gtid_pos.append_to_string(&connect_state))
+      query_str.length(0);
+      query_str.append(STRING_WITH_LEN("SET @slave_until_gtid='"),
+                       system_charset_info);
+      if (mi->rli.until_gtid_pos.append_to_string(&query_str))
       {
         err_code= ER_OUTOFMEMORY;
         errmsg= "The slave I/O thread stops because a fatal out-of-memory "
@@ -1896,9 +1929,9 @@ after_set_capability:
         sprintf(err_buff, "%s Error: Out of memory", errmsg);
         goto err;
       }
-      connect_state.append(STRING_WITH_LEN("'"), system_charset_info);
+      query_str.append(STRING_WITH_LEN("'"), system_charset_info);
 
-      rc= mysql_real_query(mysql, connect_state.ptr(), connect_state.length());
+      rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
       if (rc)
       {
         err_code= mysql_errno(mysql);

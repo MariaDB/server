@@ -55,7 +55,6 @@ wait/synch/mutex/sql/LOCK_global_index_stats
 wait/synch/mutex/sql/LOCK_global_system_variables
 wait/synch/mutex/sql/LOCK_global_table_stats
 wait/synch/mutex/sql/LOCK_global_user_client_stats
-wait/synch/mutex/sql/LOCK_gtid_counter
 wait/synch/mutex/sql/LOCK_open
 wait/synch/mutex/sql/LOCK_plugin
 wait/synch/mutex/sql/LOCK_prepared_stmt_count

@@ -79,7 +79,7 @@ master-bin.000001	#
 master-bin.000002	#
 master-bin.000003	#
 master-bin.000004	#
-START SLAVE UNTIL master_gtid_pos='1-1-11,2-1-12';
+START SLAVE UNTIL master_gtid_pos='1-1-3,2-1-4';
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -93,7 +93,7 @@ a
 3
 4
 5
-START SLAVE UNTIL master_gtid_pos='1-1-13,2-1-8';
+START SLAVE UNTIL master_gtid_pos='1-1-4,2-1-2';
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -108,7 +108,7 @@ a
 3
 4
 5
-START SLAVE UNTIL master_gtid_pos='1-1-11';
+START SLAVE UNTIL master_gtid_pos='1-1-3';
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -144,7 +144,7 @@ FLUSH LOGS;
 SET gtid_domain_id = 1;
 INSERT INTO t1 VALUES (7);
 SET gtid_domain_id = 0;
-START SLAVE UNTIL master_gtid_pos='1-1-13';
+START SLAVE UNTIL master_gtid_pos='1-1-4';
 include/wait_for_slave_to_stop.inc
 SELECT * FROM t1 ORDER BY a;
 a
@@ -168,7 +168,7 @@ a
 include/stop_slave.inc
 CREATE TABLE t3 (a INT);
 DROP TABLE t3;
-START SLAVE UNTIL master_gtid_pos='1-1-15,2-1-14,0-1-16';
+START SLAVE UNTIL master_gtid_pos='1-1-5,2-1-5,0-1-6';
 include/wait_for_slave_to_stop.inc
 SHOW CREATE TABLE t3;
 Table	Create Table

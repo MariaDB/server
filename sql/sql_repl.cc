@@ -614,6 +614,19 @@ get_slave_connect_state(THD *thd, String *out_str)
 }
 
 
+static bool
+get_slave_gtid_strict_mode(THD *thd)
+{
+  bool null_value;
+
+  const LEX_STRING name= { C_STRING_WITH_LEN("slave_gtid_strict_mode") };
+  user_var_entry *entry=
+    (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name.str,
+                                  name.length);
+  return entry && entry->val_int(&null_value) && !null_value;
+}
+
+
 /*
   Get the value of the @slave_until_gtid user variable into the supplied
   String (this is the GTID position specified for START SLAVE UNTIL
@@ -876,8 +889,6 @@ contains_all_slave_gtid(slave_connection_state *st, Gtid_list_log_event *glev)
 
   Give an error if the slave requests something that we do not have in our
   binlog.
-
-  T
 */
 
 static int
@@ -1465,13 +1476,13 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     enum_gtid_skip_type *gtid_skip_group,
                     slave_connection_state *until_gtid_state,
                     enum_gtid_until_state *gtid_until_group,
-                    rpl_binlog_state *until_binlog_state)
+                    rpl_binlog_state *until_binlog_state,
+                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid)
 {
   my_off_t pos;
   size_t len= packet->length();
 
-  if (event_type == GTID_LIST_EVENT && using_gtid_state &&
-      (gtid_state->count() > 0 || until_gtid_state))
+  if (event_type == GTID_LIST_EVENT && using_gtid_state && until_gtid_state)
   {
     rpl_gtid *gtid_list;
     uint32 list_len;
@@ -1481,11 +1492,17 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
         Gtid_list_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
                                   current_checksum_alg,
                                   &gtid_list, &list_len))
+    {
+      my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to read Gtid_list_log_event: corrupt binlog";
+    }
     err= until_binlog_state->load(gtid_list, list_len);
     my_free(gtid_list);
     if (err)
+    {
+      my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed in internal GTID book-keeping: Out of memory";
+    }
   }
 
   /* Skip GTID event groups until we reach slave position within a domain_id. */
@@ -1503,10 +1520,16 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
                                &event_gtid.seq_no, &flags2))
+      {
+        my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to read Gtid_log_event: corrupt binlog";
+      }
 
-      if (until_binlog_state->update(&event_gtid))
+      if (until_binlog_state->update(&event_gtid, false))
+      {
+        my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed in internal GTID book-keeping: Out of memory";
+      }
 
       if (gtid_state->count() > 0)
       {
@@ -1518,13 +1541,30 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
               event_gtid.seq_no <= gtid->seq_no)
             *gtid_skip_group = (flags2 & Gtid_log_event::FL_STANDALONE ?
                                 GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
-          /*
-            Delete this entry if we have reached slave start position (so we will
-            not skip subsequent events and won't have to look them up and check).
-          */
           if (event_gtid.server_id == gtid->server_id &&
               event_gtid.seq_no >= gtid->seq_no)
+          {
+            /*
+              In strict mode, it is an error if the slave requests to start in
+              a "hole" in the master's binlog: a GTID that does not exist, even
+              though both the prior and subsequent seq_no exists for same
+              domain_id and server_id.
+            */
+            if (slave_gtid_strict_mode && event_gtid.seq_no > gtid->seq_no)
+            {
+              my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
+              *error_gtid= *gtid;
+              return "The binlog on the master is missing the GTID requested "
+                "by the slave (even though both a prior and a subsequent "
+                "sequence number does exist), and GTID strict mode is enabled.";
+            }
+            /*
+              Delete this entry if we have reached slave start position (so we
+              will not skip subsequent events and won't have to look them up
+              and check).
+            */
             gtid_state->remove(gtid);
+          }
         }
       }
 
@@ -1626,7 +1666,10 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
         a no-operation on the slave.
       */
       if (Query_log_event::dummy_event(packet, ev_offset, current_checksum_alg))
+      {
+        my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to replace row annotate event with dummy: too small event.";
+      }
     }
   }
 
@@ -1645,8 +1688,11 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                                                     ev_offset,
                                                     current_checksum_alg);
     if (err)
+    {
+      my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return "Failed to replace GTID event with backwards-compatible event: "
              "currupt event.";
+    }
     if (!need_dummy)
       return NULL;
   }
@@ -1673,8 +1719,11 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
         binlog positions.
       */
       if (Query_log_event::dummy_event(packet, ev_offset, current_checksum_alg))
+      {
+        my_errno= ER_MASTER_FATAL_ERROR_READING_BINLOG;
         return "Failed to replace binlog checkpoint or gtid list event with "
                "dummy: too small event.";
+      }
     }
   }
 
@@ -1698,20 +1747,32 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
   pos= my_b_tell(log);
   if (RUN_HOOK(binlog_transmit, before_send_event,
                (thd, flags, packet, log_file_name, pos)))
+  {
+    my_errno= ER_UNKNOWN_ERROR;
     return "run 'before_send_event' hook failed";
+  }
 
   if (my_net_write(net, (uchar*) packet->ptr(), len))
+  {
+    my_errno= ER_UNKNOWN_ERROR;
     return "Failed on my_net_write()";
+  }
 
   DBUG_PRINT("info", ("log event code %d", (*packet)[LOG_EVENT_OFFSET+1] ));
   if (event_type == LOAD_EVENT)
   {
     if (send_file(thd))
+    {
+      my_errno= ER_UNKNOWN_ERROR;
       return "failed in send_file()";
+    }
   }
 
   if (RUN_HOOK(binlog_transmit, after_send_event, (thd, flags, packet)))
+  {
+    my_errno= ER_UNKNOWN_ERROR;
     return "Failed to run hook 'after_send_event'";
+  }
 
   return NULL;    /* Success */
 }
@@ -1747,6 +1808,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   enum_gtid_skip_type gtid_skip_group= GTID_SKIP_NOT;
   enum_gtid_until_state gtid_until_group= GTID_UNTIL_NOT_DONE;
   rpl_binlog_state until_binlog_state;
+  bool slave_gtid_strict_mode;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -1778,9 +1840,12 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   connect_gtid_state.length(0);
   using_gtid_state= get_slave_connect_state(thd, &connect_gtid_state);
   DBUG_EXECUTE_IF("simulate_non_gtid_aware_master", using_gtid_state= false;);
-  if (using_gtid_state &&
-      get_slave_until_gtid(thd, &slave_until_gtid_str))
-    until_gtid_state= &until_gtid_state_obj;
+  if (using_gtid_state)
+  {
+    slave_gtid_strict_mode= get_slave_gtid_strict_mode(thd);
+    if(get_slave_until_gtid(thd, &slave_until_gtid_str))
+      until_gtid_state= &until_gtid_state_obj;
+  }
 
   /*
     We want to corrupt the first event, in Log_event::read_log_event().
@@ -2134,10 +2199,10 @@ impossible position";
                                         current_checksum_alg, using_gtid_state,
                                         &gtid_state, &gtid_skip_group,
                                         until_gtid_state, &gtid_until_group,
-                                        &until_binlog_state)))
+                                        &until_binlog_state,
+                                        slave_gtid_strict_mode, &error_gtid)))
       {
         errmsg= tmp_msg;
-        my_errno= ER_UNKNOWN_ERROR;
         goto err;
       }
       if (until_gtid_state &&
@@ -2315,10 +2380,10 @@ impossible position";
                                             current_checksum_alg,
                                             using_gtid_state, &gtid_state,
                                             &gtid_skip_group, until_gtid_state,
-                                            &gtid_until_group, &until_binlog_state)))
+                                            &gtid_until_group, &until_binlog_state,
+                                            slave_gtid_strict_mode, &error_gtid)))
           {
             errmsg= tmp_msg;
-            my_errno= ER_UNKNOWN_ERROR;
             goto err;
           }
           if (
@@ -2426,6 +2491,17 @@ err:
     my_snprintf(error_text, sizeof(error_text),
                 "Error: connecting slave requested to start from GTID "
                 "%u-%u-%llu, which is not in the master's binlog",
+                error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
+    /* Use this error code so slave will know not to try reconnect. */
+    my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
+  }
+  else if (my_errno == ER_GTID_START_FROM_BINLOG_HOLE)
+  {
+    my_snprintf(error_text, sizeof(error_text),
+                "The binlog on the master is missing the GTID %u-%u-%llu "
+                "requested by the slave (even though both a prior and a "
+                "subsequent sequence number does exist), and GTID strict mode "
+                "is enabled",
                 error_gtid.domain_id, error_gtid.server_id, error_gtid.seq_no);
     /* Use this error code so slave will know not to try reconnect. */
     my_errno = ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -3721,8 +3797,6 @@ rpl_append_gtid_state(String *dest, bool use_binlog)
 bool
 rpl_gtid_pos_check(THD *thd, char *str, size_t len)
 {
-  /* ToDo: Use gtid_strict_mode sysvar, when implemented. */
-  static const bool gtid_strict_mode= false;
   slave_connection_state tmp_slave_state;
   bool gave_conflict_warning= false, gave_missing_warning= false;
 
@@ -3759,7 +3833,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
         continue;
       if (!(slave_gtid= tmp_slave_state.find(binlog_gtid->domain_id)))
       {
-        if (gtid_strict_mode)
+        if (opt_gtid_strict_mode)
         {
           my_error(ER_MASTER_GTID_POS_MISSING_DOMAIN, MYF(0),
                    binlog_gtid->domain_id, binlog_gtid->domain_id,
@@ -3778,7 +3852,7 @@ rpl_gtid_pos_check(THD *thd, char *str, size_t len)
       }
       else if (slave_gtid->seq_no < binlog_gtid->seq_no)
       {
-        if (gtid_strict_mode)
+        if (opt_gtid_strict_mode)
         {
           my_error(ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG, MYF(0),
                    slave_gtid->domain_id, slave_gtid->server_id,

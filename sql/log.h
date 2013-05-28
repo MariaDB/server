@@ -783,7 +783,9 @@ public:
   bool find_in_binlog_state(uint32 domain_id, uint32 server_id,
                             rpl_gtid *out_gtid);
   bool lookup_domain_in_binlog_state(uint32 domain_id, rpl_gtid *out_gtid);
-  void bump_seq_no_counter_if_needed(uint64 seq_no);
+  int bump_seq_no_counter_if_needed(uint32 domain_id, uint64 seq_no);
+  bool check_strict_gtid_sequence(uint32 domain_id, uint32 server_id,
+                                  uint64 seq_no);
 };
 
 class Log_event_handler

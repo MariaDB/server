@@ -207,6 +207,10 @@ The following options may be given as the first argument:
  multiple masters), each independent source server must
  use a distinct domain_id. For simple tree-shaped
  replication topologies, it can be left at its default, 0.
+ --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
+ log. Slave stops with an error if it encounters an event
+ that would cause it to generate an out-of-order binlog if
+ executed.
  -?, --help          Display this help and exit.
  --histogram-size=#  Number of bytes used for a histogram. If set to 0, no
  histograms are created by ANALYZE.
@@ -966,6 +970,7 @@ gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
 gtid-domain-id 0
+gtid-strict-mode FALSE
 help TRUE
 histogram-size 0
 histogram-type SINGLE_PREC_HB
