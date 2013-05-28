@@ -3604,7 +3604,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     if (src && ttp != TAB_PIVOT) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
 
-      if (ttp == TAB_OCCUR)
+      if (qrp && ttp == TAB_OCCUR)
         if (OcrSrcCols(g, qrp, col, ocl, rnk)) {
           my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
           return HA_ERR_INTERNAL_ERROR;
@@ -3660,7 +3660,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         if (!qrp && bif && fnc != FNC_COL)         // tab is a view
           qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
 
-        if (ttp == TAB_OCCUR && fnc != FNC_COL)
+        if (qrp && ttp == TAB_OCCUR && fnc != FNC_COL)
           if (OcrColumns(g, qrp, col, ocl, rnk)) {
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             return HA_ERR_INTERNAL_ERROR;
