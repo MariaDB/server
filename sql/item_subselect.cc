@@ -902,6 +902,10 @@ bool Item_in_subselect::exec()
       test_if_item_cache_changed(*left_expr_cache) < 0)
     DBUG_RETURN(FALSE);
 
+  if (first_execution && test_strategy(SUBS_MATERIALIZATION) &&
+      engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
+    setup_mat_engine();
+
   /*
     The exec() method below updates item::value, and item::null_value, thus if
     we don't call it, the next call to item::val_int() will return whatever
@@ -969,6 +973,16 @@ void Item_subselect::print(String *str, enum_query_type query_type)
 {
   if (engine)
   {
+    /*
+      For non-SJ materialization the engine is created during exec(), therefore
+      it is not available during EXPLAIN. Create the materialization engine in
+      order to print it.
+    */
+    if (is_in_predicate() &&
+        ((Item_in_subselect*)this)->test_strategy(SUBS_MATERIALIZATION) &&
+        engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
+      ((Item_in_subselect*)this)->setup_mat_engine();
+
     str->append('(');
     engine->print(str, query_type);
     str->append(')');

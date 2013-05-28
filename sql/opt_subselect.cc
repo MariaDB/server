@@ -5258,9 +5258,13 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
       {
         DBUG_ASSERT(subq_pred->test_set_strategy(SUBS_MATERIALIZATION));
         subq_pred->is_jtbm_const_tab= FALSE;
+
+        DBUG_ASSERT(subq_pred->engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE);
+        subq_pred->setup_mat_engine();
+        DBUG_ASSERT(subq_pred->engine->engine_type() == subselect_engine::HASH_SJ_ENGINE);
         subselect_hash_sj_engine *hash_sj_engine=
-          ((subselect_hash_sj_engine*)item->engine);
-        
+          ((subselect_hash_sj_engine*) subq_pred->engine);
+
         table->table= hash_sj_engine->tmp_table;
         table->table->pos_in_table_list= table;
 
@@ -5514,27 +5518,6 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
                ("inx_strategy_cost: %.2f, inner_read_time_2: %.2f",
                 in_exists_strategy_cost, inner_read_time_2));
     DBUG_PRINT("info",("outer_lookup_keys: %.2f", outer_lookup_keys));
-  }
-
-  /*
-    If (1) materialization is a possible strategy based on semantic analysis
-    during the prepare phase, then if
-      (2) it is more expensive than the IN->EXISTS transformation, and
-      (3) it is not possible to create usable indexes for the materialization
-          strategy,
-      fall back to IN->EXISTS.
-    otherwise
-      use materialization.
-  */
-  if (in_subs->test_strategy(SUBS_MATERIALIZATION) &&
-      in_subs->setup_mat_engine())
-  {
-    /*
-      If materialization was the cheaper or the only user-selected strategy,
-      but it is not possible to execute it due to limitations in the
-      implementation, fall back to IN-TO-EXISTS.
-    */
-    in_subs->set_strategy(SUBS_IN_TO_EXISTS);
   }
 
   if (in_subs->test_strategy(SUBS_MATERIALIZATION))
