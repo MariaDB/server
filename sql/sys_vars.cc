@@ -1349,7 +1349,7 @@ static Sys_var_uint Sys_gtid_domain_id(
 static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 {
   uint32 domain_id, server_id;
-  uint64_t seq_no;
+  uint64 seq_no;
 
   if (check_has_super(self, thd, var))
     return true;
