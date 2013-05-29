@@ -901,8 +901,6 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
   rpl_gtid **delete_list= NULL;
   uint32 delete_idx= 0;
   bool slave_state_loaded= false;
-  uint32 missing_domains= 0;
-  rpl_gtid missing_domain_gtid;
 
   for (i= 0; i < st->hash.records; ++i)
   {
@@ -943,14 +941,7 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
           We do not have anything in this domain, neither in the binlog nor
           in the slave state. So we are probably one master in a multi-master
           setup, and this domain is served by a different master.
-
-          This is not an error, however if we are missing _all_ domains
-          requested by the slave, then we still give error (below, after
-          the loop).
         */
-        if (!missing_domains)
-          missing_domain_gtid= *slave_gtid;
-        ++missing_domains;
         continue;
       }
 
@@ -1041,14 +1032,6 @@ check_slave_start_position(THD *thd, slave_connection_state *st,
       }
       delete_list[delete_idx++]= slave_gtid;
     }
-  }
-
-  if (missing_domains == st->hash.records && missing_domains > 0)
-  {
-    *errormsg= "Requested slave GTID state not found in binlog";
-    *error_gtid= missing_domain_gtid;
-    err= ER_GTID_POSITION_NOT_FOUND_IN_BINLOG;
-    goto end;
   }
 
   /* Do any delayed deletes from the hash. */
