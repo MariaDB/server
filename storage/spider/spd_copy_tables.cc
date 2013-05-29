@@ -851,7 +851,6 @@ long long spider_copy_tables_body(
   DBUG_ENTER("spider_copy_tables_body");
   if (
     thd->open_tables != 0 ||
-    thd->temporary_tables != 0 ||
     thd->handler_tables_hash.records != 0 ||
     thd->derived_tables != 0 ||
     thd->lock != 0 ||

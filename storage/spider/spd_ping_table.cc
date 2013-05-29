@@ -827,7 +827,6 @@ long long spider_ping_table_body(
   conv_name.length(0);
   if (
     thd->open_tables != 0 ||
-    thd->temporary_tables != 0 ||
     thd->handler_tables_hash.records != 0 ||
     thd->derived_tables != 0 ||
     thd->lock != 0 ||
