@@ -180,6 +180,22 @@ rpl_slave_state::get_element(uint32 domain_id)
 
 
 int
+rpl_slave_state::put_back_list(uint32 domain_id, list_element *list)
+{
+  element *e;
+  if (!(e= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+    return 1;
+  while (list)
+  {
+    list_element *next= list->next;
+    e->add(list);
+    list= next;
+  }
+  return 0;
+}
+
+
+int
 rpl_slave_state::truncate_state_table(THD *thd)
 {
   TABLE_LIST tlist;
@@ -330,7 +346,10 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   table->field[3]->store(gtid->seq_no, true);
   DBUG_EXECUTE_IF("inject_crash_before_write_rpl_slave_state", DBUG_SUICIDE(););
   if ((err= table->file->ha_write_row(table->record[0])))
-      goto end;
+  {
+    table->file->print_error(err, MYF(0));
+    goto end;
+  }
 
   lock();
   if ((elem= get_element(gtid->domain_id)) == NULL)
@@ -351,23 +370,42 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   bitmap_set_bit(table->read_set, table->field[1]->field_index);
 
   if ((err= table->file->ha_index_init(0, 0)))
+  {
+    table->file->print_error(err, MYF(0));
     goto end;
+  }
   while (elist)
   {
     uchar key_buffer[4+8];
+
+    DBUG_EXECUTE_IF("gtid_slave_pos_simulate_failed_delete",
+                    { err= ENOENT;
+                      table->file->print_error(err, MYF(0));
+                      /* `break' does not work in DBUG_EXECUTE_IF */
+                      goto dbug_break; });
 
     next= elist->next;
 
     table->field[1]->store(elist->sub_id, true);
     /* domain_id is already set in table->record[0] from write_row() above. */
     key_copy(key_buffer, table->record[0], &table->key_info[0], 0, false);
-    if ((err= table->file->ha_index_read_map(table->record[1], key_buffer,
-                                             HA_WHOLE_KEY, HA_READ_KEY_EXACT)) ||
-        (err= table->file->ha_delete_row(table->record[1])))
-      break;
+    if (table->file->ha_index_read_map(table->record[1], key_buffer,
+                                       HA_WHOLE_KEY, HA_READ_KEY_EXACT))
+      /* We cannot find the row, assume it is already deleted. */
+      ;
+    else if ((err= table->file->ha_delete_row(table->record[1])))
+      table->file->print_error(err, MYF(0));
+    /*
+      In case of error, we still discard the element from the list. We do
+      not want to endlessly error on the same element in case of table
+      corruption or such.
+    */
     my_free(elist);
     elist= next;
+    if (err)
+      break;
   }
+IF_DBUG(dbug_break:, )
   table->file->ha_index_end();
 
   if(!err && opt_bin_log &&
@@ -382,9 +420,16 @@ end:
     if (err)
     {
       /*
-        ToDo: If error, we need to put any remaining elist back into the HASH so
-        we can do another delete attempt later.
+        If error, we need to put any remaining elist back into the HASH so we
+        can do another delete attempt later.
       */
+      if (elist)
+      {
+        lock();
+        put_back_list(gtid->domain_id, elist);
+        unlock();
+      }
+
       ha_rollback_trans(thd, FALSE);
       close_thread_tables(thd);
     }

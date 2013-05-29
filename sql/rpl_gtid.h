@@ -103,6 +103,7 @@ struct rpl_slave_state
   void unlock() { DBUG_ASSERT(inited); mysql_mutex_unlock(&LOCK_slave_state); }
 
   element *get_element(uint32 domain_id);
+  int put_back_list(uint32 domain_id, list_element *list);
 
   void update_state_hash(uint64 sub_id, rpl_gtid *gtid);
   int record_and_update_gtid(THD *thd, Relay_log_info *rli);
