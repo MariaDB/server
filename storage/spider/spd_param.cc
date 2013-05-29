@@ -103,15 +103,31 @@ struct st_mysql_show_var spider_status_variables[] =
   {"Spider_mon_table_cache_version_req",
     (char *) &spider_mon_table_cache_version_req, SHOW_LONGLONG},
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
+  {"Spider_direct_update", (char *) &spider_direct_update, SHOW_SIMPLE_FUNC},
+  {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_SIMPLE_FUNC},
+#else
   {"Spider_direct_update", (char *) &spider_direct_update, SHOW_FUNC},
   {"Spider_direct_delete", (char *) &spider_direct_delete, SHOW_FUNC},
 #endif
+#endif
+#ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
+  {"Spider_direct_order_limit",
+    (char *) &spider_direct_order_limit, SHOW_SIMPLE_FUNC},
+  {"Spider_direct_aggregate",
+    (char *) &spider_direct_aggregate, SHOW_SIMPLE_FUNC},
+#else
   {"Spider_direct_order_limit",
     (char *) &spider_direct_order_limit, SHOW_FUNC},
   {"Spider_direct_aggregate",
     (char *) &spider_direct_aggregate, SHOW_FUNC},
+#endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
+  {"Spider_hs_result_free", (char *) &spider_hs_result_free, SHOW_SIMPLE_FUNC},
+#else
   {"Spider_hs_result_free", (char *) &spider_hs_result_free, SHOW_FUNC},
+#endif
 #endif
   {NullS, NullS, SHOW_LONG}
 };

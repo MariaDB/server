@@ -7003,14 +7003,13 @@ bool spider_check_hs_pk_update(
   key_info = &table->key_info[spider->active_index];
   for (
     key_part = key_info->key_part,
-    store_length = key_part->store_length,
     length = 0;
     tgt_key_part_map;
     length += store_length,
     tgt_key_part_map >>= 1,
-    key_part++,
-    store_length = key_part->store_length
+    key_part++
   ) {
+    store_length = key_part->store_length;
     field = key_part->field;
     field_index = field->field_index;
     if (spider_bit_is_set(spider->tmp_column_bitmap, field_index))

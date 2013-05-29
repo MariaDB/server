@@ -43,42 +43,36 @@ direct_aggregating test
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	0
-Spider_direct_order_limit	0
 SELECT COUNT(*) FROM ta_l;
 COUNT(*)
 5
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l;
 MAX(a)
 5
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l;
 MIN(a)
 1
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l WHERE a < 5;
 MAX(a)
 4
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l WHERE a > 1;
 MIN(a)
 2
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 
 with partition test
 CREATE TABLE ta_l2 (
@@ -90,42 +84,36 @@ PRIMARY KEY(a)
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	1
-Spider_direct_order_limit	0
 SELECT COUNT(*) FROM ta_l2;
 COUNT(*)
 5
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	3
-Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l2;
 MAX(a)
 5
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	3
-Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l2;
 MIN(a)
 1
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	3
-Spider_direct_order_limit	0
 SELECT MAX(a) FROM ta_l2 WHERE a < 5;
 MAX(a)
 4
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	3
-Spider_direct_order_limit	0
 SELECT MIN(a) FROM ta_l2 WHERE a > 1;
 MIN(a)
 2
 SHOW GLOBAL STATUS LIKE 'Spider_direct_aggregate%';
 Variable_name	Value
 Spider_direct_aggregate	3
-Spider_direct_order_limit	0
 
 deinit
 DROP DATABASE IF EXISTS auto_test_local;

@@ -275,7 +275,6 @@ a	b	c
 direct order limit
 SHOW GLOBAL STATUS LIKE 'Spider_direct_order_limit%';
 Variable_name	Value
-Spider_direct_aggregate	20
 Spider_direct_order_limit	0
 SELECT a, b, c FROM ta_l_int ORDER BY a LIMIT 3;
 a	b	c
@@ -284,7 +283,6 @@ a	b	c
 6	7	8
 SHOW GLOBAL STATUS LIKE 'Spider_direct_order_limit%';
 Variable_name	Value
-Spider_direct_aggregate	20
 Spider_direct_order_limit	0
 
 2.26

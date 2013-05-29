@@ -6054,14 +6054,13 @@ int spider_mysql_handler::append_key_column_values(
 
   for (
     key_part = key_info->key_part,
-    length = 0,
-    store_length = key_part->store_length;
+    length = 0;
     start_key_part_map;
     start_key_part_map >>= 1,
     key_part++,
-    length += store_length,
-    store_length = key_part->store_length
+    length += store_length
   ) {
+    store_length = key_part->store_length;
     ptr = start_key->key + length;
     field = key_part->field;
     if ((error_num = spider_db_append_null_value(str, key_part, &ptr)))
