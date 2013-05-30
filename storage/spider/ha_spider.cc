@@ -10283,6 +10283,7 @@ int ha_spider::info_push(
   }
 #endif
 
+#if defined(HANDLER_HAS_DIRECT_UPDATE_ROWS) || defined(HA_CAN_BULK_ACCESS)
   switch (info_type)
   {
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
@@ -10497,6 +10498,7 @@ int ha_spider::info_push(
     default:
       break;
   }
+#endif
   DBUG_RETURN(error_num);
 }
 
