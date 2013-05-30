@@ -38,6 +38,9 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
+extern pthread_mutex_t *spd_db_att_LOCK_xid_cache;
+extern HASH *spd_db_att_xid_cache;
+
 extern handlerton *spider_hton_ptr;
 pthread_mutex_t spider_thread_id_mutex;
 ulonglong spider_thread_id = 1;
@@ -1499,15 +1502,15 @@ int spider_xa_lock(
   int error_num;
   DBUG_ENTER("spider_xa_lock");
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type hash_value = my_calc_hash(&xid_cache,
+  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
 #endif
-  pthread_mutex_lock(&LOCK_xid_cache);
+  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  if (my_hash_search_using_hash_value(&xid_cache, hash_value,
+  if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #else
-  if (my_hash_search(&xid_cache,
+  if (my_hash_search(spd_db_att_xid_cache,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #endif
   {
@@ -1515,20 +1518,20 @@ int spider_xa_lock(
     goto error;
   }
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
-  if (my_hash_insert_with_hash_value(&xid_cache, hash_value,
+  if (my_hash_insert_with_hash_value(spd_db_att_xid_cache, hash_value,
     (uchar*)xid_state))
 #else
-  if (my_hash_insert(&xid_cache, (uchar*)xid_state))
+  if (my_hash_insert(spd_db_att_xid_cache, (uchar*)xid_state))
 #endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
   }
-  pthread_mutex_unlock(&LOCK_xid_cache);
+  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
   DBUG_RETURN(0);
 
 error:
-  pthread_mutex_unlock(&LOCK_xid_cache);
+  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
   DBUG_RETURN(error_num);
 }
 
@@ -1537,16 +1540,16 @@ int spider_xa_unlock(
 ) {
   DBUG_ENTER("spider_xa_unlock");
 #if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-  my_hash_value_type hash_value = my_calc_hash(&xid_cache,
+  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
 #endif
-  pthread_mutex_lock(&LOCK_xid_cache);
+  pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-  my_hash_delete_with_hash_value(&xid_cache, hash_value, (uchar *)xid_state);
+  my_hash_delete_with_hash_value(spd_db_att_xid_cache, hash_value, (uchar *)xid_state);
 #else
-  my_hash_delete(&xid_cache, (uchar *)xid_state);
+  my_hash_delete(spd_db_att_xid_cache, (uchar *)xid_state);
 #endif
-  pthread_mutex_unlock(&LOCK_xid_cache);
+  pthread_mutex_unlock(spd_db_att_LOCK_xid_cache);
   DBUG_RETURN(0);
 }
 

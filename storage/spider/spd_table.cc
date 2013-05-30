@@ -38,6 +38,10 @@
 #include "spd_ping_table.h"
 #include "spd_malloc.h"
 
+ulong *spd_db_att_thread_id;
+pthread_mutex_t *spd_db_att_LOCK_xid_cache;
+HASH *spd_db_att_xid_cache;
+
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
@@ -5954,6 +5958,26 @@ int spider_db_init(
   memset(&spider_current_alloc_mem, 0, sizeof(spider_current_alloc_mem));
   memset(&spider_alloc_mem_count, 0, sizeof(spider_alloc_mem_count));
   memset(&spider_free_mem_count, 0, sizeof(spider_free_mem_count));
+
+#ifdef _WIN32
+  HMODULE current_module = GetModuleHandle(NULL);
+  spd_db_att_thread_id = (ulong *)
+    GetProcAddress(current_module, "?thread_id@@3KA");
+  spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
+#if MYSQL_VERSION_ID < 50500
+    GetProcAddress(current_module,
+      "?LOCK_xid_cache@@3U_RTL_CRITICAL_SECTION@@A");
+#else
+    GetProcAddress(current_module,
+      "?LOCK_xid_cache@@3Ust_mysql_mutex@@A");
+#endif
+  spd_db_att_xid_cache = (HASH *)
+    GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
+#else
+  spd_db_att_thread_id = &thread_id;
+  spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
+  spd_db_att_xid_cache = &xid_cache;
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
   init_spider_psi_keys();

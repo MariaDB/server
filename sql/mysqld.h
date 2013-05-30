@@ -146,7 +146,7 @@ extern char log_error_file[FN_REFLEN], *opt_tc_log_file;
 extern const double log_10[309];
 extern ulonglong keybuff_size;
 extern ulonglong thd_startup_options;
-extern MYSQL_PLUGIN_IMPORT ulong thread_id;
+extern ulong thread_id;
 extern ulong binlog_cache_use, binlog_cache_disk_use;
 extern ulong binlog_stmt_cache_use, binlog_stmt_cache_disk_use;
 extern ulong aborted_threads,aborted_connects;
