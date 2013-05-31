@@ -40,6 +40,9 @@
 #include "spd_udf.h"
 #include "spd_malloc.h"
 
+extern const char **spd_defaults_extra_file;
+extern const char **spd_defaults_file;
+
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 
@@ -1304,25 +1307,25 @@ int spider_udf_set_direct_sql_param_default(
   if (
     !direct_sql->tgt_default_file &&
     direct_sql->tgt_default_group &&
-    (my_defaults_file || my_defaults_extra_file)
+    (*spd_defaults_file || *spd_defaults_extra_file)
   ) {
     DBUG_PRINT("info",("spider create default tgt_default_file"));
-    if (my_defaults_extra_file)
+    if (*spd_defaults_extra_file)
     {
-      direct_sql->tgt_default_file_length = strlen(my_defaults_extra_file);
+      direct_sql->tgt_default_file_length = strlen(*spd_defaults_extra_file);
       if (
         !(direct_sql->tgt_default_file = spider_create_string(
-          my_defaults_extra_file,
+          *spd_defaults_extra_file,
           direct_sql->tgt_default_file_length))
       ) {
         my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
     } else {
-      direct_sql->tgt_default_file_length = strlen(my_defaults_file);
+      direct_sql->tgt_default_file_length = strlen(*spd_defaults_file);
       if (
         !(direct_sql->tgt_default_file = spider_create_string(
-          my_defaults_file,
+          *spd_defaults_file,
           direct_sql->tgt_default_file_length))
       ) {
         my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);

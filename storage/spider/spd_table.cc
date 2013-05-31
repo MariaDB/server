@@ -41,6 +41,9 @@
 ulong *spd_db_att_thread_id;
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
+struct charset_info_st *spd_charset_utf8_bin;
+const char **spd_defaults_extra_file;
+const char **spd_defaults_file;
 
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -3120,16 +3123,16 @@ int spider_set_connect_info_default(
     if (
       !share->tgt_default_files[roop_count] &&
       share->tgt_default_groups[roop_count] &&
-      (my_defaults_file || my_defaults_extra_file)
+      (*spd_defaults_file || *spd_defaults_extra_file)
     ) {
       DBUG_PRINT("info",("spider create default tgt_default_files"));
-      if (my_defaults_extra_file)
+      if (*spd_defaults_extra_file)
       {
         share->tgt_default_files_lengths[roop_count] =
-          strlen(my_defaults_extra_file);
+          strlen(*spd_defaults_extra_file);
         if (
           !(share->tgt_default_files[roop_count] = spider_create_string(
-            my_defaults_extra_file,
+            *spd_defaults_extra_file,
             share->tgt_default_files_lengths[roop_count]))
         ) {
           my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -3137,10 +3140,10 @@ int spider_set_connect_info_default(
         }
       } else {
         share->tgt_default_files_lengths[roop_count] =
-          strlen(my_defaults_file);
+          strlen(*spd_defaults_file);
         if (
           !(share->tgt_default_files[roop_count] = spider_create_string(
-            my_defaults_file,
+            *spd_defaults_file,
             share->tgt_default_files_lengths[roop_count]))
         ) {
           my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
@@ -5162,7 +5165,7 @@ SPIDER_PARTITION_SHARE *spider_get_pt_share(
     }
 
     if(
-      my_hash_init(&partition_share->pt_handler_hash, &my_charset_utf8_bin,
+      my_hash_init(&partition_share->pt_handler_hash, spd_charset_utf8_bin,
         32, 0, 0, (my_hash_get_key) spider_pt_handler_share_get_key, 0, 0)
     ) {
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -5973,10 +5976,19 @@ int spider_db_init(
 #endif
   spd_db_att_xid_cache = (HASH *)
     GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
+  spd_charset_utf8_bin = (struct charset_info_st *)
+    GetProcAddress(current_module, "my_charset_utf8_bin");
+  spd_defaults_extra_file = (const char **)
+    GetProcAddress(current_module, "my_defaults_extra_file");
+  spd_defaults_file = (const char **)
+    GetProcAddress(current_module, "my_defaults_file");
 #else
   spd_db_att_thread_id = &thread_id;
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
+  spd_charset_utf8_bin = &my_charset_utf8_bin;
+  spd_defaults_extra_file = &my_defaults_extra_file;
+  spd_defaults_file = &my_defaults_file;
 #endif
 
 #ifdef HAVE_PSI_INTERFACE
@@ -6137,7 +6149,7 @@ int spider_db_init(
   }
 
   if(
-    my_hash_init(&spider_open_tables, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_open_tables, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_tbl_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6149,7 +6161,7 @@ int spider_db_init(
     spider_open_tables.array.max_element *
     spider_open_tables.array.size_of_element);
   if(
-    my_hash_init(&spider_init_error_tables, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_init_error_tables, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_tbl_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6162,7 +6174,7 @@ int spider_db_init(
     spider_init_error_tables.array.size_of_element);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if(
-    my_hash_init(&spider_open_pt_share, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_open_pt_share, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_pt_share_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6175,7 +6187,7 @@ int spider_db_init(
     spider_open_pt_share.array.size_of_element);
 #endif
   if(
-    my_hash_init(&spider_open_connections, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_open_connections, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6188,7 +6200,7 @@ int spider_db_init(
     spider_open_connections.array.size_of_element);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if(
-    my_hash_init(&spider_hs_r_conn_hash, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_hs_r_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6200,7 +6212,7 @@ int spider_db_init(
     spider_hs_r_conn_hash.array.max_element *
     spider_hs_r_conn_hash.array.size_of_element);
   if(
-    my_hash_init(&spider_hs_w_conn_hash, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_hs_w_conn_hash, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_conn_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6213,7 +6225,7 @@ int spider_db_init(
     spider_hs_w_conn_hash.array.size_of_element);
 #endif
   if(
-    my_hash_init(&spider_allocated_thds, &my_charset_utf8_bin, 32, 0, 0,
+    my_hash_init(&spider_allocated_thds, spd_charset_utf8_bin, 32, 0, 0,
                    (my_hash_get_key) spider_allocated_thds_get_key, 0, 0)
   ) {
     error_num = HA_ERR_OUT_OF_MEM;
@@ -6286,7 +6298,7 @@ int spider_db_init(
     roop_count++)
   {
     if (my_hash_init(&spider_udf_table_mon_list_hash[roop_count],
-      &my_charset_utf8_bin, 32, 0, 0,
+      spd_charset_utf8_bin, 32, 0, 0,
       (my_hash_get_key) spider_udf_tbl_mon_list_key, 0, 0))
     {
       error_num = HA_ERR_OUT_OF_MEM;

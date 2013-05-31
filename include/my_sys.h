@@ -265,9 +265,9 @@ extern my_bool my_disable_sync;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
 /* from default.c */
-extern MYSQL_PLUGIN_IMPORT const char *my_defaults_extra_file;
+extern const char *my_defaults_extra_file;
 extern const char *my_defaults_group_suffix;
-extern MYSQL_PLUGIN_IMPORT const char *my_defaults_file;
+extern const char *my_defaults_file;
 
 extern my_bool timed_mutexes;
 
