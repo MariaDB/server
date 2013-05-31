@@ -63,6 +63,7 @@ SELECT * FROM graph WHERE latch='dijkstras' AND origid=4 AND destid=1;
 SELECT * FROM graph WHERE latch='1' AND origid=4 AND destid=1;
 
 SELECT * FROM graph WHERE latch='no_search' and destid=2 and origid=1;
+SELECT * FROM graph WHERE latch='0' and destid=2 and origid=1;
 
 #--breadth first with no orig id etc
 SELECT * FROM graph WHERE latch = 'breadth_first';
@@ -78,26 +79,6 @@ SELECT * FROM graph WHERE latch='Ohms Ω Tennis Ball 〄';
 
 --echo # Expect no result, because of autocast and deprecated syntax
 SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
-
-#-- FIXME SELECT * FROM graph2 WHERE latch='0' and destid=2 and origid=1;          -- causes assertion (at least in debug build, havent tested normal)
-#-- sql/mysqld(my_print_stacktrace+0x35)[0xdbbc02]
-#-- sql/mysqld(handle_fatal_signal+0x355)[0x7dfd05]
-#-- /lib/libpthread.so.0(+0xeff0)[0x7f4810addff0]
-#-- /lib/libc.so.6(gsignal+0x35)[0x7f480feda1b5]
-#-- /lib/libc.so.6(abort+0x180)[0x7f480fedcfc0]
-#-- /lib/libc.so.6(__assert_fail+0xf1)[0x7f480fed3301]
-#-- sql/mysqld(_ZN7handler8ha_resetEv+0x8b)[0x7eb6a9]
-#-- sql/mysqld(_Z18close_thread_tableP3THDPP5TABLE+0x297)[0x5b1207]
-#-- sql/mysqld[0x5b09c4]
-#-- sql/mysqld(_Z19close_thread_tablesP3THD+0x33f)[0x5b0f5d]
-#-- sql/mysqld(_Z21mysql_execute_commandP3THD+0x7fe9)[0x61cc6b]
-#-- sql/mysqld(_Z11mysql_parseP3THDPcjP12Parser_state+0x268)[0x61f9ec]
-#-- sql/mysqld(_Z16dispatch_command19enum_server_commandP3THDPcj+0xc3e)[0x6129ba]
-#-- sql/mysqld(_Z10do_commandP3THD+0x33f)[0x611b35]
-#-- sql/mysqld(_Z24do_handle_one_connectionP3THD+0x1f6)[0x721ba9]
-#-- sql/mysqld(handle_one_connection+0x33)[0x721651]
-#-- /lib/libpthread.so.0(+0x68ca)[0x7f4810ad58ca]
-#-- /lib/libc.so.6(clone+0x6d)[0x7f480ff7792d]
 
 --echo # Expect no result, because of NULL latch
 SELECT * FROM graph WHERE latch=NULL and destid=2 and origid=1;
