@@ -90,6 +90,10 @@ SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
 --echo # Expect no result, because of NULL latch
 SELECT * FROM graph WHERE latch=NULL and destid=2 and origid=1;
 
+--echo # With no latch, original data, filtered by destid, etc if present
+SELECT * FROM graph;
+SELECT * FROM graph WHERE destid=2 and origid=1;
+
 SELECT * FROM graph WHERE latch = 'breadth_first' AND origid = 1 AND (weight = 1 OR weight = 2);
 
 --echo # Now we add a connection from 4->6 
