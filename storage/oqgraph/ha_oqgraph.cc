@@ -778,8 +778,8 @@ static int parse_latch_string_to_legacy_int(const String& value, int &latch)
   char *eptr;
   unsigned long int v = strtoul( latchValue.c_ptr_safe(), &eptr, 10);
   if (!*eptr) {
-    // we had an unsigned number. 
-    if (v > 0 && v < oqgraph::NUM_SEARCH_OP) {
+    // we had an unsigned number; remember 0 is valid too (nosearch))
+    if (v >= 0 && v < oqgraph::NUM_SEARCH_OP) {
       latch = v;
       return true;
     }
@@ -835,6 +835,13 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
         // Invalid, so warn & fail
         push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
         table->status = STATUS_NOT_FOUND;
+	if (ptrdiff) /* fixes debug build assert - should be a tidier way to do this */
+	{
+	  field[0]->move_field_offset(-ptrdiff);
+	  field[1]->move_field_offset(-ptrdiff);
+	  field[2]->move_field_offset(-ptrdiff);
+	}
+	dbug_tmp_restore_column_map(table->read_set, old_map);
         return error_code(oqgraph::NO_MORE_DATA);
       }
     }
