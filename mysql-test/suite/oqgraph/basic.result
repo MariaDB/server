@@ -77,6 +77,25 @@ latch	origid	destid	weight	seq	linkid
 no_search	1	2	1	3	1
 no_search	1	2	1	2	3
 no_search	1	2	1	1	2
+SELECT * FROM graph WHERE latch='0' and destid=2 and origid=1;
+latch	origid	destid	weight	seq	linkid
+0	1	2	1	3	1
+0	1	2	1	2	3
+0	1	2	1	1	2
+SELECT * FROM graph WHERE latch = 'breadth_first';
+latch	origid	destid	weight	seq	linkid
+# Expect no result, because of invalid latch
+SELECT * FROM graph WHERE latch='bogus';
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch=666;
+latch	origid	destid	weight	seq	linkid
+SELECT * FROM graph WHERE latch='bogus' and destid=2 and origid=1;
+latch	origid	destid	weight	seq	linkid
+Warnings:
+Warning	1210	Incorrect arguments to OQGRAPH latch
+# Make sure we dont crash if someone passed in a UTF string
+SELECT * FROM graph WHERE latch='Ohms Ω Tennis Ball 〄';
+latch	origid	destid	weight	seq	linkid
 # Expect no result, because of autocast and deprecated syntax
 SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
 latch	origid	destid	weight	seq	linkid
