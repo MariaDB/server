@@ -64,6 +64,18 @@ SELECT * FROM graph WHERE latch='1' AND origid=4 AND destid=1;
 
 SELECT * FROM graph WHERE latch='no_search' and destid=2 and origid=1;
 
+#--breadth first with no orig id etc
+SELECT * FROM graph WHERE latch = 'breadth_first';
+
+--echo # Expect no result, because of invalid latch
+SELECT * FROM graph WHERE latch='bogus';
+SELECT * FROM graph WHERE latch=666;
+SELECT * FROM graph WHERE latch='bogus' and destid=2 and origid=1;
+
+--echo # Make sure we dont crash if someone passed in a UTF string
+SELECT * FROM graph WHERE latch='Ohms Ω Tennis Ball 〄';
+
+
 --echo # Expect no result, because of autocast and deprecated syntax
 SELECT * FROM graph WHERE latch=0 and destid=2 and origid=1;
 
