@@ -1,4 +1,5 @@
 #include <mysql/plugin.h>
+typedef char my_bool;
 #include <mysql/services.h>
 #include <mysql/service_my_snprintf.h>
 extern struct my_snprintf_service_st {
@@ -86,7 +87,6 @@ extern struct kill_statement_service_st {
 } *thd_kill_statement_service;
 enum thd_kill_levels thd_kill_level(const void*);
 #include <mysql/service_thd_timezone.h>
-typedef char my_bool;
 #include "mysql_time.h"
 typedef long my_time_t;
 enum enum_mysql_timestamp_type

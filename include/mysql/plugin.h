@@ -45,6 +45,8 @@ class Item;
 #define MYSQL_THD void*
 #endif
 
+typedef char my_bool;
+
 #include <mysql/services.h>
 
 #define MYSQL_XIDDATASIZE 128

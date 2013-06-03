@@ -17,7 +17,6 @@
 #ifndef _sql_plugin_h
 #define _sql_plugin_h
 
-#include <my_global.h>
 
 /*
   the following #define adds server-only members to enum_mysql_show_type,
@@ -27,7 +26,7 @@
             SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS, \
             SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS, \
             SHOW_LONG_NOFLUSH, SHOW_LONGLONG_STATUS, SHOW_LEX_STRING
-#include <mysql/plugin.h>
+#include <my_global.h>
 #undef SHOW_always_last
 
 #include "m_string.h"                       /* LEX_STRING */

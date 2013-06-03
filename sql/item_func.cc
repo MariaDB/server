@@ -25,7 +25,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "sql_plugin.h"
 #include "sql_priv.h"
 /*
   It is necessary to include set_var.h instead of item.h because there
@@ -52,8 +52,6 @@
 #include "sp.h"
 #include "set_var.h"
 #include "debug_sync.h"
-#include <mysql/plugin.h>
-#include <mysql/service_thd_wait.h>
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}
