@@ -78,8 +78,8 @@ TABLE_SHARE *GetTableShare(PGLOBAL g, THD *thd, const char *db,
 
 //table_list.init_one_table(db, strlen(db), name, strlen(name),
 //                          NULL, TL_IGNORE);
-	k = sprintf(key, "%s", db);
-	k += sprintf(key + ++k, "%s", name);
+	k = sprintf(key, "%s", db) + 1;
+	k += sprintf(key + k, "%s", name);
   key[++k] = 0;
 
 	if (!(s = alloc_table_share(db, name, key, ++k))) {
