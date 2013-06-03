@@ -38,7 +38,6 @@
 */
 #endif
 
-typedef char my_bool;
 #include "mysql_time.h"
 
 #ifdef __cplusplus
