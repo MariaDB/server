@@ -839,8 +839,57 @@ long long spider_ping_table_body(
 #endif
     thd->m_reprepare_observer != NULL
   ) {
-    my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-      ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR, MYF(0));
+    if (thd->open_tables != 0)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->open_tables", thd->open_tables);
+    } else if (thd->handler_tables_hash.records != 0)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
+        "thd->handler_tables_hash.records",
+        (longlong) thd->handler_tables_hash.records);
+    } else if (thd->derived_tables != 0)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->derived_tables", thd->derived_tables);
+    } else if (thd->lock != 0)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->lock", thd->lock);
+#if MYSQL_VERSION_ID < 50500
+    } else if (thd->locked_tables != 0)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->locked_tables", thd->locked_tables);
+    } else if (thd->prelocked_mode != NON_PRELOCKED)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
+        "thd->prelocked_mode", (longlong) thd->prelocked_mode);
+#else
+    } else if (thd->locked_tables_list.locked_tables())
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->locked_tables_list.locked_tables()",
+        thd->locked_tables_list.locked_tables());
+    } else if (thd->locked_tables_mode != LTM_NONE)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
+        "thd->locked_tables_mode", (longlong) thd->locked_tables_mode);
+#endif
+    } else if (thd->m_reprepare_observer != NULL)
+    {
+      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
+        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
+        "thd->m_reprepare_observer", thd->m_reprepare_observer);
+    }
     goto error;
   }
 

@@ -27,6 +27,8 @@
 #define ER_SPIDER_UDF_PING_TABLE_PARAM_REQIRED_STR "Server name or table name are required"
 #define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM 12507
 #define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR "This UDF can't execute if other tables are opened"
+#define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM "This UDF can't execute if other tables are opened '%s'=%lld"
+#define ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR "This UDF can't execute if other tables are opened '%s'=%p"
 #define ER_SPIDER_UDF_PING_TABLE_NO_SERVER_ID_NUM 12508
 #define ER_SPIDER_UDF_PING_TABLE_NO_SERVER_ID_STR "Current server_id is not exist"
 #define ER_SPIDER_UDF_PING_TABLE_DIFFERENT_MON_NUM 12509
