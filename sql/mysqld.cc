@@ -931,7 +931,8 @@ static PSI_cond_info all_server_conds[]=
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
-  key_thread_one_connection, key_thread_signal_hand;
+  key_thread_one_connection, key_thread_signal_hand,
+  key_thread_slave_init;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -956,7 +957,8 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_handle_manager, "manager", PSI_FLAG_GLOBAL},
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
-  { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL}
+  { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
+  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL}
 };
 
 PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,

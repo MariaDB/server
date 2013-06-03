@@ -253,6 +253,66 @@ static void init_slave_psi_keys(void)
 }
 #endif /* HAVE_PSI_INTERFACE */
 
+
+static bool slave_init_thread_running;
+
+
+pthread_handler_t
+handle_slave_init(void *arg __attribute__((unused)))
+{
+  THD *thd;
+
+  my_thread_init();
+  thd= new THD;
+  thd->thread_stack= (char*) &thd;           /* Set approximate stack start */
+  mysql_mutex_lock(&LOCK_thread_count);
+  thd->thread_id= thread_id++;
+  mysql_mutex_unlock(&LOCK_thread_count);
+  thd->store_globals();
+
+  thd_proc_info(thd, "Loading slave GTID position from table");
+  if (rpl_load_gtid_slave_state(thd))
+    sql_print_warning("Failed to load slave replication state from table "
+                      "%s.%s: %u: %s", "mysql",
+                      rpl_gtid_slave_state_table_name.str,
+                      thd->stmt_da->sql_errno(), thd->stmt_da->message());
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  delete thd;
+  mysql_mutex_unlock(&LOCK_thread_count);
+  my_thread_end();
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  slave_init_thread_running= false;
+  mysql_cond_signal(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  return 0;
+}
+
+
+static int
+run_slave_init_thread()
+{
+  pthread_t th;
+
+  slave_init_thread_running= true;
+  if (mysql_thread_create(key_thread_slave_init, &th, NULL,
+                          handle_slave_init, NULL))
+  {
+    sql_print_error("Failed to create thread while initialising slave");
+    return 1;
+  }
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  while (slave_init_thread_running)
+    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  return 0;
+}
+
+
 /* Initialize slave structures */
 
 int init_slave()
@@ -263,6 +323,9 @@ int init_slave()
 #ifdef HAVE_PSI_INTERFACE
   init_slave_psi_keys();
 #endif
+
+  if (run_slave_init_thread())
+    return 1;
 
   /*
     This is called when mysqld starts. Before client connections are
@@ -3453,6 +3516,16 @@ pthread_handler_t handle_slave_io(void *arg)
 
   /* This must be called before run any binlog_relay_io hooks */
   my_pthread_setspecific_ptr(RPL_MASTER_INFO, mi);
+
+  /* Load the set of seen GTIDs, if we did not already. */
+  if (rpl_load_gtid_slave_state(thd))
+  {
+    mi->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), 
+                "Unable to load replication GTID slave state from mysql.%s: %s",
+                rpl_gtid_slave_state_table_name.str, thd->stmt_da->message());
+    goto err;
+  }
+
 
   if (RUN_HOOK(binlog_relay_io, thread_start, (thd, mi)))
   {

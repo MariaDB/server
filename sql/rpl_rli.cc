@@ -1425,7 +1425,10 @@ rpl_load_gtid_slave_state(THD *thd)
 
   bitmap_set_all(table->read_set);
   if ((err= table->file->ha_rnd_init_with_error(1)))
+  {
+    table->file->print_error(err, MYF(0));
     goto end;
+  }
   table_scanned= true;
   for (;;)
   {
@@ -1440,7 +1443,10 @@ rpl_load_gtid_slave_state(THD *thd)
       else if (err == HA_ERR_END_OF_FILE)
         break;
       else
+      {
+        table->file->print_error(err, MYF(0));
         goto end;
+      }
     }
     domain_id= (ulonglong)table->field[0]->val_int();
     sub_id= (ulonglong)table->field[1]->val_int();
@@ -1465,6 +1471,7 @@ rpl_load_gtid_slave_state(THD *thd)
       if (!(entry= (struct local_element *)my_malloc(sizeof(*entry),
                                                      MYF(MY_WME))))
       {
+        my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*entry));
         err= 1;
         goto end;
       }
@@ -1475,12 +1482,18 @@ rpl_load_gtid_slave_state(THD *thd)
       if ((err= my_hash_insert(&hash, (uchar *)entry)))
       {
         my_free(entry);
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
         goto end;
       }
     }
   }
 
   rpl_global_gtid_slave_state.lock();
+  if (rpl_global_gtid_slave_state.loaded)
+  {
+    rpl_global_gtid_slave_state.unlock();
+    goto end;
+  }
   for (i= 0; i < hash.records; ++i)
   {
     entry= (struct local_element *)my_hash_element(&hash, i);
@@ -1490,14 +1503,15 @@ rpl_load_gtid_slave_state(THD *thd)
                                                  entry->gtid.seq_no)))
     {
       rpl_global_gtid_slave_state.unlock();
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
     if (opt_bin_log &&
         mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
                                                     entry->gtid.seq_no))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       rpl_global_gtid_slave_state.unlock();
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
   }

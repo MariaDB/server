@@ -6538,7 +6538,7 @@ ER_GTID_OPEN_TABLE_FAILED
 ER_GTID_POSITION_NOT_FOUND_IN_BINLOG
 	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog"
 ER_CANNOT_LOAD_SLAVE_GTID_STATE
-	eng "Failed to load replication slave GTID state from table %s.%s"
+	eng "Failed to load replication slave GTID position from table %s.%s"
 ER_MASTER_GTID_POS_CONFLICTS_WITH_BINLOG
 	eng "Specified GTID %u-%u-%llu conflicts with the binary log which contains a more recent GTID %u-%u-%llu. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos."
 ER_MASTER_GTID_POS_MISSING_DOMAIN
