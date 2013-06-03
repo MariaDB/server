@@ -693,8 +693,8 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
         opval= (char*)GetDBName(NULL);    // Current database
       else if (!stricmp(opname, "Type"))  // Default type
         opval= (!options) ? NULL : 
-               (options->srcdef)  ? "MYSQL" :
-               (options->tabname) ? "PROXY" : "DOS";
+               (options->srcdef)  ? (char*)"MYSQL" :
+               (options->tabname) ? (char*)"PROXY" : (char*)"DOS";
       else if (!stricmp(opname, "User"))  // Connected user
         opval= (char *) "root";
       else if (!stricmp(opname, "Host"))  // Connected user host
@@ -792,7 +792,7 @@ int ha_connect::GetIntegerOption(char *opname)
   else if (!stricmp(opname, "Compressed"))
     opval= (options->compressed);
 
-  if (opval == NO_IVAL && options && options->oplist)
+  if (opval == (ulonglong)NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
       opval= (unsigned)atoll(pv);
 
@@ -2799,7 +2799,7 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 int ha_connect::external_lock(THD *thd, int lock_type)
 {
   int     rc= 0;
-  bool    del= false, xcheck=false, cras= false;
+  bool    xcheck=false, cras= false;
   MODE    newmode;
   PTOS    options= GetTableOptionStruct(table);
   PGLOBAL g= GetPlug(thd, xp);
@@ -2949,7 +2949,6 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 //      break;
       case SQLCOM_DELETE:
       case SQLCOM_DELETE_MULTI:
-        del= true;
       case SQLCOM_TRUNCATE:
         newmode= MODE_DELETE;
         break;
@@ -3207,7 +3206,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   /* We have to retrieve the information about this table options. */
   ha_table_option_struct *pos;
   char         key[MAX_DBKEY_LENGTH], db[128], tabname[128];
-  int          rc;
+  int          rc = 0;
   uint         key_length;
   TABLE_SHARE *share;
   THD         *thd= current_thd;
@@ -3253,7 +3252,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
  err:
   free_table_share(share);
  fin:
-  DBUG_RETURN(0);
+  DBUG_RETURN(rc);
 } // end of delete_or_rename_table
 
 int ha_connect::delete_table(const char *name)
