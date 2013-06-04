@@ -1,0 +1,19 @@
+--source include/have_debug.inc
+
+--let base=1
+--source query_response_time.inc
+--let base=2
+--source query_response_time.inc
+--let base=10
+--source query_response_time.inc
+--let base=7
+--source query_response_time.inc
+--let base=156
+--source query_response_time.inc
+--let base=1000
+--source query_response_time.inc
+--let base=1001
+--source query_response_time.inc
+
+SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=default;
+SET GLOBAL QUERY_RESPONSE_TIME_STATS=default;
