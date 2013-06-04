@@ -566,7 +566,7 @@ void TYPVAL<TYPE>::SetValue_char(char *p, int n)
   if (minus && Tval)
     Tval = - Tval;
 
-  if (trace)
+  if (trace > 1)
     htrc(strcat(strcat(strcpy(buf, " setting %s to: "), Fmt), "\n"),
                               GetTypeName(Type), Tval);
 
@@ -585,7 +585,7 @@ void TYPVAL<double>::SetValue_char(char *p, int n)
   buf[n] = '\0';
   Tval = atof(buf);
 
-  if (trace)
+  if (trace > 1)
     htrc(" setting double: '%s' -> %lf\n", buf, Tval);
 
   Null = false;
@@ -900,7 +900,7 @@ void TYPVAL<PSZ>::SetValue_char(char *p, int n)
 
   *(++p) = '\0';
 
-  if (trace)
+  if (trace > 1)
     htrc(" Setting string to: '%s'\n", Strp);
 
   Null = false;
@@ -1291,7 +1291,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   int    n, y = ptm->tm_year;
   time_t t = mktime_mysql(ptm);
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
           ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
           ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
@@ -1314,7 +1314,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   }
   Tval= (int) t;
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeTime Ival=%d\n", Tval); 
 
   return false;
@@ -1334,7 +1334,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
   datm.tm_mon=0;
   datm.tm_year=70;
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeDate from(%d,%d,%d,%d,%d,%d) nval=%d\n",
     val[0], val[1], val[2], val[3], val[4], val[5], nval);
 
@@ -1398,7 +1398,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
 
     } // endfor i
 
-  if (trace)
+  if (trace > 1)
     htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n", 
     datm.tm_year, datm.tm_mon, datm.tm_mday,
     datm.tm_hour, datm.tm_min, datm.tm_sec);
@@ -1459,7 +1459,7 @@ void DTVAL::SetValue_char(char *p, int n)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace)
+    if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
@@ -1483,7 +1483,7 @@ void DTVAL::SetValue_psz(PSZ p)
     ndv = ExtractDate(Sdate, Pdtp, DefYear, dval);
     MakeDate(NULL, dval, ndv);
 
-    if (trace)
+    if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
     Null = false;
