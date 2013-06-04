@@ -1357,6 +1357,8 @@ int spider_db_mysql::connect(
       &conn->net_write_timeout);
     mysql_options(db_conn, MYSQL_OPT_CONNECT_TIMEOUT,
       &conn->connect_timeout);
+    mysql_options(db_conn, MYSQL_OPT_USE_REMOTE_CONNECTION,
+      NULL);
 
     if (
       conn->tgt_ssl_ca_length |
