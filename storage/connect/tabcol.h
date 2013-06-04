@@ -17,6 +17,7 @@
 /***********************************************************************/
 class DllExport XTAB: public BLOCK {  // Table Name-Owner-Srcdef block.
   friend class TDBPRX;
+  friend class TDBTBM;
  public:
   // Constructors
   XTAB(LPCSTR name, LPCSTR srcdef = NULL);
