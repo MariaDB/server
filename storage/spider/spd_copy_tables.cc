@@ -856,12 +856,11 @@ long long spider_copy_tables_body(
     thd->lock != 0 ||
 #if MYSQL_VERSION_ID < 50500
     thd->locked_tables != 0 ||
-    thd->prelocked_mode != NON_PRELOCKED ||
+    thd->prelocked_mode != NON_PRELOCKED
 #else
     thd->locked_tables_list.locked_tables() ||
-    thd->locked_tables_mode != LTM_NONE ||
+    thd->locked_tables_mode != LTM_NONE
 #endif
-    thd->m_reprepare_observer != NULL
   ) {
     if (thd->open_tables != 0)
     {
@@ -908,11 +907,6 @@ long long spider_copy_tables_body(
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
         "thd->locked_tables_mode", (longlong) thd->locked_tables_mode);
 #endif
-    } else if (thd->m_reprepare_observer != NULL)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
-        "thd->m_reprepare_observer", thd->m_reprepare_observer);
     }
     goto error;
   }
