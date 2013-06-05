@@ -2776,13 +2776,34 @@ end_with_restore_list:
   {
     LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
     Master_info *mi;
+    int load_error;
+
+    load_error= rpl_load_gtid_slave_state(thd);
+
     mysql_mutex_lock(&LOCK_active_mi);
 
     if ((mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
+    {
+      if (load_error)
+      {
+        /*
+          We cannot start a slave using GTID if we cannot load the GTID position
+          from the mysql.gtid_slave_pos table. But we can allow non-GTID
+          replication (useful eg. during upgrade).
+        */
+        if (mi->using_gtid != Master_info::USE_GTID_NO)
+        {
+          mysql_mutex_unlock(&LOCK_active_mi);
+          break;
+        }
+        else
+          thd->clear_error();
+      }
       if (!start_slave(thd, mi, 1 /* net report*/))
         my_ok(thd);
+    }
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
   }

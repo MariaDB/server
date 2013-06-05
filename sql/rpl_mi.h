@@ -61,6 +61,10 @@ typedef struct st_mysql MYSQL;
 class Master_info : public Slave_reporting_capability
 {
  public:
+  enum enum_using_gtid {
+    USE_GTID_NO= 0, USE_GTID_CURRENT_POS= 1, USE_GTID_SLAVE_POS= 2
+  };
+
   Master_info(LEX_STRING *connection_name, bool is_slave_recovery);
   ~Master_info();
   bool shall_ignore_server_id(ulong s_id);
@@ -70,6 +74,7 @@ class Master_info : public Slave_reporting_capability
     /* If malloc() in initialization failed */
     return connection_name.str == 0;
   }
+  static const char *using_gtid_astext(enum enum_using_gtid arg);
 
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
@@ -135,9 +140,35 @@ class Master_info : public Slave_reporting_capability
     Note that you can not change the numeric values of these, they are used
     in master.info.
   */
-  enum {
-    USE_GTID_NO= 0, USE_GTID_CURRENT_POS= 1, USE_GTID_SLAVE_POS= 2
-  } using_gtid;
+  enum enum_using_gtid using_gtid;
+
+  /*
+    This GTID position records how far we have fetched into the relay logs.
+    This is used to continue fetching when the IO thread reconnects to the
+    master.
+
+    (Full slave stop/start does not use it, as it resets the relay logs).
+  */
+  slave_connection_state gtid_current_pos;
+  /*
+    If events_queued_since_last_gtid is non-zero, it is the number of events
+    queued so far in the relaylog of a GTID-prefixed event group.
+    It is zero when no partial event group has been queued at the moment.
+  */
+  uint64 events_queued_since_last_gtid;
+  /*
+    The GTID of the partially-queued event group, when
+    events_queued_since_last_gtid is non-zero.
+  */
+  rpl_gtid last_queued_gtid;
+  /*
+    When slave IO thread needs to reconnect, gtid_reconnect_event_skip_count
+    counts number of events to skip from the first GTID-prefixed event group,
+    to avoid duplicating events in the relay log.
+  */
+  uint64 gtid_reconnect_event_skip_count;
+  /* gtid_event_seen is false until we receive first GTID event from master. */
+  bool gtid_event_seen;
 };
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,
