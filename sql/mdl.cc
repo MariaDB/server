@@ -86,7 +86,7 @@ PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
   {0, "Waiting for trigger metadata lock", 0},
   {0, "Waiting for event metadata lock", 0},
   {0, "Waiting for commit lock", 0},
-  {0, "User lock"} /* Be compatible with old status. */
+  {0, "User lock", 0} /* Be compatible with old status. */
 };
 
 #ifdef HAVE_PSI_INTERFACE
