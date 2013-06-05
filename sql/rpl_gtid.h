@@ -93,6 +93,8 @@ struct rpl_slave_state
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                   bool in_transaction, bool in_statement);
   uint64 next_subid(uint32 domain_id);
+  int iterate(int (*cb)(rpl_gtid *, void *), void *data,
+              rpl_gtid *extra_gtids, uint32 num_extra);
   int tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra);
   bool domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid);
   int load(THD *thd, char *state_from_master, size_t len, bool reset,
@@ -178,8 +180,10 @@ struct slave_connection_state
   slave_connection_state();
   ~slave_connection_state();
 
+  void reset() { my_hash_reset(&hash); }
   int load(char *slave_request, size_t len);
   int load(const rpl_gtid *gtid_list, uint32 count);
+  int load(rpl_slave_state *state, rpl_gtid *extra_gtids, uint32 num_extra);
   rpl_gtid *find(uint32 domain_id);
   int update(const rpl_gtid *in_gtid);
   void remove(const rpl_gtid *gtid);

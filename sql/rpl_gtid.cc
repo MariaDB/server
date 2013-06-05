@@ -482,26 +482,10 @@ rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid, bool *first)
 }
 
 
-/*
-  Prepare the current slave state as a string, suitable for sending to the
-  master to request to receive binlog events starting from that GTID state.
-
-  The state consists of the most recently applied GTID for each domain_id,
-  ie. the one with the highest sub_id within each domain_id.
-
-  Optinally, extra_gtids is a list of GTIDs from the binlog. This is used when
-  a server was previously a master and now needs to connect to a new master as
-  a slave. For each domain_id, if the GTID in the binlog was logged with our
-  own server_id _and_ has a higher seq_no than what is in the slave state,
-  then this should be used as the position to start replicating at. This
-  allows to promote a slave as new master, and connect the old master as a
-  slave with MASTER_GTID_POS=AUTO.
-*/
-
 int
-rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
+rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
+                         rpl_gtid *extra_gtids, uint32 num_extra)
 {
-  bool first= true;
   uint32 i;
   HASH gtid_hash;
   uchar *rec;
@@ -555,7 +539,7 @@ rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
       }
     }
 
-    if (rpl_slave_state_tostring_helper(dest, &best_gtid, &first))
+    if ((res= (*cb)(&best_gtid, data)))
     {
       unlock();
       goto err;
@@ -568,7 +552,7 @@ rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
   for (i= 0; i < gtid_hash.records; ++i)
   {
     gtid= (rpl_gtid *)my_hash_element(&gtid_hash, i);
-    if (rpl_slave_state_tostring_helper(dest, gtid, &first))
+    if ((res= (*cb)(gtid, data)))
       goto err;
   }
 
@@ -578,6 +562,44 @@ err:
   my_hash_free(&gtid_hash);
 
   return res;
+}
+
+
+struct rpl_slave_state_tostring_data {
+  String *dest;
+  bool first;
+};
+static int
+rpl_slave_state_tostring_cb(rpl_gtid *gtid, void *data)
+{
+  rpl_slave_state_tostring_data *p= (rpl_slave_state_tostring_data *)data;
+  return rpl_slave_state_tostring_helper(p->dest, gtid, &p->first);
+}
+
+
+/*
+  Prepare the current slave state as a string, suitable for sending to the
+  master to request to receive binlog events starting from that GTID state.
+
+  The state consists of the most recently applied GTID for each domain_id,
+  ie. the one with the highest sub_id within each domain_id.
+
+  Optinally, extra_gtids is a list of GTIDs from the binlog. This is used when
+  a server was previously a master and now needs to connect to a new master as
+  a slave. For each domain_id, if the GTID in the binlog was logged with our
+  own server_id _and_ has a higher seq_no than what is in the slave state,
+  then this should be used as the position to start replicating at. This
+  allows to promote a slave as new master, and connect the old master as a
+  slave with MASTER_GTID_POS=AUTO.
+*/
+int
+rpl_slave_state::tostring(String *dest, rpl_gtid *extra_gtids, uint32 num_extra)
+{
+  struct rpl_slave_state_tostring_data data;
+  data.first= true;
+  data.dest= dest;
+
+  return iterate(rpl_slave_state_tostring_cb, &data, extra_gtids, num_extra);
 }
 
 
@@ -625,9 +647,6 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
 /*
   Parse a GTID at the start of a string, and update the pointer to point
   at the first character after the parsed GTID.
-
-  GTID can be in short form with domain_id=0 implied, SERVERID-SEQNO.
-  Or long form, DOMAINID-SERVERID-SEQNO.
 
   Returns 0 on ok, non-zero on parse error.
 */
@@ -1217,7 +1236,7 @@ slave_connection_state::load(char *slave_request, size_t len)
   rpl_gtid *gtid;
   const rpl_gtid *gtid2;
 
-  my_hash_reset(&hash);
+  reset();
   p= slave_request;
   end= slave_request + len;
   if (p == end)
@@ -1270,11 +1289,33 @@ slave_connection_state::load(const rpl_gtid *gtid_list, uint32 count)
 {
   uint32 i;
 
-  my_hash_reset(&hash);
+  reset();
   for (i= 0; i < count; ++i)
     if (update(&gtid_list[i]))
       return 1;
   return 0;
+}
+
+
+static int
+slave_connection_state_load_cb(rpl_gtid *gtid, void *data)
+{
+  slave_connection_state *state= (slave_connection_state *)data;
+  return state->update(gtid);
+}
+
+
+/*
+  Same as rpl_slave_state::tostring(), but populates a slave_connection_state
+  instead.
+*/
+int
+slave_connection_state::load(rpl_slave_state *state,
+                             rpl_gtid *extra_gtids, uint32 num_extra)
+{
+  reset();
+  return state->iterate(slave_connection_state_load_cb, this,
+                        extra_gtids, num_extra);
 }
 
 
