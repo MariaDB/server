@@ -4,7 +4,7 @@ package My::Suite::Query_response_time;
 
 return "No QUERY_RESPONSE_TIME plugin" unless
   $ENV{QUERY_RESPONSE_TIME_SO} or
-  $::mysqld_variables{'query_response_time'} eq "ON";
+  $::mysqld_variables{'query-response-time'} eq "ON";
 
 return "Not run for embedded server" if $::opt_embedded_server;
 

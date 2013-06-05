@@ -18,7 +18,7 @@ concat("test1", x)
 test1-12
 show status like 'audit_null%';
 Variable_name	Value
-Audit_null_called	19
+Audit_null_called	20
 Audit_null_general_log	7
 Audit_null_general_error	1
 Audit_null_general_result	5
