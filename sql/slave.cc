@@ -4970,9 +4970,9 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       (If we queued such an event, and it was the first format_description
       event after master restart, the slave SQL thread would think that
       the partial event group before it in the relay log was from a
-      previous master crash and should be rolled back.
+      previous master crash and should be rolled back).
     */
-    if (unlikely(mi->gtid_reconnect_event_skip_count))
+    if (unlikely(mi->gtid_reconnect_event_skip_count && !mi->gtid_event_seen))
         gtid_skip_enqueue= true;
 
     /*

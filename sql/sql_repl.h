@@ -32,7 +32,7 @@ typedef struct st_slave_info
   THD* thd;
 } SLAVE_INFO;
 
-class slave_connection_state;
+struct slave_connection_state;
 
 extern my_bool opt_show_slave_auth_info;
 extern char *master_host, *master_info_file;
