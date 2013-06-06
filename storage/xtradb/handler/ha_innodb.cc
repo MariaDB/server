@@ -204,6 +204,8 @@ static ulong    innobase_sys_stats_root_page		= 0;
 #endif
 static my_bool	innobase_buffer_pool_shm_checksum	= TRUE;
 static uint	innobase_buffer_pool_shm_key		= 0;
+static ulint	srv_lazy_drop_table			= 0;
+
 
 
 static char*	internal_innobase_data_file_path	= NULL;
@@ -1896,7 +1898,7 @@ trx_is_started(
 /*===========*/
 	trx_t*	trx)	/* in: transaction */
 {
-	return(trx->conc_state != TRX_NOT_STARTED);
+	return(trx->state != TRX_NOT_STARTED);
 }
 
 /*********************************************************************//**
@@ -3014,6 +3016,12 @@ innobase_change_buffering_inited_ok:
 		fprintf(stderr,
 			"InnoDB: Warning: innodb_buffer_pool_shm_key is deprecated function.\n"
 			"InnoDB:          innodb_buffer_pool_shm_key was ignored.\n");
+	}
+
+	if (srv_lazy_drop_table) {
+		fprintf(stderr,
+			"InnoDB: Warning: "
+			"innodb_lazy_drop_table is deprecated and ignored.\n");
 	}
 
 	srv_mem_pool_size = (ulint) innobase_additional_mem_pool_size;
@@ -4725,7 +4733,8 @@ ha_innobase::open(
 		DBUG_RETURN(1);
 	}
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table && share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		free_share(share);
 
 		DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
@@ -4750,7 +4759,8 @@ retry:
 	/* Get pointer to a table object in InnoDB dictionary cache */
 	ib_table = dict_table_get(norm_name, TRUE);
 
-	if (srv_pass_corrupt_table <= 1 && ib_table && ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(ib_table && ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		free_share(share);
 		my_free(upd_buf);
 		upd_buf = NULL;
@@ -7037,7 +7047,8 @@ ha_innobase::index_read(
 
 	ha_statistic_increment(&SSV::ha_read_key_count);
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -7108,7 +7119,8 @@ ha_innobase::index_read(
 		ret = DB_UNSUPPORTED;
 	}
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -7226,7 +7238,8 @@ ha_innobase::change_active_index(
 {
 	DBUG_ENTER("change_active_index");
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -7344,7 +7357,8 @@ ha_innobase::general_fetch(
 
 	DBUG_ENTER("general_fetch");
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -7357,7 +7371,8 @@ ha_innobase::general_fetch(
 
 	innodb_srv_conc_exit_innodb(prebuilt->trx);
 
-	if (srv_pass_corrupt_table <= 1 && share->ib_table->is_corrupt) {
+	if (UNIV_UNLIKELY(share->ib_table->is_corrupt &&
+			  srv_pass_corrupt_table <= 1)) {
 		DBUG_RETURN(HA_ERR_CRASHED);
 	}
 
@@ -9390,7 +9405,7 @@ ha_innobase::info_low(
 
 				prebuilt->trx->op_info = "confirming rows of SYS_STATS to store statistics";
 
-				ut_a(prebuilt->trx->conc_state == TRX_NOT_STARTED);
+				ut_a(!trx_is_started(prebuilt->trx));
 
 				for (index = dict_table_get_first_index(ib_table);
 				     index != NULL;
@@ -9403,7 +9418,7 @@ ha_innobase::info_low(
 					innobase_commit_low(prebuilt->trx);
 				}
 
-				ut_a(prebuilt->trx->conc_state == TRX_NOT_STARTED);
+				ut_a(!trx_is_started(prebuilt->trx));
 			}
 
 			prebuilt->trx->op_info = "updating table statistics";
@@ -13428,8 +13443,7 @@ static	MYSQL_SYSVAR_ENUM(corrupt_table_action, srv_pass_corrupt_table,
 
 static MYSQL_SYSVAR_ULINT(lazy_drop_table, srv_lazy_drop_table,
   PLUGIN_VAR_RQCMDARG,
-  "At deleting tablespace, only miminum needed processes at the time are done. "
-  "e.g. for http://bugs.mysql.com/51325",
+  "[Deprecated option] no effect",
   NULL, NULL, 0, 0, 1, 0);
 
 static MYSQL_SYSVAR_BOOL(locking_fake_changes, srv_fake_changes_locks,

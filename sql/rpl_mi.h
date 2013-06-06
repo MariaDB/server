@@ -79,7 +79,7 @@ class Master_info : public Slave_reporting_capability
   /* the variables below are needed because we can change masters on the fly */
   char master_log_name[FN_REFLEN+6]; /* Room for multi-*/
   char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH*+1];
+  char user[USERNAME_LENGTH+1];
   char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
   LEX_STRING connection_name;  		/* User supplied connection name */
   LEX_STRING cmp_connection_name;	/* Connection name in lower case */

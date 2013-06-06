@@ -62,6 +62,8 @@ C_MODE_END
 #include <sql_repl.h>
 #include "sql_statistics.h"
 
+size_t username_char_length= 16;
+
 /**
    @todo Remove this. It is not safe to use a shared String object.
  */

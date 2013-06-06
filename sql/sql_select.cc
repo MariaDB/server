@@ -2499,7 +2499,12 @@ void JOIN::exec_inner()
   List<Item> *curr_all_fields= &all_fields;
   List<Item> *curr_fields_list= &fields_list;
   TABLE *curr_tmp_table= 0;
-  bool tmp_having_used_tables_updated= FALSE;
+  /*
+    curr_join->join_free() will call JOIN::cleanup(full=TRUE). It will not 
+    be safe to call update_used_tables() after that.
+  */
+  if (curr_join->tmp_having)
+    curr_join->tmp_having->update_used_tables();
 
   /*
     Initialize examined rows here because the values from all join parts
@@ -2755,16 +2760,6 @@ void JOIN::exec_inner()
       curr_join->select_distinct=0;		/* Each row is unique */
     
 
-    /*
-      curr_join->join_free() will call JOIN::cleanup(full=TRUE). It will not 
-      be safe to call update_used_tables() after that.
-    */
-    if (curr_join->tmp_having)
-    {
-      curr_join->tmp_having->update_used_tables();
-      tmp_having_used_tables_updated= TRUE;
-    }
-
     curr_join->join_free();			/* Free quick selects */
 
     if (curr_join->select_distinct && ! curr_join->group_list)
@@ -2845,9 +2840,6 @@ void JOIN::exec_inner()
     if (curr_join->tmp_having && ! curr_join->group_list && 
 	! curr_join->sort_and_group)
     {
-      // Some tables may have been const
-      if (!tmp_having_used_tables_updated)
-        curr_join->tmp_having->update_used_tables();
       JOIN_TAB *curr_table= &curr_join->join_tab[curr_join->const_tables];
       table_map used_tables= (curr_join->const_table_map |
 			      curr_table->table->map);
@@ -3696,9 +3688,16 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
               !table->fulltext_searched && 
               (!embedding || (embedding->sj_on_expr && !embedding->embedding)))
 	  {
+            key_map base_part, base_const_ref, base_eq_part;
+            base_part.set_prefix(keyinfo->key_parts); 
+            base_const_ref= const_ref;
+            base_const_ref.intersect(base_part);
+            base_eq_part= eq_part;
+            base_eq_part.intersect(base_part);
             if (table->actual_key_flags(keyinfo) & HA_NOSAME)
             {
-	      if (const_ref == eq_part &&
+              
+	      if (base_const_ref == base_eq_part &&
                   !has_expensive_keyparts &&
                   !((outer_join & table->map) &&
                     (*s->on_expr_ref)->is_expensive()))
@@ -3724,7 +3723,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	      else
 	        found_ref|= refs;      // Table is const if all refs are const
 	    }
-            else if (const_ref == eq_part)
+            else if (base_const_ref == base_eq_part)
               s->const_keys.set_bit(key);
           }
 	}
@@ -11420,7 +11419,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
       *simple_order=0;				// Must do a temp table to sort
     else if (!(order_tables & not_const_tables))
     {
-      if (order->item[0]->with_subselect)
+      if (order->item[0]->has_subquery())
       {
         /*
           Delay the evaluation of constant ORDER and/or GROUP expressions that
@@ -13739,13 +13738,13 @@ static void restore_prev_nj_state(JOIN_TAB *last)
       
       bool was_fully_covered= nest->is_fully_covered();
       
+      join->cur_embedding_map|= nest->nj_map;
+
       if (--nest->counter == 0)
         join->cur_embedding_map&= ~nest->nj_map;
       
       if (!was_fully_covered)
         break;
-      
-      join->cur_embedding_map|= nest->nj_map;
     }
   }
 }
@@ -13965,7 +13964,27 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
             if (new_item_and_list->is_empty())
               li.remove();
             else
+	    {
+              Item *list_item;
+              Item *new_list_item; 
+              uint cnt= new_item_and_list->elements;     
+              List_iterator<Item> it(*new_item_and_list);
+              while ((list_item= it++))
+	      {
+                uchar* is_subst_valid= (uchar *) Item::ANY_SUBST;
+                new_list_item= 
+                  list_item->compile(&Item::subst_argument_checker,
+                                         &is_subst_valid, 
+                                         &Item::equal_fields_propagator,
+                                         (uchar *) &cond_and->cond_equal);
+                if (new_list_item != list_item)
+                  it.replace(new_list_item);
+                new_list_item->update_used_tables();
+              }              
               li.replace(*new_item_and_list);
+              for (cnt--; cnt; cnt--)
+                item= li++;  
+            }
             cond_and_list->concat((List<Item>*) cond_equal_items); 
           }
           else if (new_item->type() == Item::FUNC_ITEM && 
@@ -13985,7 +14004,13 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
           if (new_item->type() == Item::COND_ITEM &&
               ((Item_cond*) new_item)->functype() == 
               ((Item_cond*) cond)->functype())
-            li.replace(*((Item_cond*) new_item)->argument_list());
+	  {
+            List<Item> *arg_list= ((Item_cond*) new_item)->argument_list();
+            uint cnt= arg_list->elements;
+            li.replace(*arg_list);
+            for ( cnt--; cnt; cnt--)
+              item= li++;
+          }
 	  else
             li.replace(new_item);
         } 
@@ -19363,7 +19388,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
          !(table->file->index_flags(best_key, 0, 1) & HA_CLUSTERED_INDEX)))
       goto use_filesort;
 
-    if (table->quick_keys.is_set(best_key) && best_key != ref_key)
+    if (select &&
+        table->quick_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map map;
       map.clear_all();       // Force the creation of quick select
@@ -19941,7 +19967,7 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     }
     if (copy_blobs(first_field))
     {
-      my_message(ER_OUTOFMEMORY, ER(ER_OUTOFMEMORY), MYF(0));
+      my_message(ER_OUTOFMEMORY, ER(ER_OUTOFMEMORY), MYF(ME_FATALERROR));
       error=0;
       goto err;
     }
@@ -19974,7 +20000,8 @@ static int remove_dup_with_compare(THD *thd, TABLE *table, Field **first_field,
     if (!found)
       break;					// End of file
     /* Restart search on saved row */
-    error=file->restart_rnd_next(record);
+    if ((error= file->restart_rnd_next(record)))
+      goto err;
   }
 
   file->extra(HA_EXTRA_NO_CACHE);

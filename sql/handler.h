@@ -286,7 +286,7 @@
   (yes, the sum is deliberately inaccurate)
   TODO remove the limit, use dynarrays
 */
-#define MAX_HA 15
+#define MAX_HA 64
 
 /*
   Use this instead of 0 as the initial value for the slot number of
@@ -319,6 +319,7 @@
 #define HA_LEX_CREATE_TMP_TABLE	1
 #define HA_LEX_CREATE_IF_NOT_EXISTS 2
 #define HA_LEX_CREATE_TABLE_LIKE 4
+#define HA_CREATE_TMP_ALTER    8
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */

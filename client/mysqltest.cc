@@ -6353,8 +6353,7 @@ void do_delimiter(struct st_command* command)
   if (!(*p))
     die("Can't set empty delimiter");
 
-  strmake(delimiter, p, sizeof(delimiter) - 1);
-  delimiter_length= strlen(delimiter);
+  delimiter_length= strmake_buf(delimiter, p) - delimiter;
 
   DBUG_PRINT("exit", ("delimiter: %s", delimiter));
   command->last_argument= p + delimiter_length;
