@@ -1847,8 +1847,8 @@ void clean_up(bool print_message)
   my_tz_free();
   my_dboptions_cache_free();
   ignore_db_dirs_free();
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   servers_free(1);
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
   acl_free(1);
   grant_free();
 #endif
@@ -4668,6 +4668,8 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
+  if (!opt_bootstrap)
+    servers_init(0);
   DBUG_RETURN(0);
 }
 
@@ -5073,9 +5075,6 @@ int mysqld_main(int argc, char **argv)
 
   if (!opt_noacl)
     (void) grant_init();
-
-  if (!opt_bootstrap)
-    servers_init(0);
 
   if (!opt_noacl)
   {
