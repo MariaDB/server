@@ -30,16 +30,11 @@ while ($1)
 --enable_query_log
 
 --connect(con1,localhost,root,,)
-SET debug_sync= 'myisam_after_repair_by_sort SIGNAL waiting WAIT_FOR go';
+SET debug_sync= 'myisam_before_repair_by_sort SIGNAL waiting WAIT_FOR go';
 send
   ALTER TABLE t1 ENABLE KEYS;
 
 --connection default
---let $wait_timeout=60
---let $show_statement= SHOW PROCESSLIST
---let $field= State
---let $condition= = 'Repair by sorting'
---source include/wait_show_condition.inc
 SET debug_sync= 'now WAIT_FOR waiting';
 SET debug_sync= 'now SIGNAL go';
 
