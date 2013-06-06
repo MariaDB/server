@@ -50,5 +50,15 @@ a
 3
 4
 5
+*** Test that @@gtid_slave_pos and @@gtid_current_pos are correctly loaded even if slave threads have not started. ***
+SET @slave_pos2= @@GLOBAL.gtid_slave_pos;
+SET @current_pos2= @@GLOBAL.gtid_current_pos;
+SELECT IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2));
+IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2))
+OK
+SELECT IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2));
+IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2))
+OK
+include/start_slave.inc
 DROP TABLE t1;
 include/rpl_end.inc

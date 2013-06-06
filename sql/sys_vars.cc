@@ -1392,6 +1392,12 @@ Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
   String str(buf, sizeof(buf), system_charset_info);
   char *p;
 
+  if (!rpl_global_gtid_slave_state.loaded)
+  {
+    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+    return NULL;
+  }
   str.length(0);
   if ((opt_bin_log && mysql_bin_log.append_state_pos(&str)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
@@ -1438,6 +1444,14 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
   bool running;
 
   DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!rpl_global_gtid_slave_state.loaded)
+  {
+    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+    return true;
+  }
+
   mysql_mutex_lock(&LOCK_active_mi);
   running= master_info_index->give_error_if_slave_running();
   mysql_mutex_unlock(&LOCK_active_mi);
@@ -1495,6 +1509,13 @@ Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
 {
   String str;
   char *p;
+
+  if (!rpl_global_gtid_slave_state.loaded)
+  {
+    my_error(ER_CANNOT_LOAD_SLAVE_GTID_STATE, MYF(0), "mysql",
+             rpl_gtid_slave_state_table_name.str);
+    return NULL;
+  }
 
   str.length(0);
   if (rpl_append_gtid_state(&str, false) ||

@@ -132,7 +132,7 @@ void safe_mutex_global_init(void)
 
 #ifdef SAFE_MUTEX_DETECT_DESTROY
   safe_mutex_create_root= 0;
-#endif
+#endif /* SAFE_MUTEX_DETECT_DESTROY */
 }
 
 static inline void remove_from_active_list(safe_mutex_t *mp)
@@ -553,7 +553,7 @@ int safe_cond_timedwait(pthread_cond_t *cond, safe_mutex_t *mp,
             "on %s at %s, line %d\n",
             error, errno, mp->name, file, line);
   }
-#endif
+#endif /* EXTRA_DEBUG */
   pthread_mutex_lock(&mp->global);
   /* Restore state as it was before */
   mp->thread=       save_state.thread;
@@ -612,7 +612,7 @@ int safe_mutex_destroy(safe_mutex_t *mp, const char *file, uint line)
     error=1;
   if (pthread_mutex_destroy(&mp->mutex))
     error=1;
-#endif
+#endif /* __WIN__ */
   mp->file= 0;					/* Mark destroyed */
 
 #ifdef SAFE_MUTEX_DETECT_DESTROY
@@ -838,7 +838,7 @@ static void print_deadlock_warning(safe_mutex_t *new_mutex,
   DBUG_VOID_RETURN;
 }
 
-#elif defined(MY_PTHREAD_FASTMUTEX)
+#elif defined(MY_PTHREAD_FASTMUTEX) /* !SAFE_MUTEX_DEFINED */
 
 static ulong mutex_delay(ulong delayloops)
 {
@@ -922,4 +922,4 @@ void fastmutex_global_init(void)
 #endif
 }
 
-#endif /* defined(MY_PTHREAD_FASTMUTEX) */
+#endif /* defined(MY_PTHREAD_FASTMUTEX) && defined(SAFE_MUTEX_DEFINED) */
