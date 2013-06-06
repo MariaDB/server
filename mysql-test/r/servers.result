@@ -1,0 +1,8 @@
+#
+# MDEV-4594 - CREATE SERVER crashes embedded
+#
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(HOST 'localhost');
+SELECT * FROM mysql.servers;
+Server_name	Host	Db	Username	Password	Port	Socket	Wrapper	Owner
+s1	localhost				0		mysql	
+DROP SERVER s1;
