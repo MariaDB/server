@@ -13,6 +13,7 @@ log_slow_filter	admin,filesort,filesort_on_disk,full_join,full_scan,query_cache,
 log_slow_queries	ON
 log_slow_rate_limit	1
 log_slow_verbosity	
+set @org_slow_query_log= @@global.slow_query_log;
 set @@log_slow_filter= "filesort,filesort_on_disk,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk,admin";
 select @@log_slow_filter;
 @@log_slow_filter
@@ -56,5 +57,19 @@ insert_id	int(11)	NO		NULL
 server_id	int(10) unsigned	NO		NULL	
 sql_text	mediumtext	NO		NULL	
 flush slow logs;
+set long_query_time=0.1;
+set log_slow_filter='';
+set global slow_query_log=1;
+set global log_output='TABLE';
+select sleep(0.5);
+sleep(0.5)
+0
+select count(*) FROM mysql.slow_log;
+count(*)
+1
+truncate mysql.slow_log;
+set @@long_query_time=default;
+set global slow_query_log= @org_slow_query_log;
 set @@log_slow_filter=default;
 set @@log_slow_verbosity=default;
+set global log_output= default;

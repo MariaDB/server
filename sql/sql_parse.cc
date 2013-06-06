@@ -1525,7 +1525,8 @@ void log_slow_statement(THD *thd)
 
   /* Follow the slow log filter configuration. */ 
   if (!thd->enable_slow_log ||
-      !(thd->variables.log_slow_filter & thd->query_plan_flags))
+      (thd->variables.log_slow_filter
+        && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
     DBUG_VOID_RETURN; 
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
