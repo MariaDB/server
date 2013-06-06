@@ -968,7 +968,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
         {
           /* Starting from 5.0.3 we have max_user_connections field */
           ptr= get_field(thd->mem_root, table->field[next_field++]);
-          user.user_resource.user_conn= ptr ? atoi(ptr) : 0;
+          user.user_resource.user_conn= ptr ? atoll(ptr) : 0;
         }
 
         if (table->s->fields >= 41)

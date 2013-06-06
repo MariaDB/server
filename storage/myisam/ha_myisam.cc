@@ -1126,9 +1126,9 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       else
       {
         thd_proc_info(thd, "Repair by sorting");
+        DEBUG_SYNC(thd, "myisam_before_repair_by_sort");
         error = mi_repair_by_sort(&param, file, fixed_name,
                                   test(param.testflag & T_QUICK));
-        DEBUG_SYNC(thd, "myisam_after_repair_by_sort");
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
