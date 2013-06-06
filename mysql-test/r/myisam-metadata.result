@@ -5,7 +5,7 @@ a VARCHAR(100),
 INDEX(a)
 ) ENGINE=MyISAM;
 ALTER TABLE t1 DISABLE KEYS;
-SET debug_sync= 'myisam_after_repair_by_sort SIGNAL waiting WAIT_FOR go';
+SET debug_sync= 'myisam_before_repair_by_sort SIGNAL waiting WAIT_FOR go';
 ALTER TABLE t1 ENABLE KEYS;
 SET debug_sync= 'now WAIT_FOR waiting';
 SET debug_sync= 'now SIGNAL go';

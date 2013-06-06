@@ -32,6 +32,8 @@ typedef struct st_slave_info
   THD* thd;
 } SLAVE_INFO;
 
+struct slave_connection_state;
+
 extern my_bool opt_show_slave_auth_info;
 extern char *master_host, *master_info_file;
 extern bool server_id_supplied;
@@ -70,6 +72,7 @@ void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
 int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);
 int rpl_append_gtid_state(String *dest, bool use_binlog);
+int rpl_load_gtid_state(slave_connection_state *state, bool use_binlog);
 bool rpl_gtid_pos_check(THD *thd, char *str, size_t len);
 bool rpl_gtid_pos_update(THD *thd, char *str, size_t len);
 

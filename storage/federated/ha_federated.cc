@@ -587,7 +587,7 @@ static int parse_url_error(FEDERATED_SHARE *share, TABLE *table, int error_num)
   buf_len= min(table->s->connect_string.length,
                FEDERATED_QUERY_BUFFER_SIZE-1);
   strmake(buf, table->s->connect_string.str, buf_len);
-  my_error(error_num, MYF(0), buf);
+  my_error(error_num, MYF(0), buf, 14);
   DBUG_RETURN(error_num);
 }
 
@@ -3220,7 +3220,7 @@ int ha_federated::stash_remote_error()
   if (!mysql)
     DBUG_RETURN(remote_error_number);
   remote_error_number= mysql_errno(mysql);
-  strmake(remote_error_buf, mysql_error(mysql), sizeof(remote_error_buf)-1);
+  strmake_buf(remote_error_buf, mysql_error(mysql));
   if (remote_error_number == ER_DUP_ENTRY ||
       remote_error_number == ER_DUP_KEY)
     DBUG_RETURN(HA_ERR_FOUND_DUPP_KEY);

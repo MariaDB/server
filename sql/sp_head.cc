@@ -1159,8 +1159,9 @@ find_handler_after_execution(THD *thd, sp_rcontext *ctx)
     MYSQL_ERROR *err;
     while ((err= it++))
     {
-      if (err->get_level() != MYSQL_ERROR::WARN_LEVEL_WARN &&
-          err->get_level() != MYSQL_ERROR::WARN_LEVEL_NOTE)
+      if ((err->get_level() != MYSQL_ERROR::WARN_LEVEL_WARN &&
+           err->get_level() != MYSQL_ERROR::WARN_LEVEL_NOTE) ||
+          err->handled())
         continue;
 
       if (ctx->find_handler(thd,
@@ -1169,6 +1170,7 @@ find_handler_after_execution(THD *thd, sp_rcontext *ctx)
                             err->get_level(),
                             err->get_message_text()))
       {
+        err->mark_handled();
         break;
       }
     }
@@ -1418,6 +1420,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       Will write this SP statement into binlog separately.
       TODO: consider changing the condition to "not inside event union".
     */
+    MEM_ROOT *user_var_events_alloc_saved= thd->user_var_events_alloc;
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
       thd->user_var_events_alloc= thd->mem_root;
 
@@ -1433,7 +1436,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES)
     {
       reset_dynamic(&thd->user_var_events);
-      thd->user_var_events_alloc= NULL;//DEBUG
+      thd->user_var_events_alloc= user_var_events_alloc_saved;
     }
 
     /* we should cleanup free_list and memroot, used by instruction */

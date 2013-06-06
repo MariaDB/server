@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2011, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1133,6 +1133,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HAVING                        /* SQL-2003-R */
 %token  HELP_SYM
 %token  HEX_NUM
+%token  HEX_STRING
 %token  HIGH_PRIORITY
 %token  HOST_SYM
 %token  HOSTS_SYM
@@ -1566,7 +1567,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left  INTERVAL_SYM
 
 %type <lex_str>
-        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM HEX_NUM
+        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
+        HEX_NUM HEX_STRING hex_num_or_string
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -4591,7 +4593,7 @@ partition:
         ;
 
 part_type_def:
-          opt_linear KEY_SYM '(' part_field_list ')'
+          opt_linear KEY_SYM opt_key_algo '(' part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
             part_info->list_of_part_fields= TRUE;
@@ -4615,6 +4617,25 @@ opt_linear:
           /* empty */ {}
         | LINEAR_SYM
           { Lex->part_info->linear_hash_ind= TRUE;}
+        ;
+
+opt_key_algo:
+          /* empty */
+          { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
+        | ALGORITHM_SYM EQ real_ulong_num
+          {
+            switch ($3) {
+            case 1:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
+              break;
+            case 2:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_55;
+              break;
+            default:
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
+          }
         ;
 
 part_field_list:
@@ -4698,7 +4719,7 @@ opt_sub_part:
         | SUBPARTITION_SYM BY opt_linear HASH_SYM sub_part_func
           { Lex->part_info->subpart_type= HASH_PARTITION; }
           opt_num_subparts {}
-        | SUBPARTITION_SYM BY opt_linear KEY_SYM
+        | SUBPARTITION_SYM BY opt_linear KEY_SYM opt_key_algo
           '(' sub_part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
@@ -6157,6 +6178,11 @@ now_or_signed_literal:
           }
         | signed_literal
           { $$=$1; }
+        ;
+
+hex_num_or_string:
+          HEX_NUM {}
+        | HEX_STRING {}
         ;
 
 charset:
@@ -12638,13 +12664,21 @@ text_string:
           }
         | HEX_NUM
           {
-            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            Item *tmp= new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
               MYSQL_YYABORT;
             /*
               it is OK only emulate fix_fields, because we need only
               value of constant
             */
+            tmp->quick_fix_field();
+            $$= tmp->val_str((String*) 0);
+          }
+        | HEX_STRING
+          {
+            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            if (tmp == NULL)
+              MYSQL_YYABORT;
             tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
@@ -12717,6 +12751,12 @@ literal:
           }
         | HEX_NUM
           {
+            $$ = new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | HEX_STRING
+          {
             $$ = new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -12727,7 +12767,7 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET HEX_NUM
+        | UNDERSCORE_CHARSET hex_num_or_string
           {
             Item *tmp= new (YYTHD->mem_root) Item_hex_string($2.str, $2.length);
             if (tmp == NULL)
@@ -13283,7 +13323,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0))
               MYSQL_YYABORT;
           }
@@ -13298,7 +13338,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0) ||
                 check_host_name(&$$->host))
               MYSQL_YYABORT;
