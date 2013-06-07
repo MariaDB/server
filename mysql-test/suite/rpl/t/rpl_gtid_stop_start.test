@@ -128,6 +128,42 @@ INSERT INTO t1 VALUES (6);
 SELECT * FROM t1 ORDER BY a;
 
 
+--echo *** MDEV-4490: Old-style master position points at the last GTID event after slave restart ***
+
+--connection server_1
+INSERT INTO t1 VALUES (7);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+# Now we restart the slave server. When it restarts, there is nothing new
+# to replicate. Check that the position is nevertheless updated and
+# MASTER_POS_WAIT() works correctly and detects that we are up-to-date.
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--source include/wait_for_slave_to_start.inc
+
+--connection server_1
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t1 ORDER BY a;
+
+
 --echo *** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
 
 --connection server_2
@@ -136,7 +172,7 @@ CHANGE MASTER TO master_use_gtid= no;
 --source include/start_slave.inc
 
 --connection server_1
-INSERT INTO t1 VALUES (7);
+INSERT INTO t1 VALUES (8);
 --save_master_pos
 
 --connection server_2
@@ -169,7 +205,7 @@ SET sql_log_bin=1;
 
 --source include/start_slave.inc
 --connection server_1
-INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
 --save_master_pos
 
 --connection server_2
