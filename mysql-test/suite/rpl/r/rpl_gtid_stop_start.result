@@ -69,10 +69,7 @@ a
 4
 5
 6
-*** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
-include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid= no;
-include/start_slave.inc
+*** MDEV-4490: Old-style master position points at the last GTID event after slave restart ***
 INSERT INTO t1 VALUES (7);
 SELECT * FROM t1 ORDER BY a;
 a
@@ -83,6 +80,31 @@ a
 5
 6
 7
+include/wait_for_slave_to_start.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+*** MDEV-4486: Allow to start old-style replication even if mysql.gtid_slave_pos is unavailable
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= no;
+include/start_slave.inc
+INSERT INTO t1 VALUES (8);
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
 include/stop_slave.inc
 SET sql_log_bin= 0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
@@ -96,7 +118,7 @@ SET sql_log_bin=1;
 include/start_slave.inc
 Warnings:
 Error	1286	Unknown storage engine 'InnoDB'
-INSERT INTO t1 VALUES (8);
+INSERT INTO t1 VALUES (9);
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -107,6 +129,7 @@ a
 6
 7
 8
+9
 SET sql_log_bin= 0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;

@@ -5071,9 +5071,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     const char *errmsg;
     Gtid_list_log_event *glev;
     Log_event *tmp;
+    uint32 flags;
 
-    if (mi->rli.until_condition != Relay_log_info::UNTIL_GTID)
-      goto default_action;
     if (!(tmp= Log_event::read_log_event(buf, event_len, &errmsg,
            mi->rli.relay_log.description_event_for_queue,
            opt_slave_sql_verify_checksum)))
@@ -5082,16 +5081,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       goto err;
     }
     glev= static_cast<Gtid_list_log_event *>(tmp);
-    if (glev->gl_flags & Gtid_list_log_event::FLAG_UNTIL_REACHED)
-    {
-      char str_buf[128];
-      String str(str_buf, sizeof(str_buf), system_charset_info);
-      mi->rli.until_gtid_pos.to_string(&str);
-      sql_print_information("Slave IO thread stops because it reached its"
-                            " UNTIL master_gtid_pos %s", str.c_ptr_safe());
-      mi->abort_slave= true;
-    }
     event_pos= glev->log_pos;
+    flags= glev->gl_flags;
     delete glev;
 
     /*
@@ -5105,6 +5096,17 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       inc_pos= 0;
     else
       inc_pos= event_pos - mi->master_log_pos;
+
+    if (mi->rli.until_condition == Relay_log_info::UNTIL_GTID &&
+        flags & Gtid_list_log_event::FLAG_UNTIL_REACHED)
+    {
+      char str_buf[128];
+      String str(str_buf, sizeof(str_buf), system_charset_info);
+      mi->rli.until_gtid_pos.to_string(&str);
+      sql_print_information("Slave IO thread stops because it reached its"
+                            " UNTIL master_gtid_pos %s", str.c_ptr_safe());
+      mi->abort_slave= true;
+    }
   }
   break;
 

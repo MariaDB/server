@@ -1461,7 +1461,8 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                     slave_connection_state *until_gtid_state,
                     enum_gtid_until_state *gtid_until_group,
                     rpl_binlog_state *until_binlog_state,
-                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid)
+                    bool slave_gtid_strict_mode, rpl_gtid *error_gtid,
+                    bool *send_fake_gtid_list)
 {
   my_off_t pos;
   size_t len= packet->length();
@@ -1541,7 +1542,7 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
           if (event_gtid.server_id == gtid->server_id &&
               event_gtid.seq_no >= gtid->seq_no)
           {
-            if (event_gtid.seq_no > gtid->seq_no)
+            if (slave_gtid_strict_mode && event_gtid.seq_no > gtid->seq_no)
             {
               /*
                 In strict mode, it is an error if the slave requests to start
@@ -1549,24 +1550,21 @@ send_event_to_slave(THD *thd, NET *net, String* const packet, ushort flags,
                 exist, even though both the prior and subsequent seq_no exists
                 for same domain_id and server_id.
               */
-              if (slave_gtid_strict_mode)
-              {
-                my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
-                *error_gtid= *gtid;
-                return "The binlog on the master is missing the GTID requested "
-                  "by the slave (even though both a prior and a subsequent "
-                  "sequence number does exist), and GTID strict mode is enabled.";
-              }
+              my_errno= ER_GTID_START_FROM_BINLOG_HOLE;
+              *error_gtid= *gtid;
+              return "The binlog on the master is missing the GTID requested "
+                "by the slave (even though both a prior and a subsequent "
+                "sequence number does exist), and GTID strict mode is enabled.";
             }
-            else
-            {
-              /*
-                Send a fake Gtid_list event to the slave.
-                This allows the slave to update its current binlog position
-                so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
-              */
-//              send_fake_gtid_list_event(until_binlog_state);
-            }
+
+            /*
+              Send a fake Gtid_list event to the slave.
+              This allows the slave to update its current binlog position
+              so MASTER_POS_WAIT() and MASTER_GTID_WAIT() can work.
+              The fake event will be sent at the end of this event group.
+            */
+            *send_fake_gtid_list= true;
+
             /*
               Delete this entry if we have reached slave start position (so we
               will not skip subsequent events and won't have to look them up
@@ -1818,6 +1816,7 @@ void mysql_binlog_send(THD* thd, char* log_ident, my_off_t pos,
   enum_gtid_until_state gtid_until_group= GTID_UNTIL_NOT_DONE;
   rpl_binlog_state until_binlog_state;
   bool slave_gtid_strict_mode;
+  bool send_fake_gtid_list= false;
 
   uint8 current_checksum_alg= BINLOG_CHECKSUM_ALG_UNDEF;
   int old_max_allowed_packet= thd->variables.max_allowed_packet;
@@ -2234,10 +2233,24 @@ impossible position";
                                         &gtid_state, &gtid_skip_group,
                                         until_gtid_state, &gtid_until_group,
                                         &until_binlog_state,
-                                        slave_gtid_strict_mode, &error_gtid)))
+                                        slave_gtid_strict_mode, &error_gtid,
+                                        &send_fake_gtid_list)))
       {
         errmsg= tmp_msg;
         goto err;
+      }
+      if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+      {
+        Gtid_list_log_event glev(&until_binlog_state, 0);
+
+        if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+            fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                 current_checksum_alg, my_b_tell(&log)))
+        {
+          my_errno= ER_UNKNOWN_ERROR;
+          goto err;
+        }
+        send_fake_gtid_list= false;
       }
       if (until_gtid_state &&
           is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
@@ -2426,13 +2439,26 @@ impossible position";
                                             using_gtid_state, &gtid_state,
                                             &gtid_skip_group, until_gtid_state,
                                             &gtid_until_group, &until_binlog_state,
-                                            slave_gtid_strict_mode, &error_gtid)))
+                                            slave_gtid_strict_mode, &error_gtid,
+                                            &send_fake_gtid_list)))
           {
             errmsg= tmp_msg;
             goto err;
           }
-          if (
-              until_gtid_state &&
+          if (unlikely(send_fake_gtid_list) && gtid_skip_group == GTID_SKIP_NOT)
+          {
+            Gtid_list_log_event glev(&until_binlog_state, 0);
+
+            if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg) ||
+                fake_gtid_list_event(net, packet, &glev, &errmsg,
+                                     current_checksum_alg, my_b_tell(&log)))
+            {
+              my_errno= ER_UNKNOWN_ERROR;
+              goto err;
+            }
+            send_fake_gtid_list= false;
+          }
+          if (until_gtid_state &&
               is_until_reached(thd, net, packet, &ev_offset, gtid_until_group,
                                event_type, current_checksum_alg, flags, &errmsg,
                                &until_binlog_state, my_b_tell(&log)))
