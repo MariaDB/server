@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2011
+/* Copyright (C) Olivier Bertrand 2004 - 2013
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -63,6 +63,61 @@ typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS; 
 
 extern handlerton *connect_hton;
+
+/**
+  structure for CREATE TABLE options (table options)
+
+  These can be specified in the CREATE TABLE:
+  CREATE TABLE ( ... ) {...here...}
+*/
+struct ha_table_option_struct {
+  const char *type;
+  const char *filename;
+  const char *optname;
+  const char *tabname;
+  const char *tablist;
+  const char *dbname;
+  const char *separator;
+//const char *connect;
+  const char *qchar;
+  const char *module;
+  const char *subtype;
+  const char *catfunc;
+  const char *srcdef;
+  const char *colist;
+  const char *oplist;
+  const char *data_charset;
+  ulonglong lrecl;
+  ulonglong elements;
+//ulonglong estimate;
+  ulonglong multiple;
+  ulonglong header;
+  ulonglong quoted;
+  ulonglong ending;
+  ulonglong compressed;
+  bool mapped;
+  bool huge;
+  bool split;
+  bool readonly;
+  bool sepindex;
+  };
+
+/**
+  structure for CREATE TABLE options (field options)
+
+  These can be specified in the CREATE TABLE per field:
+  CREATE TABLE ( field ... {...here...}, ... )
+*/
+struct ha_field_option_struct
+{
+  ulonglong offset;
+  ulonglong freq;      // Not used by this version
+  ulonglong opt;       // Not used by this version
+  ulonglong fldlen;
+  const char *dateformat;
+  const char *fieldformat;
+  char *special;
+};
 
 /** @brief
   CONNECT_SHARE is a structure that will be shared among all open handlers.
@@ -143,8 +198,7 @@ public:
   {
     return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
             HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-            HA_NO_COPY_ON_ALTER |
-            HA_CAN_VIRTUAL_COLUMNS |
+            HA_NO_COPY_ON_ALTER | HA_CAN_VIRTUAL_COLUMNS |
             HA_NULL_IN_KEY | HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE);
   }
 

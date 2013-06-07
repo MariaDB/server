@@ -266,7 +266,7 @@ char TYPBLK<char>::GetTypedValue(PVAL valp)
   {return valp->GetTinyValue();}
 
 /***********************************************************************/
-/*  Set one value in a block.                                          */
+/*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
 template <class TYPE>
 void TYPBLK<TYPE>::SetValue(PSZ p, int n)
@@ -293,6 +293,22 @@ template <>
 double TYPBLK<double>::GetTypedValue(PSZ p) {return atof(p);}
 template <>
 char TYPBLK<char>::GetTypedValue(PSZ p) {return (char)atoi(p);}
+
+/***********************************************************************/
+/*  Set one value in a block from an array of characters.              */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetValue(char *sp, uint len, int n)
+  {
+  PGLOBAL& g = Global;
+  PSZ spz = (PSZ)PlugSubAlloc(g, NULL, 0);    // Temporary
+
+  if (sp)
+    memcpy(spz, sp, len);
+
+  spz[len] = 0;
+  SetValue(spz, n);
+  } // end of SetValue
 
 /***********************************************************************/
 /*  Set one value in a block from a value in another block.            */
@@ -552,11 +568,19 @@ void CHRBLK::SetValue(PVAL valp, int n)
   } // end of SetValue
 
 /***********************************************************************/
-/*  Set one value in a block.                                          */
+/*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
 void CHRBLK::SetValue(PSZ sp, int n)
   {
-  size_t len = (sp) ? strlen(sp) : 0;
+  uint len = (sp) ? strlen(sp) : 0;
+  SetValue(sp, len, n);
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set one value in a block from an array of characters.              */
+/***********************************************************************/
+void CHRBLK::SetValue(char *sp, uint len, int n)
+  {
   char  *p = Chrp + n * Long;
 
 #if defined(_DEBUG) || defined(DEBTRACE)
@@ -568,14 +592,15 @@ void CHRBLK::SetValue(PSZ sp, int n)
 #endif
 
   if (sp)
-    strncpy(p, sp, Long);
-  else
-    *p = '\0';
+    memcpy(p, sp, len);
 
-  if (Blanks)
+  if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
     for (register int i = len; i < Long; i++)
       p[i] = ' ';
+
+  } else if ((signed)len < Long)
+    p[len] = 0;
 
   SetNull(n, false);
   } // end of SetValue
@@ -801,12 +826,33 @@ void STRBLK::SetValue(PVAL valp, int n)
   } // end of SetValue
 
 /***********************************************************************/
-/*  Set one value in a block.                                          */
+/*  Set one value in a block from a zero terminated string.            */
 /***********************************************************************/
 void STRBLK::SetValue(PSZ p, int n)
   {
-  Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
-  strcpy(Strp[n], p);
+  if (p) {
+    Strp[n] = (PSZ)PlugSubAlloc(Global, NULL, strlen(p) + 1);
+    strcpy(Strp[n], p);
+  } else
+    Strp[n] = NULL;
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  Set one value in a block from an array of characters.              */
+/***********************************************************************/
+void STRBLK::SetValue(char *sp, uint len, int n)
+  {
+  PSZ p;
+
+  if (sp) {
+    p = (PSZ)PlugSubAlloc(Global, NULL, len + 1);
+    memcpy(p, sp, len);
+    p[len] = 0;
+  } else
+    p = NULL;
+
+  Strp[n] = p;
   } // end of SetValue
 
 /***********************************************************************/

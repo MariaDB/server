@@ -142,10 +142,12 @@ my_bool CloseFileHandle(HANDLE h)
   return (close(h)) ? TRUE : FALSE;
   }  /* end of CloseFileHandle */
 
+#if 0
 void Sleep(DWORD time) 
   {
   //FIXME: TODO
   }  /* end of Sleep */
+#endif
 
 int GetLastError() 
   {
@@ -213,6 +215,7 @@ int _isatty(int fileNo)
   return isatty(fileNo);
   }  /* end of _isatty */
 
+#if 0
 /* This function is ridiculous and should be revisited */
 DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
                     DWORD dwLanguageId, LPSTR lpBuffer, DWORD nSize, ...)
@@ -227,5 +230,6 @@ DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
   strncpy(lpBuffer, buff, nSize);
   return min(n, nSize);
   }  /* end of FormatMessage */
+#endif
 
 #endif  // UNIX

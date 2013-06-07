@@ -38,7 +38,6 @@ class DllExport INIDEF : public TABDEF {      /* INI table description */
   // Members
   char   *Fn;                 /* Path/Name of corresponding file       */
   char   *Xname;              /* The eventual table name               */
-  char    Subtype;            /* I: INI, T: Table, C: Column           */
   char    Layout;              /* R: Row, C: Column                     */
   int     Ln;                 /* Length of section list buffer         */
   }; // end of INIDEF
@@ -83,8 +82,8 @@ class TDBINI : public TDBASE {
   // Members
   char *Ifile;                               // The INI file
   char *Seclist;                             // The section list
-  char *Section;                              // The current section
-  int   Seclen;                               // Length of seclist buffer
+  char *Section;                             // The current section
+  int   Seclen;                              // Length of seclist buffer
   int   N;                                   // The current section index
   }; // end of class TDBINI
 

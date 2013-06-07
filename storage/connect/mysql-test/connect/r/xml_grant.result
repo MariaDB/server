@@ -1,0 +1,96 @@
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+#
+# Beginning of grant.inc
+#
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+SELECT user();
+user()
+user@localhost
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+a
+10
+UPDATE t1 SET a=20;
+SELECT * FROM t1;
+a
+20
+DELETE FROM t1;
+SELECT * FROM t1;
+a
+INSERT INTO t1 VALUES(10);
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+a
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT * FROM v1;
+a
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row' FILE_NAME='t1.EXT';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT user();
+user()
+root@localhost
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row' FILE_NAME='t1.EXT';
+INSERT INTO t1 VALUES (10);
+SELECT user();
+user()
+user@localhost
+INSERT INTO t1 VALUES (10);
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE t1 SET a=20;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+TRUNCATE TABLE t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ALTER TABLE t1 READONLY=1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ALTER TABLE t1 FILE_NAME='t2.EXT';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DROP TABLE t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE VIEW v1 AS SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+# Testing a VIEW created with FILE privileges but accessed with no FILE
+SELECT user();
+user()
+root@localhost
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT user();
+user()
+user@localhost
+SELECT * FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO v1 VALUES (2);
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE v1 SET a=123;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT user();
+user()
+root@localhost
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=XML OPTION_LIST='xmlsup=libxml2,rownode=row';
+Warnings:
+Warning	1105	No file name. Table will use t1.xml
+INSERT INTO t1 VALUES (10);
+SELECT user();
+user()
+user@localhost
+ALTER TABLE t1 FILE_NAME='t1.EXT';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DROP TABLE t1;
+DROP USER user@localhost;
+#
+# End of grant.inc
+#

@@ -135,14 +135,12 @@ PWMIUT InitWMI(PGLOBAL g, char *nsp, char *classname)
 /***********************************************************************/
 PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   {
-  static int  dbtype[] = {DB_CHAR,  DB_SHORT, DB_CHAR,
-                          DB_INT,  DB_INT,  DB_SHORT};
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
                           FLD_PREC, FLD_LENGTH, FLD_SCALE};
   static unsigned int len, length[] = {0, 6, 8, 10, 10, 6};
-  int     i = 0, n = 0, ncol = sizeof(dbtype) / sizeof(int);
+  int     i = 0, n = 0, ncol = sizeof(buftyp) / sizeof(int);
   int     lng, typ, prec;
   LONG    low, upp;
   BSTR    propname;
@@ -213,7 +211,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
   /*  Allocate the structures used to refer to the result set.         */
   /*********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, true, true);
 
   if (info)
     return qrp;

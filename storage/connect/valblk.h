@@ -36,6 +36,7 @@ class VALBLK : public BLOCK {
           void  *GetValPointer(void) {return Blkp;}
           void   SetValPointer(void *mp) {Blkp = mp;}
           int    GetType(void) {return Type;}
+          int    GetPrec(void) {return Prec;}
           void   SetCheck(bool b) {Check = b;}
           void   MoveNull(int i, int j)
                   {if (To_Nulls) To_Nulls[j] = To_Nulls[j];}
@@ -64,6 +65,7 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(double fval, int n) {assert(false);}
   virtual void   SetValue(char cval, int n) {assert(false);}
   virtual void   SetValue(PSZ sp, int n) {assert(false);}
+  virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
 #if 0
@@ -109,7 +111,7 @@ class TYPBLK : public VALBLK {
 
   // Implementation
   virtual void   Init(PGLOBAL g, bool check);
-  virtual int    GetVlen(void) {return sizeof(int);}
+  virtual int    GetVlen(void) {return sizeof(TYPE);}
 //virtual PSZ    GetCharValue(int n);
   virtual short  GetShortValue(int n) {return (short)Typp[n];}
   virtual int    GetIntValue(int n) {return (int)Typp[n];}
@@ -120,6 +122,7 @@ class TYPBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(short sval, int n)
                   {Typp[n] = (TYPE)sval; SetNull(n, false);}
   virtual void   SetValue(int lval, int n)
@@ -175,6 +178,7 @@ class CHRBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
 //virtual void   SetValues(PVBLK pv, int k, int n);
@@ -221,6 +225,7 @@ class STRBLK : public VALBLK {
 
   // Methods
   virtual void   SetValue(PSZ sp, int n);
+  virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
 //virtual void   SetValues(PVBLK pv, int k, int n);

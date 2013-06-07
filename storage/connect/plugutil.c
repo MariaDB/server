@@ -107,7 +107,7 @@ ACTIVITY defActivity = {            /* Describes activity and language */
 #endif   // XMSG  ||         NEWMSG
 
 #if defined(UNIX) || defined(UNIV_LINUX)
-int GetRcString(int id, char *buf, int bufsize);
+#include "rcmsg.h"
 #endif   // UNIX
 
 /**************************************************************************/
@@ -147,6 +147,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
 
   if (!(g = malloc(sizeof(GLOBAL)))) {
     fprintf(stderr, MSG(GLOBAL_ERROR), (int)sizeof(GLOBAL));
+    return NULL;
   } else {
     g->Sarea_Size = worksize;
     g->Trace = 0;
@@ -180,7 +181,9 @@ int PlugExit(PGLOBAL g)
   if (!g)
     return rc;
 
-  free(g->Sarea);
+  if (g->Sarea)
+    free(g->Sarea);
+
   free(g);
   return rc;
   } /* end of PlugExit */
@@ -216,11 +219,23 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
   return pBuff;
   } // end of PlugRemoveType
 
+
+BOOL PlugIsAbsolutePath(LPCSTR path)
+{
+#if defined(WIN32)
+  return ((path[0] >= 'a' && path[0] <= 'z') ||
+          (path[0] >= 'A' && path[0] <= 'Z')) && path[1] == ':';
+#else
+  return path[0] == '/';
+#endif
+}
+
+
 /***********************************************************************/
 /*  Set the full path of a file relatively to a given path.            */
 /*  Note: this routine is not really implemented for Unix.             */
 /***********************************************************************/
-LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR FileName, LPCSTR defpath)
+LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   {
   char newname[_MAX_PATH];
   char direc[_MAX_DIR], defdir[_MAX_DIR];
@@ -236,6 +251,22 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR FileName, LPCSTR defpath)
     strcpy(pBuff, FileName);       // Remote file
     return pBuff;
     } // endif
+
+  if (PlugIsAbsolutePath(FileName))
+  {
+    strcpy(pBuff, FileName); // FileName includes absolute path
+    return pBuff;
+  } // endif
+
+  if (strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
+  {
+    char tmp[_MAX_PATH];
+    int len= snprintf(tmp, sizeof(tmp) - 1, "%s%s%s",
+                      prefix, defpath, FileName);
+    memcpy(pBuff, tmp, (size_t) len);
+    pBuff[len]= '\0';
+    return pBuff;
+  }
 
   _splitpath(FileName, drive, direc, fname, ftype);
   _splitpath(defpath, defdrv, defdir, NULL, NULL);
@@ -491,9 +522,10 @@ void *MakePtr(void *memp, OFFSET offset)
 /***********************************************************************/
 /* This routine makes an offset from a pointer new format.             */
 /***********************************************************************/
+#if 0
 OFFSET MakeOff(void *memp, void *ptr)
   {
   return ((!ptr) ? 0 : (OFFSET)((char *)ptr - (char *)memp));
   } /* end of MakeOff */
-
+#endif
 /*--------------------- End of PLUGUTIL program -----------------------*/

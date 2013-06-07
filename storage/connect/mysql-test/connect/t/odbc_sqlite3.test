@@ -1,3 +1,5 @@
+--source have_odbc_sqlite3.inc
+
 #
 # To run this test, install SQLite3 ODBC Driver from
 # http://www.ch-werner.de/sqliteodbc/
@@ -18,40 +20,9 @@
 # Note, the test does not need a DSN to be created.
 #
 
---disable_query_log
---error 0,ER_UNKNOWN_ERROR
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
-if ($mysql_errno)
-{
-  Skip No ODBC support;
-}
-if (!`SELECT count(*) FROM t1 WHERE Description='SQLite3 ODBC Driver'`)
-{
-  DROP TABLE t1;
-  Skip Need SQLite3 ODBC Driver;
-}
-SHOW CREATE TABLE t1;
-DROP TABLE t1;
---enable_query_log
-
 SET NAMES utf8;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
-
-
-GRANT ALL PRIVILEGES ON *.* TO user@localhost;
-REVOKE FILE ON *.* FROM user@localhost;
---connect(user,localhost,user,,)
---connection user
-SELECT user();
---error ER_ACCESS_DENIED_ERROR
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC;
---error ER_ACCESS_DENIED_ERROR
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Drivers;
---error ER_ACCESS_DENIED_ERROR
-CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=ODBC CATFUNC=Sources;
---connection default
-SELECT user();
 
 
 #
@@ -66,42 +37,14 @@ let $Database=$MTR_SUITE_DIR/std_data/test.sqlite3;
 --replace_result $MTR_SUITE_DIR MTR_SUITE_DIR
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
---connection user
-SELECT user();
---error ER_ACCESS_DENIED_ERROR
-SELECT * FROM t1;
---error ER_ACCESS_DENIED_ERROR
-INSERT INTO t1 VALUES ('xxx');
---error ER_ACCESS_DENIED_ERROR
-DELETE FROM t1 WHERE a='xxx';
---error ER_ACCESS_DENIED_ERROR
-UPDATE t1 SET a='yyy' WHERE a='xxx';
---error ER_ACCESS_DENIED_ERROR
-TRUNCATE TABLE t1;
---error ER_ACCESS_DENIED_ERROR
-ALTER TABLE t1 READONLY=1;
---error ER_ACCESS_DENIED_ERROR
-CREATE VIEW v1 AS SELECT * FROM t1;
 
---echo # Testing a VIEW created with FILE privileges but accessed with no FILE
---connection default
-SELECT user();
+CREATE TABLE t2 AS SELECT * FROM t1;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+
 CREATE VIEW v1 AS SELECT * FROM t1;
---connection user
-SELECT user();
---error ER_ACCESS_DENIED_ERROR
 SELECT * FROM v1;
---error ER_ACCESS_DENIED_ERROR
-INSERT INTO v1 VALUES (2);
---error ER_ACCESS_DENIED_ERROR
-UPDATE v1 SET a=123;
---error ER_ACCESS_DENIED_ERROR
-DELETE FROM v1;
 
---disconnect user
---connection default
-SELECT user();
 DROP VIEW v1;
 DROP TABLE t1;
-
-DROP USER user@localhost;

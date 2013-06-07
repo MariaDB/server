@@ -18,25 +18,27 @@ SET(CONNECT_PLUGIN_DYNAMIC "connect")
 
 SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
-fmdlex.c osutil.c plugutil.c rcmsg.c
+fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
 csort.cpp maputil.cpp plgdbutl.cpp
 colblk.cpp reldef.cpp tabcol.cpp table.cpp
 filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
 tabdos.cpp tabfix.cpp tabfmt.cpp tabmul.cpp tabsys.cpp tabvct.cpp
 valblk.cpp value.cpp xindex.cpp xobject.cpp
 filamzip.cpp tabtbl.cpp myutil.cpp
+tabutil.cpp tabxcl.cpp taboccur.cpp tabpivot.cpp
 block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
 filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
-global.h ha_connect.h maputil.h msgid.h mycat.h myutil.h os.h
+global.h ha_connect.h inihandl.h maputil.h msgid.h mycat.h myutil.h os.h
 osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
 tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h
-user_connect.h valblk.h value.h xindex.h xobject.h xtable.h)
+user_connect.h valblk.h value.h xindex.h xobject.h xtable.h
+tabutil.h tabxcl.h taboccur.h tabpivot.h)
 
 #
 # Definitions that are shared for all OSes
 #
 add_definitions( -DMARIADB -DFORCE_INIT_OF_VARS )
-add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT )
+add_definitions( -DHUGE_SUPPORT -DZIP_SUPPORT -DPIVOT_SUPPORT )
 
 
 #
@@ -46,7 +48,6 @@ IF(UNIX)
   # Bar: -Wfatal-errors removed (does not present in gcc on solaris10)
   if(WITH_WARNINGS)
     add_definitions(-Wall -Wextra -Wmissing-declarations)
-    add_definitions(-Wno-non-virtual-dtor)
     message(STATUS "CONNECT: GCC: All warnings enabled")
   else()
     add_definitions(-Wall -Wmissing-declarations)
@@ -62,13 +63,11 @@ IF(UNIX)
     # add_definitions(-Wno-int-to-pointer-cast)
     # Bar: -Wno-narrowing commented (does not present in gcc on solaris10)
     # add_definitions(-Wno-narrowing)
-    add_definitions(-Wno-non-virtual-dtor)
 
 # This switch is for pure C only:
 #   add_definitions(-Wno-implicit-function-declaration)
 # These switches are for C++ only
 #   add_definitions(-Wno-reorder)
-#   add_definitions(-Wno-delete-non-virtual-dtor)
 
     message(STATUS "CONNECT: GCC: Some warnings disabled")
   endif(WITH_WARNINGS)
@@ -176,7 +175,7 @@ OPTION(CONNECT_WITH_MYSQL
 
 IF(CONNECT_WITH_MYSQL)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-  myconn.cpp myconn.h tabmysql.cpp tabxml.h)
+  myconn.cpp myconn.h tabmysql.cpp tabmysql.h)
   add_definitions(-DMYSQL_SUPPORT)
   IF(NOT UNIX)
     #
