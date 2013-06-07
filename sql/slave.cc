@@ -3536,7 +3536,13 @@ pthread_handler_t handle_slave_io(void *arg)
     mi->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), 
                 "Unable to load replication GTID slave state from mysql.%s: %s",
                 rpl_gtid_slave_state_table_name.str, thd->stmt_da->message());
-    goto err;
+    /*
+      If we are using old-style replication, we can continue, even though we
+      then will not be able to record the GTIDs we receive. But if using GTID,
+      we must give up.
+    */
+    if (mi->using_gtid != Master_info::USE_GTID_NO || opt_gtid_strict_mode)
+      goto err;
   }
 
 
@@ -4141,7 +4147,13 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), 
                 "Unable to load replication GTID slave state from mysql.%s: %s",
                 rpl_gtid_slave_state_table_name.str, thd->stmt_da->message());
-    goto err;
+    /*
+      If we are using old-style replication, we can continue, even though we
+      then will not be able to record the GTIDs we receive. But if using GTID,
+      we must give up.
+    */
+    if (mi->using_gtid != Master_info::USE_GTID_NO || opt_gtid_strict_mode)
+      goto err;
   }
 
   /* execute init_slave variable */
