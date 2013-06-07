@@ -228,8 +228,8 @@ ha_create_table_option connect_table_option_list[]=
 //HA_TOPTION_NUMBER("ESTIMATE", estimate, 0, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("MULTIPLE", multiple, 0, 0, 2, 1),
   HA_TOPTION_NUMBER("HEADER", header, 0, 0, 3, 1),
-  HA_TOPTION_NUMBER("QUOTED", quoted, -1, 0, 3, 1),
-  HA_TOPTION_NUMBER("ENDING", ending, -1, 0, INT_MAX32, 1),
+  HA_TOPTION_NUMBER("QUOTED", quoted, (ulonglong) -1, 0, 3, 1),
+  HA_TOPTION_NUMBER("ENDING", ending, (ulonglong) -1, 0, INT_MAX32, 1),
   HA_TOPTION_NUMBER("COMPRESS", compressed, 0, 0, 2, 1),
 //HA_TOPTION_BOOL("COMPRESS", compressed, 0),
   HA_TOPTION_BOOL("MAPPED", mapped, 0),
@@ -249,7 +249,7 @@ ha_create_table_option connect_table_option_list[]=
 */
 ha_create_table_option connect_field_option_list[]=
 {
-  HA_FOPTION_NUMBER("FLAG", offset, -1, 0, INT_MAX32, 1),
+  HA_FOPTION_NUMBER("FLAG", offset, (ulonglong) -1, 0, INT_MAX32, 1),
   HA_FOPTION_NUMBER("FREQUENCY", freq, 0, 0, INT_MAX32, 1), // not used
   HA_FOPTION_NUMBER("OPT_VALUE", opt, 0, 0, 2, 1),  // used for indexing
   HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),

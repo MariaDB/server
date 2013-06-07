@@ -88,6 +88,7 @@ PSZ strlwr(PSZ s);
 }
 #endif   // !WIN32
 
+#ifdef NOT_USED
 /***********************************************************************/
 /*  Returns the bitmap representing the conditions that must not be    */
 /*  met when returning from TestValue for a given operator.            */
@@ -113,6 +114,7 @@ static BYTE OpBmp(PGLOBAL g, OPVAL opc)
 
   return bt;
   } // end of OpBmp
+#endif
 
 /***********************************************************************/
 /*  GetTypeName: returns the PlugDB internal type name.                */
