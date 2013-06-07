@@ -52,6 +52,23 @@ ALTER TABLE mysql.gtid_slave_pos ADD PRIMARY KEY (domain_id, sub_id);
 SELECT * FROM t1;
 
 
+--echo *** Test that setting @@gtid_domain_id or @@gtid_seq_no is not allowed inside a transaction. ***
+BEGIN;
+INSERT INTO t1 VALUES (100);
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_domain_id= 100;
+--error ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
+SET SESSION gtid_seq_no= 100;
+SET @old_domain= @@GLOBAL.gtid_domain_id;
+SET GLOBAL gtid_domain_id= 100;
+SELECT @@SESSION.gtid_domain_id;
+SET GLOBAL gtid_domain_id= @old_domain;
+INSERT INTO t1 VALUES (101);
+SELECT * FROM t1 ORDER BY a;
+ROLLBACK;
+SELECT * FROM t1 ORDER BY a;
+
+
 --echo *** Test requesting an explicit GTID position that conflicts with newer GTIDs of our own in the binlog. ***
 --connection slave
 --source include/stop_slave.inc
