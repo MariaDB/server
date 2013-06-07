@@ -1203,6 +1203,21 @@ static Sys_var_ulong Sys_pseudo_thread_id(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, IN_BINLOG,
        ON_CHECK(check_has_super));
 
+static bool
+check_gtid_domain_id(sys_var *self, THD *thd, set_var *var)
+{
+  if (check_has_super(self, thd, var))
+    return true;
+  if (var->type != OPT_GLOBAL &&
+      error_if_in_trans_or_substatement(thd,
+          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+    return true;
+
+  return false;
+}
+
+
 static Sys_var_uint Sys_gtid_domain_id(
        "gtid_domain_id",
        "Used with global transaction ID to identify logically independent "
@@ -1213,7 +1228,7 @@ static Sys_var_uint Sys_gtid_domain_id(
        SESSION_VAR(gtid_domain_id),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(check_has_super));
+       ON_CHECK(check_gtid_domain_id));
 
 
 static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
@@ -1223,6 +1238,11 @@ static bool check_gtid_seq_no(sys_var *self, THD *thd, set_var *var)
 
   if (check_has_super(self, thd, var))
     return true;
+  if (error_if_in_trans_or_substatement(thd,
+          ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO,
+          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO))
+    return true;
+
   domain_id= thd->variables.gtid_domain_id;
   server_id= thd->variables.server_id;
   seq_no= (uint64)var->value->val_uint();
