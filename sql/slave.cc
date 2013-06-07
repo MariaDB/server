@@ -873,9 +873,21 @@ int start_slave_threads(bool need_slave_mutex, bool wait_for_start,
   if (mi->using_gtid != Master_info::USE_GTID_NO &&
       !mi->slave_running && !mi->rli.slave_running)
   {
+    /*
+      purge_relay_logs() clears the mi->rli.group_master_log_pos.
+      So save and restore them, like we do in CHANGE MASTER.
+      (We are not going to use them for GTID, but it might be worth to
+      keep them in case connection with GTID fails and user wants to go
+      back and continue with previous old-style replication coordinates).
+    */
+    mi->master_log_pos = max(BIN_LOG_HEADER_SIZE, mi->rli.group_master_log_pos);
+    strmake(mi->master_log_name, mi->rli.group_master_log_name,
+            sizeof(mi->master_log_name)-1);
     purge_relay_logs(&mi->rli, NULL, 0, &errmsg);
-    mi->master_log_name[0]= 0;
-    mi->master_log_pos= 0;
+    mi->rli.group_master_log_pos= mi->master_log_pos;
+    strmake(mi->rli.group_master_log_name, mi->master_log_name,
+            sizeof(mi->rli.group_master_log_name)-1);
+
     error= rpl_load_gtid_state(&mi->gtid_current_pos, mi->using_gtid ==
                                              Master_info::USE_GTID_CURRENT_POS);
     mi->events_queued_since_last_gtid= 0;

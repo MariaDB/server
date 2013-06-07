@@ -22,6 +22,7 @@ a
 include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (10);
 SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
@@ -64,6 +65,7 @@ a
 13
 include/kill_binlog_dump_threads.inc
 INSERT INTO t1 VALUES (20);
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
@@ -99,6 +101,7 @@ SET gtid_domain_id= 10;
 SET gtid_seq_no= 200;
 INSERT INTO t1 VALUES (13);
 SET gtid_domain_id= 10;
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,gtid_force_reconnect_at_10_1_100";
 START SLAVE UNTIL master_gtid_pos="9-1-50,10-1-200";
 include/wait_for_slave_to_stop.inc
@@ -129,6 +132,7 @@ SET GLOBAL debug_dbug= @old_debug;
 TRUNCATE t1;
 RESET MASTER;
 include/kill_binlog_dump_threads.inc
+SET GLOBAL debug_dbug="+d,dummy_disable_default_dbug_output";
 SET GLOBAL debug_dbug="+d,binlog_force_reconnect_after_22_events";
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);
