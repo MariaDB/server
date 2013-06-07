@@ -30,6 +30,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   inline  PSZ  GetHostname(void) {return Hostname;};
   inline  PSZ  GetDatabase(void) {return Database;};
   inline  PSZ  GetTabname(void) {return Tabname;}
+  inline  PSZ  GetSrcdef(void) {return Srcdef;}
   inline  PSZ  GetUsername(void) {return Username;};
   inline  PSZ  GetPassword(void) {return Password;};
   inline  int  GetPortnumber(void) {return Portnumber;}
@@ -44,9 +45,11 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   PSZ     Hostname;           /* Host machine to use                   */
   PSZ     Database;           /* Database to be used by server         */
   PSZ     Tabname;            /* External table name                   */
+  PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Username;           /* User logon name                       */
   PSZ     Password;           /* Password logon info                   */
   int     Portnumber;         /* MySQL port number (0 = default)       */
+  bool    Isview;             /* TRUE if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
   }; // end of MYSQLDEF
@@ -72,6 +75,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual bool IsView(void) {return Isview;}
           void SetDatabase(LPCSTR db) {Database = (char*)db;}
 
   // Database routines
@@ -82,6 +86,11 @@ class TDBMYSQL : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+
+  // Specific routines
+          bool SetColumnRanks(PGLOBAL g);
+          PCOL MakeFieldColumn(PGLOBAL g, char *name);
+          PSZ  FindFieldColumn(char *name);
 
  protected:
   // Internal functions
@@ -99,9 +108,11 @@ class TDBMYSQL : public TDBASE {
   char       *Pwd;            // Password logon info
   char       *Database;       // Database to be used by server
   char       *Tabname;        // External table name
+  char       *Srcdef;         // The source table SQL definition
   char       *Query;          // Points to SQL query
-  char       *Qbuf;            // Used for not prepared insert
+  char       *Qbuf;           // Used for not prepared insert
   bool        Fetched;        // True when fetch was done
+  bool        Isview;         // True if this table is a MySQL view
   bool        Prep;           // Use prepared statement on insert
   bool        Delayed;        // Use delayed insert
   int         m_Rc;           // Return code from command
@@ -119,6 +130,7 @@ class MYSQLCOL : public COLBLK {
  public:
   // Constructors
   MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i,  PSZ am = "MYSQL");
+  MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PSZ am = "MYSQL");
   MYSQLCOL(MYSQLCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
@@ -129,6 +141,7 @@ class MYSQLCOL : public COLBLK {
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
+          bool FindRank(PGLOBAL g);
 
  protected:
   // Default constructor not to be used

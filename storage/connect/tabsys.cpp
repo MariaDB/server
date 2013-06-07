@@ -41,9 +41,7 @@
 #include "tabdos.h"
 #include "tabsys.h"
 #include "tabmul.h"
-#if defined(UNIX)
-#include "osutil.h"
-#endif   // UNIX
+#include "inihandl.h"
 
 #define CSZ      36                       // Column section name length
 #define CDZ      256                      // Column definition length
@@ -65,7 +63,6 @@ INIDEF::INIDEF(void)
   Pseudo = 3;
   Fn = NULL;
   Xname = NULL;
-  Subtype = '?';
   Layout = '?';
   Ln = 0;
   } // end of INIDEF constructor
@@ -75,63 +72,23 @@ INIDEF::INIDEF(void)
 /***********************************************************************/
 bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char   buf[8], ds[2];
-  void  *memp = Cat->GetDescp();
-
-  if (!stricmp(am, "SYS"))
-    strcpy(ds, "T");                 // SYS tables default to T(able)
-  else
-    strcpy(ds, "I");                 // INI tables default to I(ni)
+  char   buf[8];
 
   Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Cat->GetCharCatInfo("Subtype", ds, buf, sizeof(buf));
-  Subtype = toupper(*buf);
   Cat->GetCharCatInfo("Layout", "C", buf, sizeof(buf));
   Layout = toupper(*buf);
 
-  switch (Subtype) {
-#if 0
-    case 'C':
-    case 'T':
-      // Restricted table
-      Xname = Cat->GetStringCatInfo(g, "Name", "?");
+  if (Fn) {
+    char   *p = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
 
-      if (!strcmp(Xname, "?"))
-        Xname = NULL;
+    PlugSetPath(p, Fn, GetPath());
+    Fn = p;
+  } else {
+    strcpy(g->Message, MSG(MISSING_FNAME));
+    return true;
+  } // endif Fn
 
-      if (*Fn == '?')
-        Fn = Cat->GetStringCatInfo(g, "Database", "?");
-
-      if (*Fn != '?') {
-        char *p = (char*)PlugSubAlloc(g, memp, _MAX_PATH);
-
-        if (!PlgSetXdbPath(g, Fn, NULL, p, _MAX_PATH, NULL, 0))
-          Fn = p;
-
-      } else
-        Fn = Cat->GetDescFile();
-
-      Ln = GetIniSize("Database", "Tabsize", "2K", Fn);
-      break;
-#endif // 0
-    case 'I':
-      if (*Fn != '?') {
-        char   *p = (char*)PlugSubAlloc(g, memp, _MAX_PATH);
-
-        PlugSetPath(p, Fn, GetPath());
-        Fn = p;
-      } else {
-        strcpy(g->Message, MSG(MISSING_FNAME));
-        return true;
-      } // endif Fn
-
-      Ln = Cat->GetSizeCatInfo("Secsize", "8K");
-      break;
-    default:
-      sprintf(g->Message, MSG(INV_SUBTYPE), buf);
-      return true;
-    } // endswitch Subtype
-
+  Ln = Cat->GetSizeCatInfo("Secsize", "8K");
   Desc = Fn;
   return false;
   } // end of DefineAM
@@ -143,17 +100,10 @@ PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
   {
   PTDBASE tdbp;
 
-  switch (Subtype) {
-    case 'I':
-      if (Layout == 'C')
-        tdbp = new(g) TDBINI(this);
-      else
-        tdbp = new(g) TDBXIN(this);
-
-      break;
-    default:
-      return NULL;
-    } // endswitch Subtype
+  if (Layout == 'C')
+    tdbp = new(g) TDBINI(this);
+  else
+    tdbp = new(g) TDBXIN(this);
 
   if (Multiple)
     tdbp = new(g) TDBMUL(tdbp);         // No block optimization yet
@@ -163,7 +113,6 @@ PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
 
 /***********************************************************************/
 /*  DeleteTableFile: Delete INI table files using platform API.        */
-/*  SysTable and SysColumn tables are readonly and not erasable.       */
 /***********************************************************************/
 bool INIDEF::DeleteTableFile(PGLOBAL g)
   {
@@ -171,7 +120,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
   bool    rc;
 
   // Delete the INI table file if not protected
-  if (Subtype == 'I' && !IsReadOnly()) {
+  if (!IsReadOnly()) {
     PlugSetPath(filename, Fn, GetPath());
 #if defined(WIN32)
     rc = !DeleteFile(filename);

@@ -62,21 +62,25 @@ static char *server_groups[] = {
 #endif   // EMBEDDED
 
 extern "C" int   trace;
+extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
+
+// Returns the current used port
+uint GetDefaultPort(void)
+{
+  return mysqld_port;
+} // end of GetDefaultPort
 
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
-/*  of a MySQL table that will be retrieved by GetData commands.        */
-/*  key = TRUE when called from Create Table to get key informations.   */
+/*  of a MySQL table or view.                                           */
+/*  info = TRUE to get catalog column informations.                     */
 /************************************************************************/
 PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
-                  int port, bool key, bool info)
+                  int port, bool info)
   {
-  static int dbtype[]  = {DB_CHAR, DB_SHORT, DB_CHAR,  DB_INT,
-                          DB_CHAR, DB_SHORT, DB_SHORT, DB_SHORT,
-                          DB_CHAR, DB_CHAR,  DB_CHAR};
-  static int buftyp[]  = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
+  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT,  TYPE_STRING, TYPE_INT,
                           TYPE_STRING, TYPE_SHORT,  TYPE_SHORT,  TYPE_SHORT,
                           TYPE_STRING, TYPE_STRING, TYPE_STRING};
   static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,  FLD_TYPENAME, FLD_PREC,
@@ -84,11 +88,14 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                           FLD_REM,  FLD_NO,    FLD_CHARSET};
   static unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 256, 32, 32};
   char   *fld, *fmt, cmd[128];
-  int     i, n, nf, ncol = sizeof(dbtype) / sizeof(int);
+  int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int    len, type, prec, rc, k = 0;
   PQRYRES qrp;
   PCOLRES crp;
   MYSQLC  myc;
+
+  if (!port)
+    port = mysqld_port;
 
   if (!info) {
     /********************************************************************/
@@ -123,14 +130,11 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     length[0] = 128;
   } // endif info
 
-//if (!key)                       // We are not called from Create table
-//  ncol--;                       // No date format column yet
-
   /**********************************************************************/
   /*  Allocate the structures used to refer to the result set.          */
   /**********************************************************************/
   qrp = PlgAllocResult(g, ncol, n, IDS_COLUMNS + 3,
-                          dbtype, buftyp, fldtyp, length, true, true);
+                          buftyp, fldtyp, length, true, true);
 
   // Some columns must be renamed
   for (i = 0, crp = qrp->Colresp; crp; crp = crp->Next)
@@ -218,6 +222,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
     } // endfor i
 
+#if 0
   if (k > 1) {
     // Multicolumn primary key
     PVBLK vbp = qrp->Colresp->Next->Next->Next->Next->Kdata;
@@ -227,6 +232,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
         vbp->SetValue(k, i);
 
     } // endif k
+#endif // 0
 
   /**********************************************************************/
   /*  Close MySQL connection.                                           */
@@ -238,6 +244,33 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /**********************************************************************/
   return qrp;
   } // end of MyColumns
+
+/************************************************************************/
+/*  SrcColumns: constructs the result blocks containing all columns     */
+/*  resulting from an SQL source definition query execution.            */
+/************************************************************************/
+PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
+                   const char *user, const char *pwd,
+                   const char *srcdef, int port)
+  {
+  int     w;
+  MYSQLC  myc;
+  PQRYRES qrp = NULL;
+
+  if (!port)
+    port = mysqld_port;
+
+  // Open a MySQL connection for this table
+  if (myc.Open(g, host, db, user, pwd, port))
+    return NULL;
+
+  // Send the source command to MySQL
+  if (myc.ExecSQL(g, srcdef, &w) == RC_OK)
+    qrp = myc.GetResult(g);
+
+  myc.Close();
+  return qrp;
+  } // end of SrcColumns
 
 /* -------------------------- Class MYSQLC --------------------------- */
 
@@ -289,6 +322,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   // This is critical, because the server will not accept the
   // client's options, and vice versa.
   mysql_options(m_DB, MYSQL_READ_DEFAULT_GROUP, "PlugDB_CLIENT");
+  mysql_options(m_DB, MYSQL_OPT_USE_REMOTE_CONNECTION, NULL);
 
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
@@ -645,6 +679,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
     crp = *pcrp;
     pcrp = &crp->Next;
+    memset(crp, 0, sizeof(COLRES));
     crp->Ncol = ++qrp->Nbcol;
 
     crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
@@ -658,10 +693,9 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
 
-    crp->Prec = fld->decimals;
+    crp->Prec = (crp->Type == TYPE_FLOAT) ? fld->decimals : 0;
     crp->Length = fld->max_length;
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
-    crp->DBtype = GetDBType((int)crp->Type);
 
     if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
                                      crp->Clen, 0, FALSE, TRUE))) {

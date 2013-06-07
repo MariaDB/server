@@ -75,7 +75,6 @@
 
 #include "sql_string.h"
 
-extern "C" char *GetMsgid(int id);
 extern "C" int   trace;
 
 /***********************************************************************/
@@ -896,7 +895,7 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
     Value->SetValue_pval(To_Val, false);   // Convert the inserted value
 
   if (Buf_Type == TYPE_DATE) {
-    struct tm *dbtime = ((DTVAL*)Value)->GetGmTime();
+    struct tm tm, *dbtime = ((DTVAL*)Value)->GetGmTime(&tm);
 
     Sqlbuf->second = dbtime->tm_sec;
     Sqlbuf->minute = dbtime->tm_min;

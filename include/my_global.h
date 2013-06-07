@@ -1003,8 +1003,9 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define SOCKET_EMFILE	EMFILE
 #endif
 
+#include <mysql/plugin.h>  /* my_bool */
+
 typedef ulong		myf;	/* Type of MyFlags in my_funcs */
-typedef char		my_bool; /* Small bool */
 
 #define MYF(v)		(myf) (v)
 

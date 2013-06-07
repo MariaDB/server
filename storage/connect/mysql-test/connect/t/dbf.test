@@ -1,9 +1,5 @@
 let $MYSQLD_DATADIR= `select @@datadir`;
 
-let $TABLE_OPTIONS=TABLE_TYPE=DBF;
-let $FILE_EXT=DBF;
---source grant.inc
-
 --echo #
 --echo # Testing errors
 --echo #

@@ -31,7 +31,6 @@
 /*  global.h     is header containing all global declarations.         */
 /*  plgdbsem.h   is header containing the DB applic. declarations.     */
 /***********************************************************************/
-#define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
 #include "handler.h"
 #undef  OFFSET
@@ -71,10 +70,7 @@ int rename_file_ext(const char *from, const char *to,const char *ext);
 PGLOBAL CntExit(PGLOBAL g)
   {
   if (g) {
-    PDBUSER dup= PlgGetUser(g);
-
     CntEndDB(g);
-    free(dup);
 
     if (g->Activityp)
       delete g->Activityp;
@@ -94,13 +90,10 @@ void CntEndDB(PGLOBAL g)
   PDBUSER dbuserp= PlgGetUser(g);
 
   if (dbuserp) {
-    if (dbuserp->Catalog) {
+    if (dbuserp->Catalog)
       delete dbuserp->Catalog;
-      dbuserp->Catalog= NULL;
-      } // endif Catalog
 
-    *dbuserp->Name= '\0';
-//  *dbuserp->Work= '\0';
+    free(dbuserp);
     } // endif dbuserp
 
   } // end of CntEndDB
@@ -258,10 +251,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-  if (!c1)
-    // Allocate all column blocks for that table
-    tdbp->ColDB(g, NULL, 0);
-  else for (p= c1; *p; p+= n) {
+  if (!c1) {
+    if (mode == MODE_INSERT)
+      // Allocate all column blocks for that table
+      tdbp->ColDB(g, NULL, 0);
+
+  } else for (p= c1; *p; p+= n) {
     // Allocate only used column blocks
     if (xtrace)
       printf("Allocating column %s\n", p);
@@ -657,11 +652,6 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
     cdp= tdbp->Key(k)->GetCdp();
     valp= AllocateValue(g, cdp->GetType(), cdp->GetLength()); 
     tdbp->To_Link[k]= new(g) CONSTANT(valp);
-
-//if (kdp->Klen && tdbp->To_Link[k]->GetResultType() == TYPE_STRING)
-//  ((XCOLBLK*)tdbp->To_Link[k])->SetLength(kdp->Klen);
-
-//((PCOL)tdbp->To_Link[k])->InitValue(g);
     } // endfor k
 
   // Make the index on xdp

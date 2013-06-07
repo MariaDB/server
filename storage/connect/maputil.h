@@ -13,7 +13,6 @@ typedef struct {
 
 HANDLE  CreateFileMap(PGLOBAL, LPCSTR, MEMMAP *, MODE, bool);
 bool    CloseMemMap(void *memory, size_t dwSize);
-my_bool CloseFileHandle(HANDLE h);
 
 #ifdef __cplusplus
 }
