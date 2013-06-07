@@ -311,6 +311,18 @@ rpl_slave_state::record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
   ulonglong thd_saved_option= thd->variables.option_bits;
   Query_tables_list lex_backup;
 
+  if (unlikely(!loaded))
+  {
+    /*
+      Probably the mysql.gtid_slave_pos table is missing (eg. upgrade) or
+      corrupt.
+
+      We already complained loudly about this, but we can try to continue
+      until the DBA fixes it.
+    */
+    return 0;
+  }
+
   if (!in_statement)
     mysql_reset_thd_for_next_command(thd, 0);
 
