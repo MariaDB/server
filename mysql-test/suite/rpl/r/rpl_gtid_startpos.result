@@ -188,5 +188,41 @@ include/start_slave.inc
 SELECT '0-1-2' AS Gtid_Slave_Pos;
 Gtid_Slave_Pos
 0-1-2
+*** MDEV-4483: Slave loses traditional master coordinates immediately on CHANGE MASTER TO MASTER_USE_GTID = 1 ***
+include/stop_slave.inc
+DROP TABLE t1;
+RESET SLAVE ALL;
+RESET MASTER;
+SET GLOBAL gtid_slave_pos= "";
+CHANGE MASTER TO master_host='127.0.0.1', master_port=MASTER_PORT, master_user='root', master_use_gtid=no, master_log_file="", master_log_pos= 4;
+DROP TABLE t1;
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+include/start_slave.inc
+include/stop_slave.inc
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+START SLAVE UNTIL master_log_file='LOG_FILE1', master_log_pos=LOG_POS1;
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t1;
+a
+1
+include/wait_for_slave_param.inc [Read_Master_Log_Pos]
+include/stop_slave_io.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET GLOBAL gtid_slave_pos="0-42-42";
+SET sql_log_bin=0;
+call mtr.add_suppression("Error: connecting slave requested to start from GTID");
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_io_error.inc [errno=1236]
+STOP SLAVE SQL_THREAD;
+include/wait_for_slave_sql_to_stop.inc
+CHANGE MASTER TO master_use_gtid=no;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
 DROP TABLE t1;
 include/rpl_end.inc

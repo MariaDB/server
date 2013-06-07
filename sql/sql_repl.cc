@@ -3293,16 +3293,6 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
       ret= TRUE;
       goto err;
     }
-
-    if (mi->using_gtid != Master_info::USE_GTID_NO)
-    {
-      /*
-        Clear the position in the master binlogs, so that we request the
-        correct GTID position.
-      */
-      mi->master_log_name[0]= 0;
-      mi->master_log_pos= 0;
-    }
   }
   else
   {
