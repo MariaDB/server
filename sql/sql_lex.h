@@ -210,6 +210,8 @@ struct LEX_MASTER_INFO
   char *ssl_crl, *ssl_crlpath;
   char *relay_log_name;
   LEX_STRING connection_name;
+  /* Value in START SLAVE UNTIL master_gtid_pos=xxx */
+  LEX_STRING gtid_pos_str;
   ulonglong pos;
   ulong relay_log_pos;
   ulong server_id;
@@ -220,8 +222,10 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
-    use_gtid_opt;
+    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt;
+  enum {
+    LEX_GTID_UNCHANGED, LEX_GTID_NO, LEX_GTID_CURRENT_POS, LEX_GTID_SLAVE_POS
+  } use_gtid_opt;
 
   void init()
   {
@@ -237,7 +241,10 @@ struct LEX_MASTER_INFO
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
-      repl_ignore_server_ids_opt= use_gtid_opt= LEX_MI_UNCHANGED;
+      repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
+    gtid_pos_str.length= 0;
+    gtid_pos_str.str= NULL;
+    use_gtid_opt= LEX_GTID_UNCHANGED;
   }
 };
 
@@ -823,6 +830,9 @@ public:
     joins on the right.
   */
   List<String> *prev_join_using;
+
+  /* namp of nesting SELECT visibility (for aggregate functions check) */
+  nesting_map name_visibility_map;
 
   void init_query();
   void init_select();

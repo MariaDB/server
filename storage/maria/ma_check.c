@@ -114,7 +114,7 @@ void maria_chk_init(HA_CHECK *param)
   param->keys_in_use= ~(ulonglong) 0;
   param->search_after_block=HA_OFFSET_ERROR;
   param->auto_increment_value= 0;
-  param->use_buffers=USE_BUFFER_INIT;
+  param->use_buffers= PAGE_BUFFER_INIT;
   param->read_buffer_length=READ_BUFFER_INIT;
   param->write_buffer_length=READ_BUFFER_INIT;
   param->sort_buffer_length=SORT_BUFFER_INIT;
@@ -140,13 +140,22 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
     Set up transaction handler so that we can see all rows. When rows is read
     we will check the found id against param->max_tried
   */
-  if (param->max_trid == 0)
+  if (!info->s->base.born_transactional)
+  {
+    /*
+      There are no trids. Howver we want to set max_trid to make test of
+      create_trid simpler.
+    */
+    param->max_trid= ~(TrID) 0;
+  }
+  else if (param->max_trid == 0)
   {
     if (!ma_control_file_inited())
       param->max_trid= 0;      /* Give warning for first trid found */
     else
       param->max_trid= max_trid_in_system();
   }
+
   maria_ignore_trids(info);
 }
 
@@ -178,6 +187,13 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
     /* If this will be fixed by the check, forget the warning */
     if (param->testflag & T_UPDATE_STATE)
       param->warning_printed=save;
+  }
+  if (share->state.create_trid > param->max_trid)
+  {
+    _ma_check_print_warning(param,
+                            "Table create_trd (%llu) > current max_transaction id (%llu).  Table needs to be repaired or zerofilled to be usable",
+                            share->state.create_trid, param->max_trid);
+    return 1;
   }
   return 0;
 }
@@ -2424,9 +2440,8 @@ static void restore_table_state_after_repair(MARIA_HA *info,
 {
   maria_versioning(info, info->s->have_versioning);
   info->s->lock_key_trees= org_share->lock_key_trees;
+  DBUG_ASSERT(!info->s->have_versioning || info->s->lock_key_trees);
 }
-
-
 
 
 /**
@@ -3553,7 +3568,10 @@ int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name)
     /* Ensure state is later flushed to disk, if within maria_chk */
     info->update= (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
-    /* Reset create_trid to make file comparable */
+    /*
+      Reset create_trid to make file comparable and to ensure that new
+      trid's in the file starts from 0.
+    */
     share->state.create_trid= 0;
   }
   if (reenable_logging)

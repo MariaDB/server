@@ -803,7 +803,7 @@ restart:
       len-=2;
       if (protocol_41(mysql) && pos[0] == '#')
       {
-	strmake(net->sqlstate, pos+1, SQLSTATE_LENGTH);
+	strmake_buf(net->sqlstate, pos+1);
 	pos+= SQLSTATE_LENGTH+1;
       }
       else
@@ -3173,7 +3173,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
 
     bzero((char*) &UNIXaddr, sizeof(UNIXaddr));
     UNIXaddr.sun_family= AF_UNIX;
-    strmake(UNIXaddr.sun_path, unix_socket, sizeof(UNIXaddr.sun_path)-1);
+    strmake_buf(UNIXaddr.sun_path, unix_socket);
     if (connect_sync_or_async(mysql, net, sock,
                               (struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr)))
     {
@@ -3468,8 +3468,11 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   strmov(mysql->server_version,(char*) net->read_pos+1);
   mysql->port=port;
 
-  /* remove the rpl hack from the version string, see RPL_VERSION_HACK comment */
-  if (mysql->server_capabilities & CLIENT_PLUGIN_AUTH &&
+  /*
+    remove the rpl hack from the version string, see RPL_VERSION_HACK
+    comment
+  */
+  if ((mysql->server_capabilities & CLIENT_PLUGIN_AUTH) &&
       strncmp(mysql->server_version, RPL_VERSION_HACK,
               sizeof(RPL_VERSION_HACK) - 1) == 0)
     mysql->server_version+= sizeof(RPL_VERSION_HACK) - 1;

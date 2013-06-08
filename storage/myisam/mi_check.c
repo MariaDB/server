@@ -91,7 +91,7 @@ void myisamchk_init(HA_CHECK *param)
   param->opt_follow_links=1;
   param->keys_in_use= ~(ulonglong) 0;
   param->search_after_block=HA_OFFSET_ERROR;
-  param->use_buffers=USE_BUFFER_INIT;
+  param->use_buffers= KEY_BUFFER_INIT;
   param->read_buffer_length=READ_BUFFER_INIT;
   param->write_buffer_length=READ_BUFFER_INIT;
   param->sort_buffer_length=SORT_BUFFER_INIT;

@@ -840,7 +840,8 @@ typedef long		my_ptrdiff_t;
 typedef long long	my_ptrdiff_t;
 #endif
 
-#define MY_ALIGN(A,L)	(((A) + (L) - 1) & ~((L) - 1))
+#define MY_ALIGN(A,L)	   (((A) + (L) - 1) & ~((L) - 1))
+#define MY_ALIGN_DOWN(A,L) ((A) & ~((L) - 1))
 #define ALIGN_SIZE(A)	MY_ALIGN((A),sizeof(double))
 #define ALIGN_MAX_UNIT  (sizeof(double))
 /* Size to make adressable obj. */
@@ -1420,6 +1421,7 @@ static inline char *dlerror(void)
 #endif
 
 /* Provide __func__ macro definition for platforms that miss it. */
+#if !defined (__func__)
 #if __STDC_VERSION__ < 199901L
 #  if __GNUC__ >= 2
 #    define __func__ __FUNCTION__
@@ -1437,6 +1439,7 @@ static inline char *dlerror(void)
 #else
 #  define __func__ "<unknown>"
 #endif
+#endif /* !defined(__func__) */
 
 #ifndef HAVE_RINT
 /**

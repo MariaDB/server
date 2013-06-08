@@ -14,7 +14,7 @@ call mtr.add_suppression("client is using or hasn't closed the table properly");
 call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
 flush tables;
 
-ALTER TABLE mysql.rpl_slave_state ENGINE=InnoDB;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 0);
 --save_master_pos
@@ -24,7 +24,7 @@ INSERT INTO t1 VALUES (1, 0);
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_USE_GTID=1;
+     MASTER_USE_GTID=CURRENT_POS;
 
 --connection server_1
 INSERT INTO t1 VALUES (2,1);
@@ -80,7 +80,7 @@ DROP TABLE t1;
 --sync_with_master
 --source include/stop_slave.inc
 RESET MASTER;
-SET GLOBAL gtid_pos='';
+SET GLOBAL gtid_slave_pos='';
 
 --connection server_1
 RESET MASTER;
@@ -131,7 +131,7 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo *** Test crashing slave at various points and check that it recovers crash-safe. ***
 
-# Crash the slave just before updating mysql.rpl_slave_state table.
+# Crash the slave just before updating mysql.gtid_slave_pos table.
 --source include/stop_slave.inc
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait

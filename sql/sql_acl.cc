@@ -70,7 +70,7 @@ TABLE_FIELD_TYPE mysql_db_table_fields[MYSQL_DB_FIELD_COUNT] = {
   }, 
   {
     { C_STRING_WITH_LEN("User") },
-    { C_STRING_WITH_LEN("char(16)") },
+    { C_STRING_WITH_LEN("char(") },
     {NULL, 0}
   },
   {
@@ -829,6 +829,7 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
     goto end;
   table->use_all_columns();
   (void) my_init_dynamic_array(&acl_users,sizeof(ACL_USER), 50, 100, MYF(0));
+  username_char_length= min(table->field[1]->char_length(), USERNAME_CHAR_LENGTH);
   password_length= table->field[2]->field_length /
     table->field[2]->charset()->mbmaxlen;
   if (password_length < SCRAMBLED_PASSWORD_CHAR_LENGTH_323)
@@ -1436,12 +1437,12 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
     sctx->master_access= acl_user->access;
 
     if (acl_user->user)
-      strmake(sctx->priv_user, user, USERNAME_LENGTH);
+      strmake_buf(sctx->priv_user, user);
     else
       *sctx->priv_user= 0;
 
     if (acl_user->host.hostname)
-      strmake(sctx->priv_host, acl_user->host.hostname, MAX_HOSTNAME - 1);
+      strmake_buf(sctx->priv_host, acl_user->host.hostname);
     else
       *sctx->priv_host= 0;
   }
@@ -8156,6 +8157,12 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     cs->coll->hash_sort(cs, (uchar*) sctx->user, strlen(sctx->user), &nr1, &nr2);
 
     mysql_mutex_lock(&acl_cache->lock);
+    if (!acl_users.elements)
+    {
+      mysql_mutex_unlock(&acl_cache->lock);
+      login_failed_error(mpvio->thd);
+      DBUG_RETURN(1);
+    }
     uint i= nr1 % acl_users.elements;
     ACL_USER *acl_user_tmp= dynamic_element(&acl_users, i, ACL_USER*);
     mpvio->acl_user= acl_user_tmp->copy(mpvio->thd->mem_root);
@@ -8181,10 +8188,9 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
   mpvio->auth_info.user_name= sctx->user;
   mpvio->auth_info.user_name_length= strlen(sctx->user);
   mpvio->auth_info.auth_string= mpvio->acl_user->auth_string.str;
-  mpvio->auth_info.auth_string_length= 
-    (unsigned long) mpvio->acl_user->auth_string.length;
-  strmake(mpvio->auth_info.authenticated_as, mpvio->acl_user->user ?
-          mpvio->acl_user->user : "", USERNAME_LENGTH);
+  mpvio->auth_info.auth_string_length= (unsigned long) mpvio->acl_user->auth_string.length;
+  strmake_buf(mpvio->auth_info.authenticated_as, mpvio->acl_user->user ?
+              mpvio->acl_user->user : "");
 
   DBUG_PRINT("info", ("exit: user=%s, auth_string=%s, authenticated as=%s"
                       "plugin=%s",
@@ -8268,7 +8274,7 @@ static bool parse_com_change_user_packet(MPVIO_EXT *mpvio, uint packet_length)
 
   /* Clear variables that are allocated */
   thd->user_connect= 0;
-  strmake(sctx->priv_user, sctx->user, USERNAME_LENGTH);
+  strmake_buf(sctx->priv_user, sctx->user);
 
   if (thd->make_lex_string(&mpvio->db, db_buff, db_len) == 0)
     DBUG_RETURN(1); /* The error is set by make_lex_string(). */
@@ -8483,14 +8489,15 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
 
   /*
     Clip username to allowed length in characters (not bytes).  This is
-    mostly for backward compatibility.
+    mostly for backward compatibility (to truncate long usernames, as
+    old 5.1 did)
   */
   {
     CHARSET_INFO *cs= system_charset_info;
     int           err;
 
     user_len= (uint) cs->cset->well_formed_len(cs, user, user + user_len,
-                                               USERNAME_CHAR_LENGTH, &err);
+                                               username_char_length, &err);
     user[user_len]= '\0';
   }
 
@@ -9085,12 +9092,12 @@ bool acl_authenticate(THD *thd, uint connect_errors,
 
     sctx->master_access= acl_user->access;
     if (acl_user->user)
-      strmake(sctx->priv_user, acl_user->user, USERNAME_LENGTH - 1);
+      strmake_buf(sctx->priv_user, acl_user->user);
     else
       *sctx->priv_user= 0;
 
     if (acl_user->host.hostname)
-      strmake(sctx->priv_host, acl_user->host.hostname, MAX_HOSTNAME - 1);
+      strmake_buf(sctx->priv_host, acl_user->host.hostname);
     else
       *sctx->priv_host= 0;
 

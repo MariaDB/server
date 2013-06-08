@@ -15,7 +15,7 @@ INSERT INTO t1 VALUES (1);
 --let $status_items= Master_Log_File,Using_Gtid
 --source include/show_slave_status.inc
 
-CHANGE MASTER TO master_use_gtid=1;
+CHANGE MASTER TO master_use_gtid=current_pos;
 
 # Now try to restart the slave mysqld server without starting the slave first
 # threads after the CHANGE MASTER.
@@ -92,6 +92,31 @@ INSERT INTO t1 VALUES(5);
 --let $wait_condition= SELECT COUNT(*) = 5 FROM t1
 --source include/wait_condition.inc
 SELECT * FROM t1 ORDER BY a;
+
+--echo *** Test that @@gtid_slave_pos and @@gtid_current_pos are correctly loaded even if slave threads have not started. ***
+--let $slave_pos1= `SELECT @@GLOBAL.gtid_slave_pos`
+--let $current_pos1= `SELECT @@GLOBAL.gtid_current_pos`
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=1 --skip-log-bin
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--disable_query_log
+eval SET @slave_pos1= "$slave_pos1";
+eval SET @current_pos1= "$current_pos1";
+--enable_query_log
+SET @slave_pos2= @@GLOBAL.gtid_slave_pos;
+SET @current_pos2= @@GLOBAL.gtid_current_pos;
+SELECT IF(@slave_pos1=@slave_pos2, "OK", CONCAT(@slave_pos1, " != ", @slave_pos2));
+SELECT IF(@current_pos1=@current_pos2, "OK", CONCAT(@current_pos1, " != ", @current_pos2));
+--source include/start_slave.inc
 
 
 --connection server_1

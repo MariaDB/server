@@ -78,7 +78,7 @@ static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
 static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
   "The buffer that is allocated when sorting the index when doing "
   "a REPAIR or when creating indexes with CREATE INDEX or ALTER TABLE", NULL, NULL,
-  8192 * 1024, MIN_SORT_BUFFER + MALLOC_OVERHEAD, SIZE_T_MAX, 1);
+  SORT_BUFFER_INIT, MIN_SORT_BUFFER, SIZE_T_MAX, 1);
 
 static MYSQL_SYSVAR_BOOL(use_mmap, opt_myisam_use_mmap, PLUGIN_VAR_NOCMDARG,
   "Use memory mapping for reading and writing MyISAM tables", NULL, NULL, FALSE);
@@ -1126,9 +1126,9 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       else
       {
         thd_proc_info(thd, "Repair by sorting");
+        DEBUG_SYNC(thd, "myisam_before_repair_by_sort");
         error = mi_repair_by_sort(&param, file, fixed_name,
                                   test(param.testflag & T_QUICK));
-        DEBUG_SYNC(thd, "myisam_after_repair_by_sort");
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)

@@ -23,7 +23,7 @@ while ($con_name != 'No such row')
 
 --error 0,ER_FLUSH_MASTER_BINLOG_CLOSED
 reset master;
-set global gtid_pos='';
+set global gtid_slave_pos='';
 eval set default_master_connection = '$default_master';
 --source include/end_include_file.inc
 

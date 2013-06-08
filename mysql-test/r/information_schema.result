@@ -88,6 +88,7 @@ db
 event
 func
 general_log
+gtid_slave_pos
 help_category
 help_keyword
 help_relation
@@ -98,7 +99,6 @@ plugin
 proc
 procs_priv
 proxies_priv
-rpl_slave_state
 servers
 slow_log
 t1

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -672,16 +672,18 @@ static inline int read_str(const char **buf, const char *buf_end,
 
 
 /**
-  Transforms a string into "" or its expression in 0x... form.
+  Transforms a string into "" or its expression in X'HHHH' form.
 */
 
 char *str_to_hex(char *to, const char *from, uint len)
 {
   if (len)
   {
-    *to++= '0';
-    *to++= 'x';
+    *to++= 'X';
+    *to++= '\'';
     to= octet2hex(to, from, len);
+    *to++= '\'';
+    *to= '\0';
   }
   else
     to= strmov(to, "\"\"");
@@ -702,7 +704,7 @@ append_query_string(THD *thd, CHARSET_INFO *csinfo,
 {
   char *beg, *ptr;
   uint32 const orig_len= to->length();
-  if (to->reserve(orig_len + from->length()*2+3))
+  if (to->reserve(orig_len + from->length() * 2 + 4))
     return 1;
 
   beg= (char*) to->ptr() + to->length();
@@ -1270,7 +1272,9 @@ bool Log_event::write_header(IO_CACHE* file, ulong event_data_length)
 
 int Log_event::read_log_event(IO_CACHE* file, String* packet,
                               mysql_mutex_t* log_lock,
-                              uint8 checksum_alg_arg)
+                              uint8 checksum_alg_arg,
+                              const char *log_file_name_arg,
+                              bool* is_binlog_active)
 {
   ulong data_len;
   int result=0;
@@ -1280,6 +1284,10 @@ int Log_event::read_log_event(IO_CACHE* file, String* packet,
 
   if (log_lock)
     mysql_mutex_lock(log_lock);
+
+  if (log_file_name_arg)
+    *is_binlog_active= mysql_bin_log.is_active(log_file_name_arg);
+
   if (my_b_read(file, (uchar*) buf, sizeof(buf)))
   {
     /*
@@ -4004,7 +4012,7 @@ int Query_log_event::do_apply_event(Relay_log_info const *rli,
         const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
 
         gtid= rli->current_gtid;
-        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true))
+        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
           rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
                       "Error during COMMIT: failed to update GTID state in "
@@ -6214,6 +6222,15 @@ Gtid_log_event::do_apply_event(Relay_log_info const *rli)
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
 
+  if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
+  {
+    /* Need to reset prior "ok" status to give an error. */
+    thd->clear_error();
+    thd->stmt_da->reset_diagnostics_area();
+    if (mysql_bin_log.check_strict_gtid_sequence(this->domain_id,
+                                                 this->server_id, this->seq_no))
+      return 1;
+  }
   if (flags2 & FL_STANDALONE)
     return 0;
 
@@ -6320,6 +6337,7 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
   : Log_event(buf, description_event), count(0), list(0)
 {
   uint32 i;
+  uint32 val;
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_LIST_EVENT-1];
   if (event_len < header_size + post_header_len ||
@@ -6327,7 +6345,9 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
     return;
 
   buf+= header_size;
-  count= uint4korr(buf) & ((1<<28)-1);
+  val= uint4korr(buf);
+  count= val & ((1<<28)-1);
+  gl_flags= val & ((uint32)0xf << 28);
   buf+= 4;
   if (event_len - (header_size + post_header_len) < count*element_size ||
       (!(list= (rpl_gtid *)my_malloc(count*sizeof(*list) + (count == 0),
@@ -6348,8 +6368,9 @@ Gtid_list_log_event::Gtid_list_log_event(const char *buf, uint event_len,
 
 #ifdef MYSQL_SERVER
 
-Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
-  : count(gtid_set->count()), list(0)
+Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set,
+                                         uint32 gl_flags_)
+  : count(gtid_set->count()), gl_flags(gl_flags_), list(0)
 {
   cache_type= EVENT_NO_CACHE;
   /* Failure to allocate memory will be caught by is_valid() returning false. */
@@ -6359,32 +6380,73 @@ Gtid_list_log_event::Gtid_list_log_event(rpl_binlog_state *gtid_set)
     gtid_set->get_gtid_list(list, count);
 }
 
+
+#if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 bool
-Gtid_list_log_event::write(IO_CACHE *file)
+Gtid_list_log_event::to_packet(String *packet)
 {
   uint32 i;
-  uchar buf[element_size];
+  uchar *p;
+  uint32 needed_length;
 
   DBUG_ASSERT(count < 1<<28);
 
-  if (write_header(file, get_data_size()))
-    return 1;
-  int4store(buf, count & ((1<<28)-1));
-  if (wrapper_my_b_safe_write(file, buf, GTID_LIST_HEADER_LEN))
-    return 1;
+  needed_length= packet->length() + get_data_size();
+  if (packet->reserve(needed_length))
+    return true;
+  p= (uchar *)packet->ptr() + packet->length();;
+  packet->length(needed_length);
+  int4store(p, (count & ((1<<28)-1)) | gl_flags);
+  p += 4;
+  /* Initialise the padding for empty Gtid_list. */
+  if (count == 0)
+    int2store(p, 0);
   for (i= 0; i < count; ++i)
   {
-    int4store(buf, list[i].domain_id);
-    int4store(buf+4, list[i].server_id);
-    int8store(buf+8, list[i].seq_no);
-    if (wrapper_my_b_safe_write(file, buf, element_size))
-      return 1;
+    int4store(p, list[i].domain_id);
+    int4store(p+4, list[i].server_id);
+    int8store(p+8, list[i].seq_no);
+    p += 16;
   }
-  return write_footer(file);
+
+  return false;
 }
 
 
-#ifdef HAVE_REPLICATION
+bool
+Gtid_list_log_event::write(IO_CACHE *file)
+{
+  char buf[128];
+  String packet(buf, sizeof(buf), system_charset_info);
+
+  packet.length(0);
+  if (to_packet(&packet))
+    return true;
+  return
+    write_header(file, get_data_size()) ||
+    wrapper_my_b_safe_write(file, (uchar *)packet.ptr(), packet.length()) ||
+    write_footer(file);
+}
+
+
+int
+Gtid_list_log_event::do_apply_event(Relay_log_info const *rli)
+{
+  int ret= Log_event::do_apply_event(rli);
+  if (rli->until_condition == Relay_log_info::UNTIL_GTID &&
+      (gl_flags & FLAG_UNTIL_REACHED))
+  {
+    char str_buf[128];
+    String str(str_buf, sizeof(str_buf), system_charset_info);
+    const_cast<Relay_log_info*>(rli)->until_gtid_pos.to_string(&str);
+    sql_print_information("Slave SQL thread stops because it reached its"
+                          " UNTIL master_gtid_pos %s", str.c_ptr_safe());
+    const_cast<Relay_log_info*>(rli)->abort_slave= true;
+  }
+  return ret;
+}
+
+
 void
 Gtid_list_log_event::pack_info(THD *thd, Protocol *protocol)
 {
@@ -6439,11 +6501,23 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
 */
 bool
 Gtid_list_log_event::peek(const char *event_start, uint32 event_len,
+                          uint8 checksum_alg,
                           rpl_gtid **out_gtid_list, uint32 *out_list_len)
 {
   const char *p;
   uint32 count_field, count;
   rpl_gtid *gtid_list;
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
 
   if (event_len < LOG_EVENT_HEADER_LEN + GTID_LIST_HEADER_LEN)
     return true;
@@ -6841,7 +6915,7 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
     const_cast<Relay_log_info*>(rli)->gtid_sub_id= 0;
 
     gtid= rli->current_gtid;
-    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true);
+    err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
       rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
@@ -6982,7 +7056,7 @@ void User_var_log_event::pack_info(THD *thd, Protocol* protocol)
             buf.append(" "))
           return;
         old_len= buf.length();
-        if (buf.reserve(old_len + val_len*2 + 2 + sizeof(" COLLATE ") +
+        if (buf.reserve(old_len + val_len * 2 + 3 + sizeof(" COLLATE ") +
                         MY_CS_NAME_SIZE))
           return;
         beg= const_cast<char *>(buf.ptr()) + old_len;
@@ -7025,10 +7099,9 @@ User_var_log_event(const char* buf, uint event_len,
   /*
     We don't know yet is_null value, so we must assume that name_len
     may have the bigger value possible, is_null= True and there is no
-    payload for val.
+    payload for val, or even that name_len is 0.
   */
-  if (0 == name_len ||
-      !valid_buffer_range<uint>(name_len, buf_start, name,
+  if (!valid_buffer_range<uint>(name_len, buf_start, name,
                                 event_len - UV_VAL_IS_NULL))
   {
     error= true;
@@ -7251,7 +7324,8 @@ void User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       char *hex_str;
       CHARSET_INFO *cs;
 
-      hex_str= (char *)my_malloc(2*val_len+1+2,MYF(MY_WME)); // 2 hex digits / byte
+      // 2 hex digits / byte
+      hex_str= (char *) my_malloc(2 * val_len + 1 + 3, MYF(MY_WME));
       if (!hex_str)
         return;
       str_to_hex(hex_str, val, val_len);
@@ -10185,6 +10259,7 @@ int Table_map_log_event::do_apply_event(Relay_log_info const *rli)
 
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
+  table_list->required_type= FRMTYPE_TABLE;
   DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, table_list->table_id));
   enum_tbl_map_status tblmap_status= check_table_map(rli, table_list);
   if (tblmap_status == OK_TO_PROCESS)

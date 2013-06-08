@@ -93,7 +93,6 @@ The execute_single method can be used for inserting records also.
 
   my $res = $hs->execute_single(3, '+', [ 'foo', 'bar', 'baz' ]);
   die $hs->get_error() if $res->[0] != 0;
-  my $num_inserted_rows = $res->[1];
 
 The 3rd argument must be an arrayref whose elements correspond to
 the 5th argument for the corresponding open_index call. If there
@@ -115,6 +114,15 @@ executing them separatedly.
     shift(@$res);
     # ...
   }
+
+-----------------------------------------------------------------
+If handlersocket is configured to authenticate client connections
+(ie., handlersocket_plain_secret or handlersocket_plain_secret_wr
+is set), a client must call 'auth' method before any other
+methods.
+
+  my $res = $hs->auth('password');
+  die $hs->get_error() if $res->[0] != 0;
 
 -----------------------------------------------------------------
 When an error is occured, the first element of the returned

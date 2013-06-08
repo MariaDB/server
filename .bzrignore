@@ -1069,6 +1069,7 @@ vio/viotest.cpp
 ylwrap
 zlib/*.ds?
 sql-bench/test-table-elimination
+sql/share/bulgarian
 sql/share/czech
 sql/share/danish
 sql/share/dutch
@@ -1129,6 +1130,7 @@ cmd-line-utils/libedit/emacs.h
 mysql-test/collections/default.release
 support-files/plugins.files
 client/mysql_plugin
+*.resource.txt
 plugin/handler_socket/perl-Net-HandlerSocket/HandlerSocket.c
 plugin/handler_socket/perl-Net-HandlerSocket/blib
 plugin/handler_socket/perl-Net-HandlerSocket/pm_to_blib
@@ -1150,3 +1152,4 @@ storage/perfschema/pfs_lex_token.h
 *.bak
 *.OLD
 mysql-test/collections/default.release.done
+sql/sql_yacc.hh
