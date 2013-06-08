@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011 Monty Program Ab
+   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2011, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1026,6 +1026,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CUBE_SYM                      /* SQL-2003-R */
 %token  CURDATE                       /* MYSQL-FUNC */
 %token  CURRENT_USER                  /* SQL-2003-R */
+%token  CURRENT_POS_SYM
 %token  CURSOR_SYM                    /* SQL-2003-R */
 %token  CURSOR_NAME_SYM               /* SQL-2003-N */
 %token  CURTIME                       /* MYSQL-FUNC */
@@ -1132,6 +1133,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  HAVING                        /* SQL-2003-R */
 %token  HELP_SYM
 %token  HEX_NUM
+%token  HEX_STRING
 %token  HIGH_PRIORITY
 %token  HOST_SYM
 %token  HOSTS_SYM
@@ -1205,7 +1207,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  LOW_PRIORITY
 %token  LT                            /* OPERATOR */
 %token  MASTER_CONNECT_RETRY_SYM
-%token  MASTER_USE_GTID_SYM
+%token  MASTER_GTID_POS_SYM
 %token  MASTER_HOST_SYM
 %token  MASTER_LOG_FILE_SYM
 %token  MASTER_LOG_POS_SYM
@@ -1223,6 +1225,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MASTER_SSL_VERIFY_SERVER_CERT_SYM
 %token  MASTER_SYM
 %token  MASTER_USER_SYM
+%token  MASTER_USE_GTID_SYM
 %token  MASTER_HEARTBEAT_PERIOD_SYM
 %token  MATCH                         /* SQL-2003-R */
 %token  MAX_CONNECTIONS_PER_HOUR
@@ -1406,6 +1409,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SIMPLE_SYM                    /* SQL-2003-N */
 %token  SLAVE
 %token  SLAVES
+%token  SLAVE_POS_SYM
 %token  SLOW
 %token  SMALLINT                      /* SQL-2003-R */
 %token  SNAPSHOT_SYM
@@ -1563,7 +1567,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %left  INTERVAL_SYM
 
 %type <lex_str>
-        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM HEX_NUM
+        IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
+        HEX_NUM HEX_STRING hex_num_or_string
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -2191,15 +2196,34 @@ master_file_def:
             /* Adjust if < BIN_LOG_HEADER_SIZE (same comment as Lex->mi.pos) */
             Lex->mi.relay_log_pos = max(BIN_LOG_HEADER_SIZE, Lex->mi.relay_log_pos);
           }
-        | MASTER_USE_GTID_SYM EQ ulong_num
+        | MASTER_USE_GTID_SYM EQ CURRENT_POS_SYM
           {
-            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
             {
               my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
               MYSQL_YYABORT;
             }
-            Lex->mi.use_gtid_opt= $3 ?
-              LEX_MASTER_INFO::LEX_MI_ENABLE : LEX_MASTER_INFO::LEX_MI_DISABLE;
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_CURRENT_POS;
+          }
+        ;
+        | MASTER_USE_GTID_SYM EQ SLAVE_POS_SYM
+          {
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
+            {
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
+              MYSQL_YYABORT;
+            }
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_SLAVE_POS;
+          }
+        ;
+        | MASTER_USE_GTID_SYM EQ NO_SYM
+          {
+            if (Lex->mi.use_gtid_opt != LEX_MASTER_INFO::LEX_GTID_UNCHANGED)
+            {
+              my_error(ER_DUP_ARGUMENT, MYF(0), "MASTER_use_gtid");
+              MYSQL_YYABORT;
+            }
+            Lex->mi.use_gtid_opt= LEX_MASTER_INFO::LEX_GTID_NO;
           }
         ;
 
@@ -4569,7 +4593,7 @@ partition:
         ;
 
 part_type_def:
-          opt_linear KEY_SYM '(' part_field_list ')'
+          opt_linear KEY_SYM opt_key_algo '(' part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
             part_info->list_of_part_fields= TRUE;
@@ -4593,6 +4617,25 @@ opt_linear:
           /* empty */ {}
         | LINEAR_SYM
           { Lex->part_info->linear_hash_ind= TRUE;}
+        ;
+
+opt_key_algo:
+          /* empty */
+          { Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_NONE;}
+        | ALGORITHM_SYM EQ real_ulong_num
+          {
+            switch ($3) {
+            case 1:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_51;
+              break;
+            case 2:
+              Lex->part_info->key_algorithm= partition_info::KEY_ALGORITHM_55;
+              break;
+            default:
+              my_parse_error(ER(ER_SYNTAX_ERROR));
+              MYSQL_YYABORT;
+            }
+          }
         ;
 
 part_field_list:
@@ -4676,7 +4719,7 @@ opt_sub_part:
         | SUBPARTITION_SYM BY opt_linear HASH_SYM sub_part_func
           { Lex->part_info->subpart_type= HASH_PARTITION; }
           opt_num_subparts {}
-        | SUBPARTITION_SYM BY opt_linear KEY_SYM
+        | SUBPARTITION_SYM BY opt_linear KEY_SYM opt_key_algo
           '(' sub_part_field_list ')'
           {
             partition_info *part_info= Lex->part_info;
@@ -6137,6 +6180,11 @@ now_or_signed_literal:
           { $$=$1; }
         ;
 
+hex_num_or_string:
+          HEX_NUM {}
+        | HEX_STRING {}
+        ;
+
 charset:
           CHAR_SYM SET {}
         | CHARSET {}
@@ -7377,6 +7425,10 @@ slave_until:
                           ER(ER_BAD_SLAVE_UNTIL_COND), MYF(0));
                MYSQL_YYABORT;
             }
+          }
+        | UNTIL_SYM MASTER_GTID_POS_SYM EQ TEXT_STRING_sys
+          {
+            Lex->mi.gtid_pos_str = $4;
           }
         ;
 
@@ -12612,13 +12664,21 @@ text_string:
           }
         | HEX_NUM
           {
-            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            Item *tmp= new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
               MYSQL_YYABORT;
             /*
               it is OK only emulate fix_fields, because we need only
               value of constant
             */
+            tmp->quick_fix_field();
+            $$= tmp->val_str((String*) 0);
+          }
+        | HEX_STRING
+          {
+            Item *tmp= new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
+            if (tmp == NULL)
+              MYSQL_YYABORT;
             tmp->quick_fix_field();
             $$= tmp->val_str((String*) 0);
           }
@@ -12691,6 +12751,12 @@ literal:
           }
         | HEX_NUM
           {
+            $$ = new (YYTHD->mem_root) Item_hex_hybrid($1.str, $1.length);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | HEX_STRING
+          {
             $$ = new (YYTHD->mem_root) Item_hex_string($1.str, $1.length);
             if ($$ == NULL)
               MYSQL_YYABORT;
@@ -12701,7 +12767,7 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET HEX_NUM
+        | UNDERSCORE_CHARSET hex_num_or_string
           {
             Item *tmp= new (YYTHD->mem_root) Item_hex_string($2.str, $2.length);
             if (tmp == NULL)
@@ -13257,7 +13323,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0))
               MYSQL_YYABORT;
           }
@@ -13272,7 +13338,7 @@ user:
             $$->auth= empty_lex_str;
 
             if (check_string_char_length(&$$->user, ER(ER_USERNAME),
-                                         USERNAME_CHAR_LENGTH,
+                                         username_char_length,
                                          system_charset_info, 0) ||
                 check_host_name(&$$->host))
               MYSQL_YYABORT;
@@ -13412,6 +13478,7 @@ keyword_sp:
         | CONSTRAINT_NAME_SYM      {}
         | CONTEXT_SYM              {}
         | CONTRIBUTORS_SYM         {}
+        | CURRENT_POS_SYM          {}
         | CPU_SYM                  {}
         | CUBE_SYM                 {}
         | CURSOR_NAME_SYM          {}
@@ -13489,12 +13556,13 @@ keyword_sp:
         | MAX_ROWS                 {}
         | MASTER_SYM               {}
         | MASTER_HEARTBEAT_PERIOD_SYM {}
-        | MASTER_USE_GTID_SYM      {}
+        | MASTER_GTID_POS_SYM      {}
         | MASTER_HOST_SYM          {}
         | MASTER_PORT_SYM          {}
         | MASTER_LOG_FILE_SYM      {}
         | MASTER_LOG_POS_SYM       {}
         | MASTER_USER_SYM          {}
+        | MASTER_USE_GTID_SYM      {}
         | MASTER_PASSWORD_SYM      {}
         | MASTER_SERVER_ID_SYM     {}
         | MASTER_CONNECT_RETRY_SYM {}
@@ -13599,6 +13667,7 @@ keyword_sp:
         | SIMPLE_SYM               {}
         | SHARE_SYM                {}
         | SHUTDOWN                 {}
+        | SLAVE_POS_SYM            {}
         | SLOW                     {}
         | SNAPSHOT_SYM             {}
         | SOFT_SYM                 {}

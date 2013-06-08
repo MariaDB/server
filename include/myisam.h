@@ -356,8 +356,10 @@ typedef struct st_mi_sort_param
   ulonglong notnull[HA_MAX_KEY_SEG+1];
 
   my_off_t pos,max_pos,filepos,start_recpos;
-  uint key, key_length,real_key_length,sortbuff_size;
-  uint maxbuffers, keys, find_length, sort_keys_length;
+  uint key, key_length,real_key_length;
+  uint maxbuffers, find_length;
+  ulonglong sortbuff_size;
+  ha_rows keys;
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
 
@@ -366,10 +368,10 @@ typedef struct st_mi_sort_param
   int (*key_write)(struct st_mi_sort_param *, const void *);
   void (*lock_in_memory)(HA_CHECK *);
   int (*write_keys)(struct st_mi_sort_param *, register uchar **,
-                    uint , struct st_buffpek *, IO_CACHE *);
-  uint (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
+                    ulonglong , struct st_buffpek *, IO_CACHE *);
+  my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_mi_sort_param *, IO_CACHE *,uchar *,
-                   uint, uint);
+                   uint, ulonglong);
 } MI_SORT_PARAM;
 
 /* functions in mi_check */

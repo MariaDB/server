@@ -255,7 +255,7 @@ extern PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats, key_LOCK_wakeup_ready;
 
-extern PSI_mutex_key key_LOCK_gtid_counter, key_LOCK_rpl_gtid_state;
+extern PSI_mutex_key key_LOCK_rpl_gtid_state;
 
 extern PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
   key_rwlock_LOCK_sys_init_connect, key_rwlock_LOCK_sys_init_slave,
@@ -285,7 +285,7 @@ extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
-  key_thread_one_connection, key_thread_signal_hand;
+  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,
@@ -476,7 +476,7 @@ extern mysql_mutex_t
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
        LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
-extern mysql_mutex_t LOCK_gtid_counter, LOCK_rpl_gtid_state;
+extern mysql_mutex_t LOCK_rpl_gtid_state;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -677,6 +677,7 @@ extern handlerton *maria_hton;
 
 extern uint extra_connection_count;
 extern uint64 global_gtid_counter;
+extern my_bool opt_gtid_strict_mode;
 extern my_bool opt_userstat_running, debug_assert_if_crashed_table;
 extern uint mysqld_extra_port;
 extern ulong opt_progress_report_time;

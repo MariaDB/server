@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
@@ -1561,6 +1561,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
                                                        MODE_MYSQL323 |
                                                        MODE_MYSQL40)) != 0;
   my_bitmap_map *old_map;
+  int error= 0;
   DBUG_ENTER("store_create_info");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
 
@@ -1924,28 +1925,35 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
-    /*
-      Partition syntax for CREATE TABLE is at the end of the syntax.
-    */
-    uint part_syntax_len;
-    char *part_syntax;
     if (table->part_info &&
-        (!table->part_info->is_auto_partitioned) &&
-        ((part_syntax= generate_partition_syntax(table->part_info,
+        !((table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION) &&
+          table->part_info->is_auto_partitioned))
+    {
+      /*
+        Partition syntax for CREATE TABLE is at the end of the syntax.
+      */
+      uint part_syntax_len;
+      char *part_syntax;
+      String comment_start;
+      table->part_info->set_show_version_string(&comment_start);
+      if ((part_syntax= generate_partition_syntax(table->part_info,
                                                   &part_syntax_len,
                                                   FALSE,
                                                   show_table_options,
-                                                  NULL, NULL))))
-    {
-       table->part_info->set_show_version_string(packet);
-       packet->append(part_syntax, part_syntax_len);
-       packet->append(STRING_WITH_LEN(" */"));
-       my_free(part_syntax);
+                                                  NULL, NULL,
+                                                  comment_start.c_ptr())))
+      {
+         packet->append(comment_start);
+         if (packet->append(part_syntax, part_syntax_len) ||
+             packet->append(STRING_WITH_LEN(" */")))
+          error= 1;
+         my_free(part_syntax);
+      }
     }
   }
 #endif
   tmp_restore_column_map(table->read_set, old_map);
-  DBUG_RETURN(0);
+  DBUG_RETURN(error);
 }
 
 
@@ -2185,7 +2193,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   DBUG_ENTER("mysqld_list_processes");
 
   field_list.push_back(new Item_int("Id", 0, MY_INT32_NUM_DECIMAL_DIGITS));
-  field_list.push_back(new Item_empty_string("User",16));
+  field_list.push_back(new Item_empty_string("User", USERNAME_CHAR_LENGTH));
   field_list.push_back(new Item_empty_string("Host",LIST_PROCESS_HOST_LEN));
   field_list.push_back(field=new Item_empty_string("db",NAME_CHAR_LEN));
   field->maybe_null=1;
@@ -5977,8 +5985,8 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           KEY *key=show_table->key_info+i;
           if (key->rec_per_key[j])
           {
-            ha_rows records=((double) show_table->stat_records() /
-                             key->actual_rec_per_key(j));
+            ha_rows records= (ha_rows) ((double) show_table->stat_records() /
+                                        key->actual_rec_per_key(j));
             table->field[9]->store((longlong) records, TRUE);
             table->field[9]->set_notnull();
           }
@@ -7251,7 +7259,7 @@ struct schema_table_ref
 
 ST_FIELD_INFO user_stats_fields_info[]=
 {
-  {"USER", USERNAME_LENGTH, MYSQL_TYPE_STRING, 0, 0, "User", SKIP_OPEN_TABLE},
+  {"USER", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "User", SKIP_OPEN_TABLE},
   {"TOTAL_CONNECTIONS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Total_connections",SKIP_OPEN_TABLE},
   {"CONCURRENT_CONNECTIONS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Concurrent_connections",SKIP_OPEN_TABLE},
   {"CONNECTED_TIME", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Connected_time",SKIP_OPEN_TABLE},
@@ -8622,7 +8630,8 @@ ST_FIELD_INFO variables_fields_info[]=
 ST_FIELD_INFO processlist_fields_info[]=
 {
   {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Id", SKIP_OPEN_TABLE},
-  {"USER", 16, MYSQL_TYPE_STRING, 0, 0, "User", SKIP_OPEN_TABLE},
+  {"USER", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "User",
+   SKIP_OPEN_TABLE},
   {"HOST", LIST_PROCESS_HOST_LEN,  MYSQL_TYPE_STRING, 0, 0, "Host",
    SKIP_OPEN_TABLE},
   {"DB", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 1, "Db", SKIP_OPEN_TABLE},

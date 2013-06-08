@@ -94,9 +94,10 @@ typedef struct st_maria_sort_param
   */
   ulonglong unique[HA_MAX_KEY_SEG+1];
   ulonglong notnull[HA_MAX_KEY_SEG+1];
+  ulonglong sortbuff_size;
 
   MARIA_RECORD_POS pos,max_pos,filepos,start_recpos, current_filepos;
-  uint key, key_length,real_key_length,sortbuff_size;
+  uint key, key_length,real_key_length;
   uint maxbuffers, keys, find_length, sort_keys_length;
   my_bool fix_datafile, master;
   my_bool calc_checksum;                /* calculate table checksum */
@@ -107,10 +108,10 @@ typedef struct st_maria_sort_param
   int (*key_write)(struct st_maria_sort_param *, const uchar *);
   void (*lock_in_memory)(HA_CHECK *);
   int (*write_keys)(struct st_maria_sort_param *, register uchar **,
-                         uint , struct st_buffpek *, IO_CACHE *);
-  uint (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
+                         ulonglong , struct st_buffpek *, IO_CACHE *);
+  my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_maria_sort_param *, IO_CACHE *,uchar *,
-                   uint, uint);
+                   uint, ulonglong);
 } MARIA_SORT_PARAM;
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile);
@@ -388,7 +389,7 @@ typedef struct st_maria_share
   /* End scan */
   void (*scan_end)(MARIA_HA *);
   int (*scan_remember_pos)(MARIA_HA *, MARIA_RECORD_POS*);
-  void (*scan_restore_pos)(MARIA_HA *, MARIA_RECORD_POS);
+  int (*scan_restore_pos)(MARIA_HA *, MARIA_RECORD_POS);
   /* Pre-write of row (some handlers may do the actual write here) */
   MARIA_RECORD_POS (*write_record_init)(MARIA_HA *, const uchar *);
   /* Write record (or accept write_record_init) */
@@ -563,6 +564,7 @@ typedef struct st_maria_block_scan
   ulonglong bits;
   uint number_of_rows, bit_pos;
   MARIA_RECORD_POS row_base_page;
+  ulonglong row_changes;
 } MARIA_BLOCK_SCAN;
 
 //typedef ICP_RESULT (*index_cond_func_t)(void *param);
@@ -605,6 +607,7 @@ struct st_maria_handler
   int (*read_record)(MARIA_HA *, uchar*, MARIA_RECORD_POS);
   invalidator_by_filename invalidator;	/* query cache invalidator */
   ulonglong last_auto_increment;        /* auto value at start of statement */
+  ulonglong row_changes;                /* Incremented for each change */
   ulong this_unique;			/* uniq filenumber or thread */
   ulong last_unique;			/* last unique number */
   ulong this_loop;			/* counter for this open */
@@ -1225,10 +1228,11 @@ typedef struct st_maria_block_info
 #define UPDATE_AUTO_INC		8
 #define UPDATE_OPEN_COUNT	16
 
-#define USE_BUFFER_INIT		(((1024L*1024L*128-MALLOC_OVERHEAD)/8192)*8192)
-#define READ_BUFFER_INIT	(1024L*256L-MALLOC_OVERHEAD)
-#define SORT_BUFFER_INIT	(1024L*1024L*256-MALLOC_OVERHEAD)
-#define MIN_SORT_BUFFER		(4096-MALLOC_OVERHEAD)
+/* We use MY_ALIGN_DOWN here mainly to ensure that we get stable values for mysqld --help ) */
+#define PAGE_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 8192)
+#define READ_BUFFER_INIT	MY_ALIGN_DOWN(1024L*256L-MALLOC_OVERHEAD, 1024)
+#define SORT_BUFFER_INIT	MY_ALIGN_DOWN(1024L*1024L*256L-MALLOC_OVERHEAD, 1024)
+#define MIN_SORT_BUFFER		4096
 
 #define fast_ma_writeinfo(INFO) if (!(INFO)->s->tot_locks) (void) _ma_writeinfo((INFO),0)
 #define fast_ma_readinfo(INFO) ((INFO)->lock_type == F_UNLCK) && _ma_readinfo((INFO),F_RDLCK,1)
@@ -1297,7 +1301,7 @@ my_bool _ma_check_status(void *param);
 void _ma_restore_status(void *param);
 void _ma_reset_status(MARIA_HA *maria);
 int _ma_def_scan_remember_pos(MARIA_HA *info, MARIA_RECORD_POS *lastpos);
-void _ma_def_scan_restore_pos(MARIA_HA *info, MARIA_RECORD_POS lastpos);
+int _ma_def_scan_restore_pos(MARIA_HA *info, MARIA_RECORD_POS lastpos);
 
 #include "ma_commit.h"
 

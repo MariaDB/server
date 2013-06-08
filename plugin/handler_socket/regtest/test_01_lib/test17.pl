@@ -60,7 +60,7 @@ sub test_one {
   $dbh->do(
     "create table $table (" .
     "k $typ, " .
-    "v1 varchar(2047), " .
+    "v1 varchar(1000), " .
     "v2 $typ, " .
     "primary key(k$keylen_str), " .
     "index i1(v1), index i2(v2$keylen_str, v1(300))) " .

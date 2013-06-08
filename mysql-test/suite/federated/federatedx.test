@@ -1999,4 +1999,5 @@ connection slave;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
 
 connection default;
+
 source include/federated_cleanup.inc;

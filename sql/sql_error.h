@@ -197,6 +197,17 @@ public:
   ~MYSQL_ERROR()
   {}
 
+  /** check if condition was handled by a condition handler */
+  bool handled() const
+  {
+    return m_handled;
+  }
+  /** mark that condition was handled */
+  void mark_handled()
+  {
+    m_handled= 1;
+  }
+
 private:
   /*
     The interface of MYSQL_ERROR is mostly private, by design,
@@ -309,6 +320,9 @@ private:
 
   /** MySQL extension, MYSQL_ERRNO condition item. */
   uint m_sql_errno;
+
+  /** Marker if error/warning was handled by a continue handler */
+  bool m_handled;
 
   /**
     SQL RETURNED_SQLSTATE condition item.

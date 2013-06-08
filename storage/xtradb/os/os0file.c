@@ -1475,7 +1475,8 @@ static int os_file_set_atomic_writes(os_file_t file, const char *name)
 	return ret;
 }
 #else 
-static int os_file_set_atomic_writes(os_file_t file, const char *name) 
+static int os_file_set_atomic_writes(os_file_t file __attribute__ ((unused)),
+                                     const char *name) 
 {
 	fprintf(stderr,
 	"InnoDB : can't use atomic writes on %s - not implemented on this platform."

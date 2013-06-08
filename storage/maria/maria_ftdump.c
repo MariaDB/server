@@ -84,7 +84,7 @@ int main(int argc,char *argv[])
       usage();
   }
 
-  init_pagecache(maria_pagecache, USE_BUFFER_INIT, 0, 0,
+  init_pagecache(maria_pagecache, PAGE_BUFFER_INIT, 0, 0,
                  MARIA_KEY_BLOCK_LENGTH, MY_WME);
 
   if (!(info=maria_open(argv[0], O_RDONLY,

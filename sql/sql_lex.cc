@@ -1423,7 +1423,7 @@ int lex_one_token(void *arg, void *yythd)
       yylval->lex_str=get_token(lip,
                                 2,          // skip x'
                                 length-3);  // don't count x' and last '
-      return (HEX_NUM);
+      return HEX_STRING;
 
     case MY_LEX_BIN_NUMBER:           // Found b'bin-string'
       lip->yySkip();                  // Accept opening '
@@ -1939,6 +1939,7 @@ void st_select_lex::init_select()
   merged_into= 0;
   m_non_agg_field_used= false;
   m_agg_func_used= false;
+  name_visibility_map= 0;
 }
 
 /*
