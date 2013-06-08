@@ -848,6 +848,7 @@ long long spider_copy_tables_body(
   spider_db_copy_table *select_ct, *insert_ct;
   MEM_ROOT mem_root;
   longlong bulk_insert_rows;
+  Reprepare_observer *reprepare_observer_backup;
   DBUG_ENTER("spider_copy_tables_body");
   if (
     thd->open_tables != 0 ||
@@ -986,6 +987,8 @@ long long spider_copy_tables_body(
   DBUG_PRINT("info",("spider table_name=%s", table_list->table_name));
   DBUG_PRINT("info",("spider table_name_length=%zd",
     table_list->table_name_length));
+  reprepare_observer_backup = thd->m_reprepare_observer;
+  thd->m_reprepare_observer = NULL;
 #if MYSQL_VERSION_ID < 50500
   if (open_and_lock_tables(thd, table_list))
 #else
@@ -999,11 +1002,13 @@ long long spider_copy_tables_body(
   if (open_and_lock_tables(thd, table_list, FALSE, 0))
 #endif
   {
+    thd->m_reprepare_observer = reprepare_observer_backup;
     my_printf_error(ER_SPIDER_UDF_CANT_OPEN_TABLE_NUM,
       ER_SPIDER_UDF_CANT_OPEN_TABLE_STR, MYF(0), table_list->db,
       table_list->table_name);
     goto error;
   }
+  thd->m_reprepare_observer = reprepare_observer_backup;
 
   table = table_list->table;
   table_share = table->s;
