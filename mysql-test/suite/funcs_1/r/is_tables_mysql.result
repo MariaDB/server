@@ -171,7 +171,7 @@ TABLE_COLLATION	latin1_swedish_ci
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
-user_comment	Replication slave GTID state
+user_comment	Replication slave GTID position
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
 TABLE_SCHEMA	mysql
