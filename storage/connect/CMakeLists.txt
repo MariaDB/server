@@ -288,10 +288,10 @@ ENDIF(INSTALL_SYSCONFDIR)
 
 IF(RPM)
   SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} connect-engine PARENT_SCOPE)
-  SET(CPACK_RPM_connect_engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
 
   # workarounds for cmake issues #13248 and #12864:
-  SET(CPACK_RPM_connect_engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
-  SET(CPACK_RPM_connect_engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
-  SET(CPACK_RPM_connect_engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+  SET(CPACK_RPM_connect-engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
 ENDIF(RPM)
