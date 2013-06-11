@@ -4027,6 +4027,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif flags
 
+    if (fp->flags & (BLOB_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG)) {
+      sprintf(g->Message, "Unsupported type for column %s",
+                          fp->field_name);
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      rc= HA_ERR_INTERNAL_ERROR;
+      DBUG_RETURN(rc);
+      } // endif flags
+
     switch (fp->type()) {
       case MYSQL_TYPE_SHORT:
       case MYSQL_TYPE_LONG:
