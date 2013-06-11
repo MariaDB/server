@@ -1936,6 +1936,43 @@ SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EX
 
 drop table t1;
 
+--echo #
+--echo # MDEV-4612 SQ pushdown: Server crashes in make_join_statistics with
+--echo # materialization+semijoin, IN subqueries, constant table, impossible condition
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0),(8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (7);
+
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2 
+WHERE outer_t1.a = b AND outer_t1.a IN ( 
+  SELECT c FROM t1 AS inner_t1, t3 
+  WHERE (inner_t1.a = 7 AND inner_t1.a != outer_t1.a) OR
+        (2) IN (SELECT a FROM t1 WHERE 0));
+
+SELECT * FROM t1 AS outer_t1, t2 
+WHERE outer_t1.a = b AND outer_t1.a IN ( 
+  SELECT c FROM t1 AS inner_t1, t3 
+  WHERE (inner_t1.a = 7 AND inner_t1.a != outer_t1.a) OR
+        (2) IN (SELECT a FROM t1 WHERE 0));
+
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2
+WHERE a = b AND 
+      a IN (SELECT c FROM t1 AS inner_t1, t3
+            WHERE inner_t1.a = 7 OR 2 IN (SELECT a FROM t1 WHERE 0));
+SELECT * FROM t1, t2
+WHERE a = b AND 
+      a IN (SELECT c FROM t1 AS inner_t1, t3
+            WHERE inner_t1.a = 7 OR 2 IN (SELECT a FROM t1 WHERE 0));
+
+drop table t1,t2,t3;
+
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;
 SET use_stat_tables=default;

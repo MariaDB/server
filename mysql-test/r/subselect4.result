@@ -2416,6 +2416,53 @@ SELECT * FROM t1 AS outer_t1 WHERE b IN ( SELECT a FROM t1 WHERE b != 1 ) AND EX
 a	b
 2	2
 drop table t1;
+#
+# MDEV-4612 SQ pushdown: Server crashes in make_join_statistics with
+# materialization+semijoin, IN subqueries, constant table, impossible condition
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0),(8);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (0),(8);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (7);
+EXPLAIN EXTENDED
+SELECT * FROM t1 AS outer_t1, t2 
+WHERE outer_t1.a = b AND outer_t1.a IN ( 
+SELECT c FROM t1 AS inner_t1, t3 
+WHERE (inner_t1.a = 7 AND inner_t1.a != outer_t1.a) OR
+(2) IN (SELECT a FROM t1 WHERE 0));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1276	Field or reference 'test.outer_t1.a' of SELECT #2 was resolved in SELECT #1
+Note	1003	select `test`.`outer_t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` `outer_t1` semi join (`test`.`t1` `inner_t1`) join `test`.`t2` where ((`test`.`outer_t1`.`a` = 7) and (`test`.`t2`.`b` = 7) and (`test`.`inner_t1`.`a` = 7) and 0)
+SELECT * FROM t1 AS outer_t1, t2 
+WHERE outer_t1.a = b AND outer_t1.a IN ( 
+SELECT c FROM t1 AS inner_t1, t3 
+WHERE (inner_t1.a = 7 AND inner_t1.a != outer_t1.a) OR
+(2) IN (SELECT a FROM t1 WHERE 0));
+a	b
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2
+WHERE a = b AND 
+a IN (SELECT c FROM t1 AS inner_t1, t3
+WHERE inner_t1.a = 7 OR 2 IN (SELECT a FROM t1 WHERE 0));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	inner_t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` semi join (`test`.`t1` `inner_t1`) join `test`.`t2` where ((`test`.`t1`.`a` = 7) and (`test`.`t2`.`b` = 7) and (`test`.`inner_t1`.`a` = 7))
+SELECT * FROM t1, t2
+WHERE a = b AND 
+a IN (SELECT c FROM t1 AS inner_t1, t3
+WHERE inner_t1.a = 7 OR 2 IN (SELECT a FROM t1 WHERE 0));
+a	b
+drop table t1,t2,t3;
 SET optimizer_switch=@@global.optimizer_switch;
 SET optimizer_use_condition_selectivity=default;
 SET use_stat_tables=default;

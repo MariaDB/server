@@ -5347,7 +5347,7 @@ int subselect_hash_sj_engine::exec()
   materialize_join->exec();
   if ((res= test(materialize_join->error || thd->is_fatal_error ||
                  thd->is_error())))
-    goto err;
+    goto end;
 
   /*
     TODO:
@@ -5372,7 +5372,8 @@ int subselect_hash_sj_engine::exec()
     item_in->reset();
     item_in->make_const();
     item_in->set_first_execution();
-    DBUG_RETURN(FALSE);
+    res= 0;
+    goto end;
   }
 
   /*
@@ -5415,7 +5416,8 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
-      DBUG_RETURN(FALSE);
+      res= 0;
+      goto end;
     }
 
     if (has_covering_null_row)
@@ -5473,7 +5475,7 @@ int subselect_hash_sj_engine::exec()
       {
         /* This is an irrecoverable error. */
         res= 1;
-        goto err;
+        goto end;
       }
     }
   }
@@ -5482,7 +5484,7 @@ int subselect_hash_sj_engine::exec()
     lookup_engine= pm_engine;
   item_in->change_engine(lookup_engine);
 
-err:
+end:
   thd->lex->current_select= save_select;
   DBUG_RETURN(res);
 }
