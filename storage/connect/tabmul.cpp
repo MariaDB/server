@@ -125,15 +125,13 @@ PTDB TDBMUL::Duplicate(PGLOBAL g)
 bool TDBMUL::InitFileNames(PGLOBAL g)
   {
 #define PFNZ  4096
-  char *pfn[PFNZ]/*, filename[_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT]*/;
-//  char* *pfn;
-  char  *filename;
-  int    rc, n = 0;
+  char *pfn[PFNZ];
+  char *filename;
+  int   rc, n = 0;
 
   if (trace)
     htrc("in InitFileName: fn[]=%d\n", _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT);
 
-//  pfn = (char**)PlugSubAlloc(g, NULL, PFNZ * sizeof(char*));
   filename = (char*)PlugSubAlloc(g, NULL, _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT);
 
   // The sub table may need to refer to the Table original block
