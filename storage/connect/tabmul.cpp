@@ -124,11 +124,17 @@ PTDB TDBMUL::Duplicate(PGLOBAL g)
 /***********************************************************************/
 bool TDBMUL::InitFileNames(PGLOBAL g)
   {
-#define PFNZ  8192
-  char* *pfn, filename[_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT];
+#define PFNZ  4096
+  char *pfn[PFNZ]/*, filename[_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT]*/;
+//  char* *pfn;
+  char  *filename;
   int    rc, n = 0;
 
-  pfn = (char**)PlugSubAlloc(g, NULL, PFNZ * sizeof(char*));
+  if (trace)
+    htrc("in InitFileName: fn[]=%d\n", _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT);
+
+//  pfn = (char**)PlugSubAlloc(g, NULL, PFNZ * sizeof(char*));
+  filename = (char*)PlugSubAlloc(g, NULL, _MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT);
 
   // The sub table may need to refer to the Table original block
   Tdbp->SetTable(To_Table);         // Was not set at construction
@@ -388,12 +394,12 @@ int TDBMUL::Cardinality(PGLOBAL g)
 int TDBMUL::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-    int  i;
+    int i;
     int mxsz;
 
     if (trace)
       htrc("TDBMUL::GetMaxSize: Filenames=%p\n", Filenames);
-
+    
     if (!Filenames && InitFileNames(g))
       return -1;
 
@@ -477,7 +483,7 @@ bool TDBMUL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Open the first table file of the list.                           */
   /*********************************************************************/
-//if (!Filenames && InitFileNames(g))     done in GetMaxSize
+//if (!Filenames && InitFileNames(g))     // was done in GetMaxSize
 //  return true;
 
   if (Filenames[iFile = 0]) {
