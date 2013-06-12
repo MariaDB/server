@@ -391,6 +391,9 @@ int TDBMUL::GetMaxSize(PGLOBAL g)
     int  i;
     int mxsz;
 
+    if (trace)
+      htrc("TDBMUL::GetMaxSize: Filenames=%p\n", Filenames);
+
     if (!Filenames && InitFileNames(g))
       return -1;
 
