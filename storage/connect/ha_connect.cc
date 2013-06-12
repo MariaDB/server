@@ -2920,8 +2920,17 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
       } // endelse Xchk
 
-    if (CloseTable(g))
+    if (CloseTable(g)) {
+      // This is an error while builing index
+#if defined(_DEBUG)
+      // Make it a warning to avoid crash
+      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, 0, g->Message);
+      rc= 0;
+#else   // !_DEBUG
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       rc= HA_ERR_INTERNAL_ERROR;
+#endif  // !DEBUG
+      } // endif Close
 
     DBUG_RETURN(rc);
     } // endif MODE_ANY
