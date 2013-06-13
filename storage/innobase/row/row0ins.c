@@ -1077,19 +1077,21 @@ row_ins_foreign_check_on_constraint(
 
 	cascade->state = UPD_NODE_UPDATE_CLUSTERED;
 
+#ifdef WITH_WSREP
+	err = wsrep_append_foreign_key(
+				       thr_get_trx(thr),
+				       foreign,
+				       clust_rec, 
+				       clust_index,
+				       FALSE, FALSE);
+	if (err != DB_SUCCESS) {
+		fprintf(stderr, 
+			"WSREP: foreign key append failed: %lu\n", err);
+	} else
+#endif
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
-#ifdef WITH_WSREP
-	if (err == DB_SUCCESS) {
-		err = wsrep_append_foreign_key(
-			thr_get_trx(thr),
-			foreign,
-			clust_rec, 
-			clust_index,
-			FALSE, FALSE);
-	}
-#endif /* WITH_WSREP */
 	if (foreign->foreign_table->n_foreign_key_checks_running == 0) {
 		fprintf(stderr,
 			"InnoDB: error: table %s has the counter 0"

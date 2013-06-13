@@ -174,13 +174,47 @@ func_exit:
 }
 
 #ifdef WITH_WSREP
-ulint wsrep_append_foreign_key(trx_t *trx,  
-			       dict_foreign_t*	foreign,
-			       const rec_t*	clust_rec,
-			       dict_index_t*	clust_index,
-			       ibool		referenced,
-			       ibool            shared);
+static
+ibool
+wsrep_row_upd_index_is_foreign(
+/*========================*/
+	dict_index_t*	index,	/*!< in: index */
+	trx_t*		trx)	/*!< in: transaction */
+{
+	dict_table_t*	table		= index->table;
+	dict_foreign_t*	foreign;
+	ibool		froze_data_dict	= FALSE;
+	ibool		is_referenced	= FALSE;
 
+	if (!UT_LIST_GET_FIRST(table->foreign_list)) {
+
+		return(FALSE);
+	}
+
+	if (trx->dict_operation_lock_mode == 0) {
+		row_mysql_freeze_data_dictionary(trx);
+		froze_data_dict = TRUE;
+	}
+
+	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+
+	while (foreign) {
+		if (foreign->foreign_index == index) {
+
+			is_referenced = TRUE;
+			goto func_exit;
+		}
+
+		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+	}
+
+func_exit:
+	if (froze_data_dict) {
+		row_mysql_unfreeze_data_dictionary(trx);
+	}
+
+	return(is_referenced);
+}
 #endif /* WITH_WSREP */
 
 /*********************************************************************//**
@@ -1757,6 +1791,9 @@ row_upd_sec_index_entry(
 		if (!rec_get_deleted_flag(
 			rec, dict_table_is_comp(index->table))) {
 
+#ifdef WITH_WSREP
+			que_node_t *parent = que_node_get_parent(node);
+#endif /* WITH_WSREP */
 			err = btr_cur_del_mark_set_sec_rec(
 				0, btr_cur, TRUE, thr, &mtr);
 
@@ -1775,7 +1812,11 @@ row_upd_sec_index_entry(
 					index, offsets, thr, &mtr);
 			}
 #ifdef WITH_WSREP
-			if (err == DB_SUCCESS && !referenced) {
+			if (err == DB_SUCCESS && !referenced                         &&
+			    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+			      ((upd_node_t*)parent)->cascade_node == node)           &&
+			    wsrep_row_upd_index_is_foreign(index, trx)
+			) {
 				ulint*	offsets =
 					rec_get_offsets(
 							rec, index, NULL, ULINT_UNDEFINED,
@@ -1966,6 +2007,9 @@ row_upd_clust_rec_by_insert(
 	rec_t*		rec;
 	ulint*		offsets			= NULL;
 
+#ifdef WITH_WSREP
+	que_node_t *parent = que_node_get_parent(node);
+#endif /* WITH_WSREP */
 	ut_ad(node);
 	ut_ad(dict_index_is_clust(index));
 
@@ -2043,7 +2087,11 @@ err_exit:
 			}
 		}
 #ifdef WITH_WSREP
-		if (!referenced) {
+		if (!referenced                                              &&
+		    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+		      ((upd_node_t*)parent)->cascade_node == node)           &&
+		    wsrep_row_upd_index_is_foreign(index, trx)
+		) {
 			err = wsrep_row_upd_check_foreign_constraints(
 				node, pcur, table, index, offsets, thr, mtr);
 			switch (err) {
@@ -2270,6 +2318,7 @@ row_upd_del_mark_clust_rec(
 	ulint		err;
 #ifdef WITH_WSREP
 	rec_t*		rec;
+	que_node_t *parent = que_node_get_parent(node);
 #endif /* WITH_WSREP */
 
 	ut_ad(node);
@@ -2305,7 +2354,12 @@ row_upd_del_mark_clust_rec(
 			node, pcur, index->table, index, offsets, thr, mtr);
 	}
 #ifdef WITH_WSREP
-	if (err == DB_SUCCESS && !referenced) {
+	if (err == DB_SUCCESS && !referenced                         &&
+	    !(parent && que_node_get_type(parent) == QUE_NODE_UPDATE &&
+	      ((upd_node_t*)parent)->cascade_node == node)           &&
+	    thr_get_trx(thr)                                         &&
+	    wsrep_row_upd_index_is_foreign(index, thr_get_trx(thr))
+	) {
 		err = wsrep_row_upd_check_foreign_constraints(
 			node, pcur, index->table, index, offsets, thr, mtr);
 		switch (err) {
