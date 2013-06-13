@@ -566,6 +566,22 @@ We must remember this limit in order to keep file compatibility. */
 //#if UNIV_PAGE_SIZE < 4096
 //# error "UNIV_PAGE_SIZE < 4096"
 //#endif
+
+ 
+/* The offset to WSREP XID headers */
+#ifdef WITH_WSREP
+#define TRX_SYS_WSREP_XID_INFO (UNIV_PAGE_SIZE - 3500)
+#define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
+#define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
+
+/* XID field: formatID, gtrid_len, bqual_len, xid_data */
+#define TRX_SYS_WSREP_XID_LEN        (4 + 4 + 4 + XIDDATASIZE)
+#define TRX_SYS_WSREP_XID_FORMAT     4
+#define TRX_SYS_WSREP_XID_GTRID_LEN  8
+#define TRX_SYS_WSREP_XID_BQUAL_LEN 12
+#define TRX_SYS_WSREP_XID_DATA      16
+#endif /* WITH_WSREP*/
+
 /** The offset of the MySQL replication info in the trx system header;
 this contains the same fields as TRX_SYS_MYSQL_LOG_INFO below.  These are
 written at prepare time and are the main copy. */
@@ -588,22 +604,6 @@ crash recovery rollbacks a PREPAREd transaction, they are copied back. */
 #define TRX_SYS_MYSQL_LOG_OFFSET_LOW	8	/*!< low 4 bytes of the offset
 						within that file */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
-
-#ifdef WITH_WSREP
-/* We hijack TRX_SYS_MYSQL_MASTER_LOG_INFO, it seems to be completely unused
-   otherwise (see comments for MySQL bug #34058). */
-/** */
-#define TRX_SYS_WSREP_XID_INFO TRX_SYS_MYSQL_MASTER_LOG_INFO
-#define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
-#define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
-
-/* XID field: formatID, gtrid_len, bqual_len, xid_data */
-#define TRX_SYS_WSREP_XID_LEN        (4 + 4 + 4 + XIDDATASIZE)
-#define TRX_SYS_WSREP_XID_FORMAT     4
-#define TRX_SYS_WSREP_XID_GTRID_LEN  8
-#define TRX_SYS_WSREP_XID_BQUAL_LEN 12
-#define TRX_SYS_WSREP_XID_DATA      16
-#endif /* WITH_WSREP*/
 
 /** Doublewrite buffer */
 /* @{ */
