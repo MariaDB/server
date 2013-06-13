@@ -2602,23 +2602,6 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
   ev->thd = thd; // because up to this point, ev->thd == 0
 
   int reason= ev->shall_skip(rli);
-#ifdef WITH_WSREP
-  if (WSREP_ON && (ev->get_type_code() == XID_EVENT ||
-      (ev->get_type_code() == QUERY_EVENT && thd->wsrep_mysql_replicated > 0 &&
-       (!strncasecmp(((Query_log_event*)ev)->query , "BEGIN", 5) ||
-        !strncasecmp(((Query_log_event*)ev)->query , "COMMIT", 6) ))))
-  {
-    if (++thd->wsrep_mysql_replicated < (int)wsrep_mysql_replication_bundle)
-    {
-      WSREP_DEBUG("skipping wsrep commit %d", thd->wsrep_mysql_replicated);
-      reason = Log_event::EVENT_SKIP_IGNORE;
-    }
-    else
-    {
-      thd->wsrep_mysql_replicated = 0;
-    }
-  }
-#endif
   if (reason == Log_event::EVENT_SKIP_COUNT)
     sql_slave_skip_counter= --rli->slave_skip_counter;
   mysql_mutex_unlock(&rli->data_lock);
