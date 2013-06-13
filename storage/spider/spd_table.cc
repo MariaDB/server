@@ -7810,8 +7810,13 @@ int spider_discover_table_structure(
     {
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
+#ifdef SPIDER_GENERATE_PARTITION_SYNTAX_HAS_CURRENT_COMMENT_START
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL, NULL)))
+#else
+    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
+      FALSE, TRUE, info, NULL)))
+#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
