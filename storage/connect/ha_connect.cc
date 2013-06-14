@@ -4036,7 +4036,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif flags
 
-    if (fp->flags & (BLOB_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG)) {
+    if (fp->flags & (BLOB_FLAG | ENUM_FLAG | SET_FLAG)) {
       sprintf(g->Message, "Unsupported type for column %s",
                           fp->field_name);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
