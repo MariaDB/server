@@ -406,7 +406,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
         open_error= open_and_lock_tables(thd, table, TRUE, 0);
 
-        da->pop_warning_info(&tmp_wi);
+        da->pop_warning_info();
       }
       else
       {
