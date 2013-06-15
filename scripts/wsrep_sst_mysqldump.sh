@@ -117,5 +117,5 @@ else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
 fi
-
+wsrep_cleanup_progress_file
 #

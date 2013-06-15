@@ -33,6 +33,9 @@ cleanup_joiner()
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
     wsrep_log_info "Joiner cleanup done."
+    if [ "${WSREP_SST_OPT_ROLE}" = "joiner" ];then
+        wsrep_cleanup_progress_file
+    fi
 }
 
 check_pid()
@@ -89,11 +92,13 @@ then
         #         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
 
         # New filter - exclude everything except dirs (schemas) and innodb files
-        FILTER=(-f '- lost+found' -f '+ /ibdata*' -f '+ /ib_logfile*' -f '+ */' -f '-! */*')
+        FILTER=(-f '- lost+found' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /ib_logfile*' -f '+ */' -f '-! */*')
 
+        # first, the normal directories, so that we can detect incompatible protocol
         RC=0
         rsync --archive --no-times --ignore-times --inplace --delete --quiet \
-              $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA" \
+              --no-recursive --dirs \
+              $WHOLE_FILE_OPT "${FILTER[@]}" "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR || RC=$?
 
         [ $RC -ne 0 ] && wsrep_log_error "rsync returned code $RC:"
@@ -114,6 +119,30 @@ then
 
         [ $RC -ne 0 ] && exit $RC
 
+        # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
+        pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
+
+        count=$(grep -c processor /proc/cpuinfo)
+
+        find . -maxdepth 1 -mindepth 1 -type d -print0 | xargs -i -0 -P $count \
+           rsync --archive --no-times --ignore-times --inplace --delete --quiet \
+              $WHOLE_FILE_OPT "$WSREP_SST_OPT_DATA"/{}/ \
+              rsync://$WSREP_SST_OPT_ADDR/{} || RC=$?
+
+        popd 1>/dev/null
+
+        [ $RC -ne 0 ] && wsrep_log_error "find/rsync returned code $RC:"
+
+        case $RC in
+        0)  RC=0   # Success
+            ;;
+        *)  RC=255 # unknown error
+            ;;
+        esac
+
+        [ $RC -ne 0 ] && exit $RC
+
+
     else # BYPASS
         wsrep_log_info "Bypassing state dump."
         STATE="$WSREP_SST_OPT_GTID"
@@ -128,6 +157,7 @@ then
 
 elif [ "$WSREP_SST_OPT_ROLE" = "joiner" ]
 then
+    touch $SST_PROGRESS_FILE
     MYSQLD_PID=$WSREP_SST_OPT_PARENT
 
     MODULE="rsync_sst"
@@ -201,7 +231,7 @@ EOF
         # this message should cause joiner to abort
         echo "rsync process ended without creating '$MAGIC_FILE'"
     fi
-
+    wsrep_cleanup_progress_file
 #    cleanup_joiner
 else
     wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
