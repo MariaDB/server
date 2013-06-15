@@ -32,11 +32,9 @@ Short time TODO:
 - add support for host_error()
 - Enable performance_schema.host_cache in scripts/mysql_system_tables.sql
 
-- Add full support for automatic timestamp.
- (remove timestamp handling from ha_write())
-  - Timour is working on this
-
 - Add Sys_my_bind_addr(); Needed for perfschema
+
+- Add support for format_section_buff in unireg.cc and table.cc
 
 - mysql_socket_shutdown() was removed from vio/viosocket.cc.
   It was replaced with inline function in include/mysql/psi/mysql_socket.h
@@ -60,4 +58,3 @@ Sergei's notes:
   rpl_slave.cc
   XXX in mysql_client_test
   net_serv.cc
-

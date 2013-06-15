@@ -52,8 +52,8 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
     we will store the error message in a result set row 
     and then clear.
   */
-  if (thd->stmt_da->is_ok())
-    thd->stmt_da->reset_diagnostics_area();
+  if (thd->get_stmt_da()->is_ok())
+    thd->get_stmt_da()->reset_diagnostics_area();
   table_list->table= NULL;
   result_code= result_code ? HA_ADMIN_FAILED : HA_ADMIN_OK;
   DBUG_RETURN(result_code);
@@ -98,7 +98,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
 
   if (!(table= table_list->table))
   {
-    char key[MAX_DBKEY_LENGTH];
+    const char *key;
     uint key_length;
     /*
       If the table didn't exist, we have a shared metadata lock
@@ -114,7 +114,8 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     */
     my_hash_value_type hash_value;
 
-    key_length= create_table_def_key(thd, key, table_list, 0);
+    key_length= get_table_def_key(table_list, &key);
+
     table_list->mdl_request.init(MDL_key::TABLE,
                                  table_list->db, table_list->table_name,
                                  MDL_EXCLUSIVE, MDL_TRANSACTION);
@@ -203,7 +204,7 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
       goto end;
     /* Close table but don't remove from locked list */
     close_all_tables_for_name(thd, table_list->table->s,
-                              HA_EXTRA_NOT_USED);
+                              HA_EXTRA_NOT_USED, NULL);
     table_list->table= 0;
   }
   /*
@@ -398,14 +399,14 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           because it's already known that the table is badly damaged.
         */
 
-        Warning_info wi(thd->query_id, false);
-        Warning_info *wi_saved= thd->warning_info;
+        Diagnostics_area *da= thd->get_stmt_da();
+        Warning_info tmp_wi(thd->query_id, false, true);
 
-        thd->warning_info= &wi;
+        da->push_warning_info(&tmp_wi);
 
         open_error= open_and_lock_tables(thd, table, TRUE, 0);
 
-        thd->warning_info= wi_saved;
+        da->pop_warning_info(&tmp_wi);
       }
       else
       {
@@ -452,7 +453,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         */
         Alter_info *alter_info= &lex->alter_info;
 
-        if (alter_info->flags & ALTER_ADMIN_PARTITION)
+        if (alter_info->flags & Alter_info::ALTER_ADMIN_PARTITION)
         {
           if (!table->table->part_info)
           {
@@ -516,16 +517,16 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (!table->table)
     {
       DBUG_PRINT("admin", ("open table failed"));
-      if (thd->warning_info->is_empty())
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      if (thd->get_stmt_da()->is_warning_info_empty())
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_CHECK_NO_SUCH_TABLE, ER(ER_CHECK_NO_SUCH_TABLE));
       /* if it was a view will check md5 sum */
       if (table->view &&
           view_checksum(thd, table) == HA_ADMIN_WRONG_CHECKSUM)
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_VIEW_CHECKSUM, ER(ER_VIEW_CHECKSUM));
-      if (thd->stmt_da->is_error() &&
-          table_not_corrupt_error(thd->stmt_da->sql_errno()))
+      if (thd->get_stmt_da()->is_error() &&
+          table_not_corrupt_error(thd->get_stmt_da()->sql_errno()))
         result_code= HA_ADMIN_FAILED;
       else
         /* Default failure code is corrupt table */
@@ -573,7 +574,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       table->table=0;				// For query cache
       if (protocol->write())
 	goto err;
-      thd->stmt_da->reset_diagnostics_area();
+      thd->get_stmt_da()->reset_diagnostics_area();
       continue;
       /* purecov: end */
     }
@@ -744,8 +745,9 @@ send_result:
     lex->cleanup_after_one_table_open();
     thd->clear_error();  // these errors shouldn't get client
     {
-      List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
-      MYSQL_ERROR *err;
+      Diagnostics_area::Sql_condition_iterator it=
+        thd->get_stmt_da()->sql_conditions();
+      const Sql_condition *err;
       while ((err= it++))
       {
         protocol->prepare_for_resend();
@@ -758,7 +760,7 @@ send_result:
         if (protocol->write())
           goto err;
       }
-      thd->warning_info->clear_warning_info(thd->query_id);
+      thd->get_stmt_da()->clear_warning_info(thd->query_id);
     }
     protocol->prepare_for_resend();
     protocol->store(table_name, system_charset_info);
@@ -875,7 +877,7 @@ send_result_message:
         DBUG_ASSERT(thd->is_error() || thd->killed);
         if (thd->is_error())
         {
-          const char *err_msg= thd->stmt_da->message();
+          const char *err_msg= thd->get_stmt_da()->message();
           if (!thd->vio_ok())
           {
             sql_print_error("%s", err_msg);
@@ -1072,12 +1074,13 @@ bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
 }
 
 
-bool Analyze_table_statement::execute(THD *thd)
+bool Sql_cmd_analyze_table::execute(THD *thd)
 {
+  LEX *m_lex= thd->lex;
   TABLE_LIST *first_table= m_lex->select_lex.table_list.first;
   bool res= TRUE;
   thr_lock_type lock_type = TL_READ_NO_INSERT;
-  DBUG_ENTER("Analyze_table_statement::execute");
+  DBUG_ENTER("Sql_cmd_analyze_table::execute");
 
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
@@ -1102,12 +1105,13 @@ error:
 }
 
 
-bool Check_table_statement::execute(THD *thd)
+bool Sql_cmd_check_table::execute(THD *thd)
 {
+  LEX *m_lex= thd->lex;
   TABLE_LIST *first_table= m_lex->select_lex.table_list.first;
   thr_lock_type lock_type = TL_READ_NO_INSERT;
   bool res= TRUE;
-  DBUG_ENTER("Check_table_statement::execute");
+  DBUG_ENTER("Sql_cmd_check_table::execute");
 
   if (check_table_access(thd, SELECT_ACL, first_table,
                          TRUE, UINT_MAX, FALSE))
@@ -1126,17 +1130,18 @@ error:
 }
 
 
-bool Optimize_table_statement::execute(THD *thd)
+bool Sql_cmd_optimize_table::execute(THD *thd)
 {
+  LEX *m_lex= thd->lex;
   TABLE_LIST *first_table= m_lex->select_lex.table_list.first;
   bool res= TRUE;
-  DBUG_ENTER("Optimize_table_statement::execute");
+  DBUG_ENTER("Sql_cmd_optimize_table::execute");
 
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
-  res= (specialflag & (SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC)) ?
+  res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
     mysql_recreate_table(thd, first_table) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       "optimize", TL_WRITE, 1, 0, 0, 0,
@@ -1157,11 +1162,12 @@ error:
 }
 
 
-bool Repair_table_statement::execute(THD *thd)
+bool Sql_cmd_repair_table::execute(THD *thd)
 {
+  LEX *m_lex= thd->lex;
   TABLE_LIST *first_table= m_lex->select_lex.table_list.first;
   bool res= TRUE;
-  DBUG_ENTER("Repair_table_statement::execute");
+  DBUG_ENTER("Sql_cmd_repair_table::execute");
 
   if (check_table_access(thd, SELECT_ACL | INSERT_ACL, first_table,
                          FALSE, UINT_MAX, FALSE))

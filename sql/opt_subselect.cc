@@ -2370,7 +2370,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->key_parts))
+        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -3521,7 +3521,7 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     KEY           *tmp_key; /* The only index on the temporary table. */
     uint          tmp_key_parts; /* Number of keyparts in tmp_key. */
     tmp_key= sjm->table->key_info;
-    tmp_key_parts= tmp_key->key_parts;
+    tmp_key_parts= tmp_key->user_defined_key_parts;
     
     /*
       Create/initialize everything we will need to index lookups into the
@@ -4057,7 +4057,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
     table->key_info=keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
-    keyinfo->usable_key_parts= keyinfo->key_parts= 1;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts= 1;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=0;
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;

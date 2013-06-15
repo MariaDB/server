@@ -2344,7 +2344,7 @@ int ha_cassandra::multi_range_read_explain_info(uint mrr_mode, char *str, size_t
   if (!(mrr_mode & HA_MRR_USE_DEFAULT_IMPL))
   {
     uint mrr_str_len= strlen(mrr_str);
-    uint copy_len= min(mrr_str_len, size);
+    uint copy_len= MY_MIN(mrr_str_len, size);
     memcpy(str, mrr_str, size);
     return copy_len;
   }

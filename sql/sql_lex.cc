@@ -494,12 +494,13 @@ void lex_start(THD *thd)
   lex->select_lex.ftfunc_list= &lex->select_lex.ftfunc_list_alloc;
   lex->select_lex.group_list.empty();
   lex->select_lex.order_list.empty();
+  lex->m_sql_cmd= NULL;
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
   lex->sphead= NULL;
   lex->spcont= NULL;
-  lex->m_stmt= NULL;
+  lex->m_sql_cmd= NULL;
   lex->proc_list.first= 0;
   lex->escape_used= FALSE;
   lex->query_tables= 0;
@@ -1746,50 +1747,6 @@ int lex_one_token(void *arg, void *yythd)
 }
 
 
-/**
-  Construct a copy of this object to be used for mysql_alter_table
-  and mysql_create_table.
-
-  Historically, these two functions modify their Alter_info
-  arguments. This behaviour breaks re-execution of prepared
-  statements and stored procedures and is compensated by always
-  supplying a copy of Alter_info to these functions.
-
-  @return You need to use check the error in THD for out
-  of memory condition after calling this function.
-*/
-
-Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
-  :drop_list(rhs.drop_list, mem_root),
-  alter_list(rhs.alter_list, mem_root),
-  key_list(rhs.key_list, mem_root),
-  create_list(rhs.create_list, mem_root),
-  flags(rhs.flags),
-  keys_onoff(rhs.keys_onoff),
-  tablespace_op(rhs.tablespace_op),
-  partition_names(rhs.partition_names, mem_root),
-  num_parts(rhs.num_parts),
-  change_level(rhs.change_level),
-  datetime_field(rhs.datetime_field),
-  error_if_not_empty(rhs.error_if_not_empty)
-{
-  /*
-    Make deep copies of used objects.
-    This is not a fully deep copy - clone() implementations
-    of Alter_drop, Alter_column, Key, foreign_key, Key_part_spec
-    do not copy string constants. At the same length the only
-    reason we make a copy currently is that ALTER/CREATE TABLE
-    code changes input Alter_info definitions, but string
-    constants never change.
-  */
-  list_copy_and_replace_each_value(drop_list, mem_root);
-  list_copy_and_replace_each_value(alter_list, mem_root);
-  list_copy_and_replace_each_value(key_list, mem_root);
-  list_copy_and_replace_each_value(create_list, mem_root);
-  /* partition_names are not deeply copied currently */
-}
-
-
 void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str)
 {
   /*
@@ -2195,12 +2152,13 @@ bool st_select_lex_node::inc_in_sum_expr()           { return 1; }
 uint st_select_lex_node::get_in_sum_expr()           { return 0; }
 TABLE_LIST* st_select_lex_node::get_table_list()     { return 0; }
 List<Item>* st_select_lex_node::get_item_list()      { return 0; }
-TABLE_LIST *st_select_lex_node::add_table_to_list (THD *thd, Table_ident *table,
+TABLE_LIST *st_select_lex_node::add_table_to_list(THD *thd, Table_ident *table,
 						  LEX_STRING *alias,
 						  ulong table_join_options,
 						  thr_lock_type flags,
                                                   enum_mdl_type mdl_type,
 						  List<Index_hint> *hints,
+                                                  List<String> *partition_names,
                                                   LEX_STRING *option)
 {
   return 0;
@@ -4299,8 +4257,8 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.flags == ALTER_ADD_PARTITION ||
-           alter_info.flags == ALTER_REORGANIZE_PARTITION));
+          (alter_info.flags ==  Alter_info::ALTER_ADD_PARTITION ||
+           alter_info.flags ==  Alter_info::ALTER_REORGANIZE_PARTITION));
 }
 
 #ifdef MYSQL_SERVER

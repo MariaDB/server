@@ -154,7 +154,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
   if (!view->view_client_cs_name.str ||
       !view->view_connection_cl_name.str)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_NO_CREATION_CTX,
                         ER(ER_VIEW_NO_CREATION_CTX),
                         (const char *) view->db,
@@ -188,7 +188,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
                       (const char *) view->view_client_cs_name.str,
                       (const char *) view->view_connection_cl_name.str);
 
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_VIEW_INVALID_CREATION_CTX,
                         ER(ER_VIEW_INVALID_CREATION_CTX),
                         (const char *) view->db,
@@ -292,7 +292,7 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db, const LEX_STRING *name)
     #  Share
 */
 
-TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, char *key,
+TABLE_SHARE *alloc_table_share(TABLE_LIST *table_list, const char *key,
                                uint key_length)
 {
   MEM_ROOT mem_root;
@@ -426,14 +426,12 @@ void TABLE_SHARE::destroy()
 {
   uint idx;
   KEY *info_it;
+  DBUG_ENTER("TABLE_SHARE::destroy");
+  DBUG_PRINT("info", ("db: %s table: %s", db.str, table_name.str));
 
-  if (tmp_table == NO_TMP_TABLE)
-    mysql_mutex_lock(&LOCK_ha_data);
   free_root(&stats_cb.mem_root, MYF(0));
   stats_cb.stats_can_be_read= FALSE;
   stats_cb.stats_is_read= FALSE;
-  if (tmp_table == NO_TMP_TABLE)
-    mysql_mutex_unlock(&LOCK_ha_data);
 
   /* The mutex is initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
@@ -453,24 +451,23 @@ void TABLE_SHARE::destroy()
       info_it->flags= 0;
     }
   }
-  if (ha_data_destroy)
+  if (ha_share)
   {
-    ha_data_destroy(ha_data);
-    ha_data_destroy= NULL;
+    delete ha_share;
+    ha_share= NULL;                             // Safety
   }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (ha_part_data_destroy)
-  {
-    ha_part_data_destroy(ha_part_data);
-    ha_part_data_destroy= NULL;
-  }
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+#ifdef HAVE_PSI_TABLE_INTERFACE
+  PSI_TABLE_CALL(release_table_share)(m_psi);
+#endif
+
   /*
     Make a copy since the share is allocated in its own root,
     and free_root() updates its argument after freeing the memory.
   */
   MEM_ROOT own_root= mem_root;
   free_root(&own_root, MYF(0));
+  DBUG_VOID_RETURN;
 }
 
 /*
@@ -885,12 +882,12 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   if (disk_buff[0] & 0x80)
   {
     share->keys=      keys=      (disk_buff[1] << 7) | (disk_buff[0] & 0x7f);
-    share->user_defined_key_parts= key_parts= uint2korr(disk_buff+2);
+    share->key_parts= key_parts= uint2korr(disk_buff+2);
   }
   else
   {
     share->keys=      keys=      disk_buff[0];
-    share->user_defined_key_parts= key_parts= disk_buff[1];
+    share->key_parts= key_parts= disk_buff[1];
   }
   share->keys_for_keyread.init(0);
   share->keys_in_use.init(keys);
@@ -950,7 +947,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
     if (i == 0)
     {
       ext_key_parts= key_parts +
-	             (share->use_ext_keys ? first_keyinfo.key_parts*(keys-1) : 0); 
+	             (share->use_ext_keys ? first_keyinfo.user_defined_key_parts*(keys-1) : 0); 
     
       n_length=keys * sizeof(KEY) + ext_key_parts * sizeof(KEY_PART_INFO);
       if (!(keyinfo= (KEY*) alloc_root(&share->mem_root,
@@ -964,10 +961,10 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                                              sizeof(ulong) * ext_key_parts)))
         goto err;
       first_key_part= key_part;
-      first_key_parts= first_keyinfo.key_parts;
+      first_key_parts= first_keyinfo.user_defined_key_parts;
       keyinfo->flags= first_keyinfo.flags;
       keyinfo->key_length= first_keyinfo.key_length;
-      keyinfo->user_defined_key_parts= first_keyinfo.key_parts;
+      keyinfo->user_defined_key_parts= first_keyinfo.user_defined_key_parts;
       keyinfo->algorithm= first_keyinfo.algorithm;
       if (new_frm_ver >= 3)
         keyinfo->block_size= first_keyinfo.block_size;
@@ -1555,7 +1552,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                       "Please do \"ALTER TABLE '%s' FORCE\" to fix it!",
                       share->fieldnames.type_names[i], share->table_name.str,
                       share->table_name.str);
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_CRASHED_ON_USAGE,
                           "Found incompatible DECIMAL field '%s' in %s; "
                           "Please do \"ALTER TABLE '%s' FORCE\" to fix it!",
@@ -1691,7 +1688,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                keyinfo->name_length+1);
       }
 
-      if (ext_key_parts > share->user_defined_key_parts && key)
+      if (ext_key_parts > share->key_parts && key)
       {
         KEY_PART_INFO *new_key_part= (keyinfo-1)->key_part +
                                      (keyinfo-1)->ext_key_parts;
@@ -1863,7 +1860,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
                             "Please do \"ALTER TABLE '%s' FORCE \" to fix it!",
                             share->table_name.str,
                             share->table_name.str);
-            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                 ER_CRASHED_ON_USAGE,
                                 "Found wrong key definition in %s; "
                                 "Please do \"ALTER TABLE '%s' FORCE\" to fix "
@@ -1909,7 +1906,7 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
 	If we are using an integer as the primary key then allow the user to
 	refer to it as '_rowid'
       */
-      if (share->key_info[primary_key].key_parts == 1)
+      if (share->key_info[primary_key].user_defined_key_parts == 1)
       {
 	Field *field= share->key_info[primary_key].key_part[0].field;
 	if (field && field->result_type() == INT_RESULT)
@@ -2014,18 +2011,6 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
   delete crypted;
   delete handler_file;
   my_hash_free(&share->name_hash);
-  if (share->ha_data_destroy)
-  {
-    share->ha_data_destroy(share->ha_data);
-    share->ha_data_destroy= NULL;
-  }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (share->ha_part_data_destroy)
-  {
-    share->ha_part_data_destroy(share->ha_part_data);
-    share->ha_data_destroy= NULL;
-  }
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   open_table_error(share, error, share->open_errno, errarg);
   DBUG_RETURN(error);
@@ -2452,7 +2437,7 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
       outparam->field[(uint) (share->found_next_number_field - share->field)];
 
   /* Fix key->name and key_part->field */
-  if (share->user_defined_key_parts)
+  if (share->key_parts)
   {
     KEY	*key_info, *key_info_end;
     KEY_PART_INFO *key_part;
@@ -2588,8 +2573,9 @@ int open_table_from_share(THD *thd, TABLE_SHARE *share, const char *alias,
     }
     outparam->part_info->is_auto_partitioned= share->auto_partitioned;
     DBUG_PRINT("info", ("autopartitioned: %u", share->auto_partitioned));
-    /* we should perform the fix_partition_func in either local or
-       caller's arena depending on work_part_info_used value
+    /* 
+      We should perform the fix_partition_func in either local or
+      caller's arena depending on work_part_info_used value.
     */
     if (!work_part_info_used)
       tmp= fix_partition_func(thd, outparam, is_create_table);
@@ -2763,6 +2749,7 @@ int closefrm(register TABLE *table, bool free_share)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)
   {
+    /* Allocated through table->mem_root, freed below */
     free_items(table->part_info->item_free_list);
     table->part_info->item_free_list= 0;
     table->part_info= 0;
@@ -3796,7 +3783,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   if (gvisitor->m_lock_open_count++ == 0)
     mysql_mutex_lock(&LOCK_open);
 
-  I_P_List_iterator <TABLE, TABLE_share> tables_it(used_tables);
+  TABLE_list::Iterator tables_it(used_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -4455,27 +4442,32 @@ void TABLE_LIST::hide_view_error(THD *thd)
     return;
   /* Hide "Unknown column" or "Unknown function" error */
   DBUG_ASSERT(thd->is_error());
+  switch (thd->get_stmt_da()->sql_errno()) {
+    case ER_BAD_FIELD_ERROR:
+    case ER_SP_DOES_NOT_EXIST:
+    case ER_FUNC_INEXISTENT_NAME_COLLISION:
+    case ER_PROCACCESS_DENIED_ERROR:
+    case ER_COLUMNACCESS_DENIED_ERROR:
+    case ER_TABLEACCESS_DENIED_ERROR:
+    case ER_TABLE_NOT_LOCKED:
+    case ER_NO_SUCH_TABLE:
+    {
+      TABLE_LIST *top= top_table();
+      thd->clear_error();
+      my_error(ER_VIEW_INVALID, MYF(0),
+               top->view_db.str, top->view_name.str);
+      break;
+    }
 
-  if (thd->stmt_da->sql_errno() == ER_BAD_FIELD_ERROR ||
-      thd->stmt_da->sql_errno() == ER_SP_DOES_NOT_EXIST ||
-      thd->stmt_da->sql_errno() == ER_FUNC_INEXISTENT_NAME_COLLISION ||
-      thd->stmt_da->sql_errno() == ER_PROCACCESS_DENIED_ERROR ||
-      thd->stmt_da->sql_errno() == ER_COLUMNACCESS_DENIED_ERROR ||
-      thd->stmt_da->sql_errno() == ER_TABLEACCESS_DENIED_ERROR ||
-      thd->stmt_da->sql_errno() == ER_TABLE_NOT_LOCKED ||
-      thd->stmt_da->sql_errno() == ER_NO_SUCH_TABLE)
-  {
-    TABLE_LIST *top= top_table();
-    thd->clear_error();
-    my_error(ER_VIEW_INVALID, MYF(0), top->view_db.str, top->view_name.str);
-  }
-  else if (thd->stmt_da->sql_errno() == ER_NO_DEFAULT_FOR_FIELD)
-  {
-    TABLE_LIST *top= top_table();
-    thd->clear_error();
-    // TODO: make correct error message
-    my_error(ER_NO_DEFAULT_FOR_VIEW_FIELD, MYF(0),
-             top->view_db.str, top->view_name.str);
+    case ER_NO_DEFAULT_FOR_FIELD:
+    {
+      TABLE_LIST *top= top_table();
+      thd->clear_error();
+      // TODO: make correct error message
+      my_error(ER_NO_DEFAULT_FOR_VIEW_FIELD, MYF(0),
+               top->view_db.str, top->view_name.str);
+      break;
+    }
   }
 }
 
@@ -4551,7 +4543,7 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     TABLE_LIST *main_view= top_table();
     if (ignore_failure)
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_VIEW_CHECK_FAILED, ER(ER_VIEW_CHECK_FAILED),
                           main_view->view_db.str, main_view->view_name.str);
       return(VIEW_CHECK_SKIP);
@@ -4844,7 +4836,7 @@ bool TABLE_LIST::prepare_view_securety_context(THD *thd)
       if ((thd->lex->sql_command == SQLCOM_SHOW_CREATE) ||
           (thd->lex->sql_command == SQLCOM_SHOW_FIELDS))
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, 
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, 
                             ER_NO_SUCH_USER, 
                             ER(ER_NO_SUCH_USER),
                             definer.user.str, definer.host.str);
@@ -4873,6 +4865,7 @@ bool TABLE_LIST::prepare_view_securety_context(THD *thd)
     }
   }
   DBUG_RETURN(FALSE);
+
 }
 #endif
 
@@ -5639,7 +5632,7 @@ void TABLE::mark_columns_used_by_index_no_reset(uint index,
 {
   KEY_PART_INFO *key_part= key_info[index].key_part;
   KEY_PART_INFO *key_part_end= (key_part +
-                                key_info[index].key_parts);
+                                key_info[index].user_defined_key_parts);
   for (;key_part != key_part_end; key_part++)
   {
     bitmap_set_bit(bitmap, key_part->fieldnr-1);
@@ -6486,7 +6479,7 @@ bool TABLE::update_const_key_parts(COND *conds)
   for (uint index= 0; index < s->keys; index++)
   {
     KEY_PART_INFO *keyinfo= key_info[index].key_part;
-    KEY_PART_INFO *keyinfo_end= keyinfo + key_info[index].key_parts;
+    KEY_PART_INFO *keyinfo_end= keyinfo + key_info[index].user_defined_key_parts;
 
     for (key_part_map part_map= (key_part_map)1; 
         keyinfo < keyinfo_end;

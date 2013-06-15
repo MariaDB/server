@@ -176,7 +176,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
     mysql_mutex_lock(&LOCK_active_mi);
     if (!(mi= (master_info_index->
                get_master_info(&connection_name,
-                               MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                               Sql_condition::WARN_LEVEL_ERROR))))
     {
       result= 1;
     }
@@ -348,7 +348,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long options,
 
    if (!(mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
-                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                              Sql_condition::WARN_LEVEL_ERROR))))
    {
      result= 1;
    }

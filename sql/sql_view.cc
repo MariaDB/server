@@ -211,13 +211,14 @@ static void make_valid_column_names(List<Item> &item_list)
 static bool
 fill_defined_view_parts (THD *thd, TABLE_LIST *view)
 {
-  char key[MAX_DBKEY_LENGTH];
+  const char *key;
   uint key_length;
   LEX *lex= thd->lex;
   TABLE_LIST decoy;
 
   memcpy (&decoy, view, sizeof (TABLE_LIST));
-  key_length= create_table_def_key(thd, key, view, 0);
+
+  key_length= get_table_def_key(view, &key);
 
   if (tdc_open_view(thd, &decoy, decoy.alias, key, key_length,
                     thd->mem_root, OPEN_VIEW_NO_PARSE))
@@ -354,7 +355,7 @@ bool create_view_precheck(THD *thd, TABLE_LIST *tables, TABLE_LIST *view,
     while ((item= it++))
     {
       Item_field *field;
-      if ((field= item->filed_for_view_update()))
+      if ((field= item->field_for_view_update()))
       {
         /*
          any_privileges may be reset later by the Item_field::set_field
@@ -515,7 +516,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       if (!is_acl_user(lex->definer->host.str,
                        lex->definer->user.str))
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_NO_SUCH_USER,
                             ER(ER_NO_SUCH_USER),
                             lex->definer->user.str,
@@ -640,7 +641,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
       Item *item;
       while ((item= it++))
       {
-        Item_field *fld= item->filed_for_view_update();
+        Item_field *fld= item->field_for_view_update();
         uint priv= (get_column_grant(thd, &view->grant, view->db,
                                      view->table_name, item->name) &
                     VIEW_ANY_ACL);
@@ -891,7 +892,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   if (lex->create_view_algorithm == VIEW_ALGORITHM_MERGE &&
       !lex->can_be_merged())
   {
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_WARN_VIEW_MERGE,
                  ER(ER_WARN_VIEW_MERGE));
     lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
   }
@@ -1168,7 +1169,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     DBUG_ASSERT(!table->definer.host.str &&
                 !table->definer.user.length &&
                 !table->definer.host.length);
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_VIEW_FRM_NO_USER, ER(ER_VIEW_FRM_NO_USER),
                         table->db, table->table_name);
     get_default_definer(thd, &table->definer);
@@ -1564,7 +1565,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
             lex->select_lex.order_list.elements &&
             !table->select_lex->master_unit()->is_union())
         {
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                               ER_VIEW_ORDERBY_IGNORED,
                               ER(ER_VIEW_ORDERBY_IGNORED),
                               table->db, table->table_name);
@@ -1680,7 +1681,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       my_snprintf(name, sizeof(name), "%s.%s", view->db, view->table_name);
       if (thd->lex->drop_if_exists)
       {
-	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+	push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			    ER_BAD_TABLE_ERROR, ER(ER_BAD_TABLE_ERROR),
 			    name);
 	continue;
@@ -1825,7 +1826,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         for (k= trans; k < end_of_trans; k++)
         {
           Item_field *field;
-          if ((field= k->item->filed_for_view_update()) &&
+          if ((field= k->item->field_for_view_update()) &&
               field->field == key_part->field)
             break;
         }
@@ -1847,7 +1848,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
       for (fld= trans; fld < end_of_trans; fld++)
       {
         Item_field *field;
-        if ((field= fld->item->filed_for_view_update()) &&
+        if ((field= fld->item->field_for_view_update()) &&
             field->field == *field_ptr)
           break;
       }
@@ -1861,7 +1862,7 @@ bool check_key_in_view(THD *thd, TABLE_LIST *view)
         if (thd->variables.updatable_views_with_limit)
         {
           /* update allowed, but issue warning */
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                        ER_WARN_VIEW_WITHOUT_KEY, ER(ER_WARN_VIEW_WITHOUT_KEY));
           DBUG_RETURN(FALSE);
         }
@@ -1901,7 +1902,7 @@ bool insert_view_fields(THD *thd, List<Item> *list, TABLE_LIST *view)
   for (Field_translator *entry= trans; entry < trans_end; entry++)
   {
     Item_field *fld;
-    if ((fld= entry->item->filed_for_view_update()))
+    if ((fld= entry->item->field_for_view_update()))
       list->push_back(fld);
     else
     {

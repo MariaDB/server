@@ -963,7 +963,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       error=write_record(thd, table ,&info);
     if (error)
       break;
-    thd->warning_info->inc_current_row_for_warning();
+    thd->get_stmt_da()->inc_current_row_for_warning();
   }
 
   free_underlaid_joins(thd, &thd->lex->select_lex);
@@ -1120,11 +1120,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	      (lock_type == TL_WRITE_DELAYED) ? (ulong) 0 :
 	      (ulong) (info.records - info.copied),
-              (ulong) thd->warning_info->statement_warn_count());
+              (long) thd->get_stmt_da()->current_statement_warn_count());
     else
       sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	      (ulong) (info.deleted + updated),
-              (ulong) thd->warning_info->statement_warn_count());
+              (long) thd->get_stmt_da()->current_statement_warn_count());
     ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
@@ -1209,7 +1209,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
     }
     Item_field *field;
     /* simple SELECT list entry (field without expression) */
-    if (!(field= trans->item->filed_for_view_update()))
+    if (!(field= trans->item->field_for_view_update()))
     {
       thd->mark_used_columns= save_mark_used_columns;
       DBUG_RETURN(TRUE);
@@ -1645,7 +1645,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	  }
 	}
 	key_copy((uchar*) key,table->record[0],table->key_info+key_nr,0);
-        key_part_map keypart_map= (1 << table->key_info[key_nr].key_parts) - 1;
+        key_part_map keypart_map= (1 << table->key_info[key_nr].user_defined_key_parts) - 1;
 	if ((error= (table->file->ha_index_read_idx_map(table->record[1],
                                                         key_nr, (uchar*) key,
                                                         keypart_map,
@@ -1894,7 +1894,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       }
       if (view)
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER(ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             table_list->view_db.str,
@@ -1902,7 +1902,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       }
       else
       {
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER(ER_NO_DEFAULT_FOR_FIELD),
                             (*field)->field_name);
@@ -2253,7 +2253,8 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
             want to send "Server shutdown in progress" in the
             INSERT THREAD.
           */
-          my_message(di->thd.stmt_da->sql_errno(), di->thd.stmt_da->message(),
+          my_message(di->thd.get_stmt_da()->sql_errno(),
+                     di->thd.get_stmt_da()->message(),
                      MYF(0));
         }
         di->unlock();
@@ -2343,7 +2344,8 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
       if (!thd.is_error())
         my_message(ER_QUERY_INTERRUPTED, ER(ER_QUERY_INTERRUPTED), MYF(0));
       else
-        my_message(thd.stmt_da->sql_errno(), thd.stmt_da->message(), MYF(0));
+        my_message(thd.get_stmt_da()->sql_errno(),
+                   thd.get_stmt_da()->message(), MYF(0));
       goto error;
     }
   }
@@ -2765,8 +2767,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
   if (my_thread_init())
   {
     /* Can't use my_error since store_globals has not yet been called */
-    thd->stmt_da->set_error_status(thd, ER_OUT_OF_RESOURCES,
-                                   ER(ER_OUT_OF_RESOURCES), NULL);
+    thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
     di->handler_thread_initialized= TRUE;
   }
   else
@@ -2776,8 +2777,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
     if (init_thr_lock() || thd->store_globals())
     {
       /* Can't use my_error since store_globals has perhaps failed */
-      thd->stmt_da->set_error_status(thd, ER_OUT_OF_RESOURCES,
-                                     ER(ER_OUT_OF_RESOURCES), NULL);
+      thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
       di->handler_thread_initialized= TRUE;
       thd->fatal_error();
       goto err;
@@ -3167,7 +3167,7 @@ bool Delayed_insert::handle_inserts(void)
 	{
 	  /* This should never happen */
 	  table->file->print_error(error,MYF(0));
-	  sql_print_error("%s", thd.stmt_da->message());
+	  sql_print_error("%s", thd.get_stmt_da()->message());
           DBUG_PRINT("error", ("HA_EXTRA_NO_CACHE failed in loop"));
 	  goto err;
 	}
@@ -3213,7 +3213,7 @@ bool Delayed_insert::handle_inserts(void)
   if ((error=table->file->extra(HA_EXTRA_NO_CACHE)))
   {						// This shouldn't happen
     table->file->print_error(error,MYF(0));
-    sql_print_error("%s", thd.stmt_da->message());
+    sql_print_error("%s", thd.get_stmt_da()->message());
     DBUG_PRINT("error", ("HA_EXTRA_NO_CACHE failed after loop"));
     goto err;
   }
@@ -3644,7 +3644,7 @@ bool select_insert::send_eof()
   error= (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
           table->file->ha_end_bulk_insert() : 0);
   if (!error && thd->is_error())
-    error= thd->stmt_da->sql_errno();
+    error= thd->get_stmt_da()->sql_errno();
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
@@ -3697,11 +3697,11 @@ bool select_insert::send_eof()
   if (info.ignore)
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.records - info.copied),
-            (ulong) thd->warning_info->statement_warn_count());
+            (long) thd->get_stmt_da()->current_statement_warn_count());
   else
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
 	    (ulong) (info.deleted+info.updated),
-            (ulong) thd->warning_info->statement_warn_count());
+            (long) thd->get_stmt_da()->current_statement_warn_count());
   row_count= info.copied + info.deleted +
              ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
               info.touched : info.updated);
@@ -3891,8 +3891,8 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
   {
     if (!mysql_create_table_no_lock(thd, create_table->db,
                                     create_table->table_name,
-                                    create_info, alter_info, 0,
-                                    select_field_count, NULL))
+                                    create_info, alter_info, NULL,
+                                    select_field_count))
     {
       DEBUG_SYNC(thd,"create_table_select_before_open");
 
@@ -3905,7 +3905,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
         */
         if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
         {
-          quick_rm_table(create_info->db_type, create_table->db,
+          quick_rm_table(thd, create_info->db_type, create_table->db,
                          table_case_name(create_info, create_table->table_name),
                          0);
         }

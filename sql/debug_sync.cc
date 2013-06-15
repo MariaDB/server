@@ -734,11 +734,6 @@ static st_debug_sync_action *debug_sync_get_action(THD *thd,
 
 static bool debug_sync_set_action(THD *thd, st_debug_sync_action *action)
 {
-  if(!thd)
-  {
-    return;
-  }
-
   st_debug_sync_control *ds_control= thd->debug_sync_control;
   bool is_dsp_now= FALSE;
   DBUG_ENTER("debug_sync_set_action");
@@ -1455,7 +1450,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
                         sig_wait, sig_glob, error));});
         if (error == ETIMEDOUT || error == ETIME)
         {
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                        ER_DEBUG_SYNC_TIMEOUT, ER(ER_DEBUG_SYNC_TIMEOUT));
           break;
         }

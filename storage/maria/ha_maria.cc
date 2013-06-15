@@ -1189,7 +1189,7 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
   {
     if (my_errno == HA_ERR_OLD_FILE)
     {
-      push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                    ER_CRASHED_ON_USAGE,
                    zerofill_error_msg);
     }
@@ -2193,8 +2193,8 @@ bool ha_maria::check_and_repair(THD *thd)
       STATE_MOVED)
   {
     /* Remove error about crashed table */
-    thd->warning_info->clear_warning_info(thd->query_id);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    thd->get_stmt_da()->clear_warning_info(thd->query_id);
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_CRASHED_ON_USAGE,
                         "Zerofilling moved table %s", table->s->path.str);
     sql_print_information("Zerofilling moved table:  '%s'",
@@ -2728,7 +2728,7 @@ int ha_maria::external_lock(THD *thd, int lock_type)
             This is a bit excessive, ACID requires this only if there are some
             changes to commit (rollback shouldn't be tested).
           */
-          DBUG_ASSERT(!thd->stmt_da->is_sent ||
+          DBUG_ASSERT(!thd->get_stmt_da()->is_sent() ||
                       thd->killed == KILL_CONNECTION);
           /* autocommit ? rollback a transaction */
 #ifdef MARIA_CANNOT_ROLLBACK
@@ -3022,7 +3022,7 @@ int ha_maria::create(const char *name, register TABLE *table_arg,
       ha_create_info->row_type != ROW_TYPE_PAGE &&
       ha_create_info->row_type != ROW_TYPE_NOT_USED &&
       ha_create_info->row_type != ROW_TYPE_DEFAULT)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_ILLEGAL_HA_CREATE_OPTION,
                  "Row format set to PAGE because of TRANSACTIONAL=1 option");
 

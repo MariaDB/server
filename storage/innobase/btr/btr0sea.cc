@@ -351,7 +351,7 @@ void
 btr_search_info_update_hash(
 /*========================*/
 	btr_search_t*	info,	/*!< in/out: search info */
-	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
+	const btr_cur_t* cursor)/*!< in: cursor which was just positioned */
 {
 	dict_index_t*	index;
 	ulint		n_unique;
@@ -620,7 +620,7 @@ void
 btr_search_info_update_slow(
 /*========================*/
 	btr_search_t*	info,	/*!< in/out: search info */
-	btr_cur_t*	cursor)	/*!< in: cursor which was just positioned */
+	btr_cur_t* cursor)      /*!< in: cursor which was just positioned */
 {
 	buf_block_t*	block;
 	ibool		build_index;
@@ -864,7 +864,7 @@ btr_search_guess_on_hash(
 {
 	buf_pool_t*	buf_pool;
 	buf_block_t*	block;
-	rec_t*		rec;
+	const rec_t*	rec;
 	ulint		fold;
 	index_id_t	index_id;
 #ifdef notdefined
@@ -950,7 +950,7 @@ btr_search_guess_on_hash(
 
 	ut_ad(page_rec_is_user_rec(rec));
 
-	btr_cur_position(index, rec, block, cursor);
+	btr_cur_position(index, (rec_t*) rec, block, cursor);
 
 	/* Check the validity of the guess within the page */
 

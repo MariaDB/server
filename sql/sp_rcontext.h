@@ -66,7 +66,7 @@ public:
   uint m_sql_errno;
 
   /** Error level. */
-  MYSQL_ERROR::enum_warning_level m_level;
+  Sql_condition::enum_warning_level m_level;
 
   /** SQLSTATE. */
   char m_sql_state[SQLSTATE_LENGTH + 1];
@@ -75,7 +75,7 @@ public:
   char m_message[MYSQL_ERRMSG_SIZE];
 
   void set(uint sql_errno, const char* sqlstate,
-           MYSQL_ERROR::enum_warning_level level,
+           Sql_condition::enum_warning_level level,
            const char* msg)
   {
     m_sql_errno= sql_errno;
@@ -90,7 +90,7 @@ public:
   void clear()
   {
     m_sql_errno= 0;
-    m_level= MYSQL_ERROR::WARN_LEVEL_ERROR;
+    m_level= Sql_condition::WARN_LEVEL_ERROR;
 
     m_sql_state[0]= '\0';
     m_message[0]= '\0';
@@ -183,7 +183,7 @@ class sp_rcontext : public Sql_alloc
   find_handler(THD *thd,
                uint sql_errno,
                const char *sqlstate,
-               MYSQL_ERROR::enum_warning_level level,
+               Sql_condition::enum_warning_level level,
                const char *msg);
 
   Sql_condition_info *raised_condition() const;

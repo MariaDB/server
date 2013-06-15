@@ -86,7 +86,7 @@ static bool report_wrong_value(THD *thd, const char *name, const char *val,
     return 1;
   }
 
-  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_BAD_OPTION_VALUE,
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_BAD_OPTION_VALUE,
                       ER(ER_BAD_OPTION_VALUE), val, name);
   return 0;
 }
@@ -109,7 +109,7 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
     DBUG_RETURN(TRUE);
   }
 
-  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_UNKNOWN_OPTION, ER(ER_UNKNOWN_OPTION), val->name.str);
   DBUG_RETURN(FALSE);
 }

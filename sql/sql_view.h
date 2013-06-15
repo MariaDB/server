@@ -37,6 +37,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *view,
 bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
                      uint flags);
 
+
 bool mysql_drop_view(THD *thd, TABLE_LIST *view, enum_drop_mode drop_mode);
 
 bool check_key_in_view(THD *thd, TABLE_LIST * view);

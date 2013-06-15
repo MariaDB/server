@@ -747,7 +747,7 @@ static struct st_mysql_information_schema	i_s_info =
 	MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION
 };
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_trx =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_trx =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -791,13 +791,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_trx =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_locks */
@@ -1010,7 +1006,7 @@ innodb_locks_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_locks =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_locks =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1054,13 +1050,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_locks =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_lock_waits */
@@ -1197,7 +1189,7 @@ innodb_lock_waits_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_lock_waits =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_lock_waits =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1241,13 +1233,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_lock_waits =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -1534,7 +1522,7 @@ i_s_cmp_reset_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1578,16 +1566,12 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_reset =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1632,13 +1616,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_reset =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic tables
@@ -1892,7 +1872,7 @@ i_s_cmp_per_index_reset_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_per_index =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_per_index =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1936,16 +1916,12 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_per_index =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_per_index_reset =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -1990,13 +1966,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmp_per_index_reset =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table information_schema.innodb_cmpmem. */
@@ -2191,7 +2163,7 @@ i_s_cmpmem_reset_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmpmem =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -2235,16 +2207,12 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmpmem =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmpmem_reset =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_cmpmem_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -2289,13 +2257,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_cmpmem_reset =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_metrics */
@@ -2773,7 +2737,7 @@ innodb_metrics_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_metrics =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_metrics =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -2817,13 +2781,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_metrics =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_ft_default_stopword */
 static ST_FIELD_INFO	i_s_stopword_fields_info[] =
@@ -2890,7 +2850,7 @@ i_s_stopword_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_default_stopword =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_default_stopword =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -2934,13 +2894,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_default_stopword =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_DELETED
@@ -3063,7 +3019,7 @@ i_s_fts_deleted_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_deleted =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_deleted =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -3107,13 +3063,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_deleted =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -3150,7 +3102,7 @@ i_s_fts_being_deleted_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_being_deleted =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_being_deleted =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -3194,13 +3146,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_being_deleted =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -3287,7 +3235,7 @@ i_s_fts_inserted_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_inserted =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_inserted =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -3331,13 +3279,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_inserted =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHED and
@@ -3554,7 +3498,7 @@ i_s_fts_index_cache_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_index_cache =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_index_cache =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -3598,13 +3542,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_index_cache =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -3859,7 +3799,7 @@ i_s_fts_index_table_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_index_table =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_index_table =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -3903,13 +3843,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_index_table =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_CONFIG */
@@ -4063,7 +3999,7 @@ i_s_fts_config_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_config =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_config =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -4107,13 +4043,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_ft_config =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INNODB_BUFFER_POOL_STATS. */
@@ -4586,7 +4518,7 @@ i_s_innodb_buffer_pool_stats_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_stats =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_stats =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -4630,13 +4562,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_stats =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
@@ -5280,7 +5208,7 @@ i_s_innodb_buffer_page_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_page =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -5324,13 +5252,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_page =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
@@ -5826,7 +5750,7 @@ i_s_innodb_buffer_page_lru_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_page_lru =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -5870,13 +5794,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_buffer_page_lru =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /*******************************************************************//**
@@ -6122,7 +6042,7 @@ innodb_sys_tables_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tables =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tables =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -6166,13 +6086,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tables =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_TABLESTATS  ***********************************************/
@@ -6415,7 +6331,7 @@ innodb_sys_tablestats_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tablestats =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tablestats =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -6459,13 +6375,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tablestats =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_INDEXES  **************************************************/
@@ -6670,7 +6582,7 @@ innodb_sys_indexes_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_indexes =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_indexes =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -6714,13 +6626,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_indexes =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_COLUMNS  **************************************************/
@@ -6910,7 +6818,7 @@ innodb_sys_columns_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_columns =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_columns =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -6954,13 +6862,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_columns =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FIELDS  ***************************************************/
@@ -7123,7 +7027,7 @@ innodb_sys_fields_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_fields =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_fields =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -7167,13 +7071,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_fields =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FOREIGN        ********************************************/
@@ -7351,7 +7251,7 @@ innodb_sys_foreign_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_foreign =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_foreign =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -7395,13 +7295,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_foreign =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_FOREIGN_COLS   ********************************************/
@@ -7571,7 +7467,7 @@ innodb_sys_foreign_cols_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_foreign_cols =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_foreign_cols =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -7615,13 +7511,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_foreign_cols =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_TABLESPACES    ********************************************/
@@ -7838,7 +7730,7 @@ innodb_sys_tablespaces_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tablespaces =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_tablespaces =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -7882,13 +7774,9 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_tablespaces =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };
 
 /**  SYS_DATAFILES  ************************************************/
@@ -8030,7 +7918,7 @@ innodb_sys_datafiles_init(
 	DBUG_RETURN(0);
 }
 
-UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_datafiles =
+UNIV_INTERN struct st_maria_plugin	i_s_innodb_sys_datafiles =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
@@ -8074,11 +7962,7 @@ UNIV_INTERN struct st_mysql_plugin	i_s_innodb_sys_datafiles =
 	/* struct st_mysql_sys_var** */
 	STRUCT_FLD(system_vars, NULL),
 
-	/* reserved for dependency checking */
-	/* void* */
-	STRUCT_FLD(__reserved1, NULL),
-
-	/* Plugin flags */
-	/* unsigned long */
-	STRUCT_FLD(flags, 0UL),
+        /* Maria extension */
+	STRUCT_FLD(version_info, INNODB_VERSION_STR),
+        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
 };

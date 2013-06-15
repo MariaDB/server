@@ -425,7 +425,7 @@ static bool extract_date_time(DATE_TIME_FORMAT *format,
     {
       if (!my_isspace(&my_charset_latin1,*val))
       {
-	make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+	make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                      val_begin, length,
 				     cached_timestamp_type, NullS);
 	break;
@@ -438,7 +438,7 @@ err:
   {
     char buff[128];
     strmake(buff, val_begin, MY_MIN(length, sizeof(buff)-1));
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                         date_time_type, buff, "str_to_date");
   }
@@ -1721,7 +1721,7 @@ overflow:
 
   ltime->hour= TIME_MAX_HOUR+1;
   check_time_range(ltime, decimals, &unused);
-  make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                err->ptr(), err->length(),
                                MYSQL_TIMESTAMP_TIME, NullS);
   return 0;
@@ -2270,7 +2270,7 @@ String *Item_char_typecast::val_str(String *str)
   if (cast_length != ~0U &&
       cast_length > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			cast_cs == &my_charset_bin ?
@@ -2328,7 +2328,7 @@ String *Item_char_typecast::val_str(String *str)
         res= &str_value;
       }
       ErrConvString err(res);
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE,
                           ER(ER_TRUNCATED_WRONG_VALUE), char_type,
                           err.ptr());
@@ -2350,7 +2350,7 @@ String *Item_char_typecast::val_str(String *str)
 
   if (res->length() > current_thd->variables.max_allowed_packet)
   {
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_WARN_ALLOWED_PACKET_OVERFLOWED,
 			ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
 			cast_cs == &my_charset_bin ?
@@ -2442,7 +2442,7 @@ bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
                  fuzzy_date, &unused))
   {
     ErrConvTime str(ltime);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, MYSQL_TIMESTAMP_DATE, 0);
     return (null_value= 1);
   }
@@ -2468,7 +2468,7 @@ bool Item_datetime_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     if (ltime->neg)
     {
       ErrConvTime str(ltime);
-      make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                    &str, MYSQL_TIMESTAMP_DATETIME, 0);
       return (null_value= 1);
     }
@@ -2622,7 +2622,7 @@ bool Item_func_add_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 
   check_time_range(ltime, decimals, &was_cut);
   if (was_cut)
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, MYSQL_TIMESTAMP_TIME, NullS);
 
   return (null_value= 0);
@@ -2710,7 +2710,7 @@ bool Item_func_timediff::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   check_time_range(ltime, decimals, &was_cut);
 
   if (was_cut)
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, MYSQL_TIMESTAMP_TIME, NullS);
   return (null_value= 0);
 }
@@ -2762,7 +2762,7 @@ bool Item_func_maketime::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     char buf[28];
     char *ptr= longlong10_to_str(hour, buf, args[0]->unsigned_flag ? 10 : -10);
     int len = (int)(ptr - buf) + sprintf(ptr, ":%02u:%02u", (uint)minute, (uint)second);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  buf, len, MYSQL_TIMESTAMP_TIME,
                                  NullS);
   }

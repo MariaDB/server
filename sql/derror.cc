@@ -76,7 +76,7 @@ bool init_errmessage(void)
                  &errmsgs, ER_ERROR_LAST - ER_ERROR_FIRST + 1) &&
       !errmsgs)
   {
-    free(errmsgs);
+    my_free(errmsgs);
     
     if (org_errmsgs)
     {
@@ -99,7 +99,7 @@ bool init_errmessage(void)
     }
   }
   else
-    free(org_errmsgs);                        // Free old language
+    my_free(org_errmsgs);                        // Free old language
 
   /* Register messages for use with my_error(). */
   if (my_error_register(get_server_errmsgs, ER_ERROR_FIRST, ER_ERROR_LAST))

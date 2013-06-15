@@ -299,7 +299,7 @@ str_to_datetime_with_warn(CHARSET_INFO *cs,
                            (flags | (sql_mode_for_dates(thd))),
                            &was_cut);
   if (was_cut || ts_type <= MYSQL_TIMESTAMP_ERROR)
-    make_truncated_value_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                  str, length, flags & TIME_TIME_ONLY ?
                                  MYSQL_TIMESTAMP_TIME : ts_type, NullS);
   return ts_type;
@@ -342,7 +342,7 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
   if (res < 0 || (was_cut && !(fuzzydate & TIME_FUZZY_DATE)))
   {
     make_truncated_value_warning(current_thd,
-                                 MYSQL_ERROR::WARN_LEVEL_WARN, str,
+                                 Sql_condition::WARN_LEVEL_WARN, str,
                                  res < 0 ? MYSQL_TIMESTAMP_ERROR
                                          : mysql_type_to_time_type(f_type),
                                  field_name);
@@ -796,7 +796,7 @@ const char *get_date_time_format_str(KNOWN_DATE_TIME_FORMAT *format,
 }
 
 void make_truncated_value_warning(THD *thd,
-                                  MYSQL_ERROR::enum_warning_level level,
+                                  Sql_condition::enum_warning_level level,
                                   const ErrConv *sval,
 				  timestamp_type time_type,
                                   const char *field_name)
@@ -821,7 +821,7 @@ void make_truncated_value_warning(THD *thd,
     cs->cset->snprintf(cs, warn_buff, sizeof(warn_buff),
                        ER(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
                        type_str, sval->ptr(), field_name,
-                       (ulong) thd->warning_info->current_row_for_warning());
+                       (ulong) thd->get_stmt_da()->current_row_for_warning());
   else
   {
     if (time_type > MYSQL_TIMESTAMP_ERROR)
@@ -950,7 +950,7 @@ bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
     return 0;                                   // Ok
 
 invalid_date:
-  push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_DATETIME_FUNCTION_OVERFLOW,
                       ER(ER_DATETIME_FUNCTION_OVERFLOW),
                       ltime->time_type == MYSQL_TIMESTAMP_TIME ?

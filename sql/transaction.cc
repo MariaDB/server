@@ -524,7 +524,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
             thd->transaction.all.modified_non_trans_table) &&
            !thd->slave_thread)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_WARNING_NOT_COMPLETE_ROLLBACK,
                  ER(ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
@@ -801,7 +801,7 @@ bool trans_xa_rollback(THD *thd)
       ha_commit_or_rollback_by_xid(thd->lex->xid, 0);
       xid_cache_delete(xs);
     }
-    DBUG_RETURN(thd->stmt_da->is_error());
+    DBUG_RETURN(thd->get_stmt_da()->is_error());
   }
 
   if (xa_state != XA_IDLE && xa_state != XA_PREPARED && xa_state != XA_ROLLBACK_ONLY)

@@ -1564,7 +1564,7 @@ innobase_get_cset_width(
 
 			/* Fix bug#46256: allow tables to be dropped if the
 			collation is not found, but issue a warning. */
-			if ((log_warnings)
+			if ((global_system_variables.log_warnings)
 			    && (cset != 0)){
 
 				sql_print_warning(
@@ -3969,7 +3969,7 @@ innobase_close_connection(
 				"but transaction is active");
 	}
 
-	if (trx_is_started(trx) && log_warnings) {
+	if (trx_is_started(trx) && global_system_variables.log_warnings) {
 
 		sql_print_warning(
 			"MySQL is closing a connection that has an active "
@@ -16482,7 +16482,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   NULL
 };
 
-mysql_declare_plugin(innobase)
+maria_declare_plugin(innobase)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &innobase_storage_engine,
@@ -16495,8 +16495,8 @@ mysql_declare_plugin(innobase)
   INNODB_VERSION_SHORT,
   innodb_status_variables_export,/* status variables             */
   innobase_system_variables, /* system variables */
-  NULL, /* reserved */
-  0,    /* flags */
+  INNODB_VERSION_STR,         /* string version */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 i_s_innodb_trx,
 i_s_innodb_locks,
@@ -16528,7 +16528,7 @@ i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_datafiles
 
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.
 

@@ -38,7 +38,7 @@ Looks for an element in a hash table.
 @return pointer to the data of the first hash table node in chain
 having the fold number, NULL if not found */
 UNIV_INLINE
-rec_t*
+const rec_t*
 ha_search_and_get_data(
 /*===================*/
 	hash_table_t*	table,	/*!< in: hash table */
@@ -53,11 +53,11 @@ ha_search_and_update_if_found_func(
 /*===============================*/
 	hash_table_t*	table,	/*!< in/out: hash table */
 	ulint		fold,	/*!< in: folded value of the searched data */
-	rec_t*		data,	/*!< in: pointer to the data */
+	const rec_t*	data,	/*!< in: pointer to the data */
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	buf_block_t*	new_block,/*!< in: block containing new_data */
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-	rec_t*		new_data);/*!< in: new pointer to the data */
+	const rec_t*	new_data);/*!< in: new pointer to the data */
 
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 /** Looks for an element when we know the pointer to the data and
@@ -226,7 +226,7 @@ struct ha_node_t {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
 	buf_block_t*	block;	/*!< buffer block containing the data, or NULL */
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-        rec_t*		data;	/*!< pointer to the data */
+        const rec_t*	data;	/*!< pointer to the data */
 	ulint		fold;	/*!< fold value for the data */
 };
 

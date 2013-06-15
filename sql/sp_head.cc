@@ -1148,19 +1148,20 @@ find_handler_after_execution(THD *thd, sp_rcontext *ctx)
   if (thd->is_error())
   {
     ctx->find_handler(thd,
-                      thd->stmt_da->sql_errno(),
-                      thd->stmt_da->get_sqlstate(),
-                      MYSQL_ERROR::WARN_LEVEL_ERROR,
-                      thd->stmt_da->message());
+                      thd->get_stmt_da()->sql_errno(),
+                      thd->get_stmt_da()->get_sqlstate(),
+                      Sql_condition::WARN_LEVEL_ERROR,
+                      thd->get_stmt_da()->message());
   }
-  else if (thd->warning_info->statement_warn_count())
+  else if (thd->get_stmt_da()->statement_warn_count())
   {
-    List_iterator<MYSQL_ERROR> it(thd->warning_info->warn_list());
-    MYSQL_ERROR *err;
+    Diagnostics_area::Sql_condition_iterator it=
+      thd->get_stmt_da()->sql_conditions();
+    const Sql_condition *err;
     while ((err= it++))
     {
-      if (err->get_level() != MYSQL_ERROR::WARN_LEVEL_WARN &&
-          err->get_level() != MYSQL_ERROR::WARN_LEVEL_NOTE)
+      if (err->get_level() != Sql_condition::WARN_LEVEL_WARN &&
+          err->get_level() != Sql_condition::WARN_LEVEL_NOTE)
         continue;
 
       if (ctx->find_handler(thd,
@@ -1221,8 +1222,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   String old_packet;
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Object_creation_ctx *saved_creation_ctx;
-  Warning_info *saved_warning_info;
-  Warning_info warning_info(thd->warning_info->warn_id(), false);
+  Diagnostics_area *da= thd->get_stmt_da();
+  Warning_info sp_wi(da->warning_info_id(), false, true);
 
   /*
     Just reporting a stack overrun error
@@ -1293,9 +1294,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   old_arena= thd->stmt_arena;
 
   /* Push a new warning information area. */
-  warning_info.append_warning_info(thd, thd->warning_info);
-  saved_warning_info= thd->warning_info;
-  thd->warning_info= &warning_info;
+  da->copy_sql_conditions_to_wi(thd, &sp_wi);
+  da->push_warning_info(&sp_wi);
 
   /*
     Switch query context. This has to be done early as this is sometimes
@@ -1395,7 +1395,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     }
 
     /* Reset number of warnings for this query. */
-    thd->warning_info->reset_for_next_command();
+    thd->get_stmt_da()->reset_for_next_command();
 
     DBUG_PRINT("execute", ("Instruction %u", ip));
 
@@ -1502,9 +1502,40 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
       - if there was an exception during execution, warning info should be
         propagated to the caller in any case.
   */
+  da->pop_warning_info();
+
   if (err_status || merge_da_on_success)
-    saved_warning_info->merge_with_routine_info(thd, thd->warning_info);
-  thd->warning_info= saved_warning_info;
+  {
+    /*
+      If a routine body is empty or if a routine did not generate any warnings,
+      do not duplicate our own contents by appending the contents of the called
+      routine. We know that the called routine did not change its warning info.
+
+      On the other hand, if the routine body is not empty and some statement in
+      the routine generates a warning or uses tables, warning info is guaranteed
+      to have changed. In this case we know that the routine warning info
+      contains only new warnings, and thus we perform a copy.
+    */
+    if (da->warning_info_changed(&sp_wi))
+    {
+      /*
+        If the invocation of the routine was a standalone statement,
+        rather than a sub-statement, in other words, if it's a CALL
+        of a procedure, rather than invocation of a function or a
+        trigger, we need to clear the current contents of the caller's
+        warning info.
+
+        This is per MySQL rules: if a statement generates a warning,
+        warnings from the previous statement are flushed.  Normally
+        it's done in push_warning(). However, here we don't use
+        push_warning() to avoid invocation of condition handlers or
+        escalation of warnings to errors.
+      */
+      da->opt_clear_warning_info(thd->query_id);
+      da->copy_sql_conditions_from_wi(thd, &sp_wi);
+      da->remove_marked_sql_conditions();
+    }
+  }
 
  done:
   DBUG_PRINT("info", ("err_status: %d  killed: %d  is_slave_error: %d  report_error: %d",
@@ -1958,7 +1989,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (mysql_bin_log.write(&qinfo) &&
           thd->binlog_evt_union.unioned_events_trans)
       {
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                      "Invoked ROUTINE modified a transactional table but MySQL "
                      "failed to reflect this change in the binary log");
         err_status= TRUE;
@@ -2137,9 +2168,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
     if (!thd->in_sub_stmt)
     {
-      thd->stmt_da->can_overwrite_status= TRUE;
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-      thd->stmt_da->can_overwrite_status= FALSE;
+      thd->get_stmt_da()->set_overwrite_status(false);
     }
 
     thd_proc_info(thd, "closing tables");
@@ -2884,7 +2915,7 @@ sp_head::show_routine_code(THD *thd)
         Since this is for debugging purposes only, we don't bother to
         introduce a special error code for it.
       */
-      push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, tmp);
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, tmp);
     }
     protocol->prepare_for_resend();
     protocol->store((longlong)ip);
@@ -2991,9 +3022,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     /* Here we also commit or rollback the current statement. */
     if (! thd->in_sub_stmt)
     {
-      thd->stmt_da->can_overwrite_status= TRUE;
+      thd->get_stmt_da()->set_overwrite_status(true);
       thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-      thd->stmt_da->can_overwrite_status= FALSE;
+      thd->get_stmt_da()->set_overwrite_status(false);
     }
     thd_proc_info(thd, "closing tables");
     close_thread_tables(thd);
@@ -3027,10 +3058,10 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     open_tables stage.
   */
   if (!res || !thd->is_error() ||
-      (thd->stmt_da->sql_errno() != ER_CANT_REOPEN_TABLE &&
-       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE &&
-       thd->stmt_da->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
-       thd->stmt_da->sql_errno() != ER_UPDATE_TABLE_USED))
+      (thd->get_stmt_da()->sql_errno() != ER_CANT_REOPEN_TABLE &&
+       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE &&
+       thd->get_stmt_da()->sql_errno() != ER_NO_SUCH_TABLE_IN_ENGINE &&
+       thd->get_stmt_da()->sql_errno() != ER_UPDATE_TABLE_USED))
     thd->stmt_arena->state= Query_arena::STMT_EXECUTED;
 
   /*
@@ -3117,7 +3148,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     {
       res= m_lex_keeper.reset_lex_and_exec_core(thd, nextp, FALSE, this);
 
-      if (thd->stmt_da->is_eof())
+      if (thd->get_stmt_da()->is_eof())
       {
         /* Finalize server status flags after executing a statement. */
         thd->update_server_status();
@@ -3136,7 +3167,7 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     thd->query_name_consts= 0;
 
     if (!thd->is_error())
-      thd->stmt_da->reset_diagnostics_area();
+      thd->get_stmt_da()->reset_diagnostics_area();
   }
   DBUG_RETURN(res || thd->is_error());
 }

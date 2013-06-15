@@ -1230,7 +1230,7 @@ search:
   if (! create)
   {
     /* No lost counter, just looking for the file existence. */
-    return NULL;
+    DBUG_RETURN(NULL);
   }
 
   while (++attempts <= file_max)
@@ -1280,7 +1280,7 @@ search:
 
         /* OOM in lf_hash_insert */
         file_lost++;
-        return NULL;
+        DBUG_RETURN(NULL);
       }
     }
   }

@@ -1393,7 +1393,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
           /* Issuing warning then started without --skip-slave-start */
           if (!opt_skip_slave_start)
-            push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                          ER_MISSING_SKIP_SLAVE,
                          ER(ER_MISSING_SKIP_SLAVE));
         }
@@ -1401,7 +1401,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
         mysql_mutex_unlock(&mi->rli.data_lock);
       }
       else if (thd->lex->mi.pos || thd->lex->mi.relay_log_pos)
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNTIL_COND_IGNORED,
                      ER(ER_UNTIL_COND_IGNORED));
 
       if (!slave_errno)
@@ -1418,7 +1418,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
   else
   {
     /* no error if all threads are already started, only a warning */
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_SLAVE_WAS_RUNNING,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_RUNNING,
                  ER(ER_SLAVE_WAS_RUNNING));
   }
 
@@ -1483,7 +1483,7 @@ int stop_slave(THD* thd, Master_info* mi, bool net_report )
   {
     //no error if both threads are already stopped, only a warning
     slave_errno= 0;
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_SLAVE_WAS_NOT_RUNNING,
                  ER(ER_SLAVE_WAS_NOT_RUNNING));
   }
   unlock_slave_threads(mi);
@@ -1737,7 +1737,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   /* if new Master_info doesn't exists, add it */
   if (!master_info_index->get_master_info(&mi->connection_name,
-                                          MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                          Sql_condition::WARN_LEVEL_NOTE))
   {
     if (master_info_index->add_master_info(mi, TRUE))
     {
@@ -1875,7 +1875,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   if (lex_mi->ssl || lex_mi->ssl_ca || lex_mi->ssl_capath ||
       lex_mi->ssl_cert || lex_mi->ssl_cipher || lex_mi->ssl_key ||
       lex_mi->ssl_verify_server_cert || lex_mi->ssl_crl || lex_mi->ssl_crlpath)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                  ER_SLAVE_IGNORED_SSL_PARAMS, ER(ER_SLAVE_IGNORED_SSL_PARAMS));
 #endif
 
@@ -2093,7 +2093,7 @@ bool mysql_show_binlog_events(THD* thd)
     mysql_mutex_lock(&LOCK_active_mi);
     if (!(mi= master_info_index->
           get_master_info(&thd->variables.default_master_connection,
-                          MYSQL_ERROR::WARN_LEVEL_ERROR)))
+                          Sql_condition::WARN_LEVEL_ERROR)))
     {
       mysql_mutex_unlock(&LOCK_active_mi);
       DBUG_RETURN(TRUE);

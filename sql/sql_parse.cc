@@ -887,7 +887,7 @@ bool do_command(THD *thd)
     Consider moving to init_connect() instead.
   */
   thd->clear_error();				// Clear error message
-  thd->stmt_da->reset_diagnostics_area();
+  thd->get_stmt_da()->reset_diagnostics_area();
 
   net_new_transaction(net);
 
@@ -1315,10 +1315,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
                         (char *) thd->security_ctx->host_or_ip);
 
       /* PSI begin */
-      thd->m_statement_psi=
-        MYSQL_START_STATEMENT(&thd->m_statement_state,
-                              com_statement_info[command].m_key,
-                              thd->db, thd->db_length);
+      thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                  com_statement_info[command].m_key,
+                                                  thd->db, thd->db_length,
+                                                  thd->charset());
       THD_STAGE_INFO(thd, stage_init);
       MYSQL_SET_STATEMENT_TEXT(thd->m_statement_psi, beginning_of_next_stmt,
                                length);
@@ -1435,7 +1435,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     /* We don't calculate statistics for this command */
     general_log_print(thd, command, NullS);
     net->error=0;				// Don't give 'abort' message
-    thd->stmt_da->disable_status();              // Don't send anything back
+    thd->get_stmt_da()->disable_status();       // Don't send anything back
     error=TRUE;					// End server
     break;
 #ifndef EMBEDDED_LIBRARY
@@ -1589,7 +1589,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 #else
     (void) my_net_write(net, (uchar*) buff, length);
     (void) net_flush(net);
-    thd->stmt_da->disable_status();
+    thd->get_stmt_da()->disable_status();
 #endif
     break;
   }
@@ -1665,7 +1665,8 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_RESULT, 0, 0);
 
   mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
-                      thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                      thd->get_stmt_da()->is_error() ?
+                      thd->get_stmt_da()->sql_errno() : 0,
                       command_name[command].str);
 
   thd->update_all_stats();
@@ -2039,7 +2040,7 @@ bool sp_process_definer(THD *thd)
   if (!is_acl_user(lex->definer->host.str, lex->definer->user.str))
   {
     push_warning_printf(thd,
-                        MYSQL_ERROR::WARN_LEVEL_NOTE,
+                        Sql_condition::WARN_LEVEL_NOTE,
                         ER_NO_SUCH_USER,
                         ER(ER_NO_SUCH_USER),
                         lex->definer->user.str,
@@ -2184,12 +2185,12 @@ mysql_execute_command(THD *thd)
     variables, but for now this is probably good enough.
   */
   if ((sql_command_flags[lex->sql_command] & CF_DIAGNOSTIC_STMT) != 0)
-    thd->warning_info->set_read_only(TRUE);
+    thd->get_stmt_da()->set_warning_info_read_only(TRUE);
   else
   {
-    thd->warning_info->set_read_only(FALSE);
+    thd->get_stmt_da()->set_warning_info_read_only(FALSE);
     if (all_tables)
-      thd->warning_info->opt_clear_warning_info(thd->query_id);
+      thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
 
 #ifdef HAVE_REPLICATION
@@ -2535,16 +2536,16 @@ case SQLCOM_PREPARE:
   case SQLCOM_SHOW_WARNS:
   {
     res= mysqld_show_warnings(thd, (ulong)
-			      ((1L << (uint) MYSQL_ERROR::WARN_LEVEL_NOTE) |
-			       (1L << (uint) MYSQL_ERROR::WARN_LEVEL_WARN) |
-			       (1L << (uint) MYSQL_ERROR::WARN_LEVEL_ERROR)
+			      ((1L << (uint) Sql_condition::WARN_LEVEL_NOTE) |
+			       (1L << (uint) Sql_condition::WARN_LEVEL_WARN) |
+			       (1L << (uint) Sql_condition::WARN_LEVEL_ERROR)
 			       ));
     break;
   }
   case SQLCOM_SHOW_ERRORS:
   {
     res= mysqld_show_warnings(thd, (ulong)
-			      (1L << (uint) MYSQL_ERROR::WARN_LEVEL_ERROR));
+			      (1L << (uint) Sql_condition::WARN_LEVEL_ERROR));
     break;
   }
   case SQLCOM_SHOW_PROFILES:
@@ -2614,7 +2615,7 @@ case SQLCOM_PREPARE:
     mysql_mutex_lock(&LOCK_active_mi);
 
     mi= master_info_index->get_master_info(&lex_mi->connection_name,
-                                           MYSQL_ERROR::WARN_LEVEL_NOTE);
+                                           Sql_condition::WARN_LEVEL_NOTE);
 
     if (mi == NULL)
     {
@@ -2662,7 +2663,7 @@ case SQLCOM_PREPARE:
       LEX_MASTER_INFO *lex_mi= &thd->lex->mi;
       Master_info *mi;
       mi= master_info_index->get_master_info(&lex_mi->connection_name,
-                                             MYSQL_ERROR::WARN_LEVEL_ERROR);
+                                             Sql_condition::WARN_LEVEL_ERROR);
       if (mi != NULL)
       {
         res= show_master_info(thd, mi, 0);
@@ -2820,7 +2821,7 @@ case SQLCOM_PREPARE:
         */
         if (splocal_refs != thd->query_name_consts)
           push_warning(thd, 
-                       MYSQL_ERROR::WARN_LEVEL_WARN,
+                       Sql_condition::WARN_LEVEL_WARN,
                        ER_UNKNOWN_ERROR,
 "Invoked routine ran a statement that may cause problems with "
 "binary log, see 'NAME_CONST issues' in 'Binary Logging of Stored Programs' "
@@ -2857,7 +2858,7 @@ case SQLCOM_PREPARE:
         {
           if (create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
           {
-            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                 ER_TABLE_EXISTS_ERROR,
                                 ER(ER_TABLE_EXISTS_ERROR),
                                 create_info.alias);
@@ -2967,7 +2968,7 @@ end_with_restore_list:
 
     res= mysql_alter_table(thd, first_table->db, first_table->table_name,
                            &create_info, first_table, &alter_info,
-                           0, (ORDER*) 0, 0, 0);
+                           0, (ORDER*) 0, 0);
     break;
   }
 #ifdef HAVE_REPLICATION
@@ -2979,7 +2980,7 @@ end_with_restore_list:
 
     if ((mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
-                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                              Sql_condition::WARN_LEVEL_ERROR))))
       if (!start_slave(thd, mi, 1 /* net report*/))
         my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
@@ -3015,7 +3016,7 @@ end_with_restore_list:
     mysql_mutex_lock(&LOCK_active_mi);
     if ((mi= (master_info_index->
               get_master_info(&lex_mi->connection_name,
-                              MYSQL_ERROR::WARN_LEVEL_ERROR))))
+                              Sql_condition::WARN_LEVEL_ERROR))))
       if (!stop_slave(thd, mi, 1/* net report*/))
         my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
@@ -3922,7 +3923,7 @@ end_with_restore_list:
           goto error;
         if (specialflag & SPECIAL_NO_RESOLVE &&
             hostname_requires_resolving(user->host.str))
-          push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                               ER_WARN_HOSTNAME_WONT_WORK,
                               ER(ER_WARN_HOSTNAME_WONT_WORK));
         // Are we trying to change a password of another user
@@ -4317,7 +4318,7 @@ end_with_restore_list:
       {
         if (sp_grant_privileges(thd, lex->sphead->m_db.str, name,
                                 lex->sql_command == SQLCOM_CREATE_PROCEDURE))
-          push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                        ER_PROC_AUTO_GRANT_FAIL, ER(ER_PROC_AUTO_GRANT_FAIL));
         thd->clear_error();
       }
@@ -4522,7 +4523,7 @@ create_sp_error:
         {
           if (lex->drop_if_exists)
           {
-            push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                 ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
                                 "FUNCTION (UDF)", lex->spname->m_name.str);
             res= FALSE;
@@ -4575,7 +4576,7 @@ create_sp_error:
           sp_revoke_privileges(thd, db, name,
                                lex->sql_command == SQLCOM_DROP_PROCEDURE))
       {
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                      ER_PROC_AUTO_REVOKE_FAIL,
                      ER(ER_PROC_AUTO_REVOKE_FAIL));
         /* If this happens, an error should have been reported. */
@@ -4592,7 +4593,7 @@ create_sp_error:
 	if (lex->drop_if_exists)
 	{
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-	  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 			      ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
                               SP_COM_STRING(lex), lex->spname->m_qname.str);
           if (!res)
@@ -4830,10 +4831,12 @@ create_sp_error:
     /* fall through */
   case SQLCOM_SIGNAL:
   case SQLCOM_RESIGNAL:
-    DBUG_ASSERT(lex->m_stmt != NULL);
-    res= lex->m_stmt->execute(thd);
+  case SQLCOM_GET_DIAGNOSTICS:
+    DBUG_ASSERT(lex->m_sql_cmd != NULL);
+    res= lex->m_sql_cmd->execute(thd);
     break;
   default:
+
 #ifndef EMBEDDED_LIBRARY
     DBUG_ASSERT(0);                             /* Impossible */
 #endif
@@ -4875,7 +4878,7 @@ finish:
       if (thd->killed_errno())
       {
         /* If we already sent 'ok', we can ignore any kill query statements */
-        if (! thd->stmt_da->is_set())
+        if (! thd->get_stmt_da()->is_set())
           thd->send_kill_message();
       }
       if (thd->killed < KILL_CONNECTION)
@@ -4889,9 +4892,9 @@ finish:
     else
     {
       /* If commit fails, we should be able to reset the OK status. */
-      thd->stmt_da->can_overwrite_status= TRUE;
+      thd->get_stmt_da()->set_overwrite_status(true);
       trans_commit_stmt(thd);
-      thd->stmt_da->can_overwrite_status= FALSE;
+      thd->get_stmt_da()->set_overwrite_status(false);
     }
 #ifdef WITH_ARIA_STORAGE_ENGINE
     ha_maria::implicit_commit(thd, FALSE);
@@ -4918,10 +4921,10 @@ finish:
     /* No transaction control allowed in sub-statements. */
     DBUG_ASSERT(! thd->in_sub_stmt);
     /* If commit fails, we should be able to reset the OK status. */
-    thd->stmt_da->can_overwrite_status= TRUE;
+    thd->get_stmt_da()->set_overwrite_status(true);
     /* Commit the normal transaction if one is active. */
     trans_commit_implicit(thd);
-    thd->stmt_da->can_overwrite_status= FALSE;
+    thd->get_stmt_da()->set_overwrite_status(false);
     thd->mdl_context.release_transactional_locks();
   }
   else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
@@ -4987,7 +4990,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           mysqld_show_warnings().
         */
         thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
-        push_warning(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                      ER_YES, str.c_ptr_safe());
       }
       if (res)
@@ -5844,8 +5847,8 @@ void THD::reset_for_next_command(bool calculate_userstat)
     thd->user_var_events_alloc= thd->mem_root;
   }
   thd->clear_error();
-  thd->stmt_da->reset_diagnostics_area();
-  thd->warning_info->reset_for_next_command();
+  thd->get_stmt_da()->reset_diagnostics_area();
+  thd->get_stmt_da()->reset_for_next_command();
   thd->rand_used= 0;
   thd->m_sent_row_count= thd->m_examined_row_count= 0;
   thd->accessed_rows_and_keys= 0;
@@ -6370,6 +6373,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 					     thr_lock_type lock_type,
 					     enum_mdl_type mdl_type,
 					     List<Index_hint> *index_hints_arg,
+                                             List<String> *partition_names,
                                              LEX_STRING *option)
 {
   register TABLE_LIST *ptr;
@@ -6514,6 +6518,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   */
   table_list.link_in_list(ptr, &ptr->next_local);
   ptr->next_name_resolution_table= NULL;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  ptr->partition_names= partition_names;
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
   /* Link table in global list (all used tables) */
   lex->add_to_query_tables(ptr);
 
@@ -8006,7 +8013,7 @@ bool parse_sql(THD *thd,
   bool ret_value;
   DBUG_ENTER("parse_sql");
   DBUG_ASSERT(thd->m_parser_state == NULL);
-  DBUG_ASSERT(thd->lex->m_stmt == NULL);
+  DBUG_ASSERT(thd->lex->m_sql_cmd == NULL);
 
   MYSQL_QUERY_PARSE_START(thd->query());
   /* Backup creation context. */

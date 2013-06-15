@@ -695,7 +695,7 @@ void Item_func::signal_divide_by_null()
 {
   THD *thd= current_thd;
   if (thd->variables.sql_mode & MODE_ERROR_FOR_DIVISION_BY_ZERO)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_DIVISION_BY_ZERO,
                  ER(ER_DIVISION_BY_ZERO));
   null_value= 1;
 }
@@ -1030,7 +1030,7 @@ longlong Item_func_signed::val_int_from_str(int *error)
     char err_buff[128];
     String err_tmp(err_buff,(uint32) sizeof(err_buff), system_charset_info);
     err_tmp.copy(start, length, system_charset_info);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err_tmp.c_ptr());
@@ -1067,7 +1067,7 @@ longlong Item_func_signed::val_int()
   return value;
 
 err:
-  push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
                "Cast to signed converted positive out-of-range integer to "
                "it's negative complement");
   return value;
@@ -1123,7 +1123,7 @@ longlong Item_func_unsigned::val_int()
   return value;
 
 err:
-  push_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR,
                "Cast to unsigned converted negative integer to it's "
                "positive complement");
   return value;
@@ -1191,7 +1191,7 @@ my_decimal *Item_decimal_typecast::val_decimal(my_decimal *dec)
   return dec;
 
 err:
-  push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_WARN_DATA_OUT_OF_RANGE,
                       ER(ER_WARN_DATA_OUT_OF_RANGE),
                       name, 1L);
@@ -1233,7 +1233,7 @@ double Item_double_typecast::val_real()
   if ((error= truncate_double(&tmp, max_length, decimals, 0, DBL_MAX)))
   {
     push_warning_printf(current_thd,
-                        MYSQL_ERROR::WARN_LEVEL_WARN,
+                        Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_DATA_OUT_OF_RANGE,
                         ER(ER_WARN_DATA_OUT_OF_RANGE),
                         name, 1);
@@ -3891,7 +3891,7 @@ longlong Item_master_pos_wait::val_int()
     connection_name= thd->variables.default_master_connection;
 
   if (!(mi= master_info_index->get_master_info(&connection_name,
-                                               MYSQL_ERROR::WARN_LEVEL_WARN)))
+                                               Sql_condition::WARN_LEVEL_WARN)))
     goto err;
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
@@ -4229,7 +4229,7 @@ longlong Item_func_benchmark::val_int()
     {
       char buff[22];
       llstr(((longlong) loop_count), buff);
-      push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WRONG_VALUE_FOR_TYPE, ER(ER_WRONG_VALUE_FOR_TYPE),
                           "count", buff, "benchmark");
     }
