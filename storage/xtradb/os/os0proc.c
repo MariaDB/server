@@ -57,6 +57,9 @@ UNIV_INTERN ibool os_use_large_pages;
 /* Large page size. This may be a boot-time option on some platforms */
 UNIV_INTERN ulint os_large_page_size;
 
+#ifdef WITH_WSREP
+extern my_bool wsrep_recovery;
+#endif /* WITH_WSREP */
 /****************************************************************//**
 Converts the current process id to a number. It is not guaranteed that the
 number is unique. In Linux returns the 'process number' of the current
@@ -183,6 +186,12 @@ skip:
 # else
 	size = UNIV_PAGE_SIZE;
 # endif
+#ifdef WITH_WSREP
+	/* Don't populate if wsrep_recovery is ON */
+	if (wsrep_recovery) {
+		populate = FALSE;
+	}
+#endif /* WITH_WSREP */
 	/* Align block size to system page size */
 	ut_ad(ut_is_2pow(size));
 	size = *n = ut_2pow_round(*n + (size - 1), size);
