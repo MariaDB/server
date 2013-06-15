@@ -454,6 +454,7 @@ void TABLE_SHARE::destroy()
     ha_data_destroy= NULL;
   }
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  plugin_unlock(NULL, default_part_plugin);
   if (ha_part_data_destroy)
   {
     ha_part_data_destroy(ha_part_data);
@@ -798,6 +799,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         options= extra2;
         options_len= length;
         break;
+      case EXTRA2_DEFAULT_PART_ENGINE:
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        {
+          LEX_STRING name= { (char*)extra2, length };
+          share->default_part_plugin= ha_resolve_by_name(NULL, &name);
+          if (!share->default_part_plugin)
+            goto err;
+        }
+#endif
+        break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
         if (type >= EXTRA2_ENGINE_IMPORTANT)
@@ -828,11 +839,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     share->frm_version= FRM_VER_TRUE_VARCHAR;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (frm_image[61] &&
-      !(share->default_part_db_type= 
-        ha_checktype(thd, (enum legacy_db_type) (uint) frm_image[61], 1, 0)))
-    goto err;
-  DBUG_PRINT("info", ("default_part_db_type = %u", frm_image[61]));
+  if (frm_image[61] && !share->default_part_plugin)
+  {
+    enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
+    share->default_part_plugin=
+                ha_lock_engine(NULL, ha_checktype(thd, db_type, 1, 0));
+    if (!share->default_part_plugin)
+      goto err;
+  }
 #endif
   legacy_db_type= (enum legacy_db_type) (uint) frm_image[3];
   /*
@@ -2697,7 +2711,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     tmp= mysql_unpack_partition(thd, share->partition_info_str,
                                 share->partition_info_str_len,
                                 outparam, is_create_table,
-                                share->default_part_db_type,
+                                plugin_hton(share->default_part_plugin),
                                 &work_part_info_used);
     if (tmp)
     {

@@ -181,6 +181,7 @@
 */
 enum extra2_frm_value_type {
   EXTRA2_TABLEDEF_VERSION=0,
+  EXTRA2_DEFAULT_PART_ENGINE=1,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 

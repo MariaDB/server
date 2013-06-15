@@ -741,7 +741,7 @@ struct TABLE_SHARE
   char *partition_info_str;
   uint  partition_info_str_len;
   uint  partition_info_buffer_size;
-  handlerton *default_part_db_type;
+  plugin_ref default_part_plugin;
 #endif
 
   /**
