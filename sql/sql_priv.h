@@ -50,7 +50,7 @@
   do {                                                                      \
     compile_time_assert(MYSQL_VERSION_ID < VerHi * 10000 + VerLo * 100);    \
     if (((THD *) Thd) != NULL)                                              \
-      push_warning_printf(((THD *) Thd), MYSQL_ERROR::WARN_LEVEL_WARN,      \
+      push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
                         ER_WARN_DEPRECATED_SYNTAX,                          \
                         ER(ER_WARN_DEPRECATED_SYNTAX),                      \
                         (Old), (New));                                      \

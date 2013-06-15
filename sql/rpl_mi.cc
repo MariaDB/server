@@ -818,7 +818,7 @@ bool Master_info_index::init_all_master_info()
       sql_print_error("Initialized Master_info from '%s' failed",
                       buf_master_info_file);
       if (!master_info_index->get_master_info(&connection_name,
-                                              MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                              Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info is not in HASH; Add it */
         if (master_info_index->add_master_info(mi, FALSE))
@@ -843,7 +843,7 @@ bool Master_info_index::init_all_master_info()
         sql_print_information("Initialized Master_info from '%s'",
                               buf_master_info_file);
       if (master_info_index->get_master_info(&connection_name,
-                                             MYSQL_ERROR::WARN_LEVEL_NOTE))
+                                             Sql_condition::WARN_LEVEL_NOTE))
       {
         /* Master_info was already registered */
         sql_print_error(ER(ER_CONNECTION_ALREADY_EXISTS),
@@ -940,7 +940,7 @@ bool Master_info_index::write_master_name_to_index_file(LEX_STRING *name,
 
 Master_info *
 Master_info_index::get_master_info(LEX_STRING *connection_name,
-                                   MYSQL_ERROR::enum_warning_level warning)
+                                   Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
   char buff[MAX_CONNECTION_NAME+1], *res;
@@ -957,10 +957,10 @@ Master_info_index::get_master_info(LEX_STRING *connection_name,
 
   mi= (Master_info*) my_hash_search(&master_info_hash,
                                     (uchar*) buff, buff_length);
-  if (!mi && warning != MYSQL_ERROR::WARN_LEVEL_NOTE)
+  if (!mi && warning != Sql_condition::WARN_LEVEL_NOTE)
   {
     my_error(WARN_NO_MASTER_INFO,
-             MYF(warning == MYSQL_ERROR::WARN_LEVEL_WARN ? ME_JUST_WARNING :
+             MYF(warning == Sql_condition::WARN_LEVEL_WARN ? ME_JUST_WARNING :
                  0),
              (int) connection_name->length,
              connection_name->str);
@@ -979,7 +979,7 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
 
   /* Get full host and port name */
   if ((mi= master_info_index->get_master_info(name_arg,
-                                              MYSQL_ERROR::WARN_LEVEL_NOTE)))
+                                              Sql_condition::WARN_LEVEL_NOTE)))
   {
     if (!host)
       host= mi->host;
@@ -1043,7 +1043,7 @@ bool Master_info_index::remove_master_info(LEX_STRING *name)
   Master_info* mi;
   DBUG_ENTER("remove_master_info");
 
-  if ((mi= get_master_info(name, MYSQL_ERROR::WARN_LEVEL_WARN)))
+  if ((mi= get_master_info(name, Sql_condition::WARN_LEVEL_WARN)))
   {
     // Delete Master_info and rewrite others to file
     if (!my_hash_delete(&master_info_hash, (uchar*) mi))
@@ -1155,7 +1155,7 @@ bool Master_info_index::start_all_slaves(THD *thd)
           break;
       }
       else
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SLAVE_STARTED, ER(ER_SLAVE_STARTED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);
@@ -1200,7 +1200,7 @@ bool Master_info_index::stop_all_slaves(THD *thd)
           break;
       }
       else
-        push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_SLAVE_STOPPED, ER(ER_SLAVE_STOPPED),
                             (int) mi->connection_name.length,
                             mi->connection_name.str);

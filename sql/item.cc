@@ -341,7 +341,7 @@ my_decimal *Item::val_decimal_from_string(my_decimal *decimal_value)
                      decimal_value) & E_DEC_BAD_NUM)
   {
     ErrConvString err(res);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
                         err.ptr());
@@ -980,11 +980,11 @@ void Item::set_name(const char *str, uint length, CHARSET_INFO *cs)
               MY_MIN(sizeof(buff)-1, length + (int) (str-str_start)));
 
       if (length == 0)
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_NAME_BECOMES_EMPTY, ER(ER_NAME_BECOMES_EMPTY),
                             buff);
       else
-        push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+        push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_REMOVED_SPACES, ER(ER_REMOVED_SPACES),
                             buff);
     }
@@ -1127,11 +1127,26 @@ Item *Item_static_float_func::safe_charset_converter(CHARSET_INFO *tocs)
 
 Item *Item_string::safe_charset_converter(CHARSET_INFO *tocs)
 {
+  return charset_converter(tocs, true);
+}
+
+
+/**
+  Convert a string item into the requested character set.
+
+  @param tocs       Character set to to convert the string to.
+  @param lossless   Whether data loss is acceptable.
+
+  @return A new item representing the converted string.
+*/
+Item *Item_string::charset_converter(CHARSET_INFO *tocs, bool lossless)
+{
   Item_string *conv;
   uint conv_errors;
   char *ptr;
   String tmp, cstr, *ostr= val_str(&tmp);
   cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
+  conv_errors= lossless && conv_errors;
   if (conv_errors || !(conv= new Item_string(cstr.ptr(), cstr.length(),
                                              cstr.charset(),
                                              collation.derivation)))
@@ -1151,7 +1166,6 @@ Item *Item_string::safe_charset_converter(CHARSET_INFO *tocs)
   conv->str_value.mark_as_const();
   return conv;
 }
-
 
 Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
 {
@@ -2966,7 +2980,7 @@ double_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
       We can use err.ptr() here as ErrConvString is guranteed to put an
       end \0 here.
     */
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "DOUBLE",
                         err.ptr());
@@ -3003,7 +3017,7 @@ longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
        (end != end_of_num && !check_if_only_end_space(cs, end_of_num, end))))
   {
     ErrConvString err(cptr, end - cptr, cs);
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_TRUNCATED_WRONG_VALUE,
                         ER(ER_TRUNCATED_WRONG_VALUE), "INTEGER",
                         err.ptr());
@@ -3216,7 +3230,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
       value.time.second_part > TIME_MAX_SECOND_PART)
   {
     ErrConvTime str(&value.time);
-    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                                  &str, time_type, 0);
     set_zero_time(&value.time, MYSQL_TIMESTAMP_ERROR);
   }
@@ -4293,7 +4307,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
     return TRUE;
   if (thd->lex->describe & DESCRIBE_EXTENDED)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
 		 ER_WARN_FIELD_RESOLVED, ER(ER_WARN_FIELD_RESOLVED),
                  db_name, (db_name[0] ? "." : ""),
                  table_name, (table_name [0] ? "." : ""),
@@ -4541,7 +4555,7 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
         !((*group_by_ref)->eq(*select_ref, 0)))
     {
       ambiguous_fields= TRUE;
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
                           ER(ER_NON_UNIQ_ERROR), ref->full_name(),
                           current_thd->where);
 
@@ -5523,7 +5537,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
     {
       str->length(wlen);
     }
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_INVALID_CHARACTER_STRING,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_INVALID_CHARACTER_STRING,
                         ER(ER_INVALID_CHARACTER_STRING), cs->csname, hexbuf);
   }
   return str;
@@ -6203,7 +6217,7 @@ int Item_hex_string::save_in_field(Field *field, bool no_conversions)
 
 warn:
   if (!field->store((longlong) nr, TRUE))
-    field->set_warning(MYSQL_ERROR::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
+    field->set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE,
                        1);
   return 1;
 }
@@ -8134,7 +8148,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       {
         TABLE_LIST *view= cached_table->top_table();
         push_warning_printf(field_arg->table->in_use,
-                            MYSQL_ERROR::WARN_LEVEL_WARN,
+                            Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
                             ER(ER_NO_DEFAULT_FOR_VIEW_FIELD),
                             view->view_db.str,
@@ -8143,7 +8157,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
       else
       {
         push_warning_printf(field_arg->table->in_use,
-                            MYSQL_ERROR::WARN_LEVEL_WARN,
+                            Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_FIELD,
                             ER(ER_NO_DEFAULT_FOR_FIELD),
                             field_arg->field_name);

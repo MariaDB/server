@@ -18,7 +18,7 @@
 
 #include <my_global.h>
 
-template <typename T, typename B, typename C, typename I>
+template <typename T, typename L>
 class I_P_List_iterator;
 class I_P_List_null_counter;
 template <typename T> class I_P_List_no_push_back;
@@ -151,10 +151,14 @@ public:
       I::set_last(&rhs.m_first);
     C::swap(rhs);
   }
+  typedef B Adapter;
+  typedef I_P_List<T, B, C, I> Base;
+  typedef I_P_List_iterator<T, Base> Iterator;
+  typedef I_P_List_iterator<const T, Base> Const_Iterator;
 #ifndef _lint
-  friend class I_P_List_iterator<T, B, C, I>;
+  friend class I_P_List_iterator<T, Base>;
+  friend class I_P_List_iterator<const T, Base>;
 #endif
-  typedef I_P_List_iterator<T, B, C, I> Iterator;
 };
 
 
@@ -162,33 +166,33 @@ public:
    Iterator for I_P_List.
 */
 
-template <typename T, typename B,
-          typename C = I_P_List_null_counter,
-          typename I = I_P_List_no_push_back<T> >
+template <typename T, typename L>
 class I_P_List_iterator
 {
-  const I_P_List<T, B, C, I> *list;
+  const L *list;
   T *current;
 public:
-  I_P_List_iterator(const I_P_List<T, B, C, I> &a)
+  I_P_List_iterator(const L &a)
     : list(&a), current(a.m_first) {}
-  I_P_List_iterator(const I_P_List<T, B, C, I> &a, T* current_arg)
+  I_P_List_iterator(const L &a, T* current_arg)
     : list(&a), current(current_arg) {}
-  inline void init(const I_P_List<T, B, C, I> &a)
+  inline void init(const L &a)
   {
     list= &a;
     current= a.m_first;
   }
+  /* Operator for it++ */
   inline T* operator++(int)
   {
     T *result= current;
     if (result)
-      current= *B::next_ptr(current);
+      current= *L::Adapter::next_ptr(current);
     return result;
   }
+  /* Operator for ++it */
   inline T* operator++()
   {
-    current= *B::next_ptr(current);
+    current= *L::Adapter::next_ptr(current);
     return current;
   }
   inline void rewind()
@@ -207,7 +211,7 @@ template <typename T, T* T::*next, T** T::*prev>
 struct I_P_List_adapter
 {
   static inline T **next_ptr(T *el) { return &(el->*next); }
-
+  static inline const T* const* next_ptr(const T *el) { return &(el->*next); }
   static inline T ***prev_ptr(T *el) { return &(el->*prev); }
 };
 

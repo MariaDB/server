@@ -738,6 +738,7 @@ static char **remaining_argv;
 int orig_argc;
 char **orig_argv;
 
+#ifndef EMBEDDED_LIBRARY
 static struct my_option pfs_early_options[]=
 {
   {"performance_schema_instrument", OPT_PFS_INSTRUMENT,
@@ -805,8 +806,7 @@ static struct my_option pfs_early_options[]=
     &pfs_param.m_consumer_statement_digest_enabled, 0,
     GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
 };
-
-
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -1086,7 +1086,8 @@ void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused:
     {
       thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
                                                   stmt_info_new_packet.m_key,
-                                                  thd->db, thd->db_length);
+                                                  thd->db, thd->db_length,
+                                                  thd->charset());
 
       THD_STAGE_INFO(thd, stage_init);
     }
@@ -1118,12 +1119,6 @@ void init_net_server_extension(THD *thd)
 }
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Since buffered_option_error_reporter is only used currently
-  for parsing performance schema options, this code is not needed
-  when the performance schema is not compiled in.
-*/
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   A log message for the error log, buffered in memory.
   Log messages are temporarily buffered when generated before the error log
@@ -1259,13 +1254,16 @@ void Buffered_logs::print()
 /** Logs reported before a logger is available. */
 static Buffered_logs buffered_logs;
 
+static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
+struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
+
 #ifndef EMBEDDED_LIBRARY
 /**
   Error reporter that buffer log messages.
   @param level          log message level
   @param format         log message format string
 */
-C_MODE_START
+
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1277,14 +1275,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
-C_MODE_END
-#endif /* !EMBEDDED_LIBRARY */
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
-static MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
-struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
-
-#ifndef EMBEDDED_LIBRARY
 struct passwd *user_info;
 static pthread_t select_thread;
 #endif
@@ -3246,7 +3237,7 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 void my_message_sql(uint error, const char *str, myf MyFlags)
 {
   THD *thd= current_thd;
-  MYSQL_ERROR::enum_warning_level level;
+  Sql_condition::enum_warning_level level;
   sql_print_message_func func;
   DBUG_ENTER("my_message_sql");
   DBUG_PRINT("error", ("error: %u  message: '%s'  Flag: %lu", error, str,
@@ -3258,17 +3249,17 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_ERROR, error, str);
   if (MyFlags & ME_JUST_INFO)
   {
-    level= MYSQL_ERROR::WARN_LEVEL_NOTE;
+    level= Sql_condition::WARN_LEVEL_NOTE;
     func= sql_print_information;
   }
   else if (MyFlags & ME_JUST_WARNING)
   {
-    level= MYSQL_ERROR::WARN_LEVEL_WARN;
+    level= Sql_condition::WARN_LEVEL_WARN;
     func= sql_print_warning;
   }
   else
   {
-    level= MYSQL_ERROR::WARN_LEVEL_ERROR;
+    level= Sql_condition::WARN_LEVEL_ERROR;
     func= sql_print_error;
   }
 
@@ -3428,6 +3419,7 @@ SHOW_VAR com_status_vars[]= {
   {"empty_query",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EMPTY_QUERY]), SHOW_LONG_STATUS},
   {"execute_sql",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_EXECUTE]), SHOW_LONG_STATUS},
   {"flush",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_FLUSH]), SHOW_LONG_STATUS},
+  {"get_diagnostics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GET_DIAGNOSTICS]), SHOW_LONG_STATUS},
   {"grant",                (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_GRANT]), SHOW_LONG_STATUS},
   {"ha_close",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_CLOSE]), SHOW_LONG_STATUS},
   {"ha_open",              (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_HA_OPEN]), SHOW_LONG_STATUS},
@@ -4916,7 +4908,6 @@ int mysqld_main(int argc, char **argv)
 
   sys_var_init();
 
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     The performance schema needs to be initialized as early as possible,
     before to-be-instrumented objects of the server are initialized.
@@ -4944,22 +4935,30 @@ int mysqld_main(int argc, char **argv)
   my_charset_error_reporter= buffered_option_error_reporter;
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   /*
     Initialize the array of performance schema instrument configurations.
   */
   init_pfs_instrument_array();
+#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
   ho_error= handle_options(&remaining_argc, &remaining_argv,
                            (my_option*)(all_early_options.buffer),
                            mysqld_get_one_option);
   delete_dynamic(&all_early_options);
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
   if (ho_error == 0)
   {
     /* Add back the program name handle_options removes */
     remaining_argc++;
     remaining_argv--;
-    if (pfs_param.m_enabled)
+    if (pfs_param.m_enabled  && !opt_help && !opt_bootstrap)
     {
+      /* Add sizing hints from the server sizing parameters. */
+      pfs_param.m_hints.m_table_definition_cache= table_def_size;
+      pfs_param.m_hints.m_table_open_cache= table_cache_size;
+      pfs_param.m_hints.m_max_connections= max_connections;
+      pfs_param.m_hints.m_open_files_limit= open_files_limit;
       PSI_hook= initialize_performance_schema(&pfs_param);
       if (PSI_hook == NULL)
       {
@@ -6853,7 +6852,7 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     *((my_bool *)buff)= (my_bool) (mi->slave_running ==
                                    MYSQL_SLAVE_RUN_CONNECT &&
@@ -6873,7 +6872,7 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     *((longlong *)buff)= mi->received_heartbeats;
   else
@@ -6891,7 +6890,7 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_NOTE);
+                    Sql_condition::WARN_LEVEL_NOTE);
   if (mi)
     sprintf(buff, "%.3f", mi->heartbeat_period);
   else
@@ -8892,6 +8891,9 @@ static PSI_file_info all_server_files[]=
 
 PSI_stage_info stage_after_create= { 0, "After create", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
+PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
+PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
+PSI_stage_info stage_alter_inplace_commit= { 0, "committing alter table to storage engine", 0};
 PSI_stage_info stage_changing_master= { 0, "Changing master", 0};
 PSI_stage_info stage_checking_master_version= { 0, "Checking master version", 0};
 PSI_stage_info stage_checking_permissions= { 0, "checking permissions", 0};

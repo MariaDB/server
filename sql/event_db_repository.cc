@@ -687,7 +687,7 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
     if (create_if_not)
     {
       *event_already_exists= true;
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_EVENT_ALREADY_EXISTS, ER(ER_EVENT_ALREADY_EXISTS),
                           parse_data->name.str);
       ret= 0;
@@ -912,7 +912,7 @@ Event_db_repository::drop_event(THD *thd, LEX_STRING db, LEX_STRING name,
     goto end;
   }
 
-  push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                       ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
                       "Event", name.str);
   ret= 0;
@@ -958,7 +958,7 @@ Event_db_repository::find_named_event(LEX_STRING db, LEX_STRING name,
   if (db.length > table->field[ET_FIELD_DB]->field_length ||
       name.length > table->field[ET_FIELD_NAME]->field_length ||
       table->s->keys == 0 ||
-      table->key_info[0].key_parts != 2 ||
+      table->key_info[0].user_defined_key_parts != 2 ||
       table->key_info[0].key_part[0].fieldnr != ET_FIELD_DB+1 ||
       table->key_info[0].key_part[1].fieldnr != ET_FIELD_NAME+1)
     DBUG_RETURN(TRUE);

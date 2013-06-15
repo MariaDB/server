@@ -373,7 +373,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
       If LIMIT ROWS EXAMINED interrupted query execution, issue a warning,
       continue with normal processing and produce an incomplete query result.
     */
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT,
                         ER(ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT),
                         thd->accessed_rows_and_keys,
@@ -1180,9 +1180,10 @@ JOIN::optimize_inner()
       if (!tbl->embedding)
       {
         Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
-        tbl->table->no_partitions_used= prune_partitions(thd, tbl->table,
-	                                                 prune_cond);
-      }
+        tbl->table->all_partitions_pruned_away= prune_partitions(thd,
+                                                                 tbl->table,
+	                                                         prune_cond);
+       }
     }
   }
 #endif
@@ -3322,9 +3323,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     set_statistics_for_table(join->thd, table);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    const bool no_partitions_used= table->no_partitions_used;
+    const bool all_partitions_pruned_away= table->all_partitions_pruned_away;
 #else
-    const bool no_partitions_used= FALSE;
+    const bool all_partitions_pruned_away= FALSE;
 #endif
 
     DBUG_EXECUTE_IF("bug11747970_raise_error",
@@ -3361,7 +3362,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       if (!table->is_filled_at_execution() &&
           ((!table->file->stats.records &&
             (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
-           no_partitions_used) && !embedding)
+           all_partitions_pruned_away) && !embedding)
       {						// Empty table
         s->dependent= 0;                        // Ignore LEFT JOIN depend.
         no_rows_const_tables |= table->map;
@@ -3405,7 +3406,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         (table->s->system ||
          (table->file->stats.records <= 1 &&
           (table->file->ha_table_flags() & HA_STATS_RECORDS_IS_EXACT)) ||
-         no_partitions_used) &&
+         all_partitions_pruned_away) &&
 	!s->dependent &&
         !table->fulltext_searched && !join->no_const_tables)
     {
@@ -5604,7 +5605,7 @@ best_access_path(JOIN      *join,
           */
           if ((found_part & 1) &&
               (!(table->file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
-               found_part == PREV_BITS(uint,keyinfo->key_parts)))
+               found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
           {
             max_key_part= max_part_bit(found_part);
             /*
@@ -5698,7 +5699,7 @@ best_access_path(JOIN      *join,
                 */
                 double rec_per_key;
                 if (!(rec_per_key=(double)
-                      keyinfo->rec_per_key[keyinfo->key_parts-1]))
+                      keyinfo->rec_per_key[keyinfo->user_defined_key_parts-1]))
                   rec_per_key=(double) s->records/rec+1;
 
                 if (!s->records)
@@ -5708,10 +5709,10 @@ best_access_path(JOIN      *join,
                 else
                 {
                   double a=s->records*0.01;
-                  if (keyinfo->key_parts > 1)
+                  if (keyinfo->user_defined_key_parts > 1)
                     tmp= (max_key_part * (rec_per_key - a) +
-                          a*keyinfo->key_parts - rec_per_key)/
-                         (keyinfo->key_parts-1);
+                          a*keyinfo->user_defined_key_parts - rec_per_key)/
+                         (keyinfo->user_defined_key_parts-1);
                   else
                     tmp= a;
                   set_if_bigger(tmp,1.0);
@@ -7866,8 +7867,8 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
       !(key_part_info = (KEY_PART_INFO *) thd->alloc(sizeof(KEY_PART_INFO)*
                                                      key_parts)))
     DBUG_RETURN(TRUE);
-  keyinfo->usable_key_parts= keyinfo->key_parts = key_parts;
-  keyinfo->ext_key_parts= keyinfo->key_parts;
+  keyinfo->usable_key_parts= keyinfo->user_defined_key_parts = key_parts;
+  keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
   keyinfo->key_part= key_part_info;
   keyinfo->key_length=0;
   keyinfo->algorithm= HA_KEY_ALG_UNDEF;
@@ -7913,7 +7914,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
     keyuse++;
   } while (keyuse->table == table && keyuse->is_for_hash_join());
 
-  keyinfo->ext_key_parts= keyinfo->key_parts;
+  keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
   keyinfo->ext_key_flags= keyinfo->flags;
   keyinfo->ext_key_part_map= 0;
 
@@ -10570,7 +10571,7 @@ bool TABLE_REF::tmp_table_index_lookup_init(THD *thd,
                                             bool value,
                                             uint skip)
 {
-  uint tmp_key_parts= tmp_key->key_parts;
+  uint tmp_key_parts= tmp_key->user_defined_key_parts;
   uint i;
   DBUG_ENTER("TABLE_REF::tmp_table_index_lookup_init");
 
@@ -14864,8 +14865,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME | HA_BINARY_PACK_KEY | HA_PACK_KEY;
     keyinfo->ext_key_flags= keyinfo->flags;
-    keyinfo->usable_key_parts=keyinfo->key_parts= param->group_parts;
-    keyinfo->ext_key_parts= keyinfo->key_parts;
+    keyinfo->usable_key_parts=keyinfo->user_defined_key_parts= param->group_parts;
+    keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     keyinfo->key_length=0;
     keyinfo->rec_per_key=NULL;
     keyinfo->read_stats= NULL;
@@ -14965,16 +14966,17 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       share->uniques= 1;
     }
     null_pack_length-=hidden_null_pack_length;
-    keyinfo->key_parts= ((field_count-param->hidden_field_count)+
-			 (share->uniques ? test(null_pack_length) : 0));
-    keyinfo->ext_key_parts= keyinfo->key_parts;
+    keyinfo->user_defined_key_parts=
+      ((field_count-param->hidden_field_count)+
+       (share->uniques ? test(null_pack_length) : 0));
+    keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
     share->keys= 1;
     if (!(key_part_info= (KEY_PART_INFO*)
           alloc_root(&table->mem_root,
-                     keyinfo->key_parts * sizeof(KEY_PART_INFO))))
+                     keyinfo->user_defined_key_parts * sizeof(KEY_PART_INFO))))
       goto err;
-    bzero((void*) key_part_info, keyinfo->key_parts * sizeof(KEY_PART_INFO));
+    bzero((void*) key_part_info, keyinfo->user_defined_key_parts * sizeof(KEY_PART_INFO));
     table->keys_in_use_for_query.set_bit(0);
     share->keys_in_use.set_bit(0);
     table->key_info= table->s->key_info= keyinfo;
@@ -15311,13 +15313,13 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   {						// Get keys for ni_create
     bool using_unique_constraint=0;
     HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
-                                            sizeof(*seg) * keyinfo->key_parts);
+                                            sizeof(*seg) * keyinfo->user_defined_key_parts);
     if (!seg)
       goto err;
 
-    bzero(seg, sizeof(*seg) * keyinfo->key_parts);
+    bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
     if (keyinfo->key_length >= table->file->max_key_length() ||
-	keyinfo->key_parts > table->file->max_key_parts() ||
+	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {
       if (!share->uniques && !(keyinfo->flags & HA_NOSAME))
@@ -15332,7 +15334,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       share->uniques= 1;
       using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));
-      uniquedef.keysegs=keyinfo->key_parts;
+      uniquedef.keysegs=keyinfo->user_defined_key_parts;
       uniquedef.seg=seg;
       uniquedef.null_are_equal=1;
 
@@ -15348,10 +15350,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       /* Create a key */
       bzero((char*) &keydef,sizeof(keydef));
       keydef.flag= keyinfo->flags & HA_NOSAME;
-      keydef.keysegs=  keyinfo->key_parts;
+      keydef.keysegs=  keyinfo->user_defined_key_parts;
       keydef.seg= seg;
     }
-    for (uint i=0; i < keyinfo->key_parts ; i++,seg++)
+    for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
     {
       Field *field=keyinfo->key_part[i].field;
       seg->flag=     0;
@@ -15479,13 +15481,13 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
   {						// Get keys for ni_create
     bool using_unique_constraint=0;
     HA_KEYSEG *seg= (HA_KEYSEG*) alloc_root(&table->mem_root,
-                                            sizeof(*seg) * keyinfo->key_parts);
+                                            sizeof(*seg) * keyinfo->user_defined_key_parts);
     if (!seg)
       goto err;
 
-    bzero(seg, sizeof(*seg) * keyinfo->key_parts);
+    bzero(seg, sizeof(*seg) * keyinfo->user_defined_key_parts);
     if (keyinfo->key_length >= table->file->max_key_length() ||
-	keyinfo->key_parts > table->file->max_key_parts() ||
+	keyinfo->user_defined_key_parts > table->file->max_key_parts() ||
 	share->uniques)
     {
       /* Can't create a key; Make a unique constraint instead of a key */
@@ -15493,7 +15495,7 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       share->uniques= 1;
       using_unique_constraint=1;
       bzero((char*) &uniquedef,sizeof(uniquedef));
-      uniquedef.keysegs=keyinfo->key_parts;
+      uniquedef.keysegs=keyinfo->user_defined_key_parts;
       uniquedef.seg=seg;
       uniquedef.null_are_equal=1;
 
@@ -15510,10 +15512,10 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
       bzero((char*) &keydef,sizeof(keydef));
       keydef.flag= ((keyinfo->flags & HA_NOSAME) | HA_BINARY_PACK_KEY |
                     HA_PACK_KEY);
-      keydef.keysegs=  keyinfo->key_parts;
+      keydef.keysegs=  keyinfo->user_defined_key_parts;
       keydef.seg= seg;
     }
-    for (uint i=0; i < keyinfo->key_parts ; i++,seg++)
+    for (uint i=0; i < keyinfo->user_defined_key_parts ; i++,seg++)
     {
       Field *field=keyinfo->key_part[i].field;
       seg->flag=     0;
@@ -16242,7 +16244,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
     if (join_tab->on_precond && !join_tab->on_precond->val_int())
       rc= NESTED_LOOP_NO_MORE_ROWS;
   }
-  join->thd->warning_info->reset_current_row_for_warning();
+  join->thd->get_stmt_da()->reset_current_row_for_warning();
 
   if (rc != NESTED_LOOP_NO_MORE_ROWS && 
       (rc= join_tab_execution_startup(join_tab)) < 0)
@@ -16476,7 +16478,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       enum enum_nested_loop_state rc;
       /* A match from join_tab is found for the current partial join. */
       rc= (*join_tab->next_select)(join, join_tab+1, 0);
-      join->thd->warning_info->inc_current_row_for_warning();
+      join->thd->get_stmt_da()->inc_current_row_for_warning();
       if (rc != NESTED_LOOP_OK && rc != NESTED_LOOP_NO_MORE_ROWS)
         DBUG_RETURN(rc);
       if (return_tab < join->return_tab)
@@ -16494,7 +16496,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     }
     else
     {
-      join->thd->warning_info->inc_current_row_for_warning();
+      join->thd->get_stmt_da()->inc_current_row_for_warning();
       join_tab->read_record.unlock_row(join_tab);
     }
   }
@@ -16505,7 +16507,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       with the beginning coinciding with the current partial join.
     */
     join->examined_rows++;
-    join->thd->warning_info->inc_current_row_for_warning();
+    join->thd->get_stmt_da()->inc_current_row_for_warning();
     join_tab->read_record.unlock_row(join_tab);
   }
   DBUG_RETURN(NESTED_LOOP_OK);
@@ -16618,7 +16620,7 @@ int report_error(TABLE *table, int error)
   if (error != HA_ERR_LOCK_DEADLOCK && error != HA_ERR_LOCK_WAIT_TIMEOUT
       && !table->in_use->killed)
   {
-    push_warning_printf(table->in_use, MYSQL_ERROR::WARN_LEVEL_WARN, error,
+    push_warning_printf(table->in_use, Sql_condition::WARN_LEVEL_WARN, error,
                         "Got error %d when reading table %`s.%`s",
                         error, table->s->db.str, table->s->table_name.str);
     sql_print_error("Got error %d when reading table '%s'",
@@ -18284,7 +18286,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;
-  key_part_end=key_part+table->key_info[idx].key_parts;
+  key_part_end=key_part+table->key_info[idx].user_defined_key_parts;
   key_part_map const_key_parts=table->const_key_parts[idx];
   int reverse=0;
   uint key_parts;
@@ -18326,7 +18328,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
           (we have to stop as first not continous primary key part)
         */
         for (key_part_end= key_part,
-             end= key_part+table->key_info[table->s->primary_key].key_parts;
+             end= key_part+table->key_info[table->s->primary_key].user_defined_key_parts;
              key_part_end < end; key_part_end++, pk_part_idx++)
         {
           /* Found hole in the pk_parts; Abort */
@@ -18343,7 +18345,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
           Test if the primary key parts were all const (i.e. there's one row).
           The sorting doesn't matter.
         */
-        if (key_part == start+table->key_info[table->s->primary_key].key_parts &&
+        if (key_part == start+table->key_info[table->s->primary_key].user_defined_key_parts &&
             reverse == 0)
         {
           key_parts= 0;
@@ -18369,7 +18371,7 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
   }
   if (on_pk_suffix)
   {
-    uint used_key_parts_secondary= table->key_info[idx].key_parts;
+    uint used_key_parts_secondary= table->key_info[idx].user_defined_key_parts;
     uint used_key_parts_pk=
       (uint) (key_part - table->key_info[table->s->primary_key].key_part);
     key_parts= used_key_parts_pk + used_key_parts_secondary;
@@ -18480,7 +18482,7 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
   {
     if (usable_keys->is_set(nr) &&
 	table->key_info[nr].key_length < min_length &&
-	table->key_info[nr].key_parts >= ref_key_parts &&
+	table->key_info[nr].user_defined_key_parts >= ref_key_parts &&
 	is_subkey(table->key_info[nr].key_part, ref_key_part,
 		  ref_key_part_end) &&
 	test_if_order_by_key(order, table, nr))
@@ -18538,7 +18540,7 @@ list_contains_unique_index(TABLE *table,
       KEY_PART_INFO *key_part, *key_part_end;
 
       for (key_part=keyinfo->key_part,
-           key_part_end=key_part+ keyinfo->key_parts;
+           key_part_end=key_part+ keyinfo->user_defined_key_parts;
            key_part < key_part_end;
            key_part++)
       {
@@ -18846,7 +18848,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     order_direction= best_key_direction;
     /*
       saved_best_key_parts is actual number of used keyparts found by the
-      test_if_order_by_key function. It could differ from keyinfo->key_parts,
+      test_if_order_by_key function. It could differ from keyinfo->user_defined_key_parts,
       thus we have to restore it in case of desc order as it affects
       QUICK_SELECT_DESC behaviour.
     */
@@ -19810,7 +19812,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         warning so the user knows that the field from the FROM clause
         overshadows the column reference from the SELECT list.
       */
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
                           ER(ER_NON_UNIQ_ERROR),
                           ((Item_ident*) order_item)->field_name,
                           current_thd->where);
@@ -23189,12 +23191,12 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         if (group)
         {
           /* 
-            Used_key_parts can be larger than keyinfo->key_parts
+            Used_key_parts can be larger than keyinfo->user_defined_key_parts
             when using a secondary index clustered with a primary 
             key (e.g. as in Innodb). 
             See Bug #28591 for details.
           */  
-          uint used_index_parts= keyinfo->key_parts;
+          uint used_index_parts= keyinfo->user_defined_key_parts;
           uint used_pk_parts= 0;
           if (used_key_parts > used_index_parts)
             used_pk_parts= used_key_parts-used_index_parts;
@@ -23209,7 +23211,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
               of the primary key are considered unknown we assume
               they are equal to 1.
 	    */
-            if (used_key_parts == pkinfo->key_parts ||
+            if (used_key_parts == pkinfo->user_defined_key_parts ||
                 pkinfo->rec_per_key[0] == 0)
               rec_per_key= 1;                 
             if (rec_per_key > 1)
@@ -23276,7 +23278,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           select_limit= (ha_rows) (select_limit *
                                    (double) table_records /
                                     table->quick_condition_rows);
-        rec_per_key= keyinfo->actual_rec_per_key(keyinfo->key_parts-1);
+        rec_per_key= keyinfo->actual_rec_per_key(keyinfo->user_defined_key_parts-1);
         set_if_bigger(rec_per_key, 1);
         /*
           Here we take into account the fact that rows are
@@ -23302,12 +23304,12 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             quick_records= table->quick_rows[nr];
           if (best_key < 0 ||
               (select_limit <= MY_MIN(quick_records,best_records) ?
-               keyinfo->key_parts < best_key_parts :
+               keyinfo->user_defined_key_parts < best_key_parts :
                quick_records < best_records) ||
               (!is_best_covering && is_covering))
           {
             best_key= nr;
-            best_key_parts= keyinfo->key_parts;
+            best_key_parts= keyinfo->user_defined_key_parts;
             if (saved_best_key_parts)
               *saved_best_key_parts= used_key_parts;
             best_records= quick_records;

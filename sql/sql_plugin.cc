@@ -2036,7 +2036,7 @@ static bool finalize_install(THD *thd, TABLE *table, const LEX_STRING *name)
   if (tmp->state == PLUGIN_IS_DISABLED)
   {
     if (global_system_variables.log_warnings)
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_CANT_INITIALIZE_UDF, ER(ER_CANT_INITIALIZE_UDF),
                           name->str, "Plugin is disabled");
   }
@@ -2182,7 +2182,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
   }
   if (!plugin->plugin_dl)
   {
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_PLUGIN_DELETE_BUILTIN, ER(WARN_PLUGIN_DELETE_BUILTIN));
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PLUGIN", name->str);
     return 1;
@@ -2195,7 +2195,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_STRING *name)
 
   plugin->state= PLUGIN_IS_DELETED;
   if (plugin->ref_count)
-    push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                  WARN_PLUGIN_BUSY, ER(WARN_PLUGIN_BUSY));
   else
     reap_needed= true;

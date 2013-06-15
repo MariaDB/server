@@ -1563,7 +1563,7 @@ Dep_value_table *Dep_analysis_context::create_table_value(TABLE *table)
     if (key->flags & HA_NOSAME)
     {
       Dep_module_key *key_dep;
-      if (!(key_dep= new Dep_module_key(tbl_dep, i, key->key_parts)))
+      if (!(key_dep= new Dep_module_key(tbl_dep, i, key->user_defined_key_parts)))
         return NULL;
       *key_list= key_dep;
       key_list= &(key_dep->next_table_key);

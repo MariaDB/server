@@ -72,23 +72,25 @@
 static Sys_var_mybool Sys_pfs_enabled(
        "performance_schema",
        "Enable the performance schema.",
-       PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
-static Sys_var_ulong Sys_pfs_events_waits_history_long_size(
+static Sys_var_long Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
-       "Number of rows in EVENTS_WAITS_HISTORY_LONG.",
+       "Number of rows in EVENTS_WAITS_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY
        GLOBAL_VAR(pfs_param.m_events_waits_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_WAITS_HISTORY_LONG_SIZE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_waits_history_size(
+static Sys_var_long Sys_pfs_events_waits_history_size(
        "performance_schema_events_waits_history_size",
-       "Number of rows per thread in EVENTS_WAITS_HISTORY.",
+       "Number of rows per thread in EVENTS_WAITS_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_waits_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_WAITS_HISTORY_SIZE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_cond_classes(
        "performance_schema_max_cond_classes",
@@ -97,12 +99,13 @@ static Sys_var_ulong Sys_pfs_max_cond_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_COND_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_cond_instances(
+static Sys_var_long Sys_pfs_max_cond_instances(
        "performance_schema_max_cond_instances",
-       "Maximum number of instrumented condition objects.",
+       "Maximum number of instrumented condition objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_cond_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_COND), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_file_classes(
        "performance_schema_max_file_classes",
@@ -118,19 +121,21 @@ static Sys_var_ulong Sys_pfs_max_file_handles(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
        DEFAULT(PFS_MAX_FILE_HANDLE), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_file_instances(
+static Sys_var_long Sys_pfs_max_file_instances(
        "performance_schema_max_file_instances",
-       "Maximum number of instrumented files.",
+       "Maximum number of instrumented files."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_file_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_FILE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_sockets(
+static Sys_var_long Sys_pfs_max_sockets(
        "performance_schema_max_socket_instances",
-       "Maximum number of opened instrumented sockets.",
+       "Maximum number of opened instrumented sockets."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_socket_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_SOCKETS),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_socket_classes(
@@ -148,12 +153,13 @@ static Sys_var_ulong Sys_pfs_max_mutex_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_MUTEX_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_mutex_instances(
+static Sys_var_long Sys_pfs_max_mutex_instances(
        "performance_schema_max_mutex_instances",
-       "Maximum number of instrumented MUTEX objects.",
+       "Maximum number of instrumented MUTEX objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_mutex_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100*1024*1024),
-       DEFAULT(PFS_MAX_MUTEX), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 100*1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_rwlock_classes(
        "performance_schema_max_rwlock_classes",
@@ -162,26 +168,29 @@ static Sys_var_ulong Sys_pfs_max_rwlock_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_RWLOCK_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_rwlock_instances(
+static Sys_var_long Sys_pfs_max_rwlock_instances(
        "performance_schema_max_rwlock_instances",
-       "Maximum number of instrumented RWLOCK objects.",
+       "Maximum number of instrumented RWLOCK objects."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_rwlock_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 100*1024*1024),
-       DEFAULT(PFS_MAX_RWLOCK), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 100*1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_table_handles(
+static Sys_var_long Sys_pfs_max_table_handles(
        "performance_schema_max_table_handles",
-       "Maximum number of opened instrumented tables.",
+       "Maximum number of opened instrumented tables."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_table_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_TABLE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_table_instances(
+static Sys_var_long Sys_pfs_max_table_instances(
        "performance_schema_max_table_instances",
-       "Maximum number of instrumented tables.",
+       "Maximum number of instrumented tables."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_table_share_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_TABLE_SHARE), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_thread_classes(
        "performance_schema_max_thread_classes",
@@ -190,12 +199,13 @@ static Sys_var_ulong Sys_pfs_max_thread_classes(
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
        DEFAULT(PFS_MAX_THREAD_CLASS), BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_max_thread_instances(
+static Sys_var_long Sys_pfs_max_thread_instances(
        "performance_schema_max_thread_instances",
-       "Maximum number of instrumented threads.",
+       "Maximum number of instrumented threads."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_thread_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_THREAD), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_setup_actors_size(
        "performance_schema_setup_actors_size",
@@ -213,28 +223,31 @@ static Sys_var_ulong Sys_pfs_setup_objects_size(
        DEFAULT(PFS_MAX_SETUP_OBJECT),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_accounts_size(
+static Sys_var_long Sys_pfs_accounts_size(
        "performance_schema_accounts_size",
-       "Maximum number of instrumented user@host accounts.",
+       "Maximum number of instrumented user@host accounts."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_account_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_ACCOUNT),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_hosts_size(
+static Sys_var_long Sys_pfs_hosts_size(
        "performance_schema_hosts_size",
-       "Maximum number of instrumented hosts.",
+       "Maximum number of instrumented hosts."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_host_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_HOST),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_users_size(
+static Sys_var_long Sys_pfs_users_size(
        "performance_schema_users_size",
-       "Maximum number of instrumented users.",
+       "Maximum number of instrumented users."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_user_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_MAX_USER),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_pfs_max_stage_classes(
@@ -245,20 +258,22 @@ static Sys_var_ulong Sys_pfs_max_stage_classes(
        DEFAULT(PFS_MAX_STAGE_CLASS),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_stages_history_long_size(
+static Sys_var_long Sys_pfs_events_stages_history_long_size(
        "performance_schema_events_stages_history_long_size",
-       "Number of rows in EVENTS_STAGES_HISTORY_LONG.",
+       "Number of rows in EVENTS_STAGES_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_STAGES_HISTORY_LONG_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_stages_history_size(
+static Sys_var_long Sys_pfs_events_stages_history_size(
        "performance_schema_events_stages_history_size",
-       "Number of rows per thread in EVENTS_STAGES_HISTORY.",
+       "Number of rows per thread in EVENTS_STAGES_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_stages_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_STAGES_HISTORY_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 /**
@@ -278,28 +293,31 @@ static Sys_var_ulong Sys_pfs_max_statement_classes(
        DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_statements_history_long_size(
+static Sys_var_long Sys_pfs_events_statements_history_long_size(
        "performance_schema_events_statements_history_long_size",
-       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG.",
+       "Number of rows in EVENTS_STATEMENTS_HISTORY_LONG."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_long_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024*1024),
-       DEFAULT(PFS_STATEMENTS_HISTORY_LONG_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024*1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_events_statements_history_size(
+static Sys_var_long Sys_pfs_events_statements_history_size(
        "performance_schema_events_statements_history_size",
-       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY.",
+       "Number of rows per thread in EVENTS_STATEMENTS_HISTORY."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_events_statements_history_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 1024),
-       DEFAULT(PFS_STATEMENTS_HISTORY_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
-static Sys_var_ulong Sys_pfs_digest_size(
+static Sys_var_long Sys_pfs_digest_size(
        "performance_schema_digests_size",
-       "Size of the statement digest.",
+       "Size of the statement digest."
+       " Use 0 to disable, -1 for automated sizing.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_digest_sizing),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 200),
-       DEFAULT(PFS_DIGEST_SIZE),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 200),
+       DEFAULT(-1),
        BLOCK_SIZE(1));
 
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
@@ -1187,7 +1205,7 @@ static bool check_max_allowed_packet(sys_var *self, THD *thd,  set_var *var)
   val= var->save_result.ulonglong_value;
   if (val < (longlong) global_system_variables.net_buffer_length)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
@@ -1454,7 +1472,7 @@ static bool check_net_buffer_length(sys_var *self, THD *thd,  set_var *var)
   val= var->save_result.ulonglong_value;
   if (val > (longlong) global_system_variables.max_allowed_packet)
   {
-    push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                         WARN_OPTION_BELOW_LIMIT, ER(WARN_OPTION_BELOW_LIMIT),
                         "max_allowed_packet", "net_buffer_length");
   }
@@ -1986,7 +2004,7 @@ static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
      requested cache size. See also query_cache_size_arg
   */
   if (query_cache_size != new_cache_size)
-    push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_WARN_QC_RESIZE, ER(ER_WARN_QC_RESIZE),
                         query_cache_size, new_cache_size);
 
@@ -3026,7 +3044,7 @@ static Sys_var_session_special Sys_rand_seed2(
 
 static ulonglong read_error_count(THD *thd)
 {
-  return thd->warning_info->error_count();
+  return thd->get_stmt_da()->error_count();
 }
 // this really belongs to the SHOW STATUS
 static Sys_var_session_special Sys_error_count(
@@ -3038,7 +3056,7 @@ static Sys_var_session_special Sys_error_count(
 
 static ulonglong read_warning_count(THD *thd)
 {
-  return thd->warning_info->warn_count();
+  return thd->get_stmt_da()->warn_count();
 }
 // this really belongs to the SHOW STATUS
 static Sys_var_session_special Sys_warning_count(
@@ -3542,7 +3560,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_WARN);
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
@@ -3564,7 +3582,7 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
     get_master_info(&thd->variables.default_master_connection,
-                    MYSQL_ERROR::WARN_LEVEL_ERROR);
+                    Sql_condition::WARN_LEVEL_ERROR);
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.run_lock);
@@ -3711,7 +3729,7 @@ static bool check_locale(sys_var *self, THD *thd, set_var *var)
     mysql_mutex_unlock(&LOCK_error_messages);
     if (res)
     {
-      push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                           "Can't process error message file for locale '%s'",
                           locale->name);
       return true;

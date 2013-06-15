@@ -32,20 +32,38 @@ typedef struct st_archive_record_buffer {
 } archive_record_buffer;
 
 
-typedef struct st_archive_share {
-  char *table_name;
-  char data_file_name[FN_REFLEN];
-  uint table_name_length,use_count, version;
+class Archive_share : public Handler_share
+{
+public:
   mysql_mutex_t mutex;
   THR_LOCK lock;
   azio_stream archive_write;     /* Archive file we are working with */
+  ha_rows rows_recorded;    /* Number of rows in tables */
+  char table_name[FN_REFLEN];
+  char data_file_name[FN_REFLEN];
+  bool in_optimize;
   bool archive_write_open;
   bool dirty;               /* Flag for if a flush should occur */
   bool crashed;             /* Meta file is crashed */
-  ha_rows rows_recorded;    /* Number of rows in tables */
-  ulonglong mean_rec_length;
-  char real_path[FN_REFLEN];
-} ARCHIVE_SHARE;
+  Archive_share();
+  ~Archive_share()
+  {
+    DBUG_PRINT("ha_archive", ("~Archive_share: %p",
+                              this));
+    if (archive_write_open)
+    {
+      mysql_mutex_lock(&mutex);
+      (void) close_archive_writer();
+      mysql_mutex_unlock(&mutex);
+    }
+    thr_lock_delete(&lock);
+    mysql_mutex_destroy(&mutex);
+  }
+  int init_archive_writer();
+  void close_archive_writer();
+  int write_v1_metafile();
+  int read_v1_metafile();
+};
 
 /*
   Version for file format.
@@ -58,7 +76,7 @@ typedef struct st_archive_share {
 class ha_archive: public handler
 {
   THR_LOCK_DATA lock;        /* MySQL lock */
-  ARCHIVE_SHARE *share;      /* Shared lock info */
+  Archive_share *share;      /* Shared lock info */
   
   azio_stream archive;            /* Archive file we are working with */
   my_off_t current_position;  /* The position of the row we just read */
@@ -76,6 +94,7 @@ class ha_archive: public handler
   archive_record_buffer *create_record_buffer(unsigned int length);
   void destroy_record_buffer(archive_record_buffer *r);
   int frm_copy(azio_stream *src, azio_stream *dst);
+  unsigned int pack_row_v1(uchar *record);
 
 public:
   ha_archive(handlerton *hton, TABLE_SHARE *table_arg);
@@ -121,9 +140,7 @@ public:
   int get_row(azio_stream *file_to_read, uchar *buf);
   int get_row_version2(azio_stream *file_to_read, uchar *buf);
   int get_row_version3(azio_stream *file_to_read, uchar *buf);
-  ARCHIVE_SHARE *get_share(const char *table_name, int *rc);
-  int free_share();
-  int init_archive_writer();
+  Archive_share *get_share(const char *table_name, int *rc);
   int init_archive_reader();
   // Always try auto_repair in case of HA_ERR_CRASHED_ON_USAGE
   bool auto_repair(int error) const
@@ -150,6 +167,7 @@ public:
   uint32 max_row_length(const uchar *buf);
   bool fix_rec_buff(unsigned int length);
   int unpack_row(azio_stream *file_to_read, uchar *record);
-  unsigned int pack_row(uchar *record);
+  unsigned int pack_row(uchar *record, azio_stream *writer);
+  bool check_if_incompatible_data(HA_CREATE_INFO *info, uint table_changes);
 };
 

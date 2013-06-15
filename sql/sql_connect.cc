@@ -1120,7 +1120,7 @@ void prepare_new_connection_state(THD* thd)
     {
       thd->killed= KILL_CONNECTION;
       thd->print_aborted_warning(0, "init_connect command failed");
-      sql_print_warning("%s", thd->stmt_da->message());
+      sql_print_warning("%s", thd->get_stmt_da()->message());
 
       /*
         now let client to send its first command,

@@ -668,9 +668,9 @@ public:
   virtual uint repertoire(void) const { return MY_REPERTOIRE_UNICODE30; }
   virtual void set_derivation(enum Derivation derivation_arg) { }
   virtual int set_time() { return 1; }
-  void set_warning(MYSQL_ERROR::enum_warning_level, unsigned int code,
-                   int cuted_increment);
-  void set_datetime_warning(MYSQL_ERROR::enum_warning_level, uint code, 
+  bool set_warning(Sql_condition::enum_warning_level, unsigned int code,
+                   int cuted_increment) const;
+  void set_datetime_warning(Sql_condition::enum_warning_level, uint code, 
                             const ErrConv *str, timestamp_type ts_type,
                             int cuted_increment);
   inline bool check_overflow(int op_result)
@@ -713,6 +713,30 @@ public:
     /* shouldn't get here. */
     DBUG_ASSERT(0);
     return GEOM_GEOMETRY;
+  }
+
+  ha_storage_media field_storage_type() const
+  {
+    return (ha_storage_media)
+      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
+  }
+
+  void set_storage_type(ha_storage_media storage_type_arg)
+  {
+    DBUG_ASSERT(field_storage_type() == HA_SM_DEFAULT);
+    flags |= (storage_type_arg << FIELD_FLAGS_STORAGE_MEDIA);
+  }
+
+  column_format_type column_format() const
+  {
+    return (column_format_type)
+      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
+  }
+
+  void set_column_format(column_format_type column_format_arg)
+  {
+    DBUG_ASSERT(column_format() == COLUMN_FORMAT_TYPE_DEFAULT);
+    flags |= (column_format_arg << FIELD_FLAGS_COLUMN_FORMAT);
   }
 
   key_map get_possible_keys();
@@ -2405,6 +2429,7 @@ public:
 
   uint8 row,col,sc_length,interval_id;	// For rea_create_table
   uint	offset,pack_flag;
+  bool create_if_not_exists;            // Used in ALTER TABLE IF NOT EXISTS
 
     /* 
     This is additinal data provided for any computed(virtual) field.
@@ -2419,7 +2444,8 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), option_list(NULL), option_struct(NULL)
+  Create_field() :after(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(FALSE)
   {}
   Create_field(Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
@@ -2443,10 +2469,24 @@ public:
   {
     return (flags & (BINCMP_FLAG | BINARY_FLAG)) != 0;
   }
+
+  ha_storage_media field_storage_type() const
+  {
+    return (ha_storage_media)
+      ((flags >> FIELD_FLAGS_STORAGE_MEDIA) & 3);
+  }
+
+  column_format_type column_format() const
+  {
+    return (column_format_type)
+      ((flags >> FIELD_FLAGS_COLUMN_FORMAT) & 3);
+  }
+
   uint virtual_col_expr_maxlen()
   {
     return 255 - FRM_VCOL_HEADER_SIZE(interval != NULL);
   }
+
 private:
   const String empty_set_string;
 };

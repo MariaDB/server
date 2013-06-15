@@ -64,7 +64,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_analyse.cc ../sql/sql_base.cc ../sql/sql_cache.cc 
            ../sql/sql_class.cc ../sql/sql_crypt.cc ../sql/sql_cursor.cc 
            ../sql/sql_db.cc ../sql/sql_delete.cc ../sql/sql_derived.cc 
-           ../sql/sql_do.cc ../sql/sql_error.cc ../sql/sql_handler.cc 
+           ../sql/sql_do.cc ../sql/sql_error.cc ../sql/sql_handler.cc
+            ../sql/sql_get_diagnostics.cc
            ../sql/sql_help.cc ../sql/sql_insert.cc ../sql/datadict.cc
            ../sql/sql_admin.cc ../sql/sql_truncate.cc ../sql/sql_reload.cc
            ../sql/sql_lex.cc ../sql/keycaches.cc
@@ -118,7 +119,7 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings regex mysys vio 
+  dbug strings regex mysys mysys_ssl vio 
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL}
   ${MYSQLD_STATIC_PLUGIN_LIBS}

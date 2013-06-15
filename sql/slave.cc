@@ -2650,7 +2650,7 @@ static int has_temporary_error(THD *thd)
   DBUG_ENTER("has_temporary_error");
 
   DBUG_EXECUTE_IF("all_errors_are_temporary_errors",
-                  if (thd->stmt_da->is_error())
+                  if (thd->get_stmt_da()->is_error())
                   {
                     thd->clear_error();
                     my_error(ER_LOCK_DEADLOCK, MYF(0));
@@ -2669,16 +2669,16 @@ static int has_temporary_error(THD *thd)
     currently, InnoDB deadlock detected by InnoDB or lock
     wait timeout (innodb_lock_wait_timeout exceeded
   */
-  if (thd->stmt_da->sql_errno() == ER_LOCK_DEADLOCK ||
-      thd->stmt_da->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
+  if (thd->get_stmt_da()->sql_errno() == ER_LOCK_DEADLOCK ||
+      thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
     DBUG_RETURN(1);
 
 #ifdef HAVE_NDB_BINLOG
   /*
     currently temporary error set in ndbcluster
   */
-  List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
-  MYSQL_ERROR *err;
+  List_iterator_fast<Sql_condition> it(thd->warning_info->warn_list());
+  Sql_condition *err;
   while ((err= it++))
   {
     DBUG_PRINT("info", ("has condition %d %s", err->get_sql_errno(),
@@ -3738,9 +3738,9 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
 
   if (check_temp_dir(rli->slave_patternload_file))
   {
-    rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), 
+    rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), 
                 "Unable to use slave's temporary directory %s - %s", 
-                slave_load_tmpdir, thd->stmt_da->message());
+                slave_load_tmpdir, thd->get_stmt_da()->message());
     goto err;
   }
 
@@ -3750,7 +3750,7 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
     execute_init_command(thd, &opt_init_slave, &LOCK_sys_init_slave);
     if (thd->is_slave_error)
     {
-      rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(),
+      rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(),
                   "Slave SQL thread aborted. Can't execute init_slave query");
       goto err;
     }
@@ -3817,20 +3817,20 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
 
         if (thd->is_error())
         {
-          char const *const errmsg= thd->stmt_da->message();
+          char const *const errmsg= thd->get_stmt_da()->message();
 
           DBUG_PRINT("info",
-                     ("thd->stmt_da->sql_errno()=%d; rli->last_error.number=%d",
-                      thd->stmt_da->sql_errno(), last_errno));
+                     ("thd->get_stmt_da()->sql_errno()=%d; rli->last_error.number=%d",
+                      thd->get_stmt_da()->sql_errno(), last_errno));
           if (last_errno == 0)
           {
             /*
  	      This function is reporting an error which was not reported
  	      while executing exec_relay_log_event().
  	    */ 
-            rli->report(ERROR_LEVEL, thd->stmt_da->sql_errno(), "%s", errmsg);
+            rli->report(ERROR_LEVEL, thd->get_stmt_da()->sql_errno(), "%s", errmsg);
           }
-          else if (last_errno != thd->stmt_da->sql_errno())
+          else if (last_errno != thd->get_stmt_da()->sql_errno())
           {
             /*
              * An error was reported while executing exec_relay_log_event()
@@ -3839,13 +3839,14 @@ log '%s' at position %s, relay log '%s' position: %s", RPL_LOG_NAME,
              * what caused the problem.
              */  
             sql_print_error("Slave (additional info): %s Error_code: %d",
-                            errmsg, thd->stmt_da->sql_errno());
+                            errmsg, thd->get_stmt_da()->sql_errno());
           }
         }
 
         /* Print any warnings issued */
-        List_iterator_fast<MYSQL_ERROR> it(thd->warning_info->warn_list());
-        MYSQL_ERROR *err;
+        Diagnostics_area::Sql_condition_iterator it=
+          thd->get_stmt_da()->sql_conditions();
+        const Sql_condition *err;
         /*
           Added controlled slave thread cancel for replication
           of user-defined variables.

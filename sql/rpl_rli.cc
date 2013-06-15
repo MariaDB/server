@@ -247,7 +247,7 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
     {
       sql_print_error("Failed to create a new relay log info file (\
 file '%s', errno %d)", fname, my_errno);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
     if (init_io_cache(&rli->info_file, info_fd, IO_SIZE*2, READ_CACHE, 0L,0,
@@ -255,7 +255,7 @@ file '%s', errno %d)", fname, my_errno);
     {
       sql_print_error("Failed to create a cache on relay log info file '%s'",
                       fname);
-      msg= current_thd->stmt_da->message();
+      msg= current_thd->get_stmt_da()->message();
       goto err;
     }
 
@@ -1334,9 +1334,9 @@ void Relay_log_info::clear_tables_to_lock()
 void Relay_log_info::slave_close_thread_tables(THD *thd)
 {
   DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
-  thd->stmt_da->can_overwrite_status= TRUE;
+  thd->get_stmt_da()->set_overwrite_status(true);
   thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
-  thd->stmt_da->can_overwrite_status= FALSE;
+  thd->get_stmt_da()->set_overwrite_status(false);
 
   close_thread_tables(thd);
   /*

@@ -67,7 +67,8 @@ static my_hash_value_type calc_hash(const HASH *hash,
   @param[in]     get_key      get the key for the hash
   @param[in]     free_element pointer to the function that
                               does cleanup
-  @return        inidicates success or failure of initialization
+  @param[in]     flags        flags set in the hash
+  @return        indicates success or failure of initialization
     @retval 0 success
     @retval 1 failure
 */

@@ -1388,7 +1388,7 @@ public:
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
     if ((uint) (table->key_info - key_info) == pk &&
-        table->key_info[pk].key_parts == 1)
+        table->key_info[pk].user_defined_key_parts == 1)
     {
       prefixes= 1;
       is_single_comp_pk= TRUE;
@@ -1926,7 +1926,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   
   is_single_pk_col= FALSE;
 
-  if (pk != MAX_KEY && table->key_info[pk].key_parts == 1 &&
+  if (pk != MAX_KEY && table->key_info[pk].user_defined_key_parts == 1 &&
       table->key_info[pk].key_part[0].fieldnr == table_field->field_index + 1)
     is_single_pk_col= TRUE;  
   

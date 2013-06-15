@@ -44,9 +44,6 @@ class Event_parse_data;
 class set_var_base;
 class sys_var;
 class Item_func_match;
-class Alter_drop;
-class Alter_column;
-class Key;
 class File_parser;
 class Key_part_spec;
 
@@ -117,6 +114,7 @@ struct sys_var_with_base
 #include "lex_symbol.h"
 #if MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
+#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
 #include "sql_yacc.h"
 #define LEX_YYSTYPE YYSTYPE *
 #else
@@ -255,11 +253,6 @@ enum sub_select_type
 enum olap_type 
 {
   UNSPECIFIED_OLAP_TYPE, CUBE_TYPE, ROLLUP_TYPE
-};
-
-enum tablespace_op_type
-{
-  NO_TABLESPACE_OP, DISCARD_TABLESPACE, IMPORT_TABLESPACE
 };
 
 /* 
@@ -505,6 +498,7 @@ public:
 					thr_lock_type flags= TL_UNLOCK,
                                         enum_mdl_type mdl_type= MDL_SHARED_READ,
 					List<Index_hint> *hints= 0,
+                                        List<String> *partition_names= 0,
                                         LEX_STRING *option= 0);
   virtual void set_lock_for_tables(thr_lock_type lock_type) {}
 
@@ -861,6 +855,7 @@ public:
 				thr_lock_type flags= TL_UNLOCK,
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
 				List<Index_hint> *hints= 0,
+                                List<String> *partition_names= 0,
                                 LEX_STRING *option= 0);
   TABLE_LIST* get_table_list();
   bool init_nested_join(THD *thd);
@@ -1074,7 +1069,38 @@ public:
   Sroutine_hash_entry **sroutines_list_own_last;
   uint sroutines_list_own_elements;
 
-  /*
+  /**
+    Locking state of tables in this particular statement.
+
+    If we under LOCK TABLES or in prelocked mode we consider tables
+    for the statement to be "locked" if there was a call to lock_tables()
+    (which called handler::start_stmt()) for tables of this statement
+    and there was no matching close_thread_tables() call.
+
+    As result this state may differ significantly from one represented
+    by Open_tables_state::lock/locked_tables_mode more, which are always
+    "on" under LOCK TABLES or in prelocked mode.
+  */
+  enum enum_lock_tables_state {
+    LTS_NOT_LOCKED = 0,
+    LTS_LOCKED
+  };
+  enum_lock_tables_state lock_tables_state;
+  bool is_query_tables_locked()
+  {
+    return (lock_tables_state == LTS_LOCKED);
+  }
+
+  /**
+    Number of tables which were open by open_tables() and to be locked
+    by lock_tables().
+    Note that we set this member only in some cases, when this value
+    needs to be passed from open_tables() to lock_tables() which are
+    separated by some amount of code.
+  */
+  uint table_count;
+
+   /*
     These constructor and destructor serve for creation/destruction
     of Query_tables_list instances which are used as backup storage.
   */
@@ -2274,7 +2300,7 @@ struct LEX: public Query_tables_list
   */
   nesting_map allow_sum_func;
 
-  Sql_statement *m_stmt;
+  Sql_cmd *m_sql_cmd;
 
   /*
     Usually `expr` rule of yacc is quite reused but some commands better
@@ -2331,6 +2357,7 @@ struct LEX: public Query_tables_list
   uint8 create_view_check;
   uint8 context_analysis_only;
   bool drop_if_exists, drop_temporary, local_file, one_shot_set;
+  bool check_exists;
   bool autocommit;
   bool verbose, no_write_to_binlog;
 

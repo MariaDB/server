@@ -897,7 +897,7 @@ public:
   Item_field *filed_for_view_update()
   {
     /* this function is transparent for view updating */
-    return args[0]->filed_for_view_update();
+    return args[0]->field_for_view_update();
   }
 };
 

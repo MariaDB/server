@@ -204,7 +204,7 @@ bool
 sp_rcontext::find_handler(THD *thd,
                           uint sql_errno,
                           const char *sqlstate,
-                          MYSQL_ERROR::enum_warning_level level,
+                          Sql_condition::enum_warning_level level,
                           const char *msg)
 {
   int i= m_hcount;
@@ -248,7 +248,7 @@ sp_rcontext::find_handler(THD *thd,
       break;
     case sp_cond_type_t::warning:
       if ((IS_WARNING_CONDITION(sqlstate) ||
-           level == MYSQL_ERROR::WARN_LEVEL_WARN) &&
+           level == Sql_condition::WARN_LEVEL_WARN) &&
           m_hfound < 0)
 	m_hfound= i;
       break;
@@ -258,7 +258,7 @@ sp_rcontext::find_handler(THD *thd,
       break;
     case sp_cond_type_t::exception:
       if (IS_EXCEPTION_CONDITION(sqlstate) &&
-	  level == MYSQL_ERROR::WARN_LEVEL_ERROR &&
+	  level == Sql_condition::WARN_LEVEL_ERROR &&
 	  m_hfound < 0)
 	m_hfound= i;
       break;
@@ -281,7 +281,7 @@ sp_rcontext::find_handler(THD *thd,
     (warning or "not found") we will simply resume execution.
   */
   if (m_prev_runtime_ctx && IS_EXCEPTION_CONDITION(sqlstate) &&
-      level == MYSQL_ERROR::WARN_LEVEL_ERROR)
+      level == Sql_condition::WARN_LEVEL_ERROR)
   {
     return m_prev_runtime_ctx->find_handler(thd, sql_errno, sqlstate,
                                             level, msg);
@@ -575,7 +575,7 @@ sp_cursor::fetch(THD *thd, List<struct sp_variable> *vars)
   }
 
   DBUG_EXECUTE_IF("bug23032_emit_warning",
-                  push_warning(thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
                                ER_UNKNOWN_ERROR,
                                ER(ER_UNKNOWN_ERROR)););
 
