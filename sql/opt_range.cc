@@ -3609,6 +3609,44 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 /****************************************************************************
  * Partition pruning module
  ****************************************************************************/
+
+/*
+  Store field key image to table record
+
+  SYNOPSIS
+    store_key_image_to_rec()
+      field  Field which key image should be stored
+      ptr    Field value in key format
+      len    Length of the value, in bytes
+
+  DESCRIPTION
+    Copy the field value from its key image to the table record. The source
+    is the value in key image format, occupying len bytes in buffer pointed
+    by ptr. The destination is table record, in "field value in table record"
+    format.
+*/
+
+void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
+{
+  /* Do the same as print_key() does */ 
+  my_bitmap_map *old_map;
+
+  if (field->real_maybe_null())
+  {
+    if (*ptr)
+    {
+      field->set_null();
+      return;
+    }
+    field->set_notnull();
+    ptr++;
+  }    
+  old_map= dbug_tmp_use_all_columns(field->table,
+                                    field->table->write_set);
+  field->set_key_image(ptr, len); 
+  dbug_tmp_restore_column_map(field->table->write_set, old_map);
+}
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 
 /*
@@ -3940,44 +3978,6 @@ end:
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
   DBUG_RETURN(retval);
-}
-
-
-/*
-  Store field key image to table record
-
-  SYNOPSIS
-    store_key_image_to_rec()
-      field  Field which key image should be stored
-      ptr    Field value in key format
-      len    Length of the value, in bytes
-
-  DESCRIPTION
-    Copy the field value from its key image to the table record. The source
-    is the value in key image format, occupying len bytes in buffer pointed
-    by ptr. The destination is table record, in "field value in table record"
-    format.
-*/
-
-void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
-{
-  /* Do the same as print_key() does */ 
-  my_bitmap_map *old_map;
-
-  if (field->real_maybe_null())
-  {
-    if (*ptr)
-    {
-      field->set_null();
-      return;
-    }
-    field->set_notnull();
-    ptr++;
-  }    
-  old_map= dbug_tmp_use_all_columns(field->table,
-                                    field->table->write_set);
-  field->set_key_image(ptr, len); 
-  dbug_tmp_restore_column_map(field->table->write_set, old_map);
 }
 
 

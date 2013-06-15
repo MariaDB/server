@@ -103,6 +103,12 @@
 #define HAVE_EXTERNAL_CLIENT
 #endif
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#define IF_PARTITIONING(A,B) A
+#else
+#define IF_PARTITIONING(A,B) B
+#endif
+
 #if defined (_WIN32)
 /*
  off_t is 32 bit long. We do not use C runtime functions

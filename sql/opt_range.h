@@ -1046,8 +1046,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);
-void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 #endif
+void store_key_image_to_rec(Field *field, uchar *ptr, uint len);
 
 extern String null_string;
 
