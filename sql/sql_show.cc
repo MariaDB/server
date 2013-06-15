@@ -5395,7 +5395,7 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
                                    void *ptable)
 {
   TABLE *table= (TABLE *) ptable;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : NullS;
   CHARSET_INFO *scs= system_charset_info;
   handlerton *default_type= ha_default_handlerton(thd);
@@ -8052,7 +8052,7 @@ static my_bool run_hton_fill_schema_table(THD *thd, plugin_ref plugin,
 {
   struct run_hton_fill_schema_table_args *args=
     (run_hton_fill_schema_table_args *) arg;
-  handlerton *hton= plugin_data(plugin, handlerton *);
+  handlerton *hton= plugin_hton(plugin);
   if (hton->fill_is_table && hton->state == SHOW_OPTION_YES)
       hton->fill_is_table(hton, thd, args->tables, args->cond,
             get_schema_table_idx(args->tables->schema_table));
