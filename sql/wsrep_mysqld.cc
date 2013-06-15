@@ -409,7 +409,6 @@ static void wsrep_init_position()
   }
 }
 
-
 int wsrep_init()
 {
   int rcode= -1;
@@ -651,6 +650,8 @@ void wsrep_stop_replication(THD *thd)
 }
 
 
+extern my_bool wsrep_new_cluster;
+
 bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
@@ -674,11 +675,19 @@ bool wsrep_start_replication()
     return true;
   }
 
+  /* Note 'bootstrap' address is not officially supported in wsrep API #23 
+     but it can be back ported from #24 provider to get sneak preview of
+     bootstrap command 
+  */
+  const char* cluster_address =
+    wsrep_new_cluster ? "bootstrap" : wsrep_cluster_address;
+  wsrep_new_cluster= FALSE;
+
   WSREP_INFO("Start replication");
 
   if ((rcode = wsrep->connect(wsrep,
                               wsrep_cluster_name,
-                              wsrep_cluster_address,
+                              cluster_address,
                               wsrep_sst_donor)))
   {
     if (-ESOCKTNOSUPPORT == rcode)
