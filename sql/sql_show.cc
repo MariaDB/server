@@ -831,7 +831,7 @@ find_files(THD *thd, Dynamic_array<LEX_STRING*> *files, LEX_STRING *db,
   }
   else
   {
-    if (ha_discover_table_names(thd, db, dirp, &tl))
+    if (ha_discover_table_names(thd, db, dirp, &tl, false))
       goto err;
   }
 

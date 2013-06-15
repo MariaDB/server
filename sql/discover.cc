@@ -198,10 +198,10 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
   end= cur + dirp->number_of_files;
   while (cur < end)
   {
-    char *octothorp= strrchr(cur->name, '#');
+    char *octothorp= strrchr(cur->name + 1, '#');
     char *ext= strchr(octothorp ? octothorp : cur->name, FN_EXTCHAR);
 
-    if (ext && octothorp != cur->name)
+    if (ext)
     {
       size_t len= (octothorp ? octothorp : ext) - cur->name;
       if (from != cur &&
@@ -239,13 +239,6 @@ int extension_based_table_discovery(MY_DIR *dirp, const char *ext_meta,
   simplified version of extension_based_table_discovery(), that does not
   modify the list of files. It cannot be called many times for the same
   directory listing, otherwise it'll produce duplicate results.
-
-  @note
-  For backward compatibility reasons, this will find tables with names,
-  starting from '#', as long as they don't start from '#sql-'.
-  These names are invalid since 5.0, and the compex discovery function
-  will ignore them. Anyone still having these files, should disable
-  discovering engines, and rename these invalid table files.
 */
 int ext_table_discovery_simple(MY_DIR *dirp,
                                handlerton::discovered_list *result)
@@ -259,7 +252,7 @@ int ext_table_discovery_simple(MY_DIR *dirp,
   {
     char *ext= strrchr(cur->name, FN_EXTCHAR);
 
-    if (ext && !is_prefix(cur->name, tmp_file_prefix))
+    if (ext)
     {
       if (my_strnncoll(cs, (uchar*)ext, strlen(ext),
                            (uchar*)reg_ext, reg_ext_length) == 0)

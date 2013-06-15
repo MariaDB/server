@@ -391,31 +391,14 @@ uint filename_to_tablename(const char *from, char *to, uint to_length
   DBUG_ENTER("filename_to_tablename");
   DBUG_PRINT("enter", ("from '%s'", from));
 
-  if (!strncmp(from, tmp_file_prefix, tmp_file_prefix_length))
+  res= strconvert(&my_charset_filename, from,
+                  system_charset_info,  to, to_length, &errors);
+  if (errors) // Old 5.0 name
   {
-    /* Temporary table name. */
-    res= (strnmov(to, from, to_length) - to);
-  }
-  else
-  {
-    res= strconvert(&my_charset_filename, from,
-                    system_charset_info,  to, to_length, &errors);
-    if (errors) // Old 5.0 name
-    {
-      res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
-            to);
-#ifndef DBUG_OFF
-      if (!stay_quiet) {
-#endif /* DBUG_OFF */
-        sql_print_error("Invalid (old?) table or database name '%s'", from);
-#ifndef DBUG_OFF
-      }
-#endif /* DBUG_OFF */
-      /*
-        TODO: add a stored procedure for fix table and database names,
-        and mention its name in error log.
-      */
-    }
+    res= (strxnmov(to, to_length, MYSQL50_TABLE_NAME_PREFIX,  from, NullS) -
+          to);
+    if (IF_DBUG(!stay_quiet,0))
+      sql_print_error("Invalid (old?) table or database name '%s'", from);
   }
 
   DBUG_PRINT("exit", ("to '%s'", to));
@@ -2230,9 +2213,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       alias= (lower_case_table_names == 2) ? table->alias : table->table_name;
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db, alias,
-                                        reg_ext,
-                                        table->internal_tmp_table ?
-                                        FN_IS_TMP : 0);
+                                        reg_ext, 0);
 
       /*
         This handles the case where a "DROP" was executed and a regular
@@ -2266,8 +2247,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
-    if (!table->internal_tmp_table &&
-        (drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
+    if ((drop_temporary || !ha_table_exists(thd, db, alias, &table_type) ||
          (!drop_view && table_type == view_pseudo_hton)))
     {
       /*
@@ -2276,10 +2256,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
           . "DROP" but table was not found on disk and table can't be
             created from engine.
           . ./sql/datadict.cc +32 /Alfranio - TODO: We need to test this.
-
-        Table->internal_tmp_table is set when one of the #sql-xxx files
-        was left in the datadir after a crash during ALTER TABLE.
-        See Bug#30152.
       */
       if (if_exists)
 	push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_NOTE,
@@ -2294,7 +2270,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     else
     {
       char *end;
-
       /*
         It could happen that table's share in the table_def_cache
         is the only thing that keeps the engine plugin loaded
