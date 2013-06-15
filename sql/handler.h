@@ -1210,6 +1210,11 @@ static inline LEX_STRING *hton_name(const handlerton *hton)
   return &(hton2plugin[hton->slot]->name);
 }
 
+static inline handlerton *plugin_hton(plugin_ref plugin)
+{
+  return plugin_data(plugin, handlerton *);
+}
+
 static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
 {
   return find_plugin_sysvar(hton2plugin[hton->slot], var);

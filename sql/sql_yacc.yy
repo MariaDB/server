@@ -5376,7 +5376,7 @@ storage_engines:
             plugin_ref plugin= ha_resolve_by_name(YYTHD, &$1);
 
             if (plugin)
-              $$= plugin_data(plugin, handlerton*);
+              $$= plugin_hton(plugin);
             else
             {
               if (YYTHD->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION)
@@ -5398,7 +5398,7 @@ known_storage_engines:
           {
             plugin_ref plugin;
             if ((plugin= ha_resolve_by_name(YYTHD, &$1)))
-              $$= plugin_data(plugin, handlerton*);
+              $$= plugin_hton(plugin);
             else
             {
               my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), $1.str);

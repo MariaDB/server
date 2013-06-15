@@ -1333,7 +1333,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
  /* Allocate handler */
   if (!(handler_file= get_new_handler(share, thd->mem_root,
-                                      plugin_data(se_plugin, handlerton *))))
+                                      plugin_hton(se_plugin))))
     goto err;
 
   record= share->default_values-1;              /* Fieldstart = 1 */
@@ -2081,7 +2081,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
     goto ret;
   }
 
-  thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
+  thd->lex->create_info.db_type= plugin_hton(db_plugin);
 
   if (tabledef_version.str)
     thd->lex->create_info.tabledef_version= tabledef_version;

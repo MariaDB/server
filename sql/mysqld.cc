@@ -4582,7 +4582,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   plugin_ref plugin;
   handlerton *hton;
   if ((plugin= ha_resolve_by_name(0, &name)))
-    hton= plugin_data(plugin, handlerton*);
+    hton= plugin_hton(plugin);
   else
   {
     sql_print_error("Unknown/unsupported storage engine: %s",
