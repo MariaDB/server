@@ -4336,8 +4336,13 @@ static my_bool discover_handlerton(THD *thd, plugin_ref plugin,
     {
       if (error)
       {
-        DBUG_ASSERT(share->error); // MUST be always set for get_cached_table_share to work
-        my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
+        DBUG_ASSERT(share->error); // get_cached_table_share needs that
+        /*
+          report an error, unless it is "generic" and a more
+          specific one was already reported
+        */
+        if (error != HA_ERR_GENERIC || !thd->is_error())
+          my_error(ER_GET_ERRNO, MYF(0), error, plugin_name(plugin)->str);
         share->db_plugin= 0;
       }
       else

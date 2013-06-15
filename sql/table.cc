@@ -2085,15 +2085,9 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   lex_start(thd);
 
-  if ((error= parse_sql(thd, & parser_state, NULL)))
+  if ((error= parse_sql(thd, & parser_state, NULL) || 
+              sql_unusable_for_discovery(thd, sql_copy)))
     goto ret;
-
-  if (sql_unusable_for_discovery(thd, sql_copy))
-  {
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), plugin_name(db_plugin)->str,
-             db.str, table_name.str, sql_copy);
-    goto ret;
-  }
 
   thd->lex->create_info.db_type= plugin_hton(db_plugin);
 
@@ -2125,8 +2119,10 @@ ret:
   if (thd->is_error() || error)
   {
     thd->clear_error();
-    my_error(ER_NO_SUCH_TABLE, MYF(0), db.str, table_name.str);
-    DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
+             plugin_name(db_plugin)->str, db.str, table_name.str,
+             sql_copy);
+    DBUG_RETURN(HA_ERR_GENERIC);
   }
   DBUG_RETURN(0);
 }
