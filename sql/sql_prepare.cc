@@ -2962,26 +2962,23 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   param= stmt->param_array[param_number];
 
-  Diagnostics_area new_stmt_da(true), *save_stmt_da= thd->stmt_da;
-  Warning_info new_warning_info(thd->query_id, false, true);
-  Warning_info *save_warning_info= thd->warning_info;
+  Diagnostics_area new_stmt_da(thd->query_id, false);
+  Diagnostics_area *save_stmt_da= thd->get_stmt_da();
 
-  thd->stmt_da= &new_stmt_da;
-  thd->warning_info= &new_warning_info;
+  thd->set_stmt_da(&new_stmt_da);
 
 #ifndef EMBEDDED_LIBRARY
   param->set_longdata(packet, (ulong) (packet_end - packet));
 #else
   param->set_longdata(thd->extra_data, thd->extra_length);
 #endif
-  if (thd->stmt_da->is_error())
+  if (thd->get_stmt_da()->is_error())
   {
     stmt->state= Query_arena::STMT_ERROR;
-    stmt->last_errno= thd->stmt_da->sql_errno();
-    strncpy(stmt->last_error, thd->stmt_da->message(), MYSQL_ERRMSG_SIZE);
+    stmt->last_errno= thd->get_stmt_da()->sql_errno();
+    strncpy(stmt->last_error, thd->get_stmt_da()->message(), MYSQL_ERRMSG_SIZE);
   }
-  thd->stmt_da= save_stmt_da;
-  thd->warning_info= save_warning_info;
+  thd->set_stmt_da(save_stmt_da);
 
   general_log_print(thd, thd->get_command(), NullS);
 
