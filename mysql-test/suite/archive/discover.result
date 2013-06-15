@@ -123,3 +123,6 @@ select * from `a/../`;
 a
 flush tables;
 drop table `a/../`;
+create database test1;
+create table test1.t1 (i int) engine=archive;
+drop database test1;

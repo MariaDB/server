@@ -102,3 +102,10 @@ select * from `a/../`; flush tables;
 remove_file $mysqld_datadir/test/a@002f@002e@002e@002f.frm;
 drop table `a/../`;
 
+#
+# MDEV-4441 DROP DATABASE with a newly created ARCHIVE table does not work
+#
+create database test1;
+create table test1.t1 (i int) engine=archive;
+drop database test1;
+

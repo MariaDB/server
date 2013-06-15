@@ -4634,12 +4634,12 @@ static my_bool discover_names(THD *thd, plugin_ref plugin,
 }
 
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            Discovered_table_list *result)
+                            Discovered_table_list *result, bool reusable)
 {
   int error;
   DBUG_ENTER("ha_discover_table_names");
 
-  if (engines_with_discover_table_names == 0)
+  if (engines_with_discover_table_names == 0 && !reusable)
   {
     error= ext_table_discovery_simple(dirp, result);
     result->sort();

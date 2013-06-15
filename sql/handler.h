@@ -3163,7 +3163,7 @@ public:
 
 int ha_discover_table(THD *thd, TABLE_SHARE *share);
 int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
-                            Discovered_table_list *result);
+                            Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const char *db, const char *table_name,
                      handlerton **hton= 0);
 #endif
