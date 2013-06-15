@@ -72,9 +72,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   ulong filepos, data_offset;
   uint options_len;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_info *part_info= thd->work_part_info;
-#endif
+  const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   int error;
   uchar *frm_ptr, *pos;
   LEX_CUSTRING frm= {0,0};
@@ -106,12 +104,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
       => Total 6 byte
   */
   create_info->extra_size+= 6;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
-  {
     create_info->extra_size+= part_info->part_info_len;
-  }
-#endif
 
   for (i= 0; i < keys; i++)
   {
@@ -266,13 +260,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 			     (create_info->min_rows == 1) && (keys == 0));
   int2store(fileinfo+28,key_info_length);
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
   {
     fileinfo[61]= (uchar) ha_legacy_type(part_info->default_engine_type);
     DBUG_PRINT("info", ("part_db_type = %d", fileinfo[61]));
   }
-#endif
+
   int2store(fileinfo+59,db_file->extra_rec_buf_length());
 
   memcpy(frm_ptr, fileinfo, FRM_HEADER_SIZE);
@@ -292,7 +285,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   memcpy(pos, str_db_type.str, str_db_type.length);
   pos+= str_db_type.length;
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (part_info)
   {
     char auto_partitioned= part_info->is_auto_partitioned ? 1 : 0;
@@ -303,7 +295,6 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     *pos++= auto_partitioned;
   }
   else
-#endif
   {
     pos+= 6;
   }

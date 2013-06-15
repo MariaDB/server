@@ -2125,7 +2125,7 @@ bool TABLE_SHARE::write_frm_image(const uchar *frm, size_t len)
 
 bool TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
-  if (partition_info_str)               // cannot discover a partition
+  if (IF_PARTITIONING(partition_info_str, 0))   // cannot discover a partition
   {
     DBUG_ASSERT(db_type()->discover_table == 0);
     return 1;
