@@ -83,8 +83,6 @@ t0.ARZ
 select * from t0;
 a
 flush tables;
-select * from t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
 drop table t0;
 show status like 'Handler_discover';
 Variable_name	Value

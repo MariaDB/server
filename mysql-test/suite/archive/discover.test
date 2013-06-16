@@ -72,8 +72,6 @@ drop table t1;
 select * from t0;
 remove_file $mysqld_datadir/test/t0.ARZ;
 flush tables;
---error ER_NO_SUCH_TABLE
-select * from t1;
 drop table t0;
 --list_files $mysqld_datadir/test
 show status like 'Handler_discover';
