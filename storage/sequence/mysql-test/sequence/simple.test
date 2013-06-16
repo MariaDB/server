@@ -91,3 +91,7 @@ let $binlog_limit= 10;
 --source include/show_binlog_events.inc
 drop table t1;
 
+#
+# MDEV-4449 SEQUENCE depends on TEST_SQL_DISCOVERY for discovering tables upon DDL
+#
+drop table seq_1_to_1;

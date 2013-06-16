@@ -268,3 +268,4 @@ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use test; insert t1 select * from seq_1_to_10
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 drop table t1;
+drop table seq_1_to_1;
