@@ -3520,7 +3520,6 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   int reprepare_attempt= 0;
-  bool need_set_parameters= true;
 
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -3529,20 +3528,19 @@ Prepared_statement::execute_loop(String *expanded_query,
     return TRUE;
   }
 
-reexecute:
-  if (need_set_parameters &&
-      set_parameters(expanded_query, packet, packet_end))
+  if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
 
-  /*
-    if set_parameters() has generated warnings,
-    we need to repeat it when reexecuting, to recreate these
-    warnings.
-  */
-  need_set_parameters= thd->get_stmt_da()->statement_warn_count();
+#ifdef NOT_YET_FROM_MYSQL_5_6
+  if (unlikely(thd->security_ctx->password_expired && 
+               !lex->is_change_password))
+  {
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    return true;
+  }
+#endif
 
-  reprepare_observer.reset_reprepare_observer();
-
+reexecute:
   /*
     If the free_list is not empty, we'll wrongly free some externally
     allocated items when cleaning up after validation of the prepared
@@ -3556,18 +3554,20 @@ reexecute:
     the observer method will be invoked to push an error into
     the error stack.
   */
-  if (sql_command_flags[lex->sql_command] &
-      CF_REEXECUTION_FRAGILE)
+
+  if (sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE)
   {
+    reprepare_observer.reset_reprepare_observer();
     DBUG_ASSERT(thd->m_reprepare_observer == NULL);
-    thd->m_reprepare_observer = &reprepare_observer;
+    thd->m_reprepare_observer= &reprepare_observer;
   }
 
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
 
-  if (error && !thd->is_fatal_error && !thd->killed &&
+  if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
+      error && !thd->is_fatal_error && !thd->killed &&
       reprepare_observer.is_invalidated() &&
       reprepare_attempt++ < MAX_REPREPARE_ATTEMPTS)
   {

@@ -1571,6 +1571,7 @@ void dbug_serve_apcs(THD *thd, int n_calls);
 */
 
 class THD :public Statement,
+           public MDL_context_owner,
            public Open_tables_state
 {
 private:
@@ -2583,6 +2584,37 @@ public:
     mysql_mutex_unlock(&mysys_var->mutex);
     return;
   }
+  virtual int is_killed() { return killed; }
+  virtual THD* get_thd() { return this; }
+
+  /**
+    A callback to the server internals that is used to address
+    special cases of the locking protocol.
+    Invoked when acquiring an exclusive lock, for each thread that
+    has a conflicting shared metadata lock.
+
+    This function:
+    - aborts waiting of the thread on a data lock, to make it notice
+      the pending exclusive lock and back off.
+    - if the thread is an INSERT DELAYED thread, sends it a KILL
+      signal to terminate it.
+
+    @note This function does not wait for the thread to give away its
+          locks. Waiting is done outside for all threads at once.
+
+    @param ctx_in_use           The MDL context owner (thread) to wake up.
+    @param needs_thr_lock_abort Indicates that to wake up thread
+                                this call needs to abort its waiting
+                                on table-level lock.
+
+    @retval  TRUE  if the thread was woken up
+    @retval  FALSE otherwise.
+   */
+  virtual bool notify_shared_lock(MDL_context_owner *ctx_in_use,
+                                  bool needs_thr_lock_abort);
+
+  // End implementation of MDL_context_owner interface.
+
   inline bool is_strict_mode() const
   {
     return variables.sql_mode & (MODE_STRICT_TRANS_TABLES |
