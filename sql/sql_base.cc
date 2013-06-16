@@ -632,10 +632,8 @@ TABLE_SHARE *get_table_share(THD *thd, const char *db, const char *table_name,
     mysql_mutex_lock(&share->LOCK_ha_data);
     mysql_mutex_unlock(&LOCK_open);
 
-    if (flags & GTS_FORCE_DISCOVERY)
-      ha_discover_table(thd, share); // don't read the frm at all
-    else
-      open_table_def(thd, share, flags | GTS_FORCE_DISCOVERY); // frm or discover
+    /* note that get_table_share() *always* uses discovery */
+    open_table_def(thd, share, flags | GTS_USE_DISCOVERY);
 
     mysql_mutex_unlock(&share->LOCK_ha_data);
     mysql_mutex_lock(&LOCK_open);
@@ -3992,15 +3990,16 @@ recover_from_failed_open(THD *thd)
 
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, m_failed_table->db,
                          m_failed_table->table_name, FALSE);
+
+        thd->warning_info->clear_warning_info(thd->query_id);
+        thd->clear_error();                 // Clear error message
+
         if ((result=
              !get_table_share(thd, m_failed_table->db,
                               m_failed_table->table_name,
                               GTS_TABLE | GTS_FORCE_DISCOVERY | GTS_NOLOCK)))
           break;
 
-
-        thd->warning_info->clear_warning_info(thd->query_id);
-        thd->clear_error();                 // Clear error message
         thd->mdl_context.release_transactional_locks();
         break;
       }
@@ -5967,7 +5966,7 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
                        strend(saved_cache_key)+1, tmp_path);
   share->db_plugin= ha_lock_engine(thd, hton);
 
-  if (open_table_def(thd, share, GTS_TABLE | GTS_FORCE_DISCOVERY) ||
+  if (open_table_def(thd, share, GTS_TABLE | GTS_USE_DISCOVERY) ||
       open_table_from_share(thd, share, table_name,
                             (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE |
                                     HA_GET_INDEX),

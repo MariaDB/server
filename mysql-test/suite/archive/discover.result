@@ -124,3 +124,9 @@ drop table `a/../`;
 create database test1;
 create table test1.t1 (i int) engine=archive;
 drop database test1;
+create table t1 (a int) engine=archive;
+select * from t1;
+a
+flush tables;
+select * from t1;
+ERROR 42S02: Table 'test.t1' doesn't exist

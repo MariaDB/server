@@ -2495,7 +2495,8 @@ enum get_table_share_flags {
   GTS_TABLE                = 1,
   GTS_VIEW                 = 2,
   GTS_NOLOCK               = 4,
-  GTS_FORCE_DISCOVERY      = 8
+  GTS_USE_DISCOVERY        = 8,
+  GTS_FORCE_DISCOVERY      = 16
 };
 
 size_t max_row_length(TABLE *table, const uchar *data);
