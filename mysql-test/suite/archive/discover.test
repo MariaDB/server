@@ -107,3 +107,14 @@ create database test1;
 create table test1.t1 (i int) engine=archive;
 drop database test1;
 
+#
+# MDEV-4456 Reverse discovery of ARCHIVE table on SELECT after disappearance of ARZ file
+#
+create table t1 (a int) engine=archive;
+select * from t1;
+flush tables;
+remove_file $mysqld_datadir/test/t1.ARZ;
+--error ER_NO_SUCH_TABLE
+select * from t1;
+--list_files $mysqld_datadir/test
+

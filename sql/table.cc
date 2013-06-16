@@ -606,10 +606,19 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   share->error= OPEN_FRM_OPEN_ERROR;
 
   strxmov(path, share->normalized_path.str, reg_ext, NullS);
-  file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  if (flags & GTS_FORCE_DISCOVERY)
+  {
+    DBUG_ASSERT(flags & GTS_TABLE);
+    DBUG_ASSERT(flags & GTS_USE_DISCOVERY);
+    mysql_file_delete_with_symlink(key_file_frm, path, MYF(0));
+    file= -1;
+  }
+  else
+    file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+
   if (file < 0)
   {
-    if ((flags & GTS_TABLE) && (flags & GTS_FORCE_DISCOVERY))
+    if ((flags & GTS_TABLE) && (flags & GTS_USE_DISCOVERY))
     {
       ha_discover_table(thd, share);
       error_given= true;
@@ -2803,8 +2812,22 @@ partititon_err:
                        !(ha_open_flags & HA_OPEN_FOR_REPAIR));
       outparam->file->print_error(ha_err, MYF(0));
       error_reported= TRUE;
+
       if (ha_err == HA_ERR_TABLE_DEF_CHANGED)
         error= OPEN_FRM_DISCOVER;
+
+      /*
+        We're here, because .frm file was successfully opened.
+
+        But if the table doesn't exist in the engine and the engine
+        supports discovery, we force rediscover to discover
+        the fact that table doesn't in fact exist and remove
+        the stray .frm file.
+      */
+      if (share->db_type()->discover_table &&
+          (ha_err == ENOENT || ha_err == HA_ERR_NO_SUCH_TABLE))
+        error= OPEN_FRM_DISCOVER;
+          
       goto err;
     }
   }
