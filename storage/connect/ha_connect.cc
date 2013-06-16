@@ -666,8 +666,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   else if (!stricmp(opname, "Separator"))
     opval= (char*)options->separator;
   else if (!stricmp(opname, "Connect"))
-//  opval= (char*)options->connect;
-    opval= table->s->connect_string.str;
+    opval= (tshp) ? tshp->connect_string.str : table->s->connect_string.str;
   else if (!stricmp(opname, "Qchar"))
     opval= (char*)options->qchar;
   else if (!stricmp(opname, "Module"))

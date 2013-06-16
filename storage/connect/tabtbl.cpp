@@ -109,11 +109,12 @@ TBLDEF::TBLDEF(void)
 /**************************************************************************/
 bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  char   *tablist, *dbname;
+  char   *tablist, *dbname, *def = NULL;
 
   Desc = "Table list table";
   tablist = Cat->GetStringCatInfo(g, "Tablist", "");
   dbname = Cat->GetStringCatInfo(g, "Dbname", "*");
+  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Ntables = 0;
 
   if (*tablist) {
@@ -134,7 +135,7 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       } // endif p
 
       // Allocate the TBLIST block for that table
-      tbl = new(g) XTAB(pn);
+      tbl = new(g) XTAB(pn, def);
       tbl->SetQualifier(pdb);
       
       if (trace)
@@ -231,15 +232,27 @@ PCOL TDBTBL::InsertSpecialColumn(PGLOBAL g, PCOL scp)
 bool TDBTBL::InitTableList(PGLOBAL g)
   {
   int     n;
+  uint    sln;
+  char   *scs;
   PTABLE  tp, tabp;
   PCOL    colp;
   PTBLDEF tdp = (PTBLDEF)To_Def;
+  PCATLG  cat = To_Def->GetCat();
+  PHC     hc = ((MYCAT*)cat)->GetHandler();
 
+  scs = hc->get_table()->s->connect_string.str;
+  sln = hc->get_table()->s->connect_string.length;
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
   for (n = 0, tp = tdp->Tablep; tp; tp = tp->GetNext()) {
     if (TestFil(g, To_Filter, tp)) {
       tabp = new(g) XTAB(tp);
+
+      if (tabp->GetSrc()) {
+        // Table list is a list of connections
+        hc->get_table()->s->connect_string.str = (char*)tabp->GetName();
+        hc->get_table()->s->connect_string.length = strlen(tabp->GetName());
+        } // endif Src
 
       // Get the table description block of this table
       if (!(Tdbp = GetSubTable(g, tabp))) {
@@ -268,6 +281,9 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       } // endif filp
 
     } // endfor tp
+
+  hc->get_table()->s->connect_string.str = scs;
+  hc->get_table()->s->connect_string.length = sln;
 
 //NumTables = n;
   To_Filter = NULL;        // To avoid doing it several times
