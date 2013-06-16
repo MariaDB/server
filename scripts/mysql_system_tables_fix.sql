@@ -1,5 +1,5 @@
 -- Copyright (C) 2003, 2011 Oracle and/or its affiliates.
--- Copyright (C) 2010, 2011 Monty Program Ab
+-- Copyright (C) 2010-2013 Monty Program Ab & SkySQL Ab
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -20,6 +20,9 @@
 # You can safely ignore all 'Duplicate column' and 'Unknown column' errors
 # because these just mean that your tables are already up to date.
 # This script is safe to run even if your tables are already up to date!
+
+# Warning message(s) produced for a statement can be printed by explicitly
+# adding a 'SHOW WARNINGS' after the statement.
 
 set sql_mode='';
 set storage_engine=MyISAM;
@@ -234,18 +237,21 @@ ALTER TABLE func
 SET @old_log_state = @@global.general_log;
 SET GLOBAL general_log = 'OFF';
 ALTER TABLE general_log
-  MODIFY event_time TIMESTAMP(6) NOT NULL,
+  MODIFY event_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY thread_id INTEGER NOT NULL,
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
   MODIFY command_type VARCHAR(64) NOT NULL,
-  MODIFY argument MEDIUMTEXT NOT NULL;
+  MODIFY argument MEDIUMTEXT NOT NULL,
+  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL general_log = @old_log_state;
 
 SET @old_log_state = @@global.slow_query_log;
 SET GLOBAL slow_query_log = 'OFF';
 ALTER TABLE slow_log
-  MODIFY start_time TIMESTAMP(6) NOT NULL,
+  ADD COLUMN thread_id BIGINT(21) UNSIGNED NOT NULL AFTER sql_text;
+ALTER TABLE slow_log
+  MODIFY start_time TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   MODIFY user_host MEDIUMTEXT NOT NULL,
   MODIFY query_time TIME(6) NOT NULL,
   MODIFY lock_time TIME(6) NOT NULL,
@@ -255,7 +261,8 @@ ALTER TABLE slow_log
   MODIFY last_insert_id INTEGER NOT NULL,
   MODIFY insert_id INTEGER NOT NULL,
   MODIFY server_id INTEGER UNSIGNED NOT NULL,
-  MODIFY sql_text MEDIUMTEXT NOT NULL;
+  MODIFY sql_text MEDIUMTEXT NOT NULL,
+  MODIFY thread_id BIGINT(21) UNSIGNED NOT NULL;
 SET GLOBAL slow_query_log = @old_log_state;
 
 ALTER TABLE plugin
@@ -383,7 +390,7 @@ ALTER TABLE procs_priv
     COLLATE utf8_general_ci NOT NULL AFTER Routine_name;
 
 ALTER TABLE procs_priv
-  MODIFY Timestamp timestamp AFTER Proc_priv;
+  MODIFY Timestamp timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER Proc_priv;
 
 #
 # proc
@@ -622,8 +629,8 @@ ALTER TABLE user MODIFY Create_tablespace_priv enum('N','Y') COLLATE utf8_genera
 UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePriv = 0;
 
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
-ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL;
-ALTER TABLE user MODIFY authentication_string TEXT NOT NULL;
+ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL, user MODIFY authentication_string TEXT NOT NULL;
 
 -- Need to pre-fill mysql.proxies_priv with access for root even when upgrading from
 -- older versions

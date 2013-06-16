@@ -4860,54 +4860,19 @@ lock_table_names(THD *thd,
       continue;
     }
 
-    /*
-      Write lock on normal tables is not allowed in a read only transaction.
-    */
+    /* Write lock on normal tables is not allowed in a read only transaction. */
     if (thd->tx_read_only)
     {
       my_error(ER_CANT_EXECUTE_IN_READ_ONLY_TRANSACTION, MYF(0));
       DBUG_RETURN(true);
     }
 
-    if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) && schema_set.insert(table))
+    if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
+        schema_set.insert(table))
       DBUG_RETURN(TRUE);
 
     mdl_requests.push_front(&table->mdl_request);
   }
-
-  if (! (flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK) &&
-      ! mdl_requests.is_empty())
-  {
-    /*
-      Scoped locks: Take intention exclusive locks on all involved
-      schemas.
-    */
-    Hash_set<TABLE_LIST, schema_set_get_key>::Iterator it(schema_set);
-    while ((table= it++))
-    {
-      MDL_request *schema_request= new (thd->mem_root) MDL_request;
-      if (schema_request == NULL)
-        return TRUE;
-      schema_request->init(MDL_key::SCHEMA, table->db, "",
-                           MDL_INTENTION_EXCLUSIVE,
-                           MDL_TRANSACTION);
-      mdl_requests.push_front(schema_request);
-    }
-
-    /*
-      Protect this statement against concurrent global read lock
-      by acquiring global intention exclusive lock with statement
-      duration.
-    */
-    if (thd->global_read_lock.can_acquire_protection())
-      return TRUE;
-    global_request.init(MDL_key::GLOBAL, "", "", MDL_INTENTION_EXCLUSIVE,
-                        MDL_STATEMENT);
-    mdl_requests.push_front(&global_request);
-  }
-
-  if (thd->mdl_context.acquire_locks(&mdl_requests, lock_wait_timeout))
-    return TRUE;
 
   if (mdl_requests.is_empty())
     DBUG_RETURN(FALSE);

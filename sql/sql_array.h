@@ -124,6 +124,17 @@ public:
     return (insert_dynamic(&array, (uchar*)&el));
   }
 
+  /// Pops the last element. Does nothing if array is empty.
+  Elem& pop()
+  {
+    return *((Elem*)pop_dynamic(&array));
+  }
+
+  void del(uint idx)
+  {
+    delete_dynamic_element(&array, idx);
+  }
+
   int elements()
   {
     return array.elements;
