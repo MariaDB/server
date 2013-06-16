@@ -512,6 +512,23 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   } /* end of PlugSubAlloc */
 
 /***********************************************************************/
+/* This routine suballocate a copy of the passed string.               */
+/***********************************************************************/
+char *PlugDup(PGLOBAL g, const char *str)
+  {
+  char  *buf; 
+  size_t len;
+
+  if (str && (len = strlen(str))) {
+    buf = (char*)PlugSubAlloc(g, NULL, len + 1);
+    strcpy(buf, str);
+  } else
+    buf = NULL;
+
+  return(buf);
+  } /* end of PlugDup */
+
+/***********************************************************************/
 /* This routine makes a pointer from an offset to a memory pointer.    */
 /***********************************************************************/
 void *MakePtr(void *memp, OFFSET offset)
