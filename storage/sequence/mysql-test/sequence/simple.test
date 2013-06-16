@@ -95,3 +95,12 @@ drop table t1;
 # MDEV-4449 SEQUENCE depends on TEST_SQL_DISCOVERY for discovering tables upon DDL
 #
 drop table seq_1_to_1;
+
+#
+# MDEV-4451 Attempt to write-lock a SEQUENCE table with log-bin enabled causes ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE
+#
+set binlog_format=statement;
+lock table seq_1_to_2 write;
+set binlog_format=row;
+lock table seq_1_to_2 write;
+

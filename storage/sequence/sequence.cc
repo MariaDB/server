@@ -45,7 +45,8 @@ private:
 public:
   ha_seq(handlerton *hton, TABLE_SHARE *table_arg)
     : handler(hton, table_arg), seqs(0) { }
-  ulonglong table_flags() const { return 0; }
+  ulonglong table_flags() const
+  { return HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE; }
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
