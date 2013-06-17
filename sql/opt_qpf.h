@@ -48,33 +48,19 @@ class QPF_select : public QPF_node
 public:
   enum qpf_node_type get_type() { return QPF_SELECT; }
 
-#if 0  
-  /* Constructs a finished degenerate join plan */
-  QPF_select(int select_id_arg, const char *select_type_arg, const char* msg) : 
-    select_id(select_id_arg),
-    select_type(select_type_arg),
-    message(msg), 
-    join_tabs(NULL), n_join_tabs(0) 
-  {}
-  
-  /* Constructs an un-finished, non degenerate join plan. */
-  QPF_select(int select_id_arg, const char *select_type_arg) : 
-    select_id(select_id_arg),
-    select_type(select_type_arg),
-    message(NULL), 
-    join_tabs(NULL), n_join_tabs(0) 
-  {}
-#endif
   QPF_select() : 
     message(NULL), join_tabs(NULL),
     using_temporary(false), using_filesort(false)
   {}
+  
+  ~QPF_select();
 
   bool add_table(QPF_table_access *tab)
   {
     if (!join_tabs)
     {
-      join_tabs= (QPF_table_access**) malloc(sizeof(QPF_table_access*) * MAX_TABLES);
+      join_tabs= (QPF_table_access**) my_malloc(sizeof(QPF_table_access*) *
+                                                MAX_TABLES, MYF(0));
       n_join_tabs= 0;
     }
     join_tabs[n_join_tabs++]= tab;
@@ -103,6 +89,13 @@ public:
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
+  
+  /* Child selects. TODO: join this with QPF_union's children? */
+  Dynamic_array<int> children;
+  void add_child(int select_no)
+  {
+    children.append(select_no);
+  }
 
   void print_tabular(select_result_sink *output, uint8 explain_flags//, 
                      //bool *printed_anything
@@ -143,10 +136,11 @@ public:
   This is the whole query. 
 */
 
-class QPF_query 
+class QPF_query : public Sql_alloc
 {
 public:
   QPF_query();
+  ~QPF_query();
   void add_node(QPF_node *node);
   int print_explain(select_result_sink *output, uint8 explain_flags);
 
@@ -203,7 +197,7 @@ enum Extra_tag
 };
 
 
-class QPF_table_access
+class QPF_table_access : public Sql_alloc
 {
 public:
   void push_extra(enum Extra_tag extra_tag);
@@ -220,6 +214,7 @@ public:
   bool used_partitions_set;
 
   key_map possible_keys;
+  StringBuffer<256> possible_keys_str;
   
   uint key_no;
   uint key_length;

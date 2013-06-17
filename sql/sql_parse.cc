@@ -4814,7 +4814,12 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       thd->lex->query_plan_footprint= new QPF_query;
       res= mysql_explain_union(thd, &thd->lex->unit, result);
 
-      thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+      if (!res)
+      {
+        thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+      }
+      delete thd->lex->query_plan_footprint;
+      thd->lex->query_plan_footprint= NULL;
 
       //psergey-todo: here, produce the EXPLAIN output.
       //  mysql_explain_union() itself is only responsible for calling
