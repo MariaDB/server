@@ -4765,7 +4765,9 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(0);
 
-  result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
+  if (!result)
+    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(),
+                          is_trans);
 end:
   DBUG_RETURN(result);
 }
