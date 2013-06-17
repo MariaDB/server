@@ -519,7 +519,7 @@ int ha_cassandra::create(const char *name, TABLE *table_arg,
   DBUG_ENTER("ha_cassandra::create");
 
   if (table_arg->s->keys != 1 || table_arg->s->primary_key !=0 ||
-      table_arg->key_info[0].key_parts != 1 ||
+      table_arg->key_info[0].user_defined_key_parts != 1 ||
       table_arg->key_info[0].key_part[0].fieldnr != 1)
   {
     my_error(ER_WRONG_COLUMN_NAME, MYF(0),
