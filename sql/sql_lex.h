@@ -617,7 +617,7 @@ class select_result;
 class JOIN;
 class select_union;
 class Procedure;
-
+class QPF_query;
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -728,8 +728,11 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
+#if 0  
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool *printed_anything);
+#endif  
+  int save_qpf(QPF_query *output);
 };
 
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
@@ -1048,8 +1051,11 @@ public:
   bool save_prep_leaf_tables(THD *thd);
 
   bool is_merged_child_of(st_select_lex *ancestor);
+#if 0
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool *printed_anything);
+#endif
+  void save_qpf(QPF_query *output);
   /*
     For MODE_ONLY_FULL_GROUP_BY we need to maintain two flags:
      - Non-aggregated fields are used in this select.
@@ -2360,6 +2366,8 @@ class SQL_SELECT;
 /* 
   Query plan of a single-table UPDATE.
   (This is actually a plan for single-table DELETE also)
+
+  TODO: this should be a query plan footprint, not a query plan.
 */
 class Update_plan
 {
@@ -2411,6 +2419,7 @@ public:
 };
 
 
+class QPF_query;
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2424,6 +2433,7 @@ struct LEX: public Query_tables_list
 
   /* For single-table DELETE: its query plan */
   Update_plan *upd_del_plan;
+  QPF_query *query_plan_footprint;
 
   char *length,*dec,*change;
   LEX_STRING name;

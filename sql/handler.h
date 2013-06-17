@@ -286,7 +286,8 @@
   (yes, the sum is deliberately inaccurate)
   TODO remove the limit, use dynarrays
 */
-#define MAX_HA 15
+/*#define MAX_HA 15*/
+#define MAX_HA 32
 
 /*
   Use this instead of 0 as the initial value for the slot number of

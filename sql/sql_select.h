@@ -198,6 +198,12 @@ int rr_sequential(READ_RECORD *info);
 int rr_sequential_and_unpack(READ_RECORD *info);
 
 
+#include "opt_qpf.h"
+
+/**************************************************************************************
+ * New EXPLAIN structures END
+ *************************************************************************************/
+
 class JOIN_CACHE;
 class SJ_TMP_TABLE;
 class JOIN_TAB_RANGE;
@@ -252,7 +258,9 @@ typedef struct st_join_table {
   JOIN_TAB_RANGE *bush_children;
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
-  const char	*info;
+  enum Extra_tag info;
+  //const char	*info;
+
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -1454,11 +1462,14 @@ public:
   {
     return (unit->item && unit->item->is_in_predicate());
   }
-
+/*
   int print_explain(select_result_sink *result, uint8 explain_flags,
                      bool on_the_fly,
                      bool need_tmp_table, bool need_order,
                      bool distinct,const char *message);
+*/  
+  int save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
+               bool distinct, const char *message);
 private:
   /**
     TRUE if the query contains an aggregate function but has no GROUP
