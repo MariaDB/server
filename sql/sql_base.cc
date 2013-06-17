@@ -4534,6 +4534,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
   bool safe_to_ignore_table= FALSE;
   DBUG_ENTER("open_and_process_table");
   DEBUG_SYNC(thd, "open_and_process_table");
+  DBUG_ASSERT(!tables->table);
 
   /*
     Ignore placeholders for derived tables. After derived tables
@@ -5172,6 +5173,14 @@ restart:
     for (tables= *table_to_open; tables;
          table_to_open= &tables->next_global, tables= tables->next_global)
     {
+      /* Ignore temporary tables, as these has already been opened */
+      if (tables->table)
+      {
+        DBUG_ASSERT(is_temporary_table(tables));
+        /* We have to increment the counter for lock_tables */
+        (*counter)++;
+        continue;
+      }
       error= open_and_process_table(thd, thd->lex, tables, counter,
                                     flags, prelocking_strategy,
                                     has_prelocking_list, &ot_ctx,
@@ -5204,6 +5213,10 @@ restart:
             it may change in future.
           */
           if (ot_ctx.recover_from_failed_open(thd))
+            goto err;
+
+          /* Re-open temporary tables after close_tables_for_reopen(). */
+          if (open_temporary_tables(thd, *start))
             goto err;
 
           error= FALSE;
@@ -5257,6 +5270,10 @@ restart:
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
             if (ot_ctx.recover_from_failed_open(thd))
+              goto err;
+
+            /* Re-open temporary tables after close_tables_for_reopen(). */
+            if (open_temporary_tables(thd, *start))
               goto err;
 
             error= FALSE;
@@ -5673,6 +5690,10 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   bool error;
   DBUG_ENTER("open_ltable");
 
+  /* Ignore temporary tables as they have already ben opened*/
+  if (table_list->table)
+    DBUG_RETURN(table_list->table);
+
   /* should not be used in a prelocked_mode context, see NOTE above */
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
@@ -5922,7 +5943,6 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
                  uint flags)
 {
   TABLE_LIST *table;
-
   DBUG_ENTER("lock_tables");
   /*
     We can't meet statement requiring prelocking if we already
@@ -6276,6 +6296,7 @@ TABLE *open_table_uncached(THD *thd, const char *path, const char *db,
   }
 
   tmp_table->reginfo.lock_type= TL_WRITE;	 // Simulate locked
+  tmp_table->grant.privilege= TMP_TABLE_ACLS;
   share->tmp_table= (tmp_table->file->has_transactions() ? 
                      TRANSACTIONAL_TMP_TABLE : NON_TRANSACTIONAL_TMP_TABLE);
 

@@ -44,7 +44,8 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   thd->mdl_context.release_transactional_locks();
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
-  result_code= mysql_recreate_table(thd, table_list);
+  result_code= (open_temporary_tables(thd, table_list) ||
+                mysql_recreate_table(thd, table_list));
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.
@@ -404,7 +405,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
         da->push_warning_info(&tmp_wi);
 
-        open_error= open_and_lock_tables(thd, table, TRUE, 0);
+        open_error= (open_temporary_tables(thd, table) ||
+                     open_and_lock_tables(thd, table, TRUE, 0));
 
         da->pop_warning_info();
       }
@@ -418,7 +420,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
           mode. It does make sense for the user to see such errors.
         */
 
-        open_error= open_and_lock_tables(thd, table, TRUE, 0);
+        open_error= (open_temporary_tables(thd, table) ||
+                     open_and_lock_tables(thd, table, TRUE, 0));
       }
       thd->prepare_derived_at_open= FALSE;
 
@@ -857,7 +860,8 @@ send_result_message:
         table->mdl_request.ticket= NULL;
         DEBUG_SYNC(thd, "ha_admin_open_ltable");
         table->mdl_request.set_type(MDL_SHARED_WRITE);
-        if ((table->table= open_ltable(thd, table, lock_type, 0)))
+        if (open_temporary_tables(thd, table) ||
+            (table->table= open_ltable(thd, table, lock_type, 0)))
         {
           result_code= table->table->file->ha_analyze(thd, check_opt);
           if (result_code == HA_ADMIN_ALREADY_DONE)

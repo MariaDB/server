@@ -294,7 +294,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     open_ltable() or open_table() because we would like to be able
     to open a temporary table.
   */
-  error= open_tables(thd, &tables, &counter, 0);
+  error= (open_temporary_tables(thd, tables) ||
+          open_tables(thd, &tables, &counter, 0));
 
   if (error)
     goto err;
