@@ -17,6 +17,16 @@ QPF_query::QPF_query()
 }
 
 
+QPF_query::~QPF_query()
+{
+  uint i;
+  for (i=0 ; i < MAX_TABLES; i++)
+    delete unions[i];
+  for (i=0 ; i < MAX_TABLES; i++)
+    delete selects[i];
+}
+
+
 QPF_node *QPF_query::get_node(uint select_id)
 {
   if (unions[select_id])
@@ -178,6 +188,17 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
 }
 
 
+QPF_select::~QPF_select()
+{
+  if (join_tabs)
+  {
+    for (uint i= 0; i< n_join_tabs; i++)
+      delete join_tabs[i];
+    my_free(join_tabs);
+  }
+} 
+
+
 int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
                               uint8 explain_flags)
 {
@@ -222,6 +243,13 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
       }
     }
   }
+
+  //psergey-TODO: print children here...
+  for (int i= 0; i < (int) children.elements(); i++)
+  {
+    QPF_node *node= query->get_node(children.at(i));
+    node->print_explain(query, output, explain_flags);
+  }
   return 0;
 }
 
@@ -259,7 +287,10 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
 
   /* `possible_keys` column */
   //push_str(item_list, "TODO");
-  item_list.push_back(item_null); 
+  if (possible_keys_str.length() > 0)
+    push_string(&item_list, &possible_keys_str);
+  else
+    item_list.push_back(item_null); 
 
   /* `key` */
   if (key_set)

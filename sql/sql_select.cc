@@ -22903,6 +22903,21 @@ void QPF_table_access::push_extra(enum Extra_tag extra_tag)
   extra_tags.append(extra_tag);
 }
 
+void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
+{
+  uint j;
+  for (j=0 ; j < table->s->keys ; j++)
+  {
+    if (possible_keys.is_set(j))
+    {
+      if (str->length())
+        str->append(',');
+      str->append(table->key_info[j].name, 
+                  strlen(table->key_info[j].name),
+                  system_charset_info);
+    }
+  }
+}
 
 /*
   Save Query Plan Footprint
@@ -22982,9 +22997,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
-      QPF_table_access *qpt= new QPF_table_access;
-      qp_sel->add_table(qpt);
-
       if (tab->bush_root_tab)
       {
         JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
@@ -23020,7 +23032,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         continue;
       }
 
-
       if (join->table_access_tabs == join->join_tab &&
           tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
       {
@@ -23028,8 +23039,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         tab= pre_sort_join_tab;
       }
 
+      QPF_table_access *qpt= new QPF_table_access;
+      qp_sel->add_table(qpt);
+
       /* id */
-      qp_sel->select_id= select_id;
+      // TODO: this can be '2' in case of SJM nests..
+      //qp_sel->select_id= select_id;
 
       /* select_type */
       //const char* stype= printing_materialize_nest? "MATERIALIZED" : 
@@ -23099,6 +23114,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
       /* Build "possible_keys" value */
       qpt->possible_keys= tab->keys;
+      append_possible_keys(&qpt->possible_keys_str, table, tab->keys);
 
       /* Build "key", "key_len", and "ref" */
 
@@ -23379,9 +23395,10 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         */
         if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
         {
-          qpt->push_extra(ET_USING_MRR);
           explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
                                   &qpt->mrr_type);
+          if (qpt->mrr_type.length() > 0)
+            qpt->push_extra(ET_USING_MRR);
         }
 
 	if (need_tmp_table)
@@ -23463,6 +23480,23 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     }
     output->add_node(qp_sel);
   }
+
+
+  ///
+  for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    /* 
+      Display subqueries only if they are not parts of eliminated WHERE/ON
+      clauses.
+    */
+    if (!(unit->item && unit->item->eliminated))
+    {
+      qp_sel->add_child(unit->first_select()->select_number);
+    }
+  }
+
   DBUG_RETURN(error);
 }
 
