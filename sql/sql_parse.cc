@@ -4811,7 +4811,15 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result);
+      thd->lex->query_plan_footprint= new QPF_query;
       res= mysql_explain_union(thd, &thd->lex->unit, result);
+
+      thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+
+      //psergey-todo: here, produce the EXPLAIN output.
+      //  mysql_explain_union() itself is only responsible for calling
+      //  optimize() for all parts of the query.
+
       /*
         The code which prints the extended description is not robust
         against malformed queries, so skip it if we have an error.

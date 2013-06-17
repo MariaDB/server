@@ -4172,6 +4172,7 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   return all_merged;
 }
 
+
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
                        bool *printed_anything)
 {
@@ -4180,11 +4181,87 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
     upd_del_plan->print_explain(output, explain_flags, printed_anything);
     return 0;
   }
-  int res= unit.print_explain(output, explain_flags, printed_anything);
-  return res;
+  //int res= unit.print_explain(output, explain_flags, printed_anything);
+
+  //psergey-todo: here, we should make Query Plan Footprint, and then produce
+  // an EXPLAIN output from it.
+  /*
+    The new, QueryPlanFootprint way:
+  */ 
+  QPF_query qpf;
+  unit.save_qpf(&qpf);
+  //return res;
+  return 0;
 }
 
 
+void st_select_lex::save_qpf(QPF_query *output)
+{
+  int res;
+  if (join && join->have_query_plan == JOIN::QEP_AVAILABLE)
+  {
+    /*
+      There is a number of reasons join can be marked as degenerate, so all
+      three conditions below can happen simultaneously, or individually:
+    */
+    if (!join->table_count || !join->tables_list || join->zero_result_cause)
+    {
+      /* It's a degenerate join */
+      const char *cause= join->zero_result_cause ? join-> zero_result_cause : 
+                                                   "No tables used";
+      res= join->save_qpf(output, FALSE, FALSE, FALSE, cause);
+    }
+    else
+    {
+      join->save_qpf(output, join->need_tmp, // need_tmp_table
+                     !join->skip_sort_order && !join->no_order &&
+                     (join->order || join->group_list), // bool need_order
+                     join->select_distinct, // bool distinct
+                     NULL); //const char *message
+    }
+    if (res)
+      goto err;
+
+    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+         unit;
+         unit= unit->next_unit())
+    {
+      /* 
+        Display subqueries only if they are not parts of eliminated WHERE/ON
+        clauses.
+      */
+      if (!(unit->item && unit->item->eliminated))
+      {
+        unit->save_qpf(output);
+      }
+    }
+  }
+  else
+  {
+    const char *msg;
+    if (!join)
+      DBUG_ASSERT(0); /* Seems not to be possible */
+
+    /* Not printing anything useful, don't touch *printed_anything here */
+    if (join->have_query_plan == JOIN::QEP_NOT_PRESENT_YET)
+      msg= "Not yet optimized";
+    else
+    {
+      DBUG_ASSERT(join->have_query_plan == JOIN::QEP_DELETED);
+      msg= "Query plan already deleted";
+    }
+    set_explain_type(TRUE/* on_the_fly */);
+    QPF_select *qp_sel= new QPF_select;
+    qp_sel->select_id= select_number;
+    qp_sel->select_type= type;
+    qp_sel->message= msg;
+    output->add_node(qp_sel);
+  }
+err:
+  return ;//res;
+}
+
+#if 0
 int st_select_lex::print_explain(select_result_sink *output, 
                                  uint8 explain_flags,
                                  bool *printed_anything)
@@ -4253,8 +4330,60 @@ int st_select_lex::print_explain(select_result_sink *output,
 err:
   return res;
 }
+#endif
 
 
+int st_select_lex_unit::save_qpf(QPF_query *output)
+{
+  //int res= 0;
+  SELECT_LEX *first= first_select();
+  
+  QPF_union *qpfu= new QPF_union;
+  /*
+    TODO: The following code should be eliminated. If we have a capability to
+    save Query Plan Footprints, we should just save them, and never need to 
+    print "query plan already deleted".
+  */
+  if (first && !first->next_select() && !first->join)
+  {
+    /*
+      If there is only one child, 'first', and it has join==NULL, emit "not in
+      EXPLAIN state" error.
+    */
+    const char *msg="Query plan already deleted";
+    first->set_explain_type(TRUE/* on_the_fly */);
+
+    QPF_select *qp_sel= new QPF_select;
+    qp_sel->select_id= first->select_number;
+    qp_sel->select_type= first->type;
+    qp_sel->message= msg;
+    output->add_node(qp_sel);
+    qpfu->add_select(qp_sel->select_id);
+    return 0;
+  }
+
+  for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
+  {
+    sl->save_qpf(output);
+    qpfu->add_select(sl->select_number);
+  }
+
+  // Save the UNION node
+  output->add_node(qpfu);
+
+#if 0
+  /* Note: fake_select_lex->join may be NULL or non-NULL at this point */
+  if (fake_select_lex)
+  {
+    res= print_fake_select_lex_join(output, TRUE /* on the fly */,
+                                    fake_select_lex, explain_flags);
+  }
+  return res;
+#endif 
+  return 0;
+}
+
+#if 0
 int st_select_lex_unit::print_explain(select_result_sink *output, 
                                       uint8 explain_flags, bool *printed_anything)
 {
@@ -4288,7 +4417,7 @@ int st_select_lex_unit::print_explain(select_result_sink *output,
   }
   return res;
 }
-
+#endif
 
 /**
   A routine used by the parser to decide whether we are specifying a full

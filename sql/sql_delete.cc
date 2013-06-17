@@ -169,7 +169,9 @@ int Update_plan::print_explain(select_result_sink *output, uint8 explain_flags,
                     extra_str.c_ptr());
 
   *printed_anything= true;
- 
+  /*
+  psergey-todo:  handle all this through saving QPF.
+
   for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
        unit;
        unit= unit->next_unit())
@@ -177,6 +179,7 @@ int Update_plan::print_explain(select_result_sink *output, uint8 explain_flags,
     if (unit->print_explain(output, explain_flags, printed_anything))
       return 1;
   }
+  */
   return 0;
 }
 
