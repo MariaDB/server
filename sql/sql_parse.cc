@@ -512,7 +512,7 @@ void init_update_queries(void)
     DDL statements that should start with closing opened handlers.
 
     We use this flag only for statements for which open HANDLERs
-    have to be closed before emporary tables are pre-opened.
+    have to be closed before temporary tables are pre-opened.
   */
   sql_command_flags[SQLCOM_CREATE_TABLE]|=    CF_HA_CLOSE;
   sql_command_flags[SQLCOM_DROP_TABLE]|=      CF_HA_CLOSE;
@@ -1410,6 +1410,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     thd->set_query(fields, query_length);
     general_log_print(thd, command, "%s %s", table_list.table_name, fields);
+
+    if (open_temporary_tables(thd, &table_list))
+      break;
 
     if (check_table_access(thd, SELECT_ACL, &table_list,
                            TRUE, UINT_MAX, FALSE))
@@ -2386,6 +2389,30 @@ mysql_execute_command(THD *thd)
     goto error;
   }
 
+  /*
+    Close tables open by HANDLERs before executing DDL statement
+    which is going to affect those tables.
+
+    This should happen before temporary tables are pre-opened as
+    otherwise we will get errors about attempt to re-open tables
+    if table to be changed is open through HANDLER.
+
+    Note that even although this is done before any privilege
+    checks there is no security problem here as closing open
+    HANDLER doesn't require any privileges anyway.
+  */
+  if (sql_command_flags[lex->sql_command] & CF_HA_CLOSE)
+    mysql_ha_rm_tables(thd, all_tables);
+
+  /*
+    Pre-open temporary tables to simplify privilege checking
+    for statements which need this.
+  */
+  if (sql_command_flags[lex->sql_command] & CF_PREOPEN_TMP_TABLES)
+  {
+    if (open_temporary_tables(thd, all_tables))
+      goto error;
+  }
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
@@ -2771,7 +2798,10 @@ case SQLCOM_PREPARE:
     }
 #endif
 
-    /* Close any open handlers for the table. */
+    /*
+      Close any open handlers for the table. We need to this extra call here
+      as there may have been new handlers created since the previous call.
+     */
     mysql_ha_rm_tables(thd, create_table);
 
     if (select_lex->item_list.elements)		// With select
@@ -3107,6 +3137,13 @@ end_with_restore_list:
       else
       {
         /*
+          Temporary tables should be opened for SHOW CREATE TABLE, but not
+          for SHOW CREATE VIEW.
+        */
+        if (open_temporary_tables(thd, all_tables))
+          goto error;
+
+        /*
           The fact that check_some_access() returned FALSE does not mean that
           access is granted. We need to check if first_table->grant.privilege
           contains any table-specific privilege.
@@ -3284,6 +3321,18 @@ end_with_restore_list:
   case SQLCOM_INSERT:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+
+    /*
+      Since INSERT DELAYED doesn't support temporary tables, we could
+      not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
+      Open them here instead.
+    */
+    if (first_table->lock_type != TL_WRITE_DELAYED)
+    {
+      if ((res= open_temporary_tables(thd, all_tables)))
+        break;
+    }
+
     if ((res= insert_precheck(thd, all_tables)))
       break;
 
@@ -3621,6 +3670,19 @@ end_with_restore_list:
     thd->mdl_context.release_transactional_locks();
     if (res)
       goto error;
+
+    /*
+      Here we have to pre-open temporary tables for LOCK TABLES.
+
+      CF_PREOPEN_TMP_TABLES is not set for this SQL statement simply
+      because LOCK TABLES calls close_thread_tables() as a first thing
+      (it's called from unlock_locked_tables() above). So even if
+      CF_PREOPEN_TMP_TABLES was set and the tables would be pre-opened
+      in a usual way, they would have been closed.
+    */
+    if (open_temporary_tables(thd, all_tables))
+      goto error;
+
     if (check_table_access(thd, LOCK_TABLES_ACL | SELECT_ACL, all_tables,
                            FALSE, UINT_MAX, FALSE))
       goto error;
@@ -5437,6 +5499,12 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
     dst_table= table->schema_select_lex->table_list.first;
 
     DBUG_ASSERT(dst_table);
+
+    /*
+      Open temporary tables to be able to detect them during privilege check.
+    */
+    if (open_temporary_tables(thd, dst_table))
+      return TRUE;
 
     if (check_access(thd, SELECT_ACL, dst_table->db,
                      &dst_table->grant.privilege,

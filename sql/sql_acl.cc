@@ -4634,6 +4634,19 @@ bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
       }
       continue;
     }
+
+    if (is_temporary_table(tl))
+    {
+      /*
+        If this table list element corresponds to a pre-opened temporary
+        table skip checking of all relevant table-level privileges for it.
+        Note that during creation of temporary table we still need to check
+        if user has CREATE_TMP_ACL.
+      */
+      tl->grant.want_privilege= 0;
+      continue;
+    }
+
     GRANT_TABLE *grant_table= table_hash_search(sctx->host, sctx->ip,
                                                 tl->get_db_name(),
                                                 sctx->priv_user,
@@ -9364,3 +9377,10 @@ maria_declare_plugin(mysql_password)
   MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
 }
 maria_declare_plugin_end;
+
+
+/* called when new user is created or exsisting password is changed */
+int check_password_policy(String *password)
+{
+  return (0);
+}

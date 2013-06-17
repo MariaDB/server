@@ -705,7 +705,6 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   {
     TABLE *t= table_ptr[i];
     
-    
     if (t->s->tmp_table != NON_TRANSACTIONAL_TMP_TABLE && 
         t->s->tmp_table != INTERNAL_TMP_TABLE)
     {

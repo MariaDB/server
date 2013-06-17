@@ -509,6 +509,7 @@ void lex_start(THD *thd)
   lex->use_only_table_context= FALSE;
   lex->parse_vcol_expr= FALSE;
   lex->verbose= 0;
+  lex->contains_plaintext_password= false;
 
   lex->name.str= 0;
   lex->name.length= 0;

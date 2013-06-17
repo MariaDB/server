@@ -1253,6 +1253,17 @@ static bool mysql_test_insert(Prepared_statement *stmt,
   List_item *values;
   DBUG_ENTER("mysql_test_insert");
 
+  /*
+    Since INSERT DELAYED doesn't support temporary tables, we could
+    not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
+    Open them here instead.
+  */
+  if (table_list->lock_type != TL_WRITE_DELAYED)
+  {
+    if (open_temporary_tables(thd, table_list))
+      goto error;
+  }
+
   if (insert_precheck(thd, table_list))
     goto error;
 
@@ -1819,6 +1830,13 @@ static bool mysql_test_create_view(Prepared_statement *stmt)
   if (create_view_precheck(thd, tables, view, lex->create_view_mode))
     goto err;
 
+  /*
+    Since we can't pre-open temporary tables for SQLCOM_CREATE_VIEW,
+    (see mysql_create_view) we have to do it here instead.
+  */
+  if (open_temporary_tables(thd, tables))
+    goto err;
+
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_PREPARE))
     goto err;
@@ -2055,6 +2073,19 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
+
+  if (sql_command_flags[sql_command] & CF_HA_CLOSE)
+    mysql_ha_rm_tables(thd, tables);
+
+  /*
+    Open temporary tables that are known now. Temporary tables added by
+    prelocking will be opened afterwards (during open_tables()).
+  */
+  if (sql_command_flags[sql_command] & CF_PREOPEN_TMP_TABLES)
+  {
+    if (open_temporary_tables(thd, tables))
+      goto error;
+  }
 
   switch (sql_command) {
   case SQLCOM_REPLACE:

@@ -609,9 +609,9 @@ uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen)
   DBUG_ENTER("build_tmptable_filename");
 
   char *p= strnmov(buff, mysql_tmpdir, bufflen);
-  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%lx_%x%s",
+  my_snprintf(p, bufflen - (p - buff), "/%s%lx_%lx_%x",
               tmp_file_prefix, current_pid,
-              thd->thread_id, thd->tmp_table++, reg_ext);
+              thd->thread_id, thd->tmp_table++);
 
   if (lower_case_table_names)
   {
@@ -2083,15 +2083,18 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
                            MYSQL_OPEN_SKIP_TEMPORARY))
         DBUG_RETURN(true);
       for (table= tables; table; table= table->next_local)
-     
+      {
+        if (is_temporary_table(table))
+          continue;
         tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
                          false);
+      }
     }
     else
     {
       for (table= tables; table; table= table->next_local)
-        if (table->open_type != OT_BASE_ONLY &&
-	    find_temporary_table(thd, table))
+      {
+        if (is_temporary_table(table))
         {
           /*
             A temporary table.
@@ -2123,6 +2126,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
             DBUG_RETURN(true);
           table->mdl_request.ticket= table->table->mdl_ticket;
         }
+      }
     }
   }
 
@@ -4760,14 +4764,16 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   result= mysql_create_table_no_lock(thd, create_table->db,
                                      create_table->table_name, create_info,
                                      alter_info, &is_trans, create_table_mode);
+  if (result)
+    DBUG_RETURN(result);
 
   /* In RBR we don't need to log CREATE TEMPORARY TABLE */
   if (thd->is_current_stmt_binlog_format_row() && create_info->tmp_table())
     DBUG_RETURN(0);
 
-  if (!result)
-    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(),
-                          is_trans);
+  result= write_bin_log(thd, TRUE, thd->query(), thd->query_length(), is_trans);
+  thd->abort_on_warning= false;
+
 end:
   DBUG_RETURN(result);
 }
@@ -6438,8 +6444,16 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     table->file->info(HA_STATUS_AUTO);
     create_info->auto_increment_value= table->file->stats.auto_increment_value;
   }
+
   if (!(used_fields & HA_CREATE_USED_KEY_BLOCK_SIZE))
     create_info->key_block_size= table->s->key_block_size;
+
+  if (!(used_fields & HA_CREATE_USED_STATS_SAMPLE_PAGES))
+    create_info->stats_sample_pages= table->s->stats_sample_pages;
+
+  if (!(used_fields & HA_CREATE_USED_STATS_AUTO_RECALC))
+    create_info->stats_auto_recalc= table->s->stats_auto_recalc;
+
   if (!(used_fields & HA_CREATE_USED_TRANSACTIONAL))
     create_info->transactional= table->s->transactional;
 
@@ -6824,6 +6838,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
        (HA_OPTION_PACK_KEYS | HA_OPTION_NO_PACK_KEYS)) ||
       (used_fields & HA_CREATE_USED_PACK_KEYS))
     db_create_options&= ~(HA_OPTION_PACK_KEYS | HA_OPTION_NO_PACK_KEYS);
+  if ((create_info->table_options &
+       (HA_OPTION_STATS_PERSISTENT | HA_OPTION_NO_STATS_PERSISTENT)) ||
+      (used_fields & HA_CREATE_USED_STATS_PERSISTENT))
+    db_create_options&= ~(HA_OPTION_STATS_PERSISTENT | HA_OPTION_NO_STATS_PERSISTENT);
+
   if (create_info->table_options &
       (HA_OPTION_CHECKSUM | HA_OPTION_NO_CHECKSUM))
     db_create_options&= ~(HA_OPTION_CHECKSUM | HA_OPTION_NO_CHECKSUM);
