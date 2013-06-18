@@ -22929,7 +22929,7 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
                    bool distinct, const char *message)
 {
-  QPF_select *qp_sel;
+  QPF_select *qp_sel= NULL;
   const bool on_the_fly= true;
  
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
@@ -22944,7 +22944,6 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   DBUG_ASSERT(have_query_plan == QEP_AVAILABLE);
   /* Don't log this into the slow query log */
 
-  qp_sel= new QPF_select;
 
   /* 
     NOTE: the number/types of items pushed into item_list must be in sync with
@@ -22952,6 +22951,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   */
   if (message)
   {
+    qp_sel= new QPF_select;
     join->select_lex->set_explain_type(on_the_fly);
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -22981,6 +22981,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
+    qp_sel= new QPF_select;
     table_map used_tables=0;
 
     if (on_the_fly)
@@ -23059,7 +23060,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
 			     "<derived%u>",
 			     table->derived_select_number);
-	qpt->table_name.set(table_name_buffer, len, cs);
+	qpt->table_name.append(table_name_buffer, len, cs);
       }
       else if (tab->bush_children)
       {
@@ -23074,7 +23075,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       else
       {
         TABLE_LIST *real_table= table->pos_in_table_list;
-	qpt->table_name.set(real_table->alias, strlen(real_table->alias), cs);
+	qpt->table_name.append(real_table->alias, strlen(real_table->alias), cs);
       }
 
       /* "partitions" column */
@@ -23481,19 +23482,22 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
     output->add_node(qp_sel);
   }
 
-
-  ///
-  for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-       unit;
-       unit= unit->next_unit())
+  //TODO: can a UNION have subquery children that are not union members? yes,
+  //perhaps...
+  if (qp_sel)
   {
-    /* 
-      Display subqueries only if they are not parts of eliminated WHERE/ON
-      clauses.
-    */
-    if (!(unit->item && unit->item->eliminated))
+    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+         unit;
+         unit= unit->next_unit())
     {
-      qp_sel->add_child(unit->first_select()->select_number);
+      /* 
+        Display subqueries only if they are not parts of eliminated WHERE/ON
+        clauses.
+      */
+      if (!(unit->item && unit->item->eliminated))
+      {
+        qp_sel->add_child(unit->first_select()->select_number);
+      }
     }
   }
 
