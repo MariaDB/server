@@ -41,6 +41,7 @@
 #include "sql_parse.h"                          // cleanup_items
 #include "sql_base.h"                           // close_thread_tables
 #include "transaction.h"       // trans_commit_stmt
+#include "sql_audit.h"
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -3131,6 +3132,10 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
       }
 
       query_cache_end_of_result(thd);
+
+      mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_STATUS,
+                         thd->stmt_da->is_error() ? thd->stmt_da->sql_errno() : 0,
+                         command_name[COM_QUERY].str);
 
       if (!res && unlikely(thd->enable_slow_log))
         log_slow_statement(thd);
