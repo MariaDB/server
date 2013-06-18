@@ -12,6 +12,7 @@
 
 QPF_query::QPF_query()
 {
+  upd_del_plan= NULL;
   memset(&unions, 0, sizeof(unions));
   memset(&selects, 0, sizeof(selects));
 }
@@ -19,6 +20,7 @@ QPF_query::QPF_query()
 
 QPF_query::~QPF_query()
 {
+  delete upd_del_plan;
   uint i;
   for (i=0 ; i < MAX_TABLES; i++)
     delete unions[i];
@@ -70,9 +72,17 @@ void QPF_query::add_node(QPF_node *node)
 int QPF_query::print_explain(select_result_sink *output, 
                              uint8 explain_flags)
 {
-  // Start with id=1
-  QPF_node *node= get_node(1);
-  return node->print_explain(this, output, explain_flags);
+  if (upd_del_plan)
+  {
+    upd_del_plan->print_explain(output, explain_flags);
+    return 0;
+  }
+  else
+  {
+    // Start with id=1
+    QPF_node *node= get_node(1);
+    return node->print_explain(this, output, explain_flags);
+  }
 }
 
 

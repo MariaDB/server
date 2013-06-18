@@ -161,6 +161,9 @@ public:
 
   /* This will return a select (even if there is a union with this id) */
   QPF_select *get_select(uint select_id);
+  
+  /* Delete_plan inherits from Update_plan */
+  Update_plan *upd_del_plan;
 
 private:
   QPF_union *unions[MAX_TABLES];
@@ -269,10 +272,10 @@ public:
   key_map range_checked_map;
 
   // valid with ET_USING_MRR
-  StringBuffer <64> mrr_type;
+  StringBuffer<64> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
-  StringBuffer <64> join_buffer_type;
+  StringBuffer<64> join_buffer_type;
   
   //TABLE *firstmatch_table;
   StringBuffer<64> firstmatch_table_name;
