@@ -2,7 +2,7 @@
 # MariaDB tests for EXPLAIN UPDATE/DELETE.
 #
 --disable_warnings
-drop table if exists t0;
+drop table if exists t0, t1;
 --enable_warnings
 
 create table t0 (a int) engine=myisam;

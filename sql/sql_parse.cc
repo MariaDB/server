@@ -3273,6 +3273,7 @@ end_with_restore_list:
           result= NULL;
         }
         select_lex->set_explain_type(FALSE);
+        thd->lex->query_plan_footprint= new QPF_query;
       }
       else
         result= new multi_delete(aux_tables, lex->table_count);
@@ -3295,6 +3296,13 @@ end_with_restore_list:
         if (!explain)
         {
           MYSQL_MULTI_DELETE_DONE(res, del_result->num_deleted());
+        }
+        else
+        {
+          result->reset_offset_limit(); 
+          thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
+          delete thd->lex->query_plan_footprint;
+          thd->lex->query_plan_footprint= NULL;
         }
       
         if (res)
@@ -4816,6 +4824,11 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
       if (!res)
       {
+        /* 
+          Do like the original select_describe did: remove OFFSET from the
+          top-level LIMIT
+        */        
+        result->reset_offset_limit(); 
         thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
       }
       delete thd->lex->query_plan_footprint;
