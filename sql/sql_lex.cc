@@ -448,7 +448,6 @@ void lex_start(THD *thd)
 
   lex->thd= lex->unit.thd= thd;
 
-  lex->upd_del_plan= NULL;
   lex->context_stack.empty();
   lex->unit.init_query();
   lex->unit.init_select();
@@ -2561,7 +2560,6 @@ LEX::LEX()
                          INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
-  upd_del_plan= NULL;
 }
 
 
@@ -4176,11 +4174,11 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
                        bool *printed_anything)
 {
-  if (upd_del_plan)
+ /* if (upd_del_plan)
   {
     upd_del_plan->print_explain(output, explain_flags, printed_anything);
     return 0;
-  }
+  }*/
   //int res= unit.print_explain(output, explain_flags, printed_anything);
 
   //psergey-todo: here, we should make Query Plan Footprint, and then produce

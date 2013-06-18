@@ -2378,6 +2378,7 @@ public:
   SQL_SELECT *select;
   uint index;
   ha_rows table_rows; /* Use if select==NULL */
+
   /* 
     Top-level select_lex. Most of its fields are not used, we need it only to
     get to the subqueries. 
@@ -2390,11 +2391,20 @@ public:
   /* Set this plan to be a plan to do nothing because of impossible WHRE*/
   void set_impossible_where() { impossible_where= true; }
 
-  virtual int print_explain(select_result_sink *output, uint8 explain_flags, 
-                            bool *printed_anything);
+  virtual int print_explain(select_result_sink *output, uint8 explain_flags);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}
+
+  void save_query_plan_footprint();
+  /* Query Plan Footprint fields */
+  // cant use it here: enum join_type 
+  int jtype;
+  bool using_where;
+  StringBuffer<128> possible_keys_line;
+  StringBuffer<128> key_str;
+  StringBuffer<128> key_len_str;
+  StringBuffer<64> mrr_type;
 };
 
 
@@ -2414,8 +2424,7 @@ public:
     deleting_all_rows= true;
     table_rows= rows_arg;
   }
-  int print_explain(select_result_sink *output, uint8 explain_flags, 
-                    bool *printed_anything);
+  int print_explain(select_result_sink *output, uint8 explain_flags);
 };
 
 
@@ -2432,7 +2441,6 @@ struct LEX: public Query_tables_list
   SELECT_LEX *all_selects_list;
 
   /* For single-table DELETE: its query plan */
-  Update_plan *upd_del_plan;
   QPF_query *query_plan_footprint;
 
   char *length,*dec,*change;
