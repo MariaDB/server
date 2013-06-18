@@ -182,6 +182,7 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
   const CHARSET_INFO *cs= system_charset_info;
   item_list.push_back(new Item_string(extra_buf.ptr(), extra_buf.length(), cs));
 
+  //output->unit.offset_limit_cnt= 0; 
   if (output->send_data(item_list))
     return 1;
 
@@ -209,6 +210,8 @@ QPF_select::~QPF_select()
 int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
                               uint8 explain_flags)
 {
+  //output->unit.offset_limit_cnt= 0; 
+
   if (message)
   {
     List<Item> item_list;

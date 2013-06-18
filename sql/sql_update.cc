@@ -1463,6 +1463,8 @@ bool mysql_multi_update(THD *thd,
     }
     select_lex->set_explain_type(FALSE);
     *result= NULL; /* no multi_update object */
+
+    thd->lex->query_plan_footprint= new QPF_query;
   }
   else
   {
@@ -1492,6 +1494,15 @@ bool mysql_multi_update(THD *thd,
 
   DBUG_PRINT("info",("res: %d  report_error: %d", res, (int) thd->is_error()));
   res|= thd->is_error();
+  
+  if (explain)
+  {
+    //result->reset_offset_limit(); 
+    thd->lex->query_plan_footprint->print_explain(output, thd->lex->describe);
+    delete thd->lex->query_plan_footprint;
+    thd->lex->query_plan_footprint= NULL;
+  }
+
   if (unlikely(res))
     (*result)->abort_result_set();
   else
