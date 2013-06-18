@@ -22308,7 +22308,7 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
                                         sizeof(mrr_str_buf));
   if (len > 0)
   {
-    res->append(STRING_WITH_LEN("; "));
+    //res->append(STRING_WITH_LEN("; "));
     res->append(mrr_str_buf, len);
   }
 }
@@ -22929,7 +22929,7 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
                    bool distinct, const char *message)
 {
-  QPF_select *qp_sel= NULL;
+  QPF_node *qp_node;
   const bool on_the_fly= true;
  
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
@@ -22951,7 +22951,8 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   */
   if (message)
   {
-    qp_sel= new QPF_select;
+    QPF_select *qp_sel;
+    qp_node= qp_sel= new QPF_select;
     join->select_lex->set_explain_type(on_the_fly);
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -22964,6 +22965,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   {
     select_lex->set_explain_type(on_the_fly);
     QPF_union *qp_union= new QPF_union;
+    qp_node= qp_union;
 
     SELECT_LEX *child;
     for (child= select_lex->master_unit()->first_select(); child;
@@ -22981,13 +22983,14 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   else if (!join->select_lex->master_unit()->derived ||
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
-    qp_sel= new QPF_select;
+    QPF_select *qp_sel;
+    qp_node= qp_sel= new QPF_select;
     table_map used_tables=0;
 
     if (on_the_fly)
       join->select_lex->set_explain_type(on_the_fly);
 
-    bool printing_materialize_nest= FALSE;
+    //bool printing_materialize_nest= FALSE;
     uint select_id= join->select_lex->select_number;
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -23002,7 +23005,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
       {
         JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
         select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-        printing_materialize_nest= TRUE;
+        //printing_materialize_nest= TRUE;
       }
       
       TABLE *table=tab->table;
@@ -23042,10 +23045,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
       QPF_table_access *qpt= new QPF_table_access;
       qp_sel->add_table(qpt);
-
+      
       /* id */
-      // TODO: this can be '2' in case of SJM nests..
-      //qp_sel->select_id= select_id;
+      if (tab->bush_root_tab)
+        qpt->sjm_nest_select_id= select_id;
+      else
+        qpt->sjm_nest_select_id= 0;
 
       /* select_type */
       //const char* stype= printing_materialize_nest? "MATERIALIZED" : 
@@ -23060,7 +23065,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
 			     "<derived%u>",
 			     table->derived_select_number);
-	qpt->table_name.append(table_name_buffer, len, cs);
+	qpt->table_name.copy(table_name_buffer, len, cs);
       }
       else if (tab->bush_children)
       {
@@ -23070,12 +23075,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
                              sizeof(table_name_buffer)-1,
                              "<subquery%d>", 
                              ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-	qpt->table_name.set(table_name_buffer, len, cs);
+	qpt->table_name.copy(table_name_buffer, len, cs);
       }
       else
       {
         TABLE_LIST *real_table= table->pos_in_table_list;
-	qpt->table_name.append(real_table->alias, strlen(real_table->alias), cs);
+	qpt->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
       }
 
       /* "partitions" column */
@@ -23433,13 +23438,12 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
           else
           {
             qpt->push_extra(ET_FIRST_MATCH);
-            //TABLE *prev_table=tab->do_firstmatch->table;
+            TABLE *prev_table=tab->do_firstmatch->table;
             /*
               TODO: qpt->firstmatch_table...
               This must be a reference to another QPF element. Or, its index.
             */
-#if 0
-            extra.append(STRING_WITH_LEN("; FirstMatch("));
+            // extra.append(STRING_WITH_LEN("; FirstMatch("));
             if (prev_table->derived_select_number)
             {
               char namebuf[NAME_LEN];
@@ -23447,12 +23451,11 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
               int len= my_snprintf(namebuf, sizeof(namebuf)-1,
                                    "<derived%u>",
                                    prev_table->derived_select_number);
-              extra.append(namebuf, len);
+              qpt->firstmatch_table_name.append(namebuf, len);
             }
             else
-              extra.append(prev_table->pos_in_table_list->alias);
-            extra.append(STRING_WITH_LEN(")"));
-#endif
+              qpt->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
+            //extra.append(STRING_WITH_LEN(")"));
           }
         }
 
@@ -23484,20 +23487,17 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
 
   //TODO: can a UNION have subquery children that are not union members? yes,
   //perhaps...
-  if (qp_sel)
+  for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
   {
-    for (SELECT_LEX_UNIT *unit= join->select_lex->first_inner_unit();
-         unit;
-         unit= unit->next_unit())
+    /* 
+      Display subqueries only if they are not parts of eliminated WHERE/ON
+      clauses.
+    */
+    if (!(unit->item && unit->item->eliminated))
     {
-      /* 
-        Display subqueries only if they are not parts of eliminated WHERE/ON
-        clauses.
-      */
-      if (!(unit->item && unit->item->eliminated))
-      {
-        qp_sel->add_child(unit->first_select()->select_number);
-      }
+      qp_node->add_child(unit->first_select()->select_number);
     }
   }
 

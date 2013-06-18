@@ -99,9 +99,9 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
                              uint8 explain_flags)
 {
   // print all children, in order
-  for (int i= 0; i < (int) children.elements(); i++)
+  for (int i= 0; i < (int) union_members.elements(); i++)
   {
-    QPF_select *sel= query->get_select(children.at(i));
+    QPF_select *sel= query->get_select(union_members.at(i));
     sel->print_explain(query, output, explain_flags);
   }
 
@@ -123,15 +123,15 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
     uint len= 6, lastop= 0;
     memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
 
-    for (; childno < children.elements() && len + lastop + 5 < NAME_LEN;
+    for (; childno < union_members.elements() && len + lastop + 5 < NAME_LEN;
          childno++)
     {
       len+= lastop;
       lastop= my_snprintf(table_name_buffer + len, NAME_LEN - len,
-                          "%u,", children.at(childno));
+                          "%u,", union_members.at(childno));
     }
 
-    if (childno < children.elements() || len + lastop >= NAME_LEN)
+    if (childno < union_members.elements() || len + lastop >= NAME_LEN)
     {
       memcpy(table_name_buffer + len, STRING_WITH_LEN("...>") + 1);
       len+= 4;
@@ -184,6 +184,13 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
 
   if (output->send_data(item_list))
     return 1;
+
+  for (int i= 0; i < (int) children.elements(); i++)
+  {
+    QPF_node *node= query->get_node(children.at(i));
+    node->print_explain(query, output, explain_flags);
+  }
+
   return 0;
 }
 
@@ -222,7 +229,6 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
 
     if (output->send_data(item_list))
       return 1;
-    return 0;
   }
   else
   {
@@ -244,7 +250,6 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
     }
   }
 
-  //psergey-TODO: print children here...
   for (int i= 0; i < (int) children.elements(); i++)
   {
     QPF_node *node= query->get_node(children.at(i));
@@ -262,11 +267,17 @@ int QPF_table_access::print_explain(select_result_sink *output, uint8 explain_fl
   Item *item_null= new Item_null();
   //const CHARSET_INFO *cs= system_charset_info;
   
+  if (sjm_nest_select_id)
+    select_id= sjm_nest_select_id;
+
   /* `id` column */
   item_list.push_back(new Item_int((int32) select_id));
 
   /* `select_type` column */
-  push_str(&item_list, select_type);
+  if (sjm_nest_select_id)
+    push_str(&item_list, "MATERIALIZED");
+  else
+    push_str(&item_list, select_type);
 
   /* `table` column */
   push_string(&item_list, &table_name);
@@ -438,6 +449,18 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
     {
       str->append(extra_tag_text[tag]);
       str->append(join_buffer_type);
+      break;
+    }
+    case ET_FIRST_MATCH:
+    {
+      if (firstmatch_table_name.length())
+      {
+        str->append("FirstMatch(");
+        str->append(firstmatch_table_name);
+        str->append(")");
+      }
+      else
+        str->append(extra_tag_text[tag]);
       break;
     }
     default:

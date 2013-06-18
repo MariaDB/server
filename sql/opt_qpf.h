@@ -23,6 +23,14 @@ public:
   virtual enum qpf_node_type get_type()= 0;
   virtual int print_explain(QPF_query *query, select_result_sink *output, 
                             uint8 explain_flags)=0;
+
+
+  Dynamic_array<int> children;
+  void add_child(int select_no)
+  {
+    children.append(select_no);
+  }
+
   virtual ~QPF_node(){}
 };
 
@@ -90,13 +98,6 @@ public:
   bool using_temporary;
   bool using_filesort;
   
-  /* Child selects. TODO: join this with QPF_union's children? */
-  Dynamic_array<int> children;
-  void add_child(int select_no)
-  {
-    children.append(select_no);
-  }
-
   void print_tabular(select_result_sink *output, uint8 explain_flags//, 
                      //bool *printed_anything
                     );
@@ -113,15 +114,26 @@ public:
 
   int get_select_id()
   {
-    DBUG_ASSERT(children.elements() > 0);
-    return children.at(0);
+    DBUG_ASSERT(union_members.elements() > 0);
+    return union_members.at(0);
   }
-  // This has QPF_select children
-  Dynamic_array<int> children;
+  /*
+    Members of the UNION.  Note: these are disjoint from UNION's "children".
+    Example:
+
+      (select * from t1) union 
+      (select * from t2) order by (select col1 from t3 ...)
+
+    here 
+      - select-from-t1 and select-from-t2 are "union members"
+      - select-from-t3 is the only "child".
+    
+  */
+  Dynamic_array<int> union_members;
 
   void add_select(int select_no)
   {
-    children.append(select_no);
+    union_members.append(select_no);
   }
   void push_table_name(List<Item> *item_list);
   int print_explain(QPF_query *query, select_result_sink *output, 
@@ -204,56 +216,66 @@ public:
 
   /* Internals */
 public:
+  /* 
+    0 means this tab is not inside SJM nest and should use QPF_select's id
+    other value means the tab is inside an SJM nest.
+  */
+  int sjm_nest_select_id;
+
   /* id and 'select_type' are cared-of by the parent QPF_select */
   TABLE *table;
-  StringBuffer<256> table_name;
+  StringBuffer<64> table_name;
 
   enum join_type type;
 
-  StringBuffer<256> used_partitions;
+  StringBuffer<64> used_partitions;
   bool used_partitions_set;
 
   key_map possible_keys;
-  StringBuffer<256> possible_keys_str;
+  StringBuffer<64> possible_keys_str;
   
+  /* Not used? */
   uint key_no;
   uint key_length;
 
   Dynamic_array<enum Extra_tag> extra_tags;
 
   //temporary:
-  StringBuffer<256> key;
-  StringBuffer<256> key_len;
-  StringBuffer<256> ref;
-  bool key_set;
-  bool key_len_set;
-  bool ref_set;
+  bool key_set; /* not set means 'NULL' should be printed */
+  StringBuffer<64> key;
+
+  bool key_len_set; /* not set means 'NULL' should be printed */
+  StringBuffer<64> key_len;
+
+  bool ref_set; /* not set means 'NULL' should be printed */
+  StringBuffer<64> ref;
 
   bool rows_set;
   ha_rows rows;
 
-  double filtered;
   bool filtered_set;
+  double filtered;
 
   /* Various stuff for 'Extra' column*/
   uint join_cache_level;
   
   // Valid if ET_USING tag is present
-  StringBuffer<256> quick_info;
+  StringBuffer<64> quick_info;
 
   // Valid if ET_USING_INDEX_FOR_GROUP_BY is present
-  StringBuffer<256> loose_scan_type;
+  StringBuffer<64> loose_scan_type;
   
   // valid with ET_RANGE_CHECKED_FOR_EACH_RECORD
   key_map range_checked_map;
 
   // valid with ET_USING_MRR
-  StringBuffer <256> mrr_type;
+  StringBuffer <64> mrr_type;
 
   // valid with ET_USING_JOIN_BUFFER
-  StringBuffer <256> join_buffer_type;
+  StringBuffer <64> join_buffer_type;
   
-  TABLE *firstmatch_table;
+  //TABLE *firstmatch_table;
+  StringBuffer<64> firstmatch_table_name;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     uint select_id, const char *select_type,
