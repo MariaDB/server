@@ -52,7 +52,7 @@ int select_union::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
 }
 
 
-int select_union::send_data(List<Item> &values)
+bool select_union::send_data(List<Item> &values)
 {
   if (unit->offset_limit_cnt)
   {						// using limit offset,count

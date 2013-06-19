@@ -121,6 +121,7 @@ enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
+extern LEX_STRING EMPTY_STR;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 
 extern bool volatile shutdown_in_progress;
@@ -3465,7 +3466,7 @@ public:
     send_data returns 0 on ok, 1 on error and -1 if data was ignored, for
     example for a duplicate row entry written to a temp table.
   */
-  virtual int send_data(List<Item> &items)=0;
+  virtual bool send_data(List<Item> &items)=0;
   virtual ~select_result_sink() {};
 };
 
@@ -3557,7 +3558,7 @@ public:
   TABLE *dst_table; /* table to write into */
 
   /* The following is called in the child thread: */
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
 };
 
 
@@ -3592,7 +3593,7 @@ class select_send :public select_result {
 public:
   select_send() :is_result_set_started(FALSE) {}
   bool send_result_set_metadata(List<Item> &list, uint flags);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool send_eof();
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
@@ -3655,7 +3656,7 @@ public:
   select_export(sql_exchange *ex) :select_to_file(ex) {}
   ~select_export();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
 };
 
 
@@ -3663,7 +3664,7 @@ class select_dump :public select_to_file {
 public:
   select_dump(sql_exchange *ex) :select_to_file(ex) {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
 };
 
 
@@ -3682,7 +3683,7 @@ class select_insert :public select_result_interceptor {
   ~select_insert();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   virtual int prepare2(void);
-  virtual int send_data(List<Item> &items);
+  virtual bool send_data(List<Item> &items);
   virtual void store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
   void send_error(uint errcode,const char *err);
@@ -3865,7 +3866,7 @@ public:
 
   select_union() :write_err(0), table(0), records(0) { tmp_table_param.init(); }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool send_eof();
   bool flush();
   void cleanup();
@@ -3884,7 +3885,7 @@ protected:
   Item_subselect *item;
 public:
   select_subselect(Item_subselect *item);
-  int send_data(List<Item> &items)=0;
+  bool send_data(List<Item> &items)=0;
   bool send_eof() { return 0; };
 };
 
@@ -3895,7 +3896,7 @@ public:
   select_singlerow_subselect(Item_subselect *item_arg)
     :select_subselect(item_arg)
   {}
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
 };
 
 
@@ -3945,7 +3946,7 @@ public:
                            bool bit_fields_as_long,
                            bool create_table);
   bool init_result_table(ulonglong select_options);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   void cleanup();
   ha_rows get_null_count_of_col(uint idx)
   {
@@ -3979,7 +3980,7 @@ public:
     :select_subselect(item_arg), cache(0), fmax(mx), is_all(all)
   {}
   void cleanup();
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool cmp_real();
   bool cmp_int();
   bool cmp_decimal();
@@ -3992,7 +3993,7 @@ class select_exists_subselect :public select_subselect
 public:
   select_exists_subselect(Item_subselect *item_arg)
     :select_subselect(item_arg){}
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
 };
 
 
@@ -4244,7 +4245,7 @@ public:
   multi_delete(TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
   void send_error(uint errcode,const char *err);
   int do_deletes();
@@ -4292,7 +4293,7 @@ public:
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
   void send_error(uint errcode,const char *err);
   int  do_updates();
@@ -4335,7 +4336,7 @@ public:
   select_dumpvar()  { var_list.empty(); row_count= 0;}
   ~select_dumpvar() {}
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   bool send_eof();
   virtual bool check_simple_select() const;
   void cleanup();

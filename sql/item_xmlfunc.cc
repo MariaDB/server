@@ -2501,12 +2501,12 @@ my_xpath_parse_VariableReference(MY_XPATH *xpath)
     xpath->item= new Item_func_get_user_var(name);
   else
   {
-    sp_variable_t *spv;
+    sp_variable *spv;
     sp_pcontext *spc;
     LEX *lex;
     if ((lex= current_thd->lex) &&
         (spc= lex->spcont) &&
-        (spv= spc->find_variable(&name)))
+        (spv= spc->find_variable(name, false)))
     {
       Item_splocal *splocal= new Item_splocal(name, spv->offset, spv->type, 0);
 #ifndef DBUG_OFF

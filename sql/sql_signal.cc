@@ -115,8 +115,8 @@ void Sql_cmd_common_signal::eval_defaults(THD *thd, Sql_condition *cond)
     /*
       SIGNAL is restricted in sql_yacc.yy to only signal SQLSTATE conditions.
     */
-    DBUG_ASSERT(m_cond->type == sp_cond_type::state);
-    sqlstate= m_cond->sqlstate;
+    DBUG_ASSERT(m_cond->type == sp_condition_value::SQLSTATE);
+    sqlstate= m_cond->sql_state;
     cond->set_sqlstate(sqlstate);
   }
   else
@@ -488,8 +488,8 @@ bool Sql_cmd_signal::execute(THD *thd)
 
 bool Sql_cmd_resignal::execute(THD *thd)
 {
-  Sql_condition_info *signaled;
   Diagnostics_area *da= thd->get_stmt_da();
+  const sp_rcontext::Sql_condition_info *signaled;
   int result= TRUE;
 
   DBUG_ENTER("Resignal_statement::execute");
@@ -505,16 +505,31 @@ bool Sql_cmd_resignal::execute(THD *thd)
   }
 
   Sql_condition signaled_err(thd->mem_root);
-  signaled_err.set(signaled->m_sql_errno,
-                   signaled->m_sql_state,
-                   signaled->m_level,
-                   signaled->m_message);
+  signaled_err.set(signaled->sql_errno,
+                   signaled->sql_state,
+                   signaled->level,
+                   signaled->message);
 
   if (m_cond == NULL)
   {
-    /* RESIGNAL without signal_value */
-    result= raise_condition(thd, &signaled_err);
-    DBUG_RETURN(result);
+    query_cache_abort(&thd->query_cache_tls);
+
+    /* Keep handled conditions. */
+    da->unmark_sql_conditions_from_removal();
+
+    /* Check if the old condition still exists. */
+    if (da->has_sql_condition(signaled->message, strlen(signaled->message)))
+    {
+      /* Make room for the new RESIGNAL condition. */
+      da->reserve_space(thd, 1);
+    }
+    else
+    {
+      /* Make room for old condition + the new RESIGNAL condition. */
+      da->reserve_space(thd, 2);
+
+      da->push_warning(thd, &signaled_err);
+    }
   }
 
   /* RESIGNAL with signal_value */
