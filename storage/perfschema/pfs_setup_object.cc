@@ -110,8 +110,8 @@ void cleanup_setup_object_hash(void)
 {
   if (setup_object_hash_inited)
   {
-    lf_hash_destroy(&setup_object_hash);
     setup_object_hash_inited= false;
+    lf_hash_destroy(&setup_object_hash);
   }
 }
 

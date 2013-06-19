@@ -43,7 +43,7 @@ bool
 Sql_cmd_get_diagnostics::execute(THD *thd)
 {
   bool rv;
-  Diagnostics_area new_stmt_da(thd->query_id, false);
+  Diagnostics_area new_stmt_da(thd->query_id, false, true);
   Diagnostics_area *save_stmt_da= thd->get_stmt_da();
   DBUG_ENTER("Sql_cmd_get_diagnostics::execute");
 

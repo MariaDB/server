@@ -797,7 +797,7 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
 */
 void destroy_cond(PFS_cond *pfs)
 {
-  DBUG_ENTER("destroy_thread");
+  DBUG_ENTER("destroy_cond");
 
   DBUG_ASSERT(pfs != NULL);
   PFS_cond_class *klass= pfs->m_class;

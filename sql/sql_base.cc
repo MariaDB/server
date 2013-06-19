@@ -440,6 +440,7 @@ static void table_def_free_entry(TABLE_SHARE *share)
 
 bool table_def_init(void)
 {
+  table_def_inited= 1;
 #ifdef HAVE_PSI_INTERFACE
   init_tdc_psi_keys();
 #endif

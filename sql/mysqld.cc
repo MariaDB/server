@@ -3624,13 +3624,15 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         However, this should never happen, so better to assert and
         fix this.
       */
+#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
       DBUG_ASSERT(thd);
+#endif
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
                             (longlong) thd->status_var.memory_used, size));
         thd->status_var.memory_used+= size;
-#ifndef ENABLE_BEFORE_END_OF_MERGE
+#ifdef ENABLE_BEFORE_END_OF_MERGE_QQ
         DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
 #endif
       }
