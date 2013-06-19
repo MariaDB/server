@@ -19,36 +19,43 @@ class QPF_node : public Sql_alloc
 {
 public:
   enum qpf_node_type {QPF_UNION, QPF_SELECT};
-
   virtual enum qpf_node_type get_type()= 0;
-  virtual int print_explain(QPF_query *query, select_result_sink *output, 
-                            uint8 explain_flags)=0;
 
 
+  virtual int get_select_id()= 0;
+
+  /* 
+    A node may have children nodes. When a node's QPF (Query Plan Footprint) is
+    created, children nodes may not yet have QPFs.  This is why we store ids.
+  */
   Dynamic_array<int> children;
   void add_child(int select_no)
   {
     children.append(select_no);
   }
 
+  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+                            uint8 explain_flags)=0;
+
   virtual ~QPF_node(){}
 };
 
 
-/*
-  Nesting. 
-    QPF_select may have children QPF_select-s. 
-      (these can be FROM-subqueries, or subqueries from other clauses)
-
-  As for unions, the standard approach is:
-   - UNION node can be where the select node can be;
-   - the union has a select that retrieves results from temptable (a special
-     kind of child)
-   - and it has regular children selects that are merged into the union.
-
-*/
-
 class QPF_table_access;
+
+
+/*
+  Query Plan Footprint of a SELECT.
+  
+  A select can be:
+  - a degenerate case. In this case, message!=NULL, and it contains a 
+    description of what kind of degenerate case it is (e.g. "Impossible 
+    WHERE").
+  - a join. Here join_tabs has an array of JOIN_TAB query plan footprints.
+
+  In the non-degenerate case, a SELECT may have a GROUP BY/ORDER BY operation.
+  In both cases, a select may have children selects (see QPF_node)
+*/
 
 class QPF_select : public QPF_node
 {
@@ -76,8 +83,10 @@ public:
   }
 
 public:
-  int select_id; /* -1 means NULL. */
+  int select_id;
   const char *select_type;
+
+  int get_select_id() { return select_id; }
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent
@@ -86,10 +95,8 @@ public:
   const char *message;
   
   /*
-    According to the discussion: this should be an array of "table
-    descriptors".
-
-    As for SJ-Materialization. Start_materialize/end_materialize markers?
+    A flat array of Query Plan Footprints. The order is "just like EXPLAIN
+    would print them".
   */
   QPF_table_access** join_tabs;
   uint n_join_tabs;
@@ -107,6 +114,12 @@ public:
 };
 
 
+/* 
+  Query Plan Footprint of a UNION.
+
+  A UNION may or may not have "Using filesort".
+*/
+
 class QPF_union : public QPF_node
 {
 public:
@@ -118,16 +131,15 @@ public:
     return union_members.at(0);
   }
   /*
-    Members of the UNION.  Note: these are disjoint from UNION's "children".
+    Members of the UNION.  Note: these are different from UNION's "children".
     Example:
 
       (select * from t1) union 
       (select * from t2) order by (select col1 from t3 ...)
 
     here 
-      - select-from-t1 and select-from-t2 are "union members"
+      - select-from-t1 and select-from-t2 are "union members",
       - select-from-t3 is the only "child".
-    
   */
   Dynamic_array<int> union_members;
 
@@ -145,7 +157,7 @@ public:
 
 
 /*
-  This is the whole query. 
+  Query Plan Footprint for a query (i.e. a statement)
 */
 
 class QPF_query : public Sql_alloc
@@ -153,8 +165,8 @@ class QPF_query : public Sql_alloc
 public:
   QPF_query();
   ~QPF_query();
+  /* Add a new node */
   void add_node(QPF_node *node);
-  int print_explain(select_result_sink *output, uint8 explain_flags);
 
   /* This will return a select, or a union */
   QPF_node *get_node(uint select_id);
@@ -165,6 +177,8 @@ public:
   /* Delete_plan inherits from Update_plan */
   Update_plan *upd_del_plan;
 
+  /* Produce a tabular EXPLAIN output */
+  int print_explain(select_result_sink *output, uint8 explain_flags);
 private:
   QPF_union *unions[MAX_TABLES];
   QPF_select *selects[MAX_TABLES];
@@ -212,6 +226,9 @@ enum Extra_tag
 };
 
 
+/*
+  Query Plan Footprint for a JOIN_TAB.
+*/
 class QPF_table_access : public Sql_alloc
 {
 public:
@@ -287,8 +304,5 @@ private:
   void append_tag_name(String *str, enum Extra_tag tag);
 };
 
-// Update_plan and Delete_plan belong to this kind of structures, too.
-
 // TODO: should Update_plan inherit from QPF_table_access?
-
 
