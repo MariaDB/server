@@ -3537,7 +3537,7 @@ select_insert::~select_insert()
 }
 
 
-int select_insert::send_data(List<Item> &values)
+bool select_insert::send_data(List<Item> &values)
 {
   DBUG_ENTER("select_insert::send_data");
   bool error=0;

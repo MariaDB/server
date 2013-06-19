@@ -72,6 +72,8 @@
 char internal_table_name[2]= "*";
 char empty_c_string[1]= {0};    /* used for not defined db */
 
+LEX_STRING EMPTY_STR= { (char *) "", 0 };
+
 const char * const THD::DEFAULT_WHERE= "field list";
 
 /****************************************************************************
@@ -2454,7 +2456,7 @@ void select_send::cleanup()
 
 /* Send data to client. Returns 0 if ok */
 
-int select_send::send_data(List<Item> &items)
+bool select_send::send_data(List<Item> &items)
 {
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("select_send::send_data");
@@ -2744,7 +2746,7 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
                           (int) (uchar) (x) == line_sep_char  || \
                           !(x))
 
-int select_export::send_data(List<Item> &items)
+bool select_export::send_data(List<Item> &items)
 {
 
   DBUG_ENTER("select_export::send_data");
@@ -3003,7 +3005,7 @@ select_dump::prepare(List<Item> &list __attribute__((unused)),
 }
 
 
-int select_dump::send_data(List<Item> &items)
+bool select_dump::send_data(List<Item> &items)
 {
   List_iterator_fast<Item> li(items);
   char buff[MAX_FIELD_WIDTH];
@@ -3051,7 +3053,7 @@ select_subselect::select_subselect(Item_subselect *item_arg)
 }
 
 
-int select_singlerow_subselect::send_data(List<Item> &items)
+bool select_singlerow_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_singlerow_subselect::send_data");
   Item_singlerow_subselect *it= (Item_singlerow_subselect *)item;
@@ -3085,7 +3087,7 @@ void select_max_min_finder_subselect::cleanup()
 }
 
 
-int select_max_min_finder_subselect::send_data(List<Item> &items)
+bool select_max_min_finder_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_max_min_finder_subselect::send_data");
   Item_maxmin_subselect *it= (Item_maxmin_subselect *)item;
@@ -3202,7 +3204,7 @@ bool select_max_min_finder_subselect::cmp_str()
   return (sortcmp(val1, val2, cache->collation.collation) < 0);
 }
 
-int select_exists_subselect::send_data(List<Item> &items)
+bool select_exists_subselect::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_exists_subselect::send_data");
   Item_exists_subselect *it= (Item_exists_subselect *)item;
@@ -3585,7 +3587,7 @@ Statement_map::~Statement_map()
   my_hash_free(&st_hash);
 }
 
-int select_dumpvar::send_data(List<Item> &items)
+bool select_dumpvar::send_data(List<Item> &items)
 {
   List_iterator_fast<my_var> var_li(var_list);
   List_iterator<Item> it(items);
@@ -3691,7 +3693,7 @@ void select_materialize_with_stats::cleanup()
   @return FALSE on success
 */
 
-int select_materialize_with_stats::send_data(List<Item> &items)
+bool select_materialize_with_stats::send_data(List<Item> &items)
 {
   List_iterator_fast<Item> item_it(items);
   Item *cur_item;

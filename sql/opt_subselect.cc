@@ -5060,7 +5060,7 @@ public:
   select_value_catcher(Item_subselect *item_arg)
     :select_subselect(item_arg)
   {}
-  int send_data(List<Item> &items);
+  bool send_data(List<Item> &items);
   int setup(List<Item> *items);
   bool assigned;  /* TRUE <=> we've caught a value */
   uint n_elements; /* How many elements we get */
@@ -5088,7 +5088,7 @@ int select_value_catcher::setup(List<Item> *items)
 }
 
 
-int select_value_catcher::send_data(List<Item> &items)
+bool select_value_catcher::send_data(List<Item> &items)
 {
   DBUG_ENTER("select_value_catcher::send_data");
   DBUG_ASSERT(!assigned);

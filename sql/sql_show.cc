@@ -2367,7 +2367,7 @@ void Show_explain_request::call_in_target_thread()
 }
 
 
-int select_result_explain_buffer::send_data(List<Item> &items)
+bool select_result_explain_buffer::send_data(List<Item> &items)
 {
   int res;
   THD *cur_thd= current_thd;
@@ -5713,16 +5713,16 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
     for (uint i= 0 ; i < params ; i++)
     {
       const char *tmp_buff;
-      sp_variable_t *spvar= spcont->find_variable(i);
+      sp_variable *spvar= spcont->find_variable(i);
       field_def= &spvar->field_def;
       switch (spvar->mode) {
-      case sp_param_in:
+      case sp_variable::MODE_IN:
         tmp_buff= "IN";
         break;
-      case sp_param_out:
+      case sp_variable::MODE_OUT:
         tmp_buff= "OUT";
         break;
-      case sp_param_inout:
+      case sp_variable::MODE_INOUT:
         tmp_buff= "INOUT";
         break;
       default:

@@ -1001,3 +1001,32 @@ uint32 convert_error_message(char *to, uint32 to_length, CHARSET_INFO *to_cs,
   *errors= error_count;
   return (uint32) (to - to_start);
 }
+
+
+/**
+  Sanity check for SQLSTATEs. The function does not check if it's really an
+  existing SQL-state (there are just too many), it just checks string length and
+  looks for bad characters.
+
+  @param sqlstate the condition SQLSTATE.
+
+  @retval true if it's ok.
+  @retval false if it's bad.
+*/
+
+bool is_sqlstate_valid(const LEX_STRING *sqlstate)
+{
+  if (sqlstate->length != 5)
+    return false;
+
+  for (int i= 0 ; i < 5 ; ++i)
+  {
+    char c = sqlstate->str[i];
+
+    if ((c < '0' || '9' < c) &&
+	(c < 'A' || 'Z' < c))
+      return false;
+  }
+
+  return true;
+}
