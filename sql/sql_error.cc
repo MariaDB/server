@@ -327,8 +327,9 @@ Diagnostics_area::Diagnostics_area(bool initialize)
 }
 
 Diagnostics_area::Diagnostics_area(ulonglong warning_info_id,
-                                   bool allow_unlimited_warnings)
-  : m_main_wi(warning_info_id, allow_unlimited_warnings, true)
+                                   bool allow_unlimited_warnings,
+                                   bool initialize)
+  : m_main_wi(warning_info_id, allow_unlimited_warnings, initialize)
 {
   push_warning_info(&m_main_wi);
 
@@ -527,6 +528,7 @@ Warning_info::Warning_info(ulonglong warn_id_arg,
 void Warning_info::init()
 {
   /* Initialize sub structures */
+  DBUG_ASSERT(initialized == 0);
   init_sql_alloc(&m_warn_root, WARN_ALLOC_BLOCK_SIZE,
                  WARN_ALLOC_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
   initialized= 1;

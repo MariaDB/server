@@ -1969,8 +1969,9 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
   if (! octx)
   {
     /* Create a temporary old context. */
+    if (!(octx= sp_rcontext::create(thd, m_pcont, NULL)))
     {
-      delete octx; /* Delete octx if it was init() that failed. */
+      DBUG_PRINT("error", ("Could not create octx"));
       DBUG_RETURN(TRUE);
     }
 
@@ -2034,6 +2035,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
         if (!null_item ||
             nctx->set_variable(thd, i, &tmp_item))
         {
+          DBUG_PRINT("error", ("set variable failed"));
           err_status= TRUE;
           break;
         }
@@ -2042,6 +2044,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
       {
         if (nctx->set_variable(thd, i, it_args.ref()))
         {
+          DBUG_PRINT("error", ("set variable 2 failed"));
           err_status= TRUE;
           break;
         }
@@ -2098,7 +2101,10 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 #endif
 
   if (!err_status)
+  {
     err_status= execute(thd, TRUE);
+    DBUG_PRINT("info", ("execute returned %d", (int) err_status));
+  }
 
   if (save_log_general)
     thd->variables.option_bits &= ~OPTION_LOG_OFF;
@@ -2138,6 +2144,7 @@ sp_head::execute_procedure(THD *thd, List<Item> *args)
 
       if (srp->set_value(thd, octx, nctx->get_item_addr(i)))
       {
+        DBUG_PRINT("error", ("set value failed"));
         err_status= TRUE;
         break;
       }

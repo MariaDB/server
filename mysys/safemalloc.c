@@ -373,8 +373,8 @@ void sf_report_leaked_memory(my_thread_id id)
     {
       my_thread_id tid = irem->thread_id && irem->flags & MY_THREAD_SPECIFIC ?
                          irem->thread_id : 0;
-      fprintf(stderr, "Warning: %4lu bytes lost, allocated by T@%lu at ",
-              (ulong) irem->datasize,tid);
+      fprintf(stderr, "Warning: %4lu bytes lost at %p, allocated by T@%lu at ",
+              (ulong) irem->datasize, (char*) (irem + 1), tid);
       print_stack(irem->frame);
       total+= irem->datasize;
     }

@@ -713,7 +713,8 @@ public:
   }
 
   Diagnostics_area(bool initialize);
-  Diagnostics_area(ulonglong warning_info_id, bool allow_unlimited_warnings);
+  Diagnostics_area(ulonglong warning_info_id, bool allow_unlimited_warnings,
+                   bool initialize);
   void init() { m_main_wi.init() ; }
   void free_memory() { m_main_wi.free_memory() ; }
 

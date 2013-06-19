@@ -2993,7 +2993,7 @@ void mysql_stmt_get_longdata(THD *thd, char *packet, ulong packet_length)
 
   param= stmt->param_array[param_number];
 
-  Diagnostics_area new_stmt_da(thd->query_id, false);
+  Diagnostics_area new_stmt_da(thd->query_id, false, true);
   Diagnostics_area *save_stmt_da= thd->get_stmt_da();
 
   thd->set_stmt_da(&new_stmt_da);
@@ -4066,7 +4066,7 @@ Ed_result_set::Ed_result_set(List<Ed_row> *rows_arg,
 */
 
 Ed_connection::Ed_connection(THD *thd)
-  :m_diagnostics_area(thd->query_id, false),
+  :m_diagnostics_area(thd->query_id, false, true),
   m_thd(thd),
   m_rsets(0),
   m_current_rset(0)
