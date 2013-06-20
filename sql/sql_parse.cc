@@ -598,6 +598,10 @@ static void handle_bootstrap_impl(THD *thd)
 #if defined(ENABLED_PROFILING)
     thd->profiling.finish_current_query();
 #endif
+    //
+    delete thd->lex->query_plan_footprint;
+    thd->lex->query_plan_footprint= NULL;
+    //
 
     if (bootstrap_error)
       break;
@@ -1484,6 +1488,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->update_all_stats();
 
   log_slow_statement(thd);
+  /* psergey-todo: this is the place we could print EXPLAIN to slow query log */
 
   thd_proc_info(thd, "cleaning up");
   thd->reset_query();
@@ -1518,6 +1523,9 @@ void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
 
+  delete thd->lex->query_plan_footprint;
+  thd->lex->query_plan_footprint= NULL;
+
   /*
     The following should never be true with our current code base,
     but better to keep this here so we don't accidently try to log a
@@ -1525,6 +1533,7 @@ void log_slow_statement(THD *thd)
   */
   if (unlikely(thd->in_sub_stmt))
     DBUG_VOID_RETURN;                           // Don't set time for sub stmt
+
 
   /* Follow the slow log filter configuration. */ 
   if (!thd->enable_slow_log ||
@@ -2178,6 +2187,9 @@ mysql_execute_command(THD *thd)
     /* Release metadata locks acquired in this transaction. */
     thd->mdl_context.release_transactional_locks();
   }
+  
+  DBUG_ASSERT(!thd->lex->query_plan_footprint);
+  thd->lex->query_plan_footprint= new QPF_query;
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
@@ -3273,7 +3285,7 @@ end_with_restore_list:
           result= NULL;
         }
         select_lex->set_explain_type(FALSE);
-        thd->lex->query_plan_footprint= new QPF_query;
+        //thd->lex->query_plan_footprint= new QPF_query;
       }
       else
         result= new multi_delete(aux_tables, lex->table_count);
@@ -3301,8 +3313,8 @@ end_with_restore_list:
         {
           result->reset_offset_limit(); 
           thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
-          delete thd->lex->query_plan_footprint;
-          thd->lex->query_plan_footprint= NULL;
+          //delete thd->lex->query_plan_footprint;
+          //thd->lex->query_plan_footprint= NULL;
         }
       
         if (res)
@@ -4819,7 +4831,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
       thd->send_explain_fields(result);
-      thd->lex->query_plan_footprint= new QPF_query;
+      //thd->lex->query_plan_footprint= new QPF_query;
       res= mysql_explain_union(thd, &thd->lex->unit, result);
 
       if (!res)
@@ -4831,8 +4843,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         result->reset_offset_limit(); 
         thd->lex->query_plan_footprint->print_explain(result, thd->lex->describe);
       }
-      delete thd->lex->query_plan_footprint;
-      thd->lex->query_plan_footprint= NULL;
+      //delete thd->lex->query_plan_footprint;
+      //thd->lex->query_plan_footprint= NULL;
 
       //psergey-todo: here, produce the EXPLAIN output.
       //  mysql_explain_union() itself is only responsible for calling

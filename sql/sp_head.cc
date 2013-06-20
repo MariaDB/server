@@ -3006,6 +3006,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     else if (! thd->in_sub_stmt)
       thd->mdl_context.release_statement_locks();
   }
+  
+  delete_qpf_query(m_lex->query_plan_footprint);
+  m_lex->query_plan_footprint= NULL;
 
   if (m_lex->query_tables_own_last)
   {

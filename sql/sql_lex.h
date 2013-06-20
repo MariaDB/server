@@ -619,6 +619,8 @@ class select_union;
 class Procedure;
 class QPF_query;
 
+void delete_qpf_query(QPF_query * query);
+
 class st_select_lex_unit: public st_select_lex_node {
 protected:
   TABLE_LIST result_table_list;
@@ -2360,15 +2362,18 @@ protected:
   LEX *m_lex;
 };
 
+
 class Delete_plan;
 class SQL_SELECT;
+
+class QPF_query;
+class QPF_update;
 
 /* 
   Query plan of a single-table UPDATE.
   (This is actually a plan for single-table DELETE also)
-
-  TODO: this should be a query plan footprint, not a query plan.
 */
+
 class Update_plan
 {
 protected:
@@ -2378,10 +2383,9 @@ public:
   SQL_SELECT *select;
   uint index;
   ha_rows table_rows; /* Use if select==NULL */
-
-  /* 
+  /*
     Top-level select_lex. Most of its fields are not used, we need it only to
-    get to the subqueries. 
+    get to the subqueries.
   */
   SELECT_LEX *select_lex;
   
@@ -2391,20 +2395,11 @@ public:
   /* Set this plan to be a plan to do nothing because of impossible WHRE*/
   void set_impossible_where() { impossible_where= true; }
 
-  virtual int print_explain(select_result_sink *output, uint8 explain_flags);
+  void save_query_plan_footprint(QPF_query *query);
+  void save_query_plan_footprint_intern(QPF_update *qpf);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}
-
-  void save_query_plan_footprint();
-  /* Query Plan Footprint fields */
-  // cant use it here: enum join_type 
-  int jtype;
-  bool using_where;
-  StringBuffer<128> possible_keys_line;
-  StringBuffer<128> key_str;
-  StringBuffer<128> key_len_str;
-  StringBuffer<64> mrr_type;
 };
 
 
@@ -2424,11 +2419,11 @@ public:
     deleting_all_rows= true;
     table_rows= rows_arg;
   }
-  int print_explain(select_result_sink *output, uint8 explain_flags);
+
+  void save_query_plan_footprint(QPF_query *query);
 };
 
 
-class QPF_query;
 /* The state of the lex parsing. This is saved in the THD struct */
 
 struct LEX: public Query_tables_list
@@ -2439,8 +2434,8 @@ struct LEX: public Query_tables_list
   SELECT_LEX *current_select;
   /* list of all SELECT_LEX */
   SELECT_LEX *all_selects_list;
-
-  /* For single-table DELETE: its query plan */
+  
+  /* Query Plan Footprint of a currently running select  */
   QPF_query *query_plan_footprint;
 
   char *length,*dec,*change;
