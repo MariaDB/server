@@ -58,10 +58,12 @@ void Delete_plan::save_query_plan_footprint(QPF_query *query)
   if (deleting_all_rows)
   {
     qpf->deleting_all_rows= true;
+    qpf->select_type= "SIMPLE";
   }
   else
   {
-    Update_plan::save_query_plan_footprint_intern(qpf);
+    qpf->deleting_all_rows= false;
+    Update_plan::save_query_plan_footprint_intern(query, qpf);
   }
 
   query->upd_del_plan= qpf;
@@ -71,13 +73,14 @@ void Delete_plan::save_query_plan_footprint(QPF_query *query)
 void Update_plan::save_query_plan_footprint(QPF_query *query)
 {
   QPF_update* qpf= new QPF_update;
-  save_query_plan_footprint_intern(qpf);
+  save_query_plan_footprint_intern(query, qpf);
   query->upd_del_plan= qpf;
 }
 
 
-void Update_plan::save_query_plan_footprint_intern(QPF_update *qpf)
+void Update_plan::save_query_plan_footprint_intern(QPF_query *query, QPF_update *qpf)
 {
+  qpf->select_type= "SIMPLE";
   qpf->table_name.append(table->pos_in_table_list->alias);
   if (impossible_where)
   {
@@ -85,8 +88,10 @@ void Update_plan::save_query_plan_footprint_intern(QPF_update *qpf)
     return;
   }
   
-  // TODO: do we need the following: select_type
-  //select_lex->set_explain_type(TRUE);
+  qpf->impossible_where= false;
+
+  select_lex->set_explain_type(TRUE);
+  qpf->select_type= select_lex->type;
   
   /* Set jtype */
   if (select && select->quick)
@@ -133,6 +138,28 @@ void Update_plan::save_query_plan_footprint_intern(QPF_update *qpf)
       select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
   {
     explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, &qpf->mrr_type);
+  }
+
+  bool skip= updating_a_view;
+  /* Save subquery children */
+  for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    if (skip)
+    {
+      skip= false;
+      continue;
+    }
+    /* 
+      Display subqueries only if they are not parts of eliminated WHERE/ON
+      clauses.
+    */
+    if (!(unit->item && unit->item->eliminated))
+      qpf->add_child(unit->first_select()->select_number);
+    
+    //TODO: temporary?:
+    unit->save_qpf(query);
   }
 }
 
@@ -193,6 +220,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
+
+  //psergey-todo: Ugly, discuss with Sanja
+  query_plan.updating_a_view= test(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, &conds))
     DBUG_RETURN(TRUE);
@@ -612,7 +642,7 @@ exit_without_my_ok:
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result);
-  int err2= thd->lex->query_plan_footprint->print_explain(result, 0);
+  int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
 
   if (err2)
     result->abort_result_set();

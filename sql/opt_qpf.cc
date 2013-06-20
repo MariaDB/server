@@ -49,6 +49,7 @@ void QPF_query::add_node(QPF_node *node)
   if (node->get_type() == QPF_node::QPF_UNION)
   {
     QPF_union *u= (QPF_union*)node;
+    DBUG_ASSERT(!unions[u->get_select_id()]);
     unions[u->get_select_id()]= u;
   }
   else
@@ -60,7 +61,10 @@ void QPF_query::add_node(QPF_node *node)
       DBUG_ASSERT(0);
     }
     else
+    {
+      DBUG_ASSERT(!selects[sel->select_id]);
       selects[sel->select_id] = sel;
+    }
   }
 }
 
@@ -493,7 +497,7 @@ int QPF_delete::print_explain(QPF_query *query, select_result_sink *output,
     const char *msg= "Deleting all rows";
     int res= print_explain_message_line(output, explain_flags,
                                         1 /*select number*/,
-                                        "SIMPLE", msg);
+                                        select_type, msg);
     return res;
 
   }
@@ -513,7 +517,7 @@ int QPF_update::print_explain(QPF_query *query, select_result_sink *output,
     const char *msg= "Impossible where";
     int res= print_explain_message_line(output, explain_flags,
                                         1 /*select number*/,
-                                        "SIMPLE", msg);
+                                        select_type, msg);
     return res;
   }
 
@@ -541,7 +545,7 @@ int QPF_update::print_explain(QPF_query *query, select_result_sink *output,
 
   print_explain_row(output, explain_flags, 
                     1, /* id */
-                    "SIMPLE",
+                    select_type,
                     table_name.c_ptr(), 
                     // partitions,
                     jtype,
