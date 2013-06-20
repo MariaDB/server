@@ -4337,6 +4337,13 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
 {
   //int res= 0;
   SELECT_LEX *first= first_select();
+
+  if (!first->next_select())
+  {
+    /* This is a 1-way UNION, i.e. not really a UNION */
+    first->save_qpf(output);
+    return 0;
+  }
   
   QPF_union *qpfu= new QPF_union;
   /*

@@ -314,6 +314,10 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
+  
+  //psergey-todo: Ugly, discuss with Sanja
+  query_plan.updating_a_view= test(table_list->view);
+  
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
   table->quick_keys.clear_all();
@@ -1013,13 +1017,14 @@ exit_without_my_ok:
   query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
   
   select_send *result;
-  bool printed_anything;
+  //bool printed_anything;
   if (!(result= new select_send()))
     return 1;                               /* purecov: inspected */
   List<Item> dummy; /* note: looked in 5.6 and they too use a dummy list like this */
   result->prepare(dummy, &thd->lex->unit);
   thd->send_explain_fields(result);
-  int err2= thd->lex->print_explain(result, 0 /* explain flags*/, &printed_anything);
+  //int err2= thd->lex->print_explain(result, 0 /* explain flags*/, &printed_anything);
+  int err2= thd->lex->query_plan_footprint->print_explain(result, 0 /* explain flags*/);
 
   if (err2)
     result->abort_result_set();
@@ -1498,6 +1503,7 @@ bool mysql_multi_update(THD *thd,
   {
     if (explain)
     {
+      thd->lex->query_plan_footprint->print_explain(output, 0);
       output->send_eof(); 
       delete output;
     }

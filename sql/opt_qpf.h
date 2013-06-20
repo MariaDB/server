@@ -350,6 +350,8 @@ public:
   virtual enum qpf_node_type get_type() { return QPF_UPDATE; }
   virtual int get_select_id() { return 1; /* always root */ }
 
+  const char *select_type;
+
   bool impossible_where;
   StringBuffer<64> table_name;
 

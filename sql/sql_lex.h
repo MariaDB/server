@@ -730,10 +730,7 @@ public:
   friend int subselect_union_engine::exec();
 
   List<Item> *get_unit_column_types();
-#if 0  
-  int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
-#endif  
+
   int save_qpf(QPF_query *output);
 };
 
@@ -2379,6 +2376,7 @@ class Update_plan
 protected:
   bool impossible_where;
 public:
+  bool updating_a_view;
   TABLE *table;
   SQL_SELECT *select;
   uint index;
@@ -2396,7 +2394,7 @@ public:
   void set_impossible_where() { impossible_where= true; }
 
   void save_query_plan_footprint(QPF_query *query);
-  void save_query_plan_footprint_intern(QPF_update *qpf);
+  void save_query_plan_footprint_intern(QPF_query *query, QPF_update *qpf);
   virtual ~Update_plan() {}
 
   Update_plan() : impossible_where(false), using_filesort(false) {}
