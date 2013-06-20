@@ -1005,17 +1005,26 @@ err:
 
 int JOIN::optimize()
 {
+  bool was_optimized= optimized;
   int res= optimize_inner();
   /*
     If we're inside a non-correlated subquery, this function may be 
     called for the second time after the subquery has been executed
     and deleted. The second call will not produce a valid query plan, it will
     short-circuit because optimized==TRUE.
+
+    "was_optimized != optimized" is here to handle this case:
+      - first optimization starts, gets an error (from a const. cheap
+        subquery), returns 1
+      - another JOIN::optimize() call made, and now join->optimize() will
+        return 0, even though we never had a query plan.
   */
-  if (!res && have_query_plan != QEP_DELETED)
+  if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
     have_query_plan= QEP_AVAILABLE;
   return res;
 }
+
+
 /**
   global select optimisation.
 
@@ -2301,7 +2310,6 @@ void JOIN::exec()
                                                select_lex->select_number))
                         dbug_serve_apcs(thd, 1);
                  );
-
   thd->apc_target.disable();
 }
 
@@ -11099,7 +11107,33 @@ void JOIN::cleanup(bool full)
   DBUG_PRINT("enter", ("full %u", (uint) full));
   
   if (full)
+  {
+    //
+    if (select_lex->select_number != UINT_MAX && 
+        select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+        have_query_plan != QEP_NOT_PRESENT_YET && 
+        !thd->lex->query_plan_footprint->get_select(select_lex->select_number))
+    {
+      const char *message= NULL;
+
+      if (!table_count || !tables_list || zero_result_cause)
+      {
+        /* It's a degenerate join */
+        message= zero_result_cause ? zero_result_cause : "No tables used";
+      }
+
+      save_qpf(thd->lex->query_plan_footprint,
+               need_tmp, // need_tmp_table
+               !skip_sort_order && !no_order &&
+               (order || group_list), // bool need_order
+               select_distinct, // bool distinct
+               message); // message
+    }
+
+    //
+
     have_query_plan= QEP_DELETED; //psergey: this is a problem!
+  }
 
   if (table)
   {

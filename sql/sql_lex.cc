@@ -4341,7 +4341,8 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
   if (!first->next_select())
   {
     /* This is a 1-way UNION, i.e. not really a UNION */
-    first->save_qpf(output);
+    if (!output->get_select(first->select_number))
+      first->save_qpf(output);
     return 0;
   }
   
@@ -4371,7 +4372,8 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
   {
-    sl->save_qpf(output);
+    if (!output->get_select(sl->select_number))
+      sl->save_qpf(output);
     qpfu->add_select(sl->select_number);
   }
 
