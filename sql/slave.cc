@@ -5823,7 +5823,7 @@ static Log_event* next_event(Relay_log_info* rli)
       if (ev->get_type_code() == GTID_EVENT)
       {
         Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
-        uint64 sub_id= rpl_global_gtid_slave_state.next_subid(gev->domain_id);
+        uint64 sub_id= rpl_global_gtid_slave_state.next_sub_id(gev->domain_id);
         if (!sub_id)
         {
           errmsg = "slave SQL thread aborted because of out-of-memory error";

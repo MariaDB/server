@@ -462,9 +462,9 @@ end:
 
 
 uint64
-rpl_slave_state::next_subid(uint32 domain_id)
+rpl_slave_state::next_sub_id(uint32 domain_id)
 {
-  uint32 sub_id= 0;
+  uint64 sub_id= 0;
   element *elem;
 
   lock();
@@ -722,7 +722,7 @@ rpl_slave_state::load(THD *thd, char *state_from_master, size_t len,
     uint64 sub_id;
 
     if (gtid_parser_helper(&state_from_master, end, &gtid) ||
-        !(sub_id= next_subid(gtid.domain_id)) ||
+        !(sub_id= next_sub_id(gtid.domain_id)) ||
         record_gtid(thd, &gtid, sub_id, false, in_statement) ||
         update(gtid.domain_id, gtid.server_id, sub_id, gtid.seq_no))
       return 1;
