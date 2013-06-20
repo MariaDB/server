@@ -153,7 +153,7 @@ int init_account_hash(void)
   {
     lf_hash_init(&account_hash, sizeof(PFS_account*), LF_HASH_UNIQUE,
                  0, 0, account_hash_get_key, &my_charset_bin);
-    account_hash.size= account_max;
+    /* account_hash.size= account_max; */
     account_hash_inited= true;
   }
   return 0;

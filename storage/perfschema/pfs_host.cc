@@ -150,7 +150,7 @@ int init_host_hash(void)
   {
     lf_hash_init(&host_hash, sizeof(PFS_host*), LF_HASH_UNIQUE,
                  0, 0, host_hash_get_key, &my_charset_bin);
-    host_hash.size= host_max;
+    /* host_hash.size= host_max; */
     host_hash_inited= true;
   }
   return 0;

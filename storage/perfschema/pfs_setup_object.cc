@@ -99,7 +99,7 @@ int init_setup_object_hash(void)
   {
     lf_hash_init(&setup_object_hash, sizeof(PFS_setup_object*), LF_HASH_UNIQUE,
                  0, 0, setup_object_hash_get_key, &my_charset_bin);
-    setup_object_hash.size= setup_object_max;
+    /* setup_object_hash.size= setup_object_max; */
     setup_object_hash_inited= true;
   }
   return 0;
