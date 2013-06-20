@@ -92,6 +92,8 @@ private:
 
 /*
   A typesafe wrapper around DYNAMIC_ARRAY
+
+  TODO: Change creator to take a THREAD_SPECIFIC option.
 */
 
 template <class Elem> class Dynamic_array
@@ -106,7 +108,7 @@ public:
   void init(uint prealloc=16, uint increment=16)
   {
     my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
-                          MYF(MY_THREAD_SPECIFIC));
+                          MYF(0));
   }
 
   /**

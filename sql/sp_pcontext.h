@@ -238,7 +238,7 @@ public:
 /// The class represents parse-time context, which keeps track of declared
 /// variables/parameters, conditions, handlers, cursors and labels.
 ///
-/// sp_context objects are organized in a tree according to the following
+/// sp_pcontext objects are organized in a tree according to the following
 /// rules:
 ///   - one sp_pcontext object corresponds for for each BEGIN..END block;
 ///   - one sp_pcontext object corresponds for each exception handler;

@@ -142,7 +142,7 @@ int init_digest_hash(void)
     lf_hash_init(&digest_hash, sizeof(PFS_statements_digest_stat*),
                  LF_HASH_UNIQUE, 0, 0, digest_hash_get_key,
                  &my_charset_bin);
-    digest_hash.size= digest_max;
+    /* digest_hash.size= digest_max; */
     digest_hash_inited= true;
   }
   return 0;

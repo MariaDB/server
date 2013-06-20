@@ -3914,8 +3914,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
       }
       else
       {
-        Open_table_context ot_ctx(thd, MYSQL_OPEN_TEMPORARY_ONLY);
-        if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
+        if (open_temporary_table(thd, create_table))
         {
           /*
             This shouldn't happen as creation of temporary table should make

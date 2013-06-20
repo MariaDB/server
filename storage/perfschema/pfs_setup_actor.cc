@@ -104,7 +104,7 @@ int init_setup_actor_hash(void)
   {
     lf_hash_init(&setup_actor_hash, sizeof(PFS_setup_actor*), LF_HASH_UNIQUE,
                  0, 0, setup_actor_hash_get_key, &my_charset_bin);
-    setup_actor_hash.size= setup_actor_max;
+    /* setup_actor_hash.size= setup_actor_max; */
     setup_actor_hash_inited= true;
   }
   return 0;

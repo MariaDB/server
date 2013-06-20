@@ -150,7 +150,7 @@ int init_user_hash(void)
   {
     lf_hash_init(&user_hash, sizeof(PFS_user*), LF_HASH_UNIQUE,
                  0, 0, user_hash_get_key, &my_charset_bin);
-    user_hash.size= user_max;
+    /* user_hash.size= user_max; */
     user_hash_inited= true;
   }
   return 0;

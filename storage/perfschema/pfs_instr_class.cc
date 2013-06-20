@@ -385,7 +385,7 @@ int init_table_share_hash(void)
   {
     lf_hash_init(&table_share_hash, sizeof(PFS_table_share*), LF_HASH_UNIQUE,
                  0, 0, table_share_hash_get_key, &my_charset_bin);
-    table_share_hash.size= table_share_max;
+    /* table_share_hash.size= table_share_max; */
     table_share_hash_inited= true;
   }
   return 0;

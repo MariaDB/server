@@ -515,7 +515,7 @@ int init_file_hash(void)
   {
     lf_hash_init(&filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
                  0, 0, filename_hash_get_key, &my_charset_bin);
-    filename_hash.size= file_max;
+    /* filename_hash.size= file_max; */
     filename_hash_inited= true;
   }
   DBUG_RETURN(0);
