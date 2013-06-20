@@ -74,7 +74,7 @@ int QPF_query::print_explain(select_result_sink *output,
 {
   if (upd_del_plan)
   {
-    upd_del_plan->print_explain(output, explain_flags);
+    upd_del_plan->print_explain(this, output, explain_flags);
     return 0;
   }
   else
@@ -196,12 +196,20 @@ int QPF_union::print_explain(QPF_query *query, select_result_sink *output,
   if (output->send_data(item_list))
     return 1;
 
+  return print_explain_for_children(query, output, explain_flags);
+}
+
+
+int QPF_node::print_explain_for_children(QPF_query *query, 
+                                         select_result_sink *output,
+                                         uint8 explain_flags)
+{
   for (int i= 0; i < (int) children.elements(); i++)
   {
     QPF_node *node= query->get_node(children.at(i));
-    node->print_explain(query, output, explain_flags);
+    if (node->print_explain(query, output, explain_flags))
+      return 1;
   }
-
   return 0;
 }
 
@@ -263,12 +271,7 @@ int QPF_select::print_explain(QPF_query *query, select_result_sink *output,
     }
   }
 
-  for (int i= 0; i < (int) children.elements(); i++)
-  {
-    QPF_node *node= query->get_node(children.at(i));
-    node->print_explain(query, output, explain_flags);
-  }
-  return 0;
+  return print_explain_for_children(query, output, explain_flags);
 }
 
 
@@ -481,4 +484,79 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
   }
 }
 
+
+int QPF_delete::print_explain(QPF_query *query, select_result_sink *output, 
+                              uint8 explain_flags)
+{
+  if (deleting_all_rows)
+  {
+    const char *msg= "Deleting all rows";
+    int res= print_explain_message_line(output, explain_flags,
+                                        1 /*select number*/,
+                                        "SIMPLE", msg);
+    return res;
+
+  }
+  else
+  {
+    return QPF_update::print_explain(query, output, explain_flags);
+  }
+}
+
+
+int QPF_update::print_explain(QPF_query *query, select_result_sink *output, 
+                              uint8 explain_flags)
+{
+  StringBuffer<64> extra_str;
+  if (impossible_where)
+  {
+    const char *msg= "Impossible where";
+    int res= print_explain_message_line(output, explain_flags,
+                                        1 /*select number*/,
+                                        "SIMPLE", msg);
+    return res;
+  }
+
+  if (using_where)
+    extra_str.append(STRING_WITH_LEN("Using where"));
+
+  if (mrr_type.length() != 0)
+  {
+    if (extra_str.length() !=0)
+      extra_str.append(STRING_WITH_LEN("; "));
+    extra_str.append(mrr_type);
+  }
+
+  if (using_filesort)
+  {
+    if (extra_str.length() !=0)
+      extra_str.append(STRING_WITH_LEN("; "));
+    extra_str.append(STRING_WITH_LEN("Using filesort"));
+  }
+
+  /* 
+    Single-table DELETE commands do not do "Using temporary".
+    "Using index condition" is also not possible (which is an unjustified limitation)
+  */
+
+  print_explain_row(output, explain_flags, 
+                    1, /* id */
+                    "SIMPLE",
+                    table_name.c_ptr(), 
+                    // partitions,
+                    jtype,
+                    possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
+                    key_str.length()? key_str.c_ptr() : NULL,
+                    key_len_str.length() ? key_len_str.c_ptr() : NULL,
+                    NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
+                    rows,
+                    extra_str.c_ptr());
+
+  return print_explain_for_children(query, output, explain_flags);
+}
+
+void delete_qpf_query(QPF_query * query)
+{
+  delete query;
+}
 

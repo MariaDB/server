@@ -18,7 +18,7 @@ class QPF_query;
 class QPF_node : public Sql_alloc
 {
 public:
-  enum qpf_node_type {QPF_UNION, QPF_SELECT};
+  enum qpf_node_type {QPF_UNION, QPF_SELECT, QPF_UPDATE, QPF_DELETE };
   virtual enum qpf_node_type get_type()= 0;
 
 
@@ -36,7 +36,9 @@ public:
 
   virtual int print_explain(QPF_query *query, select_result_sink *output, 
                             uint8 explain_flags)=0;
-
+  
+  int print_explain_for_children(QPF_query *query, select_result_sink *output, 
+                                 uint8 explain_flags);
   virtual ~QPF_node(){}
 };
 
@@ -155,9 +157,42 @@ public:
   bool using_filesort;
 };
 
+class QPF_delete;
+
 
 /*
-  Query Plan Footprint for a query (i.e. a statement)
+  Query Plan Footprint (QPF) for a query (i.e. a statement).
+
+  This should be able to survive when the query plan was deleted. Currently, 
+  we do not intend for it survive until after query's MEM_ROOT is freed. It
+  does surivive freeing of query's items.
+   
+  For reference, the process of post-query cleanup is as follows:
+
+    >dispatch_command
+    | >mysql_parse
+    | |  ...
+    | | lex_end()
+    | |  ...
+    | | >THD::cleanup_after_query
+    | | | ...
+    | | | free_items()
+    | | | ...
+    | | <THD::cleanup_after_query
+    | |
+    | <mysql_parse
+    |
+    | log_slow_statement()
+    | 
+    | free_root()
+    | 
+    >dispatch_command
+  
+  That is, the order of actions is:
+    - free query's Items
+    - write to slow query log 
+    - free query's MEM_ROOT
+    
 */
 
 class QPF_query : public Sql_alloc
@@ -174,8 +209,8 @@ public:
   /* This will return a select (even if there is a union with this id) */
   QPF_select *get_select(uint select_id);
   
-  /* Delete_plan inherits from Update_plan */
-  Update_plan *upd_del_plan;
+  /* QPF_delete inherits from QPF_update */
+  QPF_update *upd_del_plan;
 
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
@@ -304,5 +339,50 @@ private:
   void append_tag_name(String *str, enum Extra_tag tag);
 };
 
-// TODO: should Update_plan inherit from QPF_table_access?
+
+/*
+  Query Plan Footprint for an UPDATE statement
+*/
+
+class QPF_update : public QPF_node
+{
+public:
+  virtual enum qpf_node_type get_type() { return QPF_UPDATE; }
+  virtual int get_select_id() { return 1; /* always root */ }
+
+  bool impossible_where;
+  StringBuffer<64> table_name;
+
+  enum join_type jtype;
+  StringBuffer<128> possible_keys_line;
+  StringBuffer<128> key_str;
+  StringBuffer<128> key_len_str;
+  StringBuffer<64> mrr_type;
+  
+  bool using_where;
+  ha_rows rows;
+
+  bool using_filesort;
+
+  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+                            uint8 explain_flags);
+};
+
+
+/* 
+  Query Plan Footprint for a DELETE statement
+*/
+
+class QPF_delete: public QPF_update
+{
+public:
+  bool deleting_all_rows;
+
+  virtual enum qpf_node_type get_type() { return QPF_DELETE; }
+  virtual int get_select_id() { return 1; /* always root */ }
+
+  virtual int print_explain(QPF_query *query, select_result_sink *output, 
+                            uint8 explain_flags);
+};
+
 

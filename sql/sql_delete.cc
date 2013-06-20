@@ -51,25 +51,44 @@
     invoked on a running DELETE statement.
 */
 
-int Delete_plan::print_explain(select_result_sink *output, uint8 explain_flags)
+void Delete_plan::save_query_plan_footprint(QPF_query *query)
 {
+  QPF_delete* qpf= new QPF_delete;
+
   if (deleting_all_rows)
   {
-    const char *msg= "Deleting all rows";
-    if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
-                                   "SIMPLE", msg))
-    {
-      return 1;
-    }
-    return 0;
+    qpf->deleting_all_rows= true;
   }
-  return Update_plan::print_explain(output, explain_flags);
+  else
+  {
+    Update_plan::save_query_plan_footprint_intern(qpf);
+  }
+
+  query->upd_del_plan= qpf;
 }
 
-void Update_plan::save_query_plan_footprint()
-{
-  select_lex->set_explain_type(TRUE);
 
+void Update_plan::save_query_plan_footprint(QPF_query *query)
+{
+  QPF_update* qpf= new QPF_update;
+  save_query_plan_footprint_intern(qpf);
+  query->upd_del_plan= qpf;
+}
+
+
+void Update_plan::save_query_plan_footprint_intern(QPF_update *qpf)
+{
+  qpf->table_name.append(table->pos_in_table_list->alias);
+  if (impossible_where)
+  {
+    qpf->impossible_where= true;
+    return;
+  }
+  
+  // TODO: do we need the following: select_type
+  //select_lex->set_explain_type(TRUE);
+  
+  /* Set jtype */
   if (select && select->quick)
   {
     int quick_type= select->quick->get_type();
@@ -77,104 +96,44 @@ void Update_plan::save_query_plan_footprint()
         (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
         (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-      jtype= JT_INDEX_MERGE;
+      qpf->jtype= JT_INDEX_MERGE;
     else
-      jtype= JT_RANGE;
+      qpf->jtype= JT_RANGE;
   }
   else
   {
     if (index == MAX_KEY)
-      jtype= JT_ALL;
+      qpf->jtype= JT_ALL;
     else
-      jtype= JT_NEXT;
+      qpf->jtype= JT_NEXT;
   }
 
-  using_where= test(select && select->cond);
+  qpf->using_where= test(select && select->cond);
+  qpf->using_filesort= using_filesort;
+
   //using_filesort is already set
-  make_possible_keys_line(table, possible_keys, &possible_keys_line);
+  make_possible_keys_line(table, possible_keys, &qpf->possible_keys_line);
 
   /* Calculate key_len */
   if (select && select->quick)
   {
-    select->quick->add_keys_and_lengths(&key_str, &key_len_str);
+    select->quick->add_keys_and_lengths(&qpf->key_str, &qpf->key_len_str);
   }
   else
   {
     if (index != MAX_KEY)
     {
-      key_str.append(table->key_info[index].name);
+      qpf->key_str.append(table->key_info[index].name);
     }
     // key_len stays NULL
   }
+  qpf->rows= select ? select->records : table_rows;
 
   if (select && select->quick && 
       select->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
   {
-    explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, &mrr_type);
+    explain_append_mrr_info((QUICK_RANGE_SELECT*)select->quick, &qpf->mrr_type);
   }
-}
-
-int Update_plan::print_explain(select_result_sink *output, uint8 explain_flags)
-{
-  StringBuffer<64> extra_str;
-  if (impossible_where)
-  {
-    const char *msg= "Impossible where";
-    if (print_explain_message_line(output, explain_flags, 1/*select number*/, 
-                                   "SIMPLE", msg))
-    {
-      return 1;
-    }
-    return 0;
-  }
-
-  if (using_where)
-    extra_str.append(STRING_WITH_LEN("Using where"));
-
-  if (mrr_type.length() != 0)
-  {
-    if (extra_str.length() !=0)
-      extra_str.append(STRING_WITH_LEN("; "));
-    extra_str.append(mrr_type);
-  }
-
-  if (using_filesort)
-  {
-    if (extra_str.length() !=0)
-      extra_str.append(STRING_WITH_LEN("; "));
-    extra_str.append(STRING_WITH_LEN("Using filesort"));
-  }
-
-  /* 
-    Single-table DELETE commands do not do "Using temporary".
-    "Using index condition" is also not possible (which is an unjustified limitation)
-  */
-
-  print_explain_row(output, explain_flags, 
-                    1, /* id */
-                    select_lex->type,
-                    table->pos_in_table_list->alias, 
-                    // partitions,
-                    (enum join_type) jtype,
-                    possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
-                    key_str.length()? key_str.c_ptr() : NULL,
-                    key_len_str.length() ? key_len_str.c_ptr() : NULL,
-                    NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
-                    select ? select->records : table_rows,
-                    extra_str.c_ptr());
-
-  /*
-  psergey-todo:  handle all this through saving QPF.
-
-  for (SELECT_LEX_UNIT *unit= select_lex->first_inner_unit();
-       unit;
-       unit= unit->next_unit())
-  {
-    if (unit->print_explain(output, explain_flags, printed_anything))
-      return 1;
-  }
-  */
-  return 0;
 }
 
 
@@ -205,10 +164,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   SELECT_LEX   *select_lex= &thd->lex->select_lex;
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
-  
-  Delete_plan *query_plan = new Delete_plan;
-  query_plan->index= MAX_KEY;
-  query_plan->using_filesort= FALSE;
+
+  Delete_plan query_plan;
+  query_plan.index= MAX_KEY;
+  query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_delete");
 
   if (open_and_lock_tables(thd, table_list, TRUE, 0))
@@ -232,8 +191,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
   thd_proc_info(thd, "init");
   table->map=1;
-  query_plan->select_lex= &thd->lex->select_lex;
-  query_plan->table= table;
+  query_plan.select_lex= &thd->lex->select_lex;
+  query_plan.table= table;
 
   if (mysql_prepare_delete(thd, table_list, &conds))
     DBUG_RETURN(TRUE);
@@ -308,7 +267,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     ha_rows const maybe_deleted= table->file->stats.records;
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
-    query_plan->set_delete_all_rows(maybe_deleted);
+    query_plan.set_delete_all_rows(maybe_deleted);
     if (thd->lex->describe)
       goto exit_without_my_ok;
 
@@ -338,7 +297,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (result == Item::COND_FALSE)             // Impossible where
     {
       limit= 0;
-      query_plan->set_impossible_where();
+      query_plan.set_impossible_where();
       if (thd->lex->describe)
         goto exit_without_my_ok;
     }
@@ -366,7 +325,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
   if ((select && select->check_quick(thd, safe_update, limit)) || !limit)
   {
-    query_plan->set_impossible_where();
+    query_plan.set_impossible_where();
     if (thd->lex->describe)
       goto exit_without_my_ok;
 
@@ -407,22 +366,19 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 
     if (select && select->quick && select->quick->unique_key_range())
     { // Single row select (always "ordered")
-      query_plan->using_filesort= FALSE;
-      query_plan->index= MAX_KEY;
+      query_plan.using_filesort= FALSE;
+      query_plan.index= MAX_KEY;
     }
     else
-      query_plan->index= get_index_for_order(order, table, select, limit,
-                                             &query_plan->using_filesort, 
-                                             &reverse);
+      query_plan.index= get_index_for_order(order, table, select, limit,
+                                            &query_plan.using_filesort, 
+                                            &reverse);
   }
 
-  query_plan->select= select;
-  query_plan->possible_keys= table->quick_keys;
-  query_plan->table_rows= table->file->stats.records;
+  query_plan.select= select;
+  query_plan.possible_keys= table->quick_keys;
+  query_plan.table_rows= table->file->stats.records;
   
-  thd->lex->query_plan_footprint= new QPF_query;
-  thd->lex->query_plan_footprint->upd_del_plan= query_plan;
-   
   /*
     Ok, we have generated a query plan for the DELETE.
      - if we're running EXPLAIN DELETE, goto produce explain output 
@@ -431,12 +387,13 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto exit_without_my_ok;
 
-  query_plan->save_query_plan_footprint();
+  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
   thd->apc_target.enable();
+
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
 
-  if (query_plan->using_filesort)
+  if (query_plan.using_filesort)
   {
     ha_rows examined_rows;
     ha_rows found_rows;
@@ -444,7 +401,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     SORT_FIELD  *sortorder;
 
     {
-      DBUG_ASSERT(query_plan->index == MAX_KEY);
+      DBUG_ASSERT(query_plan.index == MAX_KEY);
       table->sort.io_cache= (IO_CACHE *) my_malloc(sizeof(IO_CACHE),
                                                    MYF(MY_FAE | MY_ZEROFILL |
                                                        MY_THREAD_SPECIFIC));
@@ -480,7 +437,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     thd->apc_target.disable();
     DBUG_RETURN(TRUE);
   }
-  if (query_plan->index == MAX_KEY || (select && select->quick))
+  if (query_plan.index == MAX_KEY || (select && select->quick))
   {
     if (init_read_record(&info, thd, table, select, 1, 1, FALSE))
     {
@@ -491,7 +448,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     }
   }
   else
-    init_read_record_idx(&info, thd, table, 1, query_plan->index, reverse);
+    init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
 
   init_ftfuncs(thd, select_lex, 1);
   thd_proc_info(thd, "updating");
@@ -584,11 +541,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     (void) table->file->extra(HA_EXTRA_NORMAL);
 
   thd->apc_target.disable();
-  if (thd->lex->query_plan_footprint)
-  {
-    delete thd->lex->query_plan_footprint;
-    thd->lex->query_plan_footprint= NULL;
-  }
 cleanup:
   /*
     Invalidate the table in the query cache if something changed. This must
@@ -652,9 +604,7 @@ cleanup:
   
   /* Special exits */
 exit_without_my_ok:
-  query_plan->save_query_plan_footprint();
-  thd->lex->query_plan_footprint->upd_del_plan= query_plan;
-
+  query_plan.save_query_plan_footprint(thd->lex->query_plan_footprint);
 
   select_send *result;
   if (!(result= new select_send()))
@@ -669,9 +619,6 @@ exit_without_my_ok:
   else
     result->send_eof();
   
-  delete thd->lex->query_plan_footprint;
-  thd->lex->query_plan_footprint= NULL;
-
   delete select;
   free_underlaid_joins(thd, select_lex);
   //table->set_keyread(false);
