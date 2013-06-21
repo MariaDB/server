@@ -6927,6 +6927,12 @@ int Xid_log_event::do_apply_event(Relay_log_info const *rli)
       thd->is_slave_error= 1;
       return err;
     }
+
+    DBUG_EXECUTE_IF("gtid_fail_after_record_gtid",
+        { my_error(ER_ERROR_DURING_COMMIT, MYF(0), HA_ERR_WRONG_COMMAND);
+          thd->is_slave_error= 1;
+          return 1;
+        });
   }
 
   /* For a slave Xid_log_event is COMMIT */
