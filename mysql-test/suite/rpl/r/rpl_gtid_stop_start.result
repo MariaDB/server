@@ -134,5 +134,26 @@ SET sql_log_bin= 0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
 include/start_slave.inc
+INSERT INTO t1 VALUES (10);
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+include/start_slave.inc
+*** MDEV-4692: mysql.gtid_slave_pos accumulates values for a domain ***
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
+INSERT INTO t1 VALUES (11);
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
+include/start_slave.inc
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+domain_id	COUNT(*)
+0	2
+1	2
 DROP TABLE t1;
 include/rpl_end.inc
