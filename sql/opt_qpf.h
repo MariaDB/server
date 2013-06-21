@@ -214,6 +214,8 @@ public:
 
   /* Produce a tabular EXPLAIN output */
   int print_explain(select_result_sink *output, uint8 explain_flags);
+
+  MEM_ROOT *mem_root;
 private:
   QPF_union *unions[MAX_TABLES];
   QPF_select *selects[MAX_TABLES];

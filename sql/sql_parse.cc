@@ -598,10 +598,7 @@ static void handle_bootstrap_impl(THD *thd)
 #if defined(ENABLED_PROFILING)
     thd->profiling.finish_current_query();
 #endif
-    //
-    delete thd->lex->query_plan_footprint;
-    thd->lex->query_plan_footprint= NULL;
-    //
+    delete_qpf_query(thd->lex);
 
     if (bootstrap_error)
       break;
@@ -1523,8 +1520,7 @@ void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
 
-  delete thd->lex->query_plan_footprint;
-  thd->lex->query_plan_footprint= NULL;
+  delete_qpf_query(thd->lex);
 
   /*
     The following should never be true with our current code base,
@@ -2188,8 +2184,7 @@ mysql_execute_command(THD *thd)
     thd->mdl_context.release_transactional_locks();
   }
   
-  DBUG_ASSERT(!thd->lex->query_plan_footprint);
-  thd->lex->query_plan_footprint= new QPF_query;
+  create_qpf_query(thd->lex, thd->mem_root);
 
 #ifndef DBUG_OFF
   if (lex->sql_command != SQLCOM_SET_OPTION)
