@@ -11112,6 +11112,9 @@ void JOIN::cleanup(bool full)
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
+        have_query_plan != QEP_DELETED &&  // this happens when there was no QEP ever, but then
+                                           //cleanup() is called multiple times
+
         thd->lex->query_plan_footprint && // for "SET" command in SPs.
         !thd->lex->query_plan_footprint->get_select(select_lex->select_number))
     {

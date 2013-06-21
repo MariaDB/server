@@ -209,6 +209,8 @@ public:
   /* This will return a select (even if there is a union with this id) */
   QPF_select *get_select(uint select_id);
   
+  QPF_union *get_union(uint select_id);
+  
   /* QPF_delete inherits from QPF_update */
   QPF_update *upd_del_plan;
 
@@ -217,8 +219,10 @@ public:
 
   MEM_ROOT *mem_root;
 private:
-  QPF_union *unions[MAX_TABLES];
-  QPF_select *selects[MAX_TABLES];
+  Dynamic_array<QPF_union*> unions;
+  Dynamic_array<QPF_select*> selects;
+  //QPF_union *unions[MAX_TABLES];
+  //QPF_select *selects[MAX_TABLES];
 };
 
 

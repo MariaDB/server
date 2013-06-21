@@ -13,8 +13,8 @@
 QPF_query::QPF_query()
 {
   upd_del_plan= NULL;
-  memset(&unions, 0, sizeof(unions));
-  memset(&selects, 0, sizeof(selects));
+  //memset(&unions, 0, sizeof(unions));
+  //memset(&selects, 0, sizeof(selects));
 }
 
 
@@ -22,25 +22,30 @@ QPF_query::~QPF_query()
 {
   delete upd_del_plan;
   uint i;
-  for (i=0 ; i < MAX_TABLES; i++)
-    delete unions[i];
-  for (i=0 ; i < MAX_TABLES; i++)
-    delete selects[i];
+  for (i= 0 ; i < unions.elements(); i++)
+    delete unions.at(i);
+  for (i= 0 ; i < selects.elements(); i++)
+    delete selects.at(i);
 }
 
 
 QPF_node *QPF_query::get_node(uint select_id)
 {
-  if (unions[select_id])
-    return unions[select_id];
+  QPF_union *u;
+  if ((u= get_union(select_id)))
+    return u;
   else
-    return selects[select_id];
+    return get_select(select_id);
 }
 
+QPF_union *QPF_query::get_union(uint select_id)
+{
+  return (unions.elements() > select_id) ? unions.at(select_id) : NULL;
+}
 
 QPF_select *QPF_query::get_select(uint select_id)
 {
-  return selects[select_id];
+  return (selects.elements() > select_id) ? selects.at(select_id) : NULL;
 }
 
 
@@ -49,8 +54,13 @@ void QPF_query::add_node(QPF_node *node)
   if (node->get_type() == QPF_node::QPF_UNION)
   {
     QPF_union *u= (QPF_union*)node;
-    DBUG_ASSERT(!unions[u->get_select_id()]);
-    unions[u->get_select_id()]= u;
+    uint select_id= u->get_select_id();
+    DBUG_ASSERT(!get_union(select_id));
+
+    if (unions.elements() <= select_id)
+      unions.resize(max(select_id+1, unions.elements()*2), NULL);
+
+    unions.at(select_id)= u;
   }
   else
   {
@@ -62,8 +72,12 @@ void QPF_query::add_node(QPF_node *node)
     }
     else
     {
-      DBUG_ASSERT(!selects[sel->select_id]);
-      selects[sel->select_id] = sel;
+      uint select_id= sel->select_id;
+      DBUG_ASSERT(!get_select(select_id));
+
+      if (selects.elements() <= select_id)
+        selects.resize(max(select_id+1, selects.elements()*2), NULL);
+      selects.at(select_id)= sel;
     }
   }
 }
