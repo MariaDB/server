@@ -3927,8 +3927,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   if (! cursor)
     cleanup_stmt();
   //psergey: TODO the "EXECUTE problem" is here
-  delete_qpf_query(thd->lex->query_plan_footprint);
-  thd->lex->query_plan_footprint= NULL;
+  delete_qpf_query(thd->lex);
 
   thd->set_statement(&stmt_backup);
   thd->stmt_arena= old_stmt_arena;

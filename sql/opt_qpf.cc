@@ -559,8 +559,19 @@ int QPF_update::print_explain(QPF_query *query, select_result_sink *output,
   return print_explain_for_children(query, output, explain_flags);
 }
 
-void delete_qpf_query(QPF_query * query)
+
+void delete_qpf_query(LEX *lex)
 {
-  delete query;
+  delete lex->query_plan_footprint;
+  lex->query_plan_footprint= NULL;
+}
+
+
+void create_qpf_query(LEX *lex, MEM_ROOT *mem_root)
+{
+  DBUG_ASSERT(!lex->query_plan_footprint);
+  lex->query_plan_footprint= new QPF_query;
+  DBUG_ASSERT(mem_root == current_thd->mem_root);
+  lex->query_plan_footprint->mem_root= mem_root;
 }
 

@@ -619,7 +619,8 @@ class select_union;
 class Procedure;
 class QPF_query;
 
-void delete_qpf_query(QPF_query * query);
+void delete_qpf_query(LEX *lex);
+void create_qpf_query(LEX *lex, MEM_ROOT *mem_root);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:

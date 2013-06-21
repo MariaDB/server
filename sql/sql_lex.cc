@@ -4251,7 +4251,7 @@ void st_select_lex::save_qpf(QPF_query *output)
       msg= "Query plan already deleted";
     }
     set_explain_type(TRUE/* on_the_fly */);
-    QPF_select *qp_sel= new QPF_select;
+    QPF_select *qp_sel= new (output->mem_root) QPF_select;
     qp_sel->select_id= select_number;
     qp_sel->select_type= type;
     qp_sel->message= msg;
@@ -4346,7 +4346,7 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
     return 0;
   }
   
-  QPF_union *qpfu= new QPF_union;
+  QPF_union *qpfu= new (output->mem_root) QPF_union;
   /*
     TODO: The following code should be eliminated. If we have a capability to
     save Query Plan Footprints, we should just save them, and never need to 
@@ -4361,7 +4361,7 @@ int st_select_lex_unit::save_qpf(QPF_query *output)
     const char *msg="Query plan already deleted";
     first->set_explain_type(TRUE/* on_the_fly */);
 
-    QPF_select *qp_sel= new QPF_select;
+    QPF_select *qp_sel= new (output->mem_root)QPF_select;
     qp_sel->select_id= first->select_number;
     qp_sel->select_type= first->type;
     qp_sel->message= msg;

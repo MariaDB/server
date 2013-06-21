@@ -11112,6 +11112,7 @@ void JOIN::cleanup(bool full)
     if (select_lex->select_number != UINT_MAX && 
         select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
         have_query_plan != QEP_NOT_PRESENT_YET && 
+        thd->lex->query_plan_footprint && // for "SET" command in SPs.
         !thd->lex->query_plan_footprint->get_select(select_lex->select_number))
     {
       const char *message= NULL;
@@ -22986,7 +22987,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   if (message)
   {
     QPF_select *qp_sel;
-    qp_node= qp_sel= new QPF_select;
+    qp_node= qp_sel= new (output->mem_root) QPF_select;
     join->select_lex->set_explain_type(on_the_fly);
 
     qp_sel->select_id= join->select_lex->select_number;
@@ -22998,7 +22999,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
   else if (join->select_lex == join->unit->fake_select_lex)
   {
     select_lex->set_explain_type(on_the_fly);
-    QPF_union *qp_union= new QPF_union;
+    QPF_union *qp_union= new (output->mem_root) QPF_union;
     qp_node= qp_union;
 
     SELECT_LEX *child;
@@ -23018,7 +23019,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
            join->select_lex->master_unit()->derived->is_materialized_derived())
   {
     QPF_select *qp_sel;
-    qp_node= qp_sel= new QPF_select;
+    qp_node= qp_sel= new (output->mem_root) QPF_select;
     table_map used_tables=0;
 
     if (on_the_fly)
@@ -23077,7 +23078,7 @@ int JOIN::save_qpf(QPF_query *output, bool need_tmp_table, bool need_order,
         tab= pre_sort_join_tab;
       }
 
-      QPF_table_access *qpt= new QPF_table_access;
+      QPF_table_access *qpt= new (output->mem_root) QPF_table_access;
       qp_sel->add_table(qpt);
       
       /* id */
