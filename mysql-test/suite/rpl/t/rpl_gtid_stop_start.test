@@ -229,6 +229,49 @@ ALTER TABLE mysql.gtid_slave_pos ENGINE=MyISAM;
 SET sql_log_bin= 1;
 --source include/start_slave.inc
 
+--connection server_1
+INSERT INTO t1 VALUES (10);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid= slave_pos;
+--source include/start_slave.inc
+
+--echo *** MDEV-4692: mysql.gtid_slave_pos accumulates values for a domain ***
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--connection server_1
+INSERT INTO t1 VALUES (11);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--shutdown_server 30
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart:  
+EOF
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT domain_id, COUNT(*) FROM mysql.gtid_slave_pos GROUP BY domain_id;
+
 
 --connection server_1
 DROP TABLE t1;
