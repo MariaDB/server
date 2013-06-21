@@ -2360,8 +2360,13 @@ void close_temporary(TABLE *table, bool free_share, bool delete_table)
   DBUG_PRINT("tmptable", ("closing table: '%s'.'%s'",
                           table->s->db.str, table->s->table_name.str));
 
-  /* in_use is not set for replication temporary tables during shutdown */
-  if (table->in_use)
+  /*
+    in_use is not set for replication temporary tables during shutdown.
+
+    table->file->get_table() could not be set for ALTER table
+    when we do not open it in engine.
+  */
+  if (table->file->get_table() && table->in_use)
   {
     table->file->update_global_table_stats();
     table->file->update_global_index_stats();
