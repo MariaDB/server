@@ -497,6 +497,12 @@ void QPF_table_access::append_tag_name(String *str, enum Extra_tag tag)
         str->append(extra_tag_text[tag]);
       break;
     }
+    case ET_USING_INDEX_FOR_GROUP_BY:
+    {
+      str->append(extra_tag_text[tag]);
+      str->append(loose_scan_type);
+      break;
+    }
     default:
      str->append(extra_tag_text[tag]);
   }
