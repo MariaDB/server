@@ -320,6 +320,16 @@ static Sys_var_long Sys_pfs_digest_size(
        DEFAULT(-1),
        BLOCK_SIZE(1));
 
+static Sys_var_long Sys_pfs_connect_attrs_size(
+       "performance_schema_session_connect_attrs_size",
+       "Size of session attribute string buffer per thread."
+         " Use 0 to disable, -1 for automated sizing.",
+       PARSED_EARLY READ_ONLY
+       GLOBAL_VAR(pfs_param.m_session_connect_attrs_sizing),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(-1, 1024 * 1024),
+       DEFAULT(-1),
+       BLOCK_SIZE(1));
+
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
 
 static Sys_var_ulong Sys_auto_increment_increment(

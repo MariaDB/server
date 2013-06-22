@@ -5926,9 +5926,17 @@ dict_table_schema_check(
 			return(DB_ERROR);
 		}
 
-		/* check mtype for exact match */
-		if (req_schema->columns[i].mtype != table->cols[j].mtype) {
-
+		/*
+                  check mtype for exact match.
+                  This check is relaxed to allow use to use TIMESTAMP
+                  (ie INT) for last_update instead of DATA_BINARY.
+                  We have to test for both values as the innodb_table_stats
+                  table may come from MySQL and have the old type.
+                */
+		if (req_schema->columns[i].mtype != table->cols[j].mtype &&
+                    !(req_schema->columns[i].mtype == DATA_INT &&
+                      table->cols[j].mtype == DATA_FIXBINARY))
+                {
 			ut_snprintf(errstr, errstr_sz,
 				    "Column %s in table %s is %s "
 				    "but should be %s (type mismatch).",
