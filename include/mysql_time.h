@@ -18,6 +18,17 @@
 #define _mysql_time_h_
 
 /*
+  Portable time_t replacement.
+  Should be signed and hold seconds for 1902 -- 2038-01-19 range
+  i.e at least a 32bit variable
+
+  Using the system built in time_t is not an option as
+  we rely on the above requirements in the time functions   
+*/
+typedef long my_time_t;
+
+
+/*
   Time declarations shared between the server and client API:
   you should not add anything to this header unless it's used
   (and hence should be visible) in mysql.h.

@@ -1,7 +1,7 @@
 /*************** TabCol H Declares Source Code File (.H) ***************/
-/*  Name: TABCOL.H    Version 2.7                                      */
+/*  Name: TABCOL.H    Version 2.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
 /*                                                                     */
 /*  This file contains the XTAB, COLUMN and XORDER class definitions.  */
 /***********************************************************************/
@@ -15,22 +15,24 @@
 /***********************************************************************/
 /*  Definition of class XTAB with all its method functions.            */
 /***********************************************************************/
- class DllExport XTAB: public BLOCK { // Table Name-Owner-Correl block.
+class DllExport XTAB: public BLOCK {  // Table Name-Owner-Srcdef block.
+  friend class TDBPRX;
+  friend class TDBTBM;
  public:
   // Constructors
-  XTAB(LPCSTR name, LPCSTR correl = NULL);
+  XTAB(LPCSTR name, LPCSTR srcdef = NULL);
   XTAB(PTABLE tp);
 
   // Implementation
   PTABLE GetNext(void) {return Next;}
   PTDB   GetTo_Tdb(void) {return To_Tdb;}
   LPCSTR GetName(void) {return Name;}
-  LPCSTR GetCorrel(void) {return Correl;}
+  LPCSTR GetSrc(void) {return Srcdef;}
   LPCSTR GetCreator(void) {return Creator;}
   LPCSTR GetQualifier(void) {return Qualifier;}
   void   SetTo_Tdb(PTDB tdbp) {To_Tdb = tdbp;}
   void   SetName(LPCSTR name) {Name = name;}
-  void   SetCorrel(LPCSTR correl) {Correl = correl;}
+  void   SetSrc(LPCSTR srcdef) {Srcdef = srcdef;}
   void   SetCreator(LPCSTR crname) {Creator = crname;}
   void   SetQualifier(LPCSTR qname) {Qualifier = qname;}
 
@@ -43,8 +45,8 @@
   // Members
   PTABLE    Next;              // Points to next table in chain
   PTDB      To_Tdb;            // Points to Table description Block
-  LPCSTR    Name;              // Table name (can be changed by LNA and PLG)
-  LPCSTR    Correl;            // Correlation name
+  LPCSTR    Name;              // Table name
+  LPCSTR    Srcdef;            // Table Source definition
   LPCSTR    Creator;           // Creator name
   LPCSTR    Qualifier;         // Qualifier name
   }; // end of class XTAB
@@ -85,7 +87,6 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
   virtual bool   Eval(PGLOBAL) {assert(false); return true;}
   virtual int    CheckSpcCol(PTDB, int) {assert(false); return 2;}
   virtual bool   CheckSort(PTDB) {assert(false); return false;}
-  virtual void   MarkCol(ushort) {assert(false);}
 
  private:
   // Members

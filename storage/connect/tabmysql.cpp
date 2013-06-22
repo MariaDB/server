@@ -57,12 +57,14 @@
 #include "reldef.h"
 #include "tabmysql.h"
 #include "valblk.h"
+#include "tabutil.h"
 
 #if defined(_CONSOLE)
 void PrintResult(PGLOBAL, PSEM, PQRYRES);
 #endif   // _CONSOLE
 
 extern "C" int   trace;
+extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
 
 /* -------------- Implementation of the MYSQLDEF class --------------- */
 
@@ -75,9 +77,11 @@ MYSQLDEF::MYSQLDEF(void)
   Hostname = NULL;
   Database = NULL;
   Tabname = NULL;
+  Srcdef = NULL;
   Username = NULL;
   Password = NULL;
   Portnumber = 0;
+  Isview = FALSE;
   Bind = FALSE;
   Delayed = FALSE;
   } // end of MYSQLDEF constructor
@@ -243,10 +247,13 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url)
     if ((sport = strchr(Hostname, ':')))
       *sport++ = 0;
 
-    Portnumber = (sport && sport[0]) ? atoi(sport) : MYSQL_PORT;
+    Portnumber = (sport && sport[0]) ? atoi(sport) : mysqld_port;
+
+    if (Username[0] == 0)
+      Username = Cat->GetStringCatInfo(g, "User", "*");
 
     if (Hostname[0] == 0)
-      Hostname = "localhost";
+      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
 
     if (!Database || !*Database)
       Database = Cat->GetStringCatInfo(g, "Database", "*");
@@ -276,20 +283,39 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Desc = "MySQL Table";
 
-  if (!url || !*url) { 
-    // Not using the connection URL
-    Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
-    Database = Cat->GetStringCatInfo(g, "Database", "*");
-    Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
-    Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-    Username = Cat->GetStringCatInfo(g, "User", "root");
-    Password = Cat->GetStringCatInfo(g, "Password", NULL);
-    Portnumber = Cat->GetIntCatInfo("Port", MYSQL_PORT);
-  } else if (ParseURL(g, url))
-    return TRUE;
+  if (stricmp(am, "MYPRX")) {
+    // Normal case of specific MYSQL table
+    if (!url || !*url) { 
+      // Not using the connection URL
+      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+      Database = Cat->GetStringCatInfo(g, "Database", "*");
+      Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
+      Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
+      Username = Cat->GetStringCatInfo(g, "User", "*");
+      Password = Cat->GetStringCatInfo(g, "Password", NULL);
+      Portnumber = Cat->GetIntCatInfo("Port", mysqld_port);
+    } else if (ParseURL(g, url))
+      return TRUE;
 
-  Bind = !!Cat->GetIntCatInfo("Bind", 0);
-  Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
+    Bind = !!Cat->GetIntCatInfo("Bind", 0);
+    Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
+  } else {
+    // MYSQL access from a PROXY table, not using URL 
+    Database = Cat->GetStringCatInfo(g, "Database", "*");
+    Tabname = Name;
+    Isview = Cat->GetBoolCatInfo("View", FALSE);
+
+    // We must get connection parms from the calling table
+    Remove_tshp(Cat);
+    Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
+    Username = Cat->GetStringCatInfo(g, "User", "*");
+    Password = Cat->GetStringCatInfo(g, "Password", NULL);
+    Portnumber = Cat->GetIntCatInfo("Port", mysqld_port);
+  } // endif am
+
+  if ((Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL)))
+    Isview = TRUE;
+
   return FALSE;
   } // end of DefineAM
 
@@ -316,18 +342,22 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     Host = tdp->GetHostname();
     Database = tdp->GetDatabase();
     Tabname = tdp->GetTabname();
+    Srcdef = tdp->GetSrcdef();
     User = tdp->GetUsername();
     Pwd = tdp->GetPassword();
     Port = tdp->GetPortnumber();
+    Isview = tdp->Isview;
     Prep = tdp->Bind;
     Delayed = tdp->Delayed;
   } else {
     Host = NULL;
     Database = NULL;
     Tabname = NULL;
+    Srcdef = NULL;
     User = NULL;
     Pwd = NULL;
     Port = 0;
+    Isview = FALSE;
     Prep = FALSE;
     Delayed = FALSE;
   } // endif tdp
@@ -347,9 +377,11 @@ TDBMYSQL::TDBMYSQL(PGLOBAL g, PTDBMY tdbp) : TDBASE(tdbp)
   Host = tdbp->Host;
   Database = tdbp->Database;
   Tabname = tdbp->Tabname;
+  Srcdef = tdbp->Srcdef;
   User = tdbp->User;
   Pwd =  tdbp->Pwd; 
   Port = tdbp->Port;
+  Isview = tdbp->Isview;
   Prep = tdbp->Prep;
   Delayed = tdbp->Delayed;
   Bind = NULL;
@@ -395,55 +427,54 @@ PCOL TDBMYSQL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBMYSQL::MakeSelect(PGLOBAL g)
   {
-  char   *colist;
   char   *tk = "`";
-  int     len = 0, ncol = 0, rank = 0;
+  int     rank = 0;
   bool    b = FALSE;
   PCOL    colp;
-  PDBUSER dup = PlgGetUser(g);
+//PDBUSER dup = PlgGetUser(g);
 
   if (Query)
     return FALSE;        // already done
 
-  for (colp = Columns; colp; colp = colp->GetNext())
-    ncol++;
+  if (Srcdef) {
+    Query = Srcdef;
+    return false;
+    } // endif Srcdef
 
-  if (ncol) {
-    colist = (char*)PlugSubAlloc(g, NULL, (NAM_LEN + 4) * ncol);
-    *colist = '\0';
+  //Find the address of the suballocated query
+  Query = (char*)PlugSubAlloc(g, NULL, 0);
+  strcpy(Query, "SELECT ");
 
+  if (Columns) {
     for (colp = Columns; colp; colp = colp->GetNext())
       if (colp->IsSpecial()) {
         strcpy(g->Message, MSG(NO_SPEC_COL));
         return TRUE;
       } else {
         if (b)
-          strcat(colist, ", ");
+          strcat(Query, ", ");
         else
           b = TRUE;
 
-        strcat(strcat(strcat(colist, tk), colp->GetName()), tk);
+        strcat(strcat(strcat(Query, tk), colp->GetName()), tk);
         ((PMYCOL)colp)->Rank = rank++;
       } // endif colp
 
   } else {
-    // ncol == 0 can occur for queries such as Query count(*) from...
-    // for which we will count the rows from Query '*' from...
+    // ncol == 0 can occur for views or queries such as
+    // Query count(*) from... for which we will count the rows from
+    // Query '*' from...
     // (the use of a char constant minimize the result storage)
-    colist = (char*)PlugSubAlloc(g, NULL, 2);
-    strcpy(colist, "'*'");
+    strcat(Query, (Isview) ? "*" : "'*'");
   } // endif ncol
 
-  // Below 32 is space to contain extra stuff
-  len += (strlen(colist) + strlen(Tabname) + 32);
-  len += (To_Filter ? strlen(To_Filter) + 7 : 0);
-  Query = (char*)PlugSubAlloc(g, NULL, len);
-  strcat(strcpy(Query, "SELECT "), colist);
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
   if (To_Filter)
     strcat(strcat(Query, " WHERE "), To_Filter);
 
+  // Now we know how much to suballocate
+  PlugSubAlloc(g, NULL, strlen(Query) + 1);
   return FALSE;
   } // end of MakeSelect
 
@@ -728,7 +759,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
     Myc.Rewind();
-    return FALSE;
+    return false;
     } // endif use
 
   /*********************************************************************/
@@ -740,7 +771,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if (!Myc.Connected()) {
     if (Myc.Open(g, Host, Database, User, Pwd, Port))
-      return TRUE;
+      return true;
 
     } // endif Connected
 
@@ -751,7 +782,24 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     if (!MakeSelect(g))
       m_Rc = Myc.ExecSQL(g, Query);
 
+#if 0
+    if (!Myc.m_Res || !Myc.m_Fields) {
+      sprintf(g->Message, "%s result", (Myc.m_Res) ? "Void" : "No");
+      Myc.Close();
+      return true;
+      } // endif m_Res
+#endif // 0
+
+    if (!m_Rc && Srcdef)
+      if (SetColumnRanks(g))
+        return true;
+
   } else if (Mode == MODE_INSERT) {
+    if (Srcdef) {
+      strcpy(g->Message, "No insert into anonym views");
+      return true;
+      } // endif Srcdef
+
     if (!MakeInsert(g)) {
 #if defined(MYSQL_PREPARED_STATEMENTS)
       int n = (Prep) ? Myc.PrepareSQL(g, Query) : Nparm;
@@ -802,6 +850,78 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   Use = USE_OPEN;       // Do it now in case we are recursively called
   return FALSE;
   } // end of OpenDB
+
+/***********************************************************************/
+/*  Set the rank of columns in the result set.                         */
+/***********************************************************************/
+bool TDBMYSQL::SetColumnRanks(PGLOBAL g)
+  {
+  for (PCOL colp = Columns; colp; colp = colp->GetNext())
+    if (((PMYCOL)colp)->FindRank(g))
+      return TRUE;
+
+  return FALSE;
+  } // end of SetColumnRanks
+
+/***********************************************************************/
+/*  Called by Parent table to make the columns of a View.              */
+/***********************************************************************/
+PCOL TDBMYSQL::MakeFieldColumn(PGLOBAL g, char *name)
+  {
+  int          n;
+  MYSQL_FIELD *fld;
+  PCOL         cp, colp = NULL;
+
+  for (n = 0; n < Myc.m_Fields; n++) {
+    fld = &Myc.m_Res->fields[n];
+
+    if (!stricmp(name, fld->name)) {
+      colp = new(g) MYSQLCOL(fld, this, n);
+
+      if (colp->InitValue(g))
+        return NULL;
+
+      if (!Columns)
+        Columns = colp;
+      else for (cp = Columns; cp; cp = cp->GetNext())
+        if (!cp->GetNext()) {
+          cp->SetNext(colp);
+          break;
+          } // endif Next
+
+      break;
+      } // endif name
+
+    } // endfor n
+
+  if (!colp)
+    sprintf(g->Message, "Column %s is not in view", name);
+
+  return colp;
+  } // end of MakeFieldColumn
+
+/***********************************************************************/
+/*  Called by Pivot tables to find default column names in a View      */
+/*  as the name of last field not equal to the passed name.            */
+/***********************************************************************/
+char *TDBMYSQL::FindFieldColumn(char *name)
+  {
+  int          n;
+  MYSQL_FIELD *fld;
+  char        *cp = NULL;
+
+  for (n = Myc.m_Fields - 1; n >= 0; n--) {
+    fld = &Myc.m_Res->fields[n];
+
+    if (!name || stricmp(name, fld->name)) {
+      cp = fld->name;
+      break;
+      } // endif name
+
+    } // endfor n
+
+  return cp;
+  } // end of FindFieldColumn
 
 /***********************************************************************/
 /*  Data Base read routine for MYSQL access method.                    */
@@ -916,12 +1036,39 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
     tdbp->SetColumns(this);
   } // endif cprec
 
-  // Set additional Dos access method information for column.
+  // Set additional MySQL access method information for column.
   Long = cdp->GetLong();
   Bind = NULL;
   To_Val = NULL;
   Slen = 0;
   Rank = -1;            // Not known yet
+
+  if (trace)
+    htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
+
+  } // end of MYSQLCOL constructor
+
+/***********************************************************************/
+/*  MYSQLCOL public constructor.                                       */
+/***********************************************************************/
+MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
+        : COLBLK(NULL, tdbp, i)
+  {
+  Name = fld->name;
+  Opt = 0;
+  Long = fld->length;
+  Buf_Type = MYSQLtoPLG(fld->type);
+  strcpy(Format.Type, GetFormatType(Buf_Type));
+  Format.Length = Long;
+  Format.Prec = fld->decimals;
+  ColUse = U_P;
+  Nullable = !IS_NOT_NULL(fld->flags);
+
+  // Set additional MySQL access method information for column.
+  Bind = NULL;
+  To_Val = NULL;
+  Slen = 0;
+  Rank = i;
 
   if (trace)
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
@@ -940,6 +1087,24 @@ MYSQLCOL::MYSQLCOL(MYSQLCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   Slen = col1->Slen;
   Rank = col1->Rank;
   } // end of MYSQLCOL copy constructor
+
+/***********************************************************************/
+/*  FindRank: Find the rank of this column in the result set.          */
+/***********************************************************************/
+bool MYSQLCOL::FindRank(PGLOBAL g)
+{
+  int    n;
+  MYSQLC myc = ((PTDBMY)To_Tdb)->Myc;
+
+  for (n = 0; n < myc.m_Fields; n++)
+    if (!stricmp(Name, myc.m_Res->fields[n].name)) {
+      Rank = n;
+      return false;
+      } // endif Name
+
+  sprintf(g->Message, "Column %s not in result set", Name);
+  return true;
+} // end of FindRank
 
 /***********************************************************************/
 /*  SetBuffer: prepare a column block for write operation.             */
@@ -1026,11 +1191,6 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
   int    rc;
   PTDBMY tdbp = (PTDBMY)To_Tdb;
 
-  if (trace)
-    htrc("MySQL ReadColumn: name=%s\n", Name);
-
-  assert (Rank >= 0);
-
   /*********************************************************************/
   /*  If physical fetching of the line was deferred, do it now.        */
   /*********************************************************************/
@@ -1043,14 +1203,17 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
     } else
       tdbp->Fetched = TRUE;
 
-  if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank)))
+  if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
+    if (trace)
+      htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
+
     Value->SetValue_char(buf, Long);
-  else {
+  } else {
     if (Nullable)
       Value->SetNull(true);
 
     Value->Reset();              // Null value
-    } // endelse
+  } // endif buf
 
   } // end of ReadColumn
 
@@ -1098,5 +1261,5 @@ TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBMCL::GetResult(PGLOBAL g)
   {
-  return MyColumns(g, Host, Db, User, Pwd, Tab, NULL, Port, false, false);
+  return MyColumns(g, Host, Db, User, Pwd, Tab, NULL, Port, false);
 	} // end of GetResult

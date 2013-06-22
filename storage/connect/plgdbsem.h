@@ -24,8 +24,8 @@
 #define DOS_BUFF_LEN    100   /* Number of lines in binary file buffer */
 #undef  DOMAIN                /* For Unix version                      */
 
-enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Correl Block       */
-             TYPE_COLUMN     = 51,    /* Column Name/Correl Block      */
+enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
+             TYPE_COLUMN     = 51,    /* Column Name/Qualifier Block   */
 //           TYPE_OPVAL      = 52,    /* Operator value (OPVAL)        */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */
@@ -69,12 +69,14 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_WMI   = 14,   /* WMI tables  (Windows only)          */
               TAB_TBL   = 15,   /* Collection of CONNECT tables        */
               TAB_OEM   = 16,   /* OEM implemented table               */
-              TAB_CATLG = 17,   /* Catalog table                       */
-              TAB_PLG   = 18,   /* PLG NIY                             */
-              TAB_PIVOT = 19,   /* PIVOT NIY                           */
-              TAB_JCT   = 20,   /* Junction tables NIY                 */
-              TAB_DMY   = 21,   /* DMY Dummy tables NIY                */
-              TAB_NIY   = 22};  /* Table not implemented yet           */
+              TAB_XCL   = 17,   /* XCL table                           */
+              TAB_OCCUR = 18,   /* OCCUR table                         */
+              TAB_PRX   = 19,   /* Proxy (catalog) table               */
+              TAB_PLG   = 20,   /* PLG NIY                             */
+              TAB_PIVOT = 21,   /* PIVOT NIY                           */
+              TAB_JCT   = 22,   /* Junction tables NIY                 */
+              TAB_DMY   = 23,   /* DMY Dummy tables NIY                */
+              TAB_NIY   = 24};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */
@@ -511,12 +513,12 @@ typedef  struct _colres {
   PVBLK   Kdata;                   /* Column block of values           */
   char   *Nulls;                   /* Column null value array          */
   int     Type;                    /* Internal type                    */
-  int     DBtype;                  /* Data type                        */
   int     Datasize;                /* Overall data size                */
   int     Ncol;                    /* Column number                    */
   int     Clen;                    /* Data individual internal size    */
   int     Length;                  /* Data individual print length     */
   int     Prec;                    /* Precision                        */
+  int     Flag;                    /* Flag option value                */
   XFLD    Fld;                     /* Type of field info               */
   } COLRES;
 
@@ -543,7 +545,7 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *dbtype, int *buftyp, XFLD *fldtyp, 
+                       int *buftyp, XFLD *fldtyp, 
                        unsigned int *length, bool blank, bool nonull);
 
 /***********************************************************************/
@@ -576,5 +578,6 @@ DllExport void    NewPointer(PTABS, void *, void *);
 FILE *global_fopen(GLOBAL *g, int msgid, const char *path, const char *mode);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags);
 int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode);
+DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
 
 bool PushWarning(PGLOBAL, PTDBASE);

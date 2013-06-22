@@ -15,9 +15,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
+#include "sql_plugin.h"
 #include "sql_priv.h"                         // SHOW_MY_BOOL
 #include "unireg.h"
-#include "my_global.h"                       // REQUIRED by m_string.h
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars_shared.h"
 #include "sql_locale.h"

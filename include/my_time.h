@@ -29,16 +29,6 @@ C_MODE_START
 extern ulonglong log_10_int[20];
 extern uchar days_in_month[];
 
-/*
-  Portable time_t replacement.
-  Should be signed and hold seconds for 1902 -- 2038-01-19 range
-  i.e at least a 32bit variable
-
-  Using the system built in time_t is not an option as
-  we rely on the above requirements in the time functions
-*/
-typedef long my_time_t;
-
 #define MY_TIME_T_MAX LONG_MAX
 #define MY_TIME_T_MIN LONG_MIN
 

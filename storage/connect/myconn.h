@@ -38,7 +38,13 @@ typedef class MYSQLC *PMYC;
 PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
-                  int port, bool key, bool info);
+                  int port, bool info);
+
+PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
+                   const char *user, const char *pwd,
+                   const char *srcdef, int port);
+
+uint GetDefaultPort(void);
 
 /* -------------------------- MYCONN class --------------------------- */
 
@@ -47,6 +53,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
 /***********************************************************************/
 class DllItem MYSQLC {
   friend class TDBMYSQL;
+  friend class MYSQLCOL;
   // Construction
  public:
   MYSQLC(void);

@@ -1,42 +1,51 @@
 /*************** TabTbl H Declares Source Code File (.H) ***************/
-/*  Name: TABTBL.H   Version 1.2                                       */
+/*  Name: TABTBL.H   Version 1.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2008-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2008-2013    */
 /*                                                                     */
 /*  This file contains the TDBTBL classes declares.                    */
 /***********************************************************************/
-//#include "osutil.h"
 #include "block.h"
 #include "colblk.h"
+#include "tabutil.h"
 
 typedef class TBLDEF *PTBLDEF;
 typedef class TDBTBL *PTDBTBL;
-typedef class TBLCOL *PTBLCOL;
+typedef class TDBTBM *PTDBTBM;
+typedef class MYSQLC *PMYC;
 
 /***********************************************************************/
-/*  Defines the structure used for multiple tables.                 */
+/*  Defines the structures used for distributed TBM tables.            */
 /***********************************************************************/
-typedef struct _tablist *PTBL;
+typedef struct _TBMtable *PTBMT;
 
-typedef struct _tablist {
-  PTBL  Next;
-  char *Name;
-  char *DB;
-  } TBLIST;
+typedef struct _TBMtable {
+  PTBMT     Next;                 // Points to next data table struct
+  PTABLE    Tap;                  // Points to the sub table
+  PGLOBAL   G;                    // Needed in thread routine
+  bool      Complete;             // TRUE when all results are read
+  bool      Ready;                // TRUE when results are there
+  int       Rows;                 // Total number of rows read so far
+  int       ProgCur;              // Current pos
+  int       ProgMax;              // Max pos
+  int       Rc;                   // Return code
+  THD      *Thd;
+  pthread_attr_t attr;            // ???
+  pthread_t Tid;                  // CheckOpen thread ID
+  } TBMT;
 
 /***********************************************************************/
 /*  TBL table.                                                         */
 /***********************************************************************/
-class DllExport TBLDEF : public TABDEF {  /* Logical table description */
+class DllExport TBLDEF : public PRXDEF {  /* Logical table description */
   friend class TDBTBL;
+  friend class TDBTBC;
  public:
   // Constructor
   TBLDEF(void);
 
   // Implementation
   virtual const char *GetType(void) {return "TBL";}
-  PTBL GetTables(void) {return To_Tables;}
-//int  GetNtables(void) {return Ntables;}
 
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
@@ -44,8 +53,8 @@ class DllExport TBLDEF : public TABDEF {  /* Logical table description */
 
  protected:
   // Members
-  PTBL    To_Tables;               /* To the list of tables            */
   bool    Accept;                  /* TRUE if bad tables are accepted  */
+  bool    Thread;                  /* Use thread for remote tables     */
   int     Maxerr;                  /* Maximum number of bad tables     */
   int     Ntables;                 /* Number of tables                 */
   }; // end of TBLDEF
@@ -53,89 +62,42 @@ class DllExport TBLDEF : public TABDEF {  /* Logical table description */
 /***********************************************************************/
 /*  This is the TBL Access Method class declaration.                   */
 /***********************************************************************/
-class DllExport TDBTBL : public TDBASE {
-  friend class TBLCOL;
+class DllExport TDBTBL : public TDBPRX {
   friend class TBTBLK;
-  friend class TDBPLG;
  public:
   // Constructor
   TDBTBL(PTBLDEF tdp = NULL);
-//TDBTBL(PTDBTBL tdbp);
 
   // Implementation
   virtual AMT  GetAmType(void) {return TYPE_AM_TBL;}
-//virtual PTDB Duplicate(PGLOBAL g)
-//              {return (PTDB)new(g) TDBTBL(this);}
 
   // Methods
   virtual void ResetDB(void);
-//virtual PTABLE GetTablist(void) {return (PSZ)Tablist;}
-//virtual PTDB CopyOne(PTABS t);
-  virtual int GetRecpos(void) {return Rows;}
-  virtual int GetBadLines(void) {return (int)Nbf;}
+  virtual int  GetRecpos(void) {return Rows;}
+  virtual int  GetBadLines(void) {return (int)Nbc;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual int  GetMaxSize(PGLOBAL g);
-  virtual int  GetProgMax(PGLOBAL g);
-  virtual int  GetProgCur(void);
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
 
  protected:
   // Internal functions
-  PTDB  GetSubTable(PGLOBAL g, PTBL tblp, PTABLE tabp);
   bool  InitTableList(PGLOBAL g);
-  bool  TestFil(PGLOBAL g, PFIL filp, PTBL tblp);
+  bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
 
   // Members
   PTABLE  Tablist;              // Points to the table list
   PTABLE  CurTable;             // Points to the current table
-  PTDBASE Tdbp;                 // Current table PTDB
   bool    Accept;               // TRUE if bad tables are accepted
   int     Maxerr;               // Maximum number of bad tables
-  int     Nbf;                  // Number of bad connections
+  int     Nbc;                  // Number of bad connections
   int     Rows;                 // Used for RowID
   int     Crp;                  // Used for CurPos
   }; // end of class TDBTBL
-
-/***********************************************************************/
-/*  Class TBLCOL: TBL access method column descriptor.                 */
-/*  This A.M. is used for TBL tables.                                  */
-/***********************************************************************/
-class DllExport TBLCOL : public COLBLK {
-  friend class TDBTBL;
- public:
-  // Constructors
-  TBLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "TBL");
-  TBLCOL(TBLCOL *colp, PTDB tdbp); // Constructor used in copy process
-//TBLCOL(SPCBLK *colp, PTDB tdbp); // Constructor used for pseudo columns
-
-  // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_TBL;}
-
-  // Methods
-  virtual bool   IsSpecial(void) {return Pseudo;}
-  virtual void   ReadColumn(PGLOBAL g);
-//virtual void   WriteColumn(PGLOBAL g);
-//        void   Print(PGLOBAL g, FILE *, UINT);
-          bool   Init(PGLOBAL g);
-
- protected:
-  // Default constructor not to be used
-  TBLCOL(void) {}
-
-  // Members
-  PCOL     Colp;               // Points to matching table column
-  PVAL     To_Val;             // To the matching column value
-  bool     Pseudo;             // TRUE for special columns
-  int      Colnum;             // Used when retrieving columns by number
-  }; // end of class TBLCOL
 
 /***********************************************************************/
 /*  Class TBTBLK: TDBPLG TABID special column descriptor.              */
@@ -160,3 +122,44 @@ class TBTBLK : public TIDBLK {
  protected:
   // Must not have additional members
   }; // end of class TBTBLK
+
+/***********************************************************************/
+/*  This is the TBM Access Method class declaration.                   */
+/***********************************************************************/
+class DllExport TDBTBM : public TDBTBL {
+  friend class TBTBLK;
+ public:
+  // Constructor
+  TDBTBM(PTBLDEF tdp = NULL);
+
+  // Implementation
+//virtual AMT  GetAmType(void) {return TYPE_AM_TBL;}
+
+  // Methods
+  virtual void ResetDB(void);
+//virtual int  GetRecpos(void) {return Rows;}
+//virtual int  GetBadLines(void) {return (int)Nbc;}
+
+  // Database routines
+//virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  GetMaxSize(PGLOBAL g) {return 10;} // Temporary
+  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+//virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
+  virtual bool OpenDB(PGLOBAL g);
+  virtual int  ReadDB(PGLOBAL g);
+
+ protected:
+  // Internal functions
+//bool  InitTableList(PGLOBAL g);
+//bool  TestFil(PGLOBAL g, PFIL filp, PTABLE tabp);
+  bool  OpenTables(PGLOBAL g);
+  int   ReadNextRemote(PGLOBAL g);
+
+  // Members
+  PTBMT Tmp;                  // To data table TBMT structures
+  PTBMT Cmp;                  // Current data table PLGF (to move to TDBTBL)
+  PTBMT Bmp;                  // To bad (unconnected) PLGF structures
+  bool  Done;                 // TRUE after first GetAllResults
+  int   Nrc;                  // Number of remote connections
+  int   Nlc;                  // Number of local connections
+  }; // end of class TDBTBM

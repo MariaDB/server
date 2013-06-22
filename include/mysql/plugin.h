@@ -45,6 +45,8 @@ class Item;
 #define MYSQL_THD void*
 #endif
 
+typedef char my_bool;
+
 #include <mysql/services.h>
 
 #define MYSQL_XIDDATASIZE 128
@@ -72,7 +74,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0103
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x0104
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x0105
 
 /*
   The allowable types of plugins

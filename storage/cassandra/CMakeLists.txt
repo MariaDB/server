@@ -60,12 +60,12 @@ IF(CASSANDRASE_OK)
 
   IF(RPM)
     SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} cassandra-engine PARENT_SCOPE)
-    SET(CPACK_RPM_cassandra_engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra-engine_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
 
     # workarounds for cmake issues #13248 and #12864:
-    SET(CPACK_RPM_cassandra_engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
-    SET(CPACK_RPM_cassandra_engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
-    SET(CPACK_RPM_cassandra_engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra-engine_USER_FILELIST ${ignored} "%config(noreplace) /etc/my.cnf.d/*" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra-engine_PACKAGE_PROVIDES "cmake_bug_13248" PARENT_SCOPE)
+    SET(CPACK_RPM_cassandra-engine_PACKAGE_OBSOLETES "cmake_bug_13248" PARENT_SCOPE)
   ENDIF(RPM)
 
 ENDIF(CASSANDRASE_OK)

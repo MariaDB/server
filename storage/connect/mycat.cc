@@ -68,7 +68,10 @@
 #include "tabmac.h"
 #include "tabwmi.h"
 #endif   // WIN32
+//#include "tabtbl.h"
+#include "tabxcl.h"
 #include "tabtbl.h"
+#include "taboccur.h"
 #if defined(XML_SUPPORT)
 #include "tabxml.h"
 #endif   // XML_SUPPORT
@@ -117,6 +120,7 @@ TABTYPE GetTypeID(const char *type)
 #endif
 #ifdef MYSQL_SUPPORT
                  : (!stricmp(type, "MYSQL")) ? TAB_MYSQL
+                 : (!stricmp(type, "MYPRX")) ? TAB_MYSQL
 #endif
                  : (!stricmp(type, "DIR"))   ? TAB_DIR
 #ifdef WIN32
@@ -124,6 +128,13 @@ TABTYPE GetTypeID(const char *type)
 	               : (!stricmp(type, "WMI"))   ? TAB_WMI
 #endif
 	               : (!stricmp(type, "TBL"))   ? TAB_TBL
+	               : (!stricmp(type, "XCOL"))  ? TAB_XCL
+	               : (!stricmp(type, "OCCUR")) ? TAB_OCCUR
+                 : (!stricmp(type, "CATLG")) ? TAB_PRX  // Legacy
+                 : (!stricmp(type, "PROXY")) ? TAB_PRX
+#ifdef PIVOT_SUPPORT
+                 : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
+#endif
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -186,7 +197,6 @@ bool IsTypeNullable(TABTYPE type)
       break;
     } // endswitch type
 
-
   return nullable;
   } // end of IsTypeNullable
 
@@ -246,15 +256,11 @@ uint GetFuncID(const char *func)
 /***********************************************************************/
 CATALOG::CATALOG(void)
   {
-  To_Desc= NULL;
-//*DescFile= '\0';
 #if defined(WIN32)
   DataPath= ".\\";
 #else   // !WIN32
   DataPath= "./";
 #endif  // !WIN32
-  Descp= NULL;
-//memset(&DescArea, 0, sizeof(AREADEF));
   memset(&Ctb, 0, sizeof(CURTAB));
   Cbuf= NULL;
   Cblen= 0;
@@ -269,17 +275,14 @@ CATALOG::CATALOG(void)
 MYCAT::MYCAT(PHC hc) : CATALOG()
   {
 	Hc= hc;
-  To_Desc= NULL;
   DefHuge= false;
-//SepIndex= true;			// Temporay until we can store offet and size
   } // end of MYCAT constructor
 
 /***********************************************************************/
-/*  When using volatile storage, reset values pointing to Sarea.       */
+/*  Nothing to do for CONNECT.                                         */
 /***********************************************************************/
 void MYCAT::Reset(void)
   {
-  To_Desc= NULL;
   } // end of Reset
 
 /***********************************************************************/
@@ -290,6 +293,13 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 	if (path) {
 		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
 		char  *buf= (char*)PlugSubAlloc(g, NULL, len);
+		
+		if (PlugIsAbsolutePath(path))
+		{
+		  strcpy(buf, path);
+		  *datapath= buf;
+		  return;
+		}
 
 		if (*path != '.') {
 #if defined(WIN32)
@@ -380,20 +390,23 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 		strcpy(sval, s);
   } else if (!stricmp(what, "filename")) {
     // Return default file name
-    char *ftype= Hc->GetStringOption("Type", "dos");
+    char *ftype= Hc->GetStringOption("Type", "*");
     int   i, n;
 
-    sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
-    strcat(strcpy(sval, Hc->GetTableName()), ".");
-    n= strlen(sval);
+    if (IsFileType(GetTypeID(ftype))) {
+      sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
+      strcat(strcpy(sval, Hc->GetTableName()), ".");
+      n= strlen(sval);
+  
+      // Fold ftype to lower case
+      for (i= 0; i < 12; i++)
+        if (!ftype[i]) {
+          sval[n+i]= 0;
+          break;
+        } else
+          sval[n+i]= tolower(ftype[i]);
 
-    // Fold ftype to lower case
-    for (i= 0; i < 12; i++)
-      if (!ftype[i]) {
-        sval[n+i]= 0;
-        break;
-      } else
-        sval[n+i]= tolower(ftype[i]);
+      } // endif FileType
 
   } else
 		sval = NULL;
@@ -406,7 +419,7 @@ char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 /***********************************************************************/
 int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	{
-	char		*type= GetStringCatInfo(g, "Type", "DOS");
+	char		*type= GetStringCatInfo(g, "Type", "*");
 	int      i, loff, poff, nof, nlg;
 	void    *field= NULL;
   TABTYPE  tc;
@@ -414,7 +427,7 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
 	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
 
   // Get a unique char identifier for type
-  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_CATLG;
+  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
 
   // Take care of the column definitions
 	i= poff= nof= nlg= 0;
@@ -443,6 +456,9 @@ int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
       case TAB_INI:
       case TAB_MAC:
       case TAB_TBL:
+      case TAB_XCL:
+      case TAB_OCCUR:
+      case TAB_PRX:
       case TAB_OEM:
         poff = 0;      // Offset represents an independant flag
         break;
@@ -576,9 +592,7 @@ bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
 
 /***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */
-/*  Look for a table descriptor matching the name and type. If found   */
-/*  in storage, return a pointer to it, else look in the XDB file. If  */
-/*  found, make and add the descriptor and return a pointer to it.     */
+/*  Look for a table descriptor matching the name and type.            */
 /***********************************************************************/
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
                                        LPCSTR type, PRELDEF *prp)
@@ -586,13 +600,9 @@ PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
 	if (xtrace)
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
-  // Firstly check whether this table descriptor is in memory
-  if (To_Desc)
-		return  To_Desc;
-
  	// If not specified get the type of this table
-  if (!type && !(type= Hc->GetStringOption("Type")))
-		type= "DOS";
+  if (!type)
+    type= Hc->GetStringOption("Type","*");
 
   return MakeTableDesc(g, name, type);
   } // end of GetTableDesc
@@ -636,17 +646,20 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #endif   // WIN32
     case TAB_OEM: tdp= new(g) OEMDEF;   break;
 	  case TAB_TBL: tdp= new(g) TBLDEF;   break;
+	  case TAB_XCL: tdp= new(g) XCLDEF;   break;
+	  case TAB_PRX: tdp= new(g) PRXDEF;   break;
+		case TAB_OCCUR: tdp= new(g) OCCURDEF;	break;
 #if defined(MYSQL_SUPPORT)
 		case TAB_MYSQL: tdp= new(g) MYSQLDEF;	break;
 #endif   // MYSQL_SUPPORT
-//#if defined(PIVOT_SUPPORT)
-//  case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
-//#endif   // PIVOT_SUPPORT
+#if defined(PIVOT_SUPPORT)
+    case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
+#endif   // PIVOT_SUPPORT
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch
 
-  // Do make the table/view definition from XDB file information
+  // Do make the table/view definition
   if (tdp && tdp->Define(g, this, name, am))
     tdp= NULL;
 
@@ -694,7 +707,6 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 /***********************************************************************/
 void MYCAT::ClearDB(PGLOBAL g)
   {
-  To_Desc= NULL;
   } // end of ClearDB
 
 /* ------------------------ End of MYCAT --------------------------- */

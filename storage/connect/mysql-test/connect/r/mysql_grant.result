@@ -1,0 +1,63 @@
+#
+# Testing FILE privilege
+#
+GRANT ALL PRIVILEGES ON *.* TO user@localhost;
+REVOKE FILE ON *.* FROM user@localhost;
+SELECT user();
+user()
+user@localhost
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL OPTION_LIST='host=localhost,user=root1,port=PORT';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT user();
+user()
+root@localhost
+CREATE TABLE t1remote (a INT NOT NULL);
+INSERT INTO t1remote VALUES (10),(20),(30);
+CREATE TABLE t1 (a INT NOT NULL) ENGINE=CONNECT TABLE_TYPE=MySQL TABNAME=t1remote OPTION_LIST='host=localhost,user=root,port=PORT';
+SELECT * FROM t1;
+a
+10
+20
+30
+SELECT user();
+user()
+user@localhost
+SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO t1 VALUES ('xxx');
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM t1 WHERE a='xxx';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE t1 SET a='yyy' WHERE a='xxx';
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+TRUNCATE TABLE t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+ALTER TABLE t1 READONLY=1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+CREATE VIEW v1 AS SELECT * FROM t1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+# Testing a VIEW created with FILE privileges but accessed with no FILE
+SELECT user();
+user()
+root@localhost
+CREATE VIEW v1 AS SELECT * FROM t1;
+SELECT user();
+user()
+user@localhost
+SELECT * FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+INSERT INTO v1 VALUES (2);
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+UPDATE v1 SET a=123;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+DELETE FROM v1;
+ERROR 28000: Access denied for user 'user'@'localhost' (using password: NO)
+SELECT user();
+user()
+root@localhost
+DROP VIEW v1;
+DROP TABLE t1, t1remote;
+DROP USER user@localhost;
+#
+# Testing FILE privileges done
+#
