@@ -1073,7 +1073,7 @@ public:
   enum Sumfunctype sum_func () const {return MIN_FUNC;}
 
   bool add();
-  const char *func_name() const { return "MY_MIN("; }
+  const char *func_name() const { return "min("; }
   Item *copy_or_same(THD* thd);
 };
 
@@ -1086,7 +1086,7 @@ public:
   enum Sumfunctype sum_func () const {return MAX_FUNC;}
 
   bool add();
-  const char *func_name() const { return "MY_MAX("; }
+  const char *func_name() const { return "max("; }
   Item *copy_or_same(THD* thd);
 };
 
