@@ -249,11 +249,11 @@ SET GLOBAL gtid_slave_pos="";
 RESET MASTER;
 TRUNCATE TABLE t1;
 INSERT INTO t1 VALUES (10);   # Will be GTID 0-1-2
---save_master_pos
 
 --connection server_2
 --source include/start_slave.inc
---sync_with_master
+--let $wait_condition= SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
 
 SELECT * FROM t1;
 --let $value= query_get_value(SHOW SLAVE STATUS, "Using_Gtid", 1)
