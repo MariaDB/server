@@ -57,6 +57,8 @@
 
 #include "rpl_tblmap.h"
 #include "debug_sync.h"
+#include "rpl_parallel.h"
+
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -359,6 +361,9 @@ int init_slave()
     active_mi= 0;
     goto err;
   }
+
+  if (global_rpl_thread_pool.init(opt_slave_parallel_threads))
+    return 1;
 
   /*
     If --slave-skip-errors=... was not used, the string value for the
@@ -947,6 +952,7 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+  global_rpl_thread_pool.destroy();
   free_all_rpl_filters();
   DBUG_VOID_RETURN;
 }
@@ -3012,7 +3018,8 @@ static int has_temporary_error(THD *thd)
   @retval 2 No error calling ev->apply_event(), but error calling
   ev->update_pos().
 */
-int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli)
+int apply_event_and_update_pos(Log_event* ev, THD* thd, Relay_log_info* rli,
+                               rpl_parallel_thread *rpt)
 {
   int exec_res= 0;
 
@@ -3234,7 +3241,10 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli)
                       };);
     }
 
-    exec_res= apply_event_and_update_pos(ev, thd, rli);
+    if (opt_slave_parallel_threads > 0)
+      DBUG_RETURN(rli->parallel.do_event(rli, ev, thd));
+
+    exec_res= apply_event_and_update_pos(ev, thd, rli, NULL);
 
     switch (ev->get_type_code()) {
       case FORMAT_DESCRIPTION_EVENT:

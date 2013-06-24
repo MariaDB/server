@@ -543,6 +543,8 @@ ulong rpl_recovery_rank=0;
 */
 ulong stored_program_cache_size= 0;
 
+ulong opt_slave_parallel_threads= 0;
+
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
   1e010, 1e011, 1e012, 1e013, 1e014, 1e015, 1e016, 1e017, 1e018, 1e019,
@@ -769,7 +771,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
 PSI_mutex_key key_RELAYLOG_LOCK_index;
-PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool;
 
 PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -844,7 +847,9 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
   { &key_LOCK_slave_state, "LOCK_slave_state", 0},
-  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0}
+  { &key_LOCK_binlog_state, "LOCK_binlog_state", 0},
+  { &key_LOCK_rpl_thread, "LOCK_rpl_thread", 0},
+  { &key_LOCK_rpl_thread_pool, "LOCK_rpl_thread_pool", 0}
 };
 
 PSI_rwlock_key key_rwlock_LOCK_grant, key_rwlock_LOCK_logger,
@@ -886,6 +891,7 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
 PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
+PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -926,13 +932,15 @@ static PSI_cond_info all_server_conds[]=
   { &key_user_level_lock_cond, "User_level_lock::cond", 0},
   { &key_COND_thread_count, "COND_thread_count", PSI_FLAG_GLOBAL},
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
-  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL}
+  { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
+  { &key_COND_rpl_thread, "COND_rpl_thread", 0},
+  { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_main,
   key_thread_one_connection, key_thread_signal_hand,
-  key_thread_slave_init;
+  key_thread_slave_init, key_rpl_parallel_thread;
 
 static PSI_thread_info all_server_threads[]=
 {
@@ -958,7 +966,8 @@ static PSI_thread_info all_server_threads[]=
   { &key_thread_main, "main", PSI_FLAG_GLOBAL},
   { &key_thread_one_connection, "one_connection", 0},
   { &key_thread_signal_hand, "signal_handler", PSI_FLAG_GLOBAL},
-  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL}
+  { &key_thread_slave_init, "slave_init", PSI_FLAG_GLOBAL},
+  { &key_rpl_parallel_thread, "rpl_parallel_thread", 0}
 };
 
 PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,

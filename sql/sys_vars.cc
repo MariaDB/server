@@ -57,6 +57,7 @@
 #include "threadpool.h"
 #include "sql_repl.h"
 #include "opt_range.h"
+#include "rpl_parallel.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1434,6 +1435,51 @@ static Sys_var_mybool Sys_gtid_strict_mode(
        "generate an out-of-order binlog if executed.",
        GLOBAL_VAR(opt_gtid_strict_mode),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+
+static bool
+check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+  if (running || rpl_parallel_change_thread_count(&global_rpl_thread_pool,
+                                                  opt_slave_parallel_threads))
+    return true;
+
+  return false;
+}
+
+
+static Sys_var_ulong Sys_slave_parallel_threads(
+       "slave_parallel_threads",
+       "If non-zero, number of threads to spawn to apply in parallel events "
+       "on the slave that were group-committed on the master or were logged "
+       "with GTID in different replication domains.",
+       GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
+       ON_UPDATE(fix_slave_parallel_threads));
 #endif
 
 

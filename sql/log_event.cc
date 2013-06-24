@@ -6101,6 +6101,18 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
   domain_id= uint4korr(buf);
   buf+= 4;
   flags2= *buf;
+  if (flags2 & FL_GROUP_COMMIT_ID)
+  {
+    if (event_len < (uint)header_size + GTID_HEADER_LEN + 2)
+    {
+      seq_no= 0;                                // So is_valid() returns false
+      return;
+    }
+    ++buf;
+    commit_id= uint8korr(buf);
+  }
+  else
+    commit_id= 0;
 }
 
 
@@ -6108,10 +6120,11 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
-                               uint16 flags_arg, bool is_transactional)
+                               uint16 flags_arg, bool is_transactional,
+                               uint64 commit_id_arg)
   : Log_event(thd_arg, flags_arg, is_transactional),
-    seq_no(seq_no_arg), domain_id(domain_id_arg),
-    flags2(standalone ? FL_STANDALONE : 0)
+    seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
+    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
 {
   cache_type= Log_event::EVENT_NO_CACHE;
 }
@@ -6156,13 +6169,24 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 bool
 Gtid_log_event::write(IO_CACHE *file)
 {
-  uchar buf[GTID_HEADER_LEN];
+  uchar buf[GTID_HEADER_LEN+2];
+  size_t write_len;
+
   int8store(buf, seq_no);
   int4store(buf+8, domain_id);
   buf[12]= flags2;
-  bzero(buf+13, GTID_HEADER_LEN-13);
-  return write_header(file, GTID_HEADER_LEN) ||
-    wrapper_my_b_safe_write(file, buf, GTID_HEADER_LEN) ||
+  if (flags2 & FL_GROUP_COMMIT_ID)
+  {
+    int8store(buf+13, commit_id);
+    write_len= GTID_HEADER_LEN + 2;
+  }
+  else
+  {
+    bzero(buf+13, GTID_HEADER_LEN-13);
+    write_len= GTID_HEADER_LEN;
+  }
+  return write_header(file, write_len) ||
+    wrapper_my_b_safe_write(file, buf, write_len) ||
     write_footer(file);
 }
 
@@ -6201,7 +6225,7 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 void
 Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
 {
-  char buf[6+5+10+1+10+1+20+1];
+  char buf[6+5+10+1+10+1+20+1+4+20+1];
   char *p;
   p = strmov(buf, (flags2 & FL_STANDALONE ? "GTID " : "BEGIN GTID "));
   p= longlong10_to_str(domain_id, p, 10);
@@ -6209,6 +6233,11 @@ Gtid_log_event::pack_info(THD *thd, Protocol *protocol)
   p= longlong10_to_str(server_id, p, 10);
   *p++= '-';
   p= longlong10_to_str(seq_no, p, 10);
+  if (flags2 & FL_GROUP_COMMIT_ID)
+  {
+    p= strmov(p, " cid=");
+    p= longlong10_to_str(commit_id, p, 10);
+  }
 
   protocol->store(buf, p-buf, &my_charset_bin);
 }
@@ -6295,12 +6324,20 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   Write_on_release_cache cache(&print_event_info->head_cache, file,
                                Write_on_release_cache::FLUSH_F);
   char buf[21];
+  char buf2[21];
 
   if (!print_event_info->short_form)
   {
     print_header(&cache, print_event_info, FALSE);
     longlong10_to_str(seq_no, buf, 10);
-    my_b_printf(&cache, "\tGTID %u-%u-%s\n", domain_id, server_id, buf);
+    if (flags2 & FL_GROUP_COMMIT_ID)
+    {
+      longlong10_to_str(commit_id, buf2, 10);
+      my_b_printf(&cache, "\tGTID %u-%u-%s cid=%s\n",
+                  domain_id, server_id, buf, buf2);
+    }
+    else
+      my_b_printf(&cache, "\tGTID %u-%u-%s\n", domain_id, server_id, buf);
 
     if (!print_event_info->domain_id_printed ||
         print_event_info->domain_id != domain_id)

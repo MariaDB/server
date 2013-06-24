@@ -3080,6 +3080,7 @@ class Gtid_log_event: public Log_event
 {
 public:
   uint64 seq_no;
+  uint64 commit_id;
   uint32 domain_id;
   uchar flags2;
 
@@ -3087,10 +3088,15 @@ public:
 
   /* FL_STANDALONE is set when there is no terminating COMMIT event. */
   static const uchar FL_STANDALONE= 1;
+  /*
+    FL_GROUP_COMMIT_ID is set when event group is part of a group commit on the
+    master. Groups with same commit_id are part of the same group commit.
+  */
+  static const uchar FL_GROUP_COMMIT_ID= 2;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional);
+                 uint16 flags, bool is_transactional, uint64 commit_id);
 #ifdef HAVE_REPLICATION
   void pack_info(THD *thd, Protocol *protocol);
   virtual int do_apply_event(Relay_log_info const *rli);
@@ -3104,7 +3110,10 @@ public:
                  const Format_description_log_event *description_event);
   ~Gtid_log_event() { }
   Log_event_type get_type_code() { return GTID_EVENT; }
-  int get_data_size() { return GTID_HEADER_LEN; }
+  int get_data_size()
+  {
+    return GTID_HEADER_LEN + ((flags2 & FL_GROUP_COMMIT_ID) ? 2 : 0);
+  }
   bool is_valid() const { return seq_no != 0; }
 #ifdef MYSQL_SERVER
   bool write(IO_CACHE *file);
