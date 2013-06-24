@@ -28,7 +28,7 @@ perl;
               thread-concurrency super-large-pages mutex-deadlock-detector
               null-audit aria pbxt oqgraph sphinx thread-handling
               test-sql-discovery rpl-semi-sync query-cache-info
-              query-response-time/;
+              query-response-time locales/;
 
   # And substitute the content some environment variables with their
   # names:
