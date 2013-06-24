@@ -131,25 +131,12 @@ typedef struct {
 #define lf_rwunlock_by_pins(PINS) \
   my_atomic_rwlock_wrunlock(&(PINS)->pinbox->pinarray.lock)
 
-/*
-  compile-time assert, to require "no less than N" pins
-  it's enough if it'll fail on at least one compiler, so
-  we'll enable it on GCC only, which supports zero-length arrays.
-*/
-#if defined(__GNUC__) && defined(MY_LF_EXTRA_DEBUG)
-#define LF_REQUIRE_PINS(N)                                      \
-  static const char require_pins[LF_PINBOX_PINS-N]              \
-                             __attribute__ ((unused));          \
-  static const int LF_NUM_PINS_IN_THIS_FILE= N;
+/* compile-time assert to make sure we have enough pins.  */
 #define _lf_pin(PINS, PIN, ADDR)                                \
-  (                                                             \
-    assert(PIN < LF_NUM_PINS_IN_THIS_FILE),                     \
-    my_atomic_storeptr(&(PINS)->pin[PIN], (ADDR))               \
-  )
-#else
-#define LF_REQUIRE_PINS(N)
-#define _lf_pin(PINS, PIN, ADDR)  my_atomic_storeptr(&(PINS)->pin[PIN], (ADDR))
-#endif
+  do {                                                          \
+    compile_time_assert(PIN < LF_PINBOX_PINS);                  \
+    my_atomic_storeptr(&(PINS)->pin[PIN], (ADDR));              \
+  } while(0)
 
 #define _lf_unpin(PINS, PIN)      _lf_pin(PINS, PIN, NULL)
 #define lf_pin(PINS, PIN, ADDR)   \
