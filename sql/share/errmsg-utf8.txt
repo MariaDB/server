@@ -6555,3 +6555,5 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a transaction"
 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
+ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
+	eng "Cannot change @@slave_parallel_threads while another change is in progress"

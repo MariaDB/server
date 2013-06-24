@@ -176,6 +176,7 @@ extern ulong slave_max_allowed_packet;
 extern ulong opt_binlog_rows_event_max_size;
 extern ulong rpl_recovery_rank, thread_cache_size;
 extern ulong stored_program_cache_size;
+extern ulong opt_slave_parallel_threads;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];
@@ -247,7 +248,8 @@ extern PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_structure_guard_mutex, key_TABLE_SHARE_LOCK_ha_data,
   key_LOCK_error_messages, key_LOCK_thread_count, key_PARTITION_LOCK_auto_inc;
 extern PSI_mutex_key key_RELAYLOG_LOCK_index;
-extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state;
+extern PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
+  key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool;
 
 extern PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
@@ -280,10 +282,12 @@ extern PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
 extern PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready;
 extern PSI_cond_key key_RELAYLOG_COND_queue_busy;
 extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
+extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
-  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init;
+  key_thread_one_connection, key_thread_signal_hand, key_thread_slave_init,
+  key_rpl_parallel_thread;
 
 extern PSI_file_key key_file_binlog, key_file_binlog_index, key_file_casetest,
   key_file_dbopt, key_file_des_key_file, key_file_ERRMSG, key_select_to_file,

@@ -525,7 +525,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   int new_file_impl(bool need_lock);
   void do_checkpoint_request(ulong binlog_id);
   void purge();
-  int write_transaction_or_stmt(group_commit_entry *entry);
+  int write_transaction_or_stmt(group_commit_entry *entry, uint64 commit_id);
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
@@ -775,7 +775,8 @@ public:
   inline uint32 get_open_count() { return open_count; }
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
-  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional);
+  bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
+                        uint64 commit_id);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);

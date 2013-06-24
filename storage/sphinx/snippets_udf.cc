@@ -244,7 +244,7 @@ struct CSphUrl
 	char * m_sBuffer;
 	char * m_sFormatted;
 
-	char * m_sScheme;
+	const char * m_sScheme;
 	char * m_sHost;
 	char * m_sIndex;
 
@@ -254,8 +254,8 @@ struct CSphUrl
 		: m_sBuffer ( NULL )
 		, m_sFormatted ( NULL )
 		, m_sScheme ( SPHINXSE_DEFAULT_SCHEME )
-		, m_sHost ( SPHINXSE_DEFAULT_HOST )
-		, m_sIndex ( SPHINXSE_DEFAULT_INDEX )
+		, m_sHost ( const_cast<char *>(SPHINXSE_DEFAULT_HOST) )
+		, m_sIndex ( const_cast<char *>(SPHINXSE_DEFAULT_INDEX) )
 		, m_iPort ( SPHINXSE_DEFAULT_PORT )
 	{}
 
@@ -311,12 +311,12 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			// unix-domain socket
 			m_iPort = 0;
 			if (!( m_sIndex = strrchr ( m_sHost, ':' ) ))
-				m_sIndex = SPHINXSE_DEFAULT_INDEX;
+				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 			else
 			{
 				*m_sIndex++ = '\0';
 				if ( !*m_sIndex )
-					m_sIndex = SPHINXSE_DEFAULT_INDEX;
+					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 			}
 			bOk = true;
 			break;
@@ -336,7 +336,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 				if ( m_sIndex )
 					*m_sIndex++ = '\0';
 				else
-					m_sIndex = SPHINXSE_DEFAULT_INDEX;
+					m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 
 				m_iPort = atoi(sPort);
 				if ( !m_iPort )
@@ -348,7 +348,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 			if ( m_sIndex )
 				*m_sIndex++ = '\0';
 			else
-				m_sIndex = SPHINXSE_DEFAULT_INDEX;
+				m_sIndex = const_cast<char *>(SPHINXSE_DEFAULT_INDEX);
 		}
 
 		bOk = true;
@@ -446,7 +446,7 @@ int CSphUrl::Connect()
 	uint uServerVersion;
 	uint uClientVersion = htonl ( SPHINX_SEARCHD_PROTO );
 	int iSocket = -1;
-	char * pError = NULL;
+	const char * pError = NULL;
 	do
 	{
 		iSocket = socket ( iDomain, SOCK_STREAM, 0 );

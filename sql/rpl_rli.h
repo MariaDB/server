@@ -22,6 +22,7 @@
 #include "log.h"                         /* LOG_INFO, MYSQL_BIN_LOG */
 #include "sql_class.h"                   /* THD */
 #include "log_event.h"
+#include "rpl_parallel.h"
 
 struct RPL_TABLE_LIST;
 class Master_info;
@@ -318,6 +319,7 @@ public:
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  rpl_parallel parallel;
 
   Relay_log_info(bool is_slave_recovery);
   ~Relay_log_info();

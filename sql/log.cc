@@ -5355,7 +5355,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 /* Generate a new global transaction ID, and write it to the binlog */
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
-                                bool is_transactional)
+                                bool is_transactional, uint64 commit_id)
 {
   rpl_gtid gtid;
   uint32 domain_id= thd->variables.gtid_domain_id;
@@ -5393,7 +5393,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     return true;
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
-                            LOG_EVENT_SUPPRESS_USE_F, is_transactional);
+                            LOG_EVENT_SUPPRESS_USE_F, is_transactional,
+                            commit_id);
 
   /* Write the event to the binary log. */
   if (gtid_event.write(&mysql_bin_log.log_file))
@@ -5651,7 +5652,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
       prev_binlog_id= current_binlog_id;
-      if (write_gtid_event(thd, true, using_trans))
+      if (write_gtid_event(thd, true, using_trans, 0))
         goto err;
     }
     else
@@ -6667,6 +6668,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   group_commit_entry *queue= NULL;
   bool check_purge= false;
   ulong binlog_id;
+  uint64 commit_id;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
   LINT_INIT(binlog_id);
 
@@ -6701,6 +6703,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_ASSERT(is_open());
   if (likely(is_open()))                       // Should always be true
   {
+    commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
     /*
       Commit every transaction in the queue.
 
@@ -6721,7 +6724,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       */
       DBUG_ASSERT(!cache_mngr->stmt_cache.empty() || !cache_mngr->trx_cache.empty());
 
-      if ((current->error= write_transaction_or_stmt(current)))
+      if ((current->error= write_transaction_or_stmt(current, commit_id)))
         current->commit_errno= errno;
 
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
@@ -6896,11 +6899,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
 
 int
-MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry)
+MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
+                                         uint64 commit_id)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
 
-  if (write_gtid_event(entry->thd, false, entry->using_trx_cache))
+  if (write_gtid_event(entry->thd, false, entry->using_trx_cache, commit_id))
     return ER_ERROR_ON_WRITE;
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
