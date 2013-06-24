@@ -577,7 +577,6 @@ int trnman_can_read_from(TRN *trn, TrID trid)
 {
   TRN **found;
   my_bool can;
-  LF_REQUIRE_PINS(3);
 
   if (trid < trn->min_read_from)
     return 1; /* Row is visible by all transactions in the system */
@@ -618,7 +617,6 @@ int trnman_can_read_from(TRN *trn, TrID trid)
 TRN *trnman_trid_to_trn(TRN *trn, TrID trid)
 {
   TRN **found;
-  LF_REQUIRE_PINS(3);
 
   if (trid < trn->min_read_from)
     return 0; /* it's committed eons ago */

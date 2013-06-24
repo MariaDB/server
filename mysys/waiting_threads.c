@@ -604,8 +604,6 @@ static int deadlock_search(struct deadlock_arg *arg, WT_THD *blocker,
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, depth=%u",
                     arg->thd->name, blocker->name, depth));
 
-  LF_REQUIRE_PINS(1);
-
   arg->last_locked_rc= 0;
 
   if (depth > arg->max_depth)
@@ -922,8 +920,6 @@ int wt_thd_will_wait_for(WT_THD *thd, WT_THD *blocker,
   uint i;
   WT_RESOURCE *rc;
   DBUG_ENTER("wt_thd_will_wait_for");
-
-  LF_REQUIRE_PINS(3);
 
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, resid=%lu",
                     thd->name, blocker->name, (ulong)resid->value));
