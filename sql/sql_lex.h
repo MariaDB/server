@@ -194,7 +194,7 @@ enum enum_sql_command {
   SQLCOM_SHOW_RELAYLOG_EVENTS, 
   SQLCOM_SHOW_USER_STATS, SQLCOM_SHOW_TABLE_STATS, SQLCOM_SHOW_INDEX_STATS,
   SQLCOM_SHOW_CLIENT_STATS,
-  SQLCOM_SHOW_EXPLAIN,
+  SQLCOM_SHOW_EXPLAIN, SQLCOM_SHUTDOWN,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

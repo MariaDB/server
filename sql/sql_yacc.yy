@@ -789,10 +789,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %pure_parser                                    /* We have threads */
 /*
-  Currently there are 174 shift/reduce conflicts.
+  Currently there are 196 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 174
+%expect 196
 
 /*
    Comments for TOKENS.
@@ -1816,6 +1816,7 @@ statement:
         | set
         | signal_stmt
         | show
+        | shutdown
         | slave
         | start
         | truncate
@@ -12215,6 +12216,11 @@ kill_expr:
             Lex->users_list.push_back($2);
             Lex->kill_type= KILL_TYPE_USER;
           }
+        ;
+
+
+shutdown:
+        SHUTDOWN { Lex->sql_command= SQLCOM_SHUTDOWN; }
         ;
 
 /* change database */

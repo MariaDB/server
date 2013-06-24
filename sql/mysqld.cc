@@ -3505,6 +3505,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_user_statistics",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_USER_STATS]), SHOW_LONG_STATUS},
   {"show_variables",       (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_VARIABLES]), SHOW_LONG_STATUS},
   {"show_warnings",        (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHOW_WARNS]), SHOW_LONG_STATUS},
+  {"shutdown",             (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SHUTDOWN]), SHOW_LONG_STATUS},
   {"start_all_slaves",      (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_ALL_START]), SHOW_LONG_STATUS},
   {"start_slave",          (char*) offsetof(STATUS_VAR, com_stat[(uint) SQLCOM_SLAVE_START]), SHOW_LONG_STATUS},
   {"stmt_close",           (char*) offsetof(STATUS_VAR, com_stmt_close), SHOW_LONG_STATUS},
