@@ -1,0 +1,7 @@
+if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'locales' and plugin_status='active'`)
+{
+  --skip LOCALES plugin is not active
+}
+
+select * from information_schema.locales;
+
