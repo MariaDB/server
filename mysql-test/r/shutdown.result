@@ -1,0 +1,5 @@
+create user user1@localhost;
+shutdown;
+ERROR 42000: Access denied; you need (at least one of) the SHUTDOWN privilege(s) for this operation
+shutdown;
+drop user user1@localhost;
