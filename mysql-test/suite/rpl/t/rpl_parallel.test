@@ -20,7 +20,24 @@ eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
      master_user='root', master_use_gtid=current_pos;
 
 --connection s1
+SET gtid_domain_id=0;
 INSERT INTO t1 VALUES (1);
+SET gtid_domain_id=1;
+INSERT INTO t1 VALUES (2);
+SET gtid_domain_id=2;
+INSERT INTO t1 VALUES (3);
+SET gtid_domain_id=0;
+INSERT INTO t1 VALUES (4);
+SET gtid_domain_id=1;
+INSERT INTO t1 VALUES (5);
+SET gtid_domain_id=2;
+INSERT INTO t1 VALUES (6);
+SET gtid_domain_id=0;
+INSERT INTO t1 VALUES (7);
+SET gtid_domain_id=1;
+INSERT INTO t1 VALUES (8);
+SET gtid_domain_id=2;
+INSERT INTO t1 VALUES (9);
 
 --connection s2
 query_vertical SHOW SLAVE STATUS;

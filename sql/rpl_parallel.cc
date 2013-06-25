@@ -132,9 +132,9 @@ handle_rpl_parallel_thread(void *arg)
         mysql_mutex_lock(&rpt->pool->LOCK_rpl_thread_pool);
         list= rpt->pool->free_list;
         rpt->next= list;
-        rpt->pool->free_list= list;
+        rpt->pool->free_list= rpt;
         if (!list)
-          mysql_cond_signal(&rpt->pool->COND_rpl_thread_pool);
+          mysql_cond_broadcast(&rpt->pool->COND_rpl_thread_pool);
         mysql_mutex_unlock(&rpt->pool->LOCK_rpl_thread_pool);
         rpt->free= true;
       }
