@@ -13,9 +13,13 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
                  struct rpl_parallel_thread *rpt)
 {
   int err;
+  Relay_log_info *rli= qev->rli;
 
+  thd->rli_slave= rli;
+  thd->rpl_filter = rli->mi->rpl_filter;
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
-  err= apply_event_and_update_pos(qev->ev, thd, qev->rli, rpt);
+  mysql_mutex_lock(&rli->data_lock);
+  err= apply_event_and_update_pos(qev->ev, thd, rli, rpt);
   /* ToDo: error handling. */
   /* ToDo: also free qev->ev, or hold on to it for a bit if necessary. */
 }
@@ -108,7 +112,7 @@ handle_rpl_parallel_thread(void *arg)
         }
       }
       rpt_handle_event(events, thd, rpt);
-      free(events);
+      my_free(events);
       events= next;
     }
 
@@ -313,6 +317,7 @@ rpl_parallel_thread_pool::destroy()
   rpl_parallel_change_thread_count(this, 0, true);
   mysql_mutex_destroy(&LOCK_rpl_thread_pool);
   mysql_cond_destroy(&COND_rpl_thread_pool);
+  inited= false;
 }
 
 
@@ -325,8 +330,8 @@ rpl_parallel_thread_pool::get_thread(rpl_parallel_entry *entry)
   while ((rpt= free_list) == NULL)
     mysql_cond_wait(&COND_rpl_thread_pool, &LOCK_rpl_thread_pool);
   free_list= rpt->next;
-  mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   mysql_mutex_unlock(&LOCK_rpl_thread_pool);
+  mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->current_entry= entry;
 
   return rpt;
@@ -382,6 +387,9 @@ rpl_parallel::do_event(Relay_log_info *rli, Log_event *ev, THD *parent_thd)
   rpl_parallel_entry *e;
   rpl_parallel_thread *cur_thread;
   rpl_parallel_thread::queued_event *qev;
+
+  /* ToDo: what to do with this lock?!? */
+  mysql_mutex_unlock(&rli->data_lock);
 
   if (!(qev= (rpl_parallel_thread::queued_event *)my_malloc(sizeof(*qev),
                                                             MYF(0))))
