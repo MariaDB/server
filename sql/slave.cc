@@ -5800,7 +5800,8 @@ static Log_event* next_event(Relay_log_info* rli)
                           llstr(my_b_tell(cur_log),llbuf1),
                           llstr(rli->event_relay_log_pos,llbuf2)));
       DBUG_ASSERT(my_b_tell(cur_log) >= BIN_LOG_HEADER_SIZE);
-      DBUG_ASSERT(my_b_tell(cur_log) == rli->event_relay_log_pos);
+      DBUG_ASSERT(opt_slave_parallel_threads > 0 ||
+                  my_b_tell(cur_log) == rli->event_relay_log_pos);
     }
 #endif
     /*
