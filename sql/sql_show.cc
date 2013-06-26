@@ -2367,7 +2367,7 @@ void Show_explain_request::call_in_target_thread()
 }
 
 
-bool select_result_explain_buffer::send_data(List<Item> &items)
+int select_result_explain_buffer::send_data(List<Item> &items)
 {
   int res;
   THD *cur_thd= current_thd;

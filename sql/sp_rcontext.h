@@ -433,7 +433,7 @@ private:
     void set_spvar_list(List<sp_variable> *vars) { spvar_list= vars; }
 
     virtual bool send_eof() { return FALSE; }
-    virtual bool send_data(List<Item> &items);
+    virtual int send_data(List<Item> &items);
     virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 };
 

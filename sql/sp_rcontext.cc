@@ -517,7 +517,7 @@ int sp_cursor::Select_fetch_into_spvars::prepare(List<Item> &fields,
 }
 
 
-bool sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
+int sp_cursor::Select_fetch_into_spvars::send_data(List<Item> &items)
 {
   List_iterator_fast<sp_variable> spvar_iter(*spvar_list);
   List_iterator_fast<Item> item_iter(items);
